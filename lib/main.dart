@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 
 import 'chat/chat_screen.dart';
 import 'theme/cursor_theme.dart';
@@ -16,6 +17,7 @@ class MonadApp extends StatelessWidget {
       title: 'Monad',
       debugShowCheckedModeBanner: false,
       theme: buildCursorTheme(),
+      localizationsDelegates: const [FlutterQuillLocalizations.delegate],
       home: const ChatScreen(),
     );
   }

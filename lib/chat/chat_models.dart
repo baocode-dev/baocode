@@ -67,3 +67,10 @@ class CodeDiffItem extends ChatItem {
   final String directory;
   final List<DiffLine> lines;
 }
+
+/// Transient "Thinking…" / "Generating…" row at the tail of a live turn.
+class LiveStatusItem extends ChatItem {
+  const LiveStatusItem(this.label);
+
+  final String label;
+}

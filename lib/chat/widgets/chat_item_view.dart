@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../chat_models.dart';
 import 'assistant_text.dart';
 import 'code_diff_card.dart';
+import 'shimmer_text.dart';
 import 'terminal_card.dart';
 import 'thinking_section.dart';
 import 'tool_call_row.dart';
@@ -44,6 +45,7 @@ class ChatItemView extends StatelessWidget {
         TerminalCard(command: command, output: output, succeeded: succeeded),
       CodeDiffItem(:final fileName, :final directory, :final lines) =>
         CodeDiffCard(fileName: fileName, directory: directory, lines: lines),
+      LiveStatusItem(:final label) => ShimmerText(label),
     };
   }
 }

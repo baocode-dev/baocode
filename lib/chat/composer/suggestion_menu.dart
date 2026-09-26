@@ -1,0 +1,253 @@
+import 'package:flutter/material.dart';
+
+import '../../theme/cursor_theme.dart';
+import '../widgets/file_label.dart';
+import 'composer_mock_data.dart';
+
+/// A ranked suggestion with the indexes of the query characters it matched.
+class SuggestionMatch {
+  const SuggestionMatch(this.suggestion, this.matched);
+
+  final Suggestion suggestion;
+  final List<int> matched;
+}
+
+List<SuggestionMatch> rankSuggestions(List<Suggestion> source, String query) {
+  final scored = <(SuggestionMatch, int)>[];
+  for (final suggestion in source) {
+    final match = fuzzyMatch(suggestion.label, query);
+    if (match != null) {
+      scored.add((SuggestionMatch(suggestion, match.indexes), match.score));
+    }
+  }
+  if (query.isNotEmpty) scored.sort((a, b) => b.$2.compareTo(a.$2));
+  return [for (final (match, _) in scored) match];
+}
+
+/// Keyboard-driven popup for @mentions and /commands. The composer owns the
+/// highlighted index; this widget only renders and reports pointer input.
+class SuggestionMenu extends StatefulWidget {
+  const SuggestionMenu({
+    super.key,
+    required this.title,
+    required this.matches,
+    required this.highlighted,
+    required this.onHighlight,
+    required this.onSelect,
+  });
+
+  final String title;
+  final List<SuggestionMatch> matches;
+  final int highlighted;
+  final ValueChanged<int> onHighlight;
+  final ValueChanged<int> onSelect;
+
+  static const width = 360.0;
+  static const _rowHeight = 30.0;
+  static const _maxVisibleRows = 8;
+
+  @override
+  State<SuggestionMenu> createState() => _SuggestionMenuState();
+}
+
+class _SuggestionMenuState extends State<SuggestionMenu> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void didUpdateWidget(SuggestionMenu oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.highlighted != widget.highlighted) _revealHighlighted();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _revealHighlighted() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final top = widget.highlighted * SuggestionMenu._rowHeight;
+    final bottom = top + SuggestionMenu._rowHeight;
+    if (top < position.pixels) {
+      _scrollController.jumpTo(top);
+    } else if (bottom > position.pixels + position.viewportDimension) {
+      _scrollController.jumpTo(bottom - position.viewportDimension);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = widget.matches.length.clamp(1, SuggestionMenu._maxVisibleRows);
+    return Material(
+      type: MaterialType.transparency,
+      child: Container(
+        width: SuggestionMenu.width,
+        decoration: BoxDecoration(
+          color: CursorColors.surfaceRaised,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: CursorColors.borderStrong),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x66000000),
+              blurRadius: 24,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 7, 10, 3),
+              child: Text(
+                widget.title,
+                style: const TextStyle(
+                  color: CursorColors.textFaint,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            SizedBox(
+              height: rows * SuggestionMenu._rowHeight + 8,
+              child: widget.matches.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No results',
+                        style: TextStyle(
+                          color: CursorColors.textFaint,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                      itemExtent: SuggestionMenu._rowHeight,
+                      itemCount: widget.matches.length,
+                      itemBuilder: (context, index) => _SuggestionRow(
+                        match: widget.matches[index],
+                        highlighted: index == widget.highlighted,
+                        onHover: () => widget.onHighlight(index),
+                        onTap: () => widget.onSelect(index),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionRow extends StatelessWidget {
+  const _SuggestionRow({
+    required this.match,
+    required this.highlighted,
+    required this.onHover,
+    required this.onTap,
+  });
+
+  final SuggestionMatch match;
+  final bool highlighted;
+  final VoidCallback onHover;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final suggestion = match.suggestion;
+    final isCommand = suggestion.kind == SuggestionKind.command;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onHover: (_) {
+        if (!highlighted) onHover();
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: BoxDecoration(
+            color: highlighted ? const Color(0x1AFFFFFF) : Colors.transparent,
+            borderRadius: BorderRadius.circular(5),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 18,
+                child: switch (suggestion.kind) {
+                  SuggestionKind.file => Icon(
+                    Icons.description_outlined,
+                    size: 14,
+                    color: FileLabel.tint(suggestion.label),
+                  ),
+                  SuggestionKind.folder => const Icon(
+                    Icons.folder_outlined,
+                    size: 14,
+                    color: CursorColors.textMuted,
+                  ),
+                  _ => Icon(
+                    suggestion.icon,
+                    size: 14,
+                    color: CursorColors.textMuted,
+                  ),
+                },
+              ),
+              const SizedBox(width: 6),
+              Text.rich(
+                _highlightedLabel(
+                  isCommand ? '/${suggestion.label}' : suggestion.label,
+                  isCommand ? 1 : 0,
+                ),
+                maxLines: 1,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  suggestion.detail,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: CursorColors.textFaint,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ),
+              if (highlighted)
+                const Text(
+                  '↵',
+                  style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  TextSpan _highlightedLabel(String label, int offset) {
+    final hits = {for (final index in match.matched) index + offset};
+    return TextSpan(
+      style: TextStyle(
+        color: highlighted ? CursorColors.textPrimary : CursorColors.text,
+        fontSize: 12.5,
+      ),
+      children: [
+        for (var i = 0; i < label.length; i++)
+          TextSpan(
+            text: label[i],
+            style: hits.contains(i)
+                ? const TextStyle(
+                    color: CursorColors.accent,
+                    fontWeight: FontWeight.w600,
+                  )
+                : null,
+          ),
+      ],
+    );
+  }
+}

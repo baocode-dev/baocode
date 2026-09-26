@@ -9,7 +9,7 @@ class FileLabel extends StatelessWidget {
   final String fileName;
   final double fontSize;
 
-  static Color _tint(String fileName) {
+  static Color tint(String fileName) {
     final extension = fileName.split('.').last;
     return switch (extension) {
       'dart' => const Color(0xFF4FC3F7),
@@ -28,7 +28,7 @@ class FileLabel extends StatelessWidget {
         Icon(
           Icons.description_outlined,
           size: fontSize + 1,
-          color: _tint(fileName),
+          color: tint(fileName),
         ),
         const SizedBox(width: 5),
         Flexible(
