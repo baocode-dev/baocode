@@ -3,11 +3,12 @@ sealed class ChatItem {
   const ChatItem();
 }
 
+/// What the user sent, as text: mentions and commands are echoed in it
+/// (`@lib/main.dart`, `/plan`), not kept as structure.
 class UserMessageItem extends ChatItem {
-  const UserMessageItem({required this.text, this.attachments = const []});
+  const UserMessageItem({required this.text});
 
   final String text;
-  final List<String> attachments;
 }
 
 /// Plain assistant prose. Supports `inline code` and `- ` bullet lines.

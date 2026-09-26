@@ -74,7 +74,9 @@ class ContextSegment {
 class ChatSession extends ChangeNotifier {
   ChatSession({this._historyCount = MockConversation.itemCount});
 
-  final int _historyCount;
+  /// Leading items that come from the mock history; editing a message there
+  /// truncates it.
+  int _historyCount;
   final List<ChatItem> _live = [];
 
   int get itemCount => _historyCount + _live.length;
@@ -108,14 +110,29 @@ class ChatSession extends ChangeNotifier {
 
   void send(ComposerMessage message) {
     if (message.isEmpty || isStreaming) return;
-    _live.add(
-      UserMessageItem(text: message.text.trim(), attachments: message.mentions),
-    );
+    _live.add(UserMessageItem(text: message.text.trim()));
     _conversationTokens += 60 + message.text.length * 2;
     final run = Object();
     _run = run;
     notifyListeners();
     unawaited(_script(run, message));
+  }
+
+  /// Resends the user message at [index] as [message]: everything after it
+  /// is discarded and the turn runs again from there.
+  void editMessage(int index, ComposerMessage message) {
+    if (message.isEmpty || itemAt(index) is! UserMessageItem) return;
+    stop();
+    if (index < _historyCount) {
+      _historyCount = index;
+      _live.clear();
+    } else {
+      _live.removeRange(index - _historyCount, _live.length);
+    }
+    _pendingQuestion = null;
+    tasks.clear();
+    fileChanges.clear();
+    send(message);
   }
 
   void stop() {

@@ -11,6 +11,7 @@ import 'composer_caret.dart';
 import 'composer_embeds.dart';
 import 'composer_mock_data.dart';
 import 'composer_picker.dart';
+import 'composer_popover.dart';
 import 'suggestion_menu.dart';
 
 /// An open @mention or /command query: the trigger character sits at
@@ -27,17 +28,36 @@ class _Trigger {
 }
 
 /// Cursor-style chat input built on flutter_quill.
+///
+/// The dock's composer sends to [session]. With [onSubmit] it edits instead
+/// (e.g. a sent message reopened in the history): it starts from
+/// [initialText], shows no stop button or context ring, and Esc calls
+/// [onCancel].
 class ChatComposer extends StatefulWidget {
   const ChatComposer({
     super.key,
     required this.session,
-    required this.contextPanelOpen,
-    required this.onToggleContextPanel,
+    this.contextPanelOpen = false,
+    this.onToggleContextPanel,
+    this.initialText,
+    this.onSubmit,
+    this.onCancel,
+    this.tapRegionGroupId,
   });
 
   final ChatSession session;
   final bool contextPanelOpen;
-  final VoidCallback onToggleContextPanel;
+  final VoidCallback? onToggleContextPanel;
+
+  /// Text to start from; `@mentions` and a leading `/command` in it become
+  /// tokens again.
+  final String? initialText;
+  final ValueChanged<ComposerMessage>? onSubmit;
+  final VoidCallback? onCancel;
+
+  /// Group of a [TapRegion] around this composer: its menus, which open in
+  /// the overlay, count as inside it.
+  final Object? tapRegionGroupId;
 
   @override
   State<ChatComposer> createState() => ChatComposerState();
@@ -60,13 +80,11 @@ class ChatComposerState extends State<ChatComposer> {
   static const _maxEditorLines = 10;
   static const _plainTextEmbed = '￼';
 
-  final QuillController _controller = QuillController.basic();
+  late final QuillController _controller = _createController();
   final FocusNode _focusNode = FocusNode(debugLabel: 'Composer');
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<EditorState> _editorKey = GlobalKey();
   final GlobalKey _boxKey = GlobalKey();
-  final LayerLink _menuLink = LayerLink();
-  final OverlayPortalController _menuPortal = OverlayPortalController();
 
   ComposerOption _mode = ComposerMockData.modes.first;
   ComposerOption _model = ComposerMockData.models.first;
@@ -78,9 +96,21 @@ class ChatComposerState extends State<ChatComposer> {
   int _highlighted = 0;
   double _menuX = 0;
 
+  QuillController _createController() {
+    final text = widget.initialText;
+    if (text == null || text.isEmpty) return QuillController.basic();
+    final document = Document.fromDelta(composerDeltaFromText(text));
+    return QuillController(
+      document: document,
+      selection: TextSelection.collapsed(offset: document.length - 1),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
+    _padTrailingTokens();
+    _hasContent = _controller.document.toPlainText().trim().isNotEmpty;
     _controller.addListener(_handleEditorChanged);
     _focusNode.addListener(_handleFocusChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -97,6 +127,18 @@ class ChatComposerState extends State<ChatComposer> {
   }
 
   void focus() => _focusNode.requestFocus();
+
+  /// The editor subtree, built once and reused so that keystrokes (which
+  /// rebuild this state for the menu and send button) do not hand Quill a
+  /// new config: it treats new styles as a change and relays out every line.
+  /// Rebuilt only when an inherited dependency (theme, window size) changes.
+  Widget? _editor;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _editor = null;
+  }
 
   // --- Editor state --------------------------------------------------------
 
@@ -131,9 +173,6 @@ class ChatComposerState extends State<ChatComposer> {
       if (queryChanged) _highlighted = 0;
       _highlighted = _highlighted.clamp(0, math.max(0, _matches.length - 1));
       _menuX = _caretX(trigger.start);
-      _menuPortal.show();
-    } else if (_menuPortal.isShowing) {
-      _menuPortal.hide();
     }
     _trigger = visible ? trigger : null;
     _hasContent = hasContent;
@@ -193,7 +232,6 @@ class ChatComposerState extends State<ChatComposer> {
   void _closeMenu() {
     if (_trigger != null) _dismissedTrigger = _trigger;
     _trigger = null;
-    if (_menuPortal.isShowing) _menuPortal.hide();
   }
 
   void _moveHighlight(int delta) {
@@ -268,6 +306,11 @@ class ChatComposerState extends State<ChatComposer> {
       }
     }
 
+    if (key == LogicalKeyboardKey.escape && widget.onCancel != null) {
+      widget.onCancel!();
+      return KeyEventResult.handled;
+    }
+
     if (key == LogicalKeyboardKey.enter && !keyboard.isShiftPressed) {
       _submit();
       return KeyEventResult.handled;
@@ -308,10 +351,18 @@ class ChatComposerState extends State<ChatComposer> {
     return ComposerMessage(text: text.toString().trim(), mentions: mentions);
   }
 
+  /// The dock's composer shows a stop button while a turn runs; an editing
+  /// composer can always submit (resending stops the running turn).
+  bool get _showsStop => widget.onSubmit == null && widget.session.isStreaming;
+
   void _submit() {
-    if (widget.session.isStreaming) return;
+    if (_showsStop) return;
     final message = _buildMessage();
     if (message.text.isEmpty) return;
+    if (widget.onSubmit case final onSubmit?) {
+      onSubmit(message);
+      return;
+    }
     widget.session.send(message);
     _controller.clear();
     _dismissedTrigger = null;
@@ -322,31 +373,32 @@ class ChatComposerState extends State<ChatComposer> {
   @override
   Widget build(BuildContext context) {
     final focused = _focusNode.hasFocus;
-    return CompositedTransformTarget(
-      link: _menuLink,
-      child: OverlayPortal(
-        controller: _menuPortal,
-        overlayChildBuilder: _buildMenu,
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: _focusNode.requestFocus,
-          child: AnimatedContainer(
-            key: _boxKey,
-            duration: const Duration(milliseconds: 150),
-            decoration: BoxDecoration(
-              color: CursorColors.surfaceRaised,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: focused
-                    ? const Color(0xFF4D4D4D)
-                    : CursorColors.borderStrong,
-              ),
+    return ComposerPopover(
+      visible: _trigger != null,
+      offset: Offset(_menuX, -6),
+      // Clicks in the menu are not outside the editor.
+      tapRegionGroupId: _focusNode,
+      outerTapRegionGroupId: widget.tapRegionGroupId,
+      popoverBuilder: _buildMenu,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: _focusNode.requestFocus,
+        child: AnimatedContainer(
+          key: _boxKey,
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: CursorColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: focused
+                  ? const Color(0xFF4D4D4D)
+                  : CursorColors.borderStrong,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [_buildEditor(context), _buildToolbar()],
-            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [_editor ??= _buildEditor(context), _buildToolbar()],
           ),
         ),
       ),
@@ -354,29 +406,15 @@ class ChatComposerState extends State<ChatComposer> {
   }
 
   Widget _buildMenu(BuildContext context) {
-    final trigger = _trigger;
-    if (trigger == null) return const SizedBox.shrink();
-    return Positioned(
-      left: 0,
-      top: 0,
-      child: CompositedTransformFollower(
-        link: _menuLink,
-        targetAnchor: Alignment.topLeft,
-        followerAnchor: Alignment.bottomLeft,
-        offset: Offset(_menuX, -6),
-        child: TapRegion(
-          groupId: _focusNode,
-          child: SuggestionMenu(
-            title: trigger.kind == SuggestionKind.command
-                ? 'Commands'
-                : 'Files, folders & context',
-            matches: _matches,
-            highlighted: _highlighted,
-            onHighlight: (index) => setState(() => _highlighted = index),
-            onSelect: _accept,
-          ),
-        ),
-      ),
+    final trigger = _trigger!;
+    return SuggestionMenu(
+      title: trigger.kind == SuggestionKind.command
+          ? 'Commands'
+          : 'Files, folders & context',
+      matches: _matches,
+      highlighted: _highlighted,
+      onHighlight: (index) => setState(() => _highlighted = index),
+      onSelect: _accept,
     );
   }
 
@@ -475,25 +513,29 @@ class ChatComposerState extends State<ChatComposer> {
             options: ComposerMockData.modes,
             selected: _mode,
             emphasized: true,
+            tapRegionGroupId: widget.tapRegionGroupId,
             onSelected: (option) => setState(() => _mode = option),
           ),
           const SizedBox(width: 2),
           ComposerPicker(
             options: ComposerMockData.models,
             selected: _model,
+            tapRegionGroupId: widget.tapRegionGroupId,
             onSelected: (option) => setState(() => _model = option),
           ),
           const Spacer(),
-          _ContextRing(
-            fraction: session.contextUsed / ChatSession.contextWindow,
-            active: widget.contextPanelOpen,
-            onTap: widget.onToggleContextPanel,
-          ),
-          const SizedBox(width: 2),
+          if (widget.onToggleContextPanel case final onToggle?) ...[
+            _ContextRing(
+              fraction: session.contextUsed / ChatSession.contextWindow,
+              active: widget.contextPanelOpen,
+              onTap: onToggle,
+            ),
+            const SizedBox(width: 2),
+          ],
           const _IconChip(icon: Icons.image_outlined, tooltip: 'Attach image'),
           const SizedBox(width: 4),
           _SendButton(
-            streaming: session.isStreaming,
+            streaming: _showsStop,
             enabled: _hasContent,
             onSend: _submit,
             onStop: session.stop,

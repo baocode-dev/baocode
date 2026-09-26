@@ -10,10 +10,9 @@ abstract final class MockConversation {
     return switch (index % _turnLength) {
       0 => UserMessageItem(
         text:
-            '第 ${turn + 1} 轮：列表滚动到很深的位置时会掉帧，帮我看一下 `SuperListView` 的用法，并把可见范围的计算换成惰性的。',
-        attachments: turn.isEven
-            ? const ['main.dart', 'pubspec.yaml']
-            : const ['main.dart'],
+            '第 ${turn + 1} 轮：列表滚动到很深的位置时会掉帧，帮我看一下 '
+            '@lib/main.dart ${turn.isEven ? '和 @pubspec.yaml ' : ''}'
+            '里 `SuperListView` 的用法，并把可见范围的计算换成惰性的。',
       ),
       1 => ThinkingItem(
         seconds: 3 + turn % 9,

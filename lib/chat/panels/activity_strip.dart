@@ -95,23 +95,15 @@ class _ActivityStripState extends State<ActivityStrip> {
               onUndo: session.undoAllChanges,
               onKeep: session.keepAllChanges,
             ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
-              child: _filesExpanded
-                  ? ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 150),
-                      child: ListView(
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.only(bottom: 2),
-                        children: [
-                          for (final change in changes) _FileRow(change),
-                        ],
-                      ),
-                    )
-                  : const SizedBox(width: double.infinity),
-            ),
+            if (_filesExpanded)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 150),
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.only(bottom: 2),
+                  children: [for (final change in changes) _FileRow(change)],
+                ),
+              ),
           ],
         ],
       ),

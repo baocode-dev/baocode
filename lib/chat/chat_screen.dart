@@ -55,11 +55,8 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           // Transparent Flutter-owned title bar under the native traffic lights.
           Container(
-            height: 44,
+            height: 30,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: CursorColors.border)),
-            ),
             child: Text(
               widget.title,
               style: const TextStyle(
@@ -131,7 +128,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-/// Animates a panel in and out; the history above yields the height.
+/// A panel above the composer, or nothing. It appears and disappears at
+/// once (no size or fade transition): the history above yields the height.
 class _PanelSlot extends StatelessWidget {
   const _PanelSlot({required this.child, this.gap = 8});
 
@@ -140,20 +138,11 @@ class _PanelSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOutCubic,
-      alignment: Alignment.bottomCenter,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 150),
-        child: child == null
-            ? const SizedBox(width: double.infinity)
-            : Padding(
-                key: child!.key ?? ValueKey(child.runtimeType),
-                padding: EdgeInsets.only(bottom: gap),
-                child: child,
-              ),
-      ),
+    final panel = child;
+    if (panel == null) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.only(bottom: gap),
+      child: panel,
     );
   }
 }

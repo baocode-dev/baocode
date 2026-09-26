@@ -177,10 +177,9 @@ class _AskQuestionPanelState extends State<AskQuestionPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 160),
+                KeyedSubtree(
+                  key: ValueKey(_step),
                   child: Column(
-                    key: ValueKey(_step),
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Padding(

@@ -217,10 +217,13 @@ class _SuggestionRow extends StatelessWidget {
                   ),
                 ),
               ),
+              // An icon rather than '↵': no bundled font has that glyph,
+              // and on the web the fallback font is fetched on first use.
               if (highlighted)
-                const Text(
-                  '↵',
-                  style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
+                const Icon(
+                  Icons.keyboard_return_rounded,
+                  size: 12,
+                  color: CursorColors.textFaint,
                 ),
             ],
           ),
