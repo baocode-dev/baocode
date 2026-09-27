@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 
 import '../../theme/cursor_theme.dart';
 import 'edge_fade_mask.dart';
 import 'hover_builder.dart';
+import 'live_selectable_text.dart';
 import 'shimmer_text.dart';
 
 /// `1.2k` for 1234 tokens.
@@ -53,28 +53,14 @@ class _ThinkingSectionState extends State<ThinkingSection> {
   static const _liveMaxHeight = 13 * 1.6 * 7;
 
   final ScrollController _scrollController = ScrollController();
-  final SelectionListenerNotifier _selection = SelectionListenerNotifier();
   bool _contentAbove = false;
 
-  /// The text shown while streaming: it holds still while any of it is
-  /// selected. Each change of text rebuilds the paragraph's selection from
-  /// where its ends were on screen, a frame late: new text would blink the
-  /// highlight, and following it (scrolling) slide it onto other characters.
-  /// It catches up with the first new text once the selection is gone.
-  late String _liveText = widget.text;
-
   bool get _streaming => widget.seconds == null;
-
-  bool get _selected =>
-      _selection.registered &&
-      _selection.selection.status == SelectionStatus.uncollapsed;
 
   @override
   void didUpdateWidget(ThinkingSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.text == _liveText || _selected) return;
-    _liveText = widget.text;
-    if (!_scrollController.hasClients) return;
+    if (widget.text == oldWidget.text || !_scrollController.hasClients) return;
     // Follow new lines, unless scrolled up to read earlier ones.
     final position = _scrollController.position;
     if (position.pixels < position.maxScrollExtent - 2) return;
@@ -87,7 +73,6 @@ class _ThinkingSectionState extends State<ThinkingSection> {
 
   @override
   void dispose() {
-    _selection.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -185,12 +170,10 @@ class _ThinkingSectionState extends State<ThinkingSection> {
                 .copyWith(scrollbars: false),
             child: SingleChildScrollView(
               controller: _scrollController,
-              child: SelectionListener(
-                selectionNotifier: _selection,
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Text(_liveText, style: _textStyle),
-                ),
+              // Selectable text that keeps its selection as it grows.
+              child: SizedBox(
+                width: double.infinity,
+                child: LiveSelectableText(widget.text, style: _textStyle),
               ),
             ),
           ),

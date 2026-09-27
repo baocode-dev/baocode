@@ -14,6 +14,7 @@ import 'chat_session.dart';
 import 'composer/composer.dart';
 import 'widgets/chat_item_view.dart';
 import 'widgets/edge_fade_mask.dart';
+import 'widgets/user_message_bubble.dart';
 
 /// Virtualized, selectable conversation history followed by the live turn.
 /// Sticks to the bottom while the user is there.
@@ -54,6 +55,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
 
   /// Pinged when the placeholder may have moved without a scroll.
   final ValueNotifier<int> _editorMoved = ValueNotifier(0);
+
+  /// User messages with a copy ready to stick to the top: the one of the
+  /// turn at the top of the view, and every one laid out, any of which the
+  /// next scroll may bring there. The copy of the turn at the top shows once
+  /// its message has scrolled past (see [_stickyTop]).
+  Set<int> _stickyIndices = const {};
+  bool _stickyUpdateScheduled = false;
+  final Map<int, GlobalKey> _stickyKeys = {};
 
   /// The current press started in the message editor: it takes focus
   /// itself, the history must not.
@@ -158,6 +167,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
       setState(() => _shownAtBottom = _atBottom);
     }
     _syncEdgeFades();
+    _scheduleStickyUpdate();
     if (_pointersDown > 0) _scheduleDragReselect();
   }
 
@@ -322,6 +332,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
 
   bool _handleMetricsChanged(ScrollMetricsNotification notification) {
     _syncEdgeFades();
+    _scheduleStickyUpdate();
     _editorMoved.value++;
     return false;
   }
@@ -343,6 +354,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
       _editingIndex = null;
     }
     if (startedStreaming) _jumpToBottom();
+    _scheduleStickyUpdate();
     setState(() {});
   }
 
@@ -388,6 +400,169 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     final index = _editingIndex;
     if (first != null && index != null && index < _indexOf(first)) return inset;
     return null;
+  }
+
+  // --- The sticky user message ---------------------------------------------
+
+  /// Room above the stuck message, as above the editor stuck to the top.
+  static const _stickyInset = 8.0;
+
+  /// Height of the fade under the stuck message, over the transcript
+  /// scrolling beneath it.
+  static const _stickyFade = 16.0;
+
+  /// Which copies are built is settled after layout, with the items where
+  /// the scroll put them: a frame late, but ready before any scroll brings
+  /// their message to the top. Which one shows, and where, is read at paint
+  /// ([_stickyTop]), so a copy takes over in the very frame its message
+  /// scrolls past.
+  void _scheduleStickyUpdate() {
+    if (_stickyUpdateScheduled) return;
+    _stickyUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _stickyUpdateScheduled = false;
+      if (!mounted) return;
+      final indices = {
+        ?_topTurnMessage(),
+        for (final item in _laidOutItems())
+          if (_session.itemAt(_indexOf(item)) is UserMessageItem)
+            _indexOf(item),
+      };
+      if (setEquals(indices, _stickyIndices)) return;
+      _stickyKeys.removeWhere((index, _) => !indices.contains(index));
+      setState(() => _stickyIndices = indices);
+    });
+  }
+
+  /// The user message of the turn at the top of the view: the last one
+  /// scrolled past the top. (It keeps the top while the next one, below,
+  /// pushes it away.)
+  int? _topTurnMessage() {
+    final list = _listKey.currentContext?.findRenderObject() as RenderBox?;
+    if (list == null || !list.attached || !list.hasSize) return null;
+    int? first;
+    int? passed;
+    for (final item in _laidOutItems()) {
+      final index = _indexOf(item);
+      first ??= index;
+      if (_session.itemAt(index) is! UserMessageItem) continue;
+      if (_messageTop(index, list)! >= _stickyInset) break;
+      passed = index;
+    }
+    if (passed != null || first == null) return passed;
+    // Scrolled past long ago: above the laid-out items.
+    for (var index = first - 1; index >= 0; index--) {
+      if (_session.itemAt(index) is UserMessageItem) return index;
+    }
+    return null;
+  }
+
+  /// Top of the laid-out message [index] (below its gap), relative to the
+  /// [list]; null when it is not laid out. Measured within the list, which
+  /// is laid out when this is read from the sticky's layout (its ancestors
+  /// may not be yet).
+  double? _messageTop(int index, RenderBox list) {
+    for (final item in _laidOutItems()) {
+      if (_indexOf(item) != index) continue;
+      return item
+          .localToGlobal(Offset(0, _gapBefore(index)), ancestor: list)
+          .dy;
+    }
+    return null;
+  }
+
+  /// Where the stuck message goes (its layer and the list share their top):
+  /// at the top once its own copy has scrolled past, pushed up and away by
+  /// the next message. Null (not shown) while its own copy is in place.
+  double? _stickyTop(int index) {
+    if (_topTurnMessage() != index) return null;
+    final sticky =
+        _stickyKeys[index]?.currentContext?.findRenderObject() as RenderBox?;
+    final list = _listKey.currentContext?.findRenderObject() as RenderBox?;
+    if (sticky == null || !sticky.hasSize || list == null) return null;
+    for (final item in _laidOutItems()) {
+      final next = _indexOf(item);
+      if (next <= index || _session.itemAt(next) is! UserMessageItem) {
+        continue;
+      }
+      final nextTop = _messageTop(next, list)!;
+      if (nextTop <= 0) return null;
+      return math.min(0.0, nextTop - sticky.size.height);
+    }
+    return 0;
+  }
+
+  Widget _buildSticky(int index) {
+    final item = _session.itemAt(index) as UserMessageItem;
+    // A copy of the message in the list: not read out twice.
+    return ExcludeSemantics(
+      child: ClipRect(
+        child: _StickyFollower(
+          top: (_) => _stickyTop(index),
+          repaint: Listenable.merge([_scrollController, _editorMoved]),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Listener(
+              // Not in the list: pass scrolling on.
+              onPointerSignal: _forwardWheel,
+              onPointerPanZoomStart: _startEditorPan,
+              onPointerPanZoomUpdate: _updateEditorPan,
+              onPointerPanZoomEnd: _endEditorPan,
+              child: Column(
+                key: _stickyKeys.putIfAbsent(index, GlobalKey.new),
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Over the transcript scrolling beneath: the page's own
+                  // color, fading out below.
+                  ColoredBox(
+                    color: CursorColors.background,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        24,
+                        _stickyInset,
+                        24,
+                        0,
+                      ),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: widget.maxContentWidth,
+                          ),
+                          child: UserMessageBubble(
+                            key: ValueKey(('sticky', index)),
+                            text: item.text,
+                            onEdit: () => _startEditing(index),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const IgnorePointer(
+                    child: SizedBox(
+                      height: _stickyFade,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              CursorColors.background,
+                              Color(0x00181818),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildEditorLayer(int index) {
@@ -667,6 +842,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                             ),
                           ),
                         ),
+                        for (final index in _stickyIndices)
+                          if (index != _editingIndex &&
+                              index < _session.itemCount &&
+                              _session.itemAt(index) is UserMessageItem)
+                            Positioned.fill(
+                              key: ValueKey(('sticky', index)),
+                              child: _buildSticky(index),
+                            ),
                         if (_editingIndex case final index?)
                           _buildEditorLayer(index),
                         Positioned(

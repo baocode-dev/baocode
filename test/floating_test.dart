@@ -3,6 +3,7 @@ import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:monad/chat/chat_history_view.dart';
 import 'package:monad/chat/composer/composer_picker.dart';
 import 'package:monad/chat/composer/suggestion_menu.dart';
@@ -93,14 +94,28 @@ void main() {
 
   Future<void> openEditorAtTop(WidgetTester tester) async {
     await tester.ensureVisible(
-      find.textContaining('第 2 轮', findRichText: true, skipOffstage: false),
+      find.descendant(
+        of: find.byType(SuperListView),
+        matching: find.textContaining(
+          '第 2 轮',
+          findRichText: true,
+          skipOffstage: false,
+        ),
+        skipOffstage: false,
+      ),
     );
     await tester.pump();
+    // Scrolled just past, the message's copy stuck to the top covers it;
+    // a click there edits it all the same.
     await tester.tap(
       find.ancestor(
-        of: find.textContaining('第 2 轮', findRichText: true),
+        of: find.descendant(
+          of: find.byType(SuperListView),
+          matching: find.textContaining('第 2 轮', findRichText: true),
+        ),
         matching: find.byType(UserMessageBubble),
       ),
+      warnIfMissed: false,
     );
     await tester.pump();
     await tester.pump();
@@ -195,14 +210,28 @@ void main() {
   testWidgets('a menu hides while its anchor is out of view', (tester) async {
     await pumpScreen(tester);
     await tester.ensureVisible(
-      find.textContaining('第 2 轮', findRichText: true, skipOffstage: false),
+      find.descendant(
+        of: find.byType(SuperListView),
+        matching: find.textContaining(
+          '第 2 轮',
+          findRichText: true,
+          skipOffstage: false,
+        ),
+        skipOffstage: false,
+      ),
     );
     await tester.pump();
+    // Scrolled just past, the message's copy stuck to the top covers it;
+    // a click there edits it all the same.
     await tester.tap(
       find.ancestor(
-        of: find.textContaining('第 2 轮', findRichText: true),
+        of: find.descendant(
+          of: find.byType(SuperListView),
+          matching: find.textContaining('第 2 轮', findRichText: true),
+        ),
         matching: find.byType(UserMessageBubble),
       ),
+      warnIfMissed: false,
     );
     await tester.pump();
     await tester.pump();
@@ -248,8 +277,12 @@ void main() {
 
     Future<void> setUpScreen(WidgetTester tester) async {
       await pumpScreen(tester);
-      await tester.ensureVisible(
-        find.widgetWithText(ToolCallRow, 'Read', skipOffstage: false).last,
+      // Mid-view: the top is under the turn's message, stuck there.
+      await Scrollable.ensureVisible(
+        tester.element(
+          find.widgetWithText(ToolCallRow, 'Read', skipOffstage: false).last,
+        ),
+        alignment: 0.5,
       );
       await tester.pump();
       mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);

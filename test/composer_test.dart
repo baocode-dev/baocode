@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:monad/chat/chat_models.dart';
 import 'package:monad/chat/widgets/edge_fade_mask.dart';
+import 'package:monad/chat/widgets/live_selectable_text.dart';
 import 'package:monad/chat/widgets/shimmer_text.dart';
 import 'package:monad/chat/widgets/thinking_section.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
@@ -220,15 +221,17 @@ void main() {
       );
     });
 
-    testWidgets('holds still while its streaming text is selected', (
+    testWidgets('keeps a selection in place while its text streams', (
       tester,
     ) async {
       var text = List.generate(12, (i) => '第$i行思考内容，一些文字。').join();
+      String? copied;
       late StateSetter setText;
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: SelectionArea(
+              onSelectionChanged: (content) => copied = content?.plainText,
               child: SizedBox(
                 width: 300,
                 child: StatefulBuilder(
@@ -254,17 +257,9 @@ void main() {
       position.jumpTo(position.maxScrollExtent);
       await tester.pump();
 
-      final paragraph = find.descendant(
-        of: find.byType(SingleChildScrollView),
-        matching: find.byType(RichText),
-      );
-      RenderParagraph render() => tester.renderObject(paragraph);
-      String selected() => [
-        for (final range in render().selections)
-          render().text.toPlainText().substring(range.start, range.end),
-      ].join();
-
-      final rect = tester.getRect(paragraph);
+      final live = find.byType(LiveSelectableText);
+      RenderLiveSelectableText render() => tester.renderObject(live);
+      final rect = tester.getRect(live);
       final drag = await tester.startGesture(
         rect.topLeft + const Offset(80, 60),
         kind: PointerDeviceKind.mouse,
@@ -274,27 +269,25 @@ void main() {
       await tester.pump();
       await drag.up();
       await tester.pump(const Duration(milliseconds: 500));
-      final before = selected();
-      final scrolled = position.pixels;
-      expect(before, isNotEmpty);
 
-      // New lines neither move the selection nor blink it (a new paragraph
-      // gets its selection a frame late): the text holds still.
+      String? selected() => render().selection?.textInside(render().text);
+      final before = selected();
+      expect(before, hasLength(greaterThan(10)));
+      expect(copied, before);
+
+      // The text keeps streaming and following; every frame keeps the same
+      // characters selected.
+      final scrolled = position.pixels;
       for (var i = 0; i < 4; i++) {
         setText(() => text += '追加的一句新内容追加的一句新内容');
         await tester.pump();
+        expect(render().text, text);
         expect(selected(), before);
-        expect(render().text.toPlainText(), isNot(text));
-        expect(position.pixels, scrolled);
+        await tester.pump();
+        expect(selected(), before);
+        expect(copied, before);
       }
-
-      // Selection gone: it catches up, following the newest line.
-      await tester.tapAt(rect.topLeft + const Offset(20, 20));
-      await tester.pump(const Duration(milliseconds: 500));
-      setText(() => text += '。');
-      await tester.pump();
-      await tester.pump();
-      expect(render().text.toPlainText(), text);
+      expect(position.pixels, greaterThan(scrolled));
       expect(position.pixels, position.maxScrollExtent);
     });
 
@@ -775,14 +768,29 @@ void main() {
     );
     QuillController editController(WidgetTester tester) =>
         tester.widget<QuillEditor>(editorInHistory()).controller;
+    // The message in the list (not its copy stuck to the top).
+    Finder inList(Finder finder) =>
+        find.descendant(of: find.byType(SuperListView), matching: finder);
     Finder bubble(String text) => find.ancestor(
-      of: find.textContaining(text, findRichText: true),
+      of: inList(find.textContaining(text, findRichText: true)),
       matching: find.byType(UserMessageBubble),
     );
     // The history opens at the bottom; bring the message into view.
     Future<void> reveal(WidgetTester tester, String text) async {
-      await tester.ensureVisible(
-        find.textContaining(text, findRichText: true, skipOffstage: false),
+      // Mid-view: at the top, the message's copy stuck there would cover it.
+      await Scrollable.ensureVisible(
+        tester.element(
+          find.descendant(
+            of: find.byType(SuperListView),
+            matching: find.textContaining(
+              text,
+              findRichText: true,
+              skipOffstage: false,
+            ),
+            skipOffstage: false,
+          ),
+        ),
+        alignment: 0.5,
       );
       await tester.pump();
     }
@@ -955,6 +963,74 @@ void main() {
       }
     });
 
+    testWidgets('a turn\'s message sticks to the top, pushed off by the next', (
+      tester,
+    ) async {
+      await pumpScreen(tester, historyCount: 24);
+      // Turn 3, then turn 2 just above it.
+      await reveal(tester, '第 3 轮');
+      await reveal(tester, '第 2 轮');
+      final list = tester.getRect(find.byType(SuperListView));
+      final position = tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(SuperListView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+      final stuck = find.descendant(
+        of: find.byType(ChatHistoryView),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is UserMessageBubble &&
+              widget.key == const ValueKey(('sticky', 8)),
+        ),
+      );
+
+      // In place, near the top: its copy (built, ready) does not show.
+      final own = tester.getTopLeft(bubble('第 2 轮')).dy - list.top;
+      position.jumpTo(position.pixels + own - 40);
+      await tester.pump();
+      await tester.pump();
+      expect(stuck, findsOneWidget);
+      expect(stuck.hitTestable(), findsNothing);
+
+      // Scrolled past: its copy at the top, in the same frame.
+      position.jumpTo(position.pixels + 60);
+      await tester.pump();
+      expect(stuck.hitTestable(), findsOneWidget);
+      expect(tester.getTopLeft(stuck).dy, list.top + 8);
+      final stuckAt = position.pixels;
+
+      // The next message, arriving, pushes it up: the copy's fade ends at it.
+      while (bubble('第 3 轮').evaluate().isEmpty ||
+          tester.getTopLeft(bubble('第 3 轮')).dy > list.bottom) {
+        position.jumpTo(position.pixels + 200);
+        await tester.pump();
+      }
+      final next = tester.getTopLeft(bubble('第 3 轮')).dy;
+      position.jumpTo(position.pixels + next - list.top - 40);
+      await tester.pump();
+      expect(
+        tester.getTopLeft(bubble('第 3 轮')).dy,
+        closeTo(list.top + 40, 0.01),
+      );
+      expect(tester.getTopLeft(stuck).dy, lessThan(list.top + 8));
+      expect(tester.getBottomLeft(stuck).dy + 16, closeTo(list.top + 40, 0.01));
+
+      // Clicked, it opens the message to edit, stuck to the top in its place.
+      position.jumpTo(stuckAt);
+      await tester.pump();
+      await tester.tap(stuck);
+      await tester.pump();
+      await tester.pump();
+      expect(stuck, findsNothing);
+      expect(editController(tester).document.toPlainText(), contains('第 2 轮'));
+    });
+
     testWidgets('the editor sticks to the top while scrolled past', (
       tester,
     ) async {
@@ -1086,8 +1162,11 @@ void main() {
         tester.getSize(text.first).height + 10 + 11 + 2,
       );
 
-      // The hidden lines still copy.
-      await tester.tap(find.byType(ChatHistoryView), warnIfMissed: false);
+      // The hidden lines still copy. (Focusing the history below the
+      // message: a click on it would edit it.)
+      await tester.tapAt(
+        tester.getBottomLeft(shortBubble) + const Offset(40, 40),
+      );
       await tester.pump(const Duration(milliseconds: 500));
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyA);

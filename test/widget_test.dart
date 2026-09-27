@@ -111,7 +111,15 @@ void main() {
       controller.offset,
       greaterThan(controller.position.maxScrollExtent * 0.3),
     );
-    expect(find.textContaining('第 1 轮'), findsNothing);
+    // Far items are not built. (Copies of messages that stick to the top
+    // follow a frame later.)
+    expect(
+      find.descendant(
+        of: find.byType(SuperListView),
+        matching: find.textContaining('第 1 轮'),
+      ),
+      findsNothing,
+    );
     expect(
       find
           .byWidgetPredicate((widget) => widget.key is ValueKey<int>)
@@ -130,7 +138,13 @@ void main() {
 
     controller.jumpTo(0);
     await tester.pump();
-    expect(find.textContaining('第 1 轮'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(SuperListView),
+        matching: find.textContaining('第 1 轮'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('expands and collapses a thinking block', (tester) async {
