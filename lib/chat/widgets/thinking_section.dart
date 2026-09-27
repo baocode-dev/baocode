@@ -133,10 +133,21 @@ class _ThinkingSectionState extends State<ThinkingSection> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (_streaming)
-                  ShimmerText(title, ellipsis: false, padding: EdgeInsets.zero)
-                else
-                  Text(title, style: TextStyle(color: color, fontSize: 13)),
+                // Shrinks in a narrow window rather than overflow.
+                Flexible(
+                  child: _streaming
+                      ? ShimmerText(
+                          title,
+                          ellipsis: false,
+                          padding: EdgeInsets.zero,
+                        )
+                      : Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: color, fontSize: 13),
+                        ),
+                ),
                 const SizedBox(width: 2),
                 AnimatedRotation(
                   turns: widget.expanded ? 0.25 : 0,

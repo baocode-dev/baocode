@@ -8,6 +8,7 @@ import 'package:monad/main.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
 import 'package:monad/sidebar/sidebar.dart';
 import 'package:monad/workspace/editor_launcher.dart';
+import 'package:monad/workspace/pin_window_button.dart';
 import 'package:monad/workspace/workspace.dart';
 
 Future<Workspace> pumpApp(WidgetTester tester, {double width = 1400}) async {
@@ -321,5 +322,189 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(UserMessageBubble).hitTestable(), findsNWidgets(2));
+  });
+
+  testWidgets('past its limit, the border waits for the pointer to return', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    double width() => tester.getSize(find.byType(Sidebar)).width;
+    final gesture = await tester.startGesture(const Offset(262, 400));
+    // Follows the pointer exactly, slop included.
+    await gesture.moveBy(const Offset(40, 0));
+    await tester.pump();
+    expect(width(), 300);
+    // Far past the maximum (420), then back part of the way: still at max.
+    await gesture.moveBy(const Offset(300, 0));
+    await tester.pump();
+    expect(width(), 420);
+    await gesture.moveBy(const Offset(-150, 0));
+    await tester.pump();
+    expect(width(), 420);
+    // Back past the border: follows again.
+    await gesture.moveBy(const Offset(-100, 0));
+    await tester.pump();
+    expect(width(), 350);
+    // Same below the minimum (200).
+    await gesture.moveBy(const Offset(-400, 0));
+    await tester.pump();
+    expect(width(), 200);
+    await gesture.moveBy(const Offset(100, 0));
+    await tester.pump();
+    expect(width(), 200);
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('the pin keeps the window on top', (tester) async {
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('monad/window'),
+      (call) async {
+        calls.add(call);
+        return null;
+      },
+    );
+    await pumpApp(tester);
+    final pin = find.byType(PinWindowButton);
+    // Left of the editor button.
+    expect(
+      tester.getTopRight(pin).dx,
+      lessThan(tester.getTopLeft(find.bySemanticsLabel('Open in VS Code')).dx),
+    );
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: tester.getCenter(pin));
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('Pin window on top'), findsOneWidget);
+    await mouse.removePointer();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(pin);
+    await tester.pump();
+    expect(calls.single.method, 'setAlwaysOnTop');
+    expect(calls.single.arguments, isTrue);
+    expect(tester.widget<PinWindowButton>(pin).pinned, isTrue);
+
+    // Stays pinned in another agent.
+    await tester.tap(inSidebar(find.textContaining('Rate limit per API key')));
+    await tester.pump();
+    expect(tester.widget<PinWindowButton>(pin).pinned, isTrue);
+    await tester.tap(pin);
+    await tester.pump();
+    expect(calls.last.arguments, isFalse);
+    await tester.pump(const Duration(seconds: 1));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('the pin is disabled where the window cannot stay on top', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(find.byType(PinWindowButton));
+    await tester.pump();
+    expect(
+      tester.widget<PinWindowButton>(find.byType(PinWindowButton)).pinned,
+      isFalse,
+    );
+  });
+
+  testWidgets('the drawer resizes too, sharing its width with the docked '
+      'sidebar', (tester) async {
+    await pumpApp(tester);
+    double width() => tester.getSize(find.byType(Sidebar)).width;
+    var border = Offset(tester.getTopRight(find.byType(Sidebar)).dx + 2, 400);
+    await tester.dragFrom(border, const Offset(60, 0));
+    await tester.pumpAndSettle();
+    expect(width(), 320);
+
+    // Narrow window: the drawer opens at that width.
+    tester.view.physicalSize = const Size(800, 900);
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('Show sidebar'));
+    await tester.pumpAndSettle();
+    expect(width(), 320);
+    expect(tester.getTopLeft(find.byType(Sidebar)).dx, 0);
+
+    // Its border drags like the docked one, and a click on it keeps the
+    // drawer open.
+    border = Offset(tester.getTopRight(find.byType(Sidebar)).dx + 2, 400);
+    await tester.tapAt(border);
+    await tester.pumpAndSettle();
+    expect(find.byType(Sidebar), findsOneWidget);
+    final gesture = await tester.startGesture(border);
+    await gesture.moveBy(const Offset(-80, 0));
+    await tester.pump();
+    expect(width(), 240);
+    await gesture.moveBy(const Offset(-200, 0));
+    await tester.pump();
+    expect(width(), 200);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.byType(Sidebar), findsOneWidget);
+
+    // Back to a wide window: docked at the new width.
+    tester.view.physicalSize = const Size(1400, 900);
+    await tester.pumpAndSettle();
+    expect(width(), 200);
+  });
+
+  testWidgets('never wider than the window less 20', (tester) async {
+    await pumpApp(tester);
+    double width() => tester.getSize(find.byType(Sidebar)).width;
+    await tester.dragFrom(
+      Offset(tester.getTopRight(find.byType(Sidebar)).dx + 2, 400),
+      const Offset(400, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(width(), 420);
+
+    // A narrow browser window: the drawer is capped, and cannot be dragged
+    // past the cap (its border would leave the window).
+    tester.view.physicalSize = const Size(380, 900);
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('Show sidebar'));
+    await tester.pumpAndSettle();
+    expect(width(), 360);
+    final border = Offset(tester.getTopRight(find.byType(Sidebar)).dx + 2, 400);
+    expect(border.dx, lessThan(380));
+    final gesture = await tester.startGesture(border);
+    await gesture.moveBy(const Offset(15, 0));
+    await tester.pump();
+    expect(width(), 360);
+    await gesture.moveBy(const Offset(-75, 0));
+    await tester.pump();
+    expect(width(), 300);
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    // What was set within the cap is kept.
+    tester.view.physicalSize = const Size(1400, 900);
+    await tester.pumpAndSettle();
+    expect(width(), 300);
+  });
+
+  testWidgets('an open drawer follows the window as it grows', (tester) async {
+    await pumpApp(tester);
+    await tester.dragFrom(
+      Offset(tester.getTopRight(find.byType(Sidebar)).dx + 2, 400),
+      const Offset(400, 0),
+    );
+    await tester.pumpAndSettle();
+    tester.view.physicalSize = const Size(380, 900);
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('Show sidebar'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(Sidebar)).width, 360);
+
+    // Resizing the window: every frame fits, at the new width at once.
+    for (final width in <double>[400, 420, 460, 600]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.getSize(find.byType(Sidebar)).width,
+        (width - 20).clamp(0.0, 420.0),
+      );
+    }
   });
 }

@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -6,6 +9,8 @@ import 'chat/chat_screen.dart';
 import 'sidebar/sidebar.dart';
 import 'theme/cursor_theme.dart';
 import 'workspace/open_in_editor_button.dart';
+import 'workspace/pin_window_button.dart';
+import 'workspace/window_controls.dart';
 import 'workspace/workspace.dart';
 
 /// The window: the agents sidebar on the left, the selected agent's chat
@@ -24,6 +29,9 @@ class Workbench extends StatefulWidget {
   static const minSidebarWidth = 200.0;
   static const maxSidebarWidth = 420.0;
 
+  /// The sidebar leaves at least this much of the window beside it.
+  static const sidebarWindowMargin = 20.0;
+
   @override
   State<Workbench> createState() => _WorkbenchState();
 }
@@ -31,8 +39,30 @@ class Workbench extends StatefulWidget {
 class _WorkbenchState extends State<Workbench> {
   static const _duration = Duration(milliseconds: 200);
 
+  /// The border between sidebar and chat: a line at the left of a strip
+  /// this wide, which takes the resize drag.
+  static const _handleWidth = 5.0;
+
+  /// The width set by dragging. Shown as [_shownWidth], which a narrow
+  /// window may cap below it for now.
   double _width = 260;
+
+  /// Of the window, from the last layout.
+  double _windowWidth = double.infinity;
+
+  /// At most 20 short of the window's width, so the border (and its drag
+  /// strip) stays in it.
+  double get _maxWidth => math.min(
+    Workbench.maxSidebarWidth,
+    _windowWidth - Workbench.sidebarWindowMargin,
+  );
+
+  double get _shownWidth =>
+      _width.clamp(math.min(Workbench.minSidebarWidth, _maxWidth), _maxWidth);
   bool _dragging = false;
+
+  /// Pointer and sidebar width when the resize drag began.
+  ({double x, double width})? _dragOrigin;
 
   /// Shown beside the chat (wide window).
   bool _docked = true;
@@ -44,6 +74,14 @@ class _WorkbenchState extends State<Workbench> {
   bool _narrow = false;
 
   Workspace get _workspace => widget.workspace;
+
+  /// The window is kept above other apps' windows.
+  bool _pinned = false;
+
+  void _setPinned(bool pinned) {
+    setState(() => _pinned = pinned);
+    WindowControls.setAlwaysOnTop(pinned);
+  }
 
   @override
   void initState() {
@@ -98,6 +136,7 @@ class _WorkbenchState extends State<Workbench> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        _windowWidth = constraints.maxWidth;
         final narrow = constraints.maxWidth < Workbench.narrowWidth;
         if (narrow != _narrow) {
           _narrow = narrow;
@@ -109,8 +148,7 @@ class _WorkbenchState extends State<Workbench> {
           color: CursorColors.background,
           child: ListenableBuilder(
             listenable: _workspace,
-            builder: (context, _) =>
-                narrow ? _buildNarrow(constraints) : _buildWide(),
+            builder: (context, _) => narrow ? _buildNarrow() : _buildWide(),
           ),
         );
       },
@@ -118,18 +156,18 @@ class _WorkbenchState extends State<Workbench> {
   }
 
   Widget _buildWide() {
-    return Row(
+    final row = Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AnimatedContainer(
           duration: _dragging ? Duration.zero : _duration,
           curve: Curves.easeOutCubic,
-          width: _docked ? _width : 0,
+          width: _docked ? _shownWidth : 0,
           child: ClipRect(
             child: OverflowBox(
               alignment: Alignment.centerRight,
-              minWidth: _width,
-              maxWidth: _width,
+              minWidth: _shownWidth,
+              maxWidth: _shownWidth,
               child: _buildSidebar(),
             ),
           ),
@@ -138,11 +176,17 @@ class _WorkbenchState extends State<Workbench> {
         Expanded(child: _buildChat(showToggle: !_docked)),
       ],
     );
+    return Stack(
+      fit: StackFit.expand,
+      children: [row, if (_dragging) _resizeCursorLayer],
+    );
   }
 
-  Widget _buildNarrow(BoxConstraints constraints) {
-    final width = _width.clamp(0.0, constraints.maxWidth * 0.85);
+  Widget _buildNarrow() {
+    // The same sidebar and border as when docked, at the same width.
+    const handleWidth = _WorkbenchState._handleWidth;
     return Stack(
+      fit: StackFit.expand,
       children: [
         Positioned.fill(child: _buildChat(showToggle: true)),
         // Scrim: a click outside closes the drawer.
@@ -159,29 +203,53 @@ class _WorkbenchState extends State<Workbench> {
             ),
           ),
         ),
-        AnimatedPositioned(
+        // Only the slide animates; the width follows the drag or the window
+        // at once (animating it too would leave the sidebar overflowing its
+        // box while the window grows).
+        TweenAnimationBuilder<double>(
+          tween: Tween(end: _drawerOpen ? 1 : 0),
           duration: _duration,
           curve: Curves.easeOutCubic,
-          top: 0,
-          bottom: 0,
-          left: _drawerOpen ? 0 : -width - 24,
-          width: width,
-          child: DecoratedBox(
-            decoration: const BoxDecoration(
-              border: Border(right: BorderSide(color: CursorColors.border)),
-              boxShadow: [BoxShadow(color: Color(0x80000000), blurRadius: 24)],
-            ),
-            child: _drawerOpen || _drawerClosing
-                ? _buildSidebar(onOpened: _closeDrawer)
-                : null,
-          ),
           onEnd: () {
             if (_drawerClosing) setState(() => _drawerClosing = false);
           },
+          builder: (context, shown, child) => Positioned(
+            top: 0,
+            bottom: 0,
+            left: -(_shownWidth + handleWidth + 24) * (1 - shown),
+            width: _shownWidth + handleWidth,
+            child: child!,
+          ),
+          child: _drawerOpen || _drawerClosing
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: _shownWidth,
+                      child: DecoratedBox(
+                        decoration: const BoxDecoration(
+                          boxShadow: [
+                            BoxShadow(color: Color(0x80000000), blurRadius: 24),
+                          ],
+                        ),
+                        child: _buildSidebar(onOpened: _closeDrawer),
+                      ),
+                    ),
+                    _buildResizeHandle(),
+                  ],
+                )
+              : const SizedBox.shrink(),
         ),
+        if (_dragging) _resizeCursorLayer,
       ],
     );
   }
+
+  /// While resizing, the pointer may be far from the border: the resize
+  /// cursor everywhere, and no hover effects under it.
+  static const _resizeCursorLayer = MouseRegion(
+    cursor: SystemMouseCursors.resizeColumn,
+  );
 
   Widget _buildSidebar({VoidCallback? onOpened}) {
     return Sidebar(
@@ -191,23 +259,41 @@ class _WorkbenchState extends State<Workbench> {
     );
   }
 
+  void _endDrag() {
+    setState(() {
+      _dragging = false;
+      _dragOrigin = null;
+    });
+  }
+
   /// The border between sidebar and chat, draggable to resize.
   Widget _buildResizeHandle() {
     return MouseRegion(
       cursor: SystemMouseCursors.resizeColumn,
       child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onHorizontalDragStart: (_) => setState(() => _dragging = true),
+        // Its clicks stay its own (not the drawer's scrim, under it).
+        behavior: HitTestBehavior.opaque,
+        // From the press, not from where the drag was recognized, so the
+        // border stays under the pointer.
+        dragStartBehavior: DragStartBehavior.down,
+        onHorizontalDragStart: (details) => setState(() {
+          _dragging = true;
+          _dragOrigin = (x: details.globalPosition.dx, width: _shownWidth);
+        }),
+        // Where the pointer is relative to where it was pressed, not the
+        // sum of the moves: past the min or max the border waits there, and
+        // follows again only once the pointer is back at it.
         onHorizontalDragUpdate: (details) => setState(() {
-          _width = (_width + details.delta.dx).clamp(
-            Workbench.minSidebarWidth,
-            Workbench.maxSidebarWidth,
+          final origin = _dragOrigin!;
+          _width = (origin.width + details.globalPosition.dx - origin.x).clamp(
+            math.min(Workbench.minSidebarWidth, _maxWidth),
+            _maxWidth,
           );
         }),
-        onHorizontalDragEnd: (_) => setState(() => _dragging = false),
-        onHorizontalDragCancel: () => setState(() => _dragging = false),
+        onHorizontalDragEnd: (_) => _endDrag(),
+        onHorizontalDragCancel: _endDrag,
         child: Container(
-          width: 5,
+          width: _handleWidth,
           alignment: Alignment.centerLeft,
           child: Container(
             width: 1,
@@ -236,9 +322,13 @@ class _WorkbenchState extends State<Workbench> {
               onTap: _toggle,
             )
           : null,
-      trailing: OpenInEditorButton(
-        workspace: _workspace,
-        project: thread.project,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PinWindowButton(pinned: _pinned, onChanged: _setPinned),
+          const SizedBox(width: 6),
+          OpenInEditorButton(workspace: _workspace, project: thread.project),
+        ],
       ),
     );
   }
