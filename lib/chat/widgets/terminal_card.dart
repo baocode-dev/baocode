@@ -21,6 +21,11 @@ class TerminalCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: CursorColors.code,
         borderRadius: BorderRadius.circular(8),
+      ),
+      // The border goes on top: under the children, the header's fill,
+      // clipped to the outer corner, would cover it there.
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: CursorColors.border),
       ),
       clipBehavior: Clip.antiAlias,

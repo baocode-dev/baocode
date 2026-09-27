@@ -112,30 +112,36 @@ class _SuggestionMenuState extends State<SuggestionMenu> {
                 ),
               ),
             ),
-            SizedBox(
-              height: rows * SuggestionMenu._rowHeight + 8,
-              child: widget.matches.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No results',
-                        style: TextStyle(
-                          color: CursorColors.textFaint,
-                          fontSize: 12.5,
+            // Up to its natural height, less when the window has no room
+            // (the floating layer caps it).
+            Flexible(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: rows * SuggestionMenu._rowHeight + 8,
+                ),
+                child: widget.matches.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No results',
+                          style: TextStyle(
+                            color: CursorColors.textFaint,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                        itemExtent: SuggestionMenu._rowHeight,
+                        itemCount: widget.matches.length,
+                        itemBuilder: (context, index) => _SuggestionRow(
+                          match: widget.matches[index],
+                          highlighted: index == widget.highlighted,
+                          onHover: () => widget.onHighlight(index),
+                          onTap: () => widget.onSelect(index),
                         ),
                       ),
-                    )
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-                      itemExtent: SuggestionMenu._rowHeight,
-                      itemCount: widget.matches.length,
-                      itemBuilder: (context, index) => _SuggestionRow(
-                        match: widget.matches[index],
-                        highlighted: index == widget.highlighted,
-                        onHover: () => widget.onHighlight(index),
-                        onTap: () => widget.onSelect(index),
-                      ),
-                    ),
+              ),
             ),
           ],
         ),

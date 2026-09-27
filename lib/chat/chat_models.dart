@@ -28,11 +28,23 @@ class ThinkingItem extends ChatItem {
 enum ToolKind { read, grep, listDir, search }
 
 class ToolCallItem extends ChatItem {
-  const ToolCallItem({required this.kind, required this.target, this.detail});
+  const ToolCallItem({
+    required this.kind,
+    required this.target,
+    this.detail,
+    this.path,
+    this.results = const [],
+  });
 
   final ToolKind kind;
   final String target;
   final String? detail;
+
+  /// Full path of the file read, when [target] is its name.
+  final String? path;
+
+  /// Matches found (`path:line`), for searches.
+  final List<String> results;
 }
 
 class TerminalItem extends ChatItem {

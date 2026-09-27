@@ -40,11 +40,20 @@ class ChatItemView extends StatelessWidget {
         expanded: expanded,
         onToggle: onToggle ?? () {},
       ),
-      ToolCallItem(:final kind, :final target, :final detail) => ToolCallRow(
-        kind: kind,
-        target: target,
-        detail: detail,
-      ),
+      ToolCallItem(
+        :final kind,
+        :final target,
+        :final detail,
+        :final path,
+        :final results,
+      ) =>
+        ToolCallRow(
+          kind: kind,
+          target: target,
+          detail: detail,
+          path: path,
+          results: results,
+        ),
       TerminalItem(:final command, :final output, :final succeeded) =>
         TerminalCard(command: command, output: output, succeeded: succeeded),
       CodeDiffItem(:final fileName, :final directory, :final lines) =>

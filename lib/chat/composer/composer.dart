@@ -6,12 +6,14 @@ import 'package:flutter_quill/flutter_quill.dart';
 
 import '../../theme/cursor_theme.dart';
 import '../chat_session.dart';
+import '../floating/floating_layer.dart';
+import '../floating/floating_placement.dart';
+import '../floating/floating_registry.dart';
 import '../widgets/hover_builder.dart';
 import 'composer_caret.dart';
 import 'composer_embeds.dart';
 import 'composer_mock_data.dart';
 import 'composer_picker.dart';
-import 'composer_popover.dart';
 import 'suggestion_menu.dart';
 
 /// An open @mention or /command query: the trigger character sits at
@@ -120,6 +122,7 @@ class ChatComposerState extends State<ChatComposer> {
 
   @override
   void dispose() {
+    FloatingRegistry.closePopover(_menuOwner);
     _controller.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
@@ -127,6 +130,11 @@ class ChatComposerState extends State<ChatComposer> {
   }
 
   void focus() => _focusNode.requestFocus();
+
+  /// The text area's own scroll position (it scrolls past its maximum
+  /// height), or null before it is laid out.
+  ScrollPosition? get editorScrollPosition =>
+      _scrollController.hasClients ? _scrollController.position : null;
 
   /// The editor subtree, built once and reused so that keystrokes (which
   /// rebuild this state for the menu and send button) do not hand Quill a
@@ -175,6 +183,7 @@ class ChatComposerState extends State<ChatComposer> {
       _menuX = _caretX(trigger.start);
     }
     _trigger = visible ? trigger : null;
+    _syncMenuRegistration();
     _hasContent = hasContent;
     setState(() {});
   }
@@ -232,6 +241,24 @@ class ChatComposerState extends State<ChatComposer> {
   void _closeMenu() {
     if (_trigger != null) _dismissedTrigger = _trigger;
     _trigger = null;
+    _syncMenuRegistration();
+  }
+
+  /// Identifies the suggestion menu to [FloatingRegistry].
+  final Object _menuOwner = Object();
+  bool _menuRegistered = false;
+
+  void _syncMenuRegistration() {
+    final open = _trigger != null;
+    if (open == _menuRegistered) return;
+    _menuRegistered = open;
+    if (open) {
+      FloatingRegistry.openPopover(_menuOwner, () {
+        if (mounted) setState(_closeMenu);
+      });
+    } else {
+      FloatingRegistry.closePopover(_menuOwner);
+    }
   }
 
   void _moveHighlight(int delta) {
@@ -283,6 +310,8 @@ class ChatComposerState extends State<ChatComposer> {
 
   KeyEventResult? _handleKey(KeyEvent event, Node? node) {
     if (event is KeyUpEvent || _isComposing) return null;
+    // An open picker menu (or tooltip) takes arrows, Enter and Esc first.
+    if (FloatingRegistry.handleKey(event) case final result?) return result;
     final key = event.logicalKey;
     final keyboard = HardwareKeyboard.instance;
 
@@ -373,13 +402,17 @@ class ChatComposerState extends State<ChatComposer> {
   @override
   Widget build(BuildContext context) {
     final focused = _focusNode.hasFocus;
-    return ComposerPopover(
+    return FloatingLayer(
       visible: _trigger != null,
-      offset: Offset(_menuX, -6),
+      // Above the composer at the trigger character; below it when there
+      // is no room above.
+      placement: (side: FloatingSide.top, align: FloatingAlign.start),
+      anchorRect: (box) =>
+          Rect.fromLTWH(box.left + _menuX, box.top, 1, box.height),
       // Clicks in the menu are not outside the editor.
       tapRegionGroupId: _focusNode,
       outerTapRegionGroupId: widget.tapRegionGroupId,
-      popoverBuilder: _buildMenu,
+      builder: _buildMenu,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: _focusNode.requestFocus,
@@ -514,6 +547,7 @@ class ChatComposerState extends State<ChatComposer> {
             selected: _mode,
             emphasized: true,
             tapRegionGroupId: widget.tapRegionGroupId,
+            focusNode: _focusNode,
             onSelected: (option) => setState(() => _mode = option),
           ),
           const SizedBox(width: 2),
@@ -521,6 +555,7 @@ class ChatComposerState extends State<ChatComposer> {
             options: ComposerMockData.models,
             selected: _model,
             tapRegionGroupId: widget.tapRegionGroupId,
+            focusNode: _focusNode,
             onSelected: (option) => setState(() => _model = option),
           ),
           const Spacer(),

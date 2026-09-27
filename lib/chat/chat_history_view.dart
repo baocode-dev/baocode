@@ -46,6 +46,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   final GlobalKey _editorPlaceholderKey = GlobalKey();
   double _editorHeight = 0;
   final Object _editorTapRegion = Object();
+  GlobalKey<ChatComposerState> _editComposerKey = GlobalKey();
 
   /// Pinged when the placeholder may have moved without a scroll.
   final ValueNotifier<int> _editorMoved = ValueNotifier(0);
@@ -346,6 +347,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     setState(() {
       _editingIndex = index;
       _editingText = item.text;
+      _editComposerKey = GlobalKey();
       _editorHeight = laidOut.isEmpty
           ? 0
           : laidOut.first.size.height - _gapBefore(index);
@@ -383,33 +385,69 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
 
   Widget _buildEditorLayer(int index) {
     return Positioned.fill(
-      child: ClipRect(
-        child: _StickyFollower(
-          top: _editorTop,
-          repaint: Listenable.merge([_scrollController, _editorMoved]),
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: widget.maxContentWidth),
-                child: _SizeReporter(
-                  onSize: (size) => _setEditorHeight(size.height),
-                  child: Listener(
-                    // The editor takes focus itself; see _handlePointerDown.
-                    onPointerDown: (_) => _pressInEditor = true,
-                    // The editor is not in the list: pass the wheel on.
-                    onPointerSignal: _forwardWheel,
-                    child: TapRegion(
-                      groupId: _editorTapRegion,
-                      onTapOutside: (_) => _cancelEditing(),
-                      child: ChatComposer(
-                        key: ValueKey(('edit', index)),
-                        session: _session,
-                        initialText: _editingText,
-                        tapRegionGroupId: _editorTapRegion,
-                        onSubmit: (message) => _submitEdit(index, message),
-                        onCancel: _cancelEditing,
+      // The editor's text area scrolls on its own. It is not inside the list,
+      // so its scroll notifications would reach the history's scrollbar as
+      // if they were the list's (depth 0) and move its thumb: keep them here.
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (_) => true,
+        child: NotificationListener<ScrollMetricsNotification>(
+          onNotification: (_) => true,
+          child: ClipRect(
+            child: _StickyFollower(
+              top: _editorTop,
+              repaint: Listenable.merge([_scrollController, _editorMoved]),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: widget.maxContentWidth,
+                    ),
+                    child: _SizeReporter(
+                      onSize: (size) => _setEditorHeight(size.height),
+                      // Lifted off the transcript: it floats over it when
+                      // stuck to the top. (Outside the reported size.)
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: const [
+                            // Dark UI: a deep, soft drop plus a tight contact
+                            // shadow, or it does not read against the page.
+                            BoxShadow(
+                              color: Color(0xA6000000),
+                              blurRadius: 32,
+                              offset: Offset(0, 12),
+                            ),
+                            BoxShadow(
+                              color: Color(0x66000000),
+                              blurRadius: 6,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Listener(
+                          // The editor takes focus itself; see _handlePointerDown.
+                          onPointerDown: (_) => _pressInEditor = true,
+                          // The editor is not in the list: pass the wheel on.
+                          onPointerSignal: _forwardWheel,
+                          onPointerPanZoomStart: _startEditorPan,
+                          onPointerPanZoomUpdate: _updateEditorPan,
+                          onPointerPanZoomEnd: _endEditorPan,
+                          child: TapRegion(
+                            groupId: _editorTapRegion,
+                            onTapOutside: (_) => _cancelEditing(),
+                            child: ChatComposer(
+                              key: _editComposerKey,
+                              session: _session,
+                              initialText: _editingText,
+                              tapRegionGroupId: _editorTapRegion,
+                              onSubmit: (message) =>
+                                  _submitEdit(index, message),
+                              onCancel: _cancelEditing,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -422,14 +460,72 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     );
   }
 
+  // --- Scrolling over the editor ------------------------------------------
+  //
+  // The editor is above the list, not in it, so the list never sees a wheel
+  // or trackpad scroll over the editor. Like CSS `overscroll-behavior:
+  // contain`: while the editor's text area has anything to scroll, scrolling
+  // over the editor scrolls only that, and stops at its ends; nothing spills
+  // over into the list (its momentum would move the page on its own). Only a
+  // text area with nothing to scroll passes scrolling on to the list, or the
+  // editor stuck to the top would be a dead spot for scrolling the page.
+
+  /// Whether the editor's text area has anything to scroll.
+  bool get _editorScrolls {
+    final inner = _editComposerKey.currentState?.editorScrollPosition;
+    return inner != null && inner.maxScrollExtent > inner.minScrollExtent;
+  }
+
   void _forwardWheel(PointerSignalEvent event) {
     if (event is! PointerScrollEvent || !_scrollController.hasClients) return;
-    // Registered after any scrollable inside the editor, which goes first.
+    if (_editorScrolls) return; // The text area's, even at its ends.
     GestureBinding.instance.pointerSignalResolver.register(event, (event) {
       _scrollController.position.pointerScroll(
         (event as PointerScrollEvent).scrollDelta.dy,
       );
     });
+  }
+
+  VelocityTracker? _editorPanVelocity;
+  double _editorPanForwarded = 0;
+
+  void _startEditorPan(PointerPanZoomStartEvent event) {
+    _editorPanVelocity = VelocityTracker.withKind(event.kind);
+    _editorPanForwarded = 0;
+  }
+
+  void _updateEditorPan(PointerPanZoomUpdateEvent event) {
+    if (!_scrollController.hasClients || _editorScrolls) return;
+    // Fingers moving down reveal what is above: the offset goes down.
+    final delta = -event.panDelta.dy;
+    if (delta == 0) return;
+    final position = _scrollController.position;
+    _lastWheel = DateTime.now(); // Counts as the user scrolling.
+    position.jumpTo(
+      (position.pixels + delta).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      ),
+    );
+    _editorPanForwarded += delta;
+    _editorPanVelocity?.addPosition(
+      event.timeStamp,
+      Offset(0, _editorPanForwarded),
+    );
+  }
+
+  void _endEditorPan(PointerPanZoomEndEvent event) {
+    final tracker = _editorPanVelocity;
+    _editorPanVelocity = null;
+    if (tracker == null || _editorPanForwarded == 0) return;
+    if (!_scrollController.hasClients) return;
+    final velocity = tracker.getVelocity().pixelsPerSecond.dy;
+    final position = _scrollController.position;
+    if (velocity.abs() > kMinFlingVelocity &&
+        position is ScrollPositionWithSingleContext) {
+      _lastWheel = DateTime.now();
+      position.goBallistic(velocity);
+    }
   }
 
   void _submitEdit(int index, ComposerMessage message) {
@@ -490,8 +586,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
           onPointerDown: _handlePointerDown,
           onPointerUp: _handlePointerUp,
           onPointerCancel: _handlePointerUp,
+          // Runs before the list handles the signal (that is resolved after
+          // every target has seen it).
           onPointerSignal: (event) {
-            if (event is PointerScrollEvent) _lastWheel = DateTime.now();
+            if (event is! PointerScrollEvent) return;
+            _lastWheel = DateTime.now();
+            _scrollController.signalKind = event.kind;
           },
           child: SelectionContainer(
             delegate: _selectionDelegate,
@@ -627,6 +727,10 @@ class _JumpToBottomButton extends StatelessWidget {
 class _BottomAnchoredScrollController extends ScrollController {
   bool anchored = true;
 
+  /// The device of the scroll signal being handled (set before the list
+  /// handles it), so only mouse wheels get sped up.
+  PointerDeviceKind? signalKind;
+
   @override
   ScrollPosition createScrollPosition(
     ScrollPhysics physics,
@@ -651,12 +755,16 @@ class _BottomAnchoredScrollPosition extends ScrollPositionWithSingleContext {
   final _BottomAnchoredScrollController controller;
 
   /// Mouse wheels arrive as small per-notch deltas that make a long
-  /// transcript slow to move through; trackpads use pan gestures instead
-  /// (not this path) and keep their native 1:1 feel.
-  static const wheelSpeed = 1.6;
+  /// transcript slow to move through. Trackpads keep their native 1:1 feel,
+  /// whether they arrive as pan gestures or (on the web) as scroll signals.
+  static const wheelSpeed = 2.6;
 
   @override
-  void pointerScroll(double delta) => super.pointerScroll(delta * wheelSpeed);
+  void pointerScroll(double delta) => super.pointerScroll(
+    controller.signalKind == PointerDeviceKind.mouse
+        ? delta * wheelSpeed
+        : delta,
+  );
 
   @override
   void jumpTo(double value) {
@@ -848,12 +956,32 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
   int _itemOf(Selectable selectable) => _items[selectable]?.index ?? -1;
 
   @override
-  Comparator<Selectable> get compareOrder {
-    final screenOrder = super.compareOrder;
-    return (a, b) {
-      final byItem = _itemOf(a).compareTo(_itemOf(b));
-      return byItem != 0 ? byItem : screenOrder(a, b);
-    };
+  Comparator<Selectable> get compareOrder => (a, b) {
+    final byItem = _itemOf(a).compareTo(_itemOf(b));
+    return byItem != 0 ? byItem : _compareReadingOrder(a, b);
+  };
+
+  /// Reading order within an item, by where each piece of text starts: its
+  /// first line. (Comparing whole bounding boxes misorders inline tags: the
+  /// text after a tag wraps back to the left edge, so its box starts left
+  /// of the tag.)
+  static int _compareReadingOrder(Selectable a, Selectable b) {
+    Rect firstLine(Selectable selectable) {
+      final boxes = selectable.boundingBoxes;
+      return MatrixUtils.transformRect(
+        selectable.getTransformTo(null),
+        boxes.isEmpty ? Rect.zero : boxes.first,
+      );
+    }
+
+    final lineA = firstLine(a);
+    final lineB = firstLine(b);
+    final overlap =
+        math.min(lineA.bottom, lineB.bottom) - math.max(lineA.top, lineB.top);
+    if (overlap > math.min(lineA.height, lineB.height) / 2) {
+      return lineA.left.compareTo(lineB.left);
+    }
+    return lineA.top.compareTo(lineB.top);
   }
 
   Offset? _positionOf(_SelectionEdge edge) =>
@@ -1134,6 +1262,12 @@ class _RenderStickyFollower extends RenderProxyBox {
   void applyPaintTransform(RenderBox child, Matrix4 transform) {
     transform.translateByDouble(0, _paintedTop ?? 0, 0, 1);
   }
+
+  // Not painted: nothing of the child shows (floating elements anchored in
+  // it hide, see FloatingLayer.hideWhenClipped).
+  @override
+  Rect? describeApproximatePaintClip(RenderObject child) =>
+      _paintedTop == null ? Rect.zero : null;
 }
 
 /// Reports [child]'s size after layout whenever it changes.

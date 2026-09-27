@@ -174,7 +174,7 @@ class ComposerTokenChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final token = ComposerTokenEmbed.decode(data);
     final isCommand = token.kind == SuggestionKind.command;
-    return _CopiesAs(
+    return _SelectableToken(
       text: ComposerTokenEmbed.plainText(data),
       child: _CenteredOnText(
         textStyle: textStyle,
@@ -185,49 +185,54 @@ class ComposerTokenChip extends StatelessWidget {
             height: 1.25,
             leadingDistribution: TextLeadingDistribution.even,
           ),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 1),
-            padding: const EdgeInsets.fromLTRB(4, 1, 5, 1),
-            decoration: BoxDecoration(
-              color: isCommand ? const Color(0x264C9DFF) : CursorColors.surface,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
+          // The label is for show; the tag selects and copies as a whole.
+          child: SelectionContainer.disabled(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 1),
+              padding: const EdgeInsets.fromLTRB(4, 1, 5, 1),
+              decoration: BoxDecoration(
                 color: isCommand
-                    ? const Color(0x404C9DFF)
-                    : CursorColors.borderStrong,
-              ),
-            ),
-            child: switch (token.kind) {
-              SuggestionKind.file => FileLabel(token.label, fontSize: 12),
-              SuggestionKind.command => Text(
-                '/${token.label}',
-                style: const TextStyle(
-                  color: CursorColors.accent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                    ? const Color(0x264C9DFF)
+                    : CursorColors.surface,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: isCommand
+                      ? const Color(0x404C9DFF)
+                      : CursorColors.borderStrong,
                 ),
               ),
-              _ => Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    token.kind == SuggestionKind.folder
-                        ? Icons.folder_outlined
-                        : Icons.alternate_email_rounded,
-                    size: 13,
-                    color: CursorColors.textMuted,
+              child: switch (token.kind) {
+                SuggestionKind.file => FileLabel(token.label, fontSize: 12),
+                SuggestionKind.command => Text(
+                  '/${token.label}',
+                  style: const TextStyle(
+                    color: CursorColors.accent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    token.label,
-                    style: const TextStyle(
-                      color: CursorColors.text,
-                      fontSize: 12,
+                ),
+                _ => Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      token.kind == SuggestionKind.folder
+                          ? Icons.folder_outlined
+                          : Icons.alternate_email_rounded,
+                      size: 13,
+                      color: CursorColors.textMuted,
                     ),
-                  ),
-                ],
-              ),
-            },
+                    const SizedBox(width: 4),
+                    Text(
+                      token.label,
+                      style: const TextStyle(
+                        color: CursorColors.text,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              },
+            ),
           ),
         ),
       ),
@@ -235,46 +240,189 @@ class ComposerTokenChip extends StatelessWidget {
   }
 }
 
-/// Makes the text in [child] copy as [text] when any of it is selected.
-class _CopiesAs extends StatefulWidget {
-  const _CopiesAs({required this.text, required this.child});
+/// Makes [child] one unit of text selection: selected whole or not at all
+/// (whenever the two selection edges fall on either side of it), and copied
+/// as [text].
+///
+/// A leaf [Selectable] rather than a [SelectionContainer] around the label:
+/// nested containers each replay the last edge positions they saw when
+/// their content re-registers, which in a scrolling list goes stale.
+class _SelectableToken extends SingleChildRenderObjectWidget {
+  const _SelectableToken({required this.text, required super.child});
 
   final String text;
-  final Widget child;
 
   @override
-  State<_CopiesAs> createState() => _CopiesAsState();
-}
-
-class _CopiesAsState extends State<_CopiesAs> {
-  late final _delegate = _CopiesAsDelegate(widget.text);
+  _RenderSelectableToken createRenderObject(BuildContext context) =>
+      _RenderSelectableToken(text, _selectionColor(context))
+        ..registrar = SelectionContainer.maybeOf(context);
 
   @override
-  void didUpdateWidget(_CopiesAs oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _delegate.text = widget.text;
+  void updateRenderObject(
+    BuildContext context,
+    _RenderSelectableToken renderObject,
+  ) {
+    renderObject
+      ..text = text
+      ..selectionColor = _selectionColor(context)
+      ..registrar = SelectionContainer.maybeOf(context);
   }
 
-  @override
-  void dispose() {
-    _delegate.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) =>
-      SelectionContainer(delegate: _delegate, child: widget.child);
+  static Color _selectionColor(BuildContext context) =>
+      DefaultSelectionStyle.of(context).selectionColor ??
+      const Color(0x664C9DFF);
 }
 
-class _CopiesAsDelegate extends StaticSelectionContainerDelegate {
-  _CopiesAsDelegate(this.text);
+class _RenderSelectableToken extends RenderProxyBox
+    with Selectable, SelectionRegistrant {
+  _RenderSelectableToken(this.text, this._selectionColor);
 
   String text;
 
+  Color _selectionColor;
+  set selectionColor(Color value) {
+    if (value == _selectionColor) return;
+    _selectionColor = value;
+    if (_selected) markNeedsPaint();
+  }
+
+  /// Which side of the tag each edge is on: false before, true after.
+  bool? _startAfter;
+  bool? _endAfter;
+
+  bool get _selected =>
+      _startAfter != null && _endAfter != null && _startAfter != _endAfter;
+
+  // --- Where a point is -----------------------------------------------------
+
+  /// Before or after the tag in reading order: above or left of it on its
+  /// line is before; inside, the nearer half decides.
+  bool _isAfter(Offset globalPosition) {
+    final local = globalToLocal(globalPosition);
+    if (local.dy < 0) return false;
+    if (local.dy > size.height) return true;
+    return local.dx > size.width / 2;
+  }
+
+  SelectionResult _resultFor(Offset globalPosition) {
+    final local = globalToLocal(globalPosition);
+    if (size.contains(local)) return SelectionResult.end;
+    return _isAfter(globalPosition)
+        ? SelectionResult.next
+        : SelectionResult.previous;
+  }
+
+  // --- Selectable -------------------------------------------------------------
+
   @override
-  SelectedContent? getSelectedContent() => super.getSelectedContent() == null
-      ? null
-      : SelectedContent(plainText: text);
+  SelectionResult dispatchSelectionEvent(SelectionEvent event) {
+    final wasSelected = _selected;
+    final SelectionResult result;
+    switch (event) {
+      case SelectionEdgeUpdateEvent(:final globalPosition, :final type):
+        final after = _isAfter(globalPosition);
+        if (type == SelectionEventType.startEdgeUpdate) {
+          _startAfter = after;
+        } else {
+          _endAfter = after;
+        }
+        result = _resultFor(globalPosition);
+      case SelectAllSelectionEvent():
+        _startAfter = false;
+        _endAfter = true;
+        result = SelectionResult.none;
+      case ClearSelectionEvent():
+        _startAfter = _endAfter = null;
+        result = SelectionResult.none;
+      case SelectWordSelectionEvent(:final globalPosition) ||
+          SelectParagraphSelectionEvent(:final globalPosition):
+        result = _resultFor(globalPosition);
+        if (result == SelectionResult.end) {
+          _startAfter = false;
+          _endAfter = true;
+        }
+      default:
+        result = SelectionResult.none;
+    }
+    if (_selected != wasSelected) {
+      markNeedsPaint();
+      _notifyListeners();
+    }
+    return result;
+  }
+
+  @override
+  SelectionGeometry get value {
+    if (!_selected) {
+      return const SelectionGeometry(
+        status: SelectionStatus.none,
+        hasContent: true,
+      );
+    }
+    final forward = _endAfter!;
+    SelectionPoint point(bool right) => SelectionPoint(
+      localPosition: Offset(right ? size.width : 0, size.height),
+      lineHeight: size.height,
+      handleType: right
+          ? TextSelectionHandleType.right
+          : TextSelectionHandleType.left,
+    );
+    return SelectionGeometry(
+      status: SelectionStatus.uncollapsed,
+      hasContent: true,
+      startSelectionPoint: point(!forward),
+      endSelectionPoint: point(forward),
+      selectionRects: [Offset.zero & size],
+    );
+  }
+
+  @override
+  SelectedContent? getSelectedContent() =>
+      _selected ? SelectedContent(plainText: text) : null;
+
+  @override
+  SelectedContentRange? getSelection() {
+    if (!_selected) return null;
+    final forward = _endAfter!;
+    return SelectedContentRange(
+      startOffset: forward ? 0 : text.length,
+      endOffset: forward ? text.length : 0,
+    );
+  }
+
+  @override
+  int get contentLength => text.length;
+
+  @override
+  List<Rect> get boundingBoxes => [Offset.zero & size];
+
+  @override
+  void pushHandleLayers(LayerLink? startHandle, LayerLink? endHandle) {}
+
+  final List<VoidCallback> _listeners = [];
+
+  @override
+  void addListener(VoidCallback listener) => _listeners.add(listener);
+
+  @override
+  void removeListener(VoidCallback listener) => _listeners.remove(listener);
+
+  void _notifyListeners() {
+    for (final listener in [..._listeners]) {
+      listener();
+    }
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    super.paint(context, offset);
+    if (_selected) {
+      context.canvas.drawRRect(
+        RRect.fromRectAndRadius(offset & size, const Radius.circular(4)),
+        Paint()..color = _selectionColor,
+      );
+    }
+  }
 }
 
 /// Reports a baseline that puts the child's vertical center on the center of

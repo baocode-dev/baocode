@@ -333,8 +333,16 @@ void main() {
     final text = copied ?? '';
     final thoughts = 'Thought for'.allMatches(text).length;
     expect(thoughts, greaterThanOrEqualTo(3));
-    expect('lazyRange'.allMatches(text).length, thoughts);
-    expect('flutter test'.allMatches(text).length, thoughts);
+    // Whole turns, except that the first may start partway (after its
+    // thinking block, before its diff and terminal).
+    expect(
+      'lazyRange'.allMatches(text).length - thoughts,
+      inInclusiveRange(0, 1),
+    );
+    expect(
+      'flutter test'.allMatches(text).length - thoughts,
+      inInclusiveRange(0, 1),
+    );
     final turns = RegExp(r'第 (\d+) 轮')
         .allMatches(text)
         .map((match) => int.parse(match.group(1)!))

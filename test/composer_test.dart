@@ -1,7 +1,11 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,15 +19,18 @@ import 'package:monad/chat/composer/composer.dart';
 import 'package:monad/chat/composer/composer_caret.dart';
 import 'package:monad/chat/composer/composer_embeds.dart';
 import 'package:monad/chat/composer/composer_picker.dart';
-import 'package:monad/chat/composer/composer_popover.dart';
+import 'package:monad/chat/floating/floating_layer.dart';
 import 'package:monad/chat/composer/suggestion_menu.dart';
 import 'package:monad/chat/panels/activity_strip.dart';
 import 'package:monad/chat/panels/ask_question_panel.dart';
 import 'package:monad/chat/panels/context_usage_panel.dart';
 import 'package:monad/theme/cursor_theme.dart';
 
-Future<ChatSession> pumpScreen(WidgetTester tester) async {
-  final session = ChatSession(historyCount: 16);
+Future<ChatSession> pumpScreen(
+  WidgetTester tester, {
+  int historyCount = 16,
+}) async {
+  final session = ChatSession(historyCount: historyCount);
   addTearDown(session.dispose);
   await tester.pumpWidget(
     MaterialApp(
@@ -425,7 +432,7 @@ void main() {
 
     await pressKey(tester, LogicalKeyboardKey.escape);
     // Still fading out, then gone.
-    await tester.pump(ComposerPopover.exitDuration ~/ 2);
+    await tester.pump(FloatingLayer.defaultExitDuration ~/ 2);
     expect(find.byType(SuggestionMenu), findsOneWidget);
     await settleAnimations(tester);
     expect(find.byType(SuggestionMenu), findsNothing);
@@ -573,6 +580,515 @@ void main() {
       await drag.up();
       await tester.pump();
       expect(editorInHistory(), findsNothing);
+    });
+
+    testWidgets('a message with inline tags copies as its text', (
+      tester,
+    ) async {
+      final session = await pumpScreen(tester);
+      String? copied;
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      await reveal(tester, '第 1 轮');
+      final original = (session.itemAt(0) as UserMessageItem).text;
+      expect(original, contains('@lib/main.dart 和 @pubspec.yaml'));
+      final rect = tester.getRect(bubble('第 1 轮'));
+      final corners = (
+        rect.topLeft + const Offset(13, 12),
+        rect.bottomRight - const Offset(13, 10),
+      );
+      for (final (from, to) in [corners, (corners.$2, corners.$1)]) {
+        final drag = await tester.startGesture(
+          from,
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await drag.moveTo(to);
+        await tester.pump();
+        await drag.up();
+        await tester.pump();
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pump();
+        expect(copied, original.replaceAll('`', ' '));
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+    });
+
+    testWidgets('the editor sticks to the top while scrolled past', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await reveal(tester, '第 2 轮');
+      await tester.tap(bubble('第 2 轮'));
+      await tester.pump();
+      await tester.pump();
+      final list = tester.getRect(find.byType(SuperListView));
+      final composer = find.descendant(
+        of: find.byType(ChatHistoryView),
+        matching: find.byType(ChatComposer),
+      );
+      final position = tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(SuperListView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+
+      // In place: where the message was (brought down from the very top).
+      position.jumpTo(position.pixels - 120);
+      await tester.pump();
+      final start = position.pixels;
+      final inPlace = tester.getTopLeft(composer).dy;
+      expect(inPlace, greaterThan(list.top + 8));
+
+      // Scrolled past: pinned just below the top of the list.
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pump();
+      expect(tester.getTopLeft(composer).dy, list.top + 8);
+      // Still usable there: the wheel over it scrolls the list.
+      final wheel = TestPointer(7, PointerDeviceKind.mouse);
+      wheel.hover(tester.getCenter(composer));
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, -30)));
+      await tester.pump();
+      expect(position.pixels, lessThan(position.maxScrollExtent));
+
+      // Back: in place again.
+      position.jumpTo(start);
+      await tester.pump();
+      expect(tester.getTopLeft(composer).dy, inPlace);
+    });
+
+    testWidgets('a click outside the editor cancels, its menus do not', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await reveal(tester, '第 2 轮');
+      await tester.tap(bubble('第 2 轮'));
+      await tester.pump();
+      await tester.pump();
+      final editPicker = find
+          .descendant(
+            of: find.byType(ChatHistoryView),
+            matching: find.byType(ComposerPicker),
+          )
+          .first;
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(editPicker));
+      await mouse.down(tester.getCenter(editPicker));
+      await mouse.up();
+      await settleAnimations(tester);
+      final ask = find.text('Answer questions, no edits');
+      await mouse.moveTo(tester.getCenter(ask));
+      await mouse.down(tester.getCenter(ask));
+      await mouse.up();
+      await settleAnimations(tester);
+      expect(editorInHistory(), findsOneWidget);
+      expect(
+        find.descendant(of: editPicker, matching: find.text('Ask')),
+        findsOneWidget,
+      );
+
+      // The title bar is outside.
+      await mouse.moveTo(const Offset(400, 10));
+      await mouse.down(const Offset(400, 10));
+      await mouse.up();
+      await tester.pump();
+      expect(editorInHistory(), findsNothing);
+      expect(bubble('第 2 轮'), findsOneWidget);
+      await mouse.removePointer();
+    });
+
+    testWidgets('a long message shows its first lines, all of it to edit', (
+      tester,
+    ) async {
+      // Turn 3 carries a long request; turn 2 is short.
+      final session = await pumpScreen(tester, historyCount: 24);
+      String? copied;
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      final long = (session.itemAt(16) as UserMessageItem).text;
+      expect(long, contains('7. 改完后简要说明取舍'));
+      Finder expandIcon(Finder of) => find.descendant(
+        of: of,
+        matching: find.byIcon(Icons.keyboard_arrow_down_rounded),
+      );
+
+      await reveal(tester, '第 3 轮');
+      final longBubble = bubble('第 3 轮');
+      // Six lines of text, plus the bubble's padding and border.
+      expect(tester.getSize(longBubble).height, 13.5 * 1.5 * 6 + 10 + 11 + 2);
+      expect(expandIcon(longBubble), findsOneWidget);
+
+      // A short one is not cut: as tall as its text. (Its overlay is built
+      // but not painted.)
+      await reveal(tester, '第 2 轮');
+      final shortBubble = bubble('第 2 轮');
+      final text = find.descendant(
+        of: shortBubble,
+        matching: find.byType(RichText),
+      );
+      expect(
+        tester.getSize(shortBubble).height,
+        tester.getSize(text.first).height + 10 + 11 + 2,
+      );
+
+      // The hidden lines still copy.
+      await tester.tap(find.byType(ChatHistoryView), warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(copied, contains('7. 改完后简要说明取舍'));
+
+      // Clicking edits the whole message.
+      await reveal(tester, '第 3 轮');
+      await tester.tapAt(
+        tester.getTopLeft(bubble('第 3 轮')) + const Offset(20, 14),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(
+        editController(tester).document.toPlainText(),
+        contains('7. 改完后简要说明取舍'),
+      );
+    });
+
+    testWidgets('a collapsed message shows no text below its fade', (
+      tester,
+    ) async {
+      // Real glyphs (the test font's blocks sit well inside the line and
+      // never reach the clip edge): CJK text reaches near the line's top.
+      await tester.runAsync(() async {
+        final font = File(
+          '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+        );
+        if (!font.existsSync()) return;
+        await (FontLoader('Roboto')..addFont(
+              Future.value(ByteData.sublistView(font.readAsBytesSync())),
+            ))
+            .load();
+      });
+      // 2x, like a Retina display, at fractional scroll offsets: the clip
+      // edge lands mid-pixel.
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+      await pumpScreen(tester, historyCount: 24);
+      await reveal(tester, '第 3 轮');
+      final position = tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(ChatHistoryView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+      final layer = tester.binding.renderViews.first.debugLayer! as OffsetLayer;
+      for (var step = 0; step < 6; step++) {
+        position.jumpTo(position.pixels - 0.3);
+        await tester.pump();
+        // From 3px above the clip edge (the fade's opaque end) to the bottom
+        // border: the bubble's own color only (#262626; text is #CCCCCC).
+        final rect = tester.getRect(bubble('第 3 轮'));
+        final clipBottom = rect.bottom - 1 - 11;
+        final band = Rect.fromLTRB(
+          (rect.left + 12) * 2,
+          ((clipBottom - 3) * 2).floorToDouble(),
+          (rect.right - 12) * 2,
+          ((rect.bottom - 2) * 2).floorToDouble(),
+        );
+        final image = (await tester.runAsync(() => layer.toImage(band)))!;
+        final bytes = (await tester.runAsync(
+          () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+        ))!;
+        // Skipping the expand icon, centered at the bottom.
+        final width = band.width.toInt();
+        final iconFrom = width ~/ 2 - 24;
+        final iconTo = width ~/ 2 + 24;
+        var brightest = 0;
+        for (var i = 0; i < bytes.lengthInBytes; i += 4) {
+          final x = (i ~/ 4) % width;
+          if (x >= iconFrom && x < iconTo) continue;
+          brightest = math.max(brightest, bytes.getUint8(i));
+        }
+        expect(brightest, lessThanOrEqualTo(0x28), reason: 'step $step');
+      }
+    });
+
+    testWidgets(
+      'a trackpad pan over a scrolling editor never reaches the list',
+      (tester) async {
+        await pumpScreen(tester, historyCount: 40);
+        final position = tester
+            .state<ScrollableState>(
+              find
+                  .descendant(
+                    of: find.byType(ChatHistoryView),
+                    matching: find.byType(Scrollable),
+                  )
+                  .first,
+            )
+            .position;
+        Future<void> pan(Offset at, double dy, {int steps = 10}) async {
+          final pointer = TestPointer(9, PointerDeviceKind.trackpad);
+          final start = tester.binding.clock.now().microsecondsSinceEpoch;
+          Duration now() => Duration(
+            microseconds:
+                tester.binding.clock.now().microsecondsSinceEpoch - start,
+          );
+          await tester.sendEventToBinding(pointer.panZoomStart(at));
+          for (var i = 1; i <= steps; i++) {
+            await tester.sendEventToBinding(
+              pointer.panZoomUpdate(
+                at,
+                pan: Offset(0, dy * i / steps),
+                timeStamp: now(),
+              ),
+            );
+            await tester.pump(const Duration(milliseconds: 16));
+          }
+          await tester.sendEventToBinding(pointer.panZoomEnd(timeStamp: now()));
+          await tester.pump();
+        }
+
+        // A short message: the text area cannot scroll, so the list does.
+        position.jumpTo(0);
+        await tester.pump();
+        await reveal(tester, '第 2 轮');
+        position.jumpTo(position.pixels - 60);
+        await tester.pump();
+        await tester.tap(bubble('第 2 轮'));
+        await tester.pump();
+        await tester.pump();
+        var before = position.pixels;
+        await pan(tester.getCenter(editorInHistory()), -80);
+        expect(position.pixels, greaterThan(before + 40));
+        // The fingers lifted mid-move: it carries on.
+        final lifted = position.pixels;
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(position.pixels, isNot(lifted));
+        await tester.pump(const Duration(seconds: 2));
+        await pressKey(tester, LogicalKeyboardKey.escape);
+
+        // A long one: its text area scrolls first, then the list.
+        await reveal(tester, '第 3 轮');
+        position.jumpTo(position.pixels - 60);
+        await tester.pump();
+        await tester.tapAt(
+          tester.getTopLeft(bubble('第 3 轮')) + const Offset(20, 14),
+        );
+        await tester.pump();
+        await tester.pump();
+        final inner = tester
+            .state<ChatComposerState>(
+              find.descendant(
+                of: find.byType(ChatHistoryView),
+                matching: find.byType(ChatComposer),
+              ),
+            )
+            .editorScrollPosition!;
+        expect(inner.maxScrollExtent, greaterThan(0));
+        inner.jumpTo(0);
+        await tester.pump();
+        // Its text area scrolls, and stops at its end: the list never moves,
+        // not even with the next pan.
+        before = position.pixels;
+        await pan(tester.getCenter(editorInHistory()), -400, steps: 20);
+        expect(inner.pixels, inner.maxScrollExtent);
+        await tester.pump(const Duration(seconds: 2));
+        await pan(tester.getCenter(editorInHistory()), -100);
+        await tester.pump(const Duration(seconds: 2));
+        expect(position.pixels, before);
+        expect(inner.pixels, inner.maxScrollExtent);
+      },
+    );
+
+    testWidgets("the editor's own scrolling leaves the history scrollbar", (
+      tester,
+    ) async {
+      await pumpScreen(tester, historyCount: 40);
+      final position = tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(ChatHistoryView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+      position.jumpTo(0);
+      await tester.pump();
+      await reveal(tester, '第 3 轮');
+      await tester.tapAt(
+        tester.getTopLeft(bubble('第 3 轮')) + const Offset(20, 14),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      // Where the history scrollbar's thumb is, along the right edge.
+      final scrollbar = find
+          .byWidgetPredicate(
+            (widget) =>
+                widget is CustomPaint &&
+                widget.foregroundPainter is ScrollbarPainter,
+          )
+          .first;
+      final list = tester.getRect(find.byType(ChatHistoryView));
+      List<double> thumbRows() {
+        final painter =
+            tester.widget<CustomPaint>(scrollbar).foregroundPainter!
+                as ScrollbarPainter;
+        final origin = tester.getTopLeft(scrollbar);
+        return [
+          for (var y = list.top; y < list.bottom; y += 2)
+            if (painter.hitTestOnlyThumbInteractive(
+              Offset(list.right - 4, y) - origin,
+              PointerDeviceKind.mouse,
+            ))
+              y,
+        ];
+      }
+
+      await tester.pump(const Duration(milliseconds: 500));
+      final before = thumbRows();
+      expect(before, isNotEmpty);
+      final inner = tester
+          .state<ChatComposerState>(
+            find.descendant(
+              of: find.byType(ChatHistoryView),
+              matching: find.byType(ChatComposer),
+            ),
+          )
+          .editorScrollPosition!;
+      expect(inner.maxScrollExtent, greaterThan(0));
+      // The text area opens scrolled to the caret, at the end. Scrolling
+      // it moves its own scrollbar only.
+      expect(inner.pixels, inner.maxScrollExtent);
+      inner.jumpTo(0);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(thumbRows(), before);
+
+      // A wheel over it scrolls it while it can, not the list.
+      inner.jumpTo(inner.maxScrollExtent);
+      await tester.pump();
+      final wheel = TestPointer(8, PointerDeviceKind.mouse);
+      wheel.hover(tester.getCenter(editorInHistory()));
+      final listBefore = position.pixels;
+      await tester.sendEventToBinding(wheel.scroll(const Offset(0, -10)));
+      await tester.pump();
+      expect(inner.pixels, lessThan(inner.maxScrollExtent));
+      expect(position.pixels, listBefore);
+      expect(thumbRows(), before);
+    });
+
+    testWidgets('wheels over a scrolling editor never reach the list', (
+      tester,
+    ) async {
+      await pumpScreen(tester, historyCount: 40);
+      final position = tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(ChatHistoryView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+      position.jumpTo(0);
+      await tester.pump();
+
+      // On the list: a mouse wheel is sped up, a trackpad (the web sends
+      // its swipes as scroll signals) is not.
+      final list = tester.getCenter(find.byType(ChatHistoryView));
+      final mouse = TestPointer(6, PointerDeviceKind.mouse)..hover(list);
+      final trackpad = TestPointer(7, PointerDeviceKind.trackpad)..hover(list);
+      var before = position.pixels;
+      await tester.sendEventToBinding(mouse.scroll(const Offset(0, 20)));
+      await tester.pump();
+      expect(position.pixels - before, greaterThan(40));
+      before = position.pixels;
+      await tester.sendEventToBinding(trackpad.scroll(const Offset(0, 20)));
+      await tester.pump();
+      expect(position.pixels - before, 20);
+
+      // Over the editor, a swipe (and its momentum) scrolls its text area
+      // and stops at its end.
+      position.jumpTo(0);
+      await tester.pump();
+      await reveal(tester, '第 3 轮');
+      position.jumpTo(position.pixels - 60);
+      await tester.pump();
+      await tester.tapAt(
+        tester.getTopLeft(bubble('第 3 轮')) + const Offset(20, 14),
+      );
+      await tester.pump();
+      await tester.pump();
+      final inner = tester
+          .state<ChatComposerState>(
+            find.descendant(
+              of: find.byType(ChatHistoryView),
+              matching: find.byType(ChatComposer),
+            ),
+          )
+          .editorScrollPosition!;
+      inner.jumpTo(0);
+      await tester.pump();
+      final swipe = TestPointer(8, PointerDeviceKind.trackpad)
+        ..hover(tester.getCenter(editorInHistory()));
+      var time = const Duration(seconds: 10);
+      before = position.pixels;
+      for (var i = 0; i < 12; i++) {
+        time += const Duration(milliseconds: 16);
+        await tester.sendEventToBinding(
+          swipe.scroll(const Offset(0, 10), timeStamp: time),
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(inner.pixels, inner.maxScrollExtent);
+      expect(position.pixels, before);
+
+      // Nor after a pause, with a trackpad or a mouse wheel.
+      final wheel = TestPointer(9, PointerDeviceKind.mouse)
+        ..hover(tester.getCenter(editorInHistory()));
+      for (final pointer in [swipe, wheel]) {
+        time += const Duration(milliseconds: 400);
+        await tester.sendEventToBinding(
+          pointer.scroll(const Offset(0, 10), timeStamp: time),
+        );
+        await tester.pump();
+      }
+      expect(position.pixels, before);
+      expect(inner.pixels, inner.maxScrollExtent);
     });
   });
 }

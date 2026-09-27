@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import '../../theme/cursor_theme.dart';
 import '../widgets/hover_builder.dart';
 import 'composer_mock_data.dart';
-import 'composer_popover.dart';
+import '../floating/floating_layer.dart';
+import '../floating/floating_placement.dart';
+import '../floating/floating_registry.dart';
 
 /// Compact pill that opens a menu of [options], e.g. the mode or model.
 ///
@@ -20,6 +22,7 @@ class ComposerPicker extends StatefulWidget {
     required this.onSelected,
     this.emphasized = false,
     this.tapRegionGroupId,
+    this.focusNode,
   });
 
   final List<ComposerOption> options;
@@ -30,8 +33,12 @@ class ComposerPicker extends StatefulWidget {
   final bool emphasized;
 
   /// Group of a region around the whole composer, which the menu counts as
-  /// part of (see [ComposerPopover.outerTapRegionGroupId]).
+  /// part of (see [FloatingLayer.outerTapRegionGroupId]).
   final Object? tapRegionGroupId;
+
+  /// The input this picker belongs to. Opening focuses it: keys reach the
+  /// open menu through it ([FloatingRegistry.handleKey]).
+  final FocusNode? focusNode;
 
   @override
   State<ComposerPicker> createState() => _ComposerPickerState();
@@ -61,7 +68,7 @@ class _ComposerPickerState extends State<ComposerPicker> {
 
   @override
   void dispose() {
-    if (_open) HardwareKeyboard.instance.removeHandler(_handleKey);
+    if (_open) FloatingRegistry.closePopover(this);
     super.dispose();
   }
 
@@ -76,9 +83,12 @@ class _ComposerPickerState extends State<ComposerPicker> {
       }
     });
     if (open) {
-      HardwareKeyboard.instance.addHandler(_handleKey);
+      widget.focusNode?.requestFocus();
+      FloatingRegistry.openPopover(this, () {
+        if (mounted) _setOpen(false);
+      }, onKey: _handleKey);
     } else {
-      HardwareKeyboard.instance.removeHandler(_handleKey);
+      FloatingRegistry.closePopover(this);
     }
   }
 
@@ -87,8 +97,8 @@ class _ComposerPickerState extends State<ComposerPicker> {
     widget.onSelected(widget.options[index]);
   }
 
-  bool _handleKey(KeyEvent event) {
-    if (event is KeyUpEvent) return false;
+  KeyEventResult? _handleKey(KeyEvent event) {
+    if (event is KeyUpEvent) return null;
     final key = event.logicalKey;
     final count = widget.options.length;
     if (key == LogicalKeyboardKey.arrowDown) {
@@ -101,9 +111,9 @@ class _ComposerPickerState extends State<ComposerPicker> {
     } else if (key == LogicalKeyboardKey.escape) {
       if (event is KeyDownEvent) _setOpen(false);
     } else {
-      return false;
+      return null;
     }
-    return true;
+    return KeyEventResult.handled;
   }
 
   int? _rowAt(Offset globalPosition) {
@@ -142,13 +152,15 @@ class _ComposerPickerState extends State<ComposerPicker> {
 
   @override
   Widget build(BuildContext context) {
-    return ComposerPopover(
+    return FloatingLayer(
       visible: _open,
-      offset: const Offset(0, -6),
+      // Above the pill; below it when there is no room (e.g. a message being
+      // edited at the top of the window).
+      placement: (side: FloatingSide.top, align: FloatingAlign.start),
       tapRegionGroupId: _tapRegion,
       outerTapRegionGroupId: widget.tapRegionGroupId,
       onTapOutside: () => _setOpen(false),
-      popoverBuilder: _buildMenu,
+      builder: _buildMenu,
       child: TapRegion(
         groupId: _tapRegion,
         child: Listener(
