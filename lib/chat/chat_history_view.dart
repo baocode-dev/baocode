@@ -105,6 +105,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     super.initState();
     _scrollController.addListener(_handleScroll);
     _session.addListener(_handleSessionChanged);
+    _stickyIndices = _tailUserMessages();
   }
 
   @override
@@ -113,6 +114,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     if (oldWidget.session != widget.session) {
       oldWidget.session.removeListener(_handleSessionChanged);
       widget.session.addListener(_handleSessionChanged);
+      _stickyKeys.clear();
+      _stickyIndices = _tailUserMessages();
     }
   }
 
@@ -405,7 +408,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   // --- The sticky user message ---------------------------------------------
 
   /// Room above the stuck message, as above the editor stuck to the top.
-  static const _stickyInset = 8.0;
+  static const _stickyInset = CursorMetrics.contentInset;
 
   /// Height of the fade under the stuck message, over the transcript
   /// scrolling beneath it.
@@ -432,6 +435,21 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
       _stickyKeys.removeWhere((index, _) => !indices.contains(index));
       setState(() => _stickyIndices = indices);
     });
+  }
+
+  /// The last user messages, one of which is at the top when the list
+  /// opens at its end: built up front, so the first frame already has the
+  /// right copy stuck (rather than it appearing a frame or two later, over
+  /// the text it covers).
+  Set<int> _tailUserMessages() {
+    final indices = <int>{};
+    final end = _session.itemCount;
+    for (var index = end - 1; index >= 0 && index >= end - 64; index--) {
+      if (_session.itemAt(index) is! UserMessageItem) continue;
+      indices.add(index);
+      if (indices.length == 2) break;
+    }
+    return indices;
   }
 
   /// The user message of the turn at the top of the view: the last one

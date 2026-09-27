@@ -7,6 +7,7 @@ import 'composer/composer.dart';
 import 'panels/activity_strip.dart';
 import 'panels/ask_question_panel.dart';
 import 'panels/context_usage_panel.dart';
+import 'widgets/inline_rename_field.dart';
 
 /// Layout, top to bottom:
 /// - history + live turn: a virtual list that yields height;
@@ -17,21 +18,53 @@ class ChatScreen extends StatefulWidget {
     super.key,
     this.title = 'Optimize virtual list scrolling',
     this.session,
+    this.leading,
+    this.trailing,
+    this.titleBarInset,
+    this.onRename,
+    this.autofocus = false,
   });
 
   final String title;
   final ChatSession? session;
+
+  /// Before the title, e.g. a button to show the sidebar.
+  final Widget? leading;
+
+  /// At the right of the title bar, e.g. a button to open the project.
+  final Widget? trailing;
+
+  /// Left of the title bar's content: by default clear of the native
+  /// traffic lights, as when this is the whole window.
+  final double? titleBarInset;
+
+  /// Given, a double click on the title edits it.
+  final ValueChanged<String>? onRename;
+
+  /// Focuses the composer once shown, e.g. for a new agent.
+  final bool autofocus;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  static const _maxContentWidth = 760.0;
+  static const _maxContentWidth = 720.0;
 
   late final ChatSession _session = widget.session ?? ChatSession();
   final GlobalKey<ChatComposerState> _composerKey = GlobalKey();
   bool _contextPanelOpen = false;
+  bool _renaming = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autofocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _composerKey.currentState?.focus();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -48,28 +81,87 @@ class _ChatScreenState extends State<ChatScreen> {
     _composerKey.currentState?.focus();
   }
 
+  Widget _buildTitleBar() {
+    const style = TextStyle(
+      color: CursorColors.textMuted,
+      fontSize: 12.5,
+      fontWeight: FontWeight.w500,
+    );
+    final onRename = widget.onRename;
+    final Widget title;
+    if (_renaming && onRename != null) {
+      title = SizedBox(
+        width: 320,
+        child: InlineRenameField(
+          initial: widget.title,
+          style: style.copyWith(color: CursorColors.textPrimary),
+          onDone: (text) {
+            if (text != null) onRename(text);
+            setState(() => _renaming = false);
+          },
+        ),
+      );
+    } else {
+      title = GestureDetector(
+        onDoubleTap: onRename == null
+            ? null
+            : () => setState(() => _renaming = true),
+        child: Text(
+          widget.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: style,
+        ),
+      );
+    }
+    return SizedBox(
+      height: CursorMetrics.titleBarHeight,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: widget.titleBarInset ?? CursorMetrics.trafficLightsWidth + 12,
+          right: 8,
+        ),
+        child: Row(
+          children: [
+            if (widget.leading case final leading?) ...[
+              leading,
+              const SizedBox(width: 6),
+            ],
+            Expanded(
+              child: Align(alignment: Alignment.centerLeft, child: title),
+            ),
+            if (widget.trailing case final trailing?) ...[
+              const SizedBox(width: 8),
+              trailing,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Column(
         children: [
           // Transparent Flutter-owned title bar under the native traffic lights.
-          Container(
-            height: 30,
-            alignment: Alignment.center,
-            child: Text(
-              widget.title,
-              style: const TextStyle(
-                color: CursorColors.textMuted,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
+          _buildTitleBar(),
           Expanded(
-            child: ChatHistoryView(
-              session: _session,
-              maxContentWidth: _maxContentWidth,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ChatHistoryView(
+                  session: _session,
+                  maxContentWidth: _maxContentWidth,
+                ),
+                ListenableBuilder(
+                  listenable: _session,
+                  builder: (context, _) => _session.itemCount == 0
+                      ? const _EmptyHint()
+                      : const SizedBox.shrink(),
+                ),
+              ],
             ),
           ),
           ListenableBuilder(
@@ -143,6 +235,39 @@ class _PanelSlot extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: gap),
       child: panel,
+    );
+  }
+}
+
+/// Shown in place of the history while an agent has no messages yet.
+class _EmptyHint extends StatelessWidget {
+  const _EmptyHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return const IgnorePointer(
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.auto_awesome_outlined,
+              size: 22,
+              color: CursorColors.textFaint,
+            ),
+            SizedBox(height: 10),
+            Text(
+              'Plan, build, anything',
+              style: TextStyle(color: CursorColors.textMuted, fontSize: 14),
+            ),
+            SizedBox(height: 4),
+            Text(
+              '@ to add context · / for commands',
+              style: TextStyle(color: CursorColors.textFaint, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

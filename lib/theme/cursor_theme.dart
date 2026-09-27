@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Cursor-style dark palette.
@@ -21,6 +22,21 @@ abstract final class CursorColors {
   static const addedBackground = Color(0x1F3FB950);
   static const removed = Color(0xFFF07178);
   static const removedBackground = Color(0x1FF85149);
+}
+
+/// Window chrome shared by the sidebar and the chat, so their edges line up.
+abstract final class CursorMetrics {
+  /// The Flutter-drawn title bar, level with the native traffic lights.
+  static const titleBarHeight = 30.0;
+
+  /// From the title bar to the first content under it (the sidebar's New
+  /// Agent button, the chat's stuck message).
+  static const contentInset = 8.0;
+
+  /// Room the native macOS traffic lights take at the left of the title
+  /// bar (none on the web).
+  static double get trafficLightsWidth =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS ? 78 : 0;
 }
 
 abstract final class CursorFonts {
