@@ -11,6 +11,9 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:monad/chat/chat_models.dart';
+import 'package:monad/chat/widgets/edge_fade_mask.dart';
+import 'package:monad/chat/widgets/shimmer_text.dart';
+import 'package:monad/chat/widgets/thinking_section.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
 import 'package:monad/chat/chat_history_view.dart';
 import 'package:monad/chat/chat_session.dart';
@@ -146,7 +149,7 @@ void main() {
     await typeText(tester, 'build the composer');
     await pressKey(tester, LogicalKeyboardKey.enter);
 
-    for (var i = 0; i < 60 && session.pendingQuestion == null; i++) {
+    for (var i = 0; i < 200 && session.pendingQuestion == null; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
     await tester.pump(const Duration(milliseconds: 300));
@@ -175,6 +178,224 @@ void main() {
     await tester.tap(find.text('Keep all'));
     await settleAnimations(tester);
     expect(find.text('3 files changed'), findsNothing);
+  });
+
+  group('thinking', () {
+    Finder liveThought() => find.byType(ThinkingSection).last;
+    ThinkingSection section(WidgetTester tester) =>
+        tester.widget<ThinkingSection>(liveThought());
+    EdgeFadeMask liveMask(WidgetTester tester) => tester.widget<EdgeFadeMask>(
+      find.descendant(of: liveThought(), matching: find.byType(EdgeFadeMask)),
+    );
+
+    testWidgets('a short thought, expanded, keeps to the left of its column', (
+      tester,
+    ) async {
+      // As the history lays out an item: centered, at most the column wide.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              key: const Key('column'),
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: ThinkingSection(
+                text: '先确认需求涉及的文件。',
+                tokens: 12,
+                seconds: 2,
+                expanded: true,
+                onToggle: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      final column = tester.getRect(find.byKey(const Key('column')));
+      final rect = tester.getRect(find.byType(ThinkingSection));
+      expect(rect.left, column.left);
+      expect(rect.width, 400);
+      expect(
+        tester.getTopLeft(find.text('先确认需求涉及的文件。')).dx,
+        lessThan(column.left + 20),
+      );
+    });
+
+    testWidgets('holds still while its streaming text is selected', (
+      tester,
+    ) async {
+      var text = List.generate(12, (i) => '第$i行思考内容，一些文字。').join();
+      late StateSetter setText;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SelectionArea(
+              child: SizedBox(
+                width: 300,
+                child: StatefulBuilder(
+                  builder: (context, setState) {
+                    setText = setState;
+                    return ThinkingSection(
+                      text: text,
+                      tokens: 1,
+                      seconds: null,
+                      expanded: true,
+                      onToggle: () {},
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final position = tester
+          .state<ScrollableState>(find.byType(Scrollable).last)
+          .position;
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pump();
+
+      final paragraph = find.descendant(
+        of: find.byType(SingleChildScrollView),
+        matching: find.byType(RichText),
+      );
+      RenderParagraph render() => tester.renderObject(paragraph);
+      String selected() => [
+        for (final range in render().selections)
+          render().text.toPlainText().substring(range.start, range.end),
+      ].join();
+
+      final rect = tester.getRect(paragraph);
+      final drag = await tester.startGesture(
+        rect.topLeft + const Offset(80, 60),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await drag.moveTo(rect.topLeft + const Offset(200, 90));
+      await tester.pump();
+      await drag.up();
+      await tester.pump(const Duration(milliseconds: 500));
+      final before = selected();
+      final scrolled = position.pixels;
+      expect(before, isNotEmpty);
+
+      // New lines neither move the selection nor blink it (a new paragraph
+      // gets its selection a frame late): the text holds still.
+      for (var i = 0; i < 4; i++) {
+        setText(() => text += '追加的一句新内容追加的一句新内容');
+        await tester.pump();
+        expect(selected(), before);
+        expect(render().text.toPlainText(), isNot(text));
+        expect(position.pixels, scrolled);
+      }
+
+      // Selection gone: it catches up, following the newest line.
+      await tester.tapAt(rect.topLeft + const Offset(20, 20));
+      await tester.pump(const Duration(milliseconds: 500));
+      setText(() => text += '。');
+      await tester.pump();
+      await tester.pump();
+      expect(render().text.toPlainText(), text);
+      expect(position.pixels, position.maxScrollExtent);
+    });
+
+    testWidgets('streams open in a capped box, then settles closed', (
+      tester,
+    ) async {
+      final session = await pumpScreen(tester);
+      await typeText(tester, 'build the composer');
+      await pressKey(tester, LogicalKeyboardKey.enter);
+      await tester.pump(const Duration(milliseconds: 600));
+
+      // Streaming: open, tokens counting in the header.
+      expect(section(tester).seconds, isNull);
+      expect(section(tester).expanded, isTrue);
+      expect(
+        find.descendant(
+          of: liveThought(),
+          matching: find.textContaining(RegExp(r'^Thinking · \d+ tokens$')),
+        ),
+        findsOneWidget,
+      );
+
+      // Past seven lines: capped, following the newest, masked at the top.
+      final box = find.descendant(
+        of: liveThought(),
+        matching: find.byType(SingleChildScrollView),
+      );
+      ScrollPosition position() => tester
+          .state<ScrollableState>(
+            find.descendant(of: box, matching: find.byType(Scrollable)),
+          )
+          .position;
+      for (var i = 0; i < 150 && position().maxScrollExtent < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(section(tester).seconds, isNull);
+      expect(tester.getSize(box).height, lessThanOrEqualTo(13 * 1.6 * 7));
+      expect(position().pixels, position().maxScrollExtent);
+      expect(position().pixels, greaterThan(0));
+      expect(liveMask(tester).top, isTrue);
+
+      // Done: closed, with its time and total.
+      for (var i = 0; i < 150 && section(tester).seconds == null; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await settleAnimations(tester);
+      expect(section(tester).expanded, isFalse);
+      expect(
+        find.descendant(
+          of: liveThought(),
+          matching: find.textContaining(
+            RegExp(r'^Thought for \d+s · \d+ tokens$'),
+          ),
+        ),
+        findsOneWidget,
+      );
+      session.stop();
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('the user can close and reopen it while it streams', (
+      tester,
+    ) async {
+      final session = await pumpScreen(tester);
+      await typeText(tester, 'build the composer');
+      await pressKey(tester, LogicalKeyboardKey.enter);
+      await tester.pump(const Duration(milliseconds: 600));
+      final header = find.descendant(
+        of: liveThought(),
+        matching: find.textContaining('Thinking'),
+      );
+
+      await tester.tap(header);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(section(tester).seconds, isNull);
+      expect(section(tester).expanded, isFalse);
+
+      await tester.tap(header);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(section(tester).expanded, isTrue);
+
+      // Opened by the user, it stays open once done.
+      for (var i = 0; i < 150 && section(tester).seconds == null; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(section(tester).seconds, isNotNull);
+      expect(section(tester).expanded, isTrue);
+      session.stop();
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('stopping mid-thought settles it', (tester) async {
+      final session = await pumpScreen(tester);
+      await typeText(tester, 'build the composer');
+      await pressKey(tester, LogicalKeyboardKey.enter);
+      await tester.pump(const Duration(milliseconds: 800));
+      session.stop();
+      await tester.pump(const Duration(seconds: 1));
+      expect(section(tester).seconds, isNotNull);
+      expect(find.byType(ShimmerText), findsNothing);
+    });
   });
 
   testWidgets('context panel opens from the ring', (tester) async {
@@ -298,6 +519,115 @@ void main() {
     final controller = composerController(tester);
     expect(controller.document.toPlainText(), 'see \uFFFC \n');
     expect(controller.selection.baseOffset, 6);
+  });
+
+  group('paste', () {
+    /// Puts [text] on the (mock) clipboard and pastes it into the composer.
+    Future<void> paste(WidgetTester tester, String text) async {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async => switch (call.method) {
+          'Clipboard.getData' => {'text': text},
+          _ => null,
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      // ignore: experimental_member_use
+      await composerController(tester).clipboardPaste();
+      await tester.pump();
+    }
+
+    /// The composer's content, tokens as their sent text in brackets.
+    String content(WidgetTester tester) => [
+      for (final op in composerController(tester).document.toDelta().toList())
+        switch (op.data) {
+          final Map<dynamic, dynamic> data =>
+            '[${ComposerTokenEmbed.plainText(data[ComposerTokenEmbed.type])}]',
+          final data => '$data',
+        },
+    ].join();
+
+    testWidgets('turns known mentions and a leading command into tokens', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await paste(tester, '/plan 看一下 @lib/main.dart 和 @pubspec.yaml 里的用法');
+      expect(
+        content(tester),
+        '[/plan] 看一下 [@lib/main.dart] 和 [@pubspec.yaml] 里的用法\n',
+      );
+      // Caret after the pasted text; no menu from the @s in it.
+      final controller = composerController(tester);
+      expect(controller.selection.baseOffset, controller.document.length - 1);
+      expect(find.byType(SuggestionMenu), findsNothing);
+    });
+
+    testWidgets('leaves other @words and a mid-message /command as text', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await typeText(tester, 'try ');
+      await paste(tester, '/plan with @override and a@lib/main.dart');
+      expect(content(tester), 'try /plan with @override and a@lib/main.dart\n');
+    });
+
+    testWidgets('replaces the selection', (tester) async {
+      await pumpScreen(tester);
+      await typeText(tester, 'see here');
+      composerController(tester).updateSelection(
+        const TextSelection(baseOffset: 4, extentOffset: 8),
+        ChangeSource.local,
+      );
+      await paste(tester, '@README.md');
+      expect(content(tester), 'see [@README.md] \n');
+    });
+  });
+
+  testWidgets('a mouse drag selection follows every move, unthrottled', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await typeText(tester, 'hello world, a line to select across');
+    final controller = composerController(tester);
+    final editor = find.byType(QuillEditor);
+    final start = tester.getTopLeft(editor) + const Offset(2, 12);
+    final gesture = await tester.startGesture(
+      start,
+      kind: PointerDeviceKind.mouse,
+    );
+    addTearDown(gesture.removePointer);
+    var extent = 0;
+    for (var dx = 20.0; dx <= 120; dx += 20) {
+      await gesture.moveTo(start + Offset(dx, 0));
+      // One frame, well within Quill's 50ms throttle.
+      await tester.pump(const Duration(milliseconds: 8));
+      final selection = controller.selection;
+      expect(selection.baseOffset, 0, reason: 'dx $dx');
+      expect(selection.extentOffset, greaterThan(extent), reason: 'dx $dx');
+      extent = selection.extentOffset;
+    }
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(controller.selection.extentOffset, extent);
+  });
+
+  testWidgets('the mention menu opens only at the end of a query', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await typeText(tester, 'see @chat_s');
+    expect(find.byType(SuggestionMenu), findsOneWidget);
+    composerController(tester).updateSelection(
+      const TextSelection.collapsed(offset: 9),
+      ChangeSource.local,
+    );
+    await settleAnimations(tester);
+    expect(find.byType(SuggestionMenu), findsNothing);
   });
 
   testWidgets('text area keeps its resting height, grows, then scrolls', (
@@ -814,13 +1144,14 @@ void main() {
       for (var step = 0; step < 6; step++) {
         position.jumpTo(position.pixels - 0.3);
         await tester.pump();
-        // From 3px above the clip edge (the fade's opaque end) to the bottom
-        // border: the bubble's own color only (#262626; text is #CCCCCC).
+        // From the (possibly partial) row at the clip edge, where the fade
+        // has ended, to the bottom border: the bubble's own color only
+        // (#262626; text is #CCCCCC).
         final rect = tester.getRect(bubble('第 3 轮'));
         final clipBottom = rect.bottom - 1 - 11;
         final band = Rect.fromLTRB(
           (rect.left + 12) * 2,
-          ((clipBottom - 3) * 2).floorToDouble(),
+          (clipBottom * 2).floorToDouble(),
           (rect.right - 12) * 2,
           ((rect.bottom - 2) * 2).floorToDouble(),
         );

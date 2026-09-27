@@ -45,9 +45,16 @@ class ComposerTokenEmbed {
 }
 
 /// A composer document for sent [text], the inverse of
-/// [ComposerTokenEmbed.plainText]: `@value` of a known mention, any other
-/// `@path`, and a leading `/command` become tokens again.
-Delta composerDeltaFromText(String text) {
+/// [ComposerTokenEmbed.plainText]: see [composerDeltaFromPaste].
+Delta composerDeltaFromText(String text) =>
+    composerDeltaFromPaste(text, atStart: true)..insert('\n');
+
+/// [text] (plain, e.g. pasted) as composer content, without the document's
+/// closing newline: `@value` of a known mention becomes a token again, and
+/// so does a leading `/command` when the text goes [atStart] of the message
+/// (where alone a command counts). Any other `@word` stays text: pasted text
+/// is full of those (`@override`, handles).
+Delta composerDeltaFromPaste(String text, {required bool atStart}) {
   final delta = Delta();
   final buffer = StringBuffer();
   void flush() {
@@ -69,7 +76,7 @@ Delta composerDeltaFromText(String text) {
       [...source]..sort((a, b) => b.value.length.compareTo(a.value.length));
 
   var i = 0;
-  if (text.startsWith('/')) {
+  if (atStart && text.startsWith('/')) {
     for (final command in longestFirst(ComposerMockData.commands)) {
       if (text.startsWith(command.value, 1) &&
           endsAt(1 + command.value.length)) {
@@ -83,25 +90,10 @@ Delta composerDeltaFromText(String text) {
   while (i < text.length) {
     final atBoundary = i == 0 || text[i - 1].trim().isEmpty;
     if (text[i] == '@' && atBoundary) {
-      var mention = mentions
+      final mention = mentions
           .where((m) => text.startsWith(m.value, i + 1))
           .where((m) => endsAt(i + 1 + m.value.length))
           .firstOrNull;
-      if (mention == null) {
-        var end = i + 1;
-        while (!endsAt(end)) {
-          end++;
-        }
-        final path = text.substring(i + 1, end);
-        if (path.isNotEmpty) {
-          final slash = path.lastIndexOf('/');
-          mention = Suggestion(
-            kind: SuggestionKind.file,
-            label: path.substring(slash + 1),
-            detail: slash < 0 ? '' : path.substring(0, slash),
-          );
-        }
-      }
       if (mention != null) {
         token(mention);
         i += 1 + mention.value.length;
@@ -112,7 +104,6 @@ Delta composerDeltaFromText(String text) {
     i++;
   }
   flush();
-  delta.insert('\n');
   return delta;
 }
 

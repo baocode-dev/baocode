@@ -19,10 +19,17 @@ class AssistantTextItem extends ChatItem {
 }
 
 class ThinkingItem extends ChatItem {
-  const ThinkingItem({required this.seconds, required this.text});
+  const ThinkingItem({required this.text, required this.tokens, this.seconds});
 
-  final int seconds;
   final String text;
+
+  /// Tokens thought so far (all of them, once done).
+  final int tokens;
+
+  /// How long the thought took; null while it is still streaming.
+  final int? seconds;
+
+  bool get streaming => seconds == null;
 }
 
 enum ToolKind { read, grep, listDir, search }

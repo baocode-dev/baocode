@@ -34,12 +34,14 @@ class ChatItemView extends StatelessWidget {
         onEdit: onEdit,
       ),
       AssistantTextItem(:final text) => AssistantText(text),
-      ThinkingItem(:final seconds, :final text) => ThinkingSection(
-        seconds: seconds,
-        text: text,
-        expanded: expanded,
-        onToggle: onToggle ?? () {},
-      ),
+      ThinkingItem(:final text, :final tokens, :final seconds) =>
+        ThinkingSection(
+          text: text,
+          tokens: tokens,
+          seconds: seconds,
+          expanded: expanded,
+          onToggle: onToggle ?? () {},
+        ),
       ToolCallItem(
         :final kind,
         :final target,
@@ -85,8 +87,10 @@ String chatItemPlainText(ChatItem item, {bool expanded = false}) {
         else if (line.isNotEmpty)
           inline(line),
     ].join('\n'),
-    ThinkingItem(:final seconds, :final text) =>
-      expanded ? 'Thought for ${seconds}s\n$text' : 'Thought for ${seconds}s',
+    ThinkingItem(:final text, :final tokens, :final seconds) => [
+      thinkingTitle(seconds: seconds, tokens: tokens),
+      if (expanded) text,
+    ].join('\n'),
     ToolCallItem(:final kind, :final target, :final detail) => [
       switch (kind) {
         ToolKind.read => 'Read',

@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:flutter_quill/quill_delta.dart';
 
 import '../../theme/cursor_theme.dart';
 import '../chat_session.dart';
@@ -99,13 +102,55 @@ class ChatComposerState extends State<ChatComposer> {
   double _menuX = 0;
 
   QuillController _createController() {
+    final config = QuillControllerConfig(
+      // Quill's only hook for taking over paste; experimental in 11.x.
+      // ignore: experimental_member_use
+      clipboardConfig: QuillClipboardConfig(onClipboardPaste: _paste),
+    );
     final text = widget.initialText;
-    if (text == null || text.isEmpty) return QuillController.basic();
+    if (text == null || text.isEmpty) {
+      return QuillController.basic(config: config);
+    }
     final document = Document.fromDelta(composerDeltaFromText(text));
     return QuillController(
       document: document,
       selection: TextSelection.collapsed(offset: document.length - 1),
+      config: config,
     );
+  }
+
+  /// Pastes the clipboard's plain text with its @mentions (and a leading
+  /// /command) as tokens, as the message will show once sent: copied from
+  /// the history, from this editor or from elsewhere alike. Also keeps
+  /// Quill from pasting HTML or Markdown as rich text into this plain-text
+  /// input. Returns false (Quill's own handling, e.g. images) for no text.
+  Future<bool> _paste() async {
+    final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+    if (text == null || !mounted) return false;
+    final selection = _controller.selection;
+    final start = selection.start;
+    final content = composerDeltaFromPaste(
+      text.replaceAll('\r\n', '\n'),
+      atStart: start == 0,
+    );
+    final delta =
+        (Delta()
+              ..retain(start)
+              ..delete(selection.end - start))
+            .concat(content);
+    // `compose` keeps the caret where it was (before the insert), whatever
+    // selection it is given: move it after the pasted text.
+    _controller
+      ..compose(delta, selection, ChangeSource.local)
+      ..updateSelection(
+        TextSelection.collapsed(
+          // Delta.length counts operations, not characters.
+          offset:
+              start + content.toList().fold(0, (sum, op) => sum + op.length!),
+        ),
+        ChangeSource.local,
+      );
+    return true;
   }
 
   @override
@@ -211,6 +256,9 @@ class ChatComposerState extends State<ChatComposer> {
 
     bool isBoundary(String char) =>
         char.trim().isEmpty || char == _plainTextEmbed;
+    // Only at the end of a query: a caret moved into existing text (e.g.
+    // `@pubspec.|yaml`) is not typing one.
+    if (caret < plain.length && !isBoundary(plain[caret])) return null;
 
     for (var i = caret - 1; i >= 0; i--) {
       final char = plain[i];
@@ -481,10 +529,58 @@ class ChatComposerState extends State<ChatComposer> {
           scrollController: _scrollController,
           height: (_fontSize * 1.2).roundToDouble(),
           color: CursorColors.textPrimary,
-          child: _buildQuill(context),
+          child: Listener(
+            onPointerDown: _handleSelectPointerDown,
+            onPointerMove: _handleSelectPointerMove,
+            onPointerUp: (_) => _selectDragFrom = null,
+            onPointerCancel: (_) => _selectDragFrom = null,
+            child: _buildQuill(context),
+          ),
         ),
       ),
     );
+  }
+
+  // --- Drag selection -----------------------------------------------------
+  //
+  // Quill throttles a mouse drag selection to one update per 50ms (Flutter's
+  // own text fields no longer do), so the selection trails the pointer.
+  // Extend it on every move instead; Quill's late update then lands on the
+  // same position.
+
+  /// Where a primary mouse press that may become a drag selection went down.
+  Offset? _selectDragFrom;
+  bool _selectDragging = false;
+
+  void _handleSelectPointerDown(PointerDownEvent event) {
+    final plainPress =
+        event.kind == PointerDeviceKind.mouse &&
+        event.buttons == kPrimaryMouseButton &&
+        !HardwareKeyboard.instance.isShiftPressed;
+    _selectDragFrom = plainPress ? event.position : null;
+    _selectDragging = false;
+  }
+
+  void _handleSelectPointerMove(PointerMoveEvent event) {
+    final from = _selectDragFrom;
+    if (from == null || event.buttons != kPrimaryMouseButton) return;
+    // Past the same slop at which Quill's drag recognizer starts.
+    if (!_selectDragging &&
+        (event.position - from).distance <= kPrecisePointerPanSlop) {
+      return;
+    }
+    _selectDragging = true;
+    final to = event.position;
+    // Pointer listeners see a move before gesture recognizers do: on the
+    // move that starts the drag, Quill sets the selection's origin after
+    // this handler returns.
+    scheduleMicrotask(() {
+      final editor = _editorKey.currentState?.renderEditor;
+      if (_selectDragFrom == null || editor == null || !editor.attached) {
+        return;
+      }
+      editor.extendSelection(to, cause: SelectionChangedCause.drag);
+    });
   }
 
   /// Grows with content up to 10 lines, or a third of the window on short

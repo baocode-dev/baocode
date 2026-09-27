@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
@@ -138,6 +139,7 @@ class ChatSession extends ChangeNotifier {
   void stop() {
     if (_run == null) return;
     _run = null;
+    _finishThinking();
     _removeStatus();
     _pendingQuestion = null;
     _answer = null;
@@ -204,16 +206,85 @@ class ChatSession extends ChangeNotifier {
     return true;
   }
 
+  /// The streaming thought in [_live], and how long it has run (mock time,
+  /// counted from its waits, so it is the same under test).
+  int? _thinkingIndex;
+  int _thinkingMs = 0;
+
+  /// Thought streaming pace: slow enough to read along (~40 characters a
+  /// second).
+  static const _thinkingChunk = 2;
+  static const _thinkingChunkMs = 50;
+
+  Future<bool> _think(Object run, String text) async {
+    _removeStatus();
+    _thinkingIndex = _live.length;
+    _thinkingMs = 0;
+    _live.add(const ThinkingItem(text: '', tokens: 0));
+    notifyListeners();
+    Future<bool> wait(int milliseconds) {
+      _thinkingMs += milliseconds;
+      return _wait(run, milliseconds);
+    }
+
+    if (!await wait(400)) return false;
+    var tokens = 0;
+    for (var end = 0; end < text.length;) {
+      end = (end + _thinkingChunk).clamp(0, text.length);
+      tokens += 2;
+      _live[_thinkingIndex!] = ThinkingItem(
+        text: text.substring(0, end),
+        tokens: tokens,
+      );
+      _conversationTokens += 2;
+      notifyListeners();
+      if (!await wait(_thinkingChunkMs)) return false;
+    }
+    _finishThinking();
+    notifyListeners();
+    return true;
+  }
+
+  /// Settles the streaming thought, if any, as done (also when stopped).
+  void _finishThinking() {
+    final index = _thinkingIndex;
+    _thinkingIndex = null;
+    if (index == null || index >= _live.length) return;
+    final item = _live[index];
+    if (item is! ThinkingItem || !item.streaming) return;
+    _live[index] = ThinkingItem(
+      text: item.text,
+      tokens: item.tokens,
+      seconds: math.max(1, (_thinkingMs / 1000).round()),
+    );
+  }
+
   Future<void> _script(Object run, ComposerMessage message) async {
     final target = message.mentions.isEmpty
         ? 'lib/chat/chat_screen.dart'
         : message.mentions.first;
 
-    _setStatus('Thinking');
-    if (!await _wait(run, 900)) return;
-    _append(
-      const ThinkingItem(seconds: 2, text: '先确认需求涉及的文件，再决定是否需要向用户确认实现范围。'),
-    );
+    if (!await _think(
+      run,
+      '用户想调整输入框，先确认需求涉及的文件：$target 是入口，'
+      '输入框本身在 composer 目录下，由 ChatComposer 管理编辑器、菜单和发送按钮。\n\n'
+      '高度策略有几种做法：随内容自动增高、固定行数后滚动、可拖拽调整。'
+      '自动增高最符合直觉，但要给一个上限，否则长文本会把历史记录挤没；'
+      '固定行数实现最简单，只是短消息也会占着几行空白；'
+      '可拖拽调整最灵活，但需要额外的拖拽手柄，还要记住用户调整后的高度。'
+      '三种的交互差异不小，而且会影响发送按钮和工具栏的布局，'
+      '直接选一种改下去风险偏高。\n\n'
+      '快捷输入方面，@ 提及和 / 命令已经有菜单的基础实现，'
+      '提及会变成不可拆分的标签，命令只在消息开头生效。'
+      '粘贴图片还没有入口，需要额外处理剪贴板里的图片数据，'
+      '在 web 上还要考虑浏览器的剪贴板权限。\n\n'
+      '另外编辑已发送的消息也复用同一个输入框，改高度策略时要确认'
+      '历史记录里的编辑框不会因此跳动。\n\n'
+      '先读一下相关代码确认现状，再向用户确认高度策略和需要支持的快捷输入，'
+      '避免改完之后返工。',
+    )) {
+      return;
+    }
     _setStatus('Exploring');
     if (!await _wait(run, 500)) return;
     _append(ToolCallItem(kind: ToolKind.read, target: target.split('/').last));

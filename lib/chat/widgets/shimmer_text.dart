@@ -4,9 +4,18 @@ import '../../theme/cursor_theme.dart';
 
 /// Muted label with a highlight sweeping across it, e.g. "Generating…".
 class ShimmerText extends StatefulWidget {
-  const ShimmerText(this.text, {super.key});
+  const ShimmerText(
+    this.text, {
+    super.key,
+    this.ellipsis = true,
+    this.padding = const EdgeInsets.symmetric(vertical: 3),
+  });
 
   final String text;
+
+  /// Whether a `…` follows [text].
+  final bool ellipsis;
+  final EdgeInsetsGeometry padding;
 
   @override
   State<ShimmerText> createState() => _ShimmerTextState();
@@ -29,7 +38,7 @@ class _ShimmerTextState extends State<ShimmerText>
   Widget build(BuildContext context) {
     return Container(
       alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: widget.padding,
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, child) {
@@ -48,7 +57,7 @@ class _ShimmerTextState extends State<ShimmerText>
           );
         },
         child: Text(
-          '${widget.text}…',
+          widget.ellipsis ? '${widget.text}…' : widget.text,
           style: const TextStyle(fontSize: 13, color: Colors.white),
         ),
       ),

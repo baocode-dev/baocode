@@ -13,6 +13,7 @@ import 'chat_models.dart';
 import 'chat_session.dart';
 import 'composer/composer.dart';
 import 'widgets/chat_item_view.dart';
+import 'widgets/edge_fade_mask.dart';
 
 /// Virtualized, selectable conversation history followed by the live turn.
 /// Sticks to the bottom while the user is there.
@@ -36,7 +37,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   final FocusNode _selectionFocusNode = FocusNode(
     debugLabel: 'Monad chat selection',
   );
-  final Set<int> _expandedThinking = <int>{};
+
+  /// Thoughts the user opened (true) or closed (false). Others are open
+  /// while they stream and closed once done.
+  final Map<int, bool> _thinkingExpanded = {};
 
   /// The user message open for editing, if any, and the text it started
   /// from. The editor lives above the list (see [_buildEditorLayer]); the
@@ -73,7 +77,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     beyondBuilt: _beyondBuiltItems,
     plainTextOf: (index) => chatItemPlainText(
       _session.itemAt(index),
-      expanded: _expandedThinking.contains(index),
+      expanded: _isThinkingExpanded(index),
     ),
     onDragEdge: _autoScrollToward,
   );
@@ -127,12 +131,15 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     super.dispose();
   }
 
+  bool _isThinkingExpanded(int index) =>
+      _thinkingExpanded[index] ??
+      switch (_session.itemAt(index)) {
+        ThinkingItem(:final streaming) => streaming,
+        _ => false,
+      };
+
   void _toggleThinking(int index) {
-    setState(() {
-      if (!_expandedThinking.add(index)) {
-        _expandedThinking.remove(index);
-      }
-    });
+    setState(() => _thinkingExpanded[index] = !_isThinkingExpanded(index));
   }
 
   bool get _userScrolling =>
@@ -529,7 +536,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   }
 
   void _submitEdit(int index, ComposerMessage message) {
-    setState(() => _editingIndex = null);
+    setState(() {
+      _editingIndex = null;
+      // Everything after the message is replaced; so are its thoughts.
+      _thinkingExpanded.removeWhere((i, _) => i > index);
+    });
     _session.editMessage(index, message);
   }
 
@@ -544,7 +555,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
       child: ChatItemView(
         key: ValueKey(index),
         item: item,
-        expanded: _expandedThinking.contains(index),
+        expanded: _isThinkingExpanded(index),
         onToggle: () => _toggleThinking(index),
         onEdit: item is UserMessageItem ? () => _startEditing(index) : null,
       ),
@@ -617,39 +628,45 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                   child: SelectionContainer.disabled(
                     child: Stack(
                       fit: StackFit.expand,
-                      // Lets the edge fades overshoot the list bounds.
-                      clipBehavior: Clip.none,
                       children: [
                         NotificationListener<ScrollMetricsNotification>(
                           onNotification: _handleMetricsChanged,
-                          child: SuperListView.builder(
-                            key: _listKey,
-                            controller: _scrollController,
-                            itemCount: _session.itemCount,
-                            cacheExtent: 900,
-                            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                            itemBuilder: (context, index) {
-                              return Align(
-                                alignment: Alignment.topCenter,
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    maxWidth: widget.maxContentWidth,
-                                  ),
-                                  child: Padding(
-                                    padding: EdgeInsets.only(
-                                      top: _gapBefore(index),
+                          // Soft fades where content continues past an edge
+                          // (none when nothing is there, e.g. pinned to the
+                          // bottom).
+                          child: EdgeFadeMask(
+                            top: _contentAbove,
+                            bottom: _contentBelow,
+                            child: SuperListView.builder(
+                              key: _listKey,
+                              controller: _scrollController,
+                              itemCount: _session.itemCount,
+                              cacheExtent: 900,
+                              padding: const EdgeInsets.fromLTRB(
+                                24,
+                                20,
+                                24,
+                                24,
+                              ),
+                              itemBuilder: (context, index) {
+                                return Align(
+                                  alignment: Alignment.topCenter,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: widget.maxContentWidth,
                                     ),
-                                    child: _buildItem(index),
+                                    child: Padding(
+                                      padding: EdgeInsets.only(
+                                        top: _gapBefore(index),
+                                      ),
+                                      child: _buildItem(index),
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
+                                );
+                              },
+                            ),
                           ),
                         ),
-                        // Soft fades where content continues past an edge (none
-                        // when nothing is there, e.g. pinned to the bottom).
-                        _EdgeFade(top: true, visible: _contentAbove),
-                        _EdgeFade(top: false, visible: _contentBelow),
                         if (_editingIndex case final index?)
                           _buildEditorLayer(index),
                         Positioned(
@@ -790,49 +807,6 @@ class _BottomAnchoredScrollPosition extends ScrollPositionWithSingleContext {
       return false;
     }
     return accepted;
-  }
-}
-
-/// Fades list content into the background at the top or bottom edge.
-///
-/// It overshoots the list by 2px: on screen an edge can fall mid-pixel, and
-/// the list's clip keeps that whole row while an edge-aligned fade only half
-/// covers it, leaving a sliver of glyphs. Neighbors paint over the overshoot.
-class _EdgeFade extends StatelessWidget {
-  const _EdgeFade({required this.top, required this.visible});
-
-  final bool top;
-  final bool visible;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: 0,
-      right: 0,
-      top: top ? -2 : null,
-      bottom: top ? null : -2,
-      height: 30,
-      child: IgnorePointer(
-        // Shown or hidden at once: fading it lags behind the scroll.
-        child: Visibility(
-          visible: visible,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: top ? Alignment.bottomCenter : Alignment.topCenter,
-                end: top ? Alignment.topCenter : Alignment.bottomCenter,
-                colors: const [
-                  Color(0x00181818),
-                  Color(0x99181818),
-                  CursorColors.background,
-                ],
-                stops: const [0, 0.5, 0.75],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 

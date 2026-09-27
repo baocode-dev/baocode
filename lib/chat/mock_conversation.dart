@@ -37,6 +37,7 @@ abstract final class MockConversation {
       ),
       1 => ThinkingItem(
         seconds: 3 + turn % 9,
+        tokens: 180 + turn % 7 * 53,
         text: '我先估算当前 viewport 的可见范围，再把 block 索引映射为轻量的 widget。\n\n关键点是列表的 itemCount 可以很大，但 build 只会收到当前屏幕附近的 index。展开本身只影响这个条目的高度，滚动条总长度仍然由完整列表决定。',
       ),
       2 => const ToolCallItem(

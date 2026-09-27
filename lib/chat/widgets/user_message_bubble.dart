@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../theme/cursor_theme.dart';
 import '../composer/composer_embeds.dart';
 import 'assistant_text.dart';
+import 'fade_curve.dart';
 
 /// A sent user message, echoed as text: `@mentions` and a leading
 /// `/command` in it show as the same inline tags as in the composer.
@@ -112,34 +113,20 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
   }
 }
 
-/// Over the bottom of a collapsed message: the text fades into the bubble,
-/// above an expand icon.
+/// Over the bottom of a collapsed message, where its text fades out: an
+/// expand icon.
 class _CollapsedOverlay extends StatelessWidget {
   const _CollapsedOverlay();
 
   @override
   Widget build(BuildContext context) {
     return const IgnorePointer(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0x00262626),
-              Color(0xCC262626),
-              CursorColors.surfaceRaised,
-            ],
-            stops: [0, 0.5, 0.8],
-          ),
-        ),
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            size: 18,
-            color: CursorColors.textMuted,
-          ),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Icon(
+          Icons.keyboard_arrow_down_rounded,
+          size: 18,
+          color: CursorColors.textMuted,
         ),
       ),
     );
@@ -147,7 +134,8 @@ class _CollapsedOverlay extends StatelessWidget {
 }
 
 /// Shows [content] in full up to [collapseAbove]; beyond that, only its top
-/// [collapsedHeight], with [overlay] over the bottom. Decided in layout, so
+/// [collapsedHeight], fading out through its alpha at the bottom, with
+/// [overlay] over the fade. Decided in layout, so
 /// a long message never shows a frame at full height first.
 class _Collapsed extends MultiChildRenderObjectWidget {
   _Collapsed({
@@ -194,16 +182,35 @@ class _RenderCollapsed extends RenderBox
     markNeedsLayout();
   }
 
-  /// Height of the overlay, at the bottom of the shown part.
+  /// Height of the overlay, at the bottom of the shown part, over which the
+  /// text fades out.
   static const _overlayHeight = 44.0;
 
-  /// How far the overlay reaches past the clipped text, unclipped: on
-  /// screen the clip edge can fall mid-pixel, and the clip keeps that whole
-  /// row of text while an edge-aligned overlay only half covers it. Below is
-  /// the bubble's padding, the overlay's end color.
+  /// How far the overlay (its icon) and the mask reach past the clipped
+  /// text, into the bubble's bottom padding: on screen the clip edge can
+  /// fall mid-pixel, and the clip keeps that whole row of pixels while a mask
+  /// ending at the edge only partly covers it, leaving a row of glyphs at
+  /// close to full strength (seen on the web, at some scroll offsets).
   static const _overlayOvershoot = 2.0;
 
+  /// How far above the clip edge the text is faded out completely: the fade
+  /// over the overlay is shifted up by this much, text below it hidden. The
+  /// eased end of a fade is faint but not zero, and on the last line that
+  /// faint trace shows as the tops of its glyphs.
+  static const _fadeOffset = 10.0;
+
   bool _collapsed = false;
+
+  final _maskLayer = LayerHandle<ShaderMaskLayer>();
+
+  @override
+  bool get alwaysNeedsCompositing => _collapsed;
+
+  @override
+  void dispose() {
+    _maskLayer.layer = null;
+    super.dispose();
+  }
 
   RenderBox get _content => firstChild!;
   RenderBox get _overlay => lastChild!;
@@ -222,7 +229,11 @@ class _RenderCollapsed extends RenderBox
       parentUsesSize: true,
     );
     final full = _content.size.height;
-    _collapsed = full > _collapseAbove;
+    final collapsed = full > _collapseAbove;
+    if (collapsed != _collapsed) {
+      _collapsed = collapsed;
+      markNeedsCompositingBitsUpdate();
+    }
     size = constraints.constrain(
       Size(constraints.maxWidth, _collapsed ? _collapsedHeight : full),
     );
@@ -239,16 +250,42 @@ class _RenderCollapsed extends RenderBox
   @override
   void paint(PaintingContext context, Offset offset) {
     if (!_collapsed) {
+      _maskLayer.layer = null;
       context.paintChild(_content, offset);
       return;
     }
-    context.pushClipRect(
-      needsCompositing,
-      offset,
-      Offset.zero & size,
-      (context, offset) => context.paintChild(_content, offset),
-    );
     final overlayOffset = (_overlay.parentData! as _CollapsedParentData).offset;
+    // Over the overlay, shifted up by [_fadeOffset]; below it the gradient
+    // clamps to hidden, down through the overshoot.
+    final fade = Rect.fromLTRB(
+      0,
+      overlayOffset.dy - _fadeOffset,
+      size.width,
+      size.height - _fadeOffset,
+    );
+    final samples = easedFade().toList().reversed;
+    _maskLayer.layer = (_maskLayer.layer ?? ShaderMaskLayer())
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          for (final (_, opacity) in samples)
+            Color.fromRGBO(255, 255, 255, opacity),
+        ],
+        stops: [for (final (t, _) in samples) 1 - t],
+      ).createShader(fade)
+      ..maskRect = offset & Size(size.width, size.height + _overlayOvershoot)
+      ..blendMode = BlendMode.dstIn;
+    context.pushLayer(
+      _maskLayer.layer!,
+      (context, offset) => context.pushClipRect(
+        needsCompositing,
+        offset,
+        Offset.zero & size,
+        (context, offset) => context.paintChild(_content, offset),
+      ),
+      offset,
+    );
     context.paintChild(_overlay, offset + overlayOffset);
   }
 

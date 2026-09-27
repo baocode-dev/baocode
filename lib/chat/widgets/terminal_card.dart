@@ -33,7 +33,7 @@ class TerminalCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            height: 32,
+            height: 28,
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: const BoxDecoration(
               color: CursorColors.surface,

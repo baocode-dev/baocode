@@ -37,7 +37,7 @@ class CodeDiffCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            height: 34,
+            height: 30,
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: const BoxDecoration(
               color: CursorColors.surface,

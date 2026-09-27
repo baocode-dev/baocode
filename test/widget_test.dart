@@ -7,9 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
-import 'package:monad/chat/chat_history_view.dart';
 import 'package:monad/chat/mock_conversation.dart';
 import 'package:monad/chat/composer/composer.dart';
+import 'package:monad/chat/widgets/edge_fade_mask.dart';
 import 'package:monad/main.dart';
 
 void main() {
@@ -234,19 +234,19 @@ void main() {
   testWidgets('top fade only shows when content is above', (tester) async {
     await tester.pumpWidget(const MonadApp());
     await tester.pump();
-    // The two edge fades: top, then bottom.
-    List<bool> fadesShown() => tester
-        .widgetList<Visibility>(
-          find.descendant(
-            of: find.byType(ChatHistoryView),
-            matching: find.byType(Visibility),
-          ),
-        )
-        .map((widget) => widget.visible)
-        .toList();
+    // The two edge fades of the list's mask: top, then bottom.
+    List<bool> fadesShown() {
+      final mask = tester.widget<EdgeFadeMask>(
+        find.ancestor(
+          of: find.byType(SuperListView),
+          matching: find.byType(EdgeFadeMask),
+        ),
+      );
+      return [mask.top, mask.bottom];
+    }
 
     // Pinned to the bottom of a long history: content above, none below.
-    expect(fadesShown().take(2), [true, false]);
+    expect(fadesShown(), [true, false]);
 
     tester
         .widget<SuperListView>(find.byType(SuperListView))
@@ -254,7 +254,7 @@ void main() {
         .jumpTo(0);
     // Switches on the very next frame, no fade.
     await tester.pump();
-    expect(fadesShown().take(2), [false, true]);
+    expect(fadesShown(), [false, true]);
   });
 
   testWidgets('mouse wheel scrolls the history faster than 1:1', (
