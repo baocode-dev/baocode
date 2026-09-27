@@ -91,9 +91,11 @@ void main() {
     final painter =
         tester.widget<CustomPaint>(painterFinder).foregroundPainter!
             as ScrollbarPainter;
+    // Along its right edge (the chat's, beside the sidebar).
+    final right = tester.getSize(painterFinder).width.round();
     final thumbPosition = [
       for (var y = 0; y < 60; y++)
-        for (var x = 760; x < 800; x++)
+        for (var x = right - 40; x < right; x++)
           if (painter.hitTestOnlyThumbInteractive(
             Offset(x.toDouble(), y.toDouble()),
             PointerDeviceKind.mouse,

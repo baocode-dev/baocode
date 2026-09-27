@@ -2,7 +2,7 @@ import Cocoa
 import FlutterMacOS
 
 class MainFlutterWindow: NSWindow {
-  /// Opens a little wider than the 900 at which the sidebar docks beside the
+  /// Opens wider than the 720 at which the sidebar docks beside the
   /// chat (below it, it is a drawer): room for the sidebar and the full
   /// chat column.
   private static let defaultSize = NSSize(width: 1024, height: 760)

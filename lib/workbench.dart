@@ -25,7 +25,7 @@ class Workbench extends StatefulWidget {
   final Workspace workspace;
 
   /// Below this width the sidebar becomes a drawer.
-  static const narrowWidth = 900.0;
+  static const narrowWidth = 720.0;
   static const minSidebarWidth = 200.0;
   static const maxSidebarWidth = 420.0;
 

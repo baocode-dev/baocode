@@ -239,10 +239,10 @@ void main() {
   });
 
   testWidgets('in a narrow window it is a drawer', (tester) async {
-    final workspace = await pumpApp(tester, width: 800);
+    final workspace = await pumpApp(tester, width: 700);
     expect(find.byType(Sidebar), findsNothing);
     final chatWidth = tester.getSize(find.byType(ChatScreen)).width;
-    expect(chatWidth, 800);
+    expect(chatWidth, 700);
 
     await tester.tap(find.bySemanticsLabel('Show sidebar'));
     await tester.pumpAndSettle();
@@ -418,7 +418,7 @@ void main() {
     expect(width(), 320);
 
     // Narrow window: the drawer opens at that width.
-    tester.view.physicalSize = const Size(800, 900);
+    tester.view.physicalSize = const Size(700, 900);
     await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('Show sidebar'));
     await tester.pumpAndSettle();
