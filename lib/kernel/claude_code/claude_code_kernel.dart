@@ -1401,7 +1401,11 @@ class ClaudeCodeKernel
       for (final MapEntry(key: id, value: variants) in _models.entries)
         KernelOption(
           id,
-          variants.first.label,
+          // "Default (recommended)": the recommending goes without saying.
+          variants.first.label.replaceFirst(
+            RegExp(r'\s*\(recommended\)$', caseSensitive: false),
+            '',
+          ),
           Icons.bolt_rounded,
           variants.first.description,
         ),

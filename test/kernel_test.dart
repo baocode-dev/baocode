@@ -894,6 +894,10 @@ void main() {
           'initialize': {
             'commands': const [],
             'models': [
+              {
+                ...model('default', 'claude-opus-4-6'),
+                'displayName': 'Default (recommended)',
+              },
               model('opus', 'claude-opus-4-6', ['low', 'high']),
               model('opus[1m]', 'claude-opus-4-6[1m]', ['low', 'high']),
               model('fable[1m]', 'claude-fable-5-1', ['low', 'max']),
@@ -928,7 +932,12 @@ void main() {
       expect(launches.single.effort, 'high');
 
       // A model and its 1M variant are one; one only 1M has no choice.
-      expect(labels(kernel.model.options), ['opus', 'fable[1m]', 'haiku']);
+      expect(labels(kernel.model.options), [
+        'Default',
+        'opus',
+        'fable[1m]',
+        'haiku',
+      ]);
       expect(kernel.model.selected, 'opus');
       expect(labels(kernel.contextSize.optionsFor('opus')), ['200K', '1M']);
       expect(kernel.contextSize.optionsFor('fable'), isEmpty);
