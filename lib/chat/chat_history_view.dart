@@ -1041,7 +1041,7 @@ class _BottomAnchoredScrollPosition extends ScrollPositionWithSingleContext {
   /// Mouse wheels arrive as small per-notch deltas that make a long
   /// transcript slow to move through. Trackpads keep their native 1:1 feel,
   /// whether they arrive as pan gestures or (on the web) as scroll signals.
-  static const wheelSpeed = 1.8;
+  static const wheelSpeed = 2.2;
 
   @override
   void pointerScroll(double delta) => super.pointerScroll(
