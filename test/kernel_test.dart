@@ -118,6 +118,32 @@ class FakeCli implements ClaudeCodeTransport {
   Future<void> get exited async {}
 }
 
+/// A CLI whose answers to `get_usage` are [replies], in turn (the last
+/// one again once they run out).
+class _UsageCli extends FakeCli {
+  _UsageCli(this.replies);
+
+  final List<Map<String, Object?>> replies;
+  var _asked = 0;
+
+  @override
+  void write(Map<String, Object?> message) {
+    final request = message['request'];
+    if (request is! Map || request['subtype'] != 'get_usage') {
+      return super.write(message);
+    }
+    written.add(message);
+    push({
+      'type': 'control_response',
+      'response': {
+        'subtype': 'success',
+        'request_id': message['request_id'],
+        'response': replies[(_asked++).clamp(0, replies.length - 1)],
+      },
+    });
+  }
+}
+
 /// A kernel on [cli], with its events applied to a transcript.
 ({ClaudeCodeKernel kernel, Transcript transcript, List<KernelEvent> events})
 claude(FakeCli cli, {KernelContext context = const KernelContext(cwd: '/p')}) {
@@ -504,6 +530,195 @@ void main() {
         containsAll([ContextKind.used, ContextKind.free, ContextKind.buffer]),
       );
       kernel.dispose();
+    });
+
+    test('the account limits one session hears of show in every one', () async {
+      ClaudeCodeKernel.forgetAccount();
+      final first = claude(FakeCli());
+      final cli = FakeCli();
+      final second = claude(cli);
+      second.kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      cli.push({
+        'type': 'rate_limit_event',
+        'rate_limit_info': {
+          'status': 'allowed',
+          'unifiedWindows': {
+            'five_hour': {'utilization': 0.4, 'resetsAt': 1790540400},
+            'seven_day': {'utilization': 0.2, 'resetsAt': 1790845200},
+          },
+        },
+      });
+      await pumpEventQueue();
+      String shown(Transcript transcript) => [
+        for (final limit in transcript.stats!.limits)
+          '${limit.label} ${(limit.utilization * 100).round()}%',
+      ].join(', ');
+      // The other session, never started, shows them too.
+      expect(shown(first.transcript), '5-hour limit 40%, Weekly limit 20%');
+      final later = claude(FakeCli());
+      expect(later.kernel.accountLimits.map((l) => l.label), [
+        '5-hour limit',
+        'Weekly limit',
+      ]);
+
+      // Near a limit, without the windows: that window alone is updated.
+      cli.push({
+        'type': 'rate_limit_event',
+        'rate_limit_info': {
+          'status': 'allowed_warning',
+          'rateLimitType': 'five_hour',
+          'utilization': 0.98,
+          'resetsAt': 1790540400,
+        },
+      });
+      await pumpEventQueue();
+      expect(shown(second.transcript), '5-hour limit 98%, Weekly limit 20%');
+      for (final session in [first, second, later]) {
+        session.kernel.dispose();
+      }
+    });
+
+    group('the account usage, asked for', () {
+      final usage = <String, Object?>{
+        'rate_limits_available': true,
+        'rate_limits': {
+          'five_hour': {'utilization': 12, 'resets_at': '2026-09-28T15:00:00Z'},
+          'seven_day': {'utilization': 36.4, 'resets_at': null},
+          'seven_day_opus': null,
+          'model_scoped': [
+            {
+              'display_name': 'Opus',
+              'utilization': 58,
+              'resets_at': '2026-10-02T09:00:00Z',
+            },
+          ],
+        },
+        'behaviors': null,
+      };
+      String shown(Transcript transcript) => [
+        for (final limit in transcript.stats?.limits ?? const [])
+          '${limit.label} ${(limit.utilization * 100).round()}%',
+      ].join(', ');
+
+      setUp(() {
+        ClaudeCodeKernel.forgetAccount();
+        ClaudeCodeKernel.usageRetryDelay = Duration.zero;
+      });
+      tearDown(
+        () => ClaudeCodeKernel.usageRetryDelay = const Duration(seconds: 3),
+      );
+
+      test('with no session running, from a process of its own that saves '
+          'no session and is closed', () async {
+        final launches = <ClaudeLaunch>[];
+        final cli = FakeCli(answers: {'get_usage': usage});
+        final kernel = ClaudeCodeKernel(
+          MockKernels.claudeCode,
+          const KernelContext(cwd: '/p'),
+          start: (launch) async {
+            launches.add(launch);
+            return cli;
+          },
+        );
+        final transcript = Transcript();
+        kernel.events.listen(transcript.apply);
+        await kernel.refreshUsage();
+        await pumpEventQueue();
+
+        expect(launches.single.arguments, contains('--no-session-persistence'));
+        expect(cli.requests('get_usage').single['skip_behaviors'], isTrue);
+        expect(cli.users, isEmpty);
+        expect(cli.closed, isTrue);
+        expect(
+          shown(transcript),
+          '5-hour limit 12%, Weekly limit 36%, Weekly Opus limit 58%',
+        );
+        expect(
+          transcript.stats!.limits.first.resetsAt!.toUtc(),
+          DateTime.utc(2026, 9, 28, 15),
+        );
+        // Not the session's own process: that starts on its first send.
+        expect(kernel.health.status, isNot(KernelHealthStatus.ready));
+
+        // Asked again soon after: not again.
+        await kernel.refreshUsage();
+        expect(launches, hasLength(1));
+        kernel.dispose();
+      });
+
+      test('from a session already running, in every session', () async {
+        final idle = claude(FakeCli());
+        final cli = FakeCli(answers: {'get_usage': usage});
+        final running = claude(cli);
+        running.kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+        await pumpEventQueue();
+
+        await idle.kernel.refreshUsage();
+        await pumpEventQueue();
+        expect(cli.requests('get_usage'), hasLength(1));
+        expect(shown(idle.transcript), startsWith('5-hour limit 12%'));
+        expect(shown(running.transcript), startsWith('5-hour limit 12%'));
+        idle.kernel.dispose();
+        running.kernel.dispose();
+      });
+
+      test('asked again while Claude Code is still fetching them', () async {
+        const pending = {'rate_limits_available': true, 'rate_limits': null};
+        final cli = _UsageCli([pending, usage]);
+        final (:kernel, :transcript, events: _) = claude(cli);
+        final states = <LimitsState>[];
+        kernel.events.listen((event) {
+          if (event is StatsReported) states.add(event.stats.limitsState);
+        });
+        await kernel.refreshUsage();
+        await pumpEventQueue();
+        expect(cli.requests('get_usage'), hasLength(2));
+        expect(shown(transcript), startsWith('5-hour limit 12%'));
+        expect(states.first, LimitsState.checking);
+        expect(states.last, LimitsState.idle);
+        kernel.dispose();
+      });
+
+      test('never told: unavailable, and asked again next time', () async {
+        const pending = {'rate_limits_available': true, 'rate_limits': null};
+        final cli = _UsageCli([pending]);
+        final (:kernel, :transcript, events: _) = claude(cli);
+        await kernel.refreshUsage();
+        await pumpEventQueue();
+        expect(cli.requests('get_usage'), hasLength(3));
+        expect(transcript.stats!.limitsState, LimitsState.unavailable);
+        expect(transcript.stats!.limits, isEmpty);
+        await kernel.refreshUsage();
+        expect(cli.requests('get_usage'), hasLength(6));
+        kernel.dispose();
+      });
+
+      test('without a plan (an API key), none and no note', () async {
+        final cli = _UsageCli([
+          {'rate_limits_available': false, 'rate_limits': null},
+        ]);
+        final (:kernel, :transcript, events: _) = claude(cli);
+        await kernel.refreshUsage();
+        await pumpEventQueue();
+        expect(cli.requests('get_usage'), hasLength(1));
+        expect(transcript.stats!.limitsState, LimitsState.idle);
+        kernel.dispose();
+      });
+
+      test(
+        'when Claude Code cannot tell, the limits stay as they were',
+        () async {
+          final kernel = ClaudeCodeKernel(
+            MockKernels.claudeCode,
+            const KernelContext(cwd: '/p'),
+            start: (_) async => throw const ClaudeUnavailable('not installed'),
+          );
+          await kernel.refreshUsage();
+          expect(kernel.accountLimits, isEmpty);
+          kernel.dispose();
+        },
+      );
     });
 
     test(

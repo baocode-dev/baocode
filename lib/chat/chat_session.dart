@@ -230,9 +230,17 @@ class ChatSession extends ChangeNotifier {
 
   /// Cost and account limits; null when the kernel does not report them.
   UsageStats? get stats => switch (_kernel) {
-    ReportsUsage() => _transcript.stats ?? const UsageStats(),
+    final ReportsUsage kernel =>
+      _transcript.stats ?? UsageStats(limits: kernel.accountLimits),
     _ => null,
   };
+
+  /// Asks for the account's limits now (see [ReportsUsage.refreshUsage]).
+  void refreshUsage() {
+    if (_kernel case final ReportsUsage kernel) {
+      unawaited(kernel.refreshUsage());
+    }
+  }
 
   bool get acceptsImages => _kernel is AcceptsImages;
 
