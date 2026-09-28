@@ -13,6 +13,7 @@ import 'theme/cursor_theme.dart';
 import 'workspace/open_in_editor_button.dart';
 import 'workspace/pin_window_button.dart';
 import 'workspace/window_controls.dart';
+import 'workspace/window_header/window_header.dart';
 import 'workspace/workspace.dart';
 
 /// The window: the agents sidebar on the left, the selected agent's chat
@@ -94,6 +95,7 @@ class _WorkbenchState extends State<Workbench> {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKey);
     WindowControls.handleEditCommands();
+    WindowControls.handleWindowEvents();
     _lifecycle = AppLifecycleListener(
       onResume: () => unawaited(_workspace.refresh()),
     );
@@ -157,9 +159,20 @@ class _WorkbenchState extends State<Workbench> {
         }
         return ColoredBox(
           color: CursorColors.background,
-          child: ListenableBuilder(
-            listenable: _workspace,
-            builder: (context, _) => narrow ? _buildNarrow() : _buildWide(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Windows draws its own header over both columns (see
+              // window_header/); elsewhere the system's is above them.
+              if (WindowControls.drawsHeader) _buildHeader(),
+              Expanded(
+                child: ListenableBuilder(
+                  listenable: _workspace,
+                  builder: (context, _) =>
+                      narrow ? _buildNarrow() : _buildWide(),
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -271,6 +284,22 @@ class _WorkbenchState extends State<Workbench> {
     );
   }
 
+  /// The bar Windows draws itself, over the sidebar and the chat (see
+  /// window_header/): the sidebar toggle, the menus, the pin, the editor
+  /// button and the window buttons, all of which are in the columns
+  /// themselves elsewhere.
+  Widget _buildHeader() {
+    return WindowHeader(
+      workspace: _workspace,
+      project: _workspace.current?.project,
+      sidebarShown: _narrow ? _drawerOpen : _docked,
+      onToggleSidebar: _toggle,
+      pinned: _pinned,
+      onTogglePin: _setPinned,
+      onOpenFolder: _openFolder,
+    );
+  }
+
   void _endDrag() {
     setState(() {
       _dragging = false;
@@ -325,7 +354,11 @@ class _WorkbenchState extends State<Workbench> {
 
   Widget _buildChat({required bool showToggle}) {
     final thread = _workspace.current;
-    final leading = showToggle
+    // Windows keeps the toggle, the pin and the editor button in its header
+    // (see window_header/): all that is left for this row is the session's
+    // title, which then sits in the middle of it.
+    final header = WindowControls.drawsHeader;
+    final leading = !header && showToggle
         ? SidebarIconButton(
             icon: Icons.view_sidebar_outlined,
             flip: true,
@@ -333,11 +366,16 @@ class _WorkbenchState extends State<Workbench> {
             onTap: _toggle,
           )
         : null;
+    final titleBarInset = header
+        ? 12.0
+        : showToggle
+        ? CursorMetrics.trafficLightsWidth + 8
+        : 12.0;
     if (thread == null) {
       return _EmptyWorkspace(
         loading: _workspace.loading,
         leading: leading,
-        titleBarInset: showToggle ? CursorMetrics.trafficLightsWidth + 8 : 12,
+        titleBarInset: titleBarInset,
         onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
       );
     }
@@ -350,16 +388,21 @@ class _WorkbenchState extends State<Workbench> {
       // Files come from the agent's own lookup, not a fixed list.
       mentions: const [],
       // Beside the sidebar, the traffic lights are over it, not here.
-      titleBarInset: showToggle ? CursorMetrics.trafficLightsWidth + 8 : 12,
+      titleBarInset: titleBarInset,
       leading: leading,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          PinWindowButton(pinned: _pinned, onChanged: _setPinned),
-          const SizedBox(width: 6),
-          OpenInEditorButton(workspace: _workspace, project: thread.project),
-        ],
-      ),
+      trailing: header
+          ? null
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                PinWindowButton(pinned: _pinned, onChanged: _setPinned),
+                const SizedBox(width: 6),
+                OpenInEditorButton(
+                  workspace: _workspace,
+                  project: thread.project,
+                ),
+              ],
+            ),
     );
   }
 }
@@ -395,13 +438,16 @@ class _EmptyWorkspace extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          height: CursorMetrics.titleBarHeight,
-          child: Padding(
-            padding: EdgeInsets.only(left: titleBarInset),
-            child: Row(children: [?leading]),
+        // Nothing to put in it (Windows keeps the toggle in its header):
+        // the empty state starts at the top instead of under an empty row.
+        if (leading case final leading?)
+          SizedBox(
+            height: CursorMetrics.titleBarHeight,
+            child: Padding(
+              padding: EdgeInsets.only(left: titleBarInset),
+              child: Row(children: [leading]),
+            ),
           ),
-        ),
         Expanded(
           child: Center(
             child: Column(

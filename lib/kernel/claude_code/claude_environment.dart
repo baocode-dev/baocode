@@ -2,12 +2,17 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-/// The environment Claude Code runs in, as the user's login shell has it:
-/// what the CLI is found by, and where it keeps its state.
+import 'package:path/path.dart' as p;
+
+import '../../platform/app_paths.dart';
+
+/// The environment Claude Code runs in, as the user's shell has it: what
+/// the CLI is found by, and where it keeps its state.
 ///
 /// An app opened from the Finder gets a bare PATH, so the login shell is
 /// asked once (the commands Claude runs need it too); the app's own
-/// environment stands in when that fails.
+/// environment stands in when that fails, and is all there is on Windows,
+/// whose window already carries the user's environment.
 abstract final class ClaudeEnvironment {
   /// Names the directory Claude Code keeps its state in (`projects`,
   /// `file-history`, …), e.g. a build's own; the installed `~/.claude`
@@ -31,7 +36,8 @@ abstract final class ClaudeEnvironment {
     for (final name in const [dataPathVariable, 'CLAUDE_CONFIG_DIR']) {
       if (environment[name] case final dir? when dir.isNotEmpty) return dir;
     }
-    return '${environment['HOME'] ?? ''}/.claude';
+    final home = AppPaths.home(environment);
+    return home.isEmpty ? '' : p.join(home, '.claude');
   }
 
   /// The state directory for the CLI to run with, from [environment]:
@@ -46,9 +52,11 @@ abstract final class ClaudeEnvironment {
   static void use(Map<String, String>? environment) =>
       _environment = environment == null ? null : Future.value(environment);
 
-  /// The login shell's environment; the app's own if that fails.
+  /// The login shell's environment; the app's own if that fails, and the
+  /// app's own on Windows, which has no login shell to ask.
   static Future<Map<String, String>> _login() async {
     final fallback = Map<String, String>.of(Platform.environment);
+    if (Platform.isWindows) return fallback;
     final shell = Platform.environment['SHELL'] ?? '/bin/zsh';
     try {
       const marker = '__MONAD_ENV__';

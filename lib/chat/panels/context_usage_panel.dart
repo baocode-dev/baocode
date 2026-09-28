@@ -236,6 +236,7 @@ class _Legend extends StatelessWidget {
           style: const TextStyle(
             color: CursorColors.text,
             fontFamily: CursorFonts.mono,
+            fontFamilyFallback: CursorFonts.monoFallbacks,
             fontSize: 11,
           ),
         ),
@@ -265,6 +266,7 @@ class _Stat extends StatelessWidget {
           style: const TextStyle(
             color: CursorColors.text,
             fontFamily: CursorFonts.mono,
+            fontFamilyFallback: CursorFonts.monoFallbacks,
             fontSize: 11.5,
           ),
         ),
@@ -324,6 +326,7 @@ class _LimitMeter extends StatelessWidget {
             style: TextStyle(
               color: fraction >= 0.9 ? color : CursorColors.text,
               fontFamily: CursorFonts.mono,
+              fontFamilyFallback: CursorFonts.monoFallbacks,
               fontSize: 11,
             ),
           ),

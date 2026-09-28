@@ -25,6 +25,7 @@ class MarkdownView extends StatelessWidget {
   static const codeStyle = TextStyle(
     color: CursorColors.inlineCode,
     fontFamily: CursorFonts.mono,
+    fontFamilyFallback: CursorFonts.monoFallbacks,
     fontSize: 12.5,
     backgroundColor: CursorColors.inlineCodeBackground,
   );
@@ -394,6 +395,7 @@ class MarkdownCodeBlock extends StatelessWidget {
               style: const TextStyle(
                 color: CursorColors.textPrimary,
                 fontFamily: CursorFonts.mono,
+                fontFamilyFallback: CursorFonts.monoFallbacks,
                 fontSize: 12,
                 height: 1.5,
               ),

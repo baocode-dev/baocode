@@ -35,7 +35,12 @@ class ProcessTransport implements ClaudeCodeTransport {
           ...ClaudeLaunch.environment,
           ...ClaudeEnvironment.stateDirectory(cli.environment),
         },
-        includeParentEnvironment: false,
+        // The login shell's environment is the whole of it; on Windows it
+        // is the app's own, and the child needs the parent's beside it for
+        // what `cmd.exe` itself runs on (COMSPEC, PATHEXT, …).
+        includeParentEnvironment: Platform.isWindows,
+        // An npm shim is a `.cmd`, which only the shell can run.
+        runInShell: cli.throughShell,
       );
       return ProcessTransport._(process);
     } on ProcessException catch (error) {

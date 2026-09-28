@@ -2,21 +2,26 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:path/path.dart' as p;
+
+import '../../platform/app_paths.dart';
 import '../agent_kernel.dart';
 import 'claude_environment.dart';
 
 /// Claude Code's own record of its sessions: one JSON-lines file per
 /// session under `<config>/projects/<cwd, dashed>/`.
 class ClaudeStorage implements SessionCatalog {
-  const ClaudeStorage({this.configDir, this.tempDir = '/tmp'});
+  const ClaudeStorage({this.configDir, this.tempDir});
 
   /// Where Claude Code keeps its state; by default `MONAD_CLAUDE_DATA_PATH`
   /// as the login shell has it, else `CLAUDE_CONFIG_DIR`, else
   /// `<home>/.claude`.
   final String? configDir;
 
-  /// Where it keeps what a session's tasks print (`claude-<uid>/`).
-  final String tempDir;
+  /// Where it keeps what a session's tasks print (`claude-<uid>/`); the
+  /// system's temporary folder by default (`/tmp` where that is where the
+  /// CLI puts them, see [AppPaths.tempDir]).
+  final String? tempDir;
 
   Future<String> _config() async =>
       configDir ?? await ClaudeEnvironment.configDir();
@@ -28,7 +33,7 @@ class ClaudeStorage implements SessionCatalog {
       throw ArgumentError.value(id, 'id', 'not a session id');
     }
     final config = await _config();
-    final temp = tempDir;
+    final temp = tempDir ?? AppPaths.tempDir;
     return Isolate.run(() => _delete(id, config, temp));
   }
 
@@ -72,7 +77,7 @@ void _delete(String id, String config, String temp) {
       Directory('${project.path}/$id'),
     ],
     for (final user in dirs(temp))
-      if (user.path.split('/').last.startsWith('claude-'))
+      if (p.basename(user.path).startsWith('claude-'))
         for (final project in dirs(user.path)) Directory('${project.path}/$id'),
   ];
   for (final entity in doomed) {

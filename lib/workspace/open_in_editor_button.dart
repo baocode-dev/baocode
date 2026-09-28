@@ -33,9 +33,9 @@ class OpenInEditorButton extends StatelessWidget {
       width: 200,
       placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
       items: () => [
-        for (final option in Editor.values)
+        for (final option in Editor.availableEditors)
           SidebarMenuItem(
-            option.label,
+            option.platformLabel,
             icon: option.icon,
             checked: option == workspace.preferredEditor,
             onSelected: () => _open(option),
@@ -57,7 +57,7 @@ class OpenInEditorButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _Segment(
-              semanticsLabel: 'Open in ${editor.label}',
+              semanticsLabel: 'Open in ${editor.platformLabel}',
               onTap: () => _open(editor),
               padding: const EdgeInsets.only(left: 7, right: 7),
               borderRadius: const BorderRadius.horizontal(
@@ -69,7 +69,7 @@ class OpenInEditorButton extends StatelessWidget {
                   Icon(editor.icon, size: 13, color: CursorColors.textMuted),
                   const SizedBox(width: 5),
                   Text(
-                    editor.label,
+                    editor.platformLabel,
                     style: const TextStyle(
                       color: CursorColors.text,
                       fontSize: 12,

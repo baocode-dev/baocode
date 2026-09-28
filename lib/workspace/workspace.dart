@@ -7,6 +7,8 @@ import '../chat/chat_session.dart';
 import '../chat/mock_conversation.dart';
 import '../kernel/agent_kernel.dart';
 import '../kernel/kernel_registry.dart';
+import 'package:path/path.dart' as p;
+
 import '../kernel/kernel_types.dart';
 import 'editor_launcher.dart';
 import 'preference_store.dart';
@@ -16,8 +18,10 @@ class Project {
   const Project(this.name, this.path);
 
   factory Project.at(String path) {
-    final parts = path.split('/')..removeWhere((part) => part.isEmpty);
-    return Project(parts.isEmpty ? path : parts.last, path);
+    // The folder's own name, on either separator (Windows paths come with
+    // backslashes).
+    final name = p.basename(path);
+    return Project(name.isEmpty ? path : name, path);
   }
 
   final String name;
@@ -472,7 +476,9 @@ class Workspace extends ChangeNotifier {
         case final kernel?) {
       _preferredKernel = kernel;
     }
-    if (Editor.values.where((e) => e.name == kept['editor']).firstOrNull
+    if (Editor.availableEditors
+        .where((e) => e.name == kept['editor'])
+        .firstOrNull
         case final editor?) {
       _preferredEditor = editor;
     }

@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
+import '../../platform/app_paths.dart';
 import 'claude_code_transport.dart';
 import 'claude_environment.dart';
 
@@ -9,14 +12,20 @@ class ClaudeCli {
 
   final String executable;
   final Map<String, String> environment;
+
+  /// Whether starting it goes through the shell: on Windows the CLI is an
+  /// npm `.cmd` shim, which only `cmd.exe` runs.
+  bool get throughShell =>
+      Platform.isWindows &&
+      const {'.cmd', '.bat'}.contains(p.extension(executable).toLowerCase());
 }
 
 /// Finds the `claude` CLI as the user's terminal would: the build
-/// [overrideVariable] names, else the login shell's PATH, else the usual
-/// install locations.
+/// [overrideVariable] names, else the PATH, else the usual install
+/// locations.
 abstract final class CliLocator {
   /// Names another build to run instead of the installed one, e.g. set in
-  /// `~/.zshenv` to try a fork.
+  /// the user's environment (on macOS, `~/.zshenv`) to try a fork.
   static const overrideVariable = 'MONAD_CLAUDE_PATH';
 
   static Future<ClaudeCli>? _located;
@@ -37,23 +46,13 @@ abstract final class CliLocator {
         throw ClaudeUnavailable(
           'Claude Code is not at $overrideVariable',
           detail:
-              '$override does not exist. Unset $overrideVariable (in '
-              '~/.zshenv) to run the installed Claude Code.',
+              '$override does not exist. Unset $overrideVariable to run the '
+              'installed Claude Code.',
         );
       }
       return ClaudeCli(override, environment);
     }
-    final home = environment['HOME'] ?? '';
-    final path = environment['PATH'] ?? '';
-    final candidates = [
-      for (final dir in path.split(':'))
-        if (dir.isNotEmpty) '$dir/claude',
-      '$home/.claude/local/claude',
-      '$home/.local/bin/claude',
-      '/opt/homebrew/bin/claude',
-      '/usr/local/bin/claude',
-    ];
-    for (final candidate in candidates) {
+    for (final candidate in _candidates(environment)) {
       if (File(candidate).existsSync()) {
         return ClaudeCli(candidate, environment);
       }
@@ -64,6 +63,38 @@ abstract final class CliLocator {
           'Install it with `npm install -g @anthropic-ai/claude-code`, '
           'then try again; or set $overrideVariable to the build to run.',
     );
+  }
+
+  /// Where the CLI usually is: on the PATH first, then where npm and the
+  /// installers put it.
+  static List<String> _candidates(Map<String, String> environment) {
+    final home = AppPaths.home(environment);
+    final path = environment['PATH'] ?? '';
+    if (Platform.isWindows) {
+      return [
+        for (final dir in path.split(';'))
+          if (dir.isNotEmpty)
+            for (final name in const ['claude.cmd', 'claude.exe', 'claude.bat'])
+              p.join(dir, name),
+        p.join(environment['APPDATA'] ?? home, 'npm', 'claude.cmd'),
+        p.join(
+          environment['LOCALAPPDATA'] ?? home,
+          'Programs',
+          'claude',
+          'claude.exe',
+        ),
+        p.join(home, '.claude', 'local', 'claude.exe'),
+        p.join(home, '.local', 'bin', 'claude.exe'),
+      ];
+    }
+    return [
+      for (final dir in path.split(':'))
+        if (dir.isNotEmpty) '$dir/claude',
+      '$home/.claude/local/claude',
+      '$home/.local/bin/claude',
+      '/opt/homebrew/bin/claude',
+      '/usr/local/bin/claude',
+    ];
   }
 
   /// Replaces the environment the CLI is found in, and looks again, e.g.

@@ -46,13 +46,40 @@ abstract final class CursorMetrics {
   static const contentInset = 8.0;
 
   /// Room the native macOS traffic lights take at the left of the title
-  /// bar (none on the web).
+  /// bar (none on the web, and none on Windows, whose title bar is the
+  /// system's own, above the content).
   static double get trafficLightsWidth =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS ? 78 : 0;
+
+  /// The header the Windows app draws itself, over everything: the menu
+  /// bar, the session's tools and the window buttons (see
+  /// workspace/window_header/). macOS keeps the 30 above.
+  static const headerHeight = 32.0;
+
+  /// One of the header's window buttons: the width Windows gives them.
+  static const windowButtonWidth = 46.0;
+
+  /// The glyph one of those buttons shows, at the size Windows draws it (the
+  /// system's own font; see [CursorFonts.icons]).
+  static const windowButtonGlyph = 10.0;
 }
 
 abstract final class CursorFonts {
+  /// The font code, paths and commands are drawn in, as macOS has it.
   static const mono = 'Menlo';
+
+  /// What to fall back on where [mono] is not installed: Windows has no
+  /// Menlo, and would otherwise draw code in its proportional default.
+  static const monoFallbacks = <String>['Consolas', 'Cascadia Mono', 'monospace'];
+
+  /// The window's own buttons — minimize, maximize, restore, close — drawn in
+  /// the font the system draws them in, so they keep the sizes and the shapes
+  /// Windows gives them (see window_header/window_buttons.dart).
+  static const icons = 'Segoe Fluent Icons';
+
+  /// What to fall back on where [icons] is not installed: Windows 10 names it
+  /// differently, and has the same glyphs at the same code points.
+  static const iconFallbacks = <String>['Segoe MDL2 Assets'];
 }
 
 ThemeData buildCursorTheme() {

@@ -8,6 +8,7 @@ import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../chat/widgets/inline_rename_field.dart';
 import '../theme/cursor_theme.dart';
+import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
 import 'sidebar_menu.dart';
 
@@ -225,7 +226,9 @@ class _SidebarState extends State<Sidebar> {
         builder: (context, _) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildTopBar(),
+            // The toggle lives in the window's header on Windows (see
+            // window_header/), which is where this row would have been.
+            if (!WindowControls.drawsHeader) _buildTopBar(),
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 8,

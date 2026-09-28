@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../platform/app_paths.dart';
 import 'preference_store.dart';
 
-/// `preferences.json` in the app's data folder: on macOS
-/// `~/Library/Application Support/monad`.
+/// `preferences.json` in the app's data folder: `%APPDATA%\monad` on
+/// Windows, `~/Library/Application Support/monad` on macOS, `~/.config/monad`
+/// elsewhere (see [AppPaths.dataDir]).
 class FilePreferenceStore implements PreferenceStore {
   /// At [path] instead, e.g. under test.
   FilePreferenceStore([this.path]);
@@ -13,12 +15,9 @@ class FilePreferenceStore implements PreferenceStore {
 
   File? get _file {
     if (path case final path?) return File(path);
-    final home = Platform.environment['HOME'];
-    if (home == null) return null;
-    final folder = Platform.isMacOS
-        ? '$home/Library/Application Support/monad'
-        : '$home/.config/monad';
-    return File('$folder/preferences.json');
+    final environment = Platform.environment;
+    if (AppPaths.home(environment).isEmpty) return null;
+    return File('${AppPaths.dataDir(environment)}/preferences.json');
   }
 
   /// Writes one after another: the last one written is the last one made.

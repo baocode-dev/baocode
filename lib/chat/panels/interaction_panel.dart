@@ -640,6 +640,7 @@ class _ApprovalPreview extends StatelessWidget {
 
   static const _mono = TextStyle(
     fontFamily: CursorFonts.mono,
+    fontFamilyFallback: CursorFonts.monoFallbacks,
     fontSize: 12,
     height: 1.5,
   );

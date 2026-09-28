@@ -18,6 +18,13 @@ import 'panels/context_usage_panel.dart';
 import 'panels/todo_panel.dart';
 import 'widgets/inline_rename_field.dart';
 
+/// Shows or hides the conversation's context usage panel. The window's View
+/// menu asks for it (see window_header/): the panel belongs to the
+/// conversation, so the menu only asks, and this handles it where it lives.
+class ToggleContextPanelIntent extends Intent {
+  const ToggleContextPanelIntent();
+}
+
 /// Layout, top to bottom:
 /// - history + live turn: a virtual list that yields height;
 /// - feedback / modal / indicator panels: take the height they need;
@@ -190,6 +197,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       fontWeight: FontWeight.w500,
     );
     final onRename = widget.onRename;
+    final inset = widget.titleBarInset ?? CursorMetrics.trafficLightsWidth + 12;
     final Widget title;
     if (_renaming && onRename != null) {
       title = SizedBox(
@@ -219,10 +227,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     return SizedBox(
       height: CursorMetrics.titleBarHeight,
       child: Padding(
-        padding: EdgeInsets.only(
-          left: widget.titleBarInset ?? CursorMetrics.trafficLightsWidth + 12,
-          right: 8,
-        ),
+        padding: EdgeInsets.symmetric(horizontal: inset),
         child: Row(
           children: [
             if (widget.leading case final leading?) ...[
@@ -230,6 +235,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               const SizedBox(width: 6),
             ],
             Expanded(
+              // The title, where the conversation begins: at its start, as
+              // the row macOS draws has it (Windows draws none of it: see
+              // window_header/).
               child: Align(alignment: Alignment.centerLeft, child: title),
             ),
             if (widget.trailing case final trailing?) ...[
@@ -286,15 +294,27 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _session,
-      builder: (context, child) => ComposerVocabulary(
-        commands: _commandSuggestions(),
-        mentions: widget.mentions,
-        suggestFiles: _session.suggestFiles,
-        child: child!,
+    return Actions(
+      // What the window's View menu asks of this conversation, which keeps
+      // the panel's state (see ToggleContextPanelIntent and window_header/).
+      actions: {
+        ToggleContextPanelIntent: CallbackAction<ToggleContextPanelIntent>(
+          onInvoke: (_) {
+            _toggleContextPanel();
+            return null;
+          },
+        ),
+      },
+      child: ListenableBuilder(
+        listenable: _session,
+        builder: (context, child) => ComposerVocabulary(
+          commands: _commandSuggestions(),
+          mentions: widget.mentions,
+          suggestFiles: _session.suggestFiles,
+          child: child!,
+        ),
+        child: _buildBody(),
       ),
-      child: _buildBody(),
     );
   }
 
@@ -302,7 +322,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     return Scaffold(
       body: Column(
         children: [
-          // Transparent Flutter-owned title bar under the native traffic lights.
+          // The session's title, in the row the window's header leaves it
+          // (macOS draws a title bar of its own over it; see CursorMetrics).
           _buildTitleBar(),
           Expanded(
             child: CallbackShortcuts(
