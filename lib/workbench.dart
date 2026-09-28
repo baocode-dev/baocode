@@ -93,6 +93,7 @@ class _WorkbenchState extends State<Workbench> {
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKey);
+    WindowControls.handleEditCommands();
     _lifecycle = AppLifecycleListener(
       onResume: () => unawaited(_workspace.refresh()),
     );
