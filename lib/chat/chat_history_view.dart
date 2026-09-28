@@ -159,7 +159,6 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     super.initState();
     _scrollController.addListener(_handleScroll);
     _feed.addListener(_handleSessionChanged);
-    _stickyIndices = _tailUserMessages();
     _resumeEditing();
   }
 
@@ -186,7 +185,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       oldWidget.feed.removeListener(_handleSessionChanged);
       widget.feed.addListener(_handleSessionChanged);
       _stickyKeys.clear();
-      _stickyIndices = _tailUserMessages();
+      _stickyIndices = const {};
       _editingIndex = null;
       _resumeEditing();
     }
@@ -564,9 +563,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// Which copies are built is settled after layout, with the items where
   /// the scroll put them: a frame late, but ready before any scroll brings
-  /// their message to the top. Which one shows, and where, is read at paint
-  /// ([_stickyTop]), so a copy takes over in the very frame its message
-  /// scrolls past.
+  /// their message to the top (the one at the top now is built in layout,
+  /// besides). Which one shows, and where, is read at paint ([_stickyTop]),
+  /// so a copy takes over in the very frame its message scrolls past.
   void _scheduleStickyUpdate() {
     if (_stickyUpdateScheduled) return;
     _stickyUpdateScheduled = true;
@@ -582,21 +581,6 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _stickyKeys.removeWhere((index, _) => !indices.contains(index));
       setState(() => _stickyIndices = indices);
     });
-  }
-
-  /// The last user messages, one of which is at the top when the list
-  /// opens at its end: built up front, so the first frame already has the
-  /// right copy stuck (rather than it appearing a frame or two later, over
-  /// the text it covers).
-  Set<int> _tailUserMessages() {
-    final indices = <int>{};
-    final end = _feed.itemCount;
-    for (var index = end - 1; index >= 0 && index >= end - 64; index--) {
-      if (_feed.itemAt(index) is! UserMessageItem) continue;
-      indices.add(index);
-      if (indices.length == 2) break;
-    }
-    return indices;
   }
 
   /// The user message of the turn at the top of the view: the last one
@@ -657,6 +641,19 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     return 0;
   }
 
+  /// How far down the stuck message covers the list, above its fade; null
+  /// while none is. Read as the list is painted, the stuck one being where
+  /// [_stickyTop] puts it.
+  double? _stickyCover() {
+    final index = _topTurnMessage();
+    if (index == null || index == _editingIndex) return null;
+    final top = _stickyTop(index);
+    final sticky =
+        _stickyKeys[index]?.currentContext?.findRenderObject() as RenderBox?;
+    if (top == null || sticky == null || !sticky.hasSize) return null;
+    return top + sticky.size.height - _stickyFade;
+  }
+
   Widget _buildSticky(int index) {
     final item = _feed.itemAt(index) as UserMessageItem;
     // A copy of the message in the list: not read out twice.
@@ -678,52 +675,30 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Over the transcript scrolling beneath: the page's own
-                  // color, fading out below.
-                  ColoredBox(
-                    color: CursorColors.background,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        24,
-                        _stickyInset,
-                        24,
-                        0,
-                      ),
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: widget.maxContentWidth,
-                          ),
-                          child: UserMessageBubble(
-                            key: ValueKey(('sticky', index)),
-                            text: item.text,
-                            images: item.images,
-                            onEdit: _feed.canEditMessages
-                                ? () => _startEditing(index)
-                                : null,
-                          ),
+                  // Nothing under it: the transcript is hidden there (see
+                  // _stickyCover), not painted over, as over the window's
+                  // material no color would match the page around it.
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, _stickyInset, 24, 0),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: widget.maxContentWidth,
+                        ),
+                        child: UserMessageBubble(
+                          key: ValueKey(('sticky', index)),
+                          text: item.text,
+                          images: item.images,
+                          onEdit: _feed.canEditMessages
+                              ? () => _startEditing(index)
+                              : null,
                         ),
                       ),
                     ),
                   ),
-                  const IgnorePointer(
-                    child: SizedBox(
-                      height: _stickyFade,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              CursorColors.background,
-                              Color(0x00181818),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  // Where the transcript fades back in.
+                  const SizedBox(height: _stickyFade),
                 ],
               ),
             ),
@@ -1023,6 +998,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                           child: EdgeFadeMask(
                             top: _contentAbove,
                             bottom: _contentBelow,
+                            // Hidden under the stuck message, fading in
+                            // below it.
+                            topCover: _stickyCover,
+                            coverFade: _stickyFade,
+                            repaint: Listenable.merge([
+                              _scrollController,
+                              _editorMoved,
+                            ]),
                             // Its bar is the one around the selection, above; not a second
                             // one of the platform's own.
                             child: ScrollConfiguration(
@@ -1084,14 +1067,29 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                             ),
                           ),
                         ),
-                        for (final index in _stickyIndices)
-                          if (index != _editingIndex &&
-                              index < _feed.itemCount &&
-                              _feed.itemAt(index) is UserMessageItem)
-                            Positioned.fill(
-                              key: ValueKey(('sticky', index)),
-                              child: _buildSticky(index),
+                        // Built in layout, after the list: the copy of
+                        // the message at the top is there in the very frame
+                        // the list is laid out (a conversation just opened
+                        // has it from its first frame).
+                        Positioned.fill(
+                          child: LayoutBuilder(
+                            builder: (context, _) => Stack(
+                              children: [
+                                for (final index in {
+                                  ..._stickyIndices,
+                                  ?_topTurnMessage(),
+                                })
+                                  if (index != _editingIndex &&
+                                      index < _feed.itemCount &&
+                                      _feed.itemAt(index) is UserMessageItem)
+                                    Positioned.fill(
+                                      key: ValueKey(('sticky', index)),
+                                      child: _buildSticky(index),
+                                    ),
+                              ],
                             ),
+                          ),
+                        ),
                         if (_editingIndex case final index?)
                           _buildEditorLayer(index),
                         Positioned(

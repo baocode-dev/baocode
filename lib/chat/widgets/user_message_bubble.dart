@@ -181,8 +181,9 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
                 onPointerDown: (_) => _pressOnImage = true,
                 child: ImageThumbnails(images: widget.images),
               ),
+            // As in its editor (the composer), so editing moves nothing.
             if (widget.images.isNotEmpty && widget.text.isNotEmpty)
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
             if (widget.text.isNotEmpty || widget.images.isEmpty)
               _Collapsed(
                 collapsedHeight: _lineHeight * _collapsedLines,

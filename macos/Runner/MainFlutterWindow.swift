@@ -19,6 +19,12 @@ class MainFlutterWindow: NSWindow {
     titlebarAppearsTransparent = true
     styleMask.insert(.fullSizeContentView)
     isMovableByWindowBackground = true
+    // See-through, for the sidebar's material (see VibrantContent); dark,
+    // as the app is, whatever the system's appearance.
+    isOpaque = false
+    backgroundColor = .clear
+    appearance = NSAppearance(named: .darkAqua)
+    flutterViewController.backgroundColor = .clear
 
     // Sized after the style: with the full-size content view, the content
     // is the whole window.
@@ -37,7 +43,8 @@ class MainFlutterWindow: NSWindow {
       )
     }
 
-    self.contentViewController = flutterViewController
+    self.contentViewController = VibrantContent(
+      flutter: flutterViewController, size: windowFrame.size)
     self.setFrame(windowFrame, display: true)
     self.contentMinSize = Self.minimumSize
 
@@ -161,6 +168,37 @@ class MainFlutterWindow: NSWindow {
       return [["bytes": FlutterStandardTypedData(bytes: png), "type": "image/png"]]
     }
     return []
+  }
+}
+
+/// The window's content: the system's sidebar material, blurring what is
+/// behind the window, under the Flutter view. Flutter paints over it all
+/// but the sidebar, which only tints it (see CursorColors.sidebarSurface).
+private class VibrantContent: NSViewController {
+  private let flutter: FlutterViewController
+  private let size: NSSize
+
+  init(flutter: FlutterViewController, size: NSSize) {
+    self.flutter = flutter
+    self.size = size
+    super.init(nibName: nil, bundle: nil)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is not used")
+  }
+
+  override func loadView() {
+    let material = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
+    material.material = .sidebar
+    material.blendingMode = .behindWindow
+    // Dimmed while another window is in front, as the system's sidebars.
+    material.state = .followsWindowActiveState
+    addChild(flutter)
+    flutter.view.frame = material.bounds
+    flutter.view.autoresizingMask = [.width, .height]
+    material.addSubview(flutter.view)
+    view = material
   }
 }
 

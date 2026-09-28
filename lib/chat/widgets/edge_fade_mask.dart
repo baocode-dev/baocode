@@ -14,6 +14,11 @@ import 'fade_curve.dart';
 /// fall mid-pixel, and a scroll view's clip keeps that whole row of pixels while
 /// a mask ending at the edge only partly covers it, leaving a row of glyphs
 /// at close to full strength (seen on the web, at some scroll offsets).
+///
+/// With [topCover], something over the top of it (read at paint, which
+/// [repaint] asks for) hides it down to there, and it fades in below over
+/// [coverFade] instead: what shows around that is whatever is behind it,
+/// not a color painted over it.
 class EdgeFadeMask extends SingleChildRenderObjectWidget {
   const EdgeFadeMask({
     super.key,
@@ -21,6 +26,9 @@ class EdgeFadeMask extends SingleChildRenderObjectWidget {
     required this.bottom,
     this.fadeLength = 32,
     this.fadeOffset = 4,
+    this.topCover,
+    this.coverFade = 16,
+    this.repaint,
     required super.child,
   });
 
@@ -29,9 +37,17 @@ class EdgeFadeMask extends SingleChildRenderObjectWidget {
   final double fadeLength;
   final double fadeOffset;
 
+  /// How far down it is covered; null (or none) for not at all.
+  final ValueGetter<double?>? topCover;
+  final double coverFade;
+  final Listenable? repaint;
+
   @override
   RenderEdgeFadeMask createRenderObject(BuildContext context) =>
-      RenderEdgeFadeMask(top, bottom, fadeLength, fadeOffset);
+      RenderEdgeFadeMask(top, bottom, fadeLength, fadeOffset)
+        ..topCover = topCover
+        ..coverFade = coverFade
+        ..repaint = repaint;
 
   @override
   void updateRenderObject(
@@ -42,7 +58,10 @@ class EdgeFadeMask extends SingleChildRenderObjectWidget {
       ..top = top
       ..bottom = bottom
       ..fadeLength = fadeLength
-      ..fadeOffset = fadeOffset;
+      ..fadeOffset = fadeOffset
+      ..topCover = topCover
+      ..coverFade = coverFade
+      ..repaint = repaint;
   }
 }
 
@@ -88,13 +107,51 @@ class RenderEdgeFadeMask extends RenderProxyBox {
     markNeedsPaint();
   }
 
-  bool get _masked => child != null && (_top || _bottom);
+  ValueGetter<double?>? _topCover;
+  set topCover(ValueGetter<double?>? value) {
+    if (value == _topCover) return;
+    final composited = _topCover != null;
+    _topCover = value;
+    if (composited != (value != null)) markNeedsCompositingBitsUpdate();
+    markNeedsPaint();
+  }
+
+  double _coverFade = 16;
+  set coverFade(double value) {
+    if (value == _coverFade) return;
+    _coverFade = value;
+    markNeedsPaint();
+  }
+
+  Listenable? _repaint;
+  set repaint(Listenable? value) {
+    if (identical(value, _repaint)) return;
+    if (attached) _repaint?.removeListener(markNeedsPaint);
+    _repaint = value;
+    if (attached) _repaint?.addListener(markNeedsPaint);
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _repaint?.addListener(markNeedsPaint);
+  }
+
+  @override
+  void detach() {
+    _repaint?.removeListener(markNeedsPaint);
+    super.detach();
+  }
+
+  // Covered or not is only known at paint: with a cover, masked throughout.
+  bool get _masked => child != null && (_top || _bottom || _topCover != null);
 
   @override
   bool get alwaysNeedsCompositing => _masked;
 
-  /// Over the child's [size] plus [_overshoot] above and below.
-  Shader _shader(Size size) {
+  /// Over the child's [size] plus [_overshoot] above and below; hidden down
+  /// to [cover] when there is one.
+  Shader _shader(Size size, double? cover) {
     final height = size.height + 2 * _overshoot;
     // Short children: the two fades meet in the middle rather than overlap.
     final offset = math.min(_fadeOffset, size.height / 2);
@@ -105,10 +162,16 @@ class RenderEdgeFadeMask extends RenderProxyBox {
     final stops = <double>[];
     void stop(double y, double opacity) {
       colors.add(Color.fromRGBO(255, 255, 255, opacity));
-      stops.add(y / height);
+      // In order, should a cover reach into the bottom fade.
+      stops.add(math.max(y / height, stops.lastOrNull ?? 0));
     }
 
-    if (_top) {
+    if (cover != null && cover > 0) {
+      stop(0, 0);
+      for (final (t, opacity) in easedFade()) {
+        stop(_overshoot + cover + t * _coverFade, opacity);
+      }
+    } else if (_top) {
       stop(0, 0);
       for (final (t, opacity) in easedFade()) {
         stop(hidden + t * length, opacity);
@@ -141,7 +204,7 @@ class RenderEdgeFadeMask extends RenderProxyBox {
     }
     final mask = (layer as ShaderMaskLayer?) ?? ShaderMaskLayer();
     mask
-      ..shader = _shader(size)
+      ..shader = _shader(size, _topCover?.call())
       ..maskRect = Rect.fromLTRB(
         offset.dx,
         offset.dy - _overshoot,

@@ -498,25 +498,42 @@ class _AgentLayer {
 /// The composer and its panels, or a subagent's status in their place:
 /// the one shown fades in. The height changes at once, as the panels'
 /// do (see [_PanelSlot]); one at a time, the composer having a global key.
-class _BottomSwitcher extends StatelessWidget {
+class _BottomSwitcher extends StatefulWidget {
   const _BottomSwitcher({required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => _FadeIn(key: child.key, child: child);
+  State<_BottomSwitcher> createState() => _BottomSwitcherState();
 }
 
-/// Fades and rises into place once, when first built.
-class _FadeIn extends StatelessWidget {
-  const _FadeIn({super.key, required this.child});
+class _BottomSwitcherState extends State<_BottomSwitcher> {
+  /// Whether it has shown another child since the first: the one it opens
+  /// with is simply there, with the conversation.
+  bool _switched = false;
 
+  @override
+  void didUpdateWidget(_BottomSwitcher oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.child.key != oldWidget.child.key) _switched = true;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _FadeIn(key: widget.child.key, animate: _switched, child: widget.child);
+}
+
+/// Fades and rises into place once, when first built with [animate].
+class _FadeIn extends StatelessWidget {
+  const _FadeIn({super.key, required this.animate, required this.child});
+
+  final bool animate;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
+      tween: Tween(begin: animate ? 0 : 1, end: 1),
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
       builder: (context, t, child) => Opacity(

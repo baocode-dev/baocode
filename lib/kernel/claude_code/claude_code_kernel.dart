@@ -131,7 +131,7 @@ class ClaudeCodeKernel
   int? _window;
 
   /// The [_window] the process was started with: the CLI takes it only
-  /// at start, so another is picked up by a restart (see [_applyWindow]).
+  /// at start, so another is taken up by a restart (see [_applyWindow]).
   int? _launchedWindow;
 
   /// The context window, as the CLI reports it: the smaller of the
@@ -177,11 +177,7 @@ class ClaudeCodeKernel
   Future<void> _ensureStarted() {
     if (_disposed) return Future.error(StateError('disposed'));
     if (_running) return Future.value();
-    return _starting ??= _launch().whenComplete(() {
-      _starting = null;
-      // Picked while it started.
-      _applyWindow();
-    });
+    return _starting ??= _launch().whenComplete(() => _starting = null);
   }
 
   Future<void> _launch() async {
@@ -336,16 +332,14 @@ class ClaudeCodeKernel
     _setHealth(KernelHealth.idle);
   }
 
-  /// Restarts the process on the same session if another [_window] was
-  /// picked since it started, once nothing is under way: the CLI compacts
-  /// where it was told at start, whatever it is told after. Whether it
-  /// did.
-  bool _applyWindow() {
-    if (!_running || _busy || _window == _launchedWindow) return false;
+  /// Stops the process if another [_window] was picked since it started,
+  /// for the next message to start it again on the same session: the CLI
+  /// compacts where it was told at start, whatever it is told after. Done
+  /// only as a message is sent, so a pick leaves the conversation be.
+  void _applyWindow() {
+    if (!_running || _busy || _window == _launchedWindow) return;
     _teardown();
     _setHealth(KernelHealth.idle);
-    prepare();
-    return true;
   }
 
   @override
@@ -363,6 +357,8 @@ class ClaudeCodeKernel
     if (_sent.containsKey(turn.id)) return;
     _sent[turn.id] = turn;
     final busy = _turn != null;
+    // A context picked since it started: taken up now, while idle.
+    if (!busy) _applyWindow();
     if (busy) {
       _queued.add(turn.id);
     } else {
@@ -1023,8 +1019,6 @@ class ClaudeCodeKernel
     }
     _endTurn(interrupted: message['subtype'] != 'success');
     unawaited(_refreshContext());
-    // Picked during the turn.
-    _applyWindow();
   }
 
   static String _limitLabel(Object? type) => switch (type) {
@@ -1522,7 +1516,8 @@ class ClaudeCodeKernel
       return options.length > 1 ? options : const [];
     },
     selected: () {
-      // Shown as picked until the process (re)starts with it.
+      // Shown as picked until the process restarts with it, as the next
+      // message is sent.
       final window = _window != _launchedWindow
           ? _window
           : _contextReported
@@ -1542,9 +1537,9 @@ class ClaudeCodeKernel
           ? variants.where((v) => v.long == long).firstOrNull
           : _variantOf(model);
       _window = window;
-      final switched = _modelChange(variant?.value);
-      // Restarted, it starts on the model.
-      if (!_applyWindow()) _change([?switched]);
+      // Taken up with the next message (see _applyWindow); the model,
+      // now.
+      _change([?_modelChange(variant?.value)]);
     },
   );
 

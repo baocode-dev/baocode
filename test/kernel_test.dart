@@ -1008,14 +1008,14 @@ void main() {
       // What the CLI has in effect, not what was asked.
       expect(kernel.effort.selected, 'low');
 
-      // Mid-turn, another context waits for the turn to end, shown as
-      // picked meanwhile.
+      // Another context is shown as picked, the conversation left be: the
+      // CLI takes it only at start, so it restarts as the next message is
+      // sent, on the same session.
       kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
       await pumpEventQueue();
       kernel.contextSize.select('opus', '1m');
       await pumpEventQueue();
       expect(kernel.contextSize.selected, '1m');
-      expect(launches, hasLength(1));
       clis.last.push({
         'type': 'system',
         'subtype': 'init',
@@ -1024,21 +1024,33 @@ void main() {
       });
       clis.last.push({'type': 'result', 'subtype': 'success'});
       await pumpEventQueue();
-      // Then the process restarts on the session, compacting there.
+      expect(launches, hasLength(1));
+      expect(clis.first.closed, isFalse);
+      expect(kernel.contextSize.selected, '1m');
+      kernel.send(const KernelTurn(id: 'u2', text: 'go on'));
+      await pumpEventQueue();
       expect(clis.first.closed, isTrue);
       expect(launches.last.resume, 's1');
       expect(launches.last.autocompact, 1000000);
+      expect(clis.last.users.single['uuid'], 'u2');
       expect(kernel.contextSize.selected, '1m');
+      clis.last.push({'type': 'result', 'subtype': 'success'});
+      await pumpEventQueue();
 
-      // Idle, straight away; the model it goes with is started on.
+      // The model it goes with is switched to straight away.
       kernel.contextSize.select('opus', '200k');
+      await pumpEventQueue();
+      expect(clis.last.requests('set_model').last['model'], 'opus');
       expect(kernel.contextSize.selected, '200k');
+      expect(launches, hasLength(2));
+      kernel.send(const KernelTurn(id: 'u3', text: 'more'));
       await pumpEventQueue();
       expect(launches, hasLength(3));
       expect(launches.last.model, 'opus');
       expect(launches.last.autocompact, 200000);
-      expect(clis[1].requests('set_model'), isEmpty);
       expect(kernel.contextSize.selected, '200k');
+      clis.last.push({'type': 'result', 'subtype': 'success'});
+      await pumpEventQueue();
 
       // Another model's effort switches to it first.
       kernel.effort.select('fable', 'max');

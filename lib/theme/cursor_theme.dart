@@ -4,6 +4,25 @@ import 'package:flutter/material.dart';
 /// Cursor-style dark palette.
 abstract final class CursorColors {
   static const background = Color(0xFF181818);
+
+  /// Whether the window has the system's sidebar material under it (the
+  /// macOS app; see MainFlutterWindow.swift), to show through the sidebar.
+  static bool get usesMacOSMaterial =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+
+  /// Under everything: the material itself where there is one. All but the
+  /// sidebar cover it (see Workbench).
+  static Color get windowCanvas =>
+      usesMacOSMaterial ? Colors.transparent : background;
+
+  /// The sidebar's: a tint over the material, or as opaque as the rest.
+  static Color get sidebarSurface =>
+      usesMacOSMaterial ? const Color(0xE01C1D20) : background;
+
+  /// The conversation's: over the material a darker tint than the
+  /// sidebar's, or [background].
+  static Color get conversationSurface =>
+      usesMacOSMaterial ? const Color(0xF2161618) : background;
   static const surface = Color(0xFF1F1F1F);
   static const surfaceRaised = Color(0xFF262626);
   static const code = Color(0xFF141414);
@@ -58,7 +77,8 @@ abstract final class CursorFonts {
 ThemeData buildCursorTheme() {
   return ThemeData(
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: CursorColors.background,
+    // The conversation's own color is under it (see Workbench).
+    scaffoldBackgroundColor: CursorColors.windowCanvas,
     colorScheme: ColorScheme.fromSeed(
       seedColor: CursorColors.accent,
       brightness: Brightness.dark,
