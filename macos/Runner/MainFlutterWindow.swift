@@ -48,6 +48,7 @@ class MainFlutterWindow: NSWindow {
       name: "monad/window",
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
+    self.channel = channel
     channel.setMethodCallHandler { [weak self] call, result in
       switch call.method {
       case "setAlwaysOnTop":
@@ -72,12 +73,47 @@ class MainFlutterWindow: NSWindow {
         }
       case "readPasteboardImages":
         result(Self.pasteboardImages())
+      case "canPaste":
+        let pasteboard = NSPasteboard.general
+        result(pasteboard.canReadObject(
+          forClasses: [NSString.self, NSURL.self, NSImage.self], options: nil))
+      case "showContextMenu":
+        // A context menu of the system's own, where the user clicked;
+        // answers the chosen item's id (nil for none) once it closes.
+        guard let arguments = call.arguments as? [String: Any],
+              let items = arguments["items"] as? [[String: Any]],
+              let x = arguments["x"] as? Double, let y = arguments["y"] as? Double
+        else {
+          result(nil)
+          return
+        }
+        let view = flutterViewController.view
+        let point = NSPoint(x: x, y: view.isFlipped ? y : view.bounds.height - y)
+        ContextMenu(items: items, answer: result).show(at: point, in: view)
       default:
         result(FlutterMethodNotImplemented)
       }
     }
 
     super.awakeFromNib()
+  }
+
+  private var channel: FlutterMethodChannel?
+
+  // The Edit menu's commands (see MainMenu.xib), for what has focus in
+  // Flutter. The system's own (undo:, copy:, selectAll:…) would stop at the
+  // engine's hidden text view, which edits nothing shown, or at nothing.
+  // They come here too when a shortcut Flutter did not take matches them.
+
+  @objc func monadUndo(_ sender: Any?) { editCommand("undo") }
+  @objc func monadRedo(_ sender: Any?) { editCommand("redo") }
+  @objc func monadCut(_ sender: Any?) { editCommand("cut") }
+  @objc func monadCopy(_ sender: Any?) { editCommand("copy") }
+  @objc func monadPaste(_ sender: Any?) { editCommand("paste") }
+  @objc func monadSelectAll(_ sender: Any?) { editCommand("selectAll") }
+
+  private func editCommand(_ command: String) {
+    channel?.invokeMethod("editCommand", arguments: command)
   }
 
   /// Types sent as they are; others are converted to PNG.
@@ -125,5 +161,64 @@ class MainFlutterWindow: NSWindow {
       return [["bytes": FlutterStandardTypedData(bytes: png), "type": "image/png"]]
     }
     return []
+  }
+}
+
+/// A menu of the items the Flutter side sends: `id`, `label`, `enabled`,
+/// `key` (shown with ⌘), or `separator`. Answers the chosen item's id, or
+/// nil, once.
+private class ContextMenu: NSMenu {
+  private var answer: FlutterResult?
+
+  /// Itself, until it has answered: the chosen item's action can come
+  /// after the menu has closed, and items hold their target weakly.
+  private var keepAlive: ContextMenu?
+
+  init(items: [[String: Any]], answer: @escaping FlutterResult) {
+    self.answer = answer
+    super.init(title: "")
+    autoenablesItems = false
+    for item in items {
+      if item["separator"] as? Bool == true {
+        addItem(.separator())
+        continue
+      }
+      let menuItem = NSMenuItem(
+        title: item["label"] as? String ?? "",
+        action: #selector(choose(_:)),
+        keyEquivalent: item["key"] as? String ?? ""
+      )
+      menuItem.keyEquivalentModifierMask = .command
+      menuItem.target = self
+      menuItem.representedObject = item["id"]
+      menuItem.isEnabled = item["enabled"] as? Bool ?? true
+      addItem(menuItem)
+    }
+  }
+
+  required init(coder: NSCoder) {
+    super.init(coder: coder)
+  }
+
+  func show(at point: NSPoint, in view: NSView) {
+    keepAlive = self
+    if popUp(positioning: nil, at: point, in: view) {
+      // An item was chosen: its action answers, now or shortly.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+        self?.finish(nil)
+      }
+    } else {
+      finish(nil)
+    }
+  }
+
+  @objc private func choose(_ sender: NSMenuItem) {
+    finish(sender.representedObject as? String)
+  }
+
+  private func finish(_ id: String?) {
+    answer?(id)
+    answer = nil
+    keepAlive = nil
   }
 }

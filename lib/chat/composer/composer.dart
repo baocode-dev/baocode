@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill/quill_delta.dart';
@@ -700,11 +701,76 @@ class ChatComposerState extends State<ChatComposer> {
             onPointerMove: _handleSelectPointerMove,
             onPointerUp: (_) => _selectDragFrom = null,
             onPointerCancel: (_) => _selectDragFrom = null,
-            child: _buildQuill(context),
+            child: Listener(
+              onPointerDown: _handleMenuPointerDown,
+              onPointerUp: _handleMenuPointerUp,
+              onPointerCancel: (_) => _menuPressAt = null,
+              child: _buildQuill(context),
+            ),
           ),
         ),
       ),
     );
+  }
+
+  // --- Context menu -------------------------------------------------------
+  //
+  // A right click opens the system's menu (Quill's own is a Flutter one,
+  // turned off). Quill has placed the caret by the time it opens: at the
+  // click, unless the click is on a selection.
+
+  /// Where a right click went down; null for other presses.
+  Offset? _menuPressAt;
+
+  void _handleMenuPointerDown(PointerDownEvent event) {
+    _menuPressAt =
+        event.kind == PointerDeviceKind.mouse &&
+            event.buttons == kSecondaryMouseButton
+        ? event.position
+        : null;
+  }
+
+  void _handleMenuPointerUp(PointerUpEvent event) {
+    final down = _menuPressAt;
+    _menuPressAt = null;
+    if (down == null || (event.position - down).distance > kTouchSlop) return;
+    // After Quill's handling of the click, which comes after this.
+    SchedulerBinding.instance
+      ..addPostFrameCallback((_) => _showContextMenu(event.position))
+      ..scheduleFrame();
+  }
+
+  Future<void> _showContextMenu(Offset position) async {
+    if (!mounted || !WindowControls.hasNativeMenus) return;
+    final selected = !_controller.selection.isCollapsed;
+    final canPaste = await WindowControls.canPaste();
+    if (!mounted) return;
+    final chosen = await WindowControls.showContextMenu(position, [
+      NativeMenuItem('cut', 'Cut', key: 'x', enabled: selected),
+      NativeMenuItem('copy', 'Copy', key: 'c', enabled: selected),
+      NativeMenuItem('paste', 'Paste', key: 'v', enabled: canPaste),
+      const NativeMenuItem.separator(),
+      NativeMenuItem(
+        'selectAll',
+        'Select All',
+        key: 'a',
+        enabled: _controller.document.length > 1,
+      ),
+    ]);
+    final editor = _editorKey.currentState;
+    if (!mounted || editor == null) return;
+    _focusNode.requestFocus();
+    // As their shortcuts do: the selection stays where it is.
+    switch (chosen) {
+      case 'cut':
+        editor.cutSelection(SelectionChangedCause.keyboard);
+      case 'copy':
+        editor.copySelection(SelectionChangedCause.keyboard);
+      case 'paste':
+        await editor.pasteText(SelectionChangedCause.keyboard);
+      case 'selectAll':
+        editor.selectAll(SelectionChangedCause.keyboard);
+    }
   }
 
   // --- Drag selection -----------------------------------------------------

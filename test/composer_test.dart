@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'dart:math' as math;
-import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +11,8 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/sidebar/sidebar.dart';
 import 'package:monad/workspace/workspace.dart';
+import 'package:monad/chat/widgets/markdown_view.dart';
+import 'package:monad/workspace/window_controls.dart';
 import 'package:monad/main.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:monad/kernel/claude_code/claude_code_kernel.dart';
@@ -80,6 +82,10 @@ Future<void> pressKey(WidgetTester tester, LogicalKeyboardKey key) async {
   await tester.sendKeyEvent(key);
   await tester.pump();
 }
+
+Matcher isSelection(int base, int extent) => isA<TextSelection>()
+    .having((s) => s.baseOffset, 'base', base)
+    .having((s) => s.extentOffset, 'extent', extent);
 
 void main() {
   testWidgets('@ opens the mention menu and inserts an atomic token', (
@@ -547,6 +553,141 @@ void main() {
     final controller = composerController(tester);
     expect(controller.document.toPlainText(), 'see \uFFFC \n');
     expect(controller.selection.baseOffset, 6);
+  });
+
+  testWidgets('a right click opens the system menu: cut, copy, paste, '
+      'select all', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    final messenger = tester.binding.defaultBinaryMessenger;
+    final menus = <List<Map<Object?, Object?>>>[];
+    final replies = ['selectAll', 'copy', 'paste'];
+    messenger.setMockMethodCallHandler(const MethodChannel('monad/window'), (
+      call,
+    ) async {
+      switch (call.method) {
+        case 'canPaste':
+          return true;
+        case 'showContextMenu':
+          final arguments = call.arguments as Map<Object?, Object?>;
+          menus.add((arguments['items'] as List).cast());
+          return replies.removeAt(0);
+      }
+      return null;
+    });
+    String? copied;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      switch (call.method) {
+        case 'Clipboard.setData':
+          copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+        case 'Clipboard.getData':
+          return {'text': 'pasted'};
+      }
+      return null;
+    });
+    try {
+      await pumpScreen(tester);
+      await typeText(tester, 'hello world');
+      final controller = composerController(tester);
+      Future<void> rightClick() async {
+        await tester.tapAt(
+          tester.getCenter(find.byType(QuillEditor)),
+          buttons: kSecondaryMouseButton,
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await tester.pump();
+      }
+
+      Map<Object?, bool> enabled(List<Map<Object?, Object?>> items) => {
+        for (final item in items) ?item['id']: item['enabled'] == true,
+      };
+
+      await rightClick();
+      expect(enabled(menus.last), {
+        'cut': false,
+        'copy': false,
+        'paste': true,
+        'selectAll': true,
+      });
+      expect(controller.selection, isSelection(0, 11));
+
+      // On the selection: it stays, and is copied.
+      await rightClick();
+      expect(enabled(menus.last)['copy'], isTrue);
+      expect(copied, 'hello world');
+      expect(controller.selection, isSelection(0, 11));
+
+      await rightClick();
+      expect(controller.document.toPlainText(), 'pasted\n');
+      expect(menus, hasLength(3));
+    } finally {
+      messenger.setMockMethodCallHandler(
+        const MethodChannel('monad/window'),
+        null,
+      );
+      messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('the Edit menu acts where the focus is: the composer, or '
+      'the conversation', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    final messenger = tester.binding.defaultBinaryMessenger;
+    String? copied;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+      }
+      return null;
+    });
+    try {
+      WindowControls.handleEditCommands();
+      await pumpScreen(tester);
+
+      /// The menu item [command] chosen, as the window sends it.
+      Future<void> menu(String command) async {
+        await messenger.handlePlatformMessage(
+          'monad/window',
+          const StandardMethodCodec().encodeMethodCall(
+            MethodCall('editCommand', command),
+          ),
+          (_) {},
+        );
+        await tester.pump();
+      }
+
+      await typeText(tester, 'hello world');
+      await menu('selectAll');
+      expect(composerController(tester).selection, isSelection(0, 11));
+      await menu('copy');
+      expect(copied, 'hello world');
+
+      // In the conversation, once clicked: all of it.
+      final reply = find
+          .descendant(
+            of: find.byType(MarkdownView),
+            matching: find.byType(RichText),
+          )
+          .first;
+      final click = await tester.startGesture(
+        tester.getCenter(reply),
+        kind: PointerDeviceKind.mouse,
+      );
+      await click.up();
+      await tester.pump(const Duration(milliseconds: 500));
+      await menu('selectAll');
+      await menu('copy');
+      expect(copied, contains('第 1 轮'));
+      expect(copied!.length, greaterThan(200));
+    } finally {
+      messenger.setMockMethodCallHandler(
+        const MethodChannel('monad/window'),
+        null,
+      );
+      messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   group('paste', () {
