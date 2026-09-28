@@ -30,15 +30,20 @@ class EditStep extends StatelessWidget {
           onToggle: onToggle,
           trailing: Text.rich(
             TextSpan(
+              // A count of none is left out.
               children: [
-                TextSpan(
-                  text: '+${item.added}',
-                  style: const TextStyle(color: CursorColors.added),
-                ),
-                TextSpan(
-                  text: ' -${item.removed}',
-                  style: const TextStyle(color: CursorColors.removed),
-                ),
+                if (item.added > 0)
+                  TextSpan(
+                    text: '+${item.added}',
+                    style: const TextStyle(color: CursorColors.added),
+                  ),
+                if (item.added > 0 && item.removed > 0)
+                  const TextSpan(text: ' '),
+                if (item.removed > 0)
+                  TextSpan(
+                    text: '-${item.removed}',
+                    style: const TextStyle(color: CursorColors.removed),
+                  ),
               ],
             ),
             style: count,

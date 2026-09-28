@@ -129,11 +129,6 @@ class ContextUsagePanel extends StatelessWidget {
                 ],
               ),
             ],
-            const SizedBox(height: 8),
-            const Text(
-              '接近上限时会自动总结较早的对话。',
-              style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
-            ),
             if (stats != null &&
                 (stats.costUsd != null ||
                     stats.limits.isNotEmpty ||
@@ -189,6 +184,7 @@ class _PlanUsage extends StatelessWidget {
           if (switch (stats.limitsState) {
                 LimitsState.checking => '正在获取额度…',
                 LimitsState.unavailable => '暂时获取不到额度，稍后重新打开再试。',
+                LimitsState.off => '额度随对话自动更新，对话后即可看到。',
                 LimitsState.idle => null,
               }
               case final note?) ...[

@@ -7,7 +7,7 @@ const _codeStyle = TextStyle(
   color: CursorColors.inlineCode,
   fontFamily: CursorFonts.mono,
   fontSize: 12.5,
-  backgroundColor: Color(0xFF2A2A2A),
+  backgroundColor: CursorColors.inlineCodeBackground,
 );
 
 /// Splits [text] on backticks, rendering odd segments as inline code.

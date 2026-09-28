@@ -24,7 +24,18 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
       MockClaudeCodeTransport(launch);
 
   late String _permissionMode = launch?.permissionMode ?? 'default';
-  String _model = 'default';
+  late String _model = launch?.model ?? 'default';
+  late String? _effort = launch?.effort ?? 'high';
+
+  String get _resolvedModel => switch (_model) {
+    'default' || 'opus' => 'claude-opus-5-5',
+    'opus[1m]' => 'claude-opus-5-5[1m]',
+    'sonnet' => 'claude-sonnet-5',
+    'haiku' => 'claude-haiku-4-5',
+    final model => model,
+  };
+
+  int get _window => _resolvedModel.endsWith('[1m]') ? 1000000 : 200000;
   int _messages = 0;
   int _tools = 0;
   int _requests = 0;
@@ -174,6 +185,21 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
               'supportsAutoMode': true,
             },
             {
+              'value': 'opus[1m]',
+              'resolvedModel': 'claude-opus-5-5[1m]',
+              'displayName': 'Opus 5.5 (1M context)',
+              'description': 'Most capable, for long sessions',
+              'supportsEffort': true,
+              'supportedEffortLevels': [
+                'low',
+                'medium',
+                'high',
+                'xhigh',
+                'max',
+              ],
+              'supportsAutoMode': true,
+            },
+            {
               'value': 'sonnet',
               'resolvedModel': 'claude-sonnet-5',
               'displayName': 'Sonnet 5',
@@ -200,6 +226,15 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
       case 'set_model':
         _model = request['model'] as String? ?? 'default';
         _respond(id);
+      case 'apply_flag_settings':
+        if ((request['settings'] as Map?)?['effortLevel'] case final String e) {
+          _effort = e;
+        }
+        _respond(id);
+      case 'get_settings':
+        _respond(id, {
+          'applied': {'model': _resolvedModel, 'effort': _effort},
+        });
       case 'set_permission_mode':
         _permissionMode = request['mode'] as String;
         _respond(id, {'mode': _permissionMode});
@@ -213,13 +248,13 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
             {'name': 'Autocompact buffer', 'tokens': 33000, 'kind': 'buffer'},
             {
               'name': 'Free space',
-              'tokens': 200000 - fixed - _conversationTokens - 33000,
+              'tokens': _window - fixed - _conversationTokens - 33000,
               'kind': 'free',
             },
           ],
           'totalTokens': fixed + _conversationTokens,
-          'maxTokens': 200000,
-          'rawMaxTokens': 200000,
+          'maxTokens': _window,
+          'rawMaxTokens': _window,
           'percentage': ((fixed + _conversationTokens) / 2000).round(),
         });
       case 'get_usage':
@@ -297,7 +332,8 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
       'type': 'system',
       'subtype': 'init',
       'cwd': launch?.cwd,
-      'model': _model == 'default' ? 'claude-opus-5-5' : _model,
+      'model': _resolvedModel,
+      'effort': _effort,
       'permissionMode': _permissionMode,
       'terminal_slash_commands': ['doctor'],
     });
@@ -470,7 +506,7 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
         'output_tokens': 480,
       },
       'modelUsage': {
-        'claude-opus-5-5': {'contextWindow': 200000},
+        'claude-opus-5-5': {'contextWindow': _window},
       },
     });
     _emit({

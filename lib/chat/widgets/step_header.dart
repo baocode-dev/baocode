@@ -20,6 +20,7 @@ class StepHeader extends StatelessWidget {
     this.running = false,
     this.expanded = false,
     this.onToggle,
+    this.icon,
     this.trailing,
     this.action,
   });
@@ -32,6 +33,9 @@ class StepHeader extends StatelessWidget {
   final bool running;
   final bool expanded;
   final VoidCallback? onToggle;
+
+  /// Before the line, e.g. a message's arrows.
+  final Widget? icon;
 
   /// After the line, e.g. an edit's "+12 -3".
   final Widget? trailing;
@@ -85,6 +89,10 @@ class StepHeader extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (icon case final icon?) ...[
+              SelectionContainer.disabled(child: icon),
+              const SizedBox(width: 5),
+            ],
             // Shrinks in a narrow window rather than overflow.
             Flexible(child: line),
             if (trailing case final trailing?) ...[

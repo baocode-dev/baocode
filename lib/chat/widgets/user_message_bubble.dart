@@ -42,13 +42,16 @@ class UserMessageBubble extends StatefulWidget {
   /// Takes the queued message back.
   final VoidCallback? onCancel;
 
+  /// Its corners; what answers it is inset this much at either side.
+  static const radius = 8.0;
+
   @override
   State<UserMessageBubble> createState() => _UserMessageBubbleState();
 }
 
 /// Lines shown of a collapsed message. Messages up to one line longer show
 /// in full: hiding a single line is not worth it.
-const _collapsedLines = 6;
+const _collapsedLines = 3;
 const _lineHeight = 13.5 * 1.5;
 
 const _messageStyle = TextStyle(
@@ -167,7 +170,7 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
         decoration: BoxDecoration(
           color: CursorColors.surfaceRaised,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(UserMessageBubble.radius),
           border: Border.all(color: CursorColors.borderStrong),
         ),
         child: Column(

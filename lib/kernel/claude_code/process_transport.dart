@@ -7,3 +7,7 @@ import 'process_transport_stub.dart'
 /// processes, fails saying so.
 Future<ClaudeCodeTransport> startClaudeProcess(ClaudeLaunch launch) =>
     platform.ProcessTransport.start(launch);
+
+/// The setting that keeps Claude Code from asking for the plan usage, if
+/// the environment it runs in has it on; none on the web.
+Future<String?> claudeUsageOffBy() => platform.ProcessTransport.usageOffBy();

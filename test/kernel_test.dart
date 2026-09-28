@@ -237,6 +237,83 @@ void main() {
       expect(transcript.edits.single.turnId, startsWith('11111111'));
     });
 
+    test('a notebook edit shows its cell changed, line by line', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      )..turnId = '11111111-1111-4111-8111-111111111111';
+      void edit(String id, Map<String, Object?> result) {
+        translator
+          ..translate({
+            'type': 'assistant',
+            'parent_tool_use_id': null,
+            'message': {
+              'id': 'msg-$id',
+              'role': 'assistant',
+              'content': [
+                {
+                  'type': 'tool_use',
+                  'id': id,
+                  'name': 'NotebookEdit',
+                  'input': {'notebook_path': '/p/demo.ipynb'},
+                },
+              ],
+            },
+          })
+          ..translate({
+            'type': 'user',
+            'parent_tool_use_id': null,
+            'message': {
+              'role': 'user',
+              'content': [
+                {
+                  'type': 'tool_result',
+                  'tool_use_id': id,
+                  'content': 'Updated cell',
+                },
+              ],
+            },
+            'tool_use_result': {'notebook_path': '/p/demo.ipynb', ...result},
+          });
+      }
+
+      edit('t1', {
+        'edit_mode': 'replace',
+        'old_source': 'import os\nx = 1\nprint(x)',
+        'new_source': 'import os\nx = 2\nprint(x)',
+      });
+      edit('t2', {'edit_mode': 'insert', 'new_source': 'a\nb'});
+      edit('t3', {
+        'edit_mode': 'delete',
+        'old_source': 'gone',
+        'new_source': '',
+      });
+
+      final diffs = [
+        for (var i = 0; i < transcript.length; i++)
+          if (transcript.itemAt(i) case final CodeDiffItem diff) diff,
+      ];
+      String marked(DiffLine line) =>
+          '${switch (line.type) {
+            DiffLineType.added => '+',
+            DiffLineType.removed => '-',
+            DiffLineType.context => ' ',
+          }}${line.lineNumber} ${line.text}';
+      expect(diffs.map((diff) => diff.fileName).toSet(), {'demo.ipynb'});
+      expect(diffs[0].lines.map(marked), [
+        ' 1 import os',
+        '-2 x = 1',
+        '+2 x = 2',
+        ' 3 print(x)',
+      ]);
+      expect((diffs[0].added, diffs[0].removed), (1, 1));
+      expect((diffs[1].added, diffs[1].removed), (2, 0));
+      expect((diffs[2].added, diffs[2].removed), (0, 1));
+      expect(transcript.edits, hasLength(3));
+    });
+
     test('replaying the kept session shows what streaming showed', () async {
       List<String> run(Iterable<Map<String, Object?>> messages, bool replay) {
         final transcript = Transcript();
@@ -706,6 +783,46 @@ void main() {
         kernel.dispose();
       });
 
+      test('turned off: not asked, and it says by what; a reply still tells '
+          'them', () async {
+        final launches = <ClaudeLaunch>[];
+        final cli = FakeCli(answers: {'get_usage': usage});
+        final kernel = ClaudeCodeKernel(
+          MockKernels.claudeCode,
+          const KernelContext(cwd: '/p'),
+          start: (launch) async {
+            launches.add(launch);
+            return cli;
+          },
+          usageOffBy: () async => 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
+        );
+        final transcript = Transcript();
+        kernel.events.listen(transcript.apply);
+        await kernel.refreshUsage();
+        await pumpEventQueue();
+        expect(launches, isEmpty);
+        expect(transcript.stats!.limitsState, LimitsState.off);
+        expect(
+          transcript.stats!.limitsOffBy,
+          'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
+        );
+
+        kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+        await pumpEventQueue();
+        cli.push({
+          'type': 'rate_limit_event',
+          'rate_limit_info': {
+            'status': 'allowed_warning',
+            'rateLimitType': 'five_hour',
+            'utilization': 0.91,
+          },
+        });
+        await pumpEventQueue();
+        expect(cli.requests('get_usage'), isEmpty);
+        expect(shown(transcript), '5-hour limit 91%');
+        kernel.dispose();
+      });
+
       test(
         'when Claude Code cannot tell, the limits stay as they were',
         () async {
@@ -757,6 +874,80 @@ void main() {
         kernel.dispose();
       },
     );
+
+    test('a model\'s context and effort are picked beside it, and read '
+        'back from the CLI', () async {
+      Map<String, Object?> model(
+        String value,
+        String resolved, [
+        List<String> efforts = const [],
+      ]) => {
+        'value': value,
+        'resolvedModel': resolved,
+        'displayName': value,
+        'description': '',
+        if (efforts.isNotEmpty) 'supportsEffort': true,
+        if (efforts.isNotEmpty) 'supportedEffortLevels': efforts,
+      };
+      final cli = FakeCli(
+        answers: {
+          'initialize': {
+            'commands': const [],
+            'models': [
+              model('opus', 'claude-opus-4-6', ['low', 'high']),
+              model('opus[1m]', 'claude-opus-4-6[1m]', ['low', 'high']),
+              model('fable[1m]', 'claude-fable-5-1', ['low', 'max']),
+              model('haiku', 'claude-haiku-4-5'),
+            ],
+          },
+          'get_settings': {
+            'applied': {'model': 'claude-opus-4-6[1m]', 'effort': 'low'},
+          },
+        },
+      );
+      final launches = <ClaudeLaunch>[];
+      // As the last agent had it.
+      final kernel = ClaudeCodeKernel(
+        MockKernels.claudeCode,
+        const KernelContext(
+          cwd: '/p',
+          settings: {'model': 'opus', 'context': '1m', 'effort': 'high'},
+        ),
+        start: (launch) async {
+          launches.add(launch);
+          return cli;
+        },
+      );
+      List<String> labels(List<KernelOption> options) => [
+        for (final option in options) option.label,
+      ];
+
+      kernel.prepare();
+      await pumpEventQueue();
+      expect(launches.single.model, 'opus[1m]');
+      expect(launches.single.effort, 'high');
+
+      // A model and its 1M variant are one; one only 1M has no choice.
+      expect(labels(kernel.model.options), ['opus', 'fable[1m]', 'haiku']);
+      expect(kernel.model.selected, 'opus');
+      expect(labels(kernel.contextSize.optionsFor('opus')), ['200K', '1M']);
+      expect(kernel.contextSize.optionsFor('fable'), isEmpty);
+      expect(kernel.contextSize.selected, '1m');
+      expect(labels(kernel.effort.optionsFor('fable')), ['Low', 'Max']);
+      expect(kernel.effort.optionsFor('haiku'), isEmpty);
+      // What the CLI has in effect, not what was asked.
+      expect(kernel.effort.selected, 'low');
+
+      kernel.contextSize.select('opus', '200k');
+      expect(cli.requests('set_model').last['model'], 'opus');
+      // Another model's effort switches to it first.
+      kernel.effort.select('fable', 'max');
+      expect(cli.requests('set_model').last['model'], 'fable[1m]');
+      expect(cli.requests('apply_flag_settings').last['settings'], {
+        'effortLevel': 'max',
+      });
+      kernel.dispose();
+    });
 
     test('mode and approvals make the CLI\'s one permission mode', () async {
       final cli = FakeCli();
@@ -1142,32 +1333,29 @@ void main() {
   });
 
   group('Claude Code storage', () {
-    test(
-      'reads the sessions where the login shell keeps them',
-      () async {
-        final root = await Directory.systemTemp.createTemp('monad-storage-');
-        addTearDown(() => root.delete(recursive: true));
-        addTearDown(() => ClaudeEnvironment.use(null));
-        final config = '${root.path}/config';
-        final cwd = '${root.path}/project';
-        Directory(cwd).createSync(recursive: true);
-        File('$config/projects/-p/session-1.jsonl')
-          ..createSync(recursive: true)
-          ..writeAsStringSync(
-            '${jsonEncode({
-              'type': 'user',
-              'uuid': 'aaaaaaaa-1111-4111-8111-111111111111',
-              'cwd': cwd,
-              'message': {'role': 'user', 'content': 'list the files'},
-            })}\n',
-          );
-        ClaudeEnvironment.use({'CLAUDE_CONFIG_DIR': config});
+    test('reads the sessions where the login shell keeps them', () async {
+      final root = await Directory.systemTemp.createTemp('monad-storage-');
+      addTearDown(() => root.delete(recursive: true));
+      addTearDown(() => ClaudeEnvironment.use(null));
+      final config = '${root.path}/config';
+      final cwd = '${root.path}/project';
+      Directory(cwd).createSync(recursive: true);
+      File('$config/projects/-p/session-1.jsonl')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          '${jsonEncode({
+            'type': 'user',
+            'uuid': 'aaaaaaaa-1111-4111-8111-111111111111',
+            'cwd': cwd,
+            'message': {'role': 'user', 'content': 'list the files'},
+          })}\n',
+        );
+      ClaudeEnvironment.use({'CLAUDE_CONFIG_DIR': config});
 
-        final projects = await const ClaudeStorage().projects();
-        expect(projects.map((project) => project.path), [cwd]);
-        expect(projects.single.sessions.single.title, 'list the files');
-      },
-    );
+      final projects = await const ClaudeStorage().projects();
+      expect(projects.map((project) => project.path), [cwd]);
+      expect(projects.single.sessions.single.title, 'list the files');
+    });
 
     test(
       'the app\'s data path wins, and the CLI is told to keep state there',

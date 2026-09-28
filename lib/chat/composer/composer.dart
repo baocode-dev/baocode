@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill/quill_delta.dart';
 
+import '../../kernel/agent_kernel.dart';
 import '../../kernel/kernel_types.dart';
 import '../../theme/cursor_theme.dart';
 import '../chat_models.dart';
@@ -867,6 +868,17 @@ class ChatComposerState extends State<ChatComposer> {
     );
   }
 
+  /// The model with its settings, e.g. "Opus · 1M · High": the context
+  /// only when it is not the standard one.
+  String _modelLabel(KernelOption model) => [
+    model.label,
+    for (final setting in widget.session.modelSettings(model.id))
+      if (setting.selected case final selected?
+          when setting.kind != KernelChoiceKind.context ||
+              selected != setting.options.first)
+        selected.label,
+  ].join(' · ');
+
   Widget _buildToolbar() {
     final session = widget.session;
     // Only the dock's composer picks the kernel, and only until it starts.
@@ -874,7 +886,6 @@ class ChatComposerState extends State<ChatComposer> {
     final mode = session.modes;
     final permission = session.permissions;
     final model = session.models;
-    final effort = session.efforts;
     final context = session.context;
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
@@ -924,20 +935,14 @@ class ChatComposerState extends State<ChatComposer> {
                     ComposerPicker(
                       options: model.options,
                       selected: model.selected,
+                      label: _modelLabel(model.selected),
+                      describes: false,
+                      settingsOf: (option) => session.modelSettings(option.id),
+                      menuWidth: 220,
                       tapRegionGroupId: widget.tapRegionGroupId,
                       focusNode: _focusNode,
                       onSelected: model.onSelected,
                     ),
-                  if (effort != null) ...[
-                    const SizedBox(width: 2),
-                    ComposerPicker(
-                      options: effort.options,
-                      selected: effort.selected,
-                      tapRegionGroupId: widget.tapRegionGroupId,
-                      focusNode: _focusNode,
-                      onSelected: effort.onSelected,
-                    ),
-                  ],
                 ],
               ),
             ),

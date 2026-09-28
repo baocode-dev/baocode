@@ -54,6 +54,76 @@ void main() {
     });
   });
 
+  group('tables', () {
+    testWidgets('a wide table scrolls sideways in a rounded card, with a bar', (
+      tester,
+    ) async {
+      final wide = 'x' * 200;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              child: MarkdownView('| a | b |\n| - | - |\n| 1 | $wide |'),
+            ),
+          ),
+        ),
+      );
+      final card = tester.widget<Container>(
+        find
+            .ancestor(of: find.byType(Table), matching: find.byType(Container))
+            .last,
+      );
+      expect(
+        (card.foregroundDecoration! as BoxDecoration).borderRadius,
+        BorderRadius.circular(8),
+      );
+      expect(card.clipBehavior, Clip.antiAlias);
+      expect(find.byType(Scrollbar), findsOneWidget);
+      expect(tester.getSize(find.byWidget(card)).width, 400);
+      final scroll = find.descendant(
+        of: find.byWidget(card),
+        matching: find.byType(Scrollable),
+      );
+      final position = tester.state<ScrollableState>(scroll).position;
+      expect(position.maxScrollExtent, greaterThan(0));
+
+      // The bar shows while the pointer is over the table.
+      bool barShown() =>
+          tester.widget<Scrollbar>(find.byType(Scrollbar)).thumbVisibility ??
+          false;
+      expect(barShown(), isFalse);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(
+        location: tester.getCenter(find.byType(Scrollbar)),
+      );
+      await tester.pump();
+      expect(barShown(), isTrue);
+      await mouse.moveTo(const Offset(790, 590));
+      await tester.pump();
+      expect(barShown(), isFalse);
+    });
+
+    testWidgets('a narrow table is as wide as its columns', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 600,
+              child: MarkdownView('| a | b |\n| - | - |\n| 1 | 2 |'),
+            ),
+          ),
+        ),
+      );
+      expect(tester.getSize(find.byType(Table)).width, lessThan(600));
+      expect(
+        tester.getSize(find.byType(Scrollable)).width,
+        tester.getSize(find.byType(Table)).width,
+      );
+    });
+  });
+
   group('math', () {
     testWidgets('inline and display TeX is typeset', (tester) async {
       await pumpMarkdown(

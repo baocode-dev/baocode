@@ -18,6 +18,10 @@ typedef ClaudeHistoryReader = Future<List<Map<String, Object?>>> Function(
   SessionRecord session,
 );
 
+/// The setting Claude Code runs with that keeps it from asking for the
+/// plan usage, if one does.
+typedef ClaudeUsageSwitch = Future<String?> Function();
+
 /// Adapts Claude Code, run as `claude -p` over stream-json, to
 /// [AgentKernel].
 ///
@@ -34,6 +38,7 @@ class ClaudeCodeKernel
         SelectsMode,
         SelectsPermission,
         SelectsEffort,
+        SelectsContextSize,
         ProvidesCommands,
         SuggestsFiles,
         ReportsContext,
@@ -51,7 +56,8 @@ class ClaudeCodeKernel
     this._context, {
     required this._start,
     ClaudeHistoryReader? readHistory,
-  }) {
+    ClaudeUsageSwitch? usageOffBy,
+  }) : _usageOffBy = usageOffBy ?? _usageOn {
     _translator = ClaudeTranslator(emit: emit, nextSeq: () => nextSeq);
     _live.add(this);
     _sessionId = _context.resume?.id;
@@ -62,8 +68,16 @@ class ClaudeCodeKernel
       _approvals,
       'default',
     );
-    _model = _context.settings[KernelChoiceKind.model.name];
-    _effort = _context.settings[KernelChoiceKind.effort.name];
+    _model = switch ((
+      settings[KernelChoiceKind.model.name],
+      settings[KernelChoiceKind.context.name],
+    )) {
+      // Its 1M variant: the aliases have one, not the default.
+      (final model?, _long) when model != 'default' && !_isLong(model) =>
+        '$model[1m]',
+      (final model, _) => model,
+    };
+    _effort = settings[KernelChoiceKind.effort.name];
     if ((_context.resume, readHistory) case (final session?, final read?)) {
       _history = _replay(read, session);
     }
@@ -73,7 +87,10 @@ class ClaudeCodeKernel
   final KernelDescriptor descriptor;
   final KernelContext _context;
   final ClaudeTransportFactory _start;
+  final ClaudeUsageSwitch _usageOffBy;
   late final ClaudeTranslator _translator;
+
+  static Future<String?> _usageOn() async => null;
 
   ClaudeCodeTransport? _transport;
   ControlChannel? _control;
@@ -99,6 +116,8 @@ class ClaudeCodeKernel
   // to start stands in until this one's arrives.
   static _Catalog _lastCatalog = const _Catalog();
   _Catalog _catalog = _lastCatalog;
+
+  /// The model asked for, as the CLI names it (e.g. `opus[1m]`).
   String? _model;
   String? _reportedModel;
   // What the agent does (Agent, Ask, Plan) and how its actions are
@@ -108,7 +127,11 @@ class ClaudeCodeKernel
 
   /// The permission mode the CLI was last told, or last reported.
   String _cliMode = 'default';
+
+  /// The effort asked for, and the one the CLI has in effect (it may
+  /// step down one the model does not take).
   String? _effort;
+  String? _appliedEffort;
   int _contextWindow = 200000;
   double? _cost;
 
@@ -179,6 +202,7 @@ class ClaudeCodeKernel
         await control.request('set_permission_mode', {'mode': _mode});
       }
       _setHealth(KernelHealth.ready);
+      _refreshApplied();
       // The CLI builds its file index on the first lookup: start it now,
       // so `@` finds files by the time the user types it.
       _tell('file_suggestions', {'query': ''});
@@ -840,6 +864,9 @@ class ClaudeCodeKernel
       case 'system' when message['subtype'] == 'init':
         _sessionId = message['session_id'] as String? ?? _sessionId;
         _reportedModel = message['model'] as String?;
+        if (message.containsKey('effort')) {
+          _appliedEffort = message['effort'] as String?;
+        }
         if (message['permissionMode'] case final String mode) {
           _reported(mode);
         }
@@ -1014,6 +1041,7 @@ class ClaudeCodeKernel
   static Future<void>? _fetchingUsage;
   static DateTime? _usageFetchedAt;
   static LimitsState _limitsState = LimitsState.idle;
+  static String? _limitsOffBy;
   static const _usageFresh = Duration(seconds: 30);
 
   /// How often, and how far apart, the usage is asked for while Claude
@@ -1029,6 +1057,7 @@ class ClaudeCodeKernel
     _limits = const [];
     _usageFetchedAt = null;
     _limitsState = LimitsState.idle;
+    _limitsOffBy = null;
   }
 
   @override
@@ -1043,6 +1072,11 @@ class ClaudeCodeKernel
   }
 
   Future<void> _fetchUsage() async {
+    // Turned off, Claude Code would not send the request: not asked.
+    if (await _usageOffBy() case final setting?) {
+      _limitsOffBy = setting;
+      return _setLimitsState(LimitsState.off);
+    }
     _setLimitsState(LimitsState.checking);
     var state = LimitsState.unavailable;
     try {
@@ -1136,7 +1170,12 @@ class ClaudeCodeKernel
   void _reportStats() => emit(
     StatsReported(
       nextSeq,
-      UsageStats(costUsd: _cost, limits: _limits, limitsState: _limitsState),
+      UsageStats(
+        costUsd: _cost,
+        limits: _limits,
+        limitsState: _limitsState,
+        limitsOffBy: _limitsOffBy,
+      ),
     ),
   );
 
@@ -1295,22 +1334,106 @@ class ClaudeCodeKernel
         models.firstOrNull;
   }
 
+  static const _long = '1m';
+
+  /// A 1M-context variant, e.g. `opus[1m]`.
+  static bool _isLong(String model) => model.toLowerCase().endsWith('[1m]');
+
+  static String _baseOf(String model) =>
+      _isLong(model) ? model.substring(0, model.length - 4) : model;
+
+  /// The models as picked, by name: a model and its 1M-context variant,
+  /// listed apart by the CLI, are one (as its own picker has them). The
+  /// standard variant comes first.
+  Map<String, List<_ModelInfo>> get _models {
+    final models = <String, List<_ModelInfo>>{};
+    for (final info in _catalog.models) {
+      (models[_baseOf(info.value)] ??= []).add(info);
+    }
+    for (final variants in models.values) {
+      variants.sort((a, b) => (a.long ? 1 : 0) - (b.long ? 1 : 0));
+    }
+    return models;
+  }
+
+  /// [model]'s variant with the context now in effect, if it has one.
+  _ModelInfo? _variantOf(String model) {
+    final variants = _models[model];
+    if (variants == null) return null;
+    final long = _currentModel?.long ?? false;
+    return variants.where((v) => v.long == long).firstOrNull ?? variants.first;
+  }
+
+  /// Switches the CLI to [model], a value it listed. The effort in effect
+  /// is asked for after, unless [effort] is about to be set.
+  void _useModel(String model, {bool effort = false}) {
+    if (model == _currentModel?.value) return;
+    _model = model;
+    _tell('set_model', {'model': model});
+    // Its window, and the effort it takes, may differ.
+    if (!effort) _refreshApplied();
+    unawaited(_refreshContext());
+    emitInfoChanged();
+  }
+
+  /// Asks the CLI for the model and effort in effect.
+  void _refreshApplied() {
+    if (!_running) return;
+    unawaited(
+      _control!
+          .request('get_settings')
+          .then((response) {
+            if (response['applied'] case final Map<Object?, Object?> applied) {
+              if (applied['model'] case final String model) {
+                _reportedModel = model;
+              }
+              _appliedEffort = applied['effort'] as String?;
+              emitInfoChanged();
+            }
+          })
+          .catchError((_) {}),
+    );
+  }
+
   @override
   late final KernelChoiceSource model = _Choice(
     options: () => [
-      for (final info in _catalog.models)
+      for (final MapEntry(key: id, value: variants) in _models.entries)
         KernelOption(
-          info.value,
-          info.label,
+          id,
+          variants.first.label,
           Icons.bolt_rounded,
-          info.description,
+          variants.first.description,
         ),
     ],
-    selected: () => _currentModel?.value,
+    selected: () => switch (_currentModel?.value) {
+      final value? => _baseOf(value),
+      null => null,
+    },
     select: (id) {
-      _model = id;
-      _tell('set_model', {'model': id});
-      emitInfoChanged();
+      if (_variantOf(id) case final variant?) _useModel(variant.value);
+    },
+  );
+
+  @override
+  late final ModelSetting contextSize = _ModelSetting(
+    optionsFor: (model) => switch (_models[model]) {
+      final variants? when variants.length > 1 => const [
+        KernelOption('200k', '200K', Icons.notes_rounded, ''),
+        KernelOption(_long, '1M', Icons.notes_rounded, ''),
+      ],
+      _ => const [],
+    },
+    selected: () => switch (_currentModel) {
+      final model? => model.long ? _long : '200k',
+      null => null,
+    },
+    select: (model, id) {
+      final variants = _models[model] ?? const <_ModelInfo>[];
+      final variant = variants
+          .where((v) => v.long == (id == _long))
+          .firstOrNull;
+      if (variant != null) _useModel(variant.value);
     },
   );
 
@@ -1443,14 +1566,9 @@ class ClaudeCodeKernel
   );
 
   @override
-  KernelChoiceSource? get effort {
-    final levels = _currentModel?.effortLevels ?? const <String>[];
-    return levels.isEmpty ? null : _effortChoice;
-  }
-
-  late final _Choice _effortChoice = _Choice(
-    options: () => [
-      for (final level in _currentModel?.effortLevels ?? const <String>[])
+  late final ModelSetting effort = _ModelSetting(
+    optionsFor: (model) => [
+      for (final level in _variantOf(model)?.effortLevels ?? const <String>[])
         KernelOption(
           level,
           level == 'xhigh'
@@ -1467,12 +1585,20 @@ class ClaudeCodeKernel
           },
         ),
     ],
-    selected: () => _effort,
-    select: (id) {
-      _effort = id;
+    selected: () {
+      final levels = _currentModel?.effortLevels ?? const <String>[];
+      final effort = _running ? _appliedEffort : _effort;
+      return levels.contains(effort) ? effort : null;
+    },
+    select: (model, id) {
+      if (_variantOf(model) case final variant?) {
+        _useModel(variant.value, effort: true);
+      }
+      _effort = _appliedEffort = id;
       _tell('apply_flag_settings', {
         'settings': {'effortLevel': id},
       });
+      _refreshApplied();
       emitInfoChanged();
     },
   );
@@ -1523,6 +1649,11 @@ class _ModelInfo {
   final String? resolved;
   final List<String> effortLevels;
   final bool supportsAuto;
+
+  /// Holds 1M tokens of context.
+  bool get long =>
+      ClaudeCodeKernel._isLong(value) ||
+      ClaudeCodeKernel._isLong(resolved ?? '');
 }
 
 class _Catalog {
@@ -1575,4 +1706,26 @@ class _Choice implements KernelChoiceSource {
   void select(String id) {
     if (id != selected) _select(id);
   }
+}
+
+/// A setting that goes with the model, read live.
+class _ModelSetting implements ModelSetting {
+  _ModelSetting({
+    required this._optionsFor,
+    required this._selected,
+    required this._select,
+  });
+
+  final List<KernelOption> Function(String model) _optionsFor;
+  final String? Function() _selected;
+  final void Function(String model, String id) _select;
+
+  @override
+  List<KernelOption> optionsFor(String model) => _optionsFor(model);
+
+  @override
+  String? get selected => _selected();
+
+  @override
+  void select(String model, String id) => _select(model, id);
 }

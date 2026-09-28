@@ -46,6 +46,14 @@ class ProcessTransport implements ClaudeCodeTransport {
     }
   }
 
+  /// [ClaudeEnvironment.essentialTrafficVariable], if the CLI runs with it
+  /// set: it then sends no request for the plan usage.
+  static Future<String?> usageOffBy() async {
+    const setting = ClaudeEnvironment.essentialTrafficVariable;
+    final value = (await ClaudeEnvironment.of())[setting];
+    return value == null || value.isEmpty ? null : setting;
+  }
+
   final Process _process;
   final StreamController<Map<String, Object?>> _messages =
       StreamController.broadcast();

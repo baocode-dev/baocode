@@ -51,7 +51,7 @@ void main() {
     // Below what fills the context.
     expect(
       tester.getTopLeft(find.text('Plan usage')).dy,
-      greaterThan(tester.getTopLeft(find.text('接近上限时会自动总结较早的对话。')).dy),
+      greaterThan(tester.getTopLeft(find.text('Context window')).dy),
     );
   });
 
@@ -98,5 +98,23 @@ void main() {
     expect(find.text('正在获取额度…'), findsOneWidget);
     await pumpState(LimitsState.unavailable);
     expect(find.textContaining('暂时获取不到额度'), findsOneWidget);
+  });
+
+  testWidgets('turned off, it says the replies will tell', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ContextUsagePanel(
+            usage: const ContextUsage(window: 200000, used: 1000),
+            stats: const UsageStats(
+              limitsState: LimitsState.off,
+              limitsOffBy: 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
+            ),
+            onClose: () {},
+          ),
+        ),
+      ),
+    );
+    expect(find.text('额度随对话自动更新，对话后即可看到。'), findsOneWidget);
   });
 }

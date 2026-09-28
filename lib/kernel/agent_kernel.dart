@@ -75,7 +75,7 @@ abstract interface class KernelChoiceSource {
   void select(String id);
 }
 
-enum KernelChoiceKind { model, mode, permission, effort }
+enum KernelChoiceKind { model, mode, permission, effort, context }
 
 abstract interface class SelectsModel {
   KernelChoiceSource get model;
@@ -94,9 +94,29 @@ abstract interface class SelectsPermission {
   KernelChoiceSource get permission;
 }
 
+/// A setting that goes with the model, picked beside it: what it offers
+/// depends on the model, e.g. its effort levels.
+abstract interface class ModelSetting {
+  /// What it offers with [model] (an option of [SelectsModel.model]) in
+  /// use; none when there is nothing to choose.
+  List<KernelOption> optionsFor(String model);
+
+  /// What is in effect with the model in use, as the kernel reports it;
+  /// null while not known.
+  String? get selected;
+
+  /// Picks [id], with [model] in use: switched to first, if another is.
+  void select(String model, String id);
+}
+
+/// How much the model thinks before it answers.
 abstract interface class SelectsEffort {
-  /// Null for models without effort levels.
-  KernelChoiceSource? get effort;
+  ModelSetting get effort;
+}
+
+/// How much of the conversation the model holds, e.g. 200K or 1M tokens.
+abstract interface class SelectsContextSize {
+  ModelSetting get contextSize;
 }
 
 abstract interface class ProvidesCommands {

@@ -14,6 +14,11 @@ abstract final class ClaudeEnvironment {
   /// when unset.
   static const dataPathVariable = 'MONAD_CLAUDE_DATA_PATH';
 
+  /// Keeps Claude Code to essential traffic: no request for the plan
+  /// usage either.
+  static const essentialTrafficVariable =
+      'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC';
+
   static Future<Map<String, String>>? _environment;
 
   /// The login shell's environment over the app's own.
@@ -33,9 +38,7 @@ abstract final class ClaudeEnvironment {
   /// pointed at one, it keeps its sessions there; else where it would.
   static Map<String, String> stateDirectory(Map<String, String> environment) {
     final dir = environment[dataPathVariable];
-    return dir == null || dir.isEmpty
-        ? const {}
-        : {'CLAUDE_CONFIG_DIR': dir};
+    return dir == null || dir.isEmpty ? const {} : {'CLAUDE_CONFIG_DIR': dir};
   }
 
   /// Replaces the environment looked up, e.g. with one set up under test.

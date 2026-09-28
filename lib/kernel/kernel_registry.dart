@@ -18,6 +18,7 @@ abstract final class KernelRegistry {
       context,
       start: startClaudeProcess,
       readHistory: ClaudeStorage.read,
+      usageOffBy: claudeUsageOffBy,
     ),
     catalog: const ClaudeStorage(),
   );

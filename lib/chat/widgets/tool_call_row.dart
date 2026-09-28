@@ -51,6 +51,13 @@ class ToolCallRow extends StatelessWidget {
       running: _running,
       expanded: expanded,
       onToggle: _opens ? onToggle : null,
+      icon: kind == ToolKind.message
+          ? const Icon(
+              Icons.swap_horiz_rounded,
+              size: 15,
+              color: CursorColors.syntaxCommand,
+            )
+          : null,
     );
     // A file read shows only its name: the whole path on hover.
     if (kind == ToolKind.read && path != null) {
@@ -106,5 +113,6 @@ String toolVerb(ToolKind kind, {bool running = false}) => switch (kind) {
   ToolKind.agent => 'Agent',
   ToolKind.mcp => 'MCP',
   ToolKind.todo => running ? 'Updating todos' : 'Updated todos',
+  ToolKind.message => running ? 'Sending' : 'Sent',
   ToolKind.other => running ? 'Using' : 'Used',
 };

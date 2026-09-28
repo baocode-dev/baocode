@@ -63,9 +63,10 @@ class _TodoPanelState extends State<TodoPanel> {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
+                    // All the room there is, so the chevron sits at the end.
                     if (current != null && !_open) ...[
                       const SizedBox(width: 8),
-                      Flexible(
+                      Expanded(
                         child: Text(
                           current.activeForm ?? current.content,
                           maxLines: 1,
@@ -76,8 +77,9 @@ class _TodoPanelState extends State<TodoPanel> {
                           ),
                         ),
                       ),
-                    ],
-                    const Spacer(),
+                      const SizedBox(width: 8),
+                    ] else
+                      const Spacer(),
                     Icon(
                       _open
                           ? Icons.keyboard_arrow_down_rounded

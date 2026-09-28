@@ -22,6 +22,8 @@ class ChatItemView extends StatelessWidget {
     this.onEdit,
     this.onCancelQueued,
     this.onMoveToBackground,
+    this.onStop,
+    this.onOpen,
   });
 
   final ChatItem item;
@@ -36,6 +38,12 @@ class ChatItemView extends StatelessWidget {
 
   /// Moves a running command or subagent to the background.
   final VoidCallback? onMoveToBackground;
+
+  /// Stops a running subagent.
+  final VoidCallback? onStop;
+
+  /// Opens a subagent's own conversation.
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -88,8 +96,8 @@ class ChatItemView extends StatelessWidget {
         ),
       final AgentItem agent => AgentStep(
         item: agent,
-        expanded: expanded,
-        onToggle: onToggle,
+        onOpen: onOpen,
+        onStop: onStop,
         onMoveToBackground: onMoveToBackground,
       ),
       final NoticeItem notice => NoticeRow(item: notice),
@@ -168,11 +176,7 @@ String chatItemPlainText(ChatItem item, {bool expanded = false}) {
               when output.isNotEmpty)
             output,
       ].join('\n'),
-    AgentItem() => StepHeader.text(
-      item.status == CommandStatus.running ? 'Delegating' : 'Delegated',
-      item.description,
-      AgentStep.detail(item),
-    ),
+    final AgentItem agent => AgentStep.plainText(agent),
     NoticeItem(:final text) => text,
     TerminalItem(
       :final command,
@@ -193,7 +197,11 @@ String chatItemPlainText(ChatItem item, {bool expanded = false}) {
         ],
       ].join('\n'),
     CodeDiffItem(:final fileName, :final lines) => [
-      '${StepHeader.text('Edited', fileName)} +${item.added} -${item.removed}',
+      [
+        StepHeader.text('Edited', fileName),
+        if (item.added > 0) '+${item.added}',
+        if (item.removed > 0) '-${item.removed}',
+      ].join(' '),
       if (expanded)
         for (final line in lines)
           '${line.lineNumber} ${switch (line.type) {

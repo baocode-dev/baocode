@@ -9,9 +9,13 @@ class ShimmerText extends StatefulWidget {
     super.key,
     this.ellipsis = true,
     this.padding = const EdgeInsets.symmetric(vertical: 3),
+    this.style,
   });
 
   final String text;
+
+  /// Its size and weight (the color is the shimmer's).
+  final TextStyle? style;
 
   /// Whether a `…` follows [text].
   final bool ellipsis;
@@ -58,7 +62,9 @@ class _ShimmerTextState extends State<ShimmerText>
         },
         child: Text(
           widget.ellipsis ? '${widget.text}…' : widget.text,
-          style: const TextStyle(fontSize: 13, color: Colors.white),
+          style: const TextStyle(fontSize: 13)
+              .merge(widget.style)
+              .copyWith(color: Colors.white),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

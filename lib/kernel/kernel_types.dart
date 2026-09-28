@@ -118,6 +118,10 @@ enum LimitsState {
 
   /// Asked for, and not told.
   unavailable,
+
+  /// Not to be asked for: the user has turned that off (see
+  /// [UsageStats.limitsOffBy]). Replies may still tell them.
+  off,
 }
 
 /// What the session has cost so far, and the account's limits.
@@ -126,11 +130,15 @@ class UsageStats {
     this.costUsd,
     this.limits = const [],
     this.limitsState = LimitsState.idle,
+    this.limitsOffBy,
   });
 
   final double? costUsd;
   final List<RateLimitWindow> limits;
   final LimitsState limitsState;
+
+  /// The setting that turned asking for the limits [LimitsState.off].
+  final String? limitsOffBy;
 }
 
 /// What the agent is busy with while nothing of it shows: waiting on its

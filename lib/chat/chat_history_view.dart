@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../theme/cursor_theme.dart';
+import 'chat_feed.dart';
 import 'chat_models.dart';
 import 'chat_session.dart';
 import 'composer/composer.dart';
@@ -22,12 +23,22 @@ import 'widgets/user_message_bubble.dart';
 class ChatHistoryView extends StatefulWidget {
   const ChatHistoryView({
     super.key,
-    required this.session,
+    required this.feed,
     this.maxContentWidth = 760,
+    this.onOpenAgent,
+    this.footer,
   });
 
-  final ChatSession session;
+  /// The conversation shown: a session's, or a subagent's.
+  final ChatFeed feed;
   final double maxContentWidth;
+
+  /// Opens a subagent's own conversation, from its card.
+  final ValueChanged<AgentItem>? onOpenAgent;
+
+  /// After the last item, as the conversation's end (e.g. how a subagent
+  /// is doing).
+  final Widget? footer;
 
   @override
   State<ChatHistoryView> createState() => _ChatHistoryViewState();
@@ -87,7 +98,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     resolve: _resolveItemPoint,
     beyondBuilt: _beyondBuiltItems,
     plainTextOf: (index) =>
-        chatItemPlainText(_session.itemAt(index), expanded: _isExpanded(index)),
+        chatItemPlainText(_feed.itemAt(index), expanded: _isExpanded(index)),
     onDragEdge: _autoScrollToward,
   );
   bool _reselectScheduled = false;
@@ -97,14 +108,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   final GlobalKey _listKey = GlobalKey();
   DateTime _lastWheel = DateTime(0);
 
-  ChatSession get _session => widget.session;
+  ChatFeed get _feed => widget.feed;
   bool get _atBottom => _scrollController.anchored;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
-    _session.addListener(_handleSessionChanged);
+    _feed.addListener(_handleSessionChanged);
     _stickyIndices = _tailUserMessages();
     _resumeEditing();
   }
@@ -112,14 +123,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   /// Opens the editor again on the message it was left open on, with what
   /// was typed in it.
   void _resumeEditing() {
-    final editing = _session.editing;
+    final editing = _feed.editing;
     if (editing == null) return;
-    if (editing.index >= _session.itemCount ||
-        _session.itemAt(editing.index) is! UserMessageItem) {
-      _session.editing = null;
+    if (editing.index >= _feed.itemCount ||
+        _feed.itemAt(editing.index) is! UserMessageItem) {
+      _feed.editing = null;
       return;
     }
-    final item = _session.itemAt(editing.index) as UserMessageItem;
+    final item = _feed.itemAt(editing.index) as UserMessageItem;
     _editingIndex = editing.index;
     _editingText = item.text;
     _editingImages = item.images;
@@ -128,9 +139,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   @override
   void didUpdateWidget(ChatHistoryView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.session != widget.session) {
-      oldWidget.session.removeListener(_handleSessionChanged);
-      widget.session.addListener(_handleSessionChanged);
+    if (oldWidget.feed != widget.feed) {
+      oldWidget.feed.removeListener(_handleSessionChanged);
+      widget.feed.addListener(_handleSessionChanged);
       _stickyKeys.clear();
       _stickyIndices = _tailUserMessages();
       _editingIndex = null;
@@ -152,7 +163,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
 
   @override
   void dispose() {
-    _session.removeListener(_handleSessionChanged);
+    _feed.removeListener(_handleSessionChanged);
     _reselectTimer?.cancel();
     _autoScroller?.stopAutoScroll();
     _editorMoved.dispose();
@@ -163,7 +174,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   }
 
   bool _isExpanded(int index) =>
-      _expanded[index] ?? defaultExpanded(_session.itemAt(index));
+      _expanded[index] ?? defaultExpanded(_feed.itemAt(index));
 
   void _toggle(int index) {
     setState(() => _expanded[index] = !_isExpanded(index));
@@ -293,7 +304,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     final sliver = _findSliver();
     if (sliver == null || !sliver.attached) return;
     for (var child = sliver.firstChild; child != null;) {
-      if (child.hasSize) yield child;
+      // Items only: not the footer after them.
+      if (child.hasSize && _indexOf(child) < _feed.itemCount) yield child;
       child = sliver.childAfter(child);
     }
   }
@@ -377,15 +389,15 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
 
   void _handleSessionChanged() {
     // Sending a message always brings the live turn into view.
-    final startedStreaming = _session.isStreaming && !_wasStreaming;
-    _wasStreaming = _session.isStreaming;
+    final startedStreaming = _feed.isStreaming && !_wasStreaming;
+    _wasStreaming = _feed.isStreaming;
     final editing = _editingIndex;
     if (startedStreaming ||
         (editing != null &&
-            (editing >= _session.itemCount ||
-                _session.itemAt(editing) is! UserMessageItem))) {
+            (editing >= _feed.itemCount ||
+                _feed.itemAt(editing) is! UserMessageItem))) {
       _editingIndex = null;
-      _session.editing = null;
+      _feed.editing = null;
     }
     if (startedStreaming) _jumpToBottom();
     _scheduleStickyUpdate();
@@ -393,11 +405,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   }
 
   void _startEditing(int index) {
-    final item = _session.itemAt(index);
+    final item = _feed.itemAt(index);
     if (item is! UserMessageItem) return;
     // Until the editor reports its height, hold the message's.
     final laidOut = _laidOutItems().where((box) => _indexOf(box) == index);
-    _session.editing = (index: index, draft: ComposerDraft());
+    _feed.editing = (index: index, draft: ComposerDraft());
     setState(() {
       _editingIndex = index;
       _editingText = item.text;
@@ -421,7 +433,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   }
 
   void _cancelEditing() {
-    _session.editing = null;
+    _feed.editing = null;
     if (_editingIndex != null) setState(() => _editingIndex = null);
   }
 
@@ -473,8 +485,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
       final indices = {
         ?_topTurnMessage(),
         for (final item in _laidOutItems())
-          if (_session.itemAt(_indexOf(item)) is UserMessageItem)
-            _indexOf(item),
+          if (_feed.itemAt(_indexOf(item)) is UserMessageItem) _indexOf(item),
       };
       if (setEquals(indices, _stickyIndices)) return;
       _stickyKeys.removeWhere((index, _) => !indices.contains(index));
@@ -488,9 +499,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   /// the text it covers).
   Set<int> _tailUserMessages() {
     final indices = <int>{};
-    final end = _session.itemCount;
+    final end = _feed.itemCount;
     for (var index = end - 1; index >= 0 && index >= end - 64; index--) {
-      if (_session.itemAt(index) is! UserMessageItem) continue;
+      if (_feed.itemAt(index) is! UserMessageItem) continue;
       indices.add(index);
       if (indices.length == 2) break;
     }
@@ -508,14 +519,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     for (final item in _laidOutItems()) {
       final index = _indexOf(item);
       first ??= index;
-      if (_session.itemAt(index) is! UserMessageItem) continue;
+      if (_feed.itemAt(index) is! UserMessageItem) continue;
       if (_messageTop(index, list)! >= _stickyInset) break;
       passed = index;
     }
     if (passed != null || first == null) return passed;
     // Scrolled past long ago: above the laid-out items.
     for (var index = first - 1; index >= 0; index--) {
-      if (_session.itemAt(index) is UserMessageItem) return index;
+      if (_feed.itemAt(index) is UserMessageItem) return index;
     }
     return null;
   }
@@ -545,7 +556,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     if (sticky == null || !sticky.hasSize || list == null) return null;
     for (final item in _laidOutItems()) {
       final next = _indexOf(item);
-      if (next <= index || _session.itemAt(next) is! UserMessageItem) {
+      if (next <= index || _feed.itemAt(next) is! UserMessageItem) {
         continue;
       }
       final nextTop = _messageTop(next, list)!;
@@ -556,7 +567,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   }
 
   Widget _buildSticky(int index) {
-    final item = _session.itemAt(index) as UserMessageItem;
+    final item = _feed.itemAt(index) as UserMessageItem;
     // A copy of the message in the list: not read out twice.
     return ExcludeSemantics(
       child: ClipRect(
@@ -597,7 +608,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                             key: ValueKey(('sticky', index)),
                             text: item.text,
                             images: item.images,
-                            onEdit: _session.canEditMessages
+                            onEdit: _feed.canEditMessages
                                 ? () => _startEditing(index)
                                 : null,
                           ),
@@ -687,10 +698,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                             onTapOutside: _handleTapOutsideEditor,
                             child: ChatComposer(
                               key: _editComposerKey,
-                              session: _session,
+                              // Only a session's own messages are edited.
+                              session: _feed as ChatSession,
                               initialText: _editingText,
                               initialImages: _editingImages,
-                              draft: _session.editing?.draft,
+                              draft: _feed.editing?.draft,
                               tapRegionGroupId: _editorTapRegion,
                               onSubmit: (message) =>
                                   _submitEdit(index, message),
@@ -779,17 +791,20 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   }
 
   void _submitEdit(int index, ComposerMessage message) {
-    _session.editing = null;
+    _feed.editing = null;
     setState(() {
       _editingIndex = null;
       // Everything after the message is replaced; so are its steps.
       _expanded.removeWhere((i, _) => i > index);
     });
-    _session.editMessage(index, message);
+    _feed.editMessage(index, message);
   }
 
+  double _insetOf(int index) =>
+      _feed.itemAt(index) is UserMessageItem ? 0 : UserMessageBubble.radius;
+
   Widget _buildItem(int index) {
-    final item = _session.itemAt(index);
+    final item = _feed.itemAt(index);
     if (index == _editingIndex) {
       return SizedBox(key: _editorPlaceholderKey, height: _editorHeight);
     }
@@ -801,11 +816,17 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
         item: item,
         expanded: _isExpanded(index),
         onToggle: () => _toggle(index),
-        onEdit: item is UserMessageItem && _session.canEditMessages
+        onEdit: item is UserMessageItem && _feed.canEditMessages
             ? () => _startEditing(index)
             : null,
-        onCancelQueued: () => _session.cancelQueued(index),
-        onMoveToBackground: _session.moveToBackgroundAt(index),
+        onCancelQueued: () => _feed.cancelQueued(index),
+        onMoveToBackground: _feed.moveToBackgroundAt(index),
+        onStop: _feed.stopAt(index),
+        onOpen: switch ((item, widget.onOpenAgent)) {
+          (final AgentItem agent, final open?) when agent.id != null =>
+            () => open(agent),
+          _ => null,
+        },
       ),
     );
   }
@@ -825,8 +846,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   /// Vertical gap above [index]: roomy between turns, none between steps.
   double _gapBefore(int index) {
     if (index == 0) return 0;
-    final item = _session.itemAt(index);
-    final previous = _session.itemAt(index - 1);
+    final item = _feed.itemAt(index);
+    final previous = _feed.itemAt(index - 1);
     if (item is UserMessageItem) return 32;
     if (previous is UserMessageItem) return 14;
     // Steps follow one another as a list.
@@ -898,7 +919,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                               child: SuperListView.builder(
                                 key: _listKey,
                                 controller: _scrollController,
-                                itemCount: _session.itemCount,
+                                itemCount:
+                                    _feed.itemCount +
+                                    (widget.footer == null ? 0 : 1),
                                 cacheExtent: 900,
                                 padding: const EdgeInsets.fromLTRB(
                                   24,
@@ -907,6 +930,22 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                                   24,
                                 ),
                                 itemBuilder: (context, index) {
+                                  if (index == _feed.itemCount) {
+                                    return Align(
+                                      alignment: Alignment.topCenter,
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxWidth: widget.maxContentWidth,
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 20,
+                                          ),
+                                          child: widget.footer,
+                                        ),
+                                      ),
+                                    );
+                                  }
                                   return Align(
                                     alignment: Alignment.topCenter,
                                     child: ConstrainedBox(
@@ -914,8 +953,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                                         maxWidth: widget.maxContentWidth,
                                       ),
                                       child: Padding(
+                                        // All but the user's messages a
+                                        // little narrower than those.
                                         padding: EdgeInsets.only(
                                           top: _gapBefore(index),
+                                          left: _insetOf(index),
+                                          right: _insetOf(index),
                                         ),
                                         child: _buildItem(index),
                                       ),
@@ -928,8 +971,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                         ),
                         for (final index in _stickyIndices)
                           if (index != _editingIndex &&
-                              index < _session.itemCount &&
-                              _session.itemAt(index) is UserMessageItem)
+                              index < _feed.itemCount &&
+                              _feed.itemAt(index) is UserMessageItem)
                             Positioned.fill(
                               key: ValueKey(('sticky', index)),
                               child: _buildSticky(index),

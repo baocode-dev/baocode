@@ -18,6 +18,10 @@ abstract final class CursorColors {
 
   static const accent = Color(0xFF4C9DFF);
   static const inlineCode = Color(0xFFE2C08D);
+
+  /// #2A2A2A over [background], and see-through: a selection is painted
+  /// under the text, and shows through it as on the web.
+  static const inlineCodeBackground = Color(0x14FFFFFF);
   static const added = Color(0xFF4EC98A);
   static const addedBackground = Color(0x1F3FB950);
   static const removed = Color(0xFFF07178);

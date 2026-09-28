@@ -147,7 +147,7 @@ void main() {
 
     final menu = Rect.fromPoints(
       tester.getTopLeft(find.text('Opus 5.5').last),
-      tester.getBottomRight(find.text('Fastest')),
+      tester.getBottomRight(find.text('Haiku 4.5')),
     );
     final window =
         Offset.zero & tester.view.physicalSize / tester.view.devicePixelRatio;
@@ -174,7 +174,7 @@ void main() {
     await tester.tapAt(tester.getCenter(model));
     await settleAnimations(tester);
     expect(find.text('Plan, edit and run on its own'), findsNothing);
-    expect(find.text('Fastest'), findsOneWidget);
+    expect(find.text('Haiku 4.5'), findsOneWidget);
   });
 
   testWidgets('menu keys stay in the menu', (tester) async {
@@ -189,12 +189,12 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await settleAnimations(tester);
-    expect(find.text('Fastest'), findsNothing);
+    expect(find.text('Haiku 4.5'), findsNothing);
     expect(session.itemCount, count);
     expect(
       find.descendant(
         of: find.byType(ComposerPicker).at(2),
-        matching: find.text('Opus 5.5'),
+        matching: find.text('Opus 5.5 · High'),
       ),
       findsOneWidget,
     );
@@ -203,10 +203,10 @@ void main() {
     await openEditorAtTop(tester);
     await tester.tapAt(tester.getCenter(historyPicker()));
     await settleAnimations(tester);
-    expect(find.text('Fastest'), findsOneWidget);
+    expect(find.text('Haiku 4.5'), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await settleAnimations(tester);
-    expect(find.text('Fastest'), findsNothing);
+    expect(find.text('Haiku 4.5'), findsNothing);
     expect(historyPicker(), findsOneWidget);
   });
 
@@ -240,7 +240,7 @@ void main() {
     await tester.pump();
     await tester.tapAt(tester.getCenter(historyPicker()));
     await settleAnimations(tester);
-    expect(find.text('Fastest'), findsOneWidget);
+    expect(find.text('Haiku 4.5'), findsOneWidget);
 
     // Scroll back so the message (and its editor) is below the list.
     final position = tester
@@ -257,13 +257,13 @@ void main() {
     position.jumpTo(start - 1000);
     await tester.pump();
     await tester.pump();
-    expect(find.text('Fastest'), findsNothing);
+    expect(find.text('Haiku 4.5'), findsNothing);
 
     // Still open: back in view, back on screen.
     position.jumpTo(start);
     await tester.pump();
     await tester.pump();
-    expect(find.text('Fastest'), findsOneWidget);
+    expect(find.text('Haiku 4.5'), findsOneWidget);
   });
 
   group('tooltip', () {

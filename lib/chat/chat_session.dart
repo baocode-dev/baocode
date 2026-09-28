@@ -8,6 +8,7 @@ import '../kernel/kernel_event.dart';
 import '../kernel/kernel_registry.dart';
 import '../kernel/kernel_types.dart';
 import '../kernel/transcript.dart';
+import 'chat_feed.dart';
 import 'chat_models.dart';
 import 'composer/composer_draft.dart';
 import 'mock_conversation.dart';
@@ -41,6 +42,26 @@ class KernelChoice {
   final ValueChanged<KernelOption> onSelected;
 }
 
+/// A setting picked beside a model, e.g. its effort (see [ModelSetting]).
+class ModelSettingChoice {
+  const ModelSettingChoice({
+    required this.kind,
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final KernelChoiceKind kind;
+  final List<KernelOption> options;
+
+  /// What is in effect, or would stay so with the model picked; null
+  /// while not known.
+  final KernelOption? selected;
+
+  /// Picks the option, and the model with it.
+  final ValueChanged<KernelOption> onSelected;
+}
+
 /// One agent conversation, as the UI sees it, over an [AgentKernel].
 ///
 /// It keeps only three things:
@@ -53,7 +74,7 @@ class KernelChoice {
 /// waiting, the model in effect) is projected from those or read from the
 /// kernel. The UI reaches what the kernel can do through the facets here,
 /// null when the kernel does not declare it.
-class ChatSession extends ChangeNotifier {
+class ChatSession extends ChangeNotifier implements ChatFeed {
   ChatSession({
     KernelDescriptor? kernel,
     List<KernelDescriptor>? kernels,
@@ -81,8 +102,12 @@ class ChatSession extends ChangeNotifier {
   /// conversation shows.
   final ComposerDraft draft = ComposerDraft();
 
-  /// The sent message being edited, if any, and what is typed in its place.
+  @override
   ({int index, ComposerDraft draft})? editing;
+
+  /// The subagents opened in its view, one in the other (their ids,
+  /// outermost first): shown again when the view comes back to it.
+  List<String> openAgents = const [];
 
   late AgentKernel _kernel;
   StreamSubscription<KernelEvent>? _subscription;
@@ -184,17 +209,37 @@ class ChatSession extends ChangeNotifier {
     _ => null,
   };
 
-  KernelChoice? get efforts => switch (_kernel) {
-    SelectsEffort(:final effort?) => _choice(effort),
-    _ => null,
-  };
+  /// The settings that go with [model] (one of [models]' options), in
+  /// the order they are picked in: only those with a choice to make.
+  List<ModelSettingChoice> modelSettings(String model) => [
+    for (final (kind, setting) in _modelSettings)
+      if (setting.optionsFor(model) case final options when options.isNotEmpty)
+        ModelSettingChoice(
+          kind: kind,
+          options: options,
+          selected: options.where((o) => o.id == setting.selected).firstOrNull,
+          onSelected: (option) => setting.select(model, option.id),
+        ),
+  ];
+
+  List<(KernelChoiceKind, ModelSetting)> get _modelSettings => [
+    if (_kernel case final SelectsContextSize kernel)
+      (KernelChoiceKind.context, kernel.contextSize),
+    if (_kernel case final SelectsEffort kernel)
+      (KernelChoiceKind.effort, kernel.effort),
+  ];
 
   /// The choice [kind] as it stands, e.g. for a new agent to start with.
   String? selected(KernelChoiceKind kind) => switch (kind) {
     KernelChoiceKind.model => models?.selected.id,
     KernelChoiceKind.mode => modes?.selected.id,
     KernelChoiceKind.permission => permissions?.selected.id,
-    KernelChoiceKind.effort => efforts?.selected.id,
+    KernelChoiceKind.effort || KernelChoiceKind.context =>
+      _modelSettings
+          .where((setting) => setting.$1 == kind)
+          .firstOrNull
+          ?.$2
+          .selected,
   };
 
   KernelChoice? _choice(KernelChoiceSource source) {
@@ -285,6 +330,7 @@ class ChatSession extends ChangeNotifier {
         _ => null,
       };
 
+  @override
   bool get canEditMessages => _kernel is RewindsConversation;
 
   /// Messages can be sent while the agent works.
@@ -294,6 +340,7 @@ class ChatSession extends ChangeNotifier {
 
   // --- Projections ------------------------------------------------------------
 
+  @override
   bool get isStreaming => _transcript.activeTurn != null;
 
   /// Whether the composer may send now.
@@ -307,8 +354,10 @@ class ChatSession extends ChangeNotifier {
   /// The history, and a status row after it while the agent works out of
   /// sight: nothing it does shows (no thought, text or tool under way),
   /// and it is not waiting on the user.
+  @override
   int get itemCount => _transcript.length + (_activity == null ? 0 : 1);
 
+  @override
   ChatItem itemAt(int index) {
     if (index < _transcript.length) return _transcript.itemAt(index);
     final activity = _activity!;
@@ -353,21 +402,56 @@ class ChatSession extends ChangeNotifier {
   /// Moves what the item at [index] runs (a command, a subagent) to the
   /// background, so the turn goes on; null unless the kernel reports it
   /// running in the foreground.
-  VoidCallback? moveToBackgroundAt(int index) {
-    if (_kernel is! RunsBackgroundTasks || index >= _transcript.length) {
-      return null;
+  @override
+  VoidCallback? moveToBackgroundAt(int index) => index < _transcript.length
+      ? moveToBackgroundOf(_transcript.idAt(index))
+      : null;
+
+  /// As [moveToBackgroundAt], for what the tool call [id] runs, wherever it
+  /// shows (e.g. in a subagent).
+  VoidCallback? moveToBackgroundOf(String? id) {
+    if ((_kernel, _runningTask(id)) case (
+      final RunsBackgroundTasks kernel,
+      KernelTask(background: false),
+    )) {
+      return () => kernel.moveToBackground(id!);
     }
-    final kernel = _kernel as RunsBackgroundTasks;
-    final id = _transcript.idAt(index);
-    if (id == null) return null;
-    final running = _transcript.tasks.any(
-      (task) =>
-          task.toolUseId == id &&
-          !task.background &&
-          task.status == CommandStatus.running,
-    );
-    return running ? () => kernel.moveToBackground(id) : null;
+    return null;
   }
+
+  /// The subagent the tool call [id] started, in the conversation itself.
+  AgentItem? agentOf(String? id) {
+    if (id == null) return null;
+    for (var index = _transcript.length - 1; index >= 0; index--) {
+      if (_transcript.itemAt(index) case final AgentItem agent
+          when agent.id == id) {
+        return agent;
+      }
+    }
+    return null;
+  }
+
+  /// Stops the subagent at [index]; null unless it runs as a task.
+  @override
+  VoidCallback? stopAt(int index) =>
+      index < _transcript.length ? stopOf(_transcript.idAt(index)) : null;
+
+  /// Stops what the tool call [id] runs, e.g. a subagent; null unless it
+  /// runs as a task the kernel can stop.
+  VoidCallback? stopOf(String? id) => switch (_runningTask(id)) {
+    final task? when _kernel is RunsBackgroundTasks => () => stopTask(task),
+    _ => null,
+  };
+
+  KernelTask? _runningTask(String? toolUseId) => toolUseId == null
+      ? null
+      : _transcript.tasks
+            .where(
+              (task) =>
+                  task.toolUseId == toolUseId &&
+                  task.status == CommandStatus.running,
+            )
+            .firstOrNull;
 
   List<TodoEntry> get todos => _transcript.todos;
 
@@ -447,6 +531,7 @@ class ChatSession extends ChangeNotifier {
   }
 
   /// Takes back the queued message at [index].
+  @override
   void cancelQueued(int index) {
     final id = _transcript.idAt(index);
     if (id == null) return;
@@ -455,6 +540,7 @@ class ChatSession extends ChangeNotifier {
 
   /// Resends the user message at [index] as [message]: everything after it
   /// is discarded and the turn runs again from there.
+  @override
   void editMessage(int index, ComposerMessage message) {
     if (_kernel case final RewindsConversation kernel
         when !message.isEmpty && itemAt(index) is UserMessageItem) {

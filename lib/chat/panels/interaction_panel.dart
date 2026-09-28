@@ -261,34 +261,43 @@ class _InteractionPanelState extends State<InteractionPanel> {
             children: [
               Icon(icon, size: 14, color: color),
               const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  widget.request.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: CursorColors.text,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+              // All the room there is, so the count sits at the end.
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        widget.request.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: CursorColors.text,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (total > 1) ...[
+                      const SizedBox(width: 8),
+                      for (var i = 0; i < total; i++)
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          margin: const EdgeInsets.only(right: 4),
+                          width: i == _step ? 14 : 5,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: i <= _step
+                                ? CursorColors.accent
+                                : CursorColors.borderStrong,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                    ],
+                  ],
                 ),
               ),
               if (total > 1) ...[
                 const SizedBox(width: 8),
-                for (var i = 0; i < total; i++)
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    margin: const EdgeInsets.only(right: 4),
-                    width: i == _step ? 14 : 5,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: i <= _step
-                          ? CursorColors.accent
-                          : CursorColors.borderStrong,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                const Spacer(),
                 Text(
                   '${_step + 1} / $total',
                   style: const TextStyle(
@@ -363,7 +372,7 @@ class _InteractionPanelState extends State<InteractionPanel> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Flexible(
+                    const Expanded(
                       child: Text(
                         '1-9 选择 · ↵ 继续 · esc 跳过',
                         maxLines: 1,
@@ -374,7 +383,7 @@ class _InteractionPanelState extends State<InteractionPanel> {
                         ),
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     PanelButton(
                       label: switch (widget.request) {
                         QuestionRequest() => 'Skip',

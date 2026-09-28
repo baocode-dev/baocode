@@ -81,6 +81,9 @@ enum ToolKind {
   agent,
   mcp,
   todo,
+
+  /// A message to another agent.
+  message,
   other,
 }
 
@@ -116,46 +119,87 @@ class ToolCallItem extends ChatItem {
   final String? output;
 }
 
-/// A subagent at work: its own conversation, nested and folded.
+/// A subagent at work: its own conversation, one card in the history that
+/// opens to it.
 class AgentItem extends ChatItem {
   const AgentItem({
     required this.description,
+    this.id,
     this.agentType,
+    this.prompt,
     this.status = CommandStatus.running,
     this.tokens,
     this.toolUses,
     this.lastTool,
+    this.activity,
+    this.startedAt,
+    this.duration,
+    this.model,
     this.children = const [],
     this.result,
+    this.background = false,
   });
 
   final String description;
+
+  /// The tool call that started it, to find it again and act on it.
+  final String? id;
   final String? agentType;
+
+  /// What the agent that started it asked of it.
+  final String? prompt;
   final CommandStatus status;
   final int? tokens;
   final int? toolUses;
   final String? lastTool;
+
+  /// What it is doing now, e.g. "Reading a.txt".
+  final String? activity;
+
+  /// When it started, while it runs (live sessions only).
+  final DateTime? startedAt;
+
+  /// How long it took, once done.
+  final Duration? duration;
+  final String? model;
   final List<ChatItem> children;
 
   /// Its final report.
   final String? result;
 
+  /// Left to run on its own while the agent goes on: it reports when done.
+  final bool background;
+
   AgentItem copyWith({
+    String? description,
+    String? agentType,
+    String? prompt,
     CommandStatus? status,
     int? tokens,
     int? toolUses,
     String? lastTool,
+    String? activity,
+    Duration? duration,
+    String? model,
     List<ChatItem>? children,
     String? result,
+    bool? background,
   }) => AgentItem(
-    description: description,
-    agentType: agentType,
+    description: description ?? this.description,
+    id: id,
+    agentType: agentType ?? this.agentType,
+    prompt: prompt ?? this.prompt,
     status: status ?? this.status,
     tokens: tokens ?? this.tokens,
     toolUses: toolUses ?? this.toolUses,
     lastTool: lastTool ?? this.lastTool,
+    activity: activity ?? this.activity,
+    startedAt: startedAt,
+    duration: duration ?? this.duration,
+    model: model ?? this.model,
     children: children ?? this.children,
     result: result ?? this.result,
+    background: background ?? this.background,
   );
 }
 

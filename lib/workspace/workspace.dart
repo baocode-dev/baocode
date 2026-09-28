@@ -122,6 +122,7 @@ class AgentThread {
     permission: _session?.selected(KernelChoiceKind.permission),
     model: _session?.selected(KernelChoiceKind.model),
     effort: _session?.selected(KernelChoiceKind.effort),
+    context: _session?.selected(KernelChoiceKind.context),
   );
 }
 
@@ -134,6 +135,7 @@ typedef _Snapshot = ({
   String? permission,
   String? model,
   String? effort,
+  String? context,
 });
 
 /// Projects and their agents. Any number of agents may run at once; the
@@ -435,8 +437,8 @@ class Workspace extends ChangeNotifier {
   KernelDescriptor get preferredKernel => _preferredKernel;
   KernelDescriptor _preferredKernel;
 
-  /// The mode, model and effort a new agent starts with: the last ones
-  /// picked.
+  /// The mode, model, context and effort a new agent starts with: the
+  /// last ones picked.
   Map<String, String> get _preferredSettings => Map.unmodifiable(_settings);
   final Map<String, String> _settings = {};
 
@@ -495,6 +497,7 @@ class Workspace extends ChangeNotifier {
       );
       remember(KernelChoiceKind.model, before.model, snapshot.model);
       remember(KernelChoiceKind.effort, before.effort, snapshot.effort);
+      remember(KernelChoiceKind.context, before.context, snapshot.context);
       if (before.status != snapshot.status) thread.updatedAt = DateTime.now();
     }
     _snapshots[thread] = snapshot;

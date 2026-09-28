@@ -7,6 +7,7 @@ import '../../kernel/kernel_types.dart';
 import '../chat_models.dart';
 import '../widgets/file_label.dart';
 import '../widgets/hover_builder.dart';
+import '../widgets/orbit_indicator.dart';
 import 'interaction_panel.dart';
 
 /// Indicator area docked on top of the composer: background tasks and the
@@ -20,6 +21,7 @@ class ActivityStrip extends StatefulWidget {
     required this.onKeep,
     this.onUndo,
     this.onStopTask,
+    this.onOpenTask,
   });
 
   final List<KernelTask> tasks;
@@ -28,6 +30,9 @@ class ActivityStrip extends StatefulWidget {
 
   /// Stops a running task; null when tasks cannot be stopped.
   final ValueChanged<KernelTask>? onStopTask;
+
+  /// Opens a subagent's conversation from its row.
+  final ValueChanged<KernelTask>? onOpenTask;
   final VoidCallback onKeep;
 
   /// Null when the changes cannot be put back: no Undo then.
@@ -100,6 +105,11 @@ class _ActivityStripState extends State<ActivityStrip> {
           for (final task in widget.tasks)
             _TaskRow(
               task: task,
+              onOpen: switch (widget.onOpenTask) {
+                final open? when task.kind == KernelTaskKind.agent =>
+                  () => open(task),
+                _ => null,
+              },
               onDismiss: () => widget.onDismissTask(task),
               onStop: switch (widget.onStopTask) {
                 final stop? => () => stop(task),
@@ -131,14 +141,17 @@ class _ActivityStripState extends State<ActivityStrip> {
 }
 
 class _StripRow extends StatelessWidget {
-  const _StripRow({required this.children, this.onTap});
+  const _StripRow({required this.children, this.onTap, this.semanticLabel});
 
   final List<Widget> children;
   final VoidCallback? onTap;
 
+  /// What a tap on it does, read out.
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context) {
-    return HoverBuilder(
+    final row = HoverBuilder(
       cursor: onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
       builder: (context, hovered) => GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -157,15 +170,26 @@ class _StripRow extends StatelessWidget {
         ),
       ),
     );
+    return semanticLabel == null
+        ? row
+        : Semantics(button: true, hint: semanticLabel, child: row);
   }
 }
 
 class _TaskRow extends StatelessWidget {
-  const _TaskRow({required this.task, required this.onDismiss, this.onStop});
+  const _TaskRow({
+    required this.task,
+    required this.onDismiss,
+    this.onStop,
+    this.onOpen,
+  });
 
   final KernelTask task;
   final VoidCallback onDismiss;
   final VoidCallback? onStop;
+
+  /// Opens a subagent's conversation.
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -179,51 +203,64 @@ class _TaskRow extends StatelessWidget {
       CommandStatus.failed => ('Failed', CursorColors.removed),
     };
     return _StripRow(
+      onTap: onOpen,
+      semanticLabel: onOpen == null ? null : 'Open ${task.description}',
       children: [
         SizedBox.square(
           dimension: 14,
-          child: task.status == CommandStatus.running
-              ? const Padding(
-                  padding: EdgeInsets.all(1.5),
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.6,
-                    color: CursorColors.textMuted,
-                  ),
-                )
-              : Icon(
+          child: task.status != CommandStatus.running
+              ? Icon(
                   task.status == CommandStatus.succeeded
                       ? Icons.check_circle_outline_rounded
                       : Icons.error_outline_rounded,
                   size: 14,
                   color: color,
+                )
+              // A subagent left to run on its own.
+              : task.kind == KernelTaskKind.agent && task.background
+              ? const OrbitIndicator()
+              : const Padding(
+                  padding: EdgeInsets.all(1.5),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.6,
+                    color: CursorColors.textMuted,
+                  ),
                 ),
         ),
         const SizedBox(width: 8),
-        Icon(
-          task.kind == KernelTaskKind.agent
-              ? Icons.smart_toy_outlined
-              : Icons.terminal_rounded,
-          size: 13,
-          color: CursorColors.textFaint,
-        ),
-        const SizedBox(width: 5),
-        Flexible(
-          child: Text(
-            task.description,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: CursorColors.text,
-              fontFamily: task.kind == KernelTaskKind.command
-                  ? CursorFonts.mono
-                  : null,
-              fontSize: 11.5,
-            ),
+        if (task.kind != KernelTaskKind.agent) ...[
+          const Icon(
+            Icons.terminal_rounded,
+            size: 13,
+            color: CursorColors.textFaint,
+          ),
+          const SizedBox(width: 5),
+        ],
+        // All the room there is, so the action sits at the end (a Flexible
+        // beside a Spacer would leave it half of that).
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  task.description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: CursorColors.text,
+                    fontFamily: task.kind == KernelTaskKind.command
+                        ? CursorFonts.mono
+                        : null,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(status, style: TextStyle(color: color, fontSize: 11.5)),
+            ],
           ),
         ),
         const SizedBox(width: 8),
-        Text(status, style: TextStyle(color: color, fontSize: 11.5)),
-        const Spacer(),
         if (task.status != CommandStatus.running)
           _IconAction(
             icon: Icons.close_rounded,
@@ -363,23 +400,26 @@ class _FileRow extends StatelessWidget {
             ),
           ),
         ),
-        Text(
-          '+${change.added}',
-          style: const TextStyle(
-            color: CursorColors.added,
-            fontFamily: CursorFonts.mono,
-            fontSize: 11,
+        // A count of none is left out.
+        if (change.added > 0)
+          Text(
+            '+${change.added}',
+            style: const TextStyle(
+              color: CursorColors.added,
+              fontFamily: CursorFonts.mono,
+              fontSize: 11,
+            ),
           ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '-${change.removed}',
-          style: const TextStyle(
-            color: CursorColors.removed,
-            fontFamily: CursorFonts.mono,
-            fontSize: 11,
+        if (change.added > 0 && change.removed > 0) const SizedBox(width: 4),
+        if (change.removed > 0)
+          Text(
+            '-${change.removed}',
+            style: const TextStyle(
+              color: CursorColors.removed,
+              fontFamily: CursorFonts.mono,
+              fontSize: 11,
+            ),
           ),
-        ),
       ],
     );
   }

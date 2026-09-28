@@ -98,7 +98,7 @@ void main() {
     print(
       'MODEL ${kernel.model.selected} of ${kernel.model.options.map((o) => o.id).toList()}',
     );
-    print('MODE ${kernel.mode.selected}  EFFORT ${kernel.effort?.selected}');
+    print('MODE ${kernel.mode.selected}  EFFORT ${kernel.effort.selected}');
     print('COMMANDS ${kernel.commands.length}');
     print(
       'USAGE ${transcript.usage?.used}/${transcript.usage?.window} ${transcript.usage?.segments.map((s) => '${s.label}:${s.kind.name}').toList()}',

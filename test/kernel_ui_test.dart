@@ -15,6 +15,7 @@ import 'package:monad/chat/panels/mcp_servers_panel.dart';
 import 'package:monad/chat/widgets/image_thumbnails.dart';
 import 'package:monad/chat/widgets/activity_row.dart';
 import 'package:monad/chat/widgets/command_step.dart';
+import 'package:monad/chat/widgets/orbit_indicator.dart';
 import 'package:monad/chat/chat_models.dart';
 import 'package:monad/chat/composer/composer_images.dart';
 import 'package:monad/kernel/agent_kernel.dart';
@@ -24,6 +25,10 @@ import 'package:monad/main.dart';
 import 'package:monad/sidebar/sidebar.dart';
 import 'package:monad/theme/cursor_theme.dart';
 import 'package:monad/workspace/workspace.dart';
+import 'package:monad/chat/agent_view.dart';
+import 'package:monad/kernel/claude_code/claude_code_kernel.dart';
+
+import 'kernel_test.dart' show FakeCli;
 
 Future<ChatSession> pumpSession(
   WidgetTester tester,
@@ -52,6 +57,73 @@ Future<void> runWhile(WidgetTester tester, bool Function() condition) async {
 
 Finder picker(String label) =>
     find.ancestor(of: find.text(label), matching: find.byType(ComposerPicker));
+
+/// A Claude Code session on a CLI the test speaks for, a message sent.
+Future<({ChatSession session, FakeCli cli})> pumpScripted(
+  WidgetTester tester,
+) async {
+  tester.view.physicalSize = const Size(1200, 900);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  final cli = FakeCli();
+  late final KernelDescriptor descriptor;
+  descriptor = KernelDescriptor(
+    id: 'claude-code',
+    label: 'Claude Code',
+    icon: Icons.auto_awesome_rounded,
+    description: '',
+    create: (context) =>
+        ClaudeCodeKernel(descriptor, context, start: (_) async => cli),
+  );
+  final session = ChatSession(
+    kernel: descriptor,
+    kernels: [descriptor],
+    historyCount: 0,
+  );
+  addTearDown(session.dispose);
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: buildCursorTheme(),
+      localizationsDelegates: const [FlutterQuillLocalizations.delegate],
+      home: ChatScreen(session: session),
+    ),
+  );
+  await tester.pump();
+  session.send(const ComposerMessage(text: 'compare the games'));
+  await tester.pump(const Duration(milliseconds: 100));
+  return (session: session, cli: cli);
+}
+
+/// The agent's (or, with [parent], a subagent's) call of a tool.
+Map<String, Object?> assistant(String? parent, String id, Map tool) => {
+  'type': 'assistant',
+  'parent_tool_use_id': parent,
+  'message': {
+    'id': 'msg-$id',
+    'role': 'assistant',
+    'content': [
+      {'type': 'tool_use', 'id': id, ...tool},
+    ],
+  },
+};
+
+/// What the tool call [id] returned.
+Map<String, Object?> result(
+  String? parent,
+  String id,
+  String text, [
+  Map<String, Object?>? structured,
+]) => {
+  'type': 'user',
+  'parent_tool_use_id': parent,
+  'message': {
+    'role': 'user',
+    'content': [
+      {'type': 'tool_result', 'tool_use_id': id, 'content': text},
+    ],
+  },
+  'tool_use_result': ?structured,
+};
 
 void main() {
   testWidgets('a new agent picks its kernel until it starts', (tester) async {
@@ -371,6 +443,156 @@ void main() {
     expect(box.right - send.right, lessThan(12));
   });
 
+  testWidgets('the model menu lists models only; context and effort are '
+      'picked at their side', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final session = await pumpSession(tester, MockKernels.claudeCode);
+    Future<void> settle() async {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+    }
+
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(picker('Auto · High'), findsOneWidget);
+
+    // One row a model, without its description: Opus's 1M variant is in
+    // its settings.
+    await tester.tap(picker('Auto · High'));
+    await settle();
+    expect(find.text('Opus 5.5'), findsOneWidget);
+    expect(find.text('Opus 5.5 (1M context)'), findsNothing);
+    expect(find.text('Most capable'), findsNothing);
+    expect(find.text('Effort'), findsNothing);
+
+    // Pointed at, a model shows them.
+    final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(tester.getCenter(find.text('Opus 5.5')));
+    await tester.pump();
+    expect(find.text('Context'), findsOneWidget);
+    expect(find.text('Effort'), findsOneWidget);
+    expect(find.text('Max'), findsOneWidget);
+    final opus = tester.getRect(find.text('Opus 5.5'));
+    final settings = tester.getRect(find.text('Context'));
+    expect(settings.left, greaterThan(opus.right));
+
+    // Picking one picks the model with it.
+    await tester.tap(find.text('1M'));
+    await settle();
+    expect(find.text('Context'), findsNothing);
+    expect(picker('Opus 5.5 · 1M · High'), findsOneWidget);
+    expect(session.context?.window, 1000000);
+
+    // By keys: down to Sonnet, → into its efforts (it has no 1M), Low.
+    // Near its start: the test font makes it long, its end scrolled away.
+    await tester.tapAt(
+      tester.getTopLeft(picker('Opus 5.5 · 1M · High')) + const Offset(20, 11),
+    );
+    await settle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(find.text('Context'), findsNothing);
+    expect(find.text('Effort'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle();
+    expect(picker('Sonnet 5 · Low'), findsOneWidget);
+    expect(session.context?.window, 200000);
+  });
+
+  testWidgets('a model\'s settings open to the left when the right has no '
+      'room, and leave the menu where it is', (tester) async {
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpSession(tester, MockKernels.claudeCode);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tapAt(
+      tester.getTopLeft(picker('Auto · High')) + const Offset(20, 11),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    final before = tester.getRect(find.text('Opus 5.5'));
+
+    final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(before.center);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.getRect(find.text('Opus 5.5')), before);
+    final settings = tester.getRect(find.text('Context'));
+    expect(settings.right, lessThan(before.left));
+    // Near the window's bottom, slid up to stay inside it, still beside
+    // the option.
+    final max = tester.getRect(find.text('Max'));
+    expect(max.bottom, lessThanOrEqualTo(892));
+    expect(settings.top, lessThanOrEqualTo(before.top));
+    expect(max.bottom, greaterThanOrEqualTo(before.bottom));
+
+    // Still part of the menu: picking in it does not close it first.
+    await tester.tap(find.text('Low'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(picker('Opus 5.5 · Low'), findsOneWidget);
+  });
+
+  testWidgets('one settings menu moves between models: crossing a model on '
+      'the way to it keeps it, resting there switches', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpSession(tester, MockKernels.claudeCode);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tapAt(
+      tester.getTopLeft(picker('Auto · High')) + const Offset(20, 11),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    Rect row(String label) => tester.getRect(
+      find
+          .ancestor(of: find.text(label), matching: find.byType(MouseRegion))
+          .first,
+    );
+    final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+
+    final opus = row('Opus 5.5');
+    await mouse.moveTo(opus.centerLeft + const Offset(30, 0));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Context'), findsOneWidget);
+
+    // Down and across towards it, over Sonnet: still Opus's.
+    final sonnet = row('Sonnet 5');
+    await mouse.moveTo(Offset(sonnet.right - 6, sonnet.center.dy));
+    await tester.pump();
+    expect(find.text('Context'), findsOneWidget);
+    // Resting on Sonnet: its settings (no 1M), in the same menu, at once.
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.text('Context'), findsNothing);
+    expect(find.text('Effort'), findsOneWidget);
+
+    // Straight up to Opus: switches at once, without a second menu fading.
+    await mouse.moveTo(opus.center);
+    await tester.pump();
+    expect(find.text('Context'), findsOneWidget);
+    expect(find.text('Effort'), findsOneWidget);
+
+    // A model without settings closes it.
+    await mouse.moveTo(row('Haiku 4.5').center);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Effort'), findsNothing);
+  });
+
   testWidgets('Ask only discusses; approvals are picked apart from the mode', (
     tester,
   ) async {
@@ -398,5 +620,225 @@ void main() {
       findsOneWidget,
     );
     await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('a subagent opens to its own conversation and back', (
+    tester,
+  ) async {
+    final (:session, :cli) = await pumpScripted(tester);
+    cli
+      ..push(
+        assistant(null, 'toolu_a', {
+          'name': 'Agent',
+          'input': {
+            'description': 'Compare the games',
+            'subagent_type': 'Explore',
+            'prompt': 'Compare the three games.',
+          },
+        }),
+      )
+      ..push({
+        'type': 'system',
+        'subtype': 'task_started',
+        'task_id': 't1',
+        'tool_use_id': 'toolu_a',
+        'description': 'Compare the games',
+        'task_type': 'local_agent',
+        'is_backgrounded': false,
+      })
+      ..push({
+        'type': 'system',
+        'subtype': 'task_progress',
+        'task_id': 't1',
+        'tool_use_id': 'toolu_a',
+        'description': 'Reading game.js',
+        'usage': {'total_tokens': 8200, 'tool_uses': 1, 'duration_ms': 900},
+        'last_tool_name': 'Read',
+      })
+      ..push(
+        assistant('toolu_a', 'toolu_r', {
+          'name': 'Read',
+          'input': {'file_path': '/p/game.js'},
+        }),
+      )
+      ..push(result('toolu_a', 'toolu_r', '1\tconst plane = 1;'));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // In the conversation: a card, with the tools it used.
+    expect(find.text('Compare the games'), findsOneWidget);
+    expect(find.text('1 tool'), findsOneWidget);
+    // In the foreground: no orbit.
+    expect(find.byType(OrbitIndicator), findsNothing);
+    expect(find.text('Read game.js', findRichText: true), findsNothing);
+
+    await tester.tap(find.text('Compare the games'));
+    // A frame to start the transition, then its length.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    // Its own conversation: the way back, what it was asked, its steps.
+    expect(find.text('Conversation'), findsOneWidget);
+    expect(find.text('Compare the three games.'), findsWidgets);
+    expect(find.textContaining('Read game.js', findRichText: true), findsOne);
+    expect(find.byType(SubagentStatusBar), findsOneWidget);
+    expect(find.byType(ChatComposer), findsNothing);
+
+    // Away to another conversation and back: still open, as it was.
+    Widget screen(Widget home) => MaterialApp(
+      theme: buildCursorTheme(),
+      localizationsDelegates: const [FlutterQuillLocalizations.delegate],
+      home: home,
+    );
+    await tester.pumpWidget(screen(const SizedBox()));
+    await tester.pumpWidget(screen(ChatScreen(session: session)));
+    await tester.pump();
+    expect(find.text('Conversation'), findsOneWidget);
+    expect(find.byType(SubagentStatusBar), findsOneWidget);
+    expect(find.byType(ChatComposer), findsNothing);
+
+    // Moved to the background while it runs: it circles, and says so.
+    cli.push({
+      'type': 'system',
+      'subtype': 'task_updated',
+      'task_id': 't1',
+      'patch': {'is_backgrounded': true},
+    });
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      find.descendant(
+        of: find.byType(SubagentStatusBar),
+        matching: find.byType(OrbitIndicator),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Running in the background', findRichText: true),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(SubagentStatusBar),
+        matching: find.byIcon(Icons.stop_rounded),
+      ),
+    );
+    await tester.pump();
+    expect(cli.requests('stop_task').single['task_id'], 't1');
+
+    cli.push(
+      result(null, 'toolu_a', 'The plane game is best.', {
+        'status': 'completed',
+        'content': [
+          {'type': 'text', 'text': 'The plane game is best.'},
+        ],
+        'totalDurationMs': 74000,
+        'totalTokens': 9100,
+        'totalToolUseCount': 1,
+      }),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    // Its report, as its answer.
+    expect(
+      find.text('The plane game is best.', findRichText: true).hitTestable(),
+      findsOne,
+    );
+    expect(
+      find.textContaining('Done · Explore · 1m 14s', findRichText: true),
+      findsOneWidget,
+    );
+    // How it did follows its report, not the window's bottom.
+    final report = tester.getRect(
+      find.text('The plane game is best.', findRichText: true).hitTestable(),
+    );
+    final bar = tester.getRect(find.byType(SubagentStatusBar));
+    expect(bar.top - report.bottom, inInclusiveRange(0, 60));
+    expect(bar.bottom, lessThan(900 - 100));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    expect(find.text('Conversation'), findsNothing);
+    expect(find.byType(SubagentStatusBar), findsNothing);
+    expect(find.byType(ChatComposer), findsOneWidget);
+    // Its card, and its row as a background task.
+    expect(find.text('Compare the games'), findsNWidgets(2));
+  });
+
+  testWidgets('a subagent in the background reports when notified, and '
+      'opens from its row above the composer', (tester) async {
+    final (:session, :cli) = await pumpScripted(tester);
+    cli
+      ..push(
+        assistant(null, 'toolu_b', {
+          'name': 'Agent',
+          'input': {
+            'description': 'Analyze the app',
+            'subagent_type': 'Plan',
+            'prompt': 'Analyze /app.',
+            'run_in_background': true,
+          },
+        }),
+      )
+      ..push({
+        'type': 'system',
+        'subtype': 'task_started',
+        'task_id': 'a1',
+        'tool_use_id': 'toolu_b',
+        'description': 'Analyze the app',
+        'task_type': 'local_agent',
+        'is_backgrounded': true,
+      })
+      ..push(
+        result(null, 'toolu_b', 'Async agent launched successfully.', {
+          'isAsync': true,
+          'status': 'async_launched',
+          'agentId': 'a1',
+          'prompt': 'Analyze /app.',
+        }),
+      );
+    await tester.pump(const Duration(milliseconds: 100));
+    // Launched, not done: what the launch said is for the agent alone.
+    expect(find.textContaining('Async agent launched'), findsNothing);
+    final row = find.descendant(
+      of: find.byType(ActivityStrip),
+      matching: find.text('Analyze the app'),
+    );
+    expect(row, findsOneWidget);
+    // Out there on its own: an orbit, on its card and on its row.
+    expect(find.byType(OrbitIndicator), findsNWidgets(2));
+
+    await tester.tap(row);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Conversation'), findsOneWidget);
+    expect(
+      find.textContaining('Running', findRichText: true).hitTestable(),
+      findsWidgets,
+    );
+
+    cli.push({
+      'type': 'user',
+      'uuid': 'n1',
+      'message': {
+        'role': 'user',
+        'content':
+            '<task-notification>\n<task-id>a1</task-id>\n'
+            '<tool-use-id>toolu_b</tool-use-id>\n<status>completed</status>\n'
+            '<summary>Agent "Analyze the app" finished</summary>\n'
+            '<result>An Elysia server on Bun.</result>\n'
+            '</task-notification>',
+      },
+    });
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      find.text('An Elysia server on Bun.', findRichText: true).hitTestable(),
+      findsOne,
+    );
+    expect(
+      find.textContaining('Done · Plan', findRichText: true),
+      findsOneWidget,
+    );
+    expect(find.byType(OrbitIndicator), findsNothing);
+    expect(session.itemCount, greaterThan(0));
   });
 }

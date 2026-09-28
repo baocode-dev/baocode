@@ -21,6 +21,7 @@ import 'package:monad/chat/widgets/edge_fade_mask.dart';
 import 'package:monad/chat/widgets/live_selectable_text.dart';
 import 'package:monad/chat/widgets/shimmer_text.dart';
 import 'package:monad/chat/widgets/thinking_section.dart';
+import 'package:monad/chat/widgets/chat_item_view.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
 import 'package:monad/chat/chat_history_view.dart';
 import 'package:monad/chat/chat_session.dart';
@@ -88,6 +89,20 @@ Matcher isSelection(int base, int extent) => isA<TextSelection>()
     .having((s) => s.extentOffset, 'extent', extent);
 
 void main() {
+  testWidgets('the answers sit inset from the user\'s messages by their '
+      'corner radius', (tester) async {
+    await pumpScreen(tester);
+    final items = tester.widgetList<ChatItemView>(find.byType(ChatItemView));
+    double width(bool user) => tester
+        .getSize(
+          find.byWidget(
+            items.firstWhere((view) => (view.item is UserMessageItem) == user),
+          ),
+        )
+        .width;
+    expect(width(false), width(true) - 2 * UserMessageBubble.radius);
+  });
+
   testWidgets('@ opens the mention menu and inserts an atomic token', (
     tester,
   ) async {
@@ -1110,7 +1125,7 @@ void main() {
           of: find.byType(ChatHistoryView),
           matching: find.byType(ComposerPicker),
         ),
-        findsNWidgets(4), // Mode, approvals, model, effort.
+        findsNWidgets(3), // Mode, approvals, model.
       );
       expect(
         tester.widget<QuillEditor>(editorInHistory()).focusNode.hasFocus,
@@ -1419,8 +1434,8 @@ void main() {
 
       await reveal(tester, '第 3 轮');
       final longBubble = bubble('第 3 轮');
-      // Six lines of text, plus the bubble's padding and border.
-      expect(tester.getSize(longBubble).height, 13.5 * 1.5 * 6 + 10 + 11 + 2);
+      // Three lines of text, plus the bubble's padding and border.
+      expect(tester.getSize(longBubble).height, 13.5 * 1.5 * 3 + 10 + 11 + 2);
       expect(expandIcon(longBubble), findsOneWidget);
 
       // A short one is not cut: as tall as its text. (Its overlay is built

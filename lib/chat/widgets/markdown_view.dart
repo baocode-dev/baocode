@@ -26,7 +26,7 @@ class MarkdownView extends StatelessWidget {
     color: CursorColors.inlineCode,
     fontFamily: CursorFonts.mono,
     fontSize: 12.5,
-    backgroundColor: Color(0xFF2A2A2A),
+    backgroundColor: CursorColors.inlineCodeBackground,
   );
 
   static final _document = md.Document(
@@ -247,16 +247,34 @@ class _List extends StatelessWidget {
   }
 }
 
-class _Table extends StatelessWidget {
+/// A table in a card as the steps' are, as wide as its columns up to the
+/// width there is; wider, it scrolls sideways, with a bar to show it while
+/// the pointer is over it or it scrolls.
+class _Table extends StatefulWidget {
   const _Table({required this.node, required this.style});
 
   final md.Element node;
   final TextStyle style;
 
   @override
+  State<_Table> createState() => _TableState();
+}
+
+class _TableState extends State<_Table> {
+  final _scroll = ScrollController();
+  bool _hovered = false;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final style = widget.style;
     final rows = <(bool, List<md.Element>)>[];
-    for (final section in node.children ?? const <md.Node>[]) {
+    for (final section in widget.node.children ?? const <md.Node>[]) {
       if (section is! md.Element) continue;
       for (final row in section.children ?? const <md.Node>[]) {
         if (row is! md.Element || row.tag != 'tr') continue;
@@ -273,41 +291,66 @@ class _Table extends StatelessWidget {
     final columns = rows
         .map((row) => row.$2.length)
         .reduce((a, b) => a > b ? a : b);
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Table(
-        defaultColumnWidth: const IntrinsicColumnWidth(),
-        border: TableBorder.all(color: CursorColors.border),
-        children: [
-          for (final (header, cells) in rows)
-            TableRow(
-              decoration: header
-                  ? const BoxDecoration(color: CursorColors.surfaceRaised)
-                  : null,
-              children: [
-                for (var i = 0; i < columns; i++)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    child: i < cells.length
-                        ? Text.rich(
-                            _inlines(
-                              cells[i].children ?? const [],
-                              header
-                                  ? style.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      color: CursorColors.textPrimary,
-                                    )
-                                  : style,
-                            ),
-                          )
-                        : const SizedBox.shrink(),
+    const line = BorderSide(color: CursorColors.border);
+    final table = Table(
+      defaultColumnWidth: const IntrinsicColumnWidth(),
+      // The card draws the edge.
+      border: const TableBorder.symmetric(inside: line),
+      children: [
+        for (final (header, cells) in rows)
+          TableRow(
+            decoration: header
+                ? const BoxDecoration(color: CursorColors.surfaceRaised)
+                : null,
+            children: [
+              for (var i = 0; i < columns; i++)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
                   ),
-              ],
+                  child: i < cells.length
+                      ? Text.rich(
+                          _inlines(
+                            cells[i].children ?? const [],
+                            header
+                                ? style.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: CursorColors.textPrimary,
+                                  )
+                                : style,
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+            ],
+          ),
+      ],
+    );
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Container(
+        // The edge over the cells, the header's color clipped to the corners.
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: const Border.fromBorderSide(line),
+        ),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
+        clipBehavior: Clip.antiAlias,
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: Scrollbar(
+            controller: _scroll,
+            thumbVisibility: _hovered,
+            interactive: true,
+            child: SingleChildScrollView(
+              controller: _scroll,
+              scrollDirection: Axis.horizontal,
+              child: table,
             ),
-        ],
+          ),
+        ),
       ),
     );
   }

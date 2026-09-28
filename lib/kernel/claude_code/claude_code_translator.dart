@@ -319,8 +319,11 @@ class ClaudeTranslator {
     final id = message['uuid'] as String?;
     if (id == null) return;
     final trimmed = text.trim();
-    if (trimmed.startsWith('<task-notification>') ||
-        trimmed.startsWith('<local-command-caveat>') ||
+    if (trimmed.startsWith('<task-notification>')) {
+      _agentNotified(trimmed);
+      return;
+    }
+    if (trimmed.startsWith('<local-command-caveat>') ||
         trimmed.startsWith('<system-reminder>')) {
       return;
     }
@@ -364,17 +367,20 @@ class ClaudeTranslator {
         final agent = _agents[id] ??= _Agent(
           AgentItem(
             description: _string(input['description']) ?? 'Subagent',
+            id: id,
             agentType: _string(input['subagent_type']),
+            prompt: _string(input['prompt']),
             status: replaying ? CommandStatus.succeeded : CommandStatus.running,
+            startedAt: replaying ? null : tool.startedAt,
+            background: input['run_in_background'] == true,
           ),
         );
-        if (agent.item.description == 'Subagent' &&
-            input['description'] != null) {
-          agent.item = AgentItem(
-            description: input['description'] as String,
+        // The streamed start has no input: the whole message fills it in.
+        if (agent.item.description == 'Subagent' || agent.item.prompt == null) {
+          agent.item = agent.item.copyWith(
+            description: _string(input['description']),
             agentType: _string(input['subagent_type']),
-            status: agent.item.status,
-            children: agent.item.children,
+            prompt: _string(input['prompt']),
           );
         }
         _putAgent(id);
@@ -561,6 +567,13 @@ class ClaudeTranslator {
         status: status,
         output: output,
       ),
+      'SendMessage' => ToolCallItem(
+        kind: ToolKind.message,
+        label: name,
+        target: _summary(input),
+        status: status,
+        output: output,
+      ),
       'EnterPlanMode' => ToolCallItem(
         kind: ToolKind.other,
         label: tense('Entered plan mode', 'Entering plan mode'),
@@ -599,11 +612,30 @@ class ClaudeTranslator {
       case 'Agent' || 'Task':
         final agent = _agents[id];
         if (agent == null) return;
+        if (structured?['status'] == 'async_launched') {
+          // Launched in the background: what it says is for the agent (its
+          // id, where its output goes). It reports in a notification.
+          agent.item = agent.item.copyWith(
+            prompt: _string(structured?['prompt']),
+            model: _string(structured?['resolvedModel']),
+            background: true,
+          );
+          _putAgent(id);
+          return;
+        }
         agent.item = agent.item.copyWith(
           status: outcome == _Outcome.done
               ? CommandStatus.succeeded
               : CommandStatus.failed,
           result: _agentReport(structured, text),
+          prompt: _string(structured?['prompt']),
+          tokens: structured?['totalTokens'] as int?,
+          toolUses: structured?['totalToolUseCount'] as int?,
+          duration: switch (structured?['totalDurationMs']) {
+            final int ms => Duration(milliseconds: ms),
+            _ => null,
+          },
+          model: _string(structured?['resolvedModel']),
         );
         _putAgent(id);
         return;
@@ -691,7 +723,24 @@ class ClaudeTranslator {
     var added = 0;
     var removed = 0;
     final hunks = _list(result['structuredPatch']);
-    if (hunks.isEmpty && result['type'] == 'create') {
+    if (hunks.isEmpty && tool.name == 'NotebookEdit') {
+      // A notebook edit tells the cell's source before and after, not a
+      // patch (the file is JSON): its lines, compared.
+      String source(String key) => _string(result[key]) ?? '';
+      for (final line in _lineDiff(
+        source('old_source'),
+        source('new_source'),
+      )) {
+        switch (line.type) {
+          case DiffLineType.added:
+            added++;
+          case DiffLineType.removed:
+            removed++;
+          case DiffLineType.context:
+        }
+        if (lines.length < _maxDiffLines) lines.add(line);
+      }
+    } else if (hunks.isEmpty && result['type'] == 'create') {
       final content = _string(result['content']) ?? '';
       final created = content.isEmpty ? <String>[] : content.split('\n');
       for (final (i, line) in created.take(_maxDiffLines).indexed) {
@@ -757,6 +806,48 @@ class ClaudeTranslator {
   }
 
   static const _maxDiffLines = 400;
+
+  /// [before] to [after], line by line: kept lines as context, numbered as
+  /// in the text they are from. Past a size, all of one replaced by the
+  /// other.
+  static List<DiffLine> _lineDiff(String before, String after) {
+    List<String> split(String text) => text.isEmpty ? [] : text.split('\n');
+    final a = split(before);
+    final b = split(after);
+    // The longest common subsequence, from the end.
+    final common = a.length * b.length <= 250000
+        ? List.generate(a.length + 1, (_) => List.filled(b.length + 1, 0))
+        : null;
+    if (common != null) {
+      for (var i = a.length - 1; i >= 0; i--) {
+        for (var j = b.length - 1; j >= 0; j--) {
+          common[i][j] = a[i] == b[j]
+              ? common[i + 1][j + 1] + 1
+              : math.max(common[i + 1][j], common[i][j + 1]);
+        }
+      }
+    }
+    final lines = <DiffLine>[];
+    var i = 0;
+    var j = 0;
+    while (i < a.length || j < b.length) {
+      if (common != null && i < a.length && j < b.length && a[i] == b[j]) {
+        lines.add(DiffLine(DiffLineType.context, j + 1, b[j]));
+        i++;
+        j++;
+      } else if (i < a.length &&
+          (j == b.length ||
+              common == null ||
+              common[i + 1][j] >= common[i][j + 1])) {
+        lines.add(DiffLine(DiffLineType.removed, i + 1, a[i]));
+        i++;
+      } else {
+        lines.add(DiffLine(DiffLineType.added, j + 1, b[j]));
+        j++;
+      }
+    }
+    return lines;
+  }
 
   // --- Runtime messages ------------------------------------------------------------
 
@@ -870,6 +961,9 @@ class ClaudeTranslator {
           background: message['is_backgrounded'] == true,
         );
         _reportTasks();
+        if (message['is_backgrounded'] == true) {
+          _agentToBackground(message['tool_use_id'] as String?);
+        }
       case 'task_progress' when !replaying:
         final taskId = message['task_id'] as String;
         final usage = _map(message['usage']);
@@ -886,6 +980,7 @@ class ClaudeTranslator {
             tokens: usage['total_tokens'] as int?,
             toolUses: usage['tool_uses'] as int?,
             lastTool: _string(message['last_tool_name']),
+            activity: _string(message['description']),
           );
           _putAgent(toolUseId!);
         }
@@ -900,6 +995,9 @@ class ClaudeTranslator {
             summary: _string(patch['error']),
           );
           _reportTasks();
+          if (patch['is_backgrounded'] == true) {
+            _agentToBackground(task.toolUseId);
+          }
         }
       case 'task_notification' when !replaying:
         final taskId = message['task_id'] as String;
@@ -910,9 +1008,24 @@ class ClaudeTranslator {
           _tasks[taskId] = task.copyWith(status: status, summary: summary);
           _reportTasks();
         }
-        // A background command's row in the history settles too.
+        // A background command's row in the history settles too, and a
+        // subagent's card (its report comes in the notification to the
+        // agent, see _agentNotified).
         final toolUseId = message['tool_use_id'] as String?;
         final tool = toolUseId == null ? null : _tools[toolUseId];
+        if (_agents[toolUseId] case final agent?) {
+          final usage = _map(message['usage']);
+          agent.item = agent.item.copyWith(
+            status: status,
+            tokens: usage['total_tokens'] as int?,
+            toolUses: usage['tool_uses'] as int?,
+            duration: switch (usage['duration_ms']) {
+              final int ms => Duration(milliseconds: ms),
+              _ => null,
+            },
+          );
+          _putAgent(toolUseId!);
+        }
         if (tool != null && tool.name == 'Bash') {
           _put(
             toolUseId!,
@@ -937,11 +1050,20 @@ class ClaudeTranslator {
           final task = _tasks[id];
           if (task != null && !task.background) {
             _tasks[id] = task.copyWith(background: true);
+            _agentToBackground(task.toolUseId);
             changed = true;
           }
         }
         if (changed) _reportTasks();
     }
+  }
+
+  /// The subagent [toolUseId] started, if one did, now runs on its own.
+  void _agentToBackground(String? toolUseId) {
+    final agent = toolUseId == null ? null : _agents[toolUseId];
+    if (agent == null || agent.item.background) return;
+    agent.item = agent.item.copyWith(background: true);
+    _putAgent(toolUseId!);
   }
 
   void _reportTasks() => emit(TasksReported(nextSeq(), [..._tasks.values]));
@@ -957,6 +1079,23 @@ class ClaudeTranslator {
       value is List ? value.cast<Object?>() : const [];
 
   static String? _string(Object? value) => value is String ? value : null;
+
+  /// A background subagent stopped, as the CLI tells its agent: how, and
+  /// its report.
+  void _agentNotified(String notification) {
+    final id = _tag(notification, 'tool-use-id');
+    final agent = id == null ? null : _agents[id];
+    if (agent == null) return;
+    final status = _taskStatus(_tag(notification, 'status'));
+    final failed = status == CommandStatus.failed;
+    agent.item = agent.item.copyWith(
+      status: status,
+      result:
+          _tag(notification, 'result')?.trim() ??
+          (failed ? _tag(notification, 'summary') : null),
+    );
+    _putAgent(id!);
+  }
 
   static String? _tag(String text, String tag) {
     final start = text.indexOf('<$tag>');

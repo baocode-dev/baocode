@@ -1,10 +1,14 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/chat/chat_models.dart';
+import 'package:monad/chat/panels/activity_strip.dart';
 import 'package:monad/chat/widgets/chat_item_view.dart';
 import 'package:monad/chat/widgets/shell_highlight.dart';
+import 'package:monad/chat/widgets/shimmer_text.dart';
 import 'package:monad/chat/widgets/wheel_latch.dart';
+import 'package:monad/kernel/kernel_types.dart';
 import 'package:monad/theme/cursor_theme.dart';
 
 /// [item] as the history shows it, opened or not; taps toggle it.
@@ -140,6 +144,21 @@ void main() {
       expect(find.text('new line'), findsOneWidget);
     });
 
+    testWidgets('an edit leaves out a count of none', (tester) async {
+      await pumpStep(
+        tester,
+        const CodeDiffItem(
+          fileName: 'demo.txt',
+          directory: '',
+          lines: [DiffLine(DiffLineType.added, 1, 'hello')],
+          added: 5,
+          removed: 0,
+        ),
+      );
+      expect(find.text('+5', findRichText: true), findsOneWidget);
+      expect(find.textContaining('-0', findRichText: true), findsNothing);
+    });
+
     testWidgets('a search opens to its matches; a read does not open', (
       tester,
     ) async {
@@ -205,31 +224,74 @@ void main() {
       expect(find.textContaining('tokens', findRichText: true), findsNothing);
     });
 
-    testWidgets('a subagent: one line, opening to its own steps', (
-      tester,
-    ) async {
-      await pumpStep(
-        tester,
-        const AgentItem(
-          description: 'Find the kernel files',
-          agentType: 'Explore',
-          status: CommandStatus.succeeded,
-          toolUses: 2,
-          children: [ToolCallItem(kind: ToolKind.read, target: 'kernel.dart')],
-          result: 'Found them.',
+    testWidgets('a subagent: a card with the tools it used, opening on a '
+        'click or Enter', (tester) async {
+      var opened = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatItemView(
+              item: const AgentItem(
+                id: 'toolu_1',
+                description: 'Find the kernel files',
+                agentType: 'Explore',
+                status: CommandStatus.succeeded,
+                toolUses: 2,
+                tokens: 8200,
+                duration: Duration(seconds: 74),
+                children: [
+                  ToolCallItem(kind: ToolKind.read, target: 'kernel.dart'),
+                ],
+                result: '## Found\n- them.',
+              ),
+              onOpen: () => opened++,
+            ),
+          ),
         ),
       );
-      expect(
-        header('Delegated Find the kernel files Explore · 2 tools'),
-        findsOneWidget,
-      );
+      expect(find.text('Find the kernel files'), findsOneWidget);
+      expect(find.text('2 tools'), findsOneWidget);
+      // The rest is in its own conversation.
+      expect(find.textContaining('Explore'), findsNothing);
+      expect(find.textContaining('Found'), findsNothing);
       expect(header('Read kernel.dart'), findsNothing);
-      await tester.tap(
-        header('Delegated Find the kernel files Explore · 2 tools'),
-      );
+
+      await tester.tap(find.text('Find the kernel files'));
+      expect(opened, 1);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
-      expect(header('Read kernel.dart'), findsOneWidget);
-      expect(find.text('Found them.', findRichText: true), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(opened, 2);
+    });
+
+    testWidgets('a running subagent shimmers; stopping it does not open it', (
+      tester,
+    ) async {
+      var opened = 0;
+      var stopped = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatItemView(
+              item: AgentItem(
+                id: 'toolu_1',
+                description: 'Compare the games',
+                agentType: 'Explore',
+                activity: 'Reading game.js',
+                startedAt: DateTime.now().subtract(const Duration(seconds: 69)),
+              ),
+              onOpen: () => opened++,
+              onStop: () => stopped++,
+            ),
+          ),
+        ),
+      );
+      expect(find.byType(ShimmerText), findsOneWidget);
+      expect(find.text('Reading game.js'), findsNothing);
+      await tester.tap(find.byIcon(Icons.stop_rounded));
+      expect((stopped, opened), (1, 0));
+      await tester.pumpWidget(const SizedBox());
     });
 
     test('the shell highlighter colors programs, strings and options', () {
@@ -248,6 +310,41 @@ void main() {
         'cd /tmp && grep -rn "metadata" .gitignore | head -5',
       );
     });
+  });
+
+  testWidgets('a running task\'s stop sits at the end of its row', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 600,
+            child: ActivityStrip(
+              tasks: [
+                KernelTask(
+                  id: 't1',
+                  description: '比较三份飞机大战代码',
+                  kind: KernelTaskKind.agent,
+                  status: CommandStatus.running,
+                  startedAt: DateTime.now(),
+                ),
+              ],
+              changes: const [],
+              onDismissTask: (_) {},
+              onStopTask: (_) {},
+              onKeep: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    final stop = tester.getRect(find.byIcon(Icons.stop_rounded));
+    final strip = tester.getRect(find.byType(ActivityStrip));
+    // The strip's margin and border, the row's margin and padding.
+    expect(stop.right, strip.right - (10 + 1 + 3 + 7));
+    // The ticking clock stopped.
+    await tester.pumpWidget(const SizedBox());
   });
 
   group('wheel latch', () {

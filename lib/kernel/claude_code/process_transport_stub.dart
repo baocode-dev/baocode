@@ -6,4 +6,6 @@ abstract final class ProcessTransport {
         'Claude Code runs in the desktop app',
         detail: 'The browser cannot start local processes.',
       );
+
+  static Future<String?> usageOffBy() async => null;
 }
