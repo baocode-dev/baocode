@@ -36,6 +36,13 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
   };
 
   int get _window => _resolvedModel.endsWith('[1m]') ? 1000000 : 200000;
+
+  /// Where it compacts: the model's window, or less if set at start.
+  late final int? _compactWindow = launch?.autocompact;
+  int get _limit => switch (_compactWindow) {
+    final window? when window < _window => window,
+    _ => _window,
+  };
   int _messages = 0;
   int _tools = 0;
   int _requests = 0;
@@ -47,6 +54,8 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
   final Map<String, Completer<Map<String, Object?>>> _permissions = {};
 
   static const _sessionId = 'mock-claude-session';
+
+  static const _changeDelay = Duration(milliseconds: 30);
 
   static const _fixedContext = {
     'System prompt': 3100,
@@ -223,14 +232,21 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
           _permissions.clear();
           _result(error: true);
         }
+      // Changes take a moment, as the CLI's do: it answers other requests
+      // meanwhile, with what was in effect before.
       case 'set_model':
-        _model = request['model'] as String? ?? 'default';
-        _respond(id);
+        Timer(_changeDelay, () {
+          _model = request['model'] as String? ?? 'default';
+          _respond(id);
+        });
+      // An `autoCompactWindow` is stored, not applied: the session keeps
+      // the one it started with.
       case 'apply_flag_settings':
-        if ((request['settings'] as Map?)?['effortLevel'] case final String e) {
-          _effort = e;
-        }
-        _respond(id);
+        Timer(_changeDelay, () {
+          final settings = request['settings'] as Map? ?? const {};
+          if (settings['effortLevel'] case final String e) _effort = e;
+          _respond(id);
+        });
       case 'get_settings':
         _respond(id, {
           'applied': {'model': _resolvedModel, 'effort': _effort},
@@ -248,13 +264,14 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
             {'name': 'Autocompact buffer', 'tokens': 33000, 'kind': 'buffer'},
             {
               'name': 'Free space',
-              'tokens': _window - fixed - _conversationTokens - 33000,
+              'tokens': _limit - fixed - _conversationTokens - 33000,
               'kind': 'free',
             },
           ],
           'totalTokens': fixed + _conversationTokens,
-          'maxTokens': _window,
-          'rawMaxTokens': _window,
+          // Raw as well: the CLI reports the capped window as both.
+          'maxTokens': _limit,
+          'rawMaxTokens': _limit,
           'percentage': ((fixed + _conversationTokens) / 2000).round(),
         });
       case 'get_usage':

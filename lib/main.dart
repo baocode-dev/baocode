@@ -3,10 +3,13 @@ import 'package:flutter_quill/flutter_quill.dart';
 
 import 'theme/cursor_theme.dart';
 import 'workbench.dart';
+import 'workspace/preference_store.dart';
 import 'workspace/workspace.dart';
 
 void main() {
-  runApp(MonadApp(workspace: Workspace()..load()));
+  runApp(
+    MonadApp(workspace: Workspace(preferences: PreferenceStore.file())..load()),
+  );
 }
 
 class MonadApp extends StatefulWidget {
@@ -20,7 +23,9 @@ class MonadApp extends StatefulWidget {
 }
 
 class _MonadAppState extends State<MonadApp> {
-  late final Workspace _workspace = widget.workspace ?? (Workspace()..load());
+  late final Workspace _workspace =
+      widget.workspace ??
+      (Workspace(preferences: PreferenceStore.file())..load());
 
   @override
   void dispose() {

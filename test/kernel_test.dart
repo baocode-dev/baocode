@@ -237,6 +237,42 @@ void main() {
       expect(transcript.edits.single.turnId, startsWith('11111111'));
     });
 
+    test('the summary a compacted conversation goes on from is not shown '
+        'as a message: live or kept', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      );
+      Map<String, Object?> user(String uuid, Map<String, Object?> marks) => {
+        'type': 'user',
+        'uuid': uuid,
+        'parent_tool_use_id': null,
+        'message': {
+          'role': 'user',
+          'content':
+              'This session is being continued from a previous '
+              'conversation that ran out of context.',
+        },
+        ...marks,
+      };
+      translator
+        ..translate(user('live', {'isSynthetic': true, 'isReplay': false}))
+        ..translate(
+          user('kept', {
+            'isCompactSummary': true,
+            'isVisibleInTranscriptOnly': true,
+          }),
+        )
+        ..translate(user('typed', {}));
+      expect(
+        [for (var i = 0; i < transcript.length; i++) transcript.itemAt(i)]
+            .whereType<UserMessageItem>(),
+        hasLength(1),
+      );
+    });
+
     test('a notebook edit shows its cell changed, line by line', () {
       final transcript = Transcript();
       var seq = 0;
@@ -889,7 +925,11 @@ void main() {
         if (efforts.isNotEmpty) 'supportsEffort': true,
         if (efforts.isNotEmpty) 'supportedEffortLevels': efforts,
       };
-      final cli = FakeCli(
+      // Each start a CLI of its own, compacting where it was told at start
+      // (400K by the user's settings), not where it is told after.
+      final clis = <FakeCli>[];
+      final launches = <ClaudeLaunch>[];
+      FakeCli start(ClaudeLaunch launch) => FakeCli(
         answers: {
           'initialize': {
             'commands': const [],
@@ -907,18 +947,25 @@ void main() {
           'get_settings': {
             'applied': {'model': 'claude-opus-4-6[1m]', 'effort': 'low'},
           },
+          'get_context_usage': {
+            'categories': const [],
+            'totalTokens': 1000,
+            'maxTokens': launch.autocompact ?? 400000,
+            'rawMaxTokens': launch.autocompact ?? 400000,
+          },
         },
       );
-      final launches = <ClaudeLaunch>[];
       // As the last agent had it.
       final kernel = ClaudeCodeKernel(
         MockKernels.claudeCode,
         const KernelContext(
           cwd: '/p',
-          settings: {'model': 'opus', 'context': '1m', 'effort': 'high'},
+          settings: {'model': 'opus', 'context': '400k', 'effort': 'high'},
         ),
         start: (launch) async {
           launches.add(launch);
+          final cli = start(launch);
+          clis.add(cli);
           return cli;
         },
       );
@@ -926,12 +973,22 @@ void main() {
         for (final option in options) option.label,
       ];
 
+      // Shown as picked before it starts.
+      expect(kernel.contextSize.selected, '400k');
       kernel.prepare();
       await pumpEventQueue();
-      expect(launches.single.model, 'opus[1m]');
+      expect(launches.single.model, 'opus');
       expect(launches.single.effort, 'high');
+      expect(launches.single.autocompact, 400000);
+      expect(
+        launches.single.arguments,
+        containsAllInOrder(['--autocompact', '400000']),
+      );
+      // Past 200K: the model's 1M variant.
+      expect(clis.single.requests('set_model').single['model'], 'opus[1m]');
+      expect(clis.single.requests('apply_flag_settings'), isEmpty);
 
-      // A model and its 1M variant are one; one only 1M has no choice.
+      // A model and its 1M variant are one.
       expect(labels(kernel.model.options), [
         'Default',
         'opus',
@@ -939,22 +996,71 @@ void main() {
         'haiku',
       ]);
       expect(kernel.model.selected, 'opus');
-      expect(labels(kernel.contextSize.optionsFor('opus')), ['200K', '1M']);
-      expect(kernel.contextSize.optionsFor('fable'), isEmpty);
-      expect(kernel.contextSize.selected, '1m');
+      expect(labels(kernel.contextSize.optionsFor('opus')), [
+        '200K',
+        '400K',
+        '1M',
+      ]);
+      // Where it compacts, as the CLI reports it.
+      expect(kernel.contextSize.selected, '400k');
       expect(labels(kernel.effort.optionsFor('fable')), ['Low', 'Max']);
       expect(kernel.effort.optionsFor('haiku'), isEmpty);
       // What the CLI has in effect, not what was asked.
       expect(kernel.effort.selected, 'low');
 
+      // Mid-turn, another context waits for the turn to end, shown as
+      // picked meanwhile.
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      kernel.contextSize.select('opus', '1m');
+      await pumpEventQueue();
+      expect(kernel.contextSize.selected, '1m');
+      expect(launches, hasLength(1));
+      clis.last.push({
+        'type': 'system',
+        'subtype': 'init',
+        'session_id': 's1',
+        'model': 'claude-opus-4-6[1m]',
+      });
+      clis.last.push({'type': 'result', 'subtype': 'success'});
+      await pumpEventQueue();
+      // Then the process restarts on the session, compacting there.
+      expect(clis.first.closed, isTrue);
+      expect(launches.last.resume, 's1');
+      expect(launches.last.autocompact, 1000000);
+      expect(kernel.contextSize.selected, '1m');
+
+      // Idle, straight away; the model it goes with is started on.
       kernel.contextSize.select('opus', '200k');
-      expect(cli.requests('set_model').last['model'], 'opus');
+      expect(kernel.contextSize.selected, '200k');
+      await pumpEventQueue();
+      expect(launches, hasLength(3));
+      expect(launches.last.model, 'opus');
+      expect(launches.last.autocompact, 200000);
+      expect(clis[1].requests('set_model'), isEmpty);
+      expect(kernel.contextSize.selected, '200k');
+
       // Another model's effort switches to it first.
       kernel.effort.select('fable', 'max');
+      // Shown as picked while the CLI makes the change.
+      expect(kernel.effort.selected, 'max');
+      await pumpEventQueue();
+      final cli = clis.last;
       expect(cli.requests('set_model').last['model'], 'fable[1m]');
       expect(cli.requests('apply_flag_settings').last['settings'], {
         'effortLevel': 'max',
       });
+      // Asked what is in effect only once the change is done.
+      final order = [
+        for (final message in cli.written)
+          if (message['type'] == 'control_request')
+            (message['request'] as Map)['subtype'],
+      ];
+      expect(
+        order.lastIndexOf('get_settings'),
+        greaterThan(order.lastIndexOf('apply_flag_settings')),
+      );
+      expect(launches, hasLength(3));
       kernel.dispose();
     });
 

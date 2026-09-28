@@ -91,17 +91,15 @@ class _ComposerPickerState extends State<ComposerPicker> {
   final GlobalKey _menuKey = GlobalKey();
   final GlobalKey _settingsKey = GlobalKey();
 
-  /// Where the pointer last was on the option whose settings are shown:
-  /// the tip of the triangle it crosses on its way to them.
-  Offset? _tip;
+  /// Where the pointer last was over the options: where its next move
+  /// comes from.
+  Offset? _pointer;
 
-  /// An option pointed at on the way to the settings, taken if the pointer
-  /// rests there ([_switchDelay]).
-  int? _pending;
-  Offset? _pendingAt;
+  /// An option pointed at on the way to the settings: its own shown if
+  /// the pointer is still on it after [_switchDelay].
   Timer? _switch;
 
-  static const _switchDelay = Duration(milliseconds: 300);
+  static const _switchDelay = Duration(milliseconds: 200);
 
   /// Where the press that opened the menu went down, to tell a click from
   /// a press-drag-release onto an option.
@@ -136,7 +134,7 @@ class _ComposerPickerState extends State<ComposerPicker> {
             .clamp(0, widget.options.length - 1);
         _settingsOf = null;
         _setting = null;
-        _tip = null;
+        _pointer = null;
       }
     });
     _cancelSwitch();
@@ -177,75 +175,73 @@ class _ComposerPickerState extends State<ComposerPicker> {
     setting.onSelected(option);
   }
 
-  /// The pointer is on option [index], at [position]. Its settings show
-  /// at once, in place of those shown, unless the pointer is only
-  /// crossing it on the way to them: then only if it rests there.
+  /// The pointer is on option [index], at [position]: it is highlighted
+  /// at once, and its settings shown in place of those shown, unless the
+  /// pointer is on its way to them, only crossing it: then only if it is
+  /// still there a moment later.
   void _pointAt(int index, Offset position) {
+    final from = _pointer;
+    _pointer = position;
+    if (_highlighted != index || _setting != null) {
+      setState(() {
+        _highlighted = index;
+        _setting = null;
+      });
+    }
     if (index == _settingsOf) {
-      _tip = position;
       _cancelSwitch();
-      if (_highlighted != index || _setting != null) {
-        setState(() {
-          _highlighted = index;
-          _setting = null;
-        });
-      }
       return;
     }
-    if (_headingToSettings(position)) {
-      _pending = index;
-      _pendingAt = position;
-      _switch?.cancel();
-      _switch = Timer(_switchDelay, () {
+    if (from != null && _headingToSettings(from, position)) {
+      // Once: moving on towards them must not put it off for ever.
+      _switch ??= Timer(_switchDelay, () {
         _switch = null;
-        if (mounted && _pending != null) _show(_pending!, _pendingAt);
+        if (mounted && _open) _show(_highlighted);
       });
       return;
     }
-    _show(index, position);
+    _show(index);
   }
 
-  /// Highlights option [index], with its settings if it has any.
-  void _show(int index, Offset? position) {
+  /// Shows option [index]'s settings, if it has any.
+  void _show(int index) {
     _cancelSwitch();
     final has = _settingsFor(index).isNotEmpty;
+    if (_settingsOf == (has ? index : null) && _highlighted == index) return;
     setState(() {
       _highlighted = index;
       _setting = null;
       _settingsOf = has ? index : null;
       if (has) _settingsAt = index;
-      _tip = has ? position : null;
     });
   }
 
   void _cancelSwitch() {
     _switch?.cancel();
     _switch = null;
-    _pending = _pendingAt = null;
   }
 
-  /// In the settings: the option they belong to stays highlighted.
+  /// In the settings: the option they belong to is highlighted again.
   void _enterSettings() {
     _cancelSwitch();
+    // Back over the options, a move starts afresh.
+    _pointer = null;
     if (_settingsOf case final index? when index != _highlighted) {
       setState(() => _highlighted = index);
     }
   }
 
-  /// [position] is in the triangle between where the pointer left the
-  /// option whose settings are shown and their near edge, as floating-ui's
-  /// `safePolygon`: the pointer is on its way to them.
-  bool _headingToSettings(Offset position) {
-    final tip = _tip;
+  /// The move from [from] to [to] heads for the settings shown: it points
+  /// into the triangle between [from] and their near edge, as in
+  /// floating-ui's `safePolygon` and Amazon's menus.
+  bool _headingToSettings(Offset from, Offset to) {
+    if (_settingsOf == null || to == from) return false;
     final box = _settingsKey.currentContext?.findRenderObject();
-    if (tip == null || box is! RenderBox || !box.hasSize) return false;
+    if (box is! RenderBox || !box.hasSize) return false;
     final rect = box.localToGlobal(Offset.zero) & box.size;
-    final right = rect.center.dx > tip.dx;
-    // A little behind the tip, so a first step straight across counts.
-    final from = tip.translate(right ? -4 : 4, 0);
-    final edge = right ? rect.left : rect.right;
+    final edge = rect.center.dx > from.dx ? rect.left : rect.right;
     return _inTriangle(
-      position,
+      to,
       from,
       Offset(edge, rect.top),
       Offset(edge, rect.bottom),

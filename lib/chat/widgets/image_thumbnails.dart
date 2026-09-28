@@ -6,12 +6,14 @@ import 'hover_builder.dart';
 
 /// Pictures attached to a message, small; a click shows one whole. With
 /// [onRemove], each has a button to take it off (as in the composer).
+/// One size in a message and in its editor, so editing does not resize
+/// them.
 class ImageThumbnails extends StatelessWidget {
   const ImageThumbnails({
     super.key,
     required this.images,
     this.onRemove,
-    this.size = 56,
+    this.size = 48,
   });
 
   final List<ImageAttachment> images;
@@ -67,6 +69,11 @@ class _Thumbnail extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: CursorColors.surface,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                // Over the picture, which is clipped to the same corners:
+                // under it, the picture's corners would cover its curve.
+                foregroundDecoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
                     color: hovered

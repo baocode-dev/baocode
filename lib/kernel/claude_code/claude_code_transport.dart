@@ -37,6 +37,7 @@ class ClaudeLaunch {
     this.model,
     this.permissionMode,
     this.effort,
+    this.autocompact,
     this.persist = true,
   });
 
@@ -47,6 +48,11 @@ class ClaudeLaunch {
   final String? model;
   final String? permissionMode;
   final String? effort;
+
+  /// The context the conversation fills before it is compacted; null for
+  /// the CLI's own. Only taken at start: `apply_flag_settings` stores it,
+  /// but the session goes on with the one it started with.
+  final int? autocompact;
 
   /// Whether the session is saved, to be resumed and listed later.
   final bool persist;
@@ -70,6 +76,7 @@ class ClaudeLaunch {
     if (permissionMode case final mode?) ...['--permission-mode', mode],
     if (model case final model? when model != 'default') ...['--model', model],
     if (effort case final effort?) ...['--effort', effort],
+    if (autocompact case final tokens?) ...['--autocompact', '$tokens'],
     if (resume case final id?) ...['--resume', id],
     if (!persist) '--no-session-persistence',
   ];

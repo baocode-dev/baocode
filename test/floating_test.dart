@@ -122,6 +122,8 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
+    // The editor opens over a moment.
+    await tester.pump(const Duration(milliseconds: 300));
     final position = tester
         .state<ScrollableState>(
           find
@@ -238,6 +240,8 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
+    // The editor opens over a moment.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.tapAt(tester.getCenter(historyPicker()));
     await settleAnimations(tester);
     expect(find.text('Haiku 4.5'), findsOneWidget);

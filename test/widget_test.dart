@@ -311,6 +311,60 @@ void main() {
     expect(marker.localToGlobal(Offset.zero).dy - before, greaterThan(40));
   });
 
+  testWidgets('a trackpad swipe up does not snap back to the bottom', (
+    tester,
+  ) async {
+    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
+    await tester.pump();
+    final list = find.byType(SuperListView);
+    final position = tester
+        .widget<SuperListView>(list)
+        .controller!
+        .position;
+    // A quick two-finger swipe (a pan gesture on macOS, no wheel signal),
+    // then its fling.
+    Future<void> swipe(double dy) async {
+      final pointer = TestPointer(1, PointerDeviceKind.trackpad);
+      final at = tester.getCenter(list);
+      await tester.sendEventToBinding(pointer.panZoomStart(at));
+      var pan = Offset.zero;
+      var time = Duration.zero;
+      for (var i = 0; i < 8; i++) {
+        pan += Offset(0, dy);
+        time += const Duration(milliseconds: 16);
+        await tester.sendEventToBinding(
+          pointer.panZoomUpdate(at, pan: pan, timeStamp: time),
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await tester.sendEventToBinding(pointer.panZoomEnd(timeStamp: time));
+      for (var i = 0; i < 120; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+    }
+
+    await swipe(60);
+    expect(
+      position.pixels,
+      lessThan(position.maxScrollExtent - 200),
+      reason: 'the fling carries on up, away from the bottom',
+    );
+
+    // Swiped back to the end, it sticks there again.
+    position.jumpTo(position.maxScrollExtent - 100);
+    await swipe(-60);
+    expect(position.pixels, position.maxScrollExtent);
+    expect(
+      tester.widget<AnimatedOpacity>(
+        find.ancestor(
+          of: find.byIcon(Icons.arrow_downward_rounded),
+          matching: find.byType(AnimatedOpacity),
+        ),
+      ).opacity,
+      0,
+    );
+  });
+
   testWidgets('a drag beside the scrollbar, just missing it, selects '
       'nothing', (tester) async {
     await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));

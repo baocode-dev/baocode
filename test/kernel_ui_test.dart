@@ -487,8 +487,8 @@ void main() {
     expect(picker('Opus 5.5 · 1M · High'), findsOneWidget);
     expect(session.context?.window, 1000000);
 
-    // By keys: down to Sonnet, → into its efforts (it has no 1M), Low.
-    // Near its start: the test font makes it long, its end scrolled away.
+    // By keys: down to Sonnet, → into its settings (at the context in
+    // effect, 1M), down to its lowest effort. Near its start: the test font makes it long, its end scrolled away.
     await tester.tapAt(
       tester.getTopLeft(picker('Opus 5.5 · 1M · High')) + const Offset(20, 11),
     );
@@ -496,12 +496,12 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pump();
-    expect(find.text('Context'), findsNothing);
     expect(find.text('Effort'), findsOneWidget);
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    expect(find.text('Max'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await settle();
+    // Its own window is 200K: no more to pick, nor to show.
     expect(picker('Sonnet 5 · Low'), findsOneWidget);
     expect(session.context?.window, 200000);
   });
@@ -568,29 +568,40 @@ void main() {
     await mouse.moveTo(opus.centerLeft + const Offset(30, 0));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('Context'), findsOneWidget);
+    expect(find.text('Max'), findsOneWidget);
 
     // Down and across towards it, over Sonnet: still Opus's.
     final sonnet = row('Sonnet 5');
     await mouse.moveTo(Offset(sonnet.right - 6, sonnet.center.dy));
     await tester.pump();
-    expect(find.text('Context'), findsOneWidget);
-    // Resting on Sonnet: its settings (no 1M), in the same menu, at once.
+    expect(find.text('Max'), findsOneWidget);
+    // Resting on Sonnet: its settings (no Max), in the same menu.
     await tester.pump(const Duration(milliseconds: 350));
-    expect(find.text('Context'), findsNothing);
+    expect(find.text('Max'), findsNothing);
     expect(find.text('Effort'), findsOneWidget);
 
     // Straight up to Opus: switches at once, without a second menu fading.
     await mouse.moveTo(opus.center);
     await tester.pump();
-    expect(find.text('Context'), findsOneWidget);
+    expect(find.text('Max'), findsOneWidget);
     expect(find.text('Effort'), findsOneWidget);
 
-    // A model without settings closes it.
-    await mouse.moveTo(row('Haiku 4.5').center);
+    // Straight down: Sonnet's at once, and highlighted at once.
+    await mouse.moveTo(sonnet.center);
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('Effort'), findsNothing);
+    expect(find.text('Max'), findsNothing);
+    expect(find.text('Effort'), findsOneWidget);
+    final highlighted = tester
+        .widgetList<Container>(
+          find.ancestor(
+            of: find.text('Sonnet 5'),
+            matching: find.byType(Container),
+          ),
+        )
+        .map((c) => (c.decoration as BoxDecoration?)?.color)
+        .whereType<Color>()
+        .first;
+    expect(highlighted, const Color(0x1AFFFFFF));
   });
 
   testWidgets('Ask only discusses; approvals are picked apart from the mode', (

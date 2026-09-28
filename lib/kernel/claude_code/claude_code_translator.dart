@@ -323,6 +323,14 @@ class ClaudeTranslator {
       _agentNotified(trimmed);
       return;
     }
+    // Written by the CLI, not typed: e.g. the summary a compacted
+    // conversation goes on from. Live it is marked synthetic; kept, by
+    // what it is.
+    if (message['isSynthetic'] == true ||
+        message['isCompactSummary'] == true ||
+        message['isVisibleInTranscriptOnly'] == true) {
+      return;
+    }
     if (trimmed.startsWith('<local-command-caveat>') ||
         trimmed.startsWith('<system-reminder>')) {
       return;

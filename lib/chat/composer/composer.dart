@@ -641,7 +641,6 @@ class ChatComposerState extends State<ChatComposer> {
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
                   child: ImageThumbnails(
                     images: _images,
-                    size: 48,
                     onRemove: _removeImage,
                   ),
                 ),

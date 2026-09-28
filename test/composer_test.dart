@@ -1328,6 +1328,8 @@ void main() {
       await tester.tap(bubble('第 2 轮'));
       await tester.pump();
       await tester.pump();
+      // The editor opens over a moment.
+      await tester.pump(const Duration(milliseconds: 300));
       final list = tester.getRect(find.byType(SuperListView));
       final composer = find.descendant(
         of: find.byType(ChatHistoryView),
@@ -1376,6 +1378,8 @@ void main() {
       await tester.tap(bubble('第 2 轮'));
       await tester.pump();
       await tester.pump();
+      // The editor opens over a moment.
+      await tester.pump(const Duration(milliseconds: 300));
       final editPicker = find
           .descendant(
             of: find.byType(ChatHistoryView),
@@ -1471,6 +1475,8 @@ void main() {
       );
       await tester.pump();
       await tester.pump();
+      // The editor opens over a moment.
+      await tester.pump(const Duration(milliseconds: 300));
       expect(
         editController(tester).document.toPlainText(),
         contains('7. 改完后简要说明取舍'),
@@ -1586,6 +1592,8 @@ void main() {
         await tester.tap(bubble('第 2 轮'));
         await tester.pump();
         await tester.pump();
+        // The editor opens over a moment.
+        await tester.pump(const Duration(milliseconds: 300));
         var before = position.pixels;
         await pan(tester.getCenter(editorInHistory()), -80);
         expect(position.pixels, greaterThan(before + 40));
@@ -1605,6 +1613,8 @@ void main() {
         );
         await tester.pump();
         await tester.pump();
+        // The editor opens over a moment.
+        await tester.pump(const Duration(milliseconds: 300));
         final inner = tester
             .state<ChatComposerState>(
               find.descendant(
@@ -1651,6 +1661,8 @@ void main() {
       );
       await tester.pump();
       await tester.pump();
+      // The editor opens over a moment.
+      await tester.pump(const Duration(milliseconds: 300));
 
       // Where the history scrollbar's thumb is, along its middle (4px in
       // from the right edge, 7px wide).

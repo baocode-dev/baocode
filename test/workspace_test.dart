@@ -11,6 +11,8 @@ import 'package:monad/kernel/claude_code/claude_code_kernel.dart';
 import 'package:monad/kernel/claude_code/mock_claude_code_transport.dart';
 import 'package:monad/main.dart';
 import 'package:monad/sidebar/sidebar.dart';
+import 'package:monad/workspace/editor_launcher.dart';
+import 'package:monad/workspace/preference_store.dart';
 import 'package:monad/workspace/workspace.dart';
 
 /// Sessions as Claude Code keeps them: one recorded, in one project, and
@@ -60,11 +62,14 @@ final KernelDescriptor claude = KernelDescriptor(
   ),
 );
 
-Future<Workspace> pumpLoaded(WidgetTester tester) async {
+Future<Workspace> pumpLoaded(
+  WidgetTester tester, {
+  PreferenceStore? preferences,
+}) async {
   tester.view.physicalSize = const Size(1400, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final workspace = Workspace(kernels: [claude]);
+  final workspace = Workspace(kernels: [claude], preferences: preferences);
   await tester.pumpWidget(MonadApp(workspace: workspace));
   await tester.runAsync(workspace.load);
   await tester.pump();
@@ -161,6 +166,41 @@ void main() {
     });
     expect(second.modes!.selected.id, 'ask');
     expect(second.permissions!.selected.id, 'acceptEdits');
+    first.stop();
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('choices are kept between runs: a new agent starts with the '
+      'last ones, a kept session with its own', (tester) async {
+    final store = MemoryPreferenceStore({
+      'editor': 'zed',
+      'settings': {'mode': 'plan', 'permission': 'bypassPermissions'},
+      'agents': {
+        FakeCatalog.kept.id: {'mode': 'ask', 'permission': 'acceptEdits'},
+      },
+    });
+    final workspace = await pumpLoaded(tester, preferences: store);
+    expect(workspace.preferredEditor, Editor.zed);
+    final first = workspace.selected.session;
+    await tester.pump();
+    expect(first.modes!.selected.id, 'plan');
+    expect(first.permissions!.selected.id, 'bypassPermissions');
+
+    // Picked again: kept for the next run.
+    first.permissions!.onSelected(
+      first.permissions!.options.firstWhere((p) => p.id == 'default'),
+    );
+    await tester.pump();
+    expect((store.preferences['settings'] as Map)['permission'], 'default');
+
+    // Reopened, a kept session is as it was left.
+    final kept = workspace.threads.firstWhere(
+      (thread) => thread.record?.id == FakeCatalog.kept.id,
+    );
+    expect(kept.session.kernelContext.settings, {
+      KernelChoiceKind.mode.name: 'ask',
+      KernelChoiceKind.permission.name: 'acceptEdits',
+    });
     first.stop();
     await tester.pump(const Duration(seconds: 1));
   });

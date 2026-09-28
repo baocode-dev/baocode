@@ -68,16 +68,9 @@ class ClaudeCodeKernel
       _approvals,
       'default',
     );
-    _model = switch ((
-      settings[KernelChoiceKind.model.name],
-      settings[KernelChoiceKind.context.name],
-    )) {
-      // Its 1M variant: the aliases have one, not the default.
-      (final model?, _long) when model != 'default' && !_isLong(model) =>
-        '$model[1m]',
-      (final model, _) => model,
-    };
+    _model = settings[KernelChoiceKind.model.name];
     _effort = settings[KernelChoiceKind.effort.name];
+    _window = _windows[settings[KernelChoiceKind.context.name]];
     if ((_context.resume, readHistory) case (final session?, final read?)) {
       _history = _replay(read, session);
     }
@@ -132,7 +125,23 @@ class ClaudeCodeKernel
   /// step down one the model does not take).
   String? _effort;
   String? _appliedEffort;
+
+  /// The context the conversation may fill before it is compacted, as
+  /// picked (the CLI's `autoCompactWindow`); null to leave the CLI's own.
+  int? _window;
+
+  /// The [_window] the process was started with: the CLI takes it only
+  /// at start, so another is picked up by a restart (see [_applyWindow]).
+  int? _launchedWindow;
+
+  /// The context window, as the CLI reports it: the smaller of the
+  /// model's and [_window].
   int _contextWindow = 200000;
+  bool _contextReported = false;
+
+  /// The models' own windows, by the model the CLI resolved them to, as
+  /// reported while they were in use.
+  static final Map<String, int> _modelWindows = {};
   double? _cost;
 
   // The account's limits are the same in every session: the last any of
@@ -168,11 +177,17 @@ class ClaudeCodeKernel
   Future<void> _ensureStarted() {
     if (_disposed) return Future.error(StateError('disposed'));
     if (_running) return Future.value();
-    return _starting ??= _launch().whenComplete(() => _starting = null);
+    return _starting ??= _launch().whenComplete(() {
+      _starting = null;
+      // Picked while it started.
+      _applyWindow();
+    });
   }
 
   Future<void> _launch() async {
     await _history;
+    // One process at a time on a session: the last one, if restarted.
+    await _stopped;
     _setHealth(const KernelHealth(KernelHealthStatus.starting));
     try {
       final transport = await _start(
@@ -185,6 +200,7 @@ class ClaudeCodeKernel
           // out.
           permissionMode: _cliMode = _work == 'plan' ? _approval : _mode,
           effort: _effort,
+          autocompact: _launchedWindow = _window,
         ),
       );
       if (_disposed) {
@@ -202,7 +218,17 @@ class ClaudeCodeKernel
         await control.request('set_permission_mode', {'mode': _mode});
       }
       _setHealth(KernelHealth.ready);
-      _refreshApplied();
+      final window = _window;
+      _change([
+        // A 1M variant, if its model has one, to fill past 200K.
+        if ((window, _currentModel) case (final window?, final current?))
+          ?_modelChange(
+            (_models[_baseOf(current.value)] ?? const [])
+                .where((v) => v.long == window > _windows['200k']!)
+                .firstOrNull
+                ?.value,
+          ),
+      ]);
       // The CLI builds its file index on the first lookup: start it now,
       // so `@` finds files by the time the user types it.
       _tell('file_suggestions', {'query': ''});
@@ -297,16 +323,29 @@ class ClaudeCodeKernel
     prepare();
   }
 
+  bool get _busy =>
+      _turn != null ||
+      _queued.isNotEmpty ||
+      _permissions.isNotEmpty ||
+      _starting != null;
+
   @override
   void release() {
-    final busy =
-        _turn != null ||
-        _queued.isNotEmpty ||
-        _permissions.isNotEmpty ||
-        _starting != null;
-    if (busy || _transport == null) return;
+    if (_busy || _transport == null) return;
     _teardown();
     _setHealth(KernelHealth.idle);
+  }
+
+  /// Restarts the process on the same session if another [_window] was
+  /// picked since it started, once nothing is under way: the CLI compacts
+  /// where it was told at start, whatever it is told after. Whether it
+  /// did.
+  bool _applyWindow() {
+    if (!_running || _busy || _window == _launchedWindow) return false;
+    _teardown();
+    _setHealth(KernelHealth.idle);
+    prepare();
+    return true;
   }
 
   @override
@@ -958,10 +997,15 @@ class ClaudeCodeKernel
       _cost = cost.toDouble();
       _reportStats();
     }
+    // The models' own windows: the conversation's may be less (see
+    // _window), as get_context_usage reports next.
     if (message['modelUsage'] case final Map<Object?, Object?> usage) {
-      for (final model in usage.values) {
-        if (model is Map && model['contextWindow'] is int) {
-          _contextWindow = model['contextWindow'] as int;
+      for (final MapEntry(:key, :value) in usage.entries) {
+        if ((key, value) case (
+          final String model,
+          {'contextWindow': final int window},
+        )) {
+          _modelWindows[model] = window;
         }
       }
     }
@@ -979,6 +1023,8 @@ class ClaudeCodeKernel
     }
     _endTurn(interrupted: message['subtype'] != 'success');
     unawaited(_refreshContext());
+    // Picked during the turn.
+    _applyWindow();
   }
 
   static String _limitLabel(Object? type) => switch (type) {
@@ -1188,6 +1234,15 @@ class ClaudeCodeKernel
       }, const Duration(seconds: 20));
       final max = usage['maxTokens'] as int? ?? _contextWindow;
       _contextWindow = max;
+      _contextReported = true;
+      // No more than the window it compacts at (the CLI reports that as
+      // raw too): the model holds at least that.
+      if ((usage['rawMaxTokens'], _reportedModel)
+          case (final int raw, final model?)
+          when raw > (_modelWindows[model] ?? 0)) {
+        _modelWindows[model] = raw;
+      }
+      emitInfoChanged();
       emit(
         UsageReported(
           nextSeq,
@@ -1364,17 +1419,37 @@ class ClaudeCodeKernel
     return variants.where((v) => v.long == long).firstOrNull ?? variants.first;
   }
 
-  /// Switches the CLI to [model], a value it listed. The effort in effect
-  /// is asked for after, unless [effort] is about to be set.
-  void _useModel(String model, {bool effort = false}) {
-    if (model == _currentModel?.value) return;
+  /// A request to switch the CLI to [model], a value it listed: none if
+  /// it is the one in use.
+  _Request? _modelChange(String? model) {
+    if (model == null || model == _currentModel?.value) return null;
     _model = model;
-    _tell('set_model', {'model': model});
-    // Its window, and the effort it takes, may differ.
-    if (!effort) _refreshApplied();
-    unawaited(_refreshContext());
-    emitInfoChanged();
+    return ('set_model', {'model': model});
   }
+
+  /// Sends [requests] in turn, each once the one before is done, then
+  /// asks what is in effect: the model, effort and window may all differ.
+  /// The CLI answers requests as they come, so a question sent right
+  /// after a change could be answered from before it.
+  void _change(List<_Request> requests) {
+    emitInfoChanged();
+    if (!_running) return;
+    final control = _control!;
+    _changes = _changes.then((_) async {
+      for (final (subtype, fields) in requests) {
+        try {
+          await control.request(subtype, fields);
+        } on Object {
+          // Refused: what is in effect, asked for next, says so.
+        }
+      }
+      if (!identical(control, _control)) return;
+      _refreshApplied();
+      await _refreshContext();
+    });
+  }
+
+  Future<void> _changes = Future.value();
 
   /// Asks the CLI for the model and effort in effect.
   void _refreshApplied() {
@@ -1414,30 +1489,62 @@ class ClaudeCodeKernel
       final value? => _baseOf(value),
       null => null,
     },
-    select: (id) {
-      if (_variantOf(id) case final variant?) _useModel(variant.value);
-    },
+    select: (id) => _change([?_modelChange(_variantOf(id)?.value)]),
   );
 
+  /// The contexts offered, by option id.
+  static const _windows = {'200k': 200000, '400k': 400000, _long: 1000000};
+
+  /// The most context [model] (a model as picked) holds: 1M with a 1M
+  /// variant, else as reported while in use; 1M while not known.
+  int _modelWindowOf(String model) {
+    final variants = _models[model] ?? const <_ModelInfo>[];
+    if (variants.any((v) => v.long)) return _windows[_long]!;
+    for (final variant in variants) {
+      if (_modelWindows[variant.resolved ?? variant.value] case final w?) {
+        return w;
+      }
+    }
+    return _windows[_long]!;
+  }
+
+  /// The context the conversation fills before it is compacted: up to the
+  /// model's own window. A model with a 1M variant uses it past 200K.
   @override
   late final ModelSetting contextSize = _ModelSetting(
-    optionsFor: (model) => switch (_models[model]) {
-      final variants? when variants.length > 1 => const [
-        KernelOption('200k', '200K', Icons.notes_rounded, ''),
-        KernelOption(_long, '1M', Icons.notes_rounded, ''),
-      ],
-      _ => const [],
+    optionsFor: (model) {
+      final most = _modelWindowOf(model);
+      final options = [
+        for (final MapEntry(key: id, value: tokens) in _windows.entries)
+          if (tokens <= most)
+            KernelOption(id, id.toUpperCase(), Icons.notes_rounded, ''),
+      ];
+      return options.length > 1 ? options : const [];
     },
-    selected: () => switch (_currentModel) {
-      final model? => model.long ? _long : '200k',
-      null => null,
+    selected: () {
+      // Shown as picked until the process (re)starts with it.
+      final window = _window != _launchedWindow
+          ? _window
+          : _contextReported
+          ? _contextWindow
+          : null;
+      return _windows.entries
+          .where((entry) => entry.value == window)
+          .firstOrNull
+          ?.key;
     },
     select: (model, id) {
+      final window = _windows[id];
+      if (window == null) return;
+      final long = window > _windows['200k']!;
       final variants = _models[model] ?? const <_ModelInfo>[];
-      final variant = variants
-          .where((v) => v.long == (id == _long))
-          .firstOrNull;
-      if (variant != null) _useModel(variant.value);
+      final variant = variants.length > 1
+          ? variants.where((v) => v.long == long).firstOrNull
+          : _variantOf(model);
+      _window = window;
+      final switched = _modelChange(variant?.value);
+      // Restarted, it starts on the model.
+      if (!_applyWindow()) _change([?switched]);
     },
   );
 
@@ -1595,15 +1702,18 @@ class ClaudeCodeKernel
       return levels.contains(effort) ? effort : null;
     },
     select: (model, id) {
-      if (_variantOf(model) case final variant?) {
-        _useModel(variant.value, effort: true);
-      }
+      final switched = _modelChange(_variantOf(model)?.value);
+      // Shown as picked until the CLI says otherwise.
       _effort = _appliedEffort = id;
-      _tell('apply_flag_settings', {
-        'settings': {'effortLevel': id},
-      });
-      _refreshApplied();
-      emitInfoChanged();
+      _change([
+        ?switched,
+        (
+          'apply_flag_settings',
+          {
+            'settings': {'effortLevel': id},
+          },
+        ),
+      ]);
     },
   );
 
@@ -1613,6 +1723,9 @@ class ClaudeCodeKernel
     super.emitInfoChanged();
   }
 }
+
+/// A control request: its subtype and fields.
+typedef _Request = (String, Map<String, Object?>);
 
 class _Permission {
   const _Permission(this.input, this.suggestions, this.questions);

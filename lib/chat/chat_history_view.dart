@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
@@ -44,7 +46,8 @@ class ChatHistoryView extends StatefulWidget {
   State<ChatHistoryView> createState() => _ChatHistoryViewState();
 }
 
-class _ChatHistoryViewState extends State<ChatHistoryView> {
+class _ChatHistoryViewState extends State<ChatHistoryView>
+    with SingleTickerProviderStateMixin {
   final _BottomAnchoredScrollController _scrollController =
       _BottomAnchoredScrollController();
   final FocusNode _selectionFocusNode = FocusNode(
@@ -54,6 +57,46 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   /// Steps the user opened (true) or closed (false). Others follow
   /// [defaultExpanded]: open while they stream or run, closed once done.
   final Map<int, bool> _expanded = {};
+
+  // --- Motion --------------------------------------------------------------
+  //
+  // An item grows or shrinks smoothly when the user changes it (a node
+  // expanded, a message edited), and at once otherwise: streamed text must
+  // not lag behind, nor the list's hold on its bottom.
+
+  static const _motionDuration = Duration(milliseconds: 220);
+  static const _motionCurve = Curves.easeOutCubic;
+
+  /// Per item, how many times the user has changed it: each time, its
+  /// next change of height animates (see [_HeightMotion]).
+  final Map<int, int> _motions = {};
+
+  /// Animates item [index]'s next change of height (unless motion is
+  /// turned down).
+  void _animateItem(int index) {
+    if (MediaQuery.disableAnimationsOf(context)) return;
+    _motions[index] = (_motions[index] ?? 0) + 1;
+  }
+
+  /// The editor opening: its placeholder grows from the message's height
+  /// to the editor's, and the editor shows as much of itself as it does.
+  late final AnimationController _editorReveal = AnimationController(
+    vsync: this,
+    duration: _motionDuration,
+    value: 1,
+  );
+
+  /// The message's height, where the placeholder grows from.
+  double _editorFromHeight = 0;
+
+  /// The placeholder's height now, opening or open.
+  double get _editorShownHeight => _editorReveal.isCompleted
+      ? _editorHeight
+      : lerpDouble(
+          _editorFromHeight,
+          _editorHeight,
+          _motionCurve.transform(_editorReveal.value),
+        )!;
 
   /// The user message open for editing, if any, and the text it started
   /// from. The editor lives above the list (see [_buildEditorLayer]); the
@@ -167,6 +210,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     _reselectTimer?.cancel();
     _autoScroller?.stopAutoScroll();
     _editorMoved.dispose();
+    _editorReveal.dispose();
     _selectionDelegate.dispose();
     _scrollController.dispose();
     _selectionFocusNode.dispose();
@@ -177,12 +221,19 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
       _expanded[index] ?? defaultExpanded(_feed.itemAt(index));
 
   void _toggle(int index) {
+    // A thought opens with its own motion.
+    if (_feed.itemAt(index) is! ThinkingItem) _animateItem(index);
     setState(() => _expanded[index] = !_isExpanded(index));
   }
 
+  /// A trackpad (macOS) scrolls the list as a pan gesture, with no press
+  /// and no wheel signal: its drag, and the fling after it, set a scroll
+  /// direction until they come to rest.
   bool get _userScrolling =>
       _pointersDown > 0 ||
-      DateTime.now().difference(_lastWheel) < const Duration(milliseconds: 250);
+      DateTime.now().difference(_lastWheel) <
+          const Duration(milliseconds: 250) ||
+      _scrollController.position.userScrollDirection != ScrollDirection.idle;
 
   void _handleScroll() {
     if (_userScrolling) {
@@ -225,6 +276,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
 
   void _handlePointerDown(PointerDownEvent event) {
     _pointersDown++;
+    // A press stops the list where it is (a trackpad swipe's fling carries
+    // on for a while), as it does in the platform's lists: a mouse is not
+    // one of the list's drag devices, so nothing else would, and a
+    // selection started on moving text lands wherever it has gone by then.
+    if (_scrollController.hasClients) {
+      final position = _scrollController.position;
+      if (position.isScrollingNotifier.value) position.jumpTo(position.pixels);
+    }
     // A press beside the bar, just missing it, neither starts a selection
     // nor clears one (as a browser's scrollbar).
     final list = _listKey.currentContext?.findRenderObject() as RenderBox?;
@@ -308,6 +367,23 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
       if (child.hasSize && _indexOf(child) < _feed.itemCount) yield child;
       child = sliver.childAfter(child);
     }
+  }
+
+  /// Whether item [index] is scrolled past the top, where the editor on it
+  /// sticks (see [_editorTop]).
+  bool _scrolledPast(int index) {
+    for (final item in _laidOutItems()) {
+      if (_indexOf(item) > index) return true;
+      if (_indexOf(item) < index) continue;
+      final viewport = RenderAbstractViewport.maybeOf(item);
+      if (viewport is! RenderBox) return false;
+      final top =
+          item.localToGlobal(Offset.zero).dy -
+          (viewport as RenderBox).localToGlobal(Offset.zero).dy +
+          _gapBefore(index);
+      return top < _editorInset;
+    }
+    return false;
   }
 
   static int _indexOf(RenderBox item) =>
@@ -415,10 +491,17 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
       _editingText = item.text;
       _editingImages = item.images;
       _editComposerKey = GlobalKey();
-      _editorHeight = laidOut.isEmpty
+      _editorHeight = _editorFromHeight = laidOut.isEmpty
           ? 0
           : laidOut.first.size.height - _gapBefore(index);
     });
+    // Stuck to the top, it takes the place of the message's copy there, in
+    // one go: nothing moves under it to follow.
+    if (MediaQuery.disableAnimationsOf(context) || _scrolledPast(index)) {
+      _editorReveal.value = 1;
+    } else {
+      _editorReveal.forward(from: 0);
+    }
   }
 
   /// A press elsewhere in this conversation's column (its title bar, its
@@ -434,7 +517,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
 
   void _cancelEditing() {
     _feed.editing = null;
-    if (_editingIndex != null) setState(() => _editingIndex = null);
+    if (_editingIndex case final index?) {
+      // Back to the message: from the editor's height to its own (stuck to
+      // the top, to the message's copy there, in one go).
+      if (!_scrolledPast(index)) _animateItem(index);
+      setState(() => _editingIndex = null);
+    }
   }
 
   void _setEditorHeight(double height) {
@@ -443,11 +531,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     _editorMoved.value++;
   }
 
+  /// Room above the editor stuck to the top of the list.
+  static const _editorInset = 8.0;
+
   /// Where the editor goes, relative to [layer]: on its placeholder, but
   /// never above the top of the list (it sticks there once scrolled past).
   /// Null when the placeholder is below the built items, out of view.
   double? _editorTop(RenderBox layer) {
-    const inset = 8.0;
+    const inset = _editorInset;
     final placeholder =
         _editorPlaceholderKey.currentContext?.findRenderObject() as RenderBox?;
     if (placeholder != null && placeholder.attached && placeholder.hasSize) {
@@ -654,7 +745,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
           child: ClipRect(
             child: _StickyFollower(
               top: _editorTop,
-              repaint: Listenable.merge([_scrollController, _editorMoved]),
+              repaint: Listenable.merge([
+                _scrollController,
+                _editorMoved,
+                _editorReveal,
+              ]),
               child: Align(
                 alignment: Alignment.topCenter,
                 child: Padding(
@@ -663,50 +758,62 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                     constraints: BoxConstraints(
                       maxWidth: widget.maxContentWidth,
                     ),
-                    child: _SizeReporter(
-                      onSize: (size) => _setEditorHeight(size.height),
-                      // Lifted off the transcript: it floats over it when
-                      // stuck to the top. (Outside the reported size.)
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: const [
-                            // Dark UI: a deep, soft drop plus a tight contact
-                            // shadow, or it does not read against the page.
-                            BoxShadow(
-                              color: Color(0xA6000000),
-                              blurRadius: 32,
-                              offset: Offset(0, 12),
-                            ),
-                            BoxShadow(
-                              color: Color(0x66000000),
-                              blurRadius: 6,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Listener(
-                          // The editor takes focus itself; see _handlePointerDown.
-                          onPointerDown: (_) => _pressInEditor = true,
-                          // The editor is not in the list: pass the wheel on.
-                          onPointerSignal: _forwardWheel,
-                          onPointerPanZoomStart: _startEditorPan,
-                          onPointerPanZoomUpdate: _updateEditorPan,
-                          onPointerPanZoomEnd: _endEditorPan,
-                          child: TapRegion(
-                            groupId: _editorTapRegion,
-                            onTapOutside: _handleTapOutsideEditor,
-                            child: ChatComposer(
-                              key: _editComposerKey,
-                              // Only a session's own messages are edited.
-                              session: _feed as ChatSession,
-                              initialText: _editingText,
-                              initialImages: _editingImages,
-                              draft: _feed.editing?.draft,
-                              tapRegionGroupId: _editorTapRegion,
-                              onSubmit: (message) =>
-                                  _submitEdit(index, message),
-                              onCancel: _cancelEditing,
+                    // Opening, as much of it as its placeholder has room
+                    // for: it does not cover what is below it yet.
+                    child: AnimatedBuilder(
+                      animation: _editorReveal,
+                      builder: (context, child) => ClipRect(
+                        clipper: _RevealClipper(_editorShownHeight),
+                        clipBehavior: _editorReveal.isCompleted
+                            ? Clip.none
+                            : Clip.hardEdge,
+                        child: child,
+                      ),
+                      child: _SizeReporter(
+                        onSize: (size) => _setEditorHeight(size.height),
+                        // Lifted off the transcript: it floats over it when
+                        // stuck to the top. (Outside the reported size.)
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: const [
+                              // Dark UI: a deep, soft drop plus a tight contact
+                              // shadow, or it does not read against the page.
+                              BoxShadow(
+                                color: Color(0xA6000000),
+                                blurRadius: 32,
+                                offset: Offset(0, 12),
+                              ),
+                              BoxShadow(
+                                color: Color(0x66000000),
+                                blurRadius: 6,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Listener(
+                            // The editor takes focus itself; see _handlePointerDown.
+                            onPointerDown: (_) => _pressInEditor = true,
+                            // The editor is not in the list: pass the wheel on.
+                            onPointerSignal: _forwardWheel,
+                            onPointerPanZoomStart: _startEditorPan,
+                            onPointerPanZoomUpdate: _updateEditorPan,
+                            onPointerPanZoomEnd: _endEditorPan,
+                            child: TapRegion(
+                              groupId: _editorTapRegion,
+                              onTapOutside: _handleTapOutsideEditor,
+                              child: ChatComposer(
+                                key: _editComposerKey,
+                                // Only a session's own messages are edited.
+                                session: _feed as ChatSession,
+                                initialText: _editingText,
+                                initialImages: _editingImages,
+                                draft: _feed.editing?.draft,
+                                tapRegionGroupId: _editorTapRegion,
+                                onSubmit: (message) =>
+                                    _submitEdit(index, message),
+                                onCancel: _cancelEditing,
+                              ),
                             ),
                           ),
                         ),
@@ -792,6 +899,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
 
   void _submitEdit(int index, ComposerMessage message) {
     _feed.editing = null;
+    if (!_scrolledPast(index)) _animateItem(index);
     setState(() {
       _editingIndex = null;
       // Everything after the message is replaced; so are its steps.
@@ -806,7 +914,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   Widget _buildItem(int index) {
     final item = _feed.itemAt(index);
     if (index == _editingIndex) {
-      return SizedBox(key: _editorPlaceholderKey, height: _editorHeight);
+      return AnimatedBuilder(
+        animation: _editorReveal,
+        builder: (context, _) =>
+            SizedBox(key: _editorPlaceholderKey, height: _editorShownHeight),
+      );
     }
     return _ItemSelectionScope(
       index: index,
@@ -960,7 +1072,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                                           left: _insetOf(index),
                                           right: _insetOf(index),
                                         ),
-                                        child: _buildItem(index),
+                                        child: _HeightMotion(
+                                          motion: _motions[index] ?? 0,
+                                          child: _buildItem(index),
+                                        ),
                                       ),
                                     ),
                                   );
@@ -1599,5 +1714,197 @@ class _RenderSizeReporter extends RenderProxyBox {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (attached) onSize(reported);
     });
+  }
+}
+
+/// Down to [height], and wide of the sides for the shadows.
+class _RevealClipper extends CustomClipper<Rect> {
+  const _RevealClipper(this.height);
+
+  final double height;
+
+  static const _shadowRoom = 80.0;
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(
+    -_shadowRoom,
+    -_shadowRoom,
+    size.width + _shadowRoom,
+    height,
+  );
+
+  @override
+  bool shouldReclip(_RevealClipper old) => old.height != height;
+}
+
+/// Its child, and when [motion] changes, the child's next change of height
+/// over a moment rather than at once; any other change at once. Moving
+/// already, it takes a new height in its stride.
+class _HeightMotion extends StatefulWidget {
+  const _HeightMotion({required this.motion, required this.child});
+
+  final int motion;
+  final Widget child;
+
+  @override
+  State<_HeightMotion> createState() => _HeightMotionState();
+}
+
+class _HeightMotionState extends State<_HeightMotion>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _progress = AnimationController(
+    vsync: this,
+    duration: _ChatHistoryViewState._motionDuration,
+    value: 1,
+  );
+
+  @override
+  void dispose() {
+    _progress.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _HeightMotionBox(
+    motion: widget.motion,
+    progress: _progress,
+    onStart: () {
+      if (mounted) _progress.forward(from: 0);
+    },
+    child: widget.child,
+  );
+}
+
+class _HeightMotionBox extends SingleChildRenderObjectWidget {
+  const _HeightMotionBox({
+    required this.motion,
+    required this.progress,
+    required this.onStart,
+    super.child,
+  });
+
+  final int motion;
+  final Animation<double> progress;
+  final VoidCallback onStart;
+
+  @override
+  _RenderHeightMotion createRenderObject(BuildContext context) =>
+      _RenderHeightMotion(motion, progress, onStart: onStart);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderHeightMotion renderObject,
+  ) {
+    renderObject
+      ..motion = motion
+      ..progress = progress
+      ..onStart = onStart;
+  }
+}
+
+class _RenderHeightMotion extends RenderProxyBox {
+  _RenderHeightMotion(this._motion, this._progress, {required this.onStart});
+
+  VoidCallback onStart;
+
+  int _motion;
+  set motion(int value) {
+    if (value == _motion) return;
+    _motion = value;
+    _armed = true;
+    markNeedsLayout();
+  }
+
+  Animation<double> _progress;
+  set progress(Animation<double> value) {
+    if (value == _progress) return;
+    if (attached) _progress.removeListener(markNeedsLayout);
+    _progress = value;
+    if (attached) _progress.addListener(markNeedsLayout);
+  }
+
+  /// The next change of height animates.
+  bool _armed = false;
+
+  /// Moving from the next frame on (the animation cannot start in layout).
+  bool _starting = false;
+
+  double? _from;
+  double? _to;
+
+  final _clip = LayerHandle<ClipRectLayer>();
+
+  bool get _moving => _starting || _progress.isAnimating;
+
+  double get _height => lerpDouble(
+    _from,
+    _to,
+    _starting
+        ? 0
+        : _ChatHistoryViewState._motionCurve.transform(_progress.value),
+  )!;
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _progress.addListener(markNeedsLayout);
+  }
+
+  @override
+  void detach() {
+    _progress.removeListener(markNeedsLayout);
+    super.detach();
+  }
+
+  @override
+  void dispose() {
+    _clip.layer = null;
+    super.dispose();
+  }
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    child.layout(constraints, parentUsesSize: true);
+    final target = child.size.height;
+    if (_to == null || !(_armed || _moving)) {
+      _from = _to = target;
+    } else if (target != _to) {
+      _from = _height;
+      _to = target;
+      if (!_starting) {
+        _starting = true;
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          _starting = false;
+          if (attached) onStart();
+        });
+      }
+    }
+    _armed = false;
+    size = constraints.constrain(Size(child.size.width, _height));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final child = this.child;
+    if (child == null) return;
+    if (size.height >= child.size.height) {
+      _clip.layer = null;
+      super.paint(context, offset);
+      return;
+    }
+    // Growing, what is not in yet; room at the sides for shadows.
+    _clip.layer = context.pushClipRect(
+      needsCompositing,
+      offset,
+      Rect.fromLTRB(-80, -80, size.width + 80, size.height),
+      super.paint,
+      oldLayer: _clip.layer,
+    );
   }
 }

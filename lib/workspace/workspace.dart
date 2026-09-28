@@ -9,6 +9,7 @@ import '../kernel/agent_kernel.dart';
 import '../kernel/kernel_registry.dart';
 import '../kernel/kernel_types.dart';
 import 'editor_launcher.dart';
+import 'preference_store.dart';
 
 /// A directory agents work in.
 class Project {
@@ -141,15 +142,19 @@ typedef _Snapshot = ({
 /// Projects and their agents. Any number of agents may run at once; the
 /// sidebar shows which need attention.
 ///
-/// Nothing is stored here: the projects and past sessions are the ones
-/// the kernels keep ([SessionCatalog]), plus folders opened this run.
+/// The projects and past sessions are the ones the kernels keep
+/// ([SessionCatalog]), plus folders opened this run. Only what the user
+/// picks is kept here, in [preferences]: the kernel, mode, model and so
+/// on new agents start with, and those of each agent.
 class Workspace extends ChangeNotifier {
   Workspace({
     List<Project> projects = const [],
     List<KernelDescriptor>? kernels,
+    PreferenceStore? preferences,
   }) : _projects = [...projects],
        kernels = kernels ?? KernelRegistry.all,
-       _preferredKernel = (kernels ?? KernelRegistry.all).first;
+       _preferredKernel = (kernels ?? KernelRegistry.all).first,
+       _store = preferences;
 
   /// The kernels new agents may run on.
   final List<KernelDescriptor> kernels;
@@ -175,6 +180,7 @@ class Workspace extends ChangeNotifier {
   Future<void> load() async {
     _loading = true;
     notifyListeners();
+    await _restore();
     for (final kernel in kernels) {
       final catalog = kernel.catalog;
       if (catalog == null) continue;
@@ -288,7 +294,8 @@ class Workspace extends ChangeNotifier {
           kernelContext: KernelContext(
             cwd: session.cwd,
             resume: session,
-            settings: _preferredSettings,
+            // As it was left, or as a new agent starts.
+            settings: {..._preferredSettings, ...?_agentSettings[session.id]},
           ),
           historyCount: 0,
         ),
@@ -430,6 +437,7 @@ class Workspace extends ChangeNotifier {
   set preferredEditor(Editor editor) {
     if (editor == _preferredEditor) return;
     _preferredEditor = editor;
+    _save();
     notifyListeners();
   }
 
@@ -441,6 +449,77 @@ class Workspace extends ChangeNotifier {
   /// last ones picked.
   Map<String, String> get _preferredSettings => Map.unmodifiable(_settings);
   final Map<String, String> _settings = {};
+
+  /// Each agent's choices, by session: those it opens with again.
+  final Map<String, Map<String, String>> _agentSettings = {};
+
+  /// Agents' choices kept, the most recent ones.
+  static const _keptAgents = 500;
+
+  final PreferenceStore? _store;
+
+  Future<void> _restore() async {
+    final store = _store;
+    if (store == null) return;
+    final kept = await store.read();
+    Map<String, String> strings(Object? raw) => {
+      if (raw is Map)
+        for (final MapEntry(:key, :value) in raw.entries)
+          if ((key, value) case (final String key, final String value))
+            key: value,
+    };
+    if (kernels.where((k) => k.id == kept['kernel']).firstOrNull
+        case final kernel?) {
+      _preferredKernel = kernel;
+    }
+    if (Editor.values.where((e) => e.name == kept['editor']).firstOrNull
+        case final editor?) {
+      _preferredEditor = editor;
+    }
+    _settings.addAll(strings(kept['settings']));
+    if (kept['agents'] case final Map<Object?, Object?> agents) {
+      for (final MapEntry(:key, :value) in agents.entries) {
+        if (key is String) _agentSettings[key] = strings(value);
+      }
+    }
+  }
+
+  void _save() => unawaited(
+    _store?.write({
+      'kernel': _preferredKernel.id,
+      'editor': _preferredEditor.name,
+      'settings': _settings,
+      'agents': _agentSettings,
+    }),
+  );
+
+  /// Keeps [thread]'s choices for when it is opened again, e.g. after a
+  /// restart. True if they changed.
+  bool _keepChoices(AgentThread thread, _Snapshot snapshot) {
+    final id = thread.isOpen ? thread.session.sessionId : thread.record?.id;
+    if (id == null) return false;
+    final choices = {
+      for (final (kind, value) in [
+        (KernelChoiceKind.mode, snapshot.mode),
+        (KernelChoiceKind.permission, snapshot.permission),
+        (KernelChoiceKind.model, snapshot.model),
+        (KernelChoiceKind.effort, snapshot.effort),
+        (KernelChoiceKind.context, snapshot.context),
+      ])
+        kind.name: ?value,
+    };
+    if (choices.isEmpty || mapEquals(choices, _agentSettings[id])) {
+      return false;
+    }
+    // The most recent last, the oldest dropped.
+    _agentSettings
+      ..remove(id)
+      ..[id] = choices;
+    while (_agentSettings.length > _keptAgents) {
+      _agentSettings.remove(_agentSettings.keys.first);
+    }
+    return true;
+  }
 
   // --- Threads -------------------------------------------------------------------
 
@@ -480,12 +559,17 @@ class Workspace extends ChangeNotifier {
     final before = _snapshots[thread];
     final snapshot = thread._snapshot;
     if (snapshot == before) return;
+    var changed = _keepChoices(thread, snapshot);
     if (before != null) {
       // Picked for this agent: the next new one starts with it too.
-      if (before.kernel != snapshot.kernel) _preferredKernel = thread.kernel;
+      if (before.kernel != snapshot.kernel) {
+        _preferredKernel = thread.kernel;
+        changed = true;
+      }
       void remember(KernelChoiceKind kind, String? was, String? now) {
         if (now != null && was != null && now != was) {
           _settings[kind.name] = now;
+          changed = true;
         }
       }
 
@@ -500,6 +584,7 @@ class Workspace extends ChangeNotifier {
       remember(KernelChoiceKind.context, before.context, snapshot.context);
       if (before.status != snapshot.status) thread.updatedAt = DateTime.now();
     }
+    if (changed) _save();
     _snapshots[thread] = snapshot;
     notifyListeners();
   }
