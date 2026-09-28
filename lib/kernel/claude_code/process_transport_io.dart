@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'claude_code_transport.dart';
+import 'claude_environment.dart';
 import 'cli_locator.dart';
 
 /// Claude Code as a child process, over its stdin and stdout.
@@ -29,7 +30,11 @@ class ProcessTransport implements ClaudeCodeTransport {
         cli.executable,
         launch.arguments,
         workingDirectory: launch.cwd,
-        environment: {...cli.environment, ...ClaudeLaunch.environment},
+        environment: {
+          ...cli.environment,
+          ...ClaudeLaunch.environment,
+          ...ClaudeEnvironment.stateDirectory(cli.environment),
+        },
         includeParentEnvironment: false,
       );
       return ProcessTransport._(process);

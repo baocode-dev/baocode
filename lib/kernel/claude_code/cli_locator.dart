@@ -1,8 +1,7 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'claude_code_transport.dart';
+import 'claude_environment.dart';
 
 /// Where the `claude` CLI is, and the environment to run it in.
 class ClaudeCli {
@@ -12,11 +11,14 @@ class ClaudeCli {
   final Map<String, String> environment;
 }
 
-/// Finds `claude` as the user's terminal would. An app opened from the
-/// Finder gets a bare PATH, so the login shell is asked for its
-/// environment (the commands Claude runs need it too), and the usual
-/// install locations are tried after it.
+/// Finds the `claude` CLI as the user's terminal would: the build
+/// [overrideVariable] names, else the login shell's PATH, else the usual
+/// install locations.
 abstract final class CliLocator {
+  /// Names another build to run instead of the installed one, e.g. set in
+  /// `~/.zshenv` to try a fork.
+  static const overrideVariable = 'MONAD_CLAUDE_PATH';
+
   static Future<ClaudeCli>? _located;
 
   static Future<ClaudeCli> locate() => _located ??= _locate().then(
@@ -28,8 +30,20 @@ abstract final class CliLocator {
   );
 
   static Future<ClaudeCli> _locate() async {
-    final environment = await _loginEnvironment();
-    final home = environment['HOME'] ?? Platform.environment['HOME'] ?? '';
+    final environment = await ClaudeEnvironment.of();
+    if (environment[overrideVariable] case final override?
+        when override.isNotEmpty) {
+      if (!File(override).existsSync()) {
+        throw ClaudeUnavailable(
+          'Claude Code is not at $overrideVariable',
+          detail:
+              '$override does not exist. Unset $overrideVariable (in '
+              '~/.zshenv) to run the installed Claude Code.',
+        );
+      }
+      return ClaudeCli(override, environment);
+    }
+    final home = environment['HOME'] ?? '';
     final path = environment['PATH'] ?? '';
     final candidates = [
       for (final dir in path.split(':'))
@@ -44,42 +58,18 @@ abstract final class CliLocator {
         return ClaudeCli(candidate, environment);
       }
     }
-    throw const ClaudeUnavailable(
+    throw ClaudeUnavailable(
       'Claude Code is not installed',
       detail:
           'Install it with `npm install -g @anthropic-ai/claude-code`, '
-          'then try again.',
+          'then try again; or set $overrideVariable to the build to run.',
     );
   }
 
-  /// The login shell's environment; the app's own if that fails.
-  static Future<Map<String, String>> _loginEnvironment() async {
-    final fallback = Map<String, String>.of(Platform.environment);
-    final shell = Platform.environment['SHELL'] ?? '/bin/zsh';
-    try {
-      const marker = '__MONAD_ENV__';
-      final result = await Process.run(shell, [
-        '-l',
-        '-c',
-        'echo $marker; env',
-      ], stdoutEncoding: utf8).timeout(const Duration(seconds: 8));
-      final output = result.stdout as String;
-      final start = output.indexOf(marker);
-      if (result.exitCode != 0 || start < 0) return fallback;
-      final environment = <String, String>{};
-      for (final line in const LineSplitter().convert(
-        output.substring(start + marker.length),
-      )) {
-        final equals = line.indexOf('=');
-        if (equals > 0) {
-          environment[line.substring(0, equals)] = line.substring(equals + 1);
-        }
-      }
-      return environment.containsKey('PATH')
-          ? {...fallback, ...environment}
-          : fallback;
-    } on Object {
-      return fallback;
-    }
+  /// Replaces the environment the CLI is found in, and looks again, e.g.
+  /// with one set up under test. Null asks the login shell again.
+  static void use(Map<String, String>? environment) {
+    _located = null;
+    ClaudeEnvironment.use(environment);
   }
 }

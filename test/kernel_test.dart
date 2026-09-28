@@ -11,7 +11,9 @@ import 'package:monad/kernel/agent_kernel.dart';
 import 'package:monad/kernel/claude_code/claude_code_kernel.dart';
 import 'package:monad/kernel/claude_code/claude_code_transport.dart';
 import 'package:monad/kernel/claude_code/claude_code_translator.dart';
+import 'package:monad/kernel/claude_code/claude_environment.dart';
 import 'package:monad/kernel/claude_code/claude_storage_io.dart';
+import 'package:monad/kernel/claude_code/cli_locator.dart';
 import 'package:monad/kernel/claude_code/control_channel.dart';
 import 'package:monad/kernel/codex/codex_kernel.dart';
 import 'package:monad/kernel/codex/codex_transport.dart';
@@ -890,7 +892,103 @@ void main() {
     });
   });
 
+  group('claude locator', () {
+    tearDown(() => CliLocator.use(null));
+
+    test('runs the build MONAD_CLAUDE_PATH names, not the installed '
+        'one', () async {
+      final root = await Directory.systemTemp.createTemp('monad-locator-');
+      addTearDown(() => root.delete(recursive: true));
+      final variant = File('${root.path}/claude-variant')
+        ..writeAsStringSync('#!/bin/sh\n');
+      CliLocator.use({
+        'MONAD_CLAUDE_PATH': variant.path,
+        'PATH': '${root.path}/none',
+      });
+
+      final cli = await CliLocator.locate();
+      expect(cli.executable, variant.path);
+    });
+
+    test('an override that is not there fails, naming the variable', () async {
+      CliLocator.use({'MONAD_CLAUDE_PATH': '/nonexistent/claude-variant'});
+
+      await expectLater(
+        CliLocator.locate(),
+        throwsA(
+          isA<ClaudeUnavailable>().having(
+            (error) => error.detail,
+            'detail',
+            contains('MONAD_CLAUDE_PATH'),
+          ),
+        ),
+      );
+    });
+  });
+
   group('Claude Code storage', () {
+    test(
+      'reads the sessions where the login shell keeps them',
+      () async {
+        final root = await Directory.systemTemp.createTemp('monad-storage-');
+        addTearDown(() => root.delete(recursive: true));
+        addTearDown(() => ClaudeEnvironment.use(null));
+        final config = '${root.path}/config';
+        final cwd = '${root.path}/project';
+        Directory(cwd).createSync(recursive: true);
+        File('$config/projects/-p/session-1.jsonl')
+          ..createSync(recursive: true)
+          ..writeAsStringSync(
+            '${jsonEncode({
+              'type': 'user',
+              'uuid': 'aaaaaaaa-1111-4111-8111-111111111111',
+              'cwd': cwd,
+              'message': {'role': 'user', 'content': 'list the files'},
+            })}\n',
+          );
+        ClaudeEnvironment.use({'CLAUDE_CONFIG_DIR': config});
+
+        final projects = await const ClaudeStorage().projects();
+        expect(projects.map((project) => project.path), [cwd]);
+        expect(projects.single.sessions.single.title, 'list the files');
+      },
+    );
+
+    test(
+      'the app\'s data path wins, and the CLI is told to keep state there',
+      () async {
+        final root = await Directory.systemTemp.createTemp('monad-storage-');
+        addTearDown(() => root.delete(recursive: true));
+        addTearDown(() => ClaudeEnvironment.use(null));
+        final mine = '${root.path}/mine';
+        final theirs = '${root.path}/theirs';
+        final cwd = '${root.path}/project';
+        Directory(cwd).createSync(recursive: true);
+        File('$mine/projects/-p/session-1.jsonl')
+          ..createSync(recursive: true)
+          ..writeAsStringSync(
+            '${jsonEncode({
+              'type': 'user',
+              'uuid': 'aaaaaaaa-1111-4111-8111-111111111111',
+              'cwd': cwd,
+              'message': {'role': 'user', 'content': 'mine'},
+            })}\n',
+          );
+        final environment = {
+          'MONAD_CLAUDE_DATA_PATH': mine,
+          'CLAUDE_CONFIG_DIR': theirs,
+        };
+        ClaudeEnvironment.use(environment);
+
+        final projects = await const ClaudeStorage().projects();
+        expect(projects.map((project) => project.path), [cwd]);
+        expect(projects.single.sessions.single.title, 'mine');
+        expect(ClaudeEnvironment.stateDirectory(environment), {
+          'CLAUDE_CONFIG_DIR': mine,
+        });
+      },
+    );
+
     test(
       'deleting a session removes all of it, and only it, idempotently',
       () async {

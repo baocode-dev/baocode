@@ -3,41 +3,40 @@ import 'dart:io';
 import 'dart:isolate';
 
 import '../agent_kernel.dart';
+import 'claude_environment.dart';
 
 /// Claude Code's own record of its sessions: one JSON-lines file per
-/// session under `~/.claude/projects/<cwd, dashed>/`.
+/// session under `<config>/projects/<cwd, dashed>/`.
 class ClaudeStorage implements SessionCatalog {
   const ClaudeStorage({this.configDir, this.tempDir = '/tmp'});
 
-  /// Where Claude Code keeps its state; by default `CLAUDE_CONFIG_DIR`, or
-  /// `~/.claude`.
+  /// Where Claude Code keeps its state; by default `MONAD_CLAUDE_DATA_PATH`
+  /// as the login shell has it, else `CLAUDE_CONFIG_DIR`, else
+  /// `<home>/.claude`.
   final String? configDir;
 
   /// Where it keeps what a session's tasks print (`claude-<uid>/`).
   final String tempDir;
 
-  String get _config {
-    final home = Platform.environment['HOME'] ?? '';
-    return configDir ??
-        Platform.environment['CLAUDE_CONFIG_DIR'] ??
-        '$home/.claude';
-  }
-
-  String get _root => '$_config/projects';
+  Future<String> _config() async =>
+      configDir ?? await ClaudeEnvironment.configDir();
 
   @override
-  Future<void> delete(String id) {
+  Future<void> delete(String id) async {
     // A session id names files and directories: nothing else may pass.
     if (!RegExp(r'^[0-9a-zA-Z][0-9a-zA-Z_-]*$').hasMatch(id)) {
-      return Future.error(ArgumentError.value(id, 'id', 'not a session id'));
+      throw ArgumentError.value(id, 'id', 'not a session id');
     }
-    final config = _config;
+    final config = await _config();
     final temp = tempDir;
     return Isolate.run(() => _delete(id, config, temp));
   }
 
   @override
-  Future<List<ProjectRecord>> projects() => Isolate.run(() => _scan(_root));
+  Future<List<ProjectRecord>> projects() async {
+    final root = '${await _config()}/projects';
+    return Isolate.run(() => _scan(root));
+  }
 
   @override
   Future<List<SessionRecord>> sessionsIn(String cwd) async {
