@@ -13,6 +13,7 @@ import 'package:monad/sidebar/sidebar.dart';
 import 'package:monad/workspace/workspace.dart';
 import 'package:monad/main.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
+import 'package:monad/kernel/claude_code/claude_code_kernel.dart';
 import 'package:monad/chat/chat_models.dart';
 import 'package:monad/chat/widgets/edge_fade_mask.dart';
 import 'package:monad/chat/widgets/live_selectable_text.dart';
@@ -408,11 +409,16 @@ void main() {
   });
 
   testWidgets('context panel opens from the ring', (tester) async {
+    ClaudeCodeKernel.forgetAccount();
     await pumpScreen(tester);
     final ring = find.byTooltip('Context usage');
     await tester.tap(ring);
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(ContextUsagePanel), findsOneWidget);
+    // The plan's limits, asked for as it opens, before anything is sent.
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Plan usage'), findsOneWidget);
+    expect(find.text('Weekly Opus limit'), findsOneWidget);
     // A circle, not squeezed by the taller box it sits in.
     final ringSize = tester.getSize(
       find.descendant(of: ring, matching: find.byType(CustomPaint)).last,

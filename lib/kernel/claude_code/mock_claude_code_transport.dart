@@ -222,6 +222,31 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
           'rawMaxTokens': 200000,
           'percentage': ((fixed + _conversationTokens) / 2000).round(),
         });
+      case 'get_usage':
+        final now = DateTime.now().toUtc();
+        _respond(id, {
+          'session': {'total_cost_usd': _cost},
+          'subscription_type': 'max',
+          'rate_limits_available': true,
+          'rate_limits': {
+            'five_hour': {
+              'utilization': 12,
+              'resets_at': now.add(const Duration(hours: 3)).toIso8601String(),
+            },
+            'seven_day': {
+              'utilization': 36,
+              'resets_at': now.add(const Duration(days: 4)).toIso8601String(),
+            },
+            'model_scoped': [
+              {
+                'display_name': 'Opus',
+                'utilization': 58,
+                'resets_at': now.add(const Duration(days: 4)).toIso8601String(),
+              },
+            ],
+          },
+          'behaviors': null,
+        });
       case 'file_suggestions':
         final query = '${request['query']}'.toLowerCase();
         _respond(id, {

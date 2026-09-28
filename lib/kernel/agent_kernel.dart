@@ -112,7 +112,15 @@ abstract interface class ReportsContext {
 }
 
 /// Reports cost and account limits (see [StatsReported]).
-abstract interface class ReportsUsage {}
+abstract interface class ReportsUsage {
+  /// The account's limits as last known, from any session: what a session
+  /// shows before it reports its own.
+  List<RateLimitWindow> get accountLimits;
+
+  /// Asks for the account's usage now, rather than wait for a reply to
+  /// report it; the limits come as [StatsReported], in every session.
+  Future<void> refreshUsage();
+}
 
 /// Runs tasks beside the conversation (see [TasksReported]).
 abstract interface class RunsBackgroundTasks {

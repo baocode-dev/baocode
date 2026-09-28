@@ -37,6 +37,7 @@ class ClaudeLaunch {
     this.model,
     this.permissionMode,
     this.effort,
+    this.persist = true,
   });
 
   final String cwd;
@@ -46,6 +47,9 @@ class ClaudeLaunch {
   final String? model;
   final String? permissionMode;
   final String? effort;
+
+  /// Whether the session is saved, to be resumed and listed later.
+  final bool persist;
 
   List<String> get arguments => [
     '-p',
@@ -67,6 +71,7 @@ class ClaudeLaunch {
     if (model case final model? when model != 'default') ...['--model', model],
     if (effort case final effort?) ...['--effort', effort],
     if (resume case final id?) ...['--resume', id],
+    if (!persist) '--no-session-persistence',
   ];
 
   /// Lets the host rewind the files a turn changed.

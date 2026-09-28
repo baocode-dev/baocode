@@ -129,32 +129,79 @@ class ContextUsagePanel extends StatelessWidget {
                 ],
               ),
             ],
-            if (stats != null &&
-                (stats.costUsd != null || stats.limits.isNotEmpty)) ...[
-              const SizedBox(height: 12),
-              const Divider(height: 1, color: CursorColors.border),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 20,
-                runSpacing: 8,
-                children: [
-                  if (stats.costUsd case final cost?)
-                    _Stat(
-                      label: 'This session',
-                      value: '\$${cost.toStringAsFixed(2)}',
-                    ),
-                  for (final limit in stats.limits) _LimitMeter(limit: limit),
-                ],
-              ),
-            ],
             const SizedBox(height: 8),
             const Text(
               '接近上限时会自动总结较早的对话。',
               style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
             ),
+            if (stats != null &&
+                (stats.costUsd != null ||
+                    stats.limits.isNotEmpty ||
+                    stats.limitsState != LimitsState.idle)) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: CursorColors.border),
+              const SizedBox(height: 10),
+              _PlanUsage(stats: stats),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The account's limits, one row each, and what the session cost.
+class _PlanUsage extends StatelessWidget {
+  const _PlanUsage({required this.stats});
+
+  final UsageStats stats;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Plan usage',
+                style: TextStyle(
+                  color: CursorColors.text,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            if (stats.costUsd case final cost?)
+              _Stat(
+                label: 'This session',
+                value: '\$${cost.toStringAsFixed(2)}',
+              ),
+          ],
+        ),
+        for (final limit in stats.limits) ...[
+          const SizedBox(height: 8),
+          _LimitMeter(limit: limit),
+        ],
+        // Nothing known yet: say why there are no rows.
+        if (stats.limits.isEmpty)
+          if (switch (stats.limitsState) {
+                LimitsState.checking => '正在获取额度…',
+                LimitsState.unavailable => '暂时获取不到额度，稍后重新打开再试。',
+                LimitsState.idle => null,
+              }
+              case final note?) ...[
+            const SizedBox(height: 8),
+            Text(
+              note,
+              style: const TextStyle(
+                color: CursorColors.textFaint,
+                fontSize: 11,
+              ),
+            ),
+          ],
+      ],
     );
   }
 }
@@ -237,28 +284,31 @@ class _LimitMeter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fraction = limit.utilization.clamp(0.0, 1.0);
-    final color = fraction > 0.9
+    final resets = limit.resetsAt;
+    // Past its reset, the window starts over.
+    final over = resets != null && !resets.isAfter(DateTime.now());
+    final fraction = over ? 0.0 : limit.utilization.clamp(0.0, 1.0);
+    final color = fraction >= 0.9
         ? CursorColors.removed
-        : fraction > 0.7
+        : fraction >= 0.7
         ? const Color(0xFFE2C08D)
         : CursorColors.accent;
-    final resets = limit.resetsAt;
-    return Tooltip(
-      message: resets == null ? '' : 'Resets ${_when(resets)}',
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
+    return Row(
+      children: [
+        SizedBox(
+          width: 150,
+          child: Text(
             limit.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: CursorColors.textMuted,
               fontSize: 11.5,
             ),
           ),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 60,
+        ),
+        Expanded(
+          child: SizedBox(
             height: 4,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(2),
@@ -269,26 +319,46 @@ class _LimitMeter extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 6),
-          Text(
+        ),
+        SizedBox(
+          width: 44,
+          child: Text(
             '${(fraction * 100).round()}%',
-            style: const TextStyle(
-              color: CursorColors.text,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: fraction >= 0.9 ? color : CursorColors.text,
               fontFamily: CursorFonts.mono,
               fontSize: 11,
             ),
           ),
-        ],
-      ),
+        ),
+        SizedBox(
+          width: 104,
+          child: Text(
+            resets == null || over ? '' : 'resets ${resetsIn(resets)}',
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            style: const TextStyle(color: CursorColors.textFaint, fontSize: 11),
+          ),
+        ),
+      ],
     );
   }
+}
 
-  static String _when(DateTime time) {
-    final left = time.difference(DateTime.now());
-    if (left.inMinutes < 60) return 'in ${left.inMinutes.clamp(0, 59)}m';
-    if (left.inHours < 48) return 'in ${left.inHours}h';
-    return 'in ${left.inDays}d';
+/// How long until [time], e.g. "in 46m", "in 3h 20m", "in 2d 5h".
+@visibleForTesting
+String resetsIn(DateTime time, {DateTime? now}) {
+  final left = time.difference(now ?? DateTime.now());
+  final minutes = left.inMinutes.clamp(0, 1 << 31);
+  if (minutes < 60) return 'in ${minutes}m';
+  final hours = minutes ~/ 60;
+  if (hours < 24) {
+    return minutes % 60 == 0 ? 'in ${hours}h' : 'in ${hours}h ${minutes % 60}m';
   }
+  return hours % 24 == 0
+      ? 'in ${hours ~/ 24}d'
+      : 'in ${hours ~/ 24}d ${hours % 24}h';
 }
 
 /// The window as one rounded strip: what is used from the left, one color

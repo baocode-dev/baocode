@@ -53,6 +53,7 @@ class ClaudeCodeKernel
     ClaudeHistoryReader? readHistory,
   }) {
     _translator = ClaudeTranslator(emit: emit, nextSeq: () => nextSeq);
+    _live.add(this);
     _sessionId = _context.resume?.id;
     final settings = _context.settings;
     _work = _pick(settings[KernelChoiceKind.mode.name], _works, 'agent');
@@ -110,7 +111,11 @@ class ClaudeCodeKernel
   String? _effort;
   int _contextWindow = 200000;
   double? _cost;
-  List<RateLimitWindow> _limits = const [];
+
+  // The account's limits are the same in every session: the last any of
+  // them was told, shown in all of them.
+  static List<RateLimitWindow> _limits = const [];
+  static final Set<ClaudeCodeKernel> _live = {};
   String? _suggestion;
   List<McpServer>? _servers;
 
@@ -283,6 +288,7 @@ class ClaudeCodeKernel
   @override
   void dispose() {
     _disposed = true;
+    _live.remove(this);
     _teardown();
     closeEvents();
   }
@@ -948,34 +954,191 @@ class ClaudeCodeKernel
     unawaited(_refreshContext());
   }
 
+  static String _limitLabel(Object? type) => switch (type) {
+    'five_hour' => '5-hour limit',
+    'seven_day' => 'Weekly limit',
+    'seven_day_opus' => 'Weekly Opus limit',
+    'seven_day_sonnet' => 'Weekly Sonnet limit',
+    'seven_day_overage_included' => 'Weekly with extra usage',
+    _ => '$type',
+  };
+
+  /// From a `rate_limit_event`, sent as a reply changes the usage: the
+  /// windows, or near a limit just that one.
   void _rateLimits(Object? info) {
     if (info is! Map) return;
-    final windows = info['unifiedWindows'];
-    if (windows is! Map) return;
-    _limits = [
-      for (final MapEntry(:key, :value) in windows.entries)
-        if (value is Map && value['utilization'] is num)
-          RateLimitWindow(
-            switch (key) {
-              'five_hour' => '5-hour limit',
-              'seven_day' => 'Weekly limit',
-              'seven_day_opus' => 'Weekly Opus limit',
-              'seven_day_sonnet' => 'Weekly Sonnet limit',
-              _ => '$key',
-            },
-            (value['utilization'] as num).toDouble(),
-            resetsAt: value['resetsAt'] is int
-                ? DateTime.fromMillisecondsSinceEpoch(
-                    (value['resetsAt'] as int) * 1000,
-                  )
-                : null,
-          ),
-    ];
-    _reportStats();
+    RateLimitWindow window(Object? type, Object? utilization, Object? resets) =>
+        RateLimitWindow(
+          _limitLabel(type),
+          (utilization! as num).toDouble(),
+          resetsAt: resets is int
+              ? DateTime.fromMillisecondsSinceEpoch(resets * 1000)
+              : null,
+        );
+    if (info['unifiedWindows'] case final Map<Object?, Object?> windows) {
+      _updateLimits([
+        for (final MapEntry(:key, :value) in windows.entries)
+          if (value is Map && value['utilization'] is num)
+            window(key, value['utilization'], value['resetsAt']),
+      ]);
+    } else if (info['utilization'] is num && info['rateLimitType'] != null) {
+      _updateLimits([
+        window(info['rateLimitType'], info['utilization'], info['resetsAt']),
+      ]);
+    }
   }
 
-  void _reportStats() =>
-      emit(StatsReported(nextSeq, UsageStats(costUsd: _cost, limits: _limits)));
+  /// Takes [windows] in place of what was known of them, the others kept,
+  /// and shows them in every session.
+  static void _updateLimits(List<RateLimitWindow> windows) {
+    if (windows.isEmpty) return;
+    final fresh = {for (final window in windows) window.label: window};
+    _limits = [
+      for (final limit in _limits) fresh.remove(limit.label) ?? limit,
+      ...fresh.values,
+    ];
+    _reportAll();
+  }
+
+  static void _reportAll() {
+    for (final kernel in _live) {
+      kernel._reportStats();
+    }
+  }
+
+  @override
+  List<RateLimitWindow> get accountLimits => _limits;
+
+  // The account's usage, asked for (as `/usage` does): no more than once in
+  // [_usageFresh], and one request at a time for all sessions.
+  static Future<void>? _fetchingUsage;
+  static DateTime? _usageFetchedAt;
+  static LimitsState _limitsState = LimitsState.idle;
+  static const _usageFresh = Duration(seconds: 30);
+
+  /// How often, and how far apart, the usage is asked for while Claude
+  /// Code has none to give: its own fetch of it may still be under way.
+  @visibleForTesting
+  static int usageAttempts = 3;
+  @visibleForTesting
+  static Duration usageRetryDelay = const Duration(seconds: 3);
+
+  /// Forgets what is known of the account, as a new start of the app.
+  @visibleForTesting
+  static void forgetAccount() {
+    _limits = const [];
+    _usageFetchedAt = null;
+    _limitsState = LimitsState.idle;
+  }
+
+  @override
+  Future<void> refreshUsage() {
+    if (_usageFetchedAt case final at?
+        when DateTime.now().difference(at) < _usageFresh) {
+      return Future.value();
+    }
+    return _fetchingUsage ??= _fetchUsage().whenComplete(
+      () => _fetchingUsage = null,
+    );
+  }
+
+  Future<void> _fetchUsage() async {
+    _setLimitsState(LimitsState.checking);
+    var state = LimitsState.unavailable;
+    try {
+      // A session's process, if one runs; else one of its own, briefly.
+      final control = _live.where((k) => k._running).firstOrNull?._control;
+      final ask = control != null ? _askUsage : _probeUsage;
+      state = await ask(control) ?? state;
+    } on Exception {
+      // Unanswered (an older CLI, offline): the limits stay as the replies
+      // report them.
+    }
+    _setLimitsState(state);
+  }
+
+  /// Asks [control] until it tells the limits, or tells they do not apply;
+  /// null when it never does.
+  Future<LimitsState?> _askUsage(ControlChannel? control) async {
+    for (var attempt = 1; attempt <= usageAttempts; attempt++) {
+      final usage = await control!.request('get_usage', {
+        'skip_behaviors': true,
+      }, const Duration(seconds: 20));
+      if (usage['rate_limits_available'] == false || _accountUsage(usage)) {
+        _usageFetchedAt = DateTime.now();
+        return LimitsState.idle;
+      }
+      if (attempt < usageAttempts) await Future.delayed(usageRetryDelay);
+    }
+    return null;
+  }
+
+  /// Starts Claude Code just to ask for the usage: no model call, and no
+  /// session left behind.
+  Future<LimitsState?> _probeUsage(ControlChannel? _) async {
+    final transport = await _start(
+      ClaudeLaunch(cwd: _cwd, permissionMode: 'default', persist: false),
+    );
+    final control = ControlChannel(transport.write);
+    final subscription = transport.messages.listen((message) {
+      if (message['type'] == ClaudeExit.type) control.failAll('exited');
+      control.receive(message);
+    });
+    try {
+      await control.request('initialize', {}, const Duration(seconds: 30));
+      return await _askUsage(control);
+    } finally {
+      unawaited(subscription.cancel());
+      transport.close();
+    }
+  }
+
+  static void _setLimitsState(LimitsState state) {
+    if (_limitsState == state) return;
+    _limitsState = state;
+    _reportAll();
+  }
+
+  /// From a `get_usage` response: percentages, and ISO reset times.
+  /// Whether it had them.
+  static bool _accountUsage(Map<String, Object?> usage) {
+    final limits = usage['rate_limits'];
+    if (limits is! Map) return false;
+    RateLimitWindow? window(String label, Object? value) {
+      if (value is! Map || value['utilization'] is! num) return null;
+      return RateLimitWindow(
+        label,
+        (value['utilization'] as num) / 100,
+        resetsAt: switch (value['resets_at']) {
+          final String at => DateTime.tryParse(at)?.toLocal(),
+          _ => null,
+        },
+      );
+    }
+
+    final models = limits['model_scoped'];
+    _updateLimits([
+      for (final type in const [
+        'five_hour',
+        'seven_day',
+        'seven_day_opus',
+        'seven_day_sonnet',
+      ])
+        ?window(_limitLabel(type), limits[type]),
+      if (models is List)
+        for (final model in models)
+          if (model is Map && model['display_name'] is String)
+            ?window('Weekly ${model['display_name']} limit', model),
+    ]);
+    return true;
+  }
+
+  void _reportStats() => emit(
+    StatsReported(
+      nextSeq,
+      UsageStats(costUsd: _cost, limits: _limits, limitsState: _limitsState),
+    ),
+  );
 
   Future<void> _refreshContext() async {
     final control = _control;

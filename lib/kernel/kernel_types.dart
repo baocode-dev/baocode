@@ -110,12 +110,27 @@ class RateLimitWindow {
   final DateTime? resetsAt;
 }
 
+/// Where asking for the account's limits stands.
+enum LimitsState {
+  /// Not being asked for; or they do not apply (e.g. an API key).
+  idle,
+  checking,
+
+  /// Asked for, and not told.
+  unavailable,
+}
+
 /// What the session has cost so far, and the account's limits.
 class UsageStats {
-  const UsageStats({this.costUsd, this.limits = const []});
+  const UsageStats({
+    this.costUsd,
+    this.limits = const [],
+    this.limitsState = LimitsState.idle,
+  });
 
   final double? costUsd;
   final List<RateLimitWindow> limits;
+  final LimitsState limitsState;
 }
 
 /// What the agent is busy with while nothing of it shows: waiting on its
