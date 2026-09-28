@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'chat/chat_screen.dart';
+import 'chat/panels/interaction_panel.dart';
 import 'sidebar/sidebar.dart';
 import 'theme/cursor_theme.dart';
 import 'workspace/open_in_editor_button.dart';
@@ -83,14 +85,22 @@ class _WorkbenchState extends State<Workbench> {
     WindowControls.setAlwaysOnTop(pinned);
   }
 
+  /// Back in the app, the list picks up sessions started elsewhere (e.g.
+  /// in a terminal) meanwhile.
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKey);
+    _lifecycle = AppLifecycleListener(
+      onResume: () => unawaited(_workspace.refresh()),
+    );
   }
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     HardwareKeyboard.instance.removeHandler(_handleKey);
     super.dispose();
   }
@@ -256,6 +266,7 @@ class _WorkbenchState extends State<Workbench> {
       workspace: _workspace,
       onCollapse: _toggle,
       onOpened: onOpened,
+      onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
     );
   }
 
@@ -304,24 +315,42 @@ class _WorkbenchState extends State<Workbench> {
     );
   }
 
+  Future<void> _openFolder() async {
+    final path = await WindowControls.pickDirectory();
+    if (path == null || !mounted) return;
+    await _workspace.openFolder(path);
+    _closeDrawer();
+  }
+
   Widget _buildChat({required bool showToggle}) {
-    final thread = _workspace.selected;
+    final thread = _workspace.current;
+    final leading = showToggle
+        ? SidebarIconButton(
+            icon: Icons.view_sidebar_outlined,
+            flip: true,
+            tooltip: 'Show sidebar',
+            onTap: _toggle,
+          )
+        : null;
+    if (thread == null) {
+      return _EmptyWorkspace(
+        loading: _workspace.loading,
+        leading: leading,
+        titleBarInset: showToggle ? CursorMetrics.trafficLightsWidth + 8 : 12,
+        onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
+      );
+    }
     return ChatScreen(
       key: ObjectKey(thread),
       session: thread.session,
       title: thread.title,
       autofocus: thread.session.itemCount == 0,
       onRename: (title) => _workspace.rename(thread, title),
+      // Files come from the agent's own lookup, not a fixed list.
+      mentions: const [],
       // Beside the sidebar, the traffic lights are over it, not here.
       titleBarInset: showToggle ? CursorMetrics.trafficLightsWidth + 8 : 12,
-      leading: showToggle
-          ? SidebarIconButton(
-              icon: Icons.view_sidebar_outlined,
-              flip: true,
-              tooltip: 'Show sidebar',
-              onTap: _toggle,
-            )
-          : null,
+      leading: leading,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -330,6 +359,90 @@ class _WorkbenchState extends State<Workbench> {
           OpenInEditorButton(workspace: _workspace, project: thread.project),
         ],
       ),
+    );
+  }
+}
+
+/// In place of a chat while there is no project: open one, or wait for
+/// the kept ones to load. On the web, where agents cannot run, says so.
+class _EmptyWorkspace extends StatelessWidget {
+  const _EmptyWorkspace({
+    required this.loading,
+    required this.titleBarInset,
+    this.leading,
+    this.onOpenFolder,
+  });
+
+  final bool loading;
+  final double titleBarInset;
+  final Widget? leading;
+  final VoidCallback? onOpenFolder;
+
+  @override
+  Widget build(BuildContext context) {
+    final (title, detail) = loading
+        ? ('Loading projects…', '')
+        : onOpenFolder == null
+        ? (
+            'Agents run in the desktop app',
+            'Claude Code runs as a local process, which a browser cannot start.',
+          )
+        : (
+            'Open a project folder',
+            'Its Claude Code sessions show in the sidebar; new agents run in it.',
+          );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: CursorMetrics.titleBarHeight,
+          child: Padding(
+            padding: EdgeInsets.only(left: titleBarInset),
+            child: Row(children: [?leading]),
+          ),
+        ),
+        Expanded(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.folder_open_outlined,
+                  size: 26,
+                  color: CursorColors.textFaint,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: CursorColors.textMuted,
+                    fontSize: 14,
+                  ),
+                ),
+                if (detail.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    detail,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: CursorColors.textFaint,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+                if (onOpenFolder case final open? when !loading) ...[
+                  const SizedBox(height: 16),
+                  PanelButton(
+                    label: 'Open folder…',
+                    primary: true,
+                    onTap: open,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

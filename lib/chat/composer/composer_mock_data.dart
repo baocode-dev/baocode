@@ -27,6 +27,7 @@ class Suggestion {
   };
 }
 
+/// The project's files and other context to @mention (mock).
 abstract final class ComposerMockData {
   static const mentions = [
     Suggestion(
@@ -103,76 +104,6 @@ abstract final class ComposerMockData {
       icon: Icons.history_rounded,
     ),
   ];
-
-  static const commands = [
-    Suggestion(
-      kind: SuggestionKind.command,
-      label: 'plan',
-      detail: 'Draft a plan before editing',
-      icon: Icons.checklist_rounded,
-    ),
-    Suggestion(
-      kind: SuggestionKind.command,
-      label: 'review',
-      detail: 'Review uncommitted changes',
-      icon: Icons.rate_review_outlined,
-    ),
-    Suggestion(
-      kind: SuggestionKind.command,
-      label: 'test',
-      detail: 'Write or run tests',
-      icon: Icons.science_outlined,
-    ),
-    Suggestion(
-      kind: SuggestionKind.command,
-      label: 'summarize',
-      detail: 'Compress the conversation',
-      icon: Icons.compress_rounded,
-    ),
-    Suggestion(
-      kind: SuggestionKind.command,
-      label: 'clear',
-      detail: 'Start a new chat',
-      icon: Icons.add_comment_outlined,
-    ),
-  ];
-
-  static const modes = [
-    ComposerOption(
-      'Agent',
-      Icons.all_inclusive_rounded,
-      'Plan, search, edit and run',
-    ),
-    ComposerOption(
-      'Plan',
-      Icons.checklist_rounded,
-      'Research and write a plan first',
-    ),
-    ComposerOption(
-      'Ask',
-      Icons.chat_bubble_outline_rounded,
-      'Answer questions, no edits',
-    ),
-  ];
-
-  static const models = [
-    ComposerOption(
-      'Auto',
-      Icons.auto_awesome_outlined,
-      'Balanced quality and speed',
-    ),
-    ComposerOption('Opus 5.5', Icons.bolt_rounded, 'Most capable'),
-    ComposerOption('Sonnet 5', Icons.bolt_rounded, 'Fast and capable'),
-    ComposerOption('Haiku 4.5', Icons.bolt_rounded, 'Fastest'),
-  ];
-}
-
-class ComposerOption {
-  const ComposerOption(this.label, this.icon, this.description);
-
-  final String label;
-  final IconData icon;
-  final String description;
 }
 
 /// Subsequence fuzzy match. Returns matched character indexes in [text], or

@@ -5,9 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:monad/chat/chat_history_view.dart';
+import 'package:monad/chat/chat_models.dart';
 import 'package:monad/chat/composer/composer_picker.dart';
 import 'package:monad/chat/composer/suggestion_menu.dart';
 import 'package:monad/chat/floating/floating_placement.dart';
+import 'package:monad/chat/floating/hover_tooltip.dart';
 import 'package:monad/chat/floating/floating_registry.dart';
 import 'package:monad/chat/widgets/tool_call_row.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
@@ -85,12 +87,13 @@ void main() {
     });
   });
 
+  /// The model picker of the message being edited.
   Finder historyPicker() => find
       .descendant(
         of: find.byType(ChatHistoryView),
         matching: find.byType(ComposerPicker),
       )
-      .last;
+      .at(2);
 
   Future<void> openEditorAtTop(WidgetTester tester) async {
     await tester.ensureVisible(
@@ -157,7 +160,7 @@ void main() {
     await pumpScreen(tester);
     await settleAnimations(tester);
     final mode = find.byType(ComposerPicker).at(0);
-    final model = find.byType(ComposerPicker).at(1);
+    final model = find.byType(ComposerPicker).at(2);
 
     // A picker closes the suggestion menu.
     await typeText(tester, '/');
@@ -165,12 +168,12 @@ void main() {
     await tester.tapAt(tester.getCenter(mode));
     await settleAnimations(tester);
     expect(find.byType(SuggestionMenu), findsNothing);
-    expect(find.text('Plan, search, edit and run'), findsOneWidget);
+    expect(find.text('Plan, edit and run on its own'), findsOneWidget);
 
     // The other picker closes the first.
     await tester.tapAt(tester.getCenter(model));
     await settleAnimations(tester);
-    expect(find.text('Plan, search, edit and run'), findsNothing);
+    expect(find.text('Plan, edit and run on its own'), findsNothing);
     expect(find.text('Fastest'), findsOneWidget);
   });
 
@@ -181,7 +184,7 @@ void main() {
     final count = session.itemCount;
 
     // Enter picks the option; the draft is not sent.
-    await tester.tapAt(tester.getCenter(find.byType(ComposerPicker).at(1)));
+    await tester.tapAt(tester.getCenter(find.byType(ComposerPicker).at(2)));
     await settleAnimations(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -190,7 +193,7 @@ void main() {
     expect(session.itemCount, count);
     expect(
       find.descendant(
-        of: find.byType(ComposerPicker).at(1),
+        of: find.byType(ComposerPicker).at(2),
         matching: find.text('Opus 5.5'),
       ),
       findsOneWidget,
@@ -265,10 +268,16 @@ void main() {
 
   group('tooltip', () {
     late TestGesture mouse;
-    Finder read() => find.widgetWithText(ToolCallRow, 'Read').last;
-    Finder grep() => find.widgetWithText(ToolCallRow, 'Grepped').last;
+    // File reads show their whole path on hover.
+    Finder reads({bool skipOffstage = true}) => find.byWidgetPredicate(
+      (widget) => widget is ToolCallRow && widget.kind == ToolKind.read,
+      skipOffstage: skipOffstage,
+    );
+    // Its text: the row runs the width of the column.
+    Finder read() => find
+        .descendant(of: reads().last, matching: find.byType(RichText))
+        .first;
     final readTip = find.text('lib/main.dart');
-    final grepTip = find.textContaining('results in');
 
     Future<void> hover(WidgetTester tester, Offset at) async {
       await mouse.moveTo(at);
@@ -279,9 +288,7 @@ void main() {
       await pumpScreen(tester);
       // Mid-view: the top is under the turn's message, stuck there.
       await Scrollable.ensureVisible(
-        tester.element(
-          find.widgetWithText(ToolCallRow, 'Read', skipOffstage: false).last,
-        ),
+        tester.element(reads(skipOffstage: false).last),
         alignment: 0.5,
       );
       await tester.pump();
@@ -315,16 +322,38 @@ void main() {
     testWidgets('moves along a row of items without delay, one at a time', (
       tester,
     ) async {
-      await setUpScreen(tester);
-      await hover(tester, tester.getCenter(read()));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final name in ['first', 'second'])
+                    HoverTooltip(
+                      content: (_) => Text('$name tip'),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Text(name),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await hover(tester, tester.getCenter(find.text('first')));
       await tester.pump(const Duration(milliseconds: 600));
-      expect(readTip, findsOneWidget);
-      await hover(tester, tester.getCenter(grep()));
+      expect(find.text('first tip'), findsOneWidget);
+      await hover(tester, tester.getCenter(find.text('second')));
       await tester.pump();
-      expect(grepTip, findsOneWidget);
+      expect(find.text('second tip'), findsOneWidget);
       await settleAnimations(tester);
-      expect(readTip, findsNothing);
-      expect(find.text('lib/main.dart:142'), findsOneWidget);
+      expect(find.text('first tip'), findsNothing);
     });
 
     testWidgets('hides at once when its row scrolls out of view', (
@@ -344,17 +373,14 @@ void main() {
                 .first,
           )
           .position;
-      // Pointer off the rows, then the row just out of view.
+      // Pointer off the rows, then the row just out of view, below.
       final list = tester.getRect(find.byType(ChatHistoryView));
       final row = tester.getRect(read());
       await hover(tester, const Offset(5, 5));
-      position.jumpTo(position.pixels + row.bottom - list.top + 40);
+      position.jumpTo(position.pixels - (list.bottom - row.top) - 40);
       await tester.pump();
       await tester.pump();
-      expect(
-        find.widgetWithText(ToolCallRow, 'Read', skipOffstage: false),
-        findsWidgets,
-      );
+      expect(reads(skipOffstage: false), findsWidgets);
       expect(readTip, findsNothing);
       await tester.pump(const Duration(seconds: 1));
     });
@@ -378,9 +404,9 @@ void main() {
       await mouse.down(tester.getCenter(find.byType(ComposerPicker).at(0)));
       await mouse.up();
       await settleAnimations(tester);
-      await hover(tester, tester.getCenter(grep()));
+      await hover(tester, tester.getCenter(read()));
       await tester.pump(const Duration(seconds: 1));
-      expect(grepTip, findsNothing);
+      expect(readTip, findsNothing);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await settleAnimations(tester);
     });

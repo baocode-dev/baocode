@@ -57,10 +57,15 @@ class Sidebar extends StatefulWidget {
     required this.workspace,
     required this.onCollapse,
     this.onOpened,
+    this.onOpenFolder,
   });
 
   final Workspace workspace;
   final VoidCallback onCollapse;
+
+  /// Asks for a folder to open as a project; null where there is none to
+  /// ask (the web).
+  final VoidCallback? onOpenFolder;
 
   /// An agent was opened or created from here (the drawer closes).
   final VoidCallback? onOpened;
@@ -228,7 +233,26 @@ class _SidebarState extends State<Sidebar> {
                 8,
                 6,
               ),
-              child: _NewAgentButton(onTap: _create),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _NewAgentButton(
+                      onTap: _workspace.projects.isEmpty
+                          ? (widget.onOpenFolder ?? () {})
+                          : _create,
+                    ),
+                  ),
+                  if (widget.onOpenFolder case final open?) ...[
+                    const SizedBox(width: 4),
+                    SidebarIconButton(
+                      icon: Icons.create_new_folder_outlined,
+                      tooltip: 'Open folder…',
+                      size: 30,
+                      onTap: open,
+                    ),
+                  ],
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
@@ -442,7 +466,10 @@ class _SidebarState extends State<Sidebar> {
       barrierColor: const Color(0x99000000),
       builder: (context) => _ConfirmDialog(
         title: 'Delete agent?',
-        message: '“${thread.title}” and its conversation will be removed.',
+        message: thread.kernel.catalog == null
+            ? '“${thread.title}” and its conversation will be removed.'
+            : '“${thread.title}” and its conversation will be deleted, '
+                  'from ${thread.kernel.label} too. This cannot be undone.',
         action: 'Delete',
       ),
     );
@@ -739,7 +766,7 @@ class _ThreadRow extends StatelessWidget {
                           )
                         : _buildTitle(),
                   ),
-                  if (!renaming) ..._buildTrailing(active, menu),
+                  if (!renaming) ..._buildTrailing(active),
                 ],
               ),
             ),
@@ -779,7 +806,7 @@ class _ThreadRow extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildTrailing(bool active, SidebarMenuState menu) {
+  List<Widget> _buildTrailing(bool active) {
     final diff = thread.diff;
     return [
       if (diff != null && !active) ...[
@@ -804,29 +831,36 @@ class _ThreadRow extends StatelessWidget {
         ),
       ],
       const SizedBox(width: 6),
-      // The time, or the menu button while hovered (same slot, so the row
-      // does not reflow).
-      SizedBox(
-        width: 26,
-        child: active
-            ? SidebarIconButton(
-                icon: Icons.more_horiz_rounded,
-                tooltip: 'More',
-                size: 20,
-                onTap: menu.open,
-              )
-            : Text(
-                thread.status == ThreadStatus.needsInput
-                    ? ''
-                    : relativeTime(thread.updatedAt, DateTime.now()),
-                textAlign: TextAlign.right,
-                maxLines: 1,
-                style: const TextStyle(
-                  color: CursorColors.textFaint,
-                  fontSize: 11,
-                ),
-              ),
-      ),
+      // The time; while hovered, pin and archive in its place (the rest is
+      // in the context menu).
+      if (active) ...[
+        if (!thread.archived)
+          SidebarIconButton(
+            icon: thread.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+            tooltip: thread.pinned ? 'Unpin' : 'Pin',
+            size: 20,
+            onTap: onPin,
+          ),
+        SidebarIconButton(
+          icon: thread.archived
+              ? Icons.unarchive_outlined
+              : Icons.inventory_2_outlined,
+          tooltip: thread.archived ? 'Unarchive' : 'Archive',
+          size: 20,
+          onTap: onArchive,
+        ),
+      ] else
+        SizedBox(
+          width: 26,
+          child: Text(
+            thread.status == ThreadStatus.needsInput
+                ? ''
+                : relativeTime(thread.updatedAt, DateTime.now()),
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            style: const TextStyle(color: CursorColors.textFaint, fontSize: 11),
+          ),
+        ),
       const SizedBox(width: 2),
     ];
   }

@@ -1,23 +1,31 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
 import 'edge_fade_mask.dart';
-import 'hover_builder.dart';
 import 'live_selectable_text.dart';
-import 'shimmer_text.dart';
+import 'step_header.dart';
+import 'wheel_latch.dart';
 
-/// `1.2k` for 1234 tokens.
-String formatTokens(int tokens) => tokens < 1000
-    ? '$tokens'
-    : '${(tokens / 1000).toStringAsFixed(tokens < 10000 ? 1 : 0)}k';
+/// Header of a thought: while it streams, how long so far ([elapsed], at
+/// least "Thinking 1s"); then how long it took, "Thought 2s" or, under a
+/// second, "Thought briefly".
+String thinkingTitle({required int? seconds, Duration? elapsed}) =>
+    switch (thinkingParts(seconds, elapsed: elapsed)) {
+      (final verb, final object) => StepHeader.text(verb, object),
+    };
 
-/// Header of a thought: tokens so far while it streams, then how long it
-/// took and its total.
-String thinkingTitle({required int? seconds, required int tokens}) {
-  final count = '${formatTokens(tokens)} tokens';
-  if (seconds == null) return tokens == 0 ? 'Thinking' : 'Thinking · $count';
-  return 'Thought for ${seconds}s · $count';
-}
+(String, String) thinkingParts(int? seconds, {Duration? elapsed}) => switch ((
+  seconds,
+  elapsed,
+)) {
+  (null, final elapsed?) => ('Thinking', '${math.max(1, elapsed.inSeconds)}s'),
+  (null, null) => ('Thinking', ''),
+  (final int seconds, _) when seconds < 1 => ('Thought', 'briefly'),
+  (final seconds, _) => ('Thought', '${seconds}s'),
+};
 
 /// Collapsible thought. While it streams ([seconds] is null) its text sits
 /// in a box of limited height that follows the newest lines, fading out at
@@ -26,15 +34,17 @@ class ThinkingSection extends StatefulWidget {
   const ThinkingSection({
     super.key,
     required this.text,
-    required this.tokens,
     required this.seconds,
     required this.expanded,
     required this.onToggle,
+    this.startedAt,
   });
 
   final String text;
-  final int tokens;
   final int? seconds;
+
+  /// When it began: while it streams, its time so far counts up.
+  final DateTime? startedAt;
   final bool expanded;
   final VoidCallback onToggle;
 
@@ -57,9 +67,31 @@ class _ThinkingSectionState extends State<ThinkingSection> {
 
   bool get _streaming => widget.seconds == null;
 
+  /// Ticks the time shown while it streams.
+  Timer? _clock;
+
+  void _syncClock() {
+    final ticking = _streaming && widget.startedAt != null;
+    if (ticking == (_clock != null)) return;
+    _clock?.cancel();
+    _clock = ticking
+        ? Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}))
+        : null;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _syncClock();
+  }
+
+  /// Its text without the blank lines thoughts end with.
+  String get _text => widget.text.trimRight();
+
   @override
   void didUpdateWidget(ThinkingSection oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncClock();
     if (widget.text == oldWidget.text || !_scrollController.hasClients) return;
     // Follow new lines, unless scrolled up to read earlier ones.
     final position = _scrollController.position;
@@ -73,6 +105,7 @@ class _ThinkingSectionState extends State<ThinkingSection> {
 
   @override
   void dispose() {
+    _clock?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -104,13 +137,15 @@ class _ThinkingSectionState extends State<ThinkingSection> {
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
             alignment: Alignment.topLeft,
-            child: widget.expanded
+            // Nothing to show until its first words (a summarized thought
+            // may bring them only at its end).
+            child: widget.expanded && _text.isNotEmpty
                 ? Container(
                     width: double.infinity,
                     margin: const EdgeInsets.only(top: 6, bottom: 2),
                     child: _streaming
                         ? _buildLiveText()
-                        : Text(widget.text, style: _textStyle),
+                        : Text(_text, style: _textStyle),
                   )
                 : const SizedBox(width: double.infinity),
           ),
@@ -120,49 +155,20 @@ class _ThinkingSectionState extends State<ThinkingSection> {
   }
 
   Widget _buildHeader() {
-    final title = thinkingTitle(seconds: widget.seconds, tokens: widget.tokens);
-    return HoverBuilder(
-      cursor: SystemMouseCursors.click,
-      builder: (context, hovered) {
-        final color = hovered ? CursorColors.text : CursorColors.textMuted;
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onToggle,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 3),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Shrinks in a narrow window rather than overflow.
-                Flexible(
-                  child: _streaming
-                      ? ShimmerText(
-                          title,
-                          ellipsis: false,
-                          padding: EdgeInsets.zero,
-                        )
-                      : Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: color, fontSize: 13),
-                        ),
-                ),
-                const SizedBox(width: 2),
-                AnimatedRotation(
-                  turns: widget.expanded ? 0.25 : 0,
-                  duration: const Duration(milliseconds: 150),
-                  child: Icon(
-                    Icons.chevron_right_rounded,
-                    size: 16,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
+    final (verb, object) = thinkingParts(
+      widget.seconds,
+      elapsed: switch (widget.startedAt) {
+        final start? when _streaming => DateTime.now().difference(start),
+        _ => null,
       },
+    );
+    return StepHeader(
+      verb: verb,
+      object: object,
+      running: _streaming,
+      expanded: widget.expanded,
+      // Nothing to open until its first words.
+      onToggle: _text.isEmpty ? null : widget.onToggle,
     );
   }
 
@@ -182,9 +188,11 @@ class _ThinkingSectionState extends State<ThinkingSection> {
             child: SingleChildScrollView(
               controller: _scrollController,
               // Selectable text that keeps its selection as it grows.
-              child: SizedBox(
-                width: double.infinity,
-                child: LiveSelectableText(widget.text, style: _textStyle),
+              child: WheelLatch(
+                child: SizedBox(
+                  width: double.infinity,
+                  child: LiveSelectableText(_text, style: _textStyle),
+                ),
               ),
             ),
           ),

@@ -6,13 +6,13 @@ import 'workbench.dart';
 import 'workspace/workspace.dart';
 
 void main() {
-  runApp(MonadApp(workspace: Workspace.mock()..startDemoRuns()));
+  runApp(MonadApp(workspace: Workspace()..load()));
 }
 
 class MonadApp extends StatefulWidget {
   const MonadApp({super.key, this.workspace});
 
-  /// Defaults to the sample workspace, with nothing running.
+  /// Defaults to the projects and sessions the kernels keep.
   final Workspace? workspace;
 
   @override
@@ -20,7 +20,7 @@ class MonadApp extends StatefulWidget {
 }
 
 class _MonadAppState extends State<MonadApp> {
-  late final Workspace _workspace = widget.workspace ?? Workspace.mock();
+  late final Workspace _workspace = widget.workspace ?? (Workspace()..load());
 
   @override
   void dispose() {

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
 import '../chat_models.dart';
-import 'file_label.dart';
-import 'hover_builder.dart';
 import '../floating/hover_tooltip.dart';
+import 'step_header.dart';
 
-/// Compact one-line tool invocation, e.g. "Read  main.dart  L1-562".
+/// One tool call as a step, e.g. "Read main.dart L1-562"; opens to what it
+/// found or returned, when there is anything.
 class ToolCallRow extends StatelessWidget {
   const ToolCallRow({
     super.key,
@@ -15,6 +15,11 @@ class ToolCallRow extends StatelessWidget {
     this.detail,
     this.path,
     this.results = const [],
+    this.label,
+    this.status = ToolStatus.succeeded,
+    this.output,
+    this.expanded = false,
+    this.onToggle,
   });
 
   final ToolKind kind;
@@ -22,111 +27,84 @@ class ToolCallRow extends StatelessWidget {
   final String? detail;
   final String? path;
   final List<String> results;
+  final String? label;
+  final ToolStatus status;
+  final String? output;
+  final bool expanded;
+  final VoidCallback? onToggle;
 
-  (IconData, String) get _visual => switch (kind) {
-    ToolKind.read => (Icons.article_outlined, 'Read'),
-    ToolKind.grep => (Icons.search_rounded, 'Grepped'),
-    ToolKind.listDir => (Icons.folder_open_outlined, 'Listed'),
-    ToolKind.search => (Icons.travel_explore_rounded, 'Searched'),
+  bool get _running => status == ToolStatus.running;
+
+  String? get _shown => switch (output?.trimRight()) {
+    final text? when text.isNotEmpty => text,
+    _ => null,
   };
 
-  bool get _targetIsFile => kind == ToolKind.read;
-
-  /// Details on hover: what exactly was read, or what the search found.
-  Widget? _tooltip(BuildContext context) {
-    const mono = TextStyle(fontFamily: CursorFonts.mono, fontSize: 12);
-    const muted = TextStyle(color: CursorColors.textMuted, fontSize: 11.5);
-    switch (kind) {
-      case ToolKind.read:
-        final lines = detail?.replaceFirst('L', 'Lines ').replaceAll('-', '–');
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(path ?? target, style: mono),
-            if (lines != null) Text(lines, style: muted),
-          ],
-        );
-      case ToolKind.grep:
-        final files = {for (final match in results) match.split(':').first};
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(target, style: mono),
-            Text(
-              '${results.length} results in ${files.length} '
-              '${files.length == 1 ? 'file' : 'files'}',
-              style: muted,
-            ),
-            if (results.isNotEmpty) const SizedBox(height: 6),
-            for (final match in results)
-              Text(match, style: mono.copyWith(color: CursorColors.textMuted)),
-          ],
-        );
-      case ToolKind.listDir || ToolKind.search:
-        return null;
-    }
-  }
+  bool get _opens => results.isNotEmpty || _shown != null;
 
   @override
   Widget build(BuildContext context) {
-    final row = _buildRow(context);
-    final tooltip = _tooltip(context);
-    return tooltip == null
-        ? row
-        : HoverTooltip(content: (_) => tooltip, child: row);
+    Widget header = StepHeader(
+      verb: label ?? toolVerb(kind, running: _running),
+      object: target,
+      detail: detail,
+      running: _running,
+      expanded: expanded,
+      onToggle: _opens ? onToggle : null,
+    );
+    // A file read shows only its name: the whole path on hover.
+    if (kind == ToolKind.read && path != null) {
+      header = HoverTooltip(content: _pathTooltip, child: header);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        header,
+        if (expanded && _opens)
+          StepBody(
+            child: Text(
+              results.isNotEmpty ? results.join('\n') : _shown!,
+              style: stepMono,
+            ),
+          ),
+      ],
+    );
   }
 
-  Widget _buildRow(BuildContext context) {
-    final (icon, label) = _visual;
-    return HoverBuilder(
-      builder: (context, hovered) => AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        decoration: BoxDecoration(
-          color: hovered ? CursorColors.hover : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+  Widget _pathTooltip(BuildContext context) {
+    final lines = detail?.replaceFirst('L', 'Lines ').replaceAll('-', '–');
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          path!,
+          style: const TextStyle(fontFamily: CursorFonts.mono, fontSize: 12),
         ),
-        child: Row(
-          children: [
-            Icon(icon, size: 14, color: CursorColors.textMuted),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: CursorColors.textMuted,
-                fontSize: 13,
-              ),
+        if (lines != null)
+          Text(
+            lines,
+            style: const TextStyle(
+              color: CursorColors.textMuted,
+              fontSize: 11.5,
             ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: _targetIsFile
-                  ? FileLabel(target)
-                  : Text(
-                      target,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: CursorColors.text,
-                        fontFamily: CursorFonts.mono,
-                        fontSize: 12,
-                      ),
-                    ),
-            ),
-            if (detail != null) ...[
-              const SizedBox(width: 8),
-              Text(
-                detail!,
-                style: const TextStyle(
-                  color: CursorColors.textFaint,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+          ),
+      ],
     );
   }
 }
+
+/// What a kind of tool call did, or does while [running].
+String toolVerb(ToolKind kind, {bool running = false}) => switch (kind) {
+  ToolKind.read => running ? 'Reading' : 'Read',
+  ToolKind.grep => running ? 'Grepping' : 'Grepped',
+  ToolKind.listDir => running ? 'Listing' : 'Listed',
+  ToolKind.search => running ? 'Searching' : 'Searched',
+  ToolKind.edit => running ? 'Editing' : 'Edited',
+  ToolKind.command => running ? 'Running' : 'Ran',
+  ToolKind.web => running ? 'Fetching' : 'Fetched',
+  ToolKind.agent => 'Agent',
+  ToolKind.mcp => 'MCP',
+  ToolKind.todo => running ? 'Updating todos' : 'Updated todos',
+  ToolKind.other => running ? 'Using' : 'Used',
+};

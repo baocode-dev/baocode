@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../chat_models.dart';
+import 'activity_row.dart';
+import 'agent_step.dart';
 import 'assistant_text.dart';
-import 'code_diff_card.dart';
-import 'shimmer_text.dart';
-import 'terminal_card.dart';
+import 'command_step.dart';
+import 'notice_row.dart';
+import 'step_header.dart';
+import 'edit_step.dart';
 import 'thinking_section.dart';
 import 'tool_call_row.dart';
 import 'user_message_bubble.dart';
@@ -17,6 +20,8 @@ class ChatItemView extends StatelessWidget {
     this.expanded = false,
     this.onToggle,
     this.onEdit,
+    this.onCancelQueued,
+    this.onMoveToBackground,
   });
 
   final ChatItem item;
@@ -26,19 +31,36 @@ class ChatItemView extends StatelessWidget {
   /// Starts editing a user message.
   final VoidCallback? onEdit;
 
+  /// Takes back a queued message.
+  final VoidCallback? onCancelQueued;
+
+  /// Moves a running command or subagent to the background.
+  final VoidCallback? onMoveToBackground;
+
   @override
   Widget build(BuildContext context) {
+    final view = _build();
+    // Steps line up on the left: the history centers what is narrower
+    // than its column.
+    return isStep(item) ? SizedBox(width: double.infinity, child: view) : view;
+  }
+
+  Widget _build() {
     return switch (item) {
-      UserMessageItem(:final text) => UserMessageBubble(
-        text: text,
-        onEdit: onEdit,
-      ),
+      UserMessageItem(:final text, :final queued, :final images) =>
+        UserMessageBubble(
+          text: text,
+          images: images,
+          onEdit: queued ? null : onEdit,
+          queued: queued,
+          onCancel: queued ? onCancelQueued : null,
+        ),
       AssistantTextItem(:final text) => AssistantText(text),
-      ThinkingItem(:final text, :final tokens, :final seconds) =>
+      ThinkingItem(:final text, :final seconds, :final startedAt) =>
         ThinkingSection(
           text: text,
-          tokens: tokens,
           seconds: seconds,
+          startedAt: startedAt,
           expanded: expanded,
           onToggle: onToggle ?? () {},
         ),
@@ -48,6 +70,9 @@ class ChatItemView extends StatelessWidget {
         :final detail,
         :final path,
         :final results,
+        :final label,
+        :final status,
+        :final output,
       ) =>
         ToolCallRow(
           kind: kind,
@@ -55,12 +80,42 @@ class ChatItemView extends StatelessWidget {
           detail: detail,
           path: path,
           results: results,
+          label: label,
+          status: status,
+          output: output,
+          expanded: expanded,
+          onToggle: onToggle,
         ),
-      TerminalItem(:final command, :final output, :final succeeded) =>
-        TerminalCard(command: command, output: output, succeeded: succeeded),
-      CodeDiffItem(:final fileName, :final directory, :final lines) =>
-        CodeDiffCard(fileName: fileName, directory: directory, lines: lines),
-      LiveStatusItem(:final label) => ShimmerText(label),
+      final AgentItem agent => AgentStep(
+        item: agent,
+        expanded: expanded,
+        onToggle: onToggle,
+        onMoveToBackground: onMoveToBackground,
+      ),
+      final NoticeItem notice => NoticeRow(item: notice),
+      TerminalItem(
+        :final command,
+        :final description,
+        :final output,
+        :final status,
+        :final background,
+      ) =>
+        CommandStep(
+          command: command,
+          description: description,
+          output: output,
+          status: status,
+          background: background,
+          expanded: expanded,
+          onToggle: onToggle,
+          onMoveToBackground: onMoveToBackground,
+        ),
+      final CodeDiffItem diff => EditStep(
+        item: diff,
+        expanded: expanded,
+        onToggle: onToggle,
+      ),
+      LiveStatusItem(:final label) => ActivityRow(label: label),
     };
   }
 }
@@ -87,33 +142,86 @@ String chatItemPlainText(ChatItem item, {bool expanded = false}) {
         else if (line.isNotEmpty)
           inline(line),
     ].join('\n'),
-    ThinkingItem(:final text, :final tokens, :final seconds) => [
-      thinkingTitle(seconds: seconds, tokens: tokens),
-      if (expanded) text,
+    ThinkingItem(:final text, :final seconds) => [
+      thinkingTitle(seconds: seconds),
+      if (expanded) text.trimRight(),
     ].join('\n'),
-    ToolCallItem(:final kind, :final target, :final detail) => [
-      switch (kind) {
-        ToolKind.read => 'Read',
-        ToolKind.grep => 'Grepped',
-        ToolKind.listDir => 'Listed',
-        ToolKind.search => 'Searched',
-      },
-      target,
-      ?detail,
-    ].join(' '),
-    TerminalItem(:final command, :final output, :final succeeded) =>
-      'Terminal ${succeeded ? 'Success' : 'Failed'}\n\$ $command\n$output',
-    CodeDiffItem(:final fileName, :final directory, :final lines) => [
-      '$fileName $directory '
-          '+${lines.where((l) => l.type == DiffLineType.added).length} '
-          '-${lines.where((l) => l.type == DiffLineType.removed).length}',
-      for (final line in lines)
-        '${line.lineNumber} ${switch (line.type) {
-          DiffLineType.added => '+',
-          DiffLineType.removed => '-',
-          DiffLineType.context => ' ',
-        }} ${line.text}',
+    ToolCallItem(
+      :final kind,
+      :final target,
+      :final detail,
+      :final label,
+      :final status,
+      :final results,
+      :final output,
+    ) =>
+      [
+        StepHeader.text(
+          label ?? toolVerb(kind, running: status == ToolStatus.running),
+          target,
+          detail,
+        ),
+        if (expanded)
+          if (results.isNotEmpty)
+            results.join('\n')
+          else if (output?.trimRight() case final output?
+              when output.isNotEmpty)
+            output,
+      ].join('\n'),
+    AgentItem() => StepHeader.text(
+      item.status == CommandStatus.running ? 'Delegating' : 'Delegated',
+      item.description,
+      AgentStep.detail(item),
+    ),
+    NoticeItem(:final text) => text,
+    TerminalItem(
+      :final command,
+      :final description,
+      :final output,
+      :final status,
+      :final background,
+    ) =>
+      [
+        StepHeader.text(
+          CommandStep.verb(status, background: background),
+          CommandStep.title(command, description),
+          background ? 'in background' : null,
+        ),
+        if (expanded) ...[
+          '\$ $command',
+          if (output.trim().isNotEmpty) output.trimRight(),
+        ],
+      ].join('\n'),
+    CodeDiffItem(:final fileName, :final lines) => [
+      '${StepHeader.text('Edited', fileName)} +${item.added} -${item.removed}',
+      if (expanded)
+        for (final line in lines)
+          '${line.lineNumber} ${switch (line.type) {
+            DiffLineType.added => '+',
+            DiffLineType.removed => '-',
+            DiffLineType.context => ' ',
+          }} ${line.text}',
     ].join('\n'),
-    LiveStatusItem(:final label) => '$label…',
+    LiveStatusItem(:final label) => label,
   };
 }
+
+/// Whether [item] is a step the agent took (a thought, a tool call…): one
+/// line that may open.
+bool isStep(ChatItem item) => switch (item) {
+  ThinkingItem() ||
+  ToolCallItem() ||
+  AgentItem() ||
+  TerminalItem() ||
+  CodeDiffItem() ||
+  LiveStatusItem() => true,
+  _ => false,
+};
+
+/// Whether a step is open unless opened or closed by hand: a thought while
+/// it streams. Tool calls stay closed (opening and closing as they start
+/// and end would flicker).
+bool defaultExpanded(ChatItem item) => switch (item) {
+  ThinkingItem(:final streaming) => streaming,
+  _ => false,
+};

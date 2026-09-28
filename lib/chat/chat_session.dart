@@ -3,383 +3,486 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../kernel/agent_kernel.dart';
+import '../kernel/kernel_event.dart';
+import '../kernel/kernel_registry.dart';
+import '../kernel/kernel_types.dart';
+import '../kernel/transcript.dart';
 import 'chat_models.dart';
+import 'composer/composer_draft.dart';
 import 'mock_conversation.dart';
 
 /// A message submitted from the composer.
 class ComposerMessage {
-  const ComposerMessage({required this.text, this.mentions = const []});
+  const ComposerMessage({
+    required this.text,
+    this.mentions = const [],
+    this.images = const [],
+  });
 
   final String text;
   final List<String> mentions;
+  final List<ImageAttachment> images;
 
-  bool get isEmpty => text.trim().isEmpty && mentions.isEmpty;
+  bool get isEmpty => text.trim().isEmpty && mentions.isEmpty && images.isEmpty;
 }
 
-class AskQuestion {
-  const AskQuestion({
-    required this.prompt,
+/// A choice a kernel offers (its model, its mode, the kernel itself): the
+/// options, the one in effect, and how to pick another.
+class KernelChoice {
+  const KernelChoice({
     required this.options,
-    this.allowMultiple = false,
+    required this.selected,
+    required this.onSelected,
   });
 
-  final String prompt;
-  final List<String> options;
-  final bool allowMultiple;
+  final List<KernelOption> options;
+  final KernelOption selected;
+  final ValueChanged<KernelOption> onSelected;
 }
 
-/// A tool call waiting on user input, rendered in the feedback area.
-class AskQuestionRequest {
-  const AskQuestionRequest({required this.title, required this.questions});
-
-  final String title;
-  final List<AskQuestion> questions;
-}
-
-enum TaskStatus { running, succeeded, failed }
-
-class BackgroundTask {
-  BackgroundTask({required this.command, required this.startedAt});
-
-  final String command;
-  final DateTime startedAt;
-  TaskStatus status = TaskStatus.running;
-}
-
-class FileChange {
-  const FileChange({
-    required this.path,
-    required this.added,
-    required this.removed,
-  });
-
-  final String path;
-  final int added;
-  final int removed;
-
-  String get fileName => path.split('/').last;
-  String get directory {
-    final index = path.lastIndexOf('/');
-    return index < 0 ? '' : path.substring(0, index);
-  }
-}
-
-class ContextSegment {
-  const ContextSegment(this.label, this.tokens);
-
-  final String label;
-  final int tokens;
-}
-
-/// Mock agent session: history, the live turn, and side-panel state.
+/// One agent conversation, as the UI sees it, over an [AgentKernel].
+///
+/// It keeps only three things:
+/// - the [Transcript], the kernel's conversation as reported;
+/// - which kernel runs it, and where ([KernelContext]);
+/// - UI state the kernel never hears of (changes kept, tasks dismissed,
+///   what is typed and not sent).
+///
+/// Everything else (the status row, tasks, pending changes, the question
+/// waiting, the model in effect) is projected from those or read from the
+/// kernel. The UI reaches what the kernel can do through the facets here,
+/// null when the kernel does not declare it.
 class ChatSession extends ChangeNotifier {
-  ChatSession({this._historyCount = MockConversation.itemCount});
+  ChatSession({
+    KernelDescriptor? kernel,
+    List<KernelDescriptor>? kernels,
+    this.kernelContext = const KernelContext(),
+    int historyCount = MockConversation.itemCount,
+    List<FileChange> changes = const [],
+    ContextUsage? usage,
+  }) : kernels = kernels ?? KernelRegistry.all {
+    _transcript = Transcript(
+      historyCount: historyCount,
+      history: historyCount > 0 ? MockConversation.itemAt : null,
+      changes: changes,
+      usage: usage ?? (historyCount > 0 ? MockConversation.usage : null),
+    );
+    _connect(kernel ?? this.kernels.first);
+  }
 
-  /// Leading items that come from the mock history; editing a message there
-  /// truncates it.
-  int _historyCount;
-  final List<ChatItem> _live = [];
+  /// Kernels this session may switch to before its first message.
+  final List<KernelDescriptor> kernels;
 
-  int get itemCount => _historyCount + _live.length;
+  /// Where its kernel works, and the session it continues.
+  final KernelContext kernelContext;
 
-  ChatItem itemAt(int index) => index < _historyCount
-      ? MockConversation.itemAt(index)
-      : _live[index - _historyCount];
+  /// What is typed in its composer and not sent, while another
+  /// conversation shows.
+  final ComposerDraft draft = ComposerDraft();
 
-  bool get isStreaming => _run != null;
+  /// The sent message being edited, if any, and what is typed in its place.
+  ({int index, ComposerDraft draft})? editing;
 
-  AskQuestionRequest? get pendingQuestion => _pendingQuestion;
-  AskQuestionRequest? _pendingQuestion;
-  Completer<String>? _answer;
+  late AgentKernel _kernel;
+  StreamSubscription<KernelEvent>? _subscription;
+  late Transcript _transcript;
 
-  final List<BackgroundTask> tasks = [];
-  final List<FileChange> fileChanges = [];
+  /// Changes reported at or below this sequence were kept.
+  int _keptSeq = -1;
+  final Set<String> _dismissedTasks = {};
 
-  static const contextWindow = 200000;
-  int _conversationTokens = 41200;
-  List<ContextSegment> get contextSegments => [
-    const ContextSegment('System prompt', 3100),
-    const ContextSegment('Tools', 11800),
-    const ContextSegment('Rules & memory', 2400),
-    ContextSegment('Files', 18600 + fileChanges.length * 1400),
-    ContextSegment('Conversation', _conversationTokens),
+  void _connect(KernelDescriptor descriptor) {
+    _kernel = descriptor.create(kernelContext);
+    _subscription = _kernel.events.listen(_apply);
+  }
+
+  void _apply(KernelEvent event) {
+    if (event is KernelInfoChanged || _transcript.apply(event)) {
+      _cache.clear();
+      notifyListeners();
+    }
+  }
+
+  // --- The kernel -------------------------------------------------------------
+
+  KernelDescriptor get kernel => _kernel.descriptor;
+
+  KernelHealth get health => _kernel.health;
+
+  /// The id the kernel keeps this conversation under, once known.
+  String? get sessionId => _kernel.sessionId;
+
+  /// Completes once the kernel has stopped, after [dispose].
+  Future<void> get stopped => _kernel.stopped;
+
+  /// Tries the kernel again after it failed.
+  void restart() => _kernel.restart();
+
+  int _views = 0;
+
+  /// A view shows the conversation: the kernel gets ready.
+  void attach() {
+    _views++;
+    _kernel.prepare();
+  }
+
+  /// A view no longer shows it. With none left, an idle kernel frees what
+  /// it holds (a view may come right back, e.g. as the layout changes).
+  void detach() {
+    _views--;
+    scheduleMicrotask(() {
+      if (_views == 0 && !_disposed) _kernel.release();
+    });
+  }
+
+  /// Once the conversation has started, its kernel stays: kernels cannot
+  /// read each other's sessions.
+  bool get kernelLocked =>
+      _transcript.length > 0 || kernelContext.resume != null;
+
+  late final List<KernelOption> _kernelOptions = [
+    for (final descriptor in kernels) descriptor.option,
   ];
-  int get contextUsed =>
-      contextSegments.fold(0, (sum, segment) => sum + segment.tokens);
 
-  Object? _run;
+  /// Null once locked, or with nothing to choose from.
+  KernelChoice? get kernelChoice {
+    if (kernelLocked || kernels.length < 2) return null;
+    return KernelChoice(
+      options: _kernelOptions,
+      selected: _kernelOptions[kernels.indexOf(kernel)],
+      onSelected: (option) =>
+          setKernel(kernels.firstWhere((k) => k.id == option.id)),
+    );
+  }
+
+  void setKernel(KernelDescriptor descriptor) {
+    if (kernelLocked || descriptor.id == kernel.id) return;
+    unawaited(_subscription?.cancel());
+    _kernel.dispose();
+    _transcript = Transcript(
+      changes: [for (final edit in _transcript.edits) edit.change],
+    );
+    _connect(descriptor);
+    notifyListeners();
+  }
+
+  // --- Facets: what the kernel declares ------------------------------------------
+
+  KernelChoice? get models => switch (_kernel) {
+    final SelectsModel kernel => _choice(kernel.model),
+    _ => null,
+  };
+
+  KernelChoice? get modes => switch (_kernel) {
+    final SelectsMode kernel => _choice(kernel.mode),
+    _ => null,
+  };
+
+  KernelChoice? get permissions => switch (_kernel) {
+    final SelectsPermission kernel => _choice(kernel.permission),
+    _ => null,
+  };
+
+  KernelChoice? get efforts => switch (_kernel) {
+    SelectsEffort(:final effort?) => _choice(effort),
+    _ => null,
+  };
+
+  /// The choice [kind] as it stands, e.g. for a new agent to start with.
+  String? selected(KernelChoiceKind kind) => switch (kind) {
+    KernelChoiceKind.model => models?.selected.id,
+    KernelChoiceKind.mode => modes?.selected.id,
+    KernelChoiceKind.permission => permissions?.selected.id,
+    KernelChoiceKind.effort => efforts?.selected.id,
+  };
+
+  KernelChoice? _choice(KernelChoiceSource source) {
+    final options = source.options;
+    if (options.isEmpty) return null;
+    return KernelChoice(
+      options: options,
+      selected: options.firstWhere(
+        (option) => option.id == source.selected,
+        orElse: () => options.first,
+      ),
+      onSelected: (option) => source.select(option.id),
+    );
+  }
+
+  List<KernelCommand> get commands => switch (_kernel) {
+    final ProvidesCommands kernel => kernel.commands,
+    _ => const [],
+  };
+
+  /// Files matching an `@` query; null when the kernel does not look.
+  Future<List<FileSuggestion>> Function(String query)? get suggestFiles =>
+      switch (_kernel) {
+        final SuggestsFiles kernel => kernel.suggestFiles,
+        _ => null,
+      };
+
+  ContextUsage? get context => switch (_kernel) {
+    final ReportsContext kernel =>
+      _transcript.usage ?? ContextUsage(window: kernel.contextWindow, used: 0),
+    _ => null,
+  };
+
+  /// Cost and account limits; null when the kernel does not report them.
+  UsageStats? get stats => switch (_kernel) {
+    ReportsUsage() => _transcript.stats ?? const UsageStats(),
+    _ => null,
+  };
+
+  bool get acceptsImages => _kernel is AcceptsImages;
+
+  /// What the user would likely send next: offered while the agent waits
+  /// for them.
+  String? get promptSuggestion => switch (_kernel) {
+    final SuggestsPrompts kernel
+        when !isStreaming && pendingInteraction == null =>
+      kernel.promptSuggestion,
+    _ => null,
+  };
+
+  /// The kernel's MCP servers; null when it has none to manage, empty
+  /// until first reported.
+  List<McpServer>? get mcpServers => switch (_kernel) {
+    final ManagesMcpServers kernel => kernel.mcpServers ?? const [],
+    _ => null,
+  };
+
+  void refreshMcpServers() {
+    if (_kernel case final ManagesMcpServers kernel) kernel.refreshMcpServers();
+  }
+
+  void setMcpServerEnabled(McpServer server, bool enabled) {
+    if (_kernel case final ManagesMcpServers kernel) {
+      kernel.setMcpServerEnabled(server.name, enabled);
+    }
+  }
+
+  void reconnectMcpServer(McpServer server) {
+    if (_kernel case final ManagesMcpServers kernel) {
+      kernel.reconnectMcpServer(server.name);
+    }
+  }
+
+  /// Starts signing in to [server]: the page to open for the user, if any.
+  Future<Uri?> authenticateMcpServer(McpServer server) async =>
+      switch (_kernel) {
+        final ManagesMcpServers kernel => kernel.authenticateMcpServer(
+          server.name,
+        ),
+        _ => null,
+      };
+
+  bool get canEditMessages => _kernel is RewindsConversation;
+
+  /// Messages can be sent while the agent works.
+  bool get canQueue => _kernel is QueuesMessages;
+
+  bool get canRename => _kernel is RenamesSession;
+
+  // --- Projections ------------------------------------------------------------
+
+  bool get isStreaming => _transcript.activeTurn != null;
+
+  /// Whether the composer may send now.
+  bool get canSend => !isStreaming || canQueue;
+
+  InteractionRequest? get pendingInteraction => _transcript.pendingInteraction;
+
+  /// Sequence of the last turn to end, to tell whether it was seen.
+  int get lastTurnEndSeq => _transcript.lastTurnEndSeq;
+
+  /// The history, and a status row after it while the agent works out of
+  /// sight: nothing it does shows (no thought, text or tool under way),
+  /// and it is not waiting on the user.
+  int get itemCount => _transcript.length + (_activity == null ? 0 : 1);
+
+  ChatItem itemAt(int index) {
+    if (index < _transcript.length) return _transcript.itemAt(index);
+    final activity = _activity!;
+    return LiveStatusItem(switch (activity.kind) {
+      KernelActivityKind.waiting => 'Planning next move',
+      KernelActivityKind.compacting => 'Compacting conversation',
+    });
+  }
+
+  KernelActivity? get _activity {
+    if (!isStreaming ||
+        pendingInteraction != null ||
+        _transcript.hasStreamingItem) {
+      return null;
+    }
+    return _transcript.activity;
+  }
+
+  /// Tasks beside the conversation, until dismissed; null when the kernel
+  /// runs none.
+  List<KernelTask>? get tasks {
+    if (_kernel is! RunsBackgroundTasks) return null;
+    return _cached(
+      #tasks,
+      () => [
+        for (final task in _transcript.tasks)
+          if (task.background && !_dismissedTasks.contains(task.id)) task,
+      ],
+    );
+  }
+
+  void dismissTask(KernelTask task) {
+    if (!_dismissedTasks.add(task.id)) return;
+    _cache.clear();
+    notifyListeners();
+  }
+
+  void stopTask(KernelTask task) {
+    if (_kernel case final RunsBackgroundTasks kernel) kernel.stopTask(task.id);
+  }
+
+  /// Moves what the item at [index] runs (a command, a subagent) to the
+  /// background, so the turn goes on; null unless the kernel reports it
+  /// running in the foreground.
+  VoidCallback? moveToBackgroundAt(int index) {
+    if (_kernel is! RunsBackgroundTasks || index >= _transcript.length) {
+      return null;
+    }
+    final kernel = _kernel as RunsBackgroundTasks;
+    final id = _transcript.idAt(index);
+    if (id == null) return null;
+    final running = _transcript.tasks.any(
+      (task) =>
+          task.toolUseId == id &&
+          !task.background &&
+          task.status == CommandStatus.running,
+    );
+    return running ? () => kernel.moveToBackground(id) : null;
+  }
+
+  List<TodoEntry> get todos => _transcript.todos;
+
+  /// Files changed and neither kept nor reverted, one entry per file.
+  List<FileChange> get fileChanges => _cached(#fileChanges, () {
+    final byPath = <String, FileChange>{};
+    for (final (seq: _, :change, turnId: _) in _pendingEdits) {
+      final before = byPath[change.path];
+      byPath[change.path] = before == null
+          ? change
+          : FileChange(
+              path: change.path,
+              added: before.added + change.added,
+              removed: before.removed + change.removed,
+            );
+    }
+    return byPath.values.toList();
+  });
+
+  Iterable<({int seq, FileChange change, String? turnId})> get _pendingEdits {
+    final settled = math.max(_keptSeq, _transcript.revertedSeq);
+    return _transcript.edits.where((edit) => edit.seq > settled);
+  }
+
+  void keepAllChanges() {
+    _keptSeq = _transcript.lastSeq;
+    _cache.clear();
+    notifyListeners();
+  }
+
+  /// Puts the pending changes back; null when the kernel cannot, or does
+  /// not know the turn they began in.
+  VoidCallback? get undoAllChanges {
+    if ((_kernel, _pendingEdits.firstOrNull?.turnId) case (
+      final RevertsChanges kernel,
+      final since?,
+    )) {
+      return () => kernel.revertChanges(sinceTurn: since);
+    }
+    return null;
+  }
+
+  final Map<Symbol, Object> _cache = {};
+  int _cacheVersion = -1;
+
+  T _cached<T extends Object>(Symbol key, T Function() compute) {
+    if (_cacheVersion != _transcript.version) {
+      _cache.clear();
+      _cacheVersion = _transcript.version;
+    }
+    return _cache.putIfAbsent(key, compute) as T;
+  }
+
+  // --- Commands ---------------------------------------------------------------
 
   void send(ComposerMessage message) {
-    if (message.isEmpty || isStreaming) return;
-    _live.add(UserMessageItem(text: message.text.trim()));
-    _conversationTokens += 60 + message.text.length * 2;
-    final run = Object();
-    _run = run;
-    notifyListeners();
-    unawaited(_script(run, message));
+    if (message.isEmpty || !canSend) return;
+    _kernel.send(
+      KernelTurn(
+        id: newTurnId(),
+        text: message.text.trim(),
+        mentions: message.mentions,
+        images: acceptsImages ? message.images : const [],
+      ),
+    );
+  }
+
+  static final _random = math.Random.secure();
+
+  /// A random UUID (v4): kernels may use it as the message's id.
+  static String newTurnId() {
+    String hex(int length) =>
+        [for (var i = 0; i < length; i++) _random.nextInt(16).toRadixString(16)]
+            .join();
+    final variant = (8 + _random.nextInt(4)).toRadixString(16);
+    return '${hex(8)}-${hex(4)}-4${hex(3)}-$variant${hex(3)}-${hex(12)}';
+  }
+
+  /// Takes back the queued message at [index].
+  void cancelQueued(int index) {
+    final id = _transcript.idAt(index);
+    if (id == null) return;
+    if (_kernel case final QueuesMessages kernel) kernel.cancelQueued(id);
   }
 
   /// Resends the user message at [index] as [message]: everything after it
   /// is discarded and the turn runs again from there.
   void editMessage(int index, ComposerMessage message) {
-    if (message.isEmpty || itemAt(index) is! UserMessageItem) return;
-    stop();
-    if (index < _historyCount) {
-      _historyCount = index;
-      _live.clear();
-    } else {
-      _live.removeRange(index - _historyCount, _live.length);
-    }
-    _pendingQuestion = null;
-    tasks.clear();
-    fileChanges.clear();
-    send(message);
-  }
-
-  void stop() {
-    if (_run == null) return;
-    _run = null;
-    _finishThinking();
-    _removeStatus();
-    _pendingQuestion = null;
-    _answer = null;
-    notifyListeners();
-  }
-
-  void answerQuestion(String summary) {
-    _pendingQuestion = null;
-    _answer?.complete(summary);
-    _answer = null;
-    notifyListeners();
-  }
-
-  void keepAllChanges() {
-    fileChanges.clear();
-    notifyListeners();
-  }
-
-  void undoAllChanges() {
-    fileChanges.clear();
-    _live.add(const AssistantTextItem('已撤销本轮的全部文件修改。'));
-    notifyListeners();
-  }
-
-  void dismissTask(BackgroundTask task) {
-    tasks.remove(task);
-    notifyListeners();
-  }
-
-  // --- Mock script -------------------------------------------------------
-
-  Future<bool> _wait(Object run, int milliseconds) async {
-    await Future<void>.delayed(Duration(milliseconds: milliseconds));
-    return identical(_run, run);
-  }
-
-  void _setStatus(String label) {
-    _removeStatus();
-    _live.add(LiveStatusItem(label));
-    notifyListeners();
-  }
-
-  void _removeStatus() {
-    if (_live.isNotEmpty && _live.last is LiveStatusItem) _live.removeLast();
-  }
-
-  void _append(ChatItem item) {
-    _removeStatus();
-    _live.add(item);
-    notifyListeners();
-  }
-
-  Future<bool> _stream(Object run, String text) async {
-    _removeStatus();
-    final index = _live.length;
-    _live.add(const AssistantTextItem(''));
-    for (var end = 0; end < text.length;) {
-      end = (end + 3).clamp(0, text.length);
-      _live[index] = AssistantTextItem(text.substring(0, end));
-      _conversationTokens += 2;
-      notifyListeners();
-      if (!await _wait(run, 16)) return false;
-    }
-    return true;
-  }
-
-  /// The streaming thought in [_live], and how long it has run (mock time,
-  /// counted from its waits, so it is the same under test).
-  int? _thinkingIndex;
-  int _thinkingMs = 0;
-
-  /// Thought streaming pace: slow enough to read along (~40 characters a
-  /// second).
-  static const _thinkingChunk = 2;
-  static const _thinkingChunkMs = 50;
-
-  Future<bool> _think(Object run, String text) async {
-    _removeStatus();
-    _thinkingIndex = _live.length;
-    _thinkingMs = 0;
-    _live.add(const ThinkingItem(text: '', tokens: 0));
-    notifyListeners();
-    Future<bool> wait(int milliseconds) {
-      _thinkingMs += milliseconds;
-      return _wait(run, milliseconds);
-    }
-
-    if (!await wait(400)) return false;
-    var tokens = 0;
-    for (var end = 0; end < text.length;) {
-      end = (end + _thinkingChunk).clamp(0, text.length);
-      tokens += 2;
-      _live[_thinkingIndex!] = ThinkingItem(
-        text: text.substring(0, end),
-        tokens: tokens,
+    if (_kernel case final RewindsConversation kernel
+        when !message.isEmpty && itemAt(index) is UserMessageItem) {
+      stop();
+      var turns = 0;
+      for (var i = index; i < _transcript.length; i++) {
+        if (_transcript.itemAt(i) is UserMessageItem) turns++;
+      }
+      kernel.rewind(
+        itemId: _transcript.idAt(index) ?? '$index',
+        index: index,
+        turns: turns,
       );
-      _conversationTokens += 2;
-      notifyListeners();
-      if (!await wait(_thinkingChunkMs)) return false;
+      send(message);
     }
-    _finishThinking();
-    notifyListeners();
-    return true;
   }
 
-  /// Settles the streaming thought, if any, as done (also when stopped).
-  void _finishThinking() {
-    final index = _thinkingIndex;
-    _thinkingIndex = null;
-    if (index == null || index >= _live.length) return;
-    final item = _live[index];
-    if (item is! ThinkingItem || !item.streaming) return;
-    _live[index] = ThinkingItem(
-      text: item.text,
-      tokens: item.tokens,
-      seconds: math.max(1, (_thinkingMs / 1000).round()),
-    );
+  void stop() => _kernel.cancel();
+
+  void answer(InteractionAnswer answer) {
+    if (pendingInteraction case final request?) {
+      _kernel.answer(request.id, answer);
+    }
   }
 
-  Future<void> _script(Object run, ComposerMessage message) async {
-    final target = message.mentions.isEmpty
-        ? 'lib/chat/chat_screen.dart'
-        : message.mentions.first;
+  void rename(String title) {
+    if (_kernel case final RenamesSession kernel) kernel.rename(title);
+  }
 
-    if (!await _think(
-      run,
-      '用户想调整输入框，先确认需求涉及的文件：$target 是入口，'
-      '输入框本身在 composer 目录下，由 ChatComposer 管理编辑器、菜单和发送按钮。\n\n'
-      '高度策略有几种做法：随内容自动增高、固定行数后滚动、可拖拽调整。'
-      '自动增高最符合直觉，但要给一个上限，否则长文本会把历史记录挤没；'
-      '固定行数实现最简单，只是短消息也会占着几行空白；'
-      '可拖拽调整最灵活，但需要额外的拖拽手柄，还要记住用户调整后的高度。'
-      '三种的交互差异不小，而且会影响发送按钮和工具栏的布局，'
-      '直接选一种改下去风险偏高。\n\n'
-      '快捷输入方面，@ 提及和 / 命令已经有菜单的基础实现，'
-      '提及会变成不可拆分的标签，命令只在消息开头生效。'
-      '粘贴图片还没有入口，需要额外处理剪贴板里的图片数据，'
-      '在 web 上还要考虑浏览器的剪贴板权限。\n\n'
-      '另外编辑已发送的消息也复用同一个输入框，改高度策略时要确认'
-      '历史记录里的编辑框不会因此跳动。\n\n'
-      '先读一下相关代码确认现状，再向用户确认高度策略和需要支持的快捷输入，'
-      '避免改完之后返工。',
-    )) {
-      return;
-    }
-    _setStatus('Exploring');
-    if (!await _wait(run, 500)) return;
-    _append(ToolCallItem(kind: ToolKind.read, target: target.split('/').last));
-    if (!await _wait(run, 350)) return;
-    _append(
-      const ToolCallItem(
-        kind: ToolKind.grep,
-        target: 'ChatComposer',
-        detail: '3 results',
-      ),
-    );
-    _setStatus('Generating');
-    if (!await _wait(run, 400)) return;
-    if (!await _stream(run, '我看了一下相关代码，开始修改之前需要先确认两点：')) return;
+  bool _disposed = false;
 
-    final answer = Completer<String>();
-    _answer = answer;
-    _pendingQuestion = const AskQuestionRequest(
-      title: 'Ask Question',
-      questions: [
-        AskQuestion(
-          prompt: '输入框的高度策略用哪一种？',
-          options: ['随内容自动增高，最多 8 行', '固定 3 行，超出滚动', '可拖拽调整高度'],
-        ),
-        AskQuestion(
-          prompt: '需要支持哪些快捷输入？',
-          options: ['@ 提及文件', '/ 命令', '粘贴图片'],
-          allowMultiple: true,
-        ),
-      ],
-    );
-    _setStatus('Waiting for your answer');
-    final summary = await answer.future;
-    if (!identical(_run, run)) return;
-    _append(AssistantTextItem('已收到：$summary'));
-
-    _setStatus('Editing');
-    if (!await _wait(run, 700)) return;
-    _append(
-      const CodeDiffItem(
-        fileName: 'composer.dart',
-        directory: 'lib/chat/composer',
-        lines: [
-          DiffLine(DiffLineType.context, 88, 'child: QuillEditor('),
-          DiffLine(
-            DiffLineType.removed,
-            89,
-            '  config: const QuillEditorConfig(),',
-          ),
-          DiffLine(DiffLineType.added, 89, '  config: QuillEditorConfig('),
-          DiffLine(DiffLineType.added, 90, '    maxHeight: _maxEditorHeight,'),
-          DiffLine(DiffLineType.added, 91, '    onKeyPressed: _handleKey,'),
-          DiffLine(DiffLineType.added, 92, '  ),'),
-        ],
-      ),
-    );
-    fileChanges
-      ..clear()
-      ..addAll(const [
-        FileChange(
-          path: 'lib/chat/composer/composer.dart',
-          added: 42,
-          removed: 7,
-        ),
-        FileChange(path: 'lib/chat/chat_screen.dart', added: 12, removed: 3),
-        FileChange(path: 'test/widget_test.dart', added: 18, removed: 0),
-      ]);
-    notifyListeners();
-
-    final task = BackgroundTask(
-      command: 'flutter test',
-      startedAt: DateTime.now(),
-    );
-    tasks.add(task);
-    _append(
-      const TerminalItem(
-        command: 'flutter test',
-        output: 'Running in background…',
-      ),
-    );
-    _setStatus('Generating');
-    if (!await _wait(run, 300)) return;
-    if (!await _stream(
-      run,
-      '修改已完成：\n- 输入框使用 `QuillEditor`，随内容增高\n- 支持 `@` 提及和 `/` 命令\n- 测试正在后台运行，结束后会更新状态',
-    )) {
-      return;
-    }
-    _run = null;
-    _removeStatus();
-    notifyListeners();
-
-    await Future<void>.delayed(const Duration(seconds: 4));
-    if (!tasks.contains(task)) return;
-    task.status = TaskStatus.succeeded;
-    notifyListeners();
+  @override
+  void dispose() {
+    _disposed = true;
+    unawaited(_subscription?.cancel());
+    _kernel.dispose();
+    super.dispose();
   }
 }

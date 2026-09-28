@@ -1,9 +1,23 @@
+import '../kernel/kernel_types.dart';
 import 'chat_models.dart';
 
 /// Deterministic fake history so the virtual list can be arbitrarily long.
 abstract final class MockConversation {
   static const itemCount = 100000;
   static const _turnLength = 8;
+
+  /// Context use as the kernel last reported it for this history.
+  static const usage = ContextUsage(
+    window: 200000,
+    used: 77100,
+    segments: [
+      ContextSegment('System prompt', 3100),
+      ContextSegment('Tools', 11800),
+      ContextSegment('Rules & memory', 2400),
+      ContextSegment('Files', 18600),
+      ContextSegment('Conversation', 41200),
+    ],
+  );
 
   /// Appended to every third user message, so some are long.
   static const _longRequest =

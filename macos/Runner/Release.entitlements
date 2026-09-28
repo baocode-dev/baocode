@@ -2,7 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Off: agents run the Claude Code CLI as a child process and read
+	     its sessions in ~/.claude, which a sandboxed app cannot. -->
 	<key>com.apple.security.app-sandbox</key>
-	<true/>
+	<false/>
 </dict>
 </plist>

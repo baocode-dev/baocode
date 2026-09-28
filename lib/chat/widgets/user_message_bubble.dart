@@ -4,9 +4,11 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/cursor_theme.dart';
+import '../chat_models.dart';
 import '../composer/composer_embeds.dart';
 import 'assistant_text.dart';
 import 'fade_curve.dart';
+import 'image_thumbnails.dart';
 
 /// A sent user message, echoed as text: `@mentions` and a leading
 /// `/command` in it show as the same inline tags as in the composer.
@@ -21,10 +23,24 @@ import 'fade_curve.dart';
 /// a recognizer would compete with the history's text selection for the
 /// same press, and win Shift+clicks meant to extend the selection.
 class UserMessageBubble extends StatefulWidget {
-  const UserMessageBubble({super.key, required this.text, this.onEdit});
+  const UserMessageBubble({
+    super.key,
+    required this.text,
+    this.images = const [],
+    this.onEdit,
+    this.queued = false,
+    this.onCancel,
+  });
 
   final String text;
+  final List<ImageAttachment> images;
   final VoidCallback? onEdit;
+
+  /// Waiting for the agent to finish what it is doing.
+  final bool queued;
+
+  /// Takes the queued message back.
+  final VoidCallback? onCancel;
 
   @override
   State<UserMessageBubble> createState() => _UserMessageBubbleState();
@@ -43,8 +59,8 @@ const _messageStyle = TextStyle(
   leadingDistribution: TextLeadingDistribution.even,
 );
 
-TextSpan _messageSpan(String text) {
-  final ops = composerDeltaFromText(text).toList();
+TextSpan _messageSpan(String text, ComposerVocabulary vocabulary) {
+  final ops = composerDeltaFromText(text, vocabulary).toList();
   return TextSpan(
     style: _messageStyle,
     children: [
@@ -69,11 +85,18 @@ TextSpan _messageSpan(String text) {
 class _UserMessageBubbleState extends State<UserMessageBubble> {
   Offset? _pressedAt;
 
+  /// The press went to an image (which opens its preview instead). Its
+  /// listener, deeper, hears the press first.
+  bool _pressOnImage = false;
+
   void _handleDown(PointerDownEvent event) {
     final primary =
         event.kind != PointerDeviceKind.mouse ||
         event.buttons == kPrimaryMouseButton;
-    _pressedAt = primary && !HardwareKeyboard.instance.isShiftPressed
+    final onImage = _pressOnImage;
+    _pressOnImage = false;
+    _pressedAt =
+        primary && !onImage && !HardwareKeyboard.instance.isShiftPressed
         ? event.position
         : null;
   }
@@ -90,6 +113,51 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
 
   @override
   Widget build(BuildContext context) {
+    final bubble = _buildBubble(context);
+    if (!widget.queued) return bubble;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Opacity(opacity: 0.6, child: bubble),
+        Padding(
+          padding: const EdgeInsets.only(top: 4, right: 2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              const Icon(
+                Icons.schedule_rounded,
+                size: 12,
+                color: CursorColors.textFaint,
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                'Queued',
+                style: TextStyle(color: CursorColors.textFaint, fontSize: 11.5),
+              ),
+              if (widget.onCancel case final cancel?) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: cancel,
+                  child: const MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: CursorColors.accent,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBubble(BuildContext context) {
     return Listener(
       onPointerDown: _handleDown,
       onPointerUp: _handleUp,
@@ -102,11 +170,26 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: CursorColors.borderStrong),
         ),
-        child: _Collapsed(
-          collapsedHeight: _lineHeight * _collapsedLines,
-          collapseAbove: _lineHeight * (_collapsedLines + 1),
-          content: Text.rich(_messageSpan(widget.text)),
-          overlay: const _CollapsedOverlay(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.images.isNotEmpty)
+              Listener(
+                onPointerDown: (_) => _pressOnImage = true,
+                child: ImageThumbnails(images: widget.images),
+              ),
+            if (widget.images.isNotEmpty && widget.text.isNotEmpty)
+              const SizedBox(height: 8),
+            if (widget.text.isNotEmpty || widget.images.isEmpty)
+              _Collapsed(
+                collapsedHeight: _lineHeight * _collapsedLines,
+                collapseAbove: _lineHeight * (_collapsedLines + 1),
+                content: Text.rich(
+                  _messageSpan(widget.text, ComposerVocabulary.of(context)),
+                ),
+                overlay: const _CollapsedOverlay(),
+              ),
+          ],
         ),
       ),
     );

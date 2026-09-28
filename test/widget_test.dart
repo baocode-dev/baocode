@@ -11,10 +11,11 @@ import 'package:monad/chat/mock_conversation.dart';
 import 'package:monad/chat/composer/composer.dart';
 import 'package:monad/chat/widgets/edge_fade_mask.dart';
 import 'package:monad/main.dart';
+import 'package:monad/workspace/workspace.dart';
 
 void main() {
   testWidgets('renders the chat history', (tester) async {
-    await tester.pumpWidget(const MonadApp());
+    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
 
     await tester.pump();
 
@@ -44,7 +45,7 @@ void main() {
         () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
       );
 
-      await tester.pumpWidget(const MonadApp());
+      await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
       await tester.pump();
       final selectionArea = tester.widget<SelectionArea>(
         find.byType(SelectionArea),
@@ -73,7 +74,7 @@ void main() {
   }
 
   testWidgets('scrollbar thumb jumps across the virtual feed', (tester) async {
-    await tester.pumpWidget(const MonadApp());
+    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
     await tester.pumpAndSettle();
     final controller = tester
         .widget<SuperListView>(find.byType(SuperListView))
@@ -150,7 +151,7 @@ void main() {
   });
 
   testWidgets('expands and collapses a thinking block', (tester) async {
-    await tester.pumpWidget(const MonadApp());
+    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
     await tester.pump();
     tester
         .widget<SuperListView>(find.byType(SuperListView))
@@ -158,7 +159,7 @@ void main() {
         .jumpTo(0);
     await tester.pump();
 
-    final thinking = find.textContaining('Thought for').first;
+    final thinking = find.textContaining('Thought ', findRichText: true).first;
     await tester.tap(thinking);
     await tester.pumpAndSettle();
 
@@ -176,12 +177,13 @@ void main() {
     // 2x, like a Retina display: the list's bottom edge can land mid-pixel.
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(const MonadApp());
+    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
     await tester.pump();
     final list = find.byType(SuperListView);
     final controller = tester.widget<SuperListView>(list).controller!;
     final pointer = TestPointer(1, PointerDeviceKind.mouse);
-    pointer.hover(tester.getCenter(list));
+    // Beside the rows: resting on a file read would show its tooltip.
+    pointer.hover(tester.getRect(list).centerRight - const Offset(12, 0));
     final layer = tester.binding.renderViews.first.debugLayer! as OffsetLayer;
 
     for (final delta in [-13.0, -29.0, -47.0, -71.0, -7.3, -11.9]) {
@@ -226,7 +228,21 @@ void main() {
         }
       }
 
-      // Same at the top edge: content above is faded out entirely.
+      // Same at the top edge: content above is faded out entirely. Not
+      // while the next message pushes the stuck one up and away: that one
+      // slides out over the edge as it is.
+      final pushed = find.byWidgetPredicate(
+        (widget) => switch (widget.key) {
+          ValueKey<(String, int)>(value: ('sticky', _)) => true,
+          _ => false,
+        },
+      );
+      final stuck = pushed.evaluate().map(
+        (element) => (element.renderObject! as RenderBox),
+      );
+      if (stuck.any((box) => box.localToGlobal(Offset.zero).dy < rect.top)) {
+        continue;
+      }
       final topBand = Rect.fromLTRB(
         rect.left * 2,
         (rect.top * 2).floorToDouble(),
@@ -248,7 +264,7 @@ void main() {
   });
 
   testWidgets('top fade only shows when content is above', (tester) async {
-    await tester.pumpWidget(const MonadApp());
+    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
     await tester.pump();
     // The two edge fades of the list's mask: top, then bottom.
     List<bool> fadesShown() {
@@ -276,7 +292,7 @@ void main() {
   testWidgets('mouse wheel scrolls the history faster than 1:1', (
     tester,
   ) async {
-    await tester.pumpWidget(const MonadApp());
+    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
     for (var i = 0; i < 3; i++) {
       await tester.pump();
     }
@@ -295,6 +311,92 @@ void main() {
     expect(marker.localToGlobal(Offset.zero).dy - before, greaterThan(40));
   });
 
+  testWidgets('a drag beside the scrollbar, just missing it, selects '
+      'nothing', (tester) async {
+    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
+    await tester.pump(const Duration(milliseconds: 500));
+    final list = find.byType(SuperListView);
+    final rect = tester.getRect(list);
+    // Left of the bar's track, in the list's empty right margin.
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset(rect.right - 20, rect.center.dy));
+    await mouse.down(Offset(rect.right - 20, rect.center.dy));
+    await tester.pump();
+    for (var i = 0; i < 8; i++) {
+      await mouse.moveBy(const Offset(-2, -25));
+      await tester.pump();
+    }
+    await mouse.up();
+    await tester.pump();
+
+    String? copied;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.pump();
+    expect(copied, isNull);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('dragging the scrollbar scrolls, and selects nothing', (
+    tester,
+  ) async {
+    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
+    await tester.pump();
+    final list = find.byType(SuperListView);
+    final position = tester.widget<SuperListView>(list).controller!.position;
+    final before = position.pixels;
+    // The thumb, at the bottom of the bar at the history's right edge,
+    // once it has faded in.
+    await tester.pump(const Duration(milliseconds: 500));
+    final bar = tester.getRect(
+      find.ancestor(of: list, matching: find.byType(Scrollbar)).first,
+    );
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: bar.bottomRight - const Offset(5, 30));
+    await tester.pump();
+    await mouse.down(bar.bottomRight - const Offset(5, 4));
+    await tester.pump();
+    // A sideways wobble first: a text drag would take it.
+    await mouse.moveBy(const Offset(-3, 0));
+    await tester.pump();
+    for (var i = 0; i < 10; i++) {
+      await mouse.moveBy(const Offset(0, -20));
+      await tester.pump();
+    }
+    await mouse.up();
+    await tester.pump();
+    expect(position.pixels, lessThan(before));
+
+    String? copied;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.pump();
+    expect(copied, isNull);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
   testWidgets('drag selection stays contiguous when scrolling mid-drag', (
     tester,
   ) async {
@@ -311,7 +413,7 @@ void main() {
       () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
     );
 
-    await tester.pumpWidget(const MonadApp());
+    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
     await tester.pump();
     final list = find.byType(SuperListView);
 
@@ -335,11 +437,25 @@ void main() {
       await tester.sendEventToBinding(wheel.scroll(const Offset(0, -40)));
       await tester.pump(const Duration(milliseconds: 16));
     }
-    await drag.moveTo(middle + const Offset(0, 2));
+    // End on a line of the list's own text, clear of the user message
+    // stuck at its top (a point over that copy is a case of its own).
+    final end = middle + const Offset(0, 150);
+    final lines = find
+        .descendant(of: list, matching: find.byType(RichText))
+        .evaluate()
+        .map((element) {
+          final box = element.renderObject! as RenderBox;
+          return box.localToGlobal(Offset.zero) & box.size;
+        })
+        .where((line) => line.height < 40);
+    final line = lines.reduce(
+      (a, b) =>
+          (a.center.dy - end.dy).abs() <= (b.center.dy - end.dy).abs() ? a : b,
+    );
+    await drag.moveTo(Offset(line.left + 2, line.center.dy));
     await tester.pump();
     await drag.up();
     await tester.pump();
-
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
@@ -347,16 +463,16 @@ void main() {
 
     // Every message between the two ends is selected: whole turns, in order.
     final text = copied ?? '';
-    final thoughts = 'Thought for'.allMatches(text).length;
+    final thoughts = RegExp(r'Thought \d+s').allMatches(text).length;
     expect(thoughts, greaterThanOrEqualTo(3));
     // Whole turns, except that the first may start partway (after its
-    // thinking block, before its diff and terminal).
+    // thinking block, before its edit and command).
     expect(
-      'lazyRange'.allMatches(text).length - thoughts,
+      'Edited main.dart'.allMatches(text).length - thoughts,
       inInclusiveRange(0, 1),
     );
     expect(
-      'flutter test'.allMatches(text).length - thoughts,
+      'Ran flutter test'.allMatches(text).length - thoughts,
       inInclusiveRange(0, 1),
     );
     final turns = RegExp(r'第 (\d+) 轮')
@@ -402,7 +518,7 @@ void main() {
         return copied ?? '';
       }
 
-      await tester.pumpWidget(const MonadApp());
+      await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
       await tester.pump();
 
       // Click at the start of the last message: the anchor.
@@ -458,13 +574,13 @@ void main() {
       }
 
       void expectContiguousToAnchor(String text) {
-        // From the clicked terminal line down to the anchor: whole turns.
-        expect(text, startsWith(r'$ flutter test'));
-        expect(text, endsWith('All tests passed!'));
-        final thoughts = 'Thought for'.allMatches(text).length;
+        // From the clicked command down to the anchor: whole turns.
+        expect(text, startsWith('Ran flutter test'));
+        expect(text, endsWith('Ran flutter test'));
+        final thoughts = RegExp(r'Thought \d+s').allMatches(text).length;
         expect(thoughts, greaterThanOrEqualTo(3));
         expect('flutter test'.allMatches(text).length, thoughts + 1);
-        expect('lazyRange'.allMatches(text).length, thoughts);
+        expect('Edited main.dart'.allMatches(text).length, thoughts);
       }
 
       final first = await scrollAndShiftClick();
@@ -494,7 +610,7 @@ void main() {
       () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
     );
 
-    await tester.pumpWidget(const MonadApp());
+    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
     await tester.pump();
     final anchor =
         tester.getTopLeft(find.textContaining('已完成修改').last) +
@@ -529,7 +645,9 @@ void main() {
     // Everything from the first turn down to the anchor, although only
     // the items around the viewport are built; nothing jumped.
     expect(scrollable.position.pixels, 0);
-    expect(find.textContaining('已完成修改'), findsNothing);
+    const turnCount = MockConversation.itemCount ~/ 8;
+    // The anchor's turn is far off, not built.
+    expect(find.textContaining('第 $turnCount 轮'), findsNothing);
     final stopwatch = Stopwatch()..start();
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
@@ -538,16 +656,15 @@ void main() {
     stopwatch.stop();
     final text = copied ?? '';
     expect(text, startsWith('第 1 轮'));
-    expect(text, endsWith('All tests passed!'));
+    expect(text, endsWith('Ran flutter test'));
     final turns = RegExp(r'第 (\d+) 轮')
         .allMatches(text)
         .map((match) => int.parse(match.group(1)!))
         .toList();
-    const turnCount = MockConversation.itemCount ~/ 8;
     expect(turns.length, turnCount);
     expect(turns.last, turnCount);
     expect(turns.indexed.every((entry) => entry.$2 == entry.$1 + 1), isTrue);
-    expect('Thought for'.allMatches(text).length, turnCount);
+    expect(RegExp(r'Thought \d+s').allMatches(text).length, turnCount);
     // Copying builds the text of every item from the model: no freeze.
     expect(stopwatch.elapsed, lessThan(const Duration(seconds: 2)));
 

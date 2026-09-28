@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../theme/cursor_theme.dart';
 import '../widgets/hover_builder.dart';
-import 'composer_mock_data.dart';
+import '../../kernel/kernel_types.dart';
 import '../floating/floating_layer.dart';
 import '../floating/floating_placement.dart';
 import '../floating/floating_registry.dart';
@@ -21,16 +21,22 @@ class ComposerPicker extends StatefulWidget {
     required this.selected,
     required this.onSelected,
     this.emphasized = false,
+    this.title,
+    this.menuWidth = 248,
     this.tapRegionGroupId,
     this.focusNode,
   });
 
-  final List<ComposerOption> options;
-  final ComposerOption selected;
-  final ValueChanged<ComposerOption> onSelected;
+  final List<KernelOption> options;
+  final KernelOption selected;
+  final ValueChanged<KernelOption> onSelected;
 
   /// Draws a filled pill, used for the mode picker.
   final bool emphasized;
+
+  /// Heads the menu, e.g. the question its options answer.
+  final String? title;
+  final double menuWidth;
 
   /// Group of a region around the whole composer, which the menu counts as
   /// part of (see [FloatingLayer.outerTapRegionGroupId]).
@@ -54,7 +60,7 @@ class _ComposerPickerState extends State<ComposerPicker> {
   /// a press-drag-release onto an option.
   Offset? _pressOrigin;
 
-  static List<GlobalKey> _keysFor(List<ComposerOption> options) => [
+  static List<GlobalKey> _keysFor(List<KernelOption> options) => [
     for (final _ in options) GlobalKey(),
   ];
 
@@ -178,6 +184,11 @@ class _ComposerPickerState extends State<ComposerPicker> {
 
   Widget _buildPill(bool active) {
     final emphasized = widget.emphasized;
+    final color = widget.selected.caution
+        ? CursorColors.caution
+        : emphasized
+        ? CursorColors.text
+        : CursorColors.textMuted;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
       height: 22,
@@ -191,18 +202,11 @@ class _ComposerPickerState extends State<ComposerPicker> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            widget.selected.icon,
-            size: 13,
-            color: emphasized ? CursorColors.text : CursorColors.textMuted,
-          ),
+          Icon(widget.selected.icon, size: 13, color: color),
           const SizedBox(width: 4),
           Text(
             widget.selected.label,
-            style: TextStyle(
-              color: emphasized ? CursorColors.text : CursorColors.textMuted,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: color, fontSize: 12),
           ),
           const Icon(
             Icons.keyboard_arrow_down_rounded,
@@ -216,7 +220,7 @@ class _ComposerPickerState extends State<ComposerPicker> {
 
   Widget _buildMenu(BuildContext context) {
     return Container(
-      width: 248,
+      width: widget.menuWidth,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: CursorColors.surfaceRaised,
@@ -234,6 +238,17 @@ class _ComposerPickerState extends State<ComposerPicker> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.title case final title?)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: CursorColors.textMuted,
+                  fontSize: 11.5,
+                ),
+              ),
+            ),
           for (var i = 0; i < widget.options.length; i++)
             _PickerRow(
               key: _rowKeys[i],
@@ -261,7 +276,7 @@ class _PickerRow extends StatelessWidget {
     required this.onTap,
   });
 
-  final ComposerOption option;
+  final KernelOption option;
   final bool selected;
   final bool highlighted;
   final VoidCallback onHover;
@@ -269,6 +284,7 @@ class _PickerRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final caution = option.caution;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onHover: (_) => onHover(),
@@ -284,7 +300,11 @@ class _PickerRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(option.icon, size: 15, color: CursorColors.textMuted),
+              Icon(
+                option.icon,
+                size: 15,
+                color: caution ? CursorColors.caution : CursorColors.textMuted,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -293,8 +313,10 @@ class _PickerRow extends StatelessWidget {
                   children: [
                     Text(
                       option.label,
-                      style: const TextStyle(
-                        color: CursorColors.textPrimary,
+                      style: TextStyle(
+                        color: caution
+                            ? CursorColors.caution
+                            : CursorColors.textPrimary,
                         fontSize: 12.5,
                       ),
                     ),
@@ -302,8 +324,10 @@ class _PickerRow extends StatelessWidget {
                       option.description,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: CursorColors.textFaint,
+                      style: TextStyle(
+                        color: caution
+                            ? CursorColors.caution.withValues(alpha: 0.8)
+                            : CursorColors.textFaint,
                         fontSize: 11,
                       ),
                     ),
@@ -311,10 +335,10 @@ class _PickerRow extends StatelessWidget {
                 ),
               ),
               if (selected)
-                const Icon(
+                Icon(
                   Icons.check_rounded,
                   size: 15,
-                  color: CursorColors.text,
+                  color: caution ? CursorColors.caution : CursorColors.text,
                 ),
             ],
           ),

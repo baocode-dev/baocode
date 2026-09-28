@@ -9,6 +9,9 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monad/sidebar/sidebar.dart';
+import 'package:monad/workspace/workspace.dart';
+import 'package:monad/main.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:monad/chat/chat_models.dart';
 import 'package:monad/chat/widgets/edge_fade_mask.dart';
@@ -26,7 +29,7 @@ import 'package:monad/chat/composer/composer_picker.dart';
 import 'package:monad/chat/floating/floating_layer.dart';
 import 'package:monad/chat/composer/suggestion_menu.dart';
 import 'package:monad/chat/panels/activity_strip.dart';
-import 'package:monad/chat/panels/ask_question_panel.dart';
+import 'package:monad/chat/panels/interaction_panel.dart';
 import 'package:monad/chat/panels/context_usage_panel.dart';
 import 'package:monad/theme/cursor_theme.dart';
 
@@ -150,11 +153,11 @@ void main() {
     await typeText(tester, 'build the composer');
     await pressKey(tester, LogicalKeyboardKey.enter);
 
-    for (var i = 0; i < 200 && session.pendingQuestion == null; i++) {
+    for (var i = 0; i < 200 && session.pendingInteraction == null; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byType(AskQuestionPanel), findsOneWidget);
+    expect(find.byType(InteractionPanel), findsOneWidget);
 
     // Single choice advances, multi choice toggles then submits.
     await tester.sendKeyEvent(LogicalKeyboardKey.digit1, character: '1');
@@ -163,7 +166,7 @@ void main() {
     await tester.pump();
     await pressKey(tester, LogicalKeyboardKey.enter);
     await settleAnimations(tester);
-    expect(find.byType(AskQuestionPanel), findsNothing);
+    expect(find.byType(InteractionPanel), findsNothing);
 
     for (var i = 0; i < 80 && session.isStreaming; i++) {
       await tester.pump(const Duration(milliseconds: 100));
@@ -202,7 +205,6 @@ void main() {
               constraints: const BoxConstraints(maxWidth: 400),
               child: ThinkingSection(
                 text: '先确认需求涉及的文件。',
-                tokens: 12,
                 seconds: 2,
                 expanded: true,
                 onToggle: () {},
@@ -239,7 +241,6 @@ void main() {
                     setText = setState;
                     return ThinkingSection(
                       text: text,
-                      tokens: 1,
                       seconds: null,
                       expanded: true,
                       onToggle: () {},
@@ -299,16 +300,30 @@ void main() {
       await pressKey(tester, LogicalKeyboardKey.enter);
       await tester.pump(const Duration(milliseconds: 600));
 
-      // Streaming: open, tokens counting in the header.
+      // Streaming: open, its time so far in the header, from 1s.
       expect(section(tester).seconds, isNull);
       expect(section(tester).expanded, isTrue);
       expect(
         find.descendant(
           of: liveThought(),
-          matching: find.textContaining(RegExp(r'^Thinking · \d+ tokens$')),
+          matching: find.textContaining(RegExp(r'^Thinking [1-9]\d*s$')),
         ),
         findsOneWidget,
       );
+      // The chevron follows the title, however wide the row.
+      final title = tester.getRect(
+        find.descendant(
+          of: liveThought(),
+          matching: find.textContaining(RegExp(r'^Thinking [1-9]\d*s$')),
+        ),
+      );
+      final chevron = tester.getRect(
+        find.descendant(
+          of: liveThought(),
+          matching: find.byIcon(Icons.chevron_right_rounded),
+        ),
+      );
+      expect(chevron.left - title.right, lessThan(8));
 
       // Past seven lines: capped, following the newest, masked at the top.
       final box = find.descendant(
@@ -329,7 +344,7 @@ void main() {
       expect(position().pixels, greaterThan(0));
       expect(liveMask(tester).top, isTrue);
 
-      // Done: closed, with its time and total.
+      // Done: closed, with its time.
       for (var i = 0; i < 150 && section(tester).seconds == null; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
@@ -339,7 +354,8 @@ void main() {
         find.descendant(
           of: liveThought(),
           matching: find.textContaining(
-            RegExp(r'^Thought for \d+s · \d+ tokens$'),
+            RegExp(r'^Thought (\d+s|briefly)$'),
+            findRichText: true,
           ),
         ),
         findsOneWidget,
@@ -393,14 +409,31 @@ void main() {
 
   testWidgets('context panel opens from the ring', (tester) async {
     await pumpScreen(tester);
-    final ring = find.byWidgetPredicate(
-      (widget) =>
-          widget is Tooltip &&
-          (widget.message ?? '').endsWith('% of context used'),
-    );
+    final ring = find.byTooltip('Context usage');
     await tester.tap(ring);
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(ContextUsagePanel), findsOneWidget);
+    // A circle, not squeezed by the taller box it sits in.
+    final ringSize = tester.getSize(
+      find.descendant(of: ring, matching: find.byType(CustomPaint)).last,
+    );
+    expect(ringSize, const Size.square(13));
+    // Nothing to press but close: compacting is `/compact`.
+    expect(
+      find.descendant(
+        of: find.byType(ContextUsagePanel),
+        matching: find.text('Compact'),
+      ),
+      findsNothing,
+    );
+    // The ring shows no number, even while its panel is open.
+    expect(
+      find.descendant(
+        of: find.byType(ChatComposer),
+        matching: find.textContaining('%'),
+      ),
+      findsNothing,
+    );
 
     await tester.tap(ring);
     await settleAnimations(tester);
@@ -417,11 +450,7 @@ void main() {
         .position;
     expect(position.pixels, position.maxScrollExtent);
 
-    final ring = find.byWidgetPredicate(
-      (widget) =>
-          widget is Tooltip &&
-          (widget.message ?? '').endsWith('% of context used'),
-    );
+    final ring = find.byTooltip('Context usage');
     await tester.tap(ring);
     // Every frame of the resize animation, not just the last one.
     for (var i = 0; i < 12; i++) {
@@ -679,7 +708,7 @@ void main() {
     await pumpScreen(tester);
     await settleAnimations(tester);
     final modePill = find.byType(ComposerPicker).first;
-    final menuRow = find.text('Plan, search, edit and run');
+    final menuRow = find.text('Plan, edit and run on its own');
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: tester.getCenter(modePill));
 
@@ -701,13 +730,13 @@ void main() {
     expect(opacity(), 1);
 
     // Press-drag-release onto an option picks it.
-    await mouse.moveTo(tester.getCenter(find.text('Ask').last));
+    await mouse.moveTo(tester.getCenter(find.text('Plan').last));
     await tester.pump();
     await mouse.up();
     await settleAnimations(tester);
     expect(menuRow, findsNothing);
     expect(
-      find.descendant(of: modePill, matching: find.text('Ask')),
+      find.descendant(of: modePill, matching: find.text('Plan')),
       findsOneWidget,
     );
 
@@ -721,7 +750,7 @@ void main() {
         .widget<QuillEditor>(find.byType(QuillEditor))
         .focusNode;
     expect(focus.hasFocus, isTrue);
-    await pressKey(tester, LogicalKeyboardKey.arrowDown); // Ask -> Agent
+    await pressKey(tester, LogicalKeyboardKey.arrowDown); // Plan -> Agent
     await pressKey(tester, LogicalKeyboardKey.enter);
     await settleAnimations(tester);
     expect(menuRow, findsNothing);
@@ -759,6 +788,47 @@ void main() {
     expect(find.byType(SuggestionMenu), findsOneWidget);
     await settleAnimations(tester);
     expect(find.byType(SuggestionMenu), findsNothing);
+  });
+
+  /// Another conversation shows, then [session]'s again.
+  Future<void> switchAwayAndBack(
+    WidgetTester tester,
+    ChatSession session, {
+    ChatSession? other,
+  }) async {
+    Future<void> show(ChatSession session) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildCursorTheme(),
+          localizationsDelegates: const [FlutterQuillLocalizations.delegate],
+          home: ChatScreen(key: ObjectKey(session), session: session),
+        ),
+      );
+      await tester.pump();
+    }
+
+    final away = other ?? ChatSession(historyCount: 0);
+    if (other == null) addTearDown(away.dispose);
+    await show(away);
+    expect(composerController(tester).document.toPlainText(), '\n');
+    await show(session);
+  }
+
+  testWidgets('what is typed stays with its conversation until sent', (
+    tester,
+  ) async {
+    final session = await pumpScreen(tester, historyCount: 0);
+    await typeText(tester, 'half a thought');
+    await switchAwayAndBack(tester, session);
+    final controller = composerController(tester);
+    expect(controller.document.toPlainText(), 'half a thought\n');
+    expect(controller.selection.baseOffset, 'half a thought'.length);
+
+    await pressKey(tester, LogicalKeyboardKey.enter);
+    await switchAwayAndBack(tester, session);
+    expect(composerController(tester).document.toPlainText(), '\n');
+    session.stop();
+    await tester.pump(const Duration(seconds: 5));
   });
 
   group('editing a sent message', () {
@@ -819,6 +889,63 @@ void main() {
       );
     });
 
+    testWidgets('an edit left open stays open, with what was typed', (
+      tester,
+    ) async {
+      final session = await pumpScreen(tester);
+      await reveal(tester, '第 2 轮');
+      await tester.tap(bubble('第 2 轮'));
+      await tester.pump();
+      final controller = editController(tester);
+      controller.replaceText(controller.document.length - 1, 0, ' 再加一句', null);
+      await tester.pump();
+
+      await switchAwayAndBack(tester, session);
+      expect(editorInHistory(), findsOneWidget);
+      expect(editController(tester).document.toPlainText(), contains('再加一句'));
+      // The composer below (after the history) has its own, empty.
+      expect(
+        tester
+            .widget<QuillEditor>(find.byType(QuillEditor).last)
+            .controller
+            .document
+            .toPlainText(),
+        isNot(contains('再加一句')),
+      );
+    });
+
+    testWidgets('an edit stays open while another conversation is visited '
+        'from the sidebar', (tester) async {
+      await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
+      await tester.pump();
+      final title = find.descendant(
+        of: find.byType(Sidebar),
+        matching: find.text('Optimize virtual list scrolling'),
+      );
+      await tester.tap(title);
+      await tester.pump();
+      // Its last message, near the bottom where it opens.
+      await reveal(tester, '第 12500 轮');
+      await tester.tap(bubble('第 12500 轮'));
+      await tester.pump();
+      final controller = editController(tester);
+      controller.replaceText(controller.document.length - 1, 0, ' 补充', null);
+      await tester.pump();
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(Sidebar),
+          matching: find.text('Sticky user message on scroll'),
+        ),
+      );
+      await tester.pump();
+      expect(editorInHistory(), findsNothing);
+      await tester.tap(title);
+      await tester.pump();
+      expect(editorInHistory(), findsOneWidget);
+      expect(editController(tester).document.toPlainText(), contains('补充'));
+    });
+
     testWidgets('a click opens a full composer in place, focused', (
       tester,
     ) async {
@@ -836,7 +963,7 @@ void main() {
           of: find.byType(ChatHistoryView),
           matching: find.byType(ComposerPicker),
         ),
-        findsNWidgets(2),
+        findsNWidgets(4), // Mode, approvals, model, effort.
       );
       expect(
         tester.widget<QuillEditor>(editorInHistory()).focusNode.hasFocus,
@@ -1098,14 +1225,14 @@ void main() {
       await mouse.down(tester.getCenter(editPicker));
       await mouse.up();
       await settleAnimations(tester);
-      final ask = find.text('Answer questions, no edits');
-      await mouse.moveTo(tester.getCenter(ask));
-      await mouse.down(tester.getCenter(ask));
+      final plan = find.text('Research and plan, then build');
+      await mouse.moveTo(tester.getCenter(plan));
+      await mouse.down(tester.getCenter(plan));
       await mouse.up();
       await settleAnimations(tester);
       expect(editorInHistory(), findsOneWidget);
       expect(
-        find.descendant(of: editPicker, matching: find.text('Ask')),
+        find.descendant(of: editPicker, matching: find.text('Plan')),
         findsOneWidget,
       );
 
@@ -1363,7 +1490,8 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // Where the history scrollbar's thumb is, along the right edge.
+      // Where the history scrollbar's thumb is, along its middle (4px in
+      // from the right edge, 7px wide).
       final scrollbar = find
           .byWidgetPredicate(
             (widget) =>
@@ -1380,7 +1508,7 @@ void main() {
         return [
           for (var y = list.top; y < list.bottom; y += 2)
             if (painter.hitTestOnlyThumbInteractive(
-              Offset(list.right - 4, y) - origin,
+              Offset(list.right - 7, y) - origin,
               PointerDeviceKind.mouse,
             ))
               y,
@@ -1419,5 +1547,24 @@ void main() {
       expect(position.pixels, listBefore);
       expect(thumbRows(), before);
     });
+  });
+
+  testWidgets('a finished thought shows without its trailing blank lines', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ThinkingSection(
+            text: 'Checking the layout.\n\n',
+            seconds: 2,
+            expanded: true,
+            onToggle: () {},
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Checking the layout.'), findsOneWidget);
+    expect(find.text('Thought 2s', findRichText: true), findsOneWidget);
   });
 }

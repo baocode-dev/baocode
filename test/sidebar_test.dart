@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/chat/chat_screen.dart';
 import 'package:monad/chat/chat_session.dart';
+import 'package:monad/kernel/kernel_types.dart';
 import 'package:monad/main.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
 import 'package:monad/sidebar/sidebar.dart';
@@ -32,10 +33,10 @@ AgentThread threadNamed(Workspace workspace, String title) =>
 
 /// Runs the mock script until it asks its question.
 Future<void> runUntilQuestion(WidgetTester tester, ChatSession session) async {
-  for (var i = 0; i < 400 && session.pendingQuestion == null; i++) {
+  for (var i = 0; i < 400 && session.pendingInteraction == null; i++) {
     await tester.pump(const Duration(milliseconds: 100));
   }
-  expect(session.pendingQuestion, isNotNull);
+  expect(session.pendingInteraction, isNotNull);
 }
 
 void main() {
@@ -117,7 +118,11 @@ void main() {
     );
 
     // It finishes out of view: unread until opened.
-    background.session.answerQuestion('随内容自动增高');
+    background.session.answer(
+      const QuestionAnswer([
+        ['随内容自动增高，最多 8 行'],
+      ]),
+    );
     for (var i = 0; i < 200 && background.session.isStreaming; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
@@ -197,6 +202,45 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(workspace.threads, isNot(contains(thread)));
     expect(row(), findsNothing);
+  });
+
+  testWidgets('hovered, a row offers pin and archive in place of its time', (
+    tester,
+  ) async {
+    final workspace = await pumpApp(tester);
+    final thread = threadNamed(workspace, 'Rate limit per API key');
+    Finder row() => inSidebar(find.textContaining(thread.title));
+    // No kernel mark on the rows.
+    expect(inSidebar(find.byIcon(thread.kernel.icon)), findsNothing);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    Future<void> hover() async {
+      await mouse.moveTo(tester.getCenter(row()));
+      await tester.pump();
+    }
+
+    expect(inSidebar(find.text('55m')), findsOneWidget);
+    await hover();
+    expect(inSidebar(find.text('55m')), findsNothing);
+    expect(inSidebar(find.byIcon(Icons.push_pin_outlined)), findsOneWidget);
+    expect(inSidebar(find.byIcon(Icons.inventory_2_outlined)), findsOneWidget);
+
+    // Pinned, it looks the same: the pin shows only on hover, filled.
+    await tester.tap(inSidebar(find.byIcon(Icons.push_pin_outlined)));
+    await tester.pump();
+    expect(thread.pinned, isTrue);
+    await mouse.moveTo(Offset.zero);
+    await tester.pump();
+    expect(inSidebar(find.byIcon(Icons.push_pin)), findsNothing);
+    await hover();
+    expect(inSidebar(find.byIcon(Icons.push_pin)), findsOneWidget);
+
+    await tester.tap(inSidebar(find.byIcon(Icons.inventory_2_outlined)));
+    await tester.pump();
+    expect(thread.archived, isTrue);
+    expect(thread.pinned, isFalse);
   });
 
   testWidgets('deleting the open agent opens the most recent one', (

@@ -27,3 +27,6 @@ enum Editor {
 /// platform other than macOS) or it failed, e.g. the app is not installed.
 Future<bool> openInEditor(Editor editor, String path) =>
     platform.openPath(path, appName: editor.appName);
+
+/// Opens a link or file in its default app (the browser, for a URL).
+Future<bool> openExternal(String target) => platform.openPath(target);

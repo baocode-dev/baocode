@@ -36,8 +36,8 @@ class _ShimmerTextState extends State<ShimmerText>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      alignment: Alignment.centerLeft,
+    // As wide as the text: what follows it (e.g. a chevron) stays beside it.
+    return Padding(
       padding: widget.padding,
       child: AnimatedBuilder(
         animation: _controller,
@@ -59,6 +59,8 @@ class _ShimmerTextState extends State<ShimmerText>
         child: Text(
           widget.ellipsis ? '${widget.text}…' : widget.text,
           style: const TextStyle(fontSize: 13, color: Colors.white),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );

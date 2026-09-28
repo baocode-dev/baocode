@@ -7,14 +7,20 @@ import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill/quill_delta.dart';
 
+import '../../kernel/kernel_types.dart';
 import '../../theme/cursor_theme.dart';
+import '../chat_models.dart';
 import '../chat_session.dart';
 import '../floating/floating_layer.dart';
 import '../floating/floating_placement.dart';
 import '../floating/floating_registry.dart';
+import '../../workspace/window_controls.dart';
 import '../widgets/hover_builder.dart';
+import '../widgets/image_thumbnails.dart';
 import 'composer_caret.dart';
+import 'composer_draft.dart';
 import 'composer_embeds.dart';
+import 'composer_images.dart';
 import 'composer_mock_data.dart';
 import 'composer_picker.dart';
 import 'suggestion_menu.dart';
@@ -45,9 +51,11 @@ class ChatComposer extends StatefulWidget {
     this.contextPanelOpen = false,
     this.onToggleContextPanel,
     this.initialText,
+    this.initialImages = const [],
     this.onSubmit,
     this.onCancel,
     this.tapRegionGroupId,
+    this.draft,
   });
 
   final ChatSession session;
@@ -57,12 +65,19 @@ class ChatComposer extends StatefulWidget {
   /// Text to start from; `@mentions` and a leading `/command` in it become
   /// tokens again.
   final String? initialText;
+
+  /// Images to start from (the message being edited had them).
+  final List<ImageAttachment> initialImages;
   final ValueChanged<ComposerMessage>? onSubmit;
   final VoidCallback? onCancel;
 
   /// Group of a [TapRegion] around this composer: its menus, which open in
   /// the overlay, count as inside it.
   final Object? tapRegionGroupId;
+
+  /// Where what is typed is kept while the composer is gone; once saved,
+  /// it starts from there rather than [initialText] and [initialImages].
+  final ComposerDraft? draft;
 
   @override
   State<ChatComposer> createState() => ChatComposerState();
@@ -91,10 +106,12 @@ class ChatComposerState extends State<ChatComposer> {
   final GlobalKey<EditorState> _editorKey = GlobalKey();
   final GlobalKey _boxKey = GlobalKey();
 
-  ComposerOption _mode = ComposerMockData.modes.first;
-  ComposerOption _model = ComposerMockData.models.first;
-
   bool _hasContent = false;
+  late final List<ImageAttachment> _images = [
+    ...(widget.draft?.saved ?? false)
+        ? widget.draft!.images
+        : widget.initialImages,
+  ];
   _Trigger? _trigger;
   _Trigger? _dismissedTrigger;
   List<SuggestionMatch> _matches = const [];
@@ -107,11 +124,25 @@ class ChatComposerState extends State<ChatComposer> {
       // ignore: experimental_member_use
       clipboardConfig: QuillClipboardConfig(onClipboardPaste: _paste),
     );
+    if (widget.draft case final draft? when draft.saved) {
+      final document = Document.fromDelta(draft.content!);
+      final end = document.length - 1;
+      return QuillController(
+        document: document,
+        selection: TextSelection(
+          baseOffset: draft.selection.baseOffset.clamp(0, end),
+          extentOffset: draft.selection.extentOffset.clamp(0, end),
+        ),
+        config: config,
+      );
+    }
     final text = widget.initialText;
     if (text == null || text.isEmpty) {
       return QuillController.basic(config: config);
     }
-    final document = Document.fromDelta(composerDeltaFromText(text));
+    final document = Document.fromDelta(
+      composerDeltaFromText(text, ComposerVocabulary.read(context)),
+    );
     return QuillController(
       document: document,
       selection: TextSelection.collapsed(offset: document.length - 1),
@@ -125,12 +156,20 @@ class ChatComposerState extends State<ChatComposer> {
   /// Quill from pasting HTML or Markdown as rich text into this plain-text
   /// input. Returns false (Quill's own handling, e.g. images) for no text.
   Future<bool> _paste() async {
+    if (widget.session.acceptsImages) {
+      final images = await WindowControls.readPasteboardImages();
+      if (images.isNotEmpty) {
+        await _addImages(images);
+        return true;
+      }
+    }
     final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
     if (text == null || !mounted) return false;
     final selection = _controller.selection;
     final start = selection.start;
     final content = composerDeltaFromPaste(
       text.replaceAll('\r\n', '\n'),
+      ComposerVocabulary.read(context),
       atStart: start == 0,
     );
     final delta =
@@ -176,6 +215,48 @@ class ChatComposerState extends State<ChatComposer> {
 
   void focus() => _focusNode.requestFocus();
 
+  // --- Images --------------------------------------------------------------
+
+  /// At most this many per message.
+  static const _maxImages = 20;
+
+  Future<void> _addImages(List<ImageAttachment> images) async {
+    final prepared = [
+      for (final image in await Future.wait(images.map(prepareImage))) ?image,
+    ];
+    if (!mounted || prepared.isEmpty) return;
+    setState(() {
+      _images.addAll(prepared.take(_maxImages - _images.length));
+    });
+    _saveDraft();
+    _focusNode.requestFocus();
+  }
+
+  void _removeImage(int index) {
+    setState(() => _images.removeAt(index));
+    _saveDraft();
+    _focusNode.requestFocus();
+  }
+
+  bool get _canSend => _hasContent || _images.isNotEmpty;
+
+  // --- Suggested prompt ----------------------------------------------------
+
+  /// What the agent suggests sending next, shown as the placeholder of an
+  /// empty dock composer; Tab takes it.
+  String? _suggestion;
+
+  void _acceptSuggestion() {
+    final suggestion = _suggestion;
+    if (suggestion == null) return;
+    _controller.replaceText(
+      0,
+      0,
+      suggestion,
+      TextSelection.collapsed(offset: suggestion.length),
+    );
+  }
+
   /// The text area's own scroll position (it scrolls past its maximum
   /// height), or null before it is laid out.
   ScrollPosition? get editorScrollPosition =>
@@ -205,8 +286,16 @@ class ChatComposerState extends State<ChatComposer> {
     setState(() {});
   }
 
+  /// Keeps what is typed, and where the caret is, in the draft.
+  void _saveDraft() => widget.draft?.save(
+    _controller.document.toDelta(),
+    _controller.selection,
+    _images,
+  );
+
   void _handleEditorChanged() {
     if (_padTrailingTokens()) return; // Re-entered with the fixed document.
+    _saveDraft();
     final plain = _controller.document.toPlainText();
     final hasContent = plain.trim().isNotEmpty;
     final trigger = _findTrigger(plain);
@@ -217,12 +306,20 @@ class ChatComposerState extends State<ChatComposer> {
     final visible = trigger != null && _dismissedTrigger == null;
 
     if (visible) {
+      final vocabulary = ComposerVocabulary.read(context);
       final source = trigger.kind == SuggestionKind.command
-          ? ComposerMockData.commands
-          : ComposerMockData.mentions;
+          ? vocabulary.commands
+          : vocabulary.mentions;
       final queryChanged =
           !trigger.sameAnchor(_trigger) || trigger.query != _trigger!.query;
-      _matches = rankSuggestions(source, trigger.query);
+      if (queryChanged) {
+        _matches = rankSuggestions(source, trigger.query);
+        if (trigger.kind != SuggestionKind.command) {
+          if (vocabulary.suggestFiles case final suggest?) {
+            _lookUpFiles(trigger, suggest, source);
+          }
+        }
+      }
       if (queryChanged) _highlighted = 0;
       _highlighted = _highlighted.clamp(0, math.max(0, _matches.length - 1));
       _menuX = _caretX(trigger.start);
@@ -231,6 +328,39 @@ class ChatComposerState extends State<ChatComposer> {
     _syncMenuRegistration();
     _hasContent = hasContent;
     setState(() {});
+  }
+
+  int _lookups = 0;
+
+  /// Asks the kernel for files matching [trigger], and shows them ahead of
+  /// the fixed mentions. Answers to older queries are dropped.
+  Future<void> _lookUpFiles(
+    _Trigger trigger,
+    Future<List<FileSuggestion>> Function(String query) suggest,
+    List<Suggestion> fixed,
+  ) async {
+    final lookup = ++_lookups;
+    final files = await suggest(trigger.query);
+    final current = _trigger;
+    if (!mounted ||
+        lookup != _lookups ||
+        current == null ||
+        !current.sameAnchor(trigger) ||
+        current.query != trigger.query) {
+      return;
+    }
+    setState(() {
+      _matches = [
+        for (final suggestion in files.map(fileSuggestion))
+          SuggestionMatch(
+            suggestion,
+            fuzzyMatch(suggestion.label, trigger.query)?.indexes ?? const [],
+          ),
+        ...rankSuggestions(fixed, trigger.query),
+      ];
+      _highlighted = _highlighted.clamp(0, math.max(0, _matches.length - 1));
+    });
+    _syncMenuRegistration();
   }
 
   /// Flutter lays out a line whose only content is an inline widget taller
@@ -383,6 +513,14 @@ class ChatComposerState extends State<ChatComposer> {
       }
     }
 
+    if (key == LogicalKeyboardKey.tab &&
+        _suggestion != null &&
+        !_hasContent &&
+        !keyboard.isShiftPressed) {
+      _acceptSuggestion();
+      return KeyEventResult.handled;
+    }
+
     if (key == LogicalKeyboardKey.escape && widget.onCancel != null) {
       widget.onCancel!();
       return KeyEventResult.handled;
@@ -425,23 +563,32 @@ class ChatComposerState extends State<ChatComposer> {
         }
       }
     }
-    return ComposerMessage(text: text.toString().trim(), mentions: mentions);
+    return ComposerMessage(
+      text: text.toString().trim(),
+      mentions: mentions,
+      images: [..._images],
+    );
   }
 
   /// The dock's composer shows a stop button while a turn runs; an editing
   /// composer can always submit (resending stops the running turn).
-  bool get _showsStop => widget.onSubmit == null && widget.session.isStreaming;
+  bool get _showsStop =>
+      widget.onSubmit == null &&
+      widget.session.isStreaming &&
+      !(widget.session.canQueue && _canSend);
 
   void _submit() {
     if (_showsStop) return;
     final message = _buildMessage();
-    if (message.text.isEmpty) return;
+    if (message.text.isEmpty && message.images.isEmpty) return;
     if (widget.onSubmit case final onSubmit?) {
       onSubmit(message);
       return;
     }
     widget.session.send(message);
     _controller.clear();
+    setState(_images.clear);
+    _saveDraft();
     _dismissedTrigger = null;
   }
 
@@ -450,6 +597,13 @@ class ChatComposerState extends State<ChatComposer> {
   @override
   Widget build(BuildContext context) {
     final focused = _focusNode.hasFocus;
+    final suggestion = widget.onSubmit == null
+        ? widget.session.promptSuggestion
+        : null;
+    if (suggestion != _suggestion) {
+      _suggestion = suggestion;
+      _editor = null; // The placeholder shows it.
+    }
     return FloatingLayer(
       visible: _trigger != null,
       // Above the composer at the trigger character; below it when there
@@ -479,7 +633,19 @@ class ChatComposerState extends State<ChatComposer> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [_editor ??= _buildEditor(context), _buildToolbar()],
+            children: [
+              if (_images.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                  child: ImageThumbnails(
+                    images: _images,
+                    size: 48,
+                    onRemove: _removeImage,
+                  ),
+                ),
+              _editor ??= _buildEditor(context),
+              _buildToolbar(),
+            ],
           ),
         ),
       ),
@@ -600,7 +766,10 @@ class ChatComposerState extends State<ChatComposer> {
       scrollController: _scrollController,
       config: QuillEditorConfig(
         editorKey: _editorKey,
-        placeholder: 'Plan, search, build anything  ·  @ 提及  / 命令',
+        placeholder: switch (_suggestion) {
+          final suggestion? => '$suggestion    ⇥ Tab',
+          null => 'Plan, search, build anything  ·  @ 提及  / 命令',
+        },
         minHeight: _minEditorHeight,
         maxHeight: _maxEditorHeight(context),
         textCapitalization: TextCapitalization.none,
@@ -634,79 +803,99 @@ class ChatComposerState extends State<ChatComposer> {
 
   Widget _buildToolbar() {
     final session = widget.session;
+    // Only the dock's composer picks the kernel, and only until it starts.
+    final kernel = widget.onSubmit == null ? session.kernelChoice : null;
+    final mode = session.modes;
+    final permission = session.permissions;
+    final model = session.models;
+    final effort = session.efforts;
+    final context = session.context;
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
       child: Row(
         children: [
-          ComposerPicker(
-            options: ComposerMockData.modes,
-            selected: _mode,
-            emphasized: true,
-            tapRegionGroupId: widget.tapRegionGroupId,
-            focusNode: _focusNode,
-            onSelected: (option) => setState(() => _mode = option),
+          // Takes the room left, so the actions sit at the far end; scrolls
+          // when the pickers do not fit.
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  if (kernel != null) ...[
+                    ComposerPicker(
+                      options: kernel.options,
+                      selected: kernel.selected,
+                      tapRegionGroupId: widget.tapRegionGroupId,
+                      focusNode: _focusNode,
+                      onSelected: kernel.onSelected,
+                    ),
+                    const SizedBox(width: 2),
+                  ],
+                  if (mode != null) ...[
+                    ComposerPicker(
+                      options: mode.options,
+                      selected: mode.selected,
+                      emphasized: true,
+                      tapRegionGroupId: widget.tapRegionGroupId,
+                      focusNode: _focusNode,
+                      onSelected: mode.onSelected,
+                    ),
+                    const SizedBox(width: 2),
+                  ],
+                  if (permission != null) ...[
+                    ComposerPicker(
+                      options: permission.options,
+                      selected: permission.selected,
+                      title: 'How should ${session.kernel.label} get approval?',
+                      menuWidth: 290,
+                      tapRegionGroupId: widget.tapRegionGroupId,
+                      focusNode: _focusNode,
+                      onSelected: permission.onSelected,
+                    ),
+                    const SizedBox(width: 2),
+                  ],
+                  if (model != null)
+                    ComposerPicker(
+                      options: model.options,
+                      selected: model.selected,
+                      tapRegionGroupId: widget.tapRegionGroupId,
+                      focusNode: _focusNode,
+                      onSelected: model.onSelected,
+                    ),
+                  if (effort != null) ...[
+                    const SizedBox(width: 2),
+                    ComposerPicker(
+                      options: effort.options,
+                      selected: effort.selected,
+                      tapRegionGroupId: widget.tapRegionGroupId,
+                      focusNode: _focusNode,
+                      onSelected: effort.onSelected,
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
-          const SizedBox(width: 2),
-          ComposerPicker(
-            options: ComposerMockData.models,
-            selected: _model,
-            tapRegionGroupId: widget.tapRegionGroupId,
-            focusNode: _focusNode,
-            onSelected: (option) => setState(() => _model = option),
-          ),
-          const Spacer(),
-          if (widget.onToggleContextPanel case final onToggle?) ...[
+          const SizedBox(width: 8),
+          if ((widget.onToggleContextPanel, context) case (
+            final onToggle?,
+            final usage?,
+          )) ...[
             _ContextRing(
-              fraction: session.contextUsed / ChatSession.contextWindow,
+              fraction: usage.fraction,
               active: widget.contextPanelOpen,
               onTap: onToggle,
             ),
             const SizedBox(width: 2),
           ],
-          const _IconChip(icon: Icons.image_outlined, tooltip: 'Attach image'),
-          const SizedBox(width: 4),
+          const SizedBox(width: 2),
           _SendButton(
             streaming: _showsStop,
-            enabled: _hasContent,
+            enabled: _canSend,
             onSend: _submit,
             onStop: session.stop,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _IconChip extends StatelessWidget {
-  const _IconChip({required this.icon, required this.tooltip});
-
-  final IconData icon;
-  final String tooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      waitDuration: const Duration(milliseconds: 500),
-      child: HoverBuilder(
-        cursor: SystemMouseCursors.click,
-        builder: (context, hovered) => GestureDetector(
-          onTap: () {},
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            height: 22,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              color: hovered ? CursorColors.hover : Colors.transparent,
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Icon(
-              icon,
-              size: 14,
-              color: hovered ? CursorColors.text : CursorColors.textMuted,
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -725,9 +914,8 @@ class _ContextRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final percent = (fraction * 100).round();
     return Tooltip(
-      message: '$percent% of context used',
+      message: 'Context usage',
       waitDuration: const Duration(milliseconds: 400),
       child: HoverBuilder(
         cursor: SystemMouseCursors.click,
@@ -735,37 +923,24 @@ class _ContextRing extends StatelessWidget {
           onTap: onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
+            width: 23,
             height: 22,
-            padding: const EdgeInsets.symmetric(horizontal: 5),
+            // The ring keeps its square: the box is taller than it.
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: active || hovered
                   ? CursorColors.hover
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(5),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox.square(
-                  dimension: 13,
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(end: fraction),
-                    duration: const Duration(milliseconds: 400),
-                    builder: (context, value, _) =>
-                        CustomPaint(painter: _RingPainter(value)),
-                  ),
-                ),
-                if (hovered || active) ...[
-                  const SizedBox(width: 4),
-                  Text(
-                    '$percent%',
-                    style: const TextStyle(
-                      color: CursorColors.textMuted,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ],
+            child: SizedBox.square(
+              dimension: 13,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(end: fraction),
+                duration: const Duration(milliseconds: 400),
+                builder: (context, value, _) =>
+                    CustomPaint(painter: _RingPainter(value)),
+              ),
             ),
           ),
         ),
@@ -793,17 +968,12 @@ class _RingPainter extends CustomPainter {
       false,
       stroke..color = CursorColors.borderStrong,
     );
-    final color = fraction > 0.8
-        ? CursorColors.removed
-        : fraction > 0.6
-        ? CursorColors.inlineCode
-        : CursorColors.textMuted;
     canvas.drawArc(
       rect.deflate(1),
       -math.pi / 2,
       math.pi * 2 * fraction.clamp(0, 1),
       false,
-      stroke..color = color,
+      stroke..color = CursorColors.textMuted,
     );
   }
 

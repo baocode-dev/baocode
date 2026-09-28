@@ -1,0 +1,98 @@
+import 'package:flutter/material.dart';
+
+import '../../kernel/kernel_types.dart';
+import '../../theme/cursor_theme.dart';
+import 'interaction_panel.dart';
+
+/// Says why the agent's runtime cannot run (not installed, not logged in,
+/// crashed), with its last words and a way to try again.
+class HealthBanner extends StatefulWidget {
+  const HealthBanner({
+    super.key,
+    required this.health,
+    required this.kernelName,
+    required this.onRetry,
+  });
+
+  final KernelHealth health;
+  final String kernelName;
+  final VoidCallback onRetry;
+
+  static bool shows(KernelHealth health) =>
+      health.status == KernelHealthStatus.failed;
+
+  @override
+  State<HealthBanner> createState() => _HealthBannerState();
+}
+
+class _HealthBannerState extends State<HealthBanner> {
+  bool _details = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final health = widget.health;
+    final detail = health.detail?.trim();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 9, 10, 9),
+      decoration: BoxDecoration(
+        color: const Color(0x1AF07178),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0x55F07178)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.error_outline_rounded,
+                size: 15,
+                color: CursorColors.removed,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  health.message ?? '${widget.kernelName} stopped',
+                  style: const TextStyle(
+                    color: CursorColors.textPrimary,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+              if (detail != null && detail.isNotEmpty) ...[
+                PanelButton(
+                  label: _details ? 'Hide details' : 'Details',
+                  onTap: () => setState(() => _details = !_details),
+                ),
+                const SizedBox(width: 6),
+              ],
+              PanelButton(label: 'Retry', primary: true, onTap: widget.onRetry),
+            ],
+          ),
+          if (_details && detail != null)
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              constraints: const BoxConstraints(maxHeight: 160),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: CursorColors.code,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  detail,
+                  style: const TextStyle(
+                    color: CursorColors.textMuted,
+                    fontFamily: CursorFonts.mono,
+                    fontSize: 11.5,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}

@@ -3,20 +3,38 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
-import '../chat_session.dart';
+import '../../kernel/kernel_types.dart';
+import '../chat_models.dart';
 import '../widgets/file_label.dart';
 import '../widgets/hover_builder.dart';
-import 'ask_question_panel.dart';
+import 'interaction_panel.dart';
 
 /// Indicator area docked on top of the composer: background tasks and the
 /// files changed in this turn.
 class ActivityStrip extends StatefulWidget {
-  const ActivityStrip({super.key, required this.session});
+  const ActivityStrip({
+    super.key,
+    required this.tasks,
+    required this.changes,
+    required this.onDismissTask,
+    required this.onKeep,
+    this.onUndo,
+    this.onStopTask,
+  });
 
-  final ChatSession session;
+  final List<KernelTask> tasks;
+  final List<FileChange> changes;
+  final ValueChanged<KernelTask> onDismissTask;
 
-  static bool hasContent(ChatSession session) =>
-      session.tasks.isNotEmpty || session.fileChanges.isNotEmpty;
+  /// Stops a running task; null when tasks cannot be stopped.
+  final ValueChanged<KernelTask>? onStopTask;
+  final VoidCallback onKeep;
+
+  /// Null when the changes cannot be put back: no Undo then.
+  final VoidCallback? onUndo;
+
+  static bool hasContent(List<KernelTask> tasks, List<FileChange> changes) =>
+      tasks.isNotEmpty || changes.isNotEmpty;
 
   @override
   State<ActivityStrip> createState() => _ActivityStripState();
@@ -29,30 +47,25 @@ class _ActivityStripState extends State<ActivityStrip> {
   @override
   void initState() {
     super.initState();
-    widget.session.addListener(_syncTicker);
     _syncTicker();
   }
 
   @override
   void didUpdateWidget(ActivityStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.session != widget.session) {
-      oldWidget.session.removeListener(_syncTicker);
-      widget.session.addListener(_syncTicker);
-    }
+    _syncTicker();
   }
 
   @override
   void dispose() {
-    widget.session.removeListener(_syncTicker);
     _ticker?.cancel();
     super.dispose();
   }
 
   /// Ticks once a second only while a task is running, for elapsed time.
   void _syncTicker() {
-    final running = widget.session.tasks.any(
-      (task) => task.status == TaskStatus.running,
+    final running = widget.tasks.any(
+      (task) => task.status == CommandStatus.running,
     );
     if (running && _ticker == null) {
       _ticker = Timer.periodic(
@@ -67,8 +80,7 @@ class _ActivityStripState extends State<ActivityStrip> {
 
   @override
   Widget build(BuildContext context) {
-    final session = widget.session;
-    final changes = session.fileChanges;
+    final changes = widget.changes;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10),
       decoration: const BoxDecoration(
@@ -85,15 +97,22 @@ class _ActivityStripState extends State<ActivityStrip> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final task in session.tasks)
-            _TaskRow(task: task, onDismiss: () => session.dismissTask(task)),
+          for (final task in widget.tasks)
+            _TaskRow(
+              task: task,
+              onDismiss: () => widget.onDismissTask(task),
+              onStop: switch (widget.onStopTask) {
+                final stop? => () => stop(task),
+                null => null,
+              },
+            ),
           if (changes.isNotEmpty) ...[
             _FilesHeader(
               changes: changes,
               expanded: _filesExpanded,
               onToggle: () => setState(() => _filesExpanded = !_filesExpanded),
-              onUndo: session.undoAllChanges,
-              onKeep: session.keepAllChanges,
+              onUndo: widget.onUndo,
+              onKeep: widget.onKeep,
             ),
             if (_filesExpanded)
               ConstrainedBox(
@@ -142,24 +161,28 @@ class _StripRow extends StatelessWidget {
 }
 
 class _TaskRow extends StatelessWidget {
-  const _TaskRow({required this.task, required this.onDismiss});
+  const _TaskRow({required this.task, required this.onDismiss, this.onStop});
 
-  final BackgroundTask task;
+  final KernelTask task;
   final VoidCallback onDismiss;
+  final VoidCallback? onStop;
 
   @override
   Widget build(BuildContext context) {
     final elapsed = DateTime.now().difference(task.startedAt).inSeconds;
     final (status, color) = switch (task.status) {
-      TaskStatus.running => ('Running · ${elapsed}s', CursorColors.textMuted),
-      TaskStatus.succeeded => ('Passed', CursorColors.added),
-      TaskStatus.failed => ('Failed', CursorColors.removed),
+      CommandStatus.running => (
+        'Running · ${elapsed}s',
+        CursorColors.textMuted,
+      ),
+      CommandStatus.succeeded => ('Passed', CursorColors.added),
+      CommandStatus.failed => ('Failed', CursorColors.removed),
     };
     return _StripRow(
       children: [
         SizedBox.square(
           dimension: 14,
-          child: task.status == TaskStatus.running
+          child: task.status == CommandStatus.running
               ? const Padding(
                   padding: EdgeInsets.all(1.5),
                   child: CircularProgressIndicator(
@@ -168,7 +191,7 @@ class _TaskRow extends StatelessWidget {
                   ),
                 )
               : Icon(
-                  task.status == TaskStatus.succeeded
+                  task.status == CommandStatus.succeeded
                       ? Icons.check_circle_outline_rounded
                       : Icons.error_outline_rounded,
                   size: 14,
@@ -176,36 +199,67 @@ class _TaskRow extends StatelessWidget {
                 ),
         ),
         const SizedBox(width: 8),
-        const Icon(
-          Icons.terminal_rounded,
+        Icon(
+          task.kind == KernelTaskKind.agent
+              ? Icons.smart_toy_outlined
+              : Icons.terminal_rounded,
           size: 13,
           color: CursorColors.textFaint,
         ),
         const SizedBox(width: 5),
-        Text(
-          task.command,
-          style: const TextStyle(
-            color: CursorColors.text,
-            fontFamily: CursorFonts.mono,
-            fontSize: 11.5,
+        Flexible(
+          child: Text(
+            task.description,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: CursorColors.text,
+              fontFamily: task.kind == KernelTaskKind.command
+                  ? CursorFonts.mono
+                  : null,
+              fontSize: 11.5,
+            ),
           ),
         ),
         const SizedBox(width: 8),
         Text(status, style: TextStyle(color: color, fontSize: 11.5)),
         const Spacer(),
-        if (task.status != TaskStatus.running)
-          GestureDetector(
+        if (task.status != CommandStatus.running)
+          _IconAction(
+            icon: Icons.close_rounded,
+            tooltip: 'Dismiss',
             onTap: onDismiss,
-            child: const MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Icon(
-                Icons.close_rounded,
-                size: 14,
-                color: CursorColors.textFaint,
-              ),
-            ),
-          ),
+          )
+        else if (onStop case final stop?)
+          _IconAction(icon: Icons.stop_rounded, tooltip: 'Stop', onTap: stop),
       ],
+    );
+  }
+}
+
+class _IconAction extends StatelessWidget {
+  const _IconAction({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Icon(icon, size: 14, color: CursorColors.textFaint),
+        ),
+      ),
     );
   }
 }
@@ -222,7 +276,7 @@ class _FilesHeader extends StatelessWidget {
   final List<FileChange> changes;
   final bool expanded;
   final VoidCallback onToggle;
-  final VoidCallback onUndo;
+  final VoidCallback? onUndo;
   final VoidCallback onKeep;
 
   @override
@@ -265,13 +319,15 @@ class _FilesHeader extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        SizedBox(
-          height: 20,
-          child: FittedBox(
-            child: PanelButton(label: 'Undo all', onTap: onUndo),
+        if (onUndo case final onUndo?) ...[
+          SizedBox(
+            height: 20,
+            child: FittedBox(
+              child: PanelButton(label: 'Undo all', onTap: onUndo),
+            ),
           ),
-        ),
-        const SizedBox(width: 4),
+          const SizedBox(width: 4),
+        ],
         SizedBox(
           height: 20,
           child: FittedBox(

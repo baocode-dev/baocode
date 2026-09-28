@@ -22,6 +22,14 @@ abstract final class CursorColors {
   static const addedBackground = Color(0x1F3FB950);
   static const removed = Color(0xFFF07178);
   static const removedBackground = Color(0x1FF85149);
+
+  /// A risky choice, e.g. running with no permission checks.
+  static const caution = Color(0xFFF0884E);
+
+  // Shell commands: the program run, quoted strings, options.
+  static const syntaxCommand = Color(0xFFE5A15B);
+  static const syntaxString = Color(0xFFE08BD8);
+  static const syntaxOption = Color(0xFF6FCFC6);
 }
 
 /// Window chrome shared by the sidebar and the chat, so their edges line up.

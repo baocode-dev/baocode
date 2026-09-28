@@ -7,6 +7,7 @@ import 'package:flutter_quill/quill_delta.dart';
 
 import '../../theme/cursor_theme.dart';
 import '../widgets/file_label.dart';
+import '../../kernel/kernel_types.dart';
 import 'composer_mock_data.dart';
 
 /// Inline, atomic token for an @mention or a /command. It occupies a single
@@ -44,17 +45,61 @@ class ComposerTokenEmbed {
   }
 }
 
+/// What can become a token: the kernel's `/commands` and the project's
+/// `@mentions`, for the composer and the sent messages under it.
+class ComposerVocabulary extends InheritedWidget {
+  const ComposerVocabulary({
+    super.key,
+    required this.commands,
+    required this.mentions,
+    this.suggestFiles,
+    required super.child,
+  });
+
+  final List<Suggestion> commands;
+  final List<Suggestion> mentions;
+
+  /// Looks files up as `@` is typed; given, any `@path` counts as a
+  /// mention, not only those in [mentions].
+  final Future<List<FileSuggestion>> Function(String query)? suggestFiles;
+
+  /// Outside any: the mock project's mentions, no commands.
+  static const fallback = ComposerVocabulary(
+    commands: [],
+    mentions: ComposerMockData.mentions,
+    child: SizedBox.shrink(),
+  );
+
+  static ComposerVocabulary of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ComposerVocabulary>() ??
+      fallback;
+
+  /// [of] without depending on it (e.g. from `initState`).
+  static ComposerVocabulary read(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<ComposerVocabulary>() ?? fallback;
+
+  @override
+  bool updateShouldNotify(ComposerVocabulary oldWidget) =>
+      !identical(commands, oldWidget.commands) ||
+      !identical(mentions, oldWidget.mentions) ||
+      suggestFiles != oldWidget.suggestFiles;
+}
+
 /// A composer document for sent [text], the inverse of
 /// [ComposerTokenEmbed.plainText]: see [composerDeltaFromPaste].
-Delta composerDeltaFromText(String text) =>
-    composerDeltaFromPaste(text, atStart: true)..insert('\n');
+Delta composerDeltaFromText(String text, ComposerVocabulary vocabulary) =>
+    composerDeltaFromPaste(text, vocabulary, atStart: true)..insert('\n');
 
 /// [text] (plain, e.g. pasted) as composer content, without the document's
 /// closing newline: `@value` of a known mention becomes a token again, and
 /// so does a leading `/command` when the text goes [atStart] of the message
 /// (where alone a command counts). Any other `@word` stays text: pasted text
 /// is full of those (`@override`, handles).
-Delta composerDeltaFromPaste(String text, {required bool atStart}) {
+Delta composerDeltaFromPaste(
+  String text,
+  ComposerVocabulary vocabulary, {
+  required bool atStart,
+}) {
   final delta = Delta();
   final buffer = StringBuffer();
   void flush() {
@@ -77,7 +122,7 @@ Delta composerDeltaFromPaste(String text, {required bool atStart}) {
 
   var i = 0;
   if (atStart && text.startsWith('/')) {
-    for (final command in longestFirst(ComposerMockData.commands)) {
+    for (final command in longestFirst(vocabulary.commands)) {
       if (text.startsWith(command.value, 1) &&
           endsAt(1 + command.value.length)) {
         token(command);
@@ -86,7 +131,7 @@ Delta composerDeltaFromPaste(String text, {required bool atStart}) {
       }
     }
   }
-  final mentions = longestFirst(ComposerMockData.mentions);
+  final mentions = longestFirst(vocabulary.mentions);
   while (i < text.length) {
     final atBoundary = i == 0 || text[i - 1].trim().isEmpty;
     if (text[i] == '@' && atBoundary) {
@@ -98,6 +143,18 @@ Delta composerDeltaFromPaste(String text, {required bool atStart}) {
         token(mention);
         i += 1 + mention.value.length;
         continue;
+      }
+      if (vocabulary.suggestFiles != null) {
+        var end = i + 1;
+        while (end < text.length && valueChar.hasMatch(text[end])) {
+          end++;
+        }
+        final path = text.substring(i + 1, end);
+        if (path.contains('/') || path.contains('.')) {
+          token(fileSuggestion(FileSuggestion(path)));
+          i = end;
+          continue;
+        }
       }
     }
     buffer.write(text[i]);
@@ -472,4 +529,18 @@ class _RenderCenteredOnText extends RenderProxyBox {
     BoxConstraints constraints,
     TextBaseline baseline,
   ) => getDryLayout(constraints).height / 2 + _centerAboveBaseline;
+}
+
+/// A file the kernel found, as a mention suggestion.
+Suggestion fileSuggestion(FileSuggestion file) {
+  final directory = file.isDirectory;
+  final path = directory
+      ? file.path.substring(0, file.path.length - 1)
+      : file.path;
+  final slash = path.lastIndexOf('/');
+  return Suggestion(
+    kind: directory ? SuggestionKind.folder : SuggestionKind.file,
+    label: path.substring(slash + 1),
+    detail: slash < 0 ? '' : path.substring(0, slash),
+  );
 }

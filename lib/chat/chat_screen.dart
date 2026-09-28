@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../kernel/kernel_types.dart';
 import '../theme/cursor_theme.dart';
 import 'chat_history_view.dart';
 import 'chat_session.dart';
 import 'composer/composer.dart';
+import 'composer/composer_embeds.dart';
+import 'composer/composer_mock_data.dart';
 import 'panels/activity_strip.dart';
-import 'panels/ask_question_panel.dart';
+import 'panels/health_banner.dart';
+import 'panels/interaction_panel.dart';
 import 'panels/context_usage_panel.dart';
+import 'panels/todo_panel.dart';
 import 'widgets/inline_rename_field.dart';
 
 /// Layout, top to bottom:
@@ -23,6 +28,7 @@ class ChatScreen extends StatefulWidget {
     this.titleBarInset,
     this.onRename,
     this.autofocus = false,
+    this.mentions = ComposerMockData.mentions,
   });
 
   final String title;
@@ -44,6 +50,9 @@ class ChatScreen extends StatefulWidget {
   /// Focuses the composer once shown, e.g. for a new agent.
   final bool autofocus;
 
+  /// What `@` offers: the project's files and other context.
+  final List<Suggestion> mentions;
+
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
@@ -59,6 +68,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _session.attach();
     if (widget.autofocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _composerKey.currentState?.focus();
@@ -68,6 +78,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _session.detach();
     if (widget.session == null) _session.dispose();
     super.dispose();
   }
@@ -76,8 +87,8 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _contextPanelOpen = !_contextPanelOpen);
   }
 
-  void _answerQuestion(String summary) {
-    _session.answerQuestion(summary);
+  void _answer(InteractionAnswer answer) {
+    _session.answer(answer);
     _composerKey.currentState?.focus();
   }
 
@@ -140,8 +151,58 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget? _buildActivityStrip() {
+    final tasks = _session.tasks ?? const [];
+    final changes = _session.fileChanges;
+    if (!ActivityStrip.hasContent(tasks, changes)) return null;
+    return ActivityStrip(
+      tasks: tasks,
+      changes: changes,
+      onDismissTask: _session.dismissTask,
+      onKeep: _session.keepAllChanges,
+      onUndo: _session.undoAllChanges,
+      onStopTask: _session.stopTask,
+    );
+  }
+
+  /// The kernel's commands as suggestions, kept while its list is the same.
+  List<Suggestion> _commandSuggestions() {
+    final commands = _session.commands;
+    if (!identical(commands, _commandSource)) {
+      _commandSource = commands;
+      _commands = [
+        for (final command in commands)
+          Suggestion(
+            kind: SuggestionKind.command,
+            label: command.name,
+            detail: command.argumentHint.isEmpty
+                ? command.description
+                : '${command.argumentHint}  ${command.description}',
+            icon: command.icon,
+          ),
+      ];
+    }
+    return _commands;
+  }
+
+  List<KernelCommand>? _commandSource;
+  List<Suggestion> _commands = const [];
+
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _session,
+      builder: (context, child) => ComposerVocabulary(
+        commands: _commandSuggestions(),
+        mentions: widget.mentions,
+        suggestFiles: _session.suggestFiles,
+        child: child!,
+      ),
+      child: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
     return Scaffold(
       body: Column(
         children: [
@@ -179,32 +240,45 @@ class _ChatScreenState extends State<ChatScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _PanelSlot(
-                        child: switch (_session.pendingQuestion) {
-                          final request? => AskQuestionPanel(
+                        child: HealthBanner.shows(_session.health)
+                            ? HealthBanner(
+                                health: _session.health,
+                                kernelName: _session.kernel.label,
+                                onRetry: _session.restart,
+                              )
+                            : null,
+                      ),
+                      _PanelSlot(
+                        child: switch (_session.pendingInteraction) {
+                          final request? => InteractionPanel(
                             key: ObjectKey(request),
                             request: request,
-                            onSubmit: _answerQuestion,
+                            onAnswer: _answer,
                           ),
                           null => null,
                         },
                       ),
                       _PanelSlot(
-                        child: _contextPanelOpen
-                            ? ContextUsagePanel(
-                                session: _session,
-                                onClose: _toggleContextPanel,
-                              )
-                            : null,
+                        child: switch (_session.context) {
+                          final usage? when _contextPanelOpen =>
+                            ContextUsagePanel(
+                              usage: usage,
+                              stats: _session.stats,
+                              onClose: _toggleContextPanel,
+                            ),
+                          _ => null,
+                        },
                       ),
                       _PanelSlot(
-                        gap: 0,
-                        child: ActivityStrip.hasContent(_session)
-                            ? ActivityStrip(session: _session)
+                        child: TodoPanel.hasContent(_session.todos)
+                            ? TodoPanel(todos: _session.todos)
                             : null,
                       ),
+                      _PanelSlot(gap: 0, child: _buildActivityStrip()),
                       ChatComposer(
                         key: _composerKey,
                         session: _session,
+                        draft: _session.draft,
                         contextPanelOpen: _contextPanelOpen,
                         onToggleContextPanel: _toggleContextPanel,
                       ),

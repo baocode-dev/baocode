@@ -12,6 +12,7 @@ import '../theme/cursor_theme.dart';
 import 'chat_models.dart';
 import 'chat_session.dart';
 import 'composer/composer.dart';
+import 'composer/composer_draft.dart';
 import 'widgets/chat_item_view.dart';
 import 'widgets/edge_fade_mask.dart';
 import 'widgets/user_message_bubble.dart';
@@ -39,15 +40,16 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     debugLabel: 'Monad chat selection',
   );
 
-  /// Thoughts the user opened (true) or closed (false). Others are open
-  /// while they stream and closed once done.
-  final Map<int, bool> _thinkingExpanded = {};
+  /// Steps the user opened (true) or closed (false). Others follow
+  /// [defaultExpanded]: open while they stream or run, closed once done.
+  final Map<int, bool> _expanded = {};
 
   /// The user message open for editing, if any, and the text it started
   /// from. The editor lives above the list (see [_buildEditorLayer]); the
   /// list holds a placeholder of its height.
   int? _editingIndex;
   String _editingText = '';
+  List<ImageAttachment> _editingImages = const [];
   final GlobalKey _editorPlaceholderKey = GlobalKey();
   double _editorHeight = 0;
   final Object _editorTapRegion = Object();
@@ -84,10 +86,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     locate: _locateItemPoint,
     resolve: _resolveItemPoint,
     beyondBuilt: _beyondBuiltItems,
-    plainTextOf: (index) => chatItemPlainText(
-      _session.itemAt(index),
-      expanded: _isThinkingExpanded(index),
-    ),
+    plainTextOf: (index) =>
+        chatItemPlainText(_session.itemAt(index), expanded: _isExpanded(index)),
     onDragEdge: _autoScrollToward,
   );
   bool _reselectScheduled = false;
@@ -106,6 +106,23 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     _scrollController.addListener(_handleScroll);
     _session.addListener(_handleSessionChanged);
     _stickyIndices = _tailUserMessages();
+    _resumeEditing();
+  }
+
+  /// Opens the editor again on the message it was left open on, with what
+  /// was typed in it.
+  void _resumeEditing() {
+    final editing = _session.editing;
+    if (editing == null) return;
+    if (editing.index >= _session.itemCount ||
+        _session.itemAt(editing.index) is! UserMessageItem) {
+      _session.editing = null;
+      return;
+    }
+    final item = _session.itemAt(editing.index) as UserMessageItem;
+    _editingIndex = editing.index;
+    _editingText = item.text;
+    _editingImages = item.images;
   }
 
   @override
@@ -116,6 +133,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
       widget.session.addListener(_handleSessionChanged);
       _stickyKeys.clear();
       _stickyIndices = _tailUserMessages();
+      _editingIndex = null;
+      _resumeEditing();
     }
   }
 
@@ -143,15 +162,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     super.dispose();
   }
 
-  bool _isThinkingExpanded(int index) =>
-      _thinkingExpanded[index] ??
-      switch (_session.itemAt(index)) {
-        ThinkingItem(:final streaming) => streaming,
-        _ => false,
-      };
+  bool _isExpanded(int index) =>
+      _expanded[index] ?? defaultExpanded(_session.itemAt(index));
 
-  void _toggleThinking(int index) {
-    setState(() => _thinkingExpanded[index] = !_isThinkingExpanded(index));
+  void _toggle(int index) {
+    setState(() => _expanded[index] = !_isExpanded(index));
   }
 
   bool get _userScrolling =>
@@ -191,8 +206,22 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     });
   }
 
+  /// Either side of the scrollbar's thumb, still the bar.
+  static const _scrollbarMargin = 4.0;
+
+  /// The strip at the right of the list, beside its text: the scrollbar's.
+  static const _scrollbarGutter = 24.0;
+
   void _handlePointerDown(PointerDownEvent event) {
     _pointersDown++;
+    // A press beside the bar, just missing it, neither starts a selection
+    // nor clears one (as a browser's scrollbar).
+    final list = _listKey.currentContext?.findRenderObject() as RenderBox?;
+    if (list != null && list.hasSize) {
+      final right = list.localToGlobal(Offset(list.size.width, 0)).dx;
+      _selectionDelegate.suspended =
+          event.position.dx >= right - _scrollbarGutter;
+    }
     if (_pressInEditor) {
       _pressInEditor = false;
     } else {
@@ -218,7 +247,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
       _autoScroller?.stopAutoScroll();
       _selectionDelegate
         ..endDrag()
-        ..extending = false;
+        ..extending = false
+        ..suspended = false;
     }
   }
 
@@ -355,6 +385,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
             (editing >= _session.itemCount ||
                 _session.itemAt(editing) is! UserMessageItem))) {
       _editingIndex = null;
+      _session.editing = null;
     }
     if (startedStreaming) _jumpToBottom();
     _scheduleStickyUpdate();
@@ -366,9 +397,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     if (item is! UserMessageItem) return;
     // Until the editor reports its height, hold the message's.
     final laidOut = _laidOutItems().where((box) => _indexOf(box) == index);
+    _session.editing = (index: index, draft: ComposerDraft());
     setState(() {
       _editingIndex = index;
       _editingText = item.text;
+      _editingImages = item.images;
       _editComposerKey = GlobalKey();
       _editorHeight = laidOut.isEmpty
           ? 0
@@ -376,7 +409,19 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     });
   }
 
+  /// A press elsewhere in this conversation's column (its title bar, its
+  /// history, the composer below) closes the editor. One beside it (the
+  /// sidebar, to go to another conversation) leaves it open, to find again.
+  void _handleTapOutsideEditor(PointerDownEvent event) {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final column = box.localToGlobal(Offset.zero) & box.size;
+    final x = event.position.dx;
+    if (x >= column.left && x <= column.right) _cancelEditing();
+  }
+
   void _cancelEditing() {
+    _session.editing = null;
     if (_editingIndex != null) setState(() => _editingIndex = null);
   }
 
@@ -551,7 +596,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                           child: UserMessageBubble(
                             key: ValueKey(('sticky', index)),
                             text: item.text,
-                            onEdit: () => _startEditing(index),
+                            images: item.images,
+                            onEdit: _session.canEditMessages
+                                ? () => _startEditing(index)
+                                : null,
                           ),
                         ),
                       ),
@@ -636,11 +684,13 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                           onPointerPanZoomEnd: _endEditorPan,
                           child: TapRegion(
                             groupId: _editorTapRegion,
-                            onTapOutside: (_) => _cancelEditing(),
+                            onTapOutside: _handleTapOutsideEditor,
                             child: ChatComposer(
                               key: _editComposerKey,
                               session: _session,
                               initialText: _editingText,
+                              initialImages: _editingImages,
+                              draft: _session.editing?.draft,
                               tapRegionGroupId: _editorTapRegion,
                               onSubmit: (message) =>
                                   _submitEdit(index, message),
@@ -729,10 +779,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   }
 
   void _submitEdit(int index, ComposerMessage message) {
+    _session.editing = null;
     setState(() {
       _editingIndex = null;
-      // Everything after the message is replaced; so are its thoughts.
-      _thinkingExpanded.removeWhere((i, _) => i > index);
+      // Everything after the message is replaced; so are its steps.
+      _expanded.removeWhere((i, _) => i > index);
     });
     _session.editMessage(index, message);
   }
@@ -748,9 +799,13 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
       child: ChatItemView(
         key: ValueKey(index),
         item: item,
-        expanded: _isThinkingExpanded(index),
-        onToggle: () => _toggleThinking(index),
-        onEdit: item is UserMessageItem ? () => _startEditing(index) : null,
+        expanded: _isExpanded(index),
+        onToggle: () => _toggle(index),
+        onEdit: item is UserMessageItem && _session.canEditMessages
+            ? () => _startEditing(index)
+            : null,
+        onCancelQueued: () => _session.cancelQueued(index),
+        onMoveToBackground: _session.moveToBackgroundAt(index),
       ),
     );
   }
@@ -767,14 +822,15 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
     if (_isPointerInside != value) setState(() => _isPointerInside = value);
   }
 
-  /// Vertical gap above [index]: roomy between turns, tight between tool rows.
+  /// Vertical gap above [index]: roomy between turns, none between steps.
   double _gapBefore(int index) {
     if (index == 0) return 0;
     final item = _session.itemAt(index);
     final previous = _session.itemAt(index - 1);
     if (item is UserMessageItem) return 32;
     if (previous is UserMessageItem) return 14;
-    if (item is ToolCallItem && previous is ToolCallItem) return 0;
+    // Steps follow one another as a list.
+    if (isStep(item) && isStep(previous)) return 0;
     return 10;
   }
 
@@ -782,38 +838,42 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
   Widget build(BuildContext context) {
     return Shortcuts(
       shortcuts: _selectionShortcuts,
-      child: SelectionArea(
-        focusNode: _selectionFocusNode,
-        // Focus on click rather than hover so the composer keeps focus while
-        // the pointer passes over the history.
-        child: Listener(
-          onPointerDown: _handlePointerDown,
-          onPointerUp: _handlePointerUp,
-          onPointerCancel: _handlePointerUp,
-          // Runs before the list handles the signal (that is resolved after
-          // every target has seen it).
-          onPointerSignal: (event) {
-            if (event is! PointerScrollEvent) return;
-            _lastWheel = DateTime.now();
-            _scrollController.signalKind = event.kind;
-          },
-          child: SelectionContainer(
-            delegate: _selectionDelegate,
-            child: MouseRegion(
-              onEnter: (_) => _setPointerInside(true),
-              onExit: (_) => _setPointerInside(false),
-              child: ScrollbarTheme(
-                data: ScrollbarTheme.of(context).copyWith(
-                  thumbColor: WidgetStatePropertyAll(
-                    _isPointerInside
-                        ? const Color(0xFF4A4A4A)
-                        : Colors.transparent,
-                  ),
-                ),
-                child: Scrollbar(
-                  controller: _scrollController,
-                  thumbVisibility: true,
-                  interactive: true,
+      // Sees every press and wheel event, the scrollbar's too.
+      child: Listener(
+        onPointerDown: _handlePointerDown,
+        onPointerUp: _handlePointerUp,
+        onPointerCancel: _handlePointerUp,
+        // Runs before the list handles the signal (that is resolved after
+        // every target has seen it).
+        onPointerSignal: (event) {
+          if (event is! PointerScrollEvent) return;
+          _lastWheel = DateTime.now();
+          _scrollController.signalKind = event.kind;
+        },
+        child: MouseRegion(
+          onEnter: (_) => _setPointerInside(true),
+          onExit: (_) => _setPointerInside(false),
+          child: ScrollbarTheme(
+            data: ScrollbarTheme.of(context).copyWith(
+              thumbColor: WidgetStatePropertyAll(
+                _isPointerInside ? const Color(0xFF4A4A4A) : Colors.transparent,
+              ),
+              // The thumb as thin as ever, easier to catch: its track (what
+              // takes a press) is that much wider on both sides.
+              crossAxisMargin: _scrollbarMargin,
+            ),
+            // Above the selection: the bar takes a press on it alone (what
+            // it covers is not hit-tested), so dragging it never selects.
+            child: Scrollbar(
+              controller: _scrollController,
+              thumbVisibility: true,
+              interactive: true,
+              child: SelectionArea(
+                focusNode: _selectionFocusNode,
+                // Focus on click rather than hover so the composer keeps
+                // focus while the pointer passes over the history.
+                child: SelectionContainer(
+                  delegate: _selectionDelegate,
                   // Items register their text with the selection delegate
                   // themselves (see [_ItemSelectionScope]); nothing else in
                   // here is selectable, and the list's own selection handling
@@ -830,33 +890,39 @@ class _ChatHistoryViewState extends State<ChatHistoryView> {
                           child: EdgeFadeMask(
                             top: _contentAbove,
                             bottom: _contentBelow,
-                            child: SuperListView.builder(
-                              key: _listKey,
-                              controller: _scrollController,
-                              itemCount: _session.itemCount,
-                              cacheExtent: 900,
-                              padding: const EdgeInsets.fromLTRB(
-                                24,
-                                20,
-                                24,
-                                24,
-                              ),
-                              itemBuilder: (context, index) {
-                                return Align(
-                                  alignment: Alignment.topCenter,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: widget.maxContentWidth,
-                                    ),
-                                    child: Padding(
-                                      padding: EdgeInsets.only(
-                                        top: _gapBefore(index),
+                            // Its bar is the one around the selection, above; not a second
+                            // one of the platform's own.
+                            child: ScrollConfiguration(
+                              behavior: ScrollConfiguration.of(context)
+                                  .copyWith(scrollbars: false),
+                              child: SuperListView.builder(
+                                key: _listKey,
+                                controller: _scrollController,
+                                itemCount: _session.itemCount,
+                                cacheExtent: 900,
+                                padding: const EdgeInsets.fromLTRB(
+                                  24,
+                                  20,
+                                  24,
+                                  24,
+                                ),
+                                itemBuilder: (context, index) {
+                                  return Align(
+                                    alignment: Alignment.topCenter,
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxWidth: widget.maxContentWidth,
                                       ),
-                                      child: _buildItem(index),
+                                      child: Padding(
+                                        padding: EdgeInsets.only(
+                                          top: _gapBefore(index),
+                                        ),
+                                        child: _buildItem(index),
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
+                                  );
+                                },
+                              ),
                             ),
                           ),
                         ),
@@ -1110,6 +1176,10 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
   /// A Shift+click is in progress: it moves the end and keeps the start.
   bool extending = false;
 
+  /// A press in the scrollbar's gutter is under way: pointer selection
+  /// events change nothing.
+  bool suspended = false;
+
   final Map<Selectable, _ItemRegistrar> _items = {};
   _SelectionEdge? _start;
   _SelectionEdge? _end;
@@ -1186,6 +1256,13 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
 
   @override
   SelectionResult dispatchSelectionEvent(SelectionEvent event) {
+    if (suspended &&
+        (event is SelectionEdgeUpdateEvent ||
+            event is ClearSelectionEvent ||
+            event is SelectWordSelectionEvent ||
+            event is SelectParagraphSelectionEvent)) {
+      return SelectionResult.none;
+    }
     final SelectionResult result;
     switch (event) {
       // [SelectableRegion] restarts the selection on a Shift+click when it

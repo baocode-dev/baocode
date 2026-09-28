@@ -1,0 +1,5 @@
+tags:
+  # Runs the real Claude Code CLI (and spends a few cents): opt in with
+  # `flutter test --run-skipped -t e2e`.
+  e2e:
+    skip: "Runs the real Claude Code CLI"

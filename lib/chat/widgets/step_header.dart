@@ -1,0 +1,227 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
+
+import '../../theme/cursor_theme.dart';
+import 'hover_builder.dart';
+import 'shimmer_text.dart';
+import 'wheel_latch.dart';
+
+/// Header of a step the agent took, e.g. "Ran  Check the Flutter version":
+/// what it did, then what on, muted. While it is [running] the whole line
+/// shimmers. With [onToggle] it opens and closes on a tap; a chevron shows
+/// while hovered or open.
+class StepHeader extends StatelessWidget {
+  const StepHeader({
+    super.key,
+    required this.verb,
+    this.object = '',
+    this.detail,
+    this.running = false,
+    this.expanded = false,
+    this.onToggle,
+    this.trailing,
+    this.action,
+  });
+
+  final String verb;
+  final String object;
+
+  /// A last word, fainter still (e.g. "L1-40", "+12 -3").
+  final String? detail;
+  final bool running;
+  final bool expanded;
+  final VoidCallback? onToggle;
+
+  /// After the line, e.g. an edit's "+12 -3".
+  final Widget? trailing;
+
+  /// A button after it all, apart from the click that opens it.
+  final Widget? action;
+
+  static const _size = 13.0;
+
+  /// The line as text, e.g. for copying.
+  static String text(String verb, String object, [String? detail]) =>
+      [verb, object, ?detail].where((part) => part.isNotEmpty).join(' ');
+
+  @override
+  Widget build(BuildContext context) {
+    final toggle = onToggle;
+    // Built once: hovering must not rebuild the text, or a selection in it
+    // would be lost.
+    final line = running
+        ? ShimmerText(
+            text(verb, object, detail),
+            ellipsis: false,
+            padding: EdgeInsets.zero,
+          )
+        : Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: verb,
+                  style: const TextStyle(color: CursorColors.text),
+                ),
+                if (object.isNotEmpty) TextSpan(text: ' $object'),
+                if (detail case final detail? when detail.isNotEmpty)
+                  TextSpan(
+                    text: ' $detail',
+                    style: const TextStyle(color: CursorColors.textFaint),
+                  ),
+              ],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: CursorColors.textMuted,
+              fontSize: _size,
+            ),
+          );
+    final header = HoverBuilder(
+      cursor: toggle == null ? MouseCursor.defer : SystemMouseCursors.click,
+      builder: (context, hovered) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Shrinks in a narrow window rather than overflow.
+            Flexible(child: line),
+            if (trailing case final trailing?) ...[
+              const SizedBox(width: 6),
+              trailing,
+            ],
+            if (toggle != null && (hovered || expanded)) ...[
+              const SizedBox(width: 2),
+              // Comes and goes with the hover: kept out of the selection,
+              // which would otherwise re-resolve its edges each time.
+              SelectionContainer.disabled(
+                child: AnimatedRotation(
+                  turns: expanded ? 0.25 : 0,
+                  duration: const Duration(milliseconds: 150),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 16,
+                    color: hovered ? CursorColors.text : CursorColors.textMuted,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: toggle == null
+              ? header
+              : _ClickListener(onClick: toggle, child: header),
+        ),
+        if (action case final action?) ...[const SizedBox(width: 10), action],
+      ],
+    );
+  }
+}
+
+/// Calls [onClick] on a plain click: not a drag, not with Shift (which
+/// extends a selection). Listens rather than joins the gesture arena, so
+/// selecting the text still works.
+class _ClickListener extends StatefulWidget {
+  const _ClickListener({required this.onClick, required this.child});
+
+  final VoidCallback onClick;
+  final Widget child;
+
+  @override
+  State<_ClickListener> createState() => _ClickListenerState();
+}
+
+class _ClickListenerState extends State<_ClickListener> {
+  Offset? _down;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (event) => _down =
+          event.buttons == kPrimaryButton &&
+              !HardwareKeyboard.instance.isShiftPressed
+          ? event.position
+          : null,
+      onPointerMove: (event) {
+        final down = _down;
+        if (down != null && (event.position - down).distance > 4) _down = null;
+      },
+      onPointerUp: (_) {
+        if (_down == null) return;
+        _down = null;
+        widget.onClick();
+      },
+      onPointerCancel: (_) => _down = null,
+      child: widget.child,
+    );
+  }
+}
+
+/// What a step opens to: a dark framed box under its header, scrolling
+/// past [maxHeight].
+class StepBody extends StatelessWidget {
+  const StepBody({
+    super.key,
+    required this.child,
+    this.maxHeight = 240,
+    this.padding = const EdgeInsets.fromLTRB(12, 10, 12, 10),
+    this.followEnd = false,
+    this.overlay,
+  });
+
+  final Widget child;
+  final double maxHeight;
+  final EdgeInsetsGeometry padding;
+
+  /// Shows the end rather than the start while it grows (live output).
+  final bool followEnd;
+
+  /// Over its top right corner, e.g. a menu button.
+  final Widget? overlay;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 2, bottom: 6),
+      decoration: BoxDecoration(
+        color: CursorColors.code,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: CursorColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: SingleChildScrollView(
+              reverse: followEnd,
+              padding: padding,
+              child: WheelLatch(
+                child: SizedBox(width: double.infinity, child: child),
+              ),
+            ),
+          ),
+          if (overlay case final overlay?)
+            Positioned(top: 6, right: 6, child: overlay),
+        ],
+      ),
+    );
+  }
+}
+
+/// Monospaced text as steps show it: commands, output, matches.
+const stepMono = TextStyle(
+  fontFamily: CursorFonts.mono,
+  fontSize: 12,
+  height: 1.5,
+  color: CursorColors.textMuted,
+);
