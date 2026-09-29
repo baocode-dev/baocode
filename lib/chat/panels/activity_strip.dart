@@ -10,14 +10,13 @@ import '../widgets/hover_builder.dart';
 import '../widgets/orbit_indicator.dart';
 import 'interaction_panel.dart';
 
-/// Indicator area docked on top of the composer: background tasks and the
-/// files changed in this turn.
+/// Indicator area docked on top of the composer: background tasks still
+/// running and the files changed in this turn.
 class ActivityStrip extends StatefulWidget {
   const ActivityStrip({
     super.key,
     required this.tasks,
     required this.changes,
-    required this.onDismissTask,
     required this.onKeep,
     this.onUndo,
     this.onStopTask,
@@ -26,7 +25,6 @@ class ActivityStrip extends StatefulWidget {
 
   final List<KernelTask> tasks;
   final List<FileChange> changes;
-  final ValueChanged<KernelTask> onDismissTask;
 
   /// Stops a running task; null when tasks cannot be stopped.
   final ValueChanged<KernelTask>? onStopTask;
@@ -46,6 +44,9 @@ class ActivityStrip extends StatefulWidget {
 }
 
 class _ActivityStripState extends State<ActivityStrip> {
+  /// Past this many rows, tasks scroll within the strip.
+  static const _maxTaskRows = 4;
+
   bool _filesExpanded = false;
   Timer? _ticker;
 
@@ -69,9 +70,7 @@ class _ActivityStripState extends State<ActivityStrip> {
 
   /// Ticks once a second only while a task is running, for elapsed time.
   void _syncTicker() {
-    final running = widget.tasks.any(
-      (task) => task.status == CommandStatus.running,
-    );
+    final running = widget.tasks.isNotEmpty;
     if (running && _ticker == null) {
       _ticker = Timer.periodic(
         const Duration(seconds: 1),
@@ -102,19 +101,31 @@ class _ActivityStripState extends State<ActivityStrip> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final task in widget.tasks)
-            _TaskRow(
-              task: task,
-              onOpen: switch (widget.onOpenTask) {
-                final open? when task.kind == KernelTaskKind.agent =>
-                  () => open(task),
-                _ => null,
-              },
-              onDismiss: () => widget.onDismissTask(task),
-              onStop: switch (widget.onStopTask) {
-                final stop? => () => stop(task),
-                null => null,
-              },
+          if (widget.tasks.isNotEmpty)
+            ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxHeight: _StripRow.height * _maxTaskRows,
+              ),
+              child: ListView(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                children: [
+                  for (final task in widget.tasks)
+                    _TaskRow(
+                      key: ValueKey(task.id),
+                      task: task,
+                      onOpen: switch (widget.onOpenTask) {
+                        final open? when task.kind == KernelTaskKind.agent =>
+                          () => open(task),
+                        _ => null,
+                      },
+                      onStop: switch (widget.onStopTask) {
+                        final stop? => () => stop(task),
+                        null => null,
+                      },
+                    ),
+                ],
+              ),
             ),
           if (changes.isNotEmpty) ...[
             _FilesHeader(
@@ -143,6 +154,8 @@ class _ActivityStripState extends State<ActivityStrip> {
 class _StripRow extends StatelessWidget {
   const _StripRow({required this.children, this.onTap, this.semanticLabel});
 
+  static const double height = 28;
+
   final List<Widget> children;
   final VoidCallback? onTap;
 
@@ -157,7 +170,7 @@ class _StripRow extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Container(
-          height: 28,
+          height: height,
           margin: const EdgeInsets.symmetric(horizontal: 3),
           padding: const EdgeInsets.symmetric(horizontal: 7),
           decoration: BoxDecoration(
@@ -177,15 +190,9 @@ class _StripRow extends StatelessWidget {
 }
 
 class _TaskRow extends StatelessWidget {
-  const _TaskRow({
-    required this.task,
-    required this.onDismiss,
-    this.onStop,
-    this.onOpen,
-  });
+  const _TaskRow({super.key, required this.task, this.onStop, this.onOpen});
 
   final KernelTask task;
-  final VoidCallback onDismiss;
   final VoidCallback? onStop;
 
   /// Opens a subagent's conversation.
@@ -194,30 +201,14 @@ class _TaskRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final elapsed = DateTime.now().difference(task.startedAt).inSeconds;
-    final (status, color) = switch (task.status) {
-      CommandStatus.running => (
-        'Running · ${elapsed}s',
-        CursorColors.textMuted,
-      ),
-      CommandStatus.succeeded => ('Passed', CursorColors.added),
-      CommandStatus.failed => ('Failed', CursorColors.removed),
-    };
     return _StripRow(
       onTap: onOpen,
       semanticLabel: onOpen == null ? null : 'Open ${task.description}',
       children: [
         SizedBox.square(
           dimension: 14,
-          child: task.status != CommandStatus.running
-              ? Icon(
-                  task.status == CommandStatus.succeeded
-                      ? Icons.check_circle_outline_rounded
-                      : Icons.error_outline_rounded,
-                  size: 14,
-                  color: color,
-                )
-              // A subagent left to run on its own.
-              : task.kind == KernelTaskKind.agent && task.background
+          // A subagent left to run on its own.
+          child: task.kind == KernelTaskKind.agent && task.background
               ? const OrbitIndicator()
               : const Padding(
                   padding: EdgeInsets.all(1.5),
@@ -256,18 +247,18 @@ class _TaskRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(status, style: TextStyle(color: color, fontSize: 11.5)),
+              Text(
+                'Running · ${elapsed}s',
+                style: const TextStyle(
+                  color: CursorColors.textMuted,
+                  fontSize: 11.5,
+                ),
+              ),
             ],
           ),
         ),
         const SizedBox(width: 8),
-        if (task.status != CommandStatus.running)
-          _IconAction(
-            icon: Icons.close_rounded,
-            tooltip: 'Dismiss',
-            onTap: onDismiss,
-          )
-        else if (onStop case final stop?)
+        if (onStop case final stop?)
           _IconAction(icon: Icons.stop_rounded, tooltip: 'Stop', onTap: stop),
       ],
     );

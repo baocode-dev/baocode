@@ -259,7 +259,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     return ActivityStrip(
       tasks: tasks,
       changes: changes,
-      onDismissTask: _session.dismissTask,
       onKeep: _session.keepAllChanges,
       onUndo: _session.undoAllChanges,
       onStopTask: _session.stopTask,

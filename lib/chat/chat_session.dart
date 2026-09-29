@@ -67,8 +67,8 @@ class ModelSettingChoice {
 /// It keeps only three things:
 /// - the [Transcript], the kernel's conversation as reported;
 /// - which kernel runs it, and where ([KernelContext]);
-/// - UI state the kernel never hears of (changes kept, tasks dismissed,
-///   what is typed and not sent).
+/// - UI state the kernel never hears of (changes kept, what is typed and
+///   not sent).
 ///
 /// Everything else (the status row, tasks, pending changes, the question
 /// waiting, the model in effect) is projected from those or read from the
@@ -115,7 +115,6 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   /// Changes reported at or below this sequence were kept.
   int _keptSeq = -1;
-  final Set<String> _dismissedTasks = {};
 
   void _connect(KernelDescriptor descriptor) {
     _kernel = descriptor.create(kernelContext);
@@ -376,23 +375,17 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     return _transcript.activity;
   }
 
-  /// Tasks beside the conversation, until dismissed; null when the kernel
-  /// runs none.
+  /// Tasks running beside the conversation, gone once they end (their
+  /// outcome stays on their step); null when the kernel runs none.
   List<KernelTask>? get tasks {
     if (_kernel is! RunsBackgroundTasks) return null;
     return _cached(
       #tasks,
       () => [
         for (final task in _transcript.tasks)
-          if (task.background && !_dismissedTasks.contains(task.id)) task,
+          if (task.background && task.status == CommandStatus.running) task,
       ],
     );
-  }
-
-  void dismissTask(KernelTask task) {
-    if (!_dismissedTasks.add(task.id)) return;
-    _cache.clear();
-    notifyListeners();
   }
 
   void stopTask(KernelTask task) {

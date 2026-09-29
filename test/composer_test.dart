@@ -198,8 +198,10 @@ void main() {
     expect(find.text('3 files changed'), findsOneWidget);
     expect(find.textContaining('Running ·'), findsOneWidget);
 
+    // Done, the task leaves; the changes stay.
     await tester.pump(const Duration(seconds: 5));
-    expect(find.text('Passed'), findsOneWidget);
+    expect(find.textContaining('Running ·'), findsNothing);
+    expect(find.text('3 files changed'), findsOneWidget);
 
     await tester.tap(find.text('Keep all'));
     await settleAnimations(tester);

@@ -331,7 +331,6 @@ void main() {
                 ),
               ],
               changes: const [],
-              onDismissTask: (_) {},
               onStopTask: (_) {},
               onKeep: () {},
             ),
@@ -343,6 +342,45 @@ void main() {
     final strip = tester.getRect(find.byType(ActivityStrip));
     // The strip's margin and border, the row's margin and padding.
     expect(stop.right, strip.right - (10 + 1 + 3 + 7));
+    // The ticking clock stopped.
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('many running tasks scroll within the strip', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: SizedBox(
+              width: 600,
+              child: ActivityStrip(
+                tasks: [
+                  for (var i = 0; i < 10; i++)
+                    KernelTask(
+                      id: 't$i',
+                      description: 'task $i',
+                      kind: KernelTaskKind.command,
+                      status: CommandStatus.running,
+                      startedAt: DateTime.now(),
+                    ),
+                ],
+                changes: const [],
+                onKeep: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    // Four rows, the strip's padding and top border.
+    expect(tester.getSize(find.byType(ActivityStrip)).height, 28 * 4 + 6 + 1);
+    expect(find.text('task 0').hitTestable(), findsOneWidget);
+    expect(find.text('task 9').hitTestable(), findsNothing);
+
+    await tester.drag(find.text('task 0'), const Offset(0, -400));
+    await tester.pump();
+    expect(find.text('task 9').hitTestable(), findsOneWidget);
     // The ticking clock stopped.
     await tester.pumpWidget(const SizedBox());
   });
