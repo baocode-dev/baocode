@@ -264,9 +264,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('3 files changed'), findsNothing);
 
-    // Its background tests settle.
+    // Its background tests settle, and leave the strip.
     await tester.pump(const Duration(seconds: 5));
-    expect(find.text('Passed'), findsOneWidget);
+    expect(find.textContaining('Running ·'), findsNothing);
+    expect(find.byType(ActivityStrip), findsNothing);
   });
 
   testWidgets('after a turn, Tab takes the prompt Claude suggests', (
