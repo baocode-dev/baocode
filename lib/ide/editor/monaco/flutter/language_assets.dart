@@ -3,20 +3,32 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../lsp/packs/language_packs.dart';
 import '../vs/editor/standalone/common/monarch/monarch_compile.dart' as monarch;
 import '../vs/editor/standalone/common/monarch/monarch_common.dart';
 import '../vs/editor/standalone/common/monarch/monarch_types.dart';
 
 /// Data exported from Monaco v0.57.0's original language definitions.
 /// Patterns are reconstructed before the pinned Monarch compiler sees them.
+///
+/// Language packs ([packs], else [LanguagePackRegistry.instance]) add
+/// registrations of their own, listed before the bundled ones and preferred
+/// over them for the same file; their grammars and configurations use the
+/// bundled assets' JSON shape (see `lib/ide/lsp/packs/README.md`).
 class MonacoLanguageAssets {
-  const MonacoLanguageAssets({this.bundle});
+  const MonacoLanguageAssets({this.bundle, this.packs});
 
   static const revision = 'd61824269f1377111d34306e4a47172327777083';
   static const _base = 'assets/monaco/languages';
+
+  /// Marks a pack registration's [MonacoLanguageRegistration.assetId]:
+  /// `pack:<pack name>/<language id>`.
+  static const packAssetPrefix = 'pack:';
   final AssetBundle? bundle;
+  final LanguagePackRegistry? packs;
 
   AssetBundle get _assets => bundle ?? rootBundle;
+  LanguagePackRegistry get _packs => packs ?? LanguagePackRegistry.instance;
 
   Future<Map<String, dynamic>> _manifest() async {
     final manifest = jsonDecode(
@@ -33,11 +45,32 @@ class MonacoLanguageAssets {
     return List<String>.unmodifiable(names);
   }
 
+  /// Pack registrations (those with a grammar) first, then the bundled
+  /// ones.
   Future<List<MonacoLanguageRegistration>> registrations() async =>
       List<MonacoLanguageRegistration>.unmodifiable([
+        ...(await _packRegistrations()).map((entry) => entry.$1),
         for (final raw in (await _manifest())['registrations'] as List)
           MonacoLanguageRegistration.fromMap(raw as Map<String, dynamic>),
       ]);
+
+  Future<List<(MonacoLanguageRegistration, LanguagePackLanguage)>>
+  _packRegistrations() async => [
+    for (final pack in await _packs.packs())
+      for (final language in pack.languages)
+        if (language.grammarPath != null)
+          (
+            MonacoLanguageRegistration.fromMap({
+              'id': language.id,
+              'assetId': '$packAssetPrefix${pack.name}/${language.id}',
+              'extensions': language.extensions,
+              'filenames': language.filenames,
+              'aliases': language.aliases,
+              'firstLine': language.firstLine,
+            }),
+            language,
+          ),
+  ];
 
   Future<MonacoLanguage> loadRegistered(String languageId) async {
     final registration = (await registrations()).where(
@@ -50,7 +83,9 @@ class MonacoLanguageAssets {
         'Unknown Monaco registration',
       );
     }
-    final grammar = await load(registration.first.assetId);
+    final assetId = registration.first.assetId;
+    if (assetId.startsWith(packAssetPrefix)) return _loadPack(languageId);
+    final grammar = await load(assetId);
     return MonacoLanguage(
       languageId,
       grammar.definition,
@@ -58,8 +93,70 @@ class MonacoLanguageAssets {
     );
   }
 
+  /// [languageId]'s grammar: a pack's registration of it, else the bundled
+  /// grammar of that name, else the bundled registration's.
+  Future<MonacoLanguage> loadLanguage(String languageId) async {
+    for (final (registration, _) in await _packRegistrations()) {
+      if (registration.id == languageId) return _loadPack(languageId);
+    }
+    return (await availableLanguages()).contains(languageId)
+        ? load(languageId)
+        : loadRegistered(languageId);
+  }
+
+  Future<MonacoLanguage> _loadPack(String languageId) async {
+    final language = (await _packRegistrations())
+        .firstWhere((entry) => entry.$1.id == languageId)
+        .$2;
+    final grammar = await _packs.readJson(language.grammarPath!);
+    if (grammar is! Map) {
+      throw FormatException(
+        'A language pack grammar must be a JSON object',
+        language.grammarPath,
+      );
+    }
+    // The bundled assets' whole shape ({language, configuration}) or just
+    // the Monarch definition.
+    final definition =
+        grammar['tokenizer'] == null && grammar['language'] is Map
+        ? grammar['language'] as Map
+        : grammar;
+    if (definition['tokenizer'] is! Map) {
+      throw FormatException(
+        'A language pack grammar needs a "tokenizer" object',
+        language.grammarPath,
+      );
+    }
+    final configuration = language.configurationPath == null
+        ? grammar['configuration']
+        : await _packs.readJson(language.configurationPath!);
+    return MonacoLanguage(
+      languageId,
+      _restore(definition) as IMonarchLanguage,
+      configuration is Map
+          ? _restore(configuration) as Map<String, Object?>
+          : null,
+    );
+  }
+
   /// Resolves pinned filenames/extensions, including registrations whose ID
   /// differs from the grammar's source folder (e.g. C shares the C++ lexer).
+  /// Pack registrations come first, so they win a filename, an extension
+  /// as long as the best bundled one, and a first line.
+  /// The id of the language named [name], by its id or an alias, in any
+  /// case (`ILanguageService.getLanguageIdByLanguageName`): how code fences
+  /// in markdown name languages.
+  Future<String?> languageIdForName(String name) async {
+    final lower = name.trim().toLowerCase();
+    for (final registration in await registrations()) {
+      if (registration.id.toLowerCase() == lower ||
+          registration.aliases.any((alias) => alias.toLowerCase() == lower)) {
+        return registration.id;
+      }
+    }
+    return null;
+  }
+
   Future<MonacoLanguage?> forPath(String path, {String? firstLine}) async {
     final filename = p.basename(path);
     final lower = filename.toLowerCase();
@@ -69,17 +166,19 @@ class MonacoLanguageAssets {
         return loadRegistered(registration.id);
       }
     }
-    final byExtension = <(int, MonacoLanguageRegistration)>[];
-    for (final registration in candidates) {
+    final byExtension = <(int, int, MonacoLanguageRegistration)>[];
+    for (final (index, registration) in candidates.indexed) {
       for (final extension in registration.extensions) {
         if (lower.endsWith(extension.toLowerCase())) {
-          byExtension.add((extension.length, registration));
+          byExtension.add((extension.length, index, registration));
         }
       }
     }
     if (byExtension.isNotEmpty) {
-      byExtension.sort((a, b) => b.$1.compareTo(a.$1));
-      return loadRegistered(byExtension.first.$2.id);
+      byExtension.sort(
+        (a, b) => a.$1 != b.$1 ? b.$1.compareTo(a.$1) : a.$2.compareTo(b.$2),
+      );
+      return loadRegistered(byExtension.first.$3.id);
     }
     if (firstLine != null) {
       for (final registration in candidates) {

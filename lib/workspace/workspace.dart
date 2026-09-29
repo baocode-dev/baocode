@@ -465,6 +465,18 @@ class Workspace extends ChangeNotifier {
   Map<String, String> get _preferredSettings => Map.unmodifiable(_settings);
   final Map<String, String> _settings = {};
 
+  /// Language servers the Fast Ide is not to recommend installing again.
+  Set<String> get ignoredServerRecommendations =>
+      Set.unmodifiable(_ignoredRecommendations);
+  final Set<String> _ignoredRecommendations = {};
+
+  /// Don't Show Again for this Language Server: kept between runs.
+  void ignoreServerRecommendation(String serverId) {
+    if (!_ignoredRecommendations.add(serverId)) return;
+    _save();
+    notifyListeners();
+  }
+
   /// Each agent's choices, by session: those it opens with again.
   final Map<String, Map<String, String>> _agentSettings = {};
 
@@ -499,6 +511,9 @@ class Workspace extends ChangeNotifier {
       _layout = WorkspaceLayout.ide;
     }
     _settings.addAll(strings(kept['settings']));
+    if (kept['ignoredRecommendations'] case final List<Object?> ignored) {
+      _ignoredRecommendations.addAll(ignored.whereType<String>());
+    }
     if (kept['agents'] case final Map<Object?, Object?> agents) {
       for (final MapEntry(:key, :value) in agents.entries) {
         if (key is String) _agentSettings[key] = strings(value);
@@ -513,6 +528,7 @@ class Workspace extends ChangeNotifier {
       'layout': _layout.name,
       'settings': _settings,
       'agents': _agentSettings,
+      'ignoredRecommendations': [..._ignoredRecommendations],
     }),
   );
 

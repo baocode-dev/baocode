@@ -1,0 +1,324 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:monad/ide/editor/monaco/flutter/editor_surface.dart';
+import 'package:monad/ide/ide_breadcrumbs.dart';
+import 'package:monad/ide/ide_quick_input.dart';
+import 'package:monad/ide/lsp/language_features.dart';
+import 'package:monad/ide/lsp/lsp_protocol.dart';
+import 'package:monad/ide/lsp_ui/document_symbols.dart';
+
+import '../workbench/fake_files.dart';
+import 'fake_language_features.dart';
+import 'lsp_test_helpers.dart';
+
+const _a = 'lib/a.dart';
+
+const _source =
+    'class Greeter {\n'
+    '  void greet() {\n'
+    '    print(1);\n'
+    '  }\n'
+    '}\n'
+    'void main() {}\n';
+
+List<LspDocumentSymbol> _symbols(String path) => [
+  LspDocumentSymbol(
+    name: 'Greeter',
+    kind: LspSymbolKind.klass,
+    range: lspRange(0, 0, 1, endLine: 4),
+    selectionRange: lspRange(0, 6, 13),
+    children: [
+      LspDocumentSymbol(
+        name: 'greet',
+        kind: LspSymbolKind.method,
+        range: lspRange(1, 2, 3, endLine: 3),
+        selectionRange: lspRange(1, 7, 12),
+      ),
+    ],
+  ),
+  LspDocumentSymbol(
+    name: 'main',
+    kind: LspSymbolKind.function,
+    range: lspRange(5, 0, 14),
+    selectionRange: lspRange(5, 5, 9),
+  ),
+];
+
+void main() {
+  testWidgets('the outline lists symbols, follows the caret and reveals '
+      'them; breadcrumbs show the symbol path', (tester) async {
+    final languages = FakeLanguageFeatures()..onDocumentSymbols = _symbols;
+    await pumpLanguageWorkbench(tester, {_a: _source}, languages, open: [_a]);
+    await settle(tester);
+
+    runCommand(tester, 'outline.focus');
+    await settle(tester);
+    expect(find.byType(IdeOutlineView), findsOneWidget);
+    final outline = find.byType(IdeOutlineView);
+    expect(
+      find.descendant(of: outline, matching: find.text('Greeter')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: outline, matching: find.text('greet')),
+      findsOneWidget,
+    );
+
+    await caretAt(tester, _source.indexOf('print'));
+    final crumbs = find.byType(IdeBreadcrumbs);
+    expect(tester.widget<IdeBreadcrumbs>(crumbs).symbols.map((s) => s.name), [
+      'Greeter',
+      'greet',
+    ]);
+    expect(
+      find.descendant(of: crumbs, matching: find.text('greet')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.descendant(of: outline, matching: find.text('main')));
+    await settle(tester);
+    expect(
+      surfaceController(tester).value.selection.extentOffset,
+      _source.indexOf('main'),
+    );
+
+    // Edits ask again after a pause.
+    final before = languages.count('documentSymbols');
+    surfaceController(tester).type('x');
+    await settle(tester, const Duration(milliseconds: 400));
+    expect(languages.count('documentSymbols'), before + 1);
+  });
+
+  testWidgets('Go to Symbol (@) filters symbols and reveals the pick', (
+    tester,
+  ) async {
+    final languages = FakeLanguageFeatures()..onDocumentSymbols = _symbols;
+    await pumpLanguageWorkbench(tester, {_a: _source}, languages, open: [_a]);
+    await settle(tester);
+
+    runCommand(tester, 'workbench.action.gotoSymbol');
+    await settle(tester);
+    expect(find.byType(IdeQuickInput), findsOneWidget);
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(IdeQuickInput),
+        matching: find.byType(TextField),
+      ),
+      '@gre',
+    );
+    await settle(tester);
+    expect(
+      find.descendant(
+        of: find.byType(IdeQuickInput),
+        matching: find.textContaining('Greeter'),
+      ),
+      findsWidgets,
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(find.byType(IdeQuickInput), findsNothing);
+    final caret = surfaceController(tester).value.selection.extentOffset;
+    expect(
+      caret == _source.indexOf('Greeter') || caret == _source.indexOf('greet('),
+      isTrue,
+    );
+  });
+
+  testWidgets('semantic tokens recolor the painted spans', (tester) async {
+    final languages = FakeLanguageFeatures()
+      ..onSemanticTokens = (path) => const [
+        LspSemanticToken(0, 6, 7, 'class', {}),
+        LspSemanticToken(1, 7, 5, 'method', {'declaration'}),
+      ];
+    await pumpLanguageWorkbench(tester, {_a: _source}, languages, open: [_a]);
+    await settle(tester, const Duration(milliseconds: 350));
+
+    final styled = tester
+        .widget<EditorSurface>(find.byType(EditorSurface))
+        .styledLines!;
+    final line1 = styled[1]!;
+    expect(line1.map((s) => s.text).join(), 'class Greeter {');
+    final greeter = line1.firstWhere((s) => s.text == 'Greeter');
+    expect(greeter.style!.color, const Color(0xFF4EC9B0));
+    final greet = styled[2]!.firstWhere((s) => s.text == 'greet');
+    expect(greet.style!.color, const Color(0xFFDCDCAA));
+    // Lines without tokens keep the syntax spans.
+    expect(
+      styled[3],
+      isNot(
+        contains(
+          predicate<TextSpan>((s) => s.style?.color == const Color(0xFFDCDCAA)),
+        ),
+      ),
+    );
+  });
+
+  testWidgets('status bar: a missing server offers to install it, a failed '
+      'one retries', (tester) async {
+    final languages = FakeLanguageFeatures();
+    languages.statuses[inRoot(_a)] = const [
+      LanguageServerStatus(
+        serverId: 'dart-analyzer',
+        state: LanguageServerState.missing,
+        installable: true,
+      ),
+      LanguageServerStatus(
+        serverId: 'lint',
+        state: LanguageServerState.failed,
+        message: 'crashed',
+      ),
+    ];
+    await pumpLanguageWorkbench(tester, {_a: _source}, languages, open: [_a]);
+
+    expect(find.text('dart-analyzer not installed'), findsOneWidget);
+    // Opening the file recommends the server in a toast, as VS Code
+    // recommends a language's extension.
+    const recommendation =
+        "Do you want to install the recommended 'dart-analyzer' language "
+        'server for the Dart language?';
+    expect(find.text(recommendation), findsOneWidget);
+    await _toastIn(tester);
+    await tester.tap(find.text('Install'));
+    await settle(tester);
+    expect(languages.installed, ['dart-analyzer']);
+    expect(find.text(recommendation), findsNothing);
+    // The status bar entry recommends it again.
+    await tester.tap(find.text('dart-analyzer not installed'));
+    await _toastIn(tester);
+    expect(find.text(recommendation), findsOneWidget);
+    await tester.tap(find.byTooltip('Clear Notification'));
+    await settle(tester);
+
+    languages.setStatus(inRoot(_a), const [
+      LanguageServerStatus(
+        serverId: 'dart-analyzer',
+        state: LanguageServerState.running,
+        progress: 'Indexing 3/10',
+      ),
+      LanguageServerStatus(
+        serverId: 'lint',
+        state: LanguageServerState.failed,
+        message: 'crashed',
+      ),
+    ]);
+    await settle(tester);
+    expect(find.text('dart-analyzer: Indexing 3/10'), findsOneWidget);
+    await tester.tap(find.text('lint failed'));
+    await settle(tester);
+    expect(languages.retried, ['lint']);
+  });
+
+  testWidgets('a missing runtime explains instead of installing', (
+    tester,
+  ) async {
+    final languages = FakeLanguageFeatures();
+    languages.statuses[inRoot(_a)] = const [
+      LanguageServerStatus(
+        serverId: 'pyright',
+        state: LanguageServerState.missing,
+        installable: true,
+        missingRuntime: 'node',
+      ),
+    ];
+    await pumpLanguageWorkbench(tester, {_a: _source}, languages, open: [_a]);
+    // Not recommended: it cannot be installed.
+    expect(find.text('Install'), findsNothing);
+    await tester.tap(find.text('pyright not installed'));
+    await _toastIn(tester);
+    expect(find.textContaining('needs node'), findsOneWidget);
+    expect(find.text('Install'), findsNothing);
+    await tester.tap(find.byTooltip('Clear Notification'));
+    await settle(tester);
+    expect(find.textContaining('needs node'), findsNothing);
+    expect(languages.installed, isEmpty);
+  });
+
+  testWidgets('a recommendation can be ignored for good', (tester) async {
+    final languages = FakeLanguageFeatures();
+    languages.statuses[inRoot(_a)] = const [
+      LanguageServerStatus(
+        serverId: 'dart-analyzer',
+        state: LanguageServerState.missing,
+        installable: true,
+      ),
+    ];
+    final ignored = <String>[];
+    await pumpLanguageWorkbench(
+      tester,
+      {_a: _source},
+      languages,
+      open: [_a],
+      onIgnoreRecommendation: ignored.add,
+    );
+    await _toastIn(tester);
+    // Under the toast's gear, as VS Code's "Don't Show Again for this
+    // Extension".
+    await tester.tap(find.byTooltip('More Actions...'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("Don't Show Again for this Language Server"));
+    await tester.pumpAndSettle();
+    expect(ignored, ['dart-analyzer']);
+    expect(find.textContaining('recommended'), findsNothing);
+    expect(languages.installed, isEmpty);
+  });
+
+  testWidgets('an ignored server is not recommended', (tester) async {
+    final languages = FakeLanguageFeatures();
+    languages.statuses[inRoot(_a)] = const [
+      LanguageServerStatus(
+        serverId: 'dart-analyzer',
+        state: LanguageServerState.missing,
+        installable: true,
+      ),
+    ];
+    await pumpLanguageWorkbench(
+      tester,
+      {_a: _source},
+      languages,
+      open: [_a],
+      ignoredRecommendations: const {'dart-analyzer'},
+    );
+    await _toastIn(tester);
+    expect(find.textContaining('recommended'), findsNothing);
+    // The status bar still offers it.
+    await tester.tap(find.text('dart-analyzer not installed'));
+    await _toastIn(tester);
+    expect(find.textContaining('recommended'), findsOneWidget);
+  });
+
+  testWidgets('language commands are in the palette with their keybindings', (
+    tester,
+  ) async {
+    final languages = FakeLanguageFeatures(
+      supported: {LanguageRequest.definition},
+    );
+    await pumpLanguageWorkbench(tester, {_a: _source}, languages, open: [_a]);
+    final commands = {
+      for (final command in workbenchState(tester).commands)
+        command.id: command,
+    };
+    expect(commands['editor.action.revealDefinition']!.shortcutLabel(), 'F12');
+    expect(commands['editor.action.revealDefinition']!.enabled, isTrue);
+    expect(commands['editor.action.rename']!.enabled, isFalse);
+    expect(
+      commands['editor.action.formatSelection']!.shortcutLabel(),
+      'Ctrl+K Ctrl+F',
+    );
+    expect(commands['editor.action.marker.nextInFiles']!.shortcutLabel(), 'F8');
+    expect(
+      commands['workbench.action.gotoSymbol']!.shortcutLabel(),
+      'Ctrl+Shift+O',
+    );
+    expect(
+      commands['workbench.actions.view.problems']!.shortcutLabel(),
+      'Ctrl+Shift+M',
+    );
+  });
+}
+
+/// Lets a toast shown by the last action slide in.
+Future<void> _toastIn(WidgetTester tester) async {
+  await settle(tester);
+  await tester.pump(const Duration(milliseconds: 300));
+}

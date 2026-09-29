@@ -9,6 +9,7 @@ import 'package:monad/main.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
 import 'package:monad/sidebar/sidebar.dart';
 import 'package:monad/workspace/editor_launcher.dart';
+import 'package:monad/workspace/open_in_editor_button.dart';
 import 'package:monad/workspace/pin_window_button.dart';
 import 'package:monad/workspace/workspace.dart';
 
@@ -344,15 +345,40 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   });
 
-  testWidgets('opens the project in the chosen editor', (tester) async {
+  testWidgets('the chevron switches the editor; the button opens it', (
+    tester,
+  ) async {
+    final opened = <Editor>[];
+    OpenInEditorButton.launch = (editor, path) async {
+      opened.add(editor);
+      return true;
+    };
+    addTearDown(() => OpenInEditorButton.launch = openInEditor);
     final workspace = await pumpApp(tester);
     expect(find.bySemanticsLabel('Open in VS Code'), findsOneWidget);
     await tester.tap(find.bySemanticsLabel('Choose editor'));
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.text('Zed'));
     await tester.pump(const Duration(milliseconds: 200));
+    // Picking only switches: nothing opens until the button is pressed.
     expect(workspace.preferredEditor, Editor.zed);
-    expect(find.bySemanticsLabel('Open in Zed'), findsOneWidget);
+    expect(opened, isEmpty);
+    await tester.tap(find.bySemanticsLabel('Open in Zed'));
+    await tester.pump();
+    expect(opened, [Editor.zed]);
+    // The Fast Ide is one of the choices: kept, and opened as the layout.
+    await tester.tap(find.bySemanticsLabel('Choose editor'));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.text('Fast Ide'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(workspace.preferredEditor, Editor.fastIde);
+    expect(workspace.layout, WorkspaceLayout.chat);
+    await tester.tap(find.bySemanticsLabel('Open in Fast Ide'));
+    await tester.pump();
+    expect(workspace.layout, WorkspaceLayout.ide);
+    expect(opened, [Editor.zed]);
+    workspace.layout = WorkspaceLayout.chat;
+    await tester.pump();
   });
 
   testWidgets('an opened agent shows its stuck message from the first frame', (

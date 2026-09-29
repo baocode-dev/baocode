@@ -10,6 +10,7 @@ import 'chat/chat_screen.dart';
 import 'chat/panels/interaction_panel.dart';
 import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
+import 'ide/lsp/language_features.dart';
 import 'sidebar/sidebar.dart';
 import 'theme/cursor_theme.dart';
 import 'workspace/open_in_editor_button.dart';
@@ -25,9 +26,18 @@ import 'workspace/workspace.dart';
 /// button). In a narrow window it is hidden by default and opens over the
 /// chat as a drawer instead of pushing it aside.
 class Workbench extends StatefulWidget {
-  const Workbench({super.key, required this.workspace, this.ideEditorBuilder});
+  const Workbench({
+    super.key,
+    required this.workspace,
+    this.ideEditorBuilder,
+    this.languagesFor,
+  });
 
   final Workspace workspace;
+
+  /// The language servers for the project at a root, when the IDE opens it;
+  /// none when null.
+  final LanguageFeatures Function(String root)? languagesFor;
 
   @visibleForTesting
   final Widget Function(BuildContext, IdeWorkspace)? ideEditorBuilder;
@@ -193,7 +203,13 @@ class _WorkbenchState extends State<Workbench> {
     final project = _workspace.current?.project;
     final ide = _workspace.layout == WorkspaceLayout.ide && project != null;
     if (ide) {
-      _ideSpaces.putIfAbsent(project.path, () => IdeWorkspace(project.path));
+      _ideSpaces.putIfAbsent(
+        project.path,
+        () => IdeWorkspace(
+          project.path,
+          languages: widget.languagesFor?.call(project.path),
+        ),
+      );
     }
     return Stack(
       fit: StackFit.expand,
@@ -212,6 +228,9 @@ class _WorkbenchState extends State<Workbench> {
                   visible: ide && project.path == entry.key,
                   onBack: () => _workspace.layout = WorkspaceLayout.chat,
                   editorBuilder: widget.ideEditorBuilder,
+                  ignoredRecommendations:
+                      _workspace.ignoredServerRecommendations,
+                  onIgnoreRecommendation: _workspace.ignoreServerRecommendation,
                   chat: ide && project.path == entry.key
                       ? _conversation(
                           _buildChat(showToggle: false, embedded: true),

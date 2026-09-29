@@ -114,9 +114,15 @@ String _regExpSource(RegExp expression) {
     } else if (unit == 0x0d) {
       result.write(r'\r');
     } else if (unit == 0x2028) {
-      result.write(r'\u' '2028');
+      result.write(
+        r'\u'
+        '2028',
+      );
     } else if (unit == 0x2029) {
-      result.write(r'\u' '2029');
+      result.write(
+        r'\u'
+        '2029',
+      );
     } else {
       result.writeCharCode(unit);
     }

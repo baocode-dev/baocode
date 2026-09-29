@@ -192,3 +192,18 @@ List<IdeGitChange> parseGitPorcelain(String output, {int? maxEntries}) {
   }
   return changes;
 }
+
+/// The checked-out branch of the repository containing [root], read from
+/// `.git/HEAD` without running Git (a short hash when detached), or null
+/// when there is none or it cannot be read.
+Future<String?> readGitBranch(String root) => platform.readGitBranch(root);
+
+/// Parses the contents of a `.git/HEAD` file; see [readGitBranch].
+String? parseGitHead(String head) {
+  final text = head.trim();
+  const prefix = 'ref: refs/heads/';
+  if (text.startsWith(prefix)) return text.substring(prefix.length);
+  if (text.startsWith('ref: ')) return text.substring(5);
+  if (RegExp(r'^[0-9a-f]{7,64}$').hasMatch(text)) return text.substring(0, 7);
+  return null;
+}

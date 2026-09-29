@@ -20,3 +20,5 @@ class LocalIdeProjectTools implements IdeProjectTools {
   Future<IdeGitSnapshot> gitStatus({int maxEntries = 1000}) async =>
       throw _unsupported;
 }
+
+Future<String?> readGitBranch(String root) async => null;

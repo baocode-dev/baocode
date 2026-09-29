@@ -8,9 +8,9 @@ import '../theme/cursor_theme.dart';
 import 'editor_launcher.dart';
 import 'workspace.dart';
 
-/// Split button for the title bar: opens [project] in the preferred editor;
-/// its chevron picks another one (which becomes the preferred), or copies
-/// the path.
+/// Split button for the title bar: opens [project] in the preferred editor
+/// (the Fast Ide layout, or an app); its chevron switches which editor that
+/// is (without opening it, and remembered), or copies the path.
 class OpenInEditorButton extends StatelessWidget {
   const OpenInEditorButton({
     super.key,
@@ -21,9 +21,17 @@ class OpenInEditorButton extends StatelessWidget {
   final Workspace workspace;
   final Project project;
 
+  /// Opens a project in an editor; replaceable under test.
+  @visibleForTesting
+  static Future<bool> Function(Editor editor, String path) launch =
+      openInEditor;
+
   void _open(Editor editor) {
-    workspace.preferredEditor = editor;
-    openInEditor(editor, project.path);
+    if (editor == Editor.fastIde) {
+      workspace.layout = WorkspaceLayout.ide;
+    } else {
+      launch(editor, project.path);
+    }
   }
 
   @override
@@ -33,18 +41,12 @@ class OpenInEditorButton extends StatelessWidget {
       width: 200,
       placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
       items: () => [
-        SidebarMenuItem(
-          'Fast Ide',
-          icon: Icons.space_dashboard_outlined,
-          checked: workspace.layout == WorkspaceLayout.ide,
-          onSelected: () => workspace.layout = WorkspaceLayout.ide,
-        ),
         for (final option in Editor.availableEditors)
           SidebarMenuItem(
             option.platformLabel,
             icon: option.icon,
             checked: option == workspace.preferredEditor,
-            onSelected: () => _open(option),
+            onSelected: () => workspace.preferredEditor = option,
           ),
         SidebarMenuItem(
           'Copy path',

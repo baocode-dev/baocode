@@ -321,3 +321,30 @@ class LocalIdeProjectTools implements IdeProjectTools {
     );
   }
 }
+
+Future<String?> readGitBranch(String root) async {
+  try {
+    var directory = p.normalize(p.absolute(root));
+    while (true) {
+      final dotGit = p.join(directory, '.git');
+      final type = await FileSystemEntity.type(dotGit);
+      if (type == FileSystemEntityType.directory) {
+        return parseGitHead(await File(p.join(dotGit, 'HEAD')).readAsString());
+      }
+      if (type == FileSystemEntityType.file) {
+        // A worktree or submodule: `gitdir: <path>`.
+        final pointer = (await File(dotGit).readAsString()).trim();
+        if (!pointer.startsWith('gitdir:')) return null;
+        final gitDir = p.normalize(
+          p.join(directory, pointer.substring('gitdir:'.length).trim()),
+        );
+        return parseGitHead(await File(p.join(gitDir, 'HEAD')).readAsString());
+      }
+      final parent = p.dirname(directory);
+      if (parent == directory) return null;
+      directory = parent;
+    }
+  } on FileSystemException {
+    return null;
+  }
+}

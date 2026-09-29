@@ -10,6 +10,7 @@ import 'package:monad/ide/editor/monaco/vs/editor/common/core/range.dart';
 import 'package:monad/ide/file_service.dart';
 import 'package:monad/ide/ide_editor.dart';
 import 'package:monad/ide/ide_workspace.dart';
+import 'package:monad/theme/cursor_theme.dart';
 import 'package:path/path.dart' as p;
 
 class _MemoryFiles implements IdeFileService {
@@ -22,7 +23,7 @@ class _MemoryFiles implements IdeFileService {
   Future<List<IdeFile>> list(String directory) async => [];
 
   @override
-  Future<String> read(String path) async => contents[path]!;
+  Future<String> read(String path, {bool force = false}) async => contents[path]!;
 
   @override
   Future<void> write(String path, String text, {String? expectedText}) async {
@@ -41,7 +42,7 @@ Widget _host(
   GlobalKey<IdeEditorState> key, {
   ValueChanged<Object>? onError,
   ValueChanged<String>? onStatus,
-  ValueChanged<({Position position, int statusColumn})>? onPosition,
+  ValueChanged<IdeEditorPosition>? onPosition,
   ValueNotifier<bool>? visible,
 }) {
   final editor = ListenableBuilder(
@@ -92,7 +93,7 @@ Future<void> _type(WidgetTester tester, TextEditingValue value) async {
 }
 
 void main() {
-  testWidgets('TextField remains the default editor without the opt-in', (
+  testWidgets('TextField stays available as the opt-out fallback', (
     tester,
   ) async {
     final workspace = IdeWorkspace(
@@ -109,8 +110,19 @@ void main() {
       onError: (error) => fail('$error'),
       onLspStatus: (_) {},
       onPositionChanged: (_) {},
+      nativeEditorEnabled: false,
     );
-    expect(editor.nativeEditorEnabled, isFalse);
+    expect(
+      IdeEditor(
+        workspace: workspace,
+        active: workspace.active!,
+        onError: (_) {},
+        onLspStatus: (_) {},
+        onPositionChanged: (_) {},
+      ).nativeEditorEnabled,
+      isTrue,
+      reason: 'The painted Monaco surface is the default',
+    );
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: editor)));
     expect(find.byType(TextField), findsOneWidget);
     expect(find.byType(EditorSurface), findsNothing);
@@ -140,7 +152,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
     }
     final editor = tester.widget<EditorSurface>(surface);
-    expect(editor.backgroundColor, const Color(0xff1e1e1e));
+    expect(editor.backgroundColor, CursorColors.code);
     expect(editor.styledLines, isNotNull);
     expect(
       editor.styledLines![1]!.any(
@@ -249,10 +261,7 @@ void main() {
       await key.currentState!.save();
       expect(errors.single, same(files.writeError));
       await key.currentState!.retryLanguageServer();
-      expect(statuses, [
-        'Native editor (experimental)',
-        'Native editor (experimental)',
-      ]);
+      expect(statuses, ['Monaco editor', 'Monaco editor']);
       await tester.pumpWidget(const SizedBox());
       // Disposing the editor releases controllers, not the workspace-owned model.
       expect(doc.model.undo(), isTrue);
@@ -331,7 +340,7 @@ void main() {
       addTearDown(workspace.dispose);
       await workspace.open(_first);
       final key = GlobalKey<IdeEditorState>();
-      final positions = <({Position position, int statusColumn})>[];
+      final positions = <IdeEditorPosition>[];
       await tester.pumpWidget(_host(workspace, key, onPosition: positions.add));
       await key.currentState!.revealLine(2);
       await tester.pump();
@@ -353,12 +362,12 @@ void main() {
       await tester.pump();
       await tester.enterText(find.byType(TextField), 'needle');
       await tester.pump();
-      expect(find.text('0/2'), findsOneWidget);
+      expect(find.text('? of 2'), findsOneWidget);
       await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
       await tester.pump();
-      expect(find.text('2/2'), findsOneWidget);
+      expect(find.text('2 of 2'), findsOneWidget);
       expect(_controller(tester).value.selection.start, 12);
       await tester.tap(find.byTooltip('Next match'));
       await tester.pump();
@@ -368,7 +377,7 @@ void main() {
         'needle',
       );
       expect(controller.value.selection.start, 5);
-      expect(find.text('1/2'), findsOneWidget);
+      expect(find.text('1 of 2'), findsOneWidget);
 
       workspace.applyEdits(_first, [
         EditorDocumentEdit(Range(2, 1, 2, 7), 'pin'),
@@ -376,7 +385,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(controller.value.text, 'a\t😀\npin needle');
-      expect(find.text('0/1'), findsOneWidget);
+      expect(find.text('? of 1'), findsOneWidget);
       expect(workspace.active!.model.canUndo, isTrue);
       await tester.tap(find.byTooltip('Close find'));
       await tester.pump();
@@ -462,7 +471,7 @@ void main() {
     await tester.tap(find.byTooltip('Next match'));
     await tester.pump();
     await tester.pump();
-    expect(find.text('1/1'), findsOneWidget);
+    expect(find.text('1 of 1'), findsOneWidget);
     expect(
       tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus,
       isTrue,
@@ -476,7 +485,7 @@ void main() {
     // Hit-testing the bottom visible row verifies the painted viewport moved
     // while the find TextField owned focus, not just the stored selection.
     final bounds = tester.getRect(find.byType(EditorSurface));
-    await tester.tapAt(bounds.bottomLeft + const Offset(20, -5));
+    await tester.tapAt(bounds.bottomLeft + const Offset(120, -5));
     await tester.pump();
     final caret = workspace.active!.model.positionAtOffset(
       surface.controller.value.selection.extentOffset,

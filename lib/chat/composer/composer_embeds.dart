@@ -6,6 +6,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill/quill_delta.dart';
 
 import '../../theme/cursor_theme.dart';
+import '../../theme/material_file_icons.dart';
 import '../widgets/file_label.dart';
 import '../../kernel/kernel_types.dart';
 import 'composer_mock_data.dart';
@@ -262,13 +263,14 @@ class ComposerTokenChip extends StatelessWidget {
                 _ => Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      token.kind == SuggestionKind.folder
-                          ? Icons.folder_outlined
-                          : Icons.alternate_email_rounded,
-                      size: 13,
-                      color: CursorColors.textMuted,
-                    ),
+                    if (token.kind == SuggestionKind.folder)
+                      FolderIcon(token.label, size: 14)
+                    else
+                      const Icon(
+                        Icons.alternate_email_rounded,
+                        size: 13,
+                        color: CursorColors.textMuted,
+                      ),
                     const SizedBox(width: 4),
                     Text(
                       token.label,

@@ -11,6 +11,8 @@ import '../core/edit_operation.dart';
 import '../core/range.dart';
 import '../core/selection.dart';
 import '../model/piece_tree_text_buffer/piece_tree_text_buffer.dart';
+import '../cursor/cursor_common.dart';
+import 'cursor_command.dart';
 import 'text_command.dart';
 
 class ShiftCommandOptions {
@@ -80,16 +82,24 @@ class ShiftCommand extends TextCommand {
   Selection? get selectionToTrack => selection;
 
   @override
-  List<ISingleEditOperation> getEditOperations(PieceTreeTextBuffer model) {
+  List<ISingleEditOperation> getEditOperations(PieceTreeTextBuffer model) => [
+    for (final (range, text) in computeEdits(model.getLineContent))
+      EditOperation.replace(range, text),
+  ];
+
+  /// The edits for any document whose lines [getLineContent] returns. Every
+  /// range is within one line. Also records the state used by
+  /// [computeCursorState].
+  List<(Range, String)> computeEdits(String Function(int) getLineContent) {
     _startColumnToPreserve = null;
     _caretOnWhitespaceOnlyLine = false;
     final firstLine = selection.startLineNumber;
     var lastLine = selection.endLineNumber;
     if (lastLine != firstLine && selection.endColumn == 1) lastLine--;
     final indentEmptyLines = firstLine == lastLine;
-    final edits = <ISingleEditOperation>[];
+    final edits = <(Range, String)>[];
     for (var line = firstLine; line <= lastLine; line++) {
-      final content = model.getLineContent(line);
+      final content = getLineContent(line);
       var indentEnd = 0;
       while (indentEnd < content.length &&
           (content.codeUnitAt(indentEnd) == 32 ||
@@ -145,8 +155,9 @@ class ShiftCommand extends TextCommand {
           selection.startColumn <= range.endColumn) {
         _startColumnToPreserve = selection.startColumn;
       }
-      if (model.getValueInRange(range) != text) {
-        edits.add(EditOperation.replace(range, text));
+      if (content.substring(range.startColumn - 1, range.endColumn - 1) !=
+          text) {
+        edits.add((range, text));
       }
     }
     return edits;
@@ -181,4 +192,32 @@ class ShiftCommand extends TextCommand {
     }
     return tracked;
   }
+}
+
+/// [ShiftCommand] for the cursor-command executor (see cursor_command.dart).
+class ShiftCursorCommand extends CursorCommand {
+  ShiftCursorCommand(Selection selection, ShiftCommandOptions options)
+    : _command = ShiftCommand(selection, options);
+
+  final ShiftCommand _command;
+
+  @override
+  Selection? get selectionToTrack => _command.selection;
+
+  @override
+  List<CursorCommandEdit> getEditOperations(ICursorSimpleModel model) => [
+    for (final (range, text) in _command.computeEdits(model.getLineContent))
+      CursorCommandEdit(range, text),
+  ];
+
+  @override
+  Selection computeCursorState(
+    ICursorSimpleModel model,
+    CursorStateComputerData helper,
+  ) => _command.computeCursorState(
+    CommandCursorState(
+      helper.getInverseEditOperations(),
+      helper.getTrackedSelection(),
+    ),
+  );
 }

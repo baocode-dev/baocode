@@ -2,6 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:path/path.dart' as p;
+
+import '../../platform/app_paths.dart';
+import '../../platform/child_process_registry.dart';
 import 'claude_code_transport.dart';
 import 'claude_environment.dart';
 import 'cli_locator.dart';
@@ -9,6 +14,8 @@ import 'cli_locator.dart';
 /// Claude Code as a child process, over its stdin and stdout.
 class ProcessTransport implements ClaudeCodeTransport {
   ProcessTransport._(this._process) {
+    _live.add(this);
+    unawaited(registry.add(_process.pid));
     _process.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
@@ -20,7 +27,48 @@ class ProcessTransport implements ClaudeCodeTransport {
     unawaited(_process.exitCode.then(_exited));
   }
 
+  /// A transport over [process], e.g. a stand-in process under test.
+  @visibleForTesting
+  factory ProcessTransport.forProcess(Process process) =>
+      ProcessTransport._(process);
+
+  /// Where the running processes are kept track of across runs.
+  @visibleForTesting
+  static ClaudeProcessRegistry registry = ClaudeProcessRegistry(
+    file: File(
+      p.join(AppPaths.dataDir(Platform.environment), 'claude-processes.json'),
+    ),
+  );
+
+  /// The processes this run of the app started and that still run.
+  static final Set<ProcessTransport> _live = {};
+
+  /// Ends every Claude Code process this run started, and waits (up to
+  /// [timeout] each) for them to go: done as the app quits, so a turn under
+  /// way does not go on unseen, spending tokens, after the app is gone.
+  static Future<void> stopAll({
+    Duration timeout = const Duration(seconds: 3),
+  }) => Future.wait([
+    for (final transport in [..._live]) transport._stop(timeout),
+  ]);
+
+  /// Ends the processes an earlier run left behind; see
+  /// [ClaudeProcessRegistry].
+  static Future<void> reapLeftovers() => registry.reaped;
+
+  Future<void> _stop(Duration timeout) async {
+    close();
+    try {
+      await _process.exitCode.timeout(timeout);
+    } on TimeoutException {
+      _process.kill(ProcessSignal.sigkill);
+    }
+  }
+
   static Future<ClaudeCodeTransport> start(ClaudeLaunch launch) async {
+    // Left over from a run that ended without stopping them: gone first, so
+    // two processes never go on with one session.
+    await registry.reaped;
     final cli = await CliLocator.locate();
     if (!Directory(launch.cwd).existsSync()) {
       throw ClaudeUnavailable('The project folder is gone: ${launch.cwd}');
@@ -97,6 +145,8 @@ class ProcessTransport implements ClaudeCodeTransport {
 
   void _exited(int code) {
     _exitCode = code;
+    _live.remove(this);
+    unawaited(registry.remove(_process.pid));
     _finish();
   }
 
@@ -129,4 +179,19 @@ class ProcessTransport implements ClaudeCodeTransport {
     unawaited(_process.stdin.close().catchError((_) {}));
     _process.kill();
   }
+}
+
+/// The Claude Code processes the app has running (`claude-processes.json`);
+/// see [ChildProcessRegistry]. Entries a run recorded without a command
+/// line are ended only when they run Claude Code with stream-json.
+class ClaudeProcessRegistry extends ChildProcessRegistry {
+  ClaudeProcessRegistry({
+    required super.file,
+    super.ownPid,
+    super.lookup,
+    super.signal,
+  }) : super(recognizes: _isClaude);
+
+  static bool _isClaude(String command) =>
+      command.contains('claude') && command.contains('stream-json');
 }

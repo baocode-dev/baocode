@@ -139,3 +139,118 @@ still require retokenizing the rest of the document. The view reuses compatible
 shaped paragraphs but recomputes all row positions after an edit. Semantic
 tokens, language workers, provider services and a fully incremental view are
 still absent.
+
+## 2026-09-29 additions
+
+Ported (VS Code `6a598d4a…`, headers in each file record deviations):
+
+- `cursor/{cursorCommon,cursorWordOperations,cursorTypeOperations,cursorDeleteOperations,cursorColumnSelection}.ts`,
+  `core/wordCharacterClassifier.ts`, `model/indentationGuesser.ts` (upstream tests ported),
+  `languages/{languageConfiguration,languageConfigurationRegistry (resolved subset),autoIndent,enterAction}`,
+  `languages/supports/{characterPair,onEnter,indentRules}`, extended `commands/shiftCommand.ts`.
+- `contrib/comment/browser/{lineCommentCommand,blockCommentCommand}.ts`,
+  `contrib/linesOperations/browser` (move/copy/delete/expand lines),
+  `contrib/multicursor/browser` (session + next match), `contrib/folding/browser/{foldingRanges,indentRangeProvider}.ts`.
+
+Flutter adaptations (not ports): `flutter/editor_keybindings.dart` (platform
+keybindings, macOS selectors, `runEditorCommand`/`editorCommandLabels` for the
+palette), `language_configuration_assets.dart` (asset `configuration` →
+`LanguageConfiguration`), `editor_folding.dart` (fold state shifted by line
+delta, not decorations), `viewport_layout.dart` (virtualized when not wrapping),
+`editor_decorations.dart`, `editor_view_theme.dart`, `bracket_matching.dart`
+(token-agnostic, 2000-line window), `editor_scrollbar.dart`, `editor_minimap.dart`,
+`editor_view_painters.dart`. `monaco_syntax.dart` time-slices and cancels
+tokenization and builds spans lazily per painted line.
+
+Known deviations: string/comment context for auto-closing is a line scan, not
+tokens; overlapping edits from multiple cursors drop the later edit; multi-line
+platform input bypasses the typing path; auto-closed pairs and decorations are
+tracked by offset; inserted newlines use the document's dominant EOL.
+
+## Language servers (LSP, 2026-09-29)
+
+Ported from VS Code `6a598d4a…` (MIT header, upstream path and deviations in
+each file):
+
+- `base/common/filters.ts` → `vs/base/common/filters.dart` (fuzzyScore and
+  helpers used by suggest; upstream tests ported).
+- `contrib/snippet/browser/{snippetParser,snippetSession}.ts` (parser with
+  upstream tests; the session keeps tabstops, mirrors and choices on the
+  controller; nested snippets are not merged into a running session).
+- `contrib/suggest/browser/completionModel.ts` (filtering/scoring/sorting;
+  no word-distance ranking, insert mode only).
+- `contrib/codeAction/common/types.ts` (kinds, filters, ordering).
+- `contrib/gotoError/browser/markerNavigation.ts` (next/previous across files).
+
+Flutter adaptations in `lib/ide/lsp_ui/` (not ports): the per-editor
+`EditorLanguageSession` (debounced, version-checked requests; hover, links,
+lightbulb, signature help, suggest), suggest/hover/signature/rename/code action
+widgets, the Problems and References panels, Outline, breadcrumbs symbols,
+semantic token overlay (Dark Modern semantic colors), language status items,
+minimal-edit formatting (line diff → one undo step keeping cursors) and
+workspace edit application. Rename edits to unopened files open them as dirty
+tabs; resource operations are refused. References go to a panel, not a peek.
+
+Client (`lib/ide/lsp/`, Monad code, not VS Code): `json_rpc.dart`,
+`lsp_client.dart`, `lsp_manager.dart`, `lsp_process*.dart`, `lsp_glob.dart`;
+contracts `lsp_protocol.dart`, `lsp_server_definition.dart`,
+`language_features.dart`. `EditorDocumentModel.changes` emits LSP-ordered
+content changes (CR/LF pairs are never split). Not advertised: pull
+diagnostics, semantic token ranges/deltas, resource operations, `showDocument`,
+completion `data`/`commitCharacters` item defaults.
+
+Catalog and installer:
+
+- `node tool/generate_lsp_languages.mjs [helix-checkout|languages.toml]
+  [out-dir] [--mason registry.json(.zip)]` writes `assets/lsp/languages.json`
+  from Helix `languages.toml` at `ba40e547426b0f9896c8bdc699a4ab11f2b37dbc`
+  (MPL-2.0, `assets/lsp/LICENSE-helix`). Helix `config` is sent as
+  `initializationOptions` and answers `workspace/configuration`. Per-language
+  `only-features`/`except-features` become derived server ids
+  (`id#except=…`). Matching: file name, glob, longest extension, shebang,
+  then a pack's `firstLine`.
+- `node tool/generate_mason_registry.mjs [registry.json(.zip)] [out-dir]`
+  writes `assets/lsp/mason-registry.json` from mason-registry
+  `2026-09-29-glass-hat` (`27cabd46dfb4e97187a4619d7de966589e3945f7`,
+  Apache-2.0, `assets/lsp/LICENSE-mason-registry`). Run it after the
+  languages script; without arguments both fetch the pinned inputs into /tmp.
+- `MasonServerProvider` installs github releases (per-platform assets),
+  npm, pypi (venv), golang and cargo packages into
+  `AppPaths.dataDir/servers/`, staged then renamed. opam, nuget, luarocks,
+  composer, gem, openvsx and build-from-source packages are not installable;
+  `version_overrides` are ignored. zip/tar/tar.gz/gz unpack in Dart;
+  `.tar.xz/.bz2/.zst` use the system `tar`.
+- User overrides: `AppPaths.dataDir/lsp.json`; language packs:
+  `AppPaths.dataDir/language-packs/<name>/` (`manifest.json`, Monarch
+  `grammar.json`, `configuration.json`, optional `server.json`), documented in
+  `lib/ide/lsp/packs/README.md`.
+
+## Workbench hover and codicons (2026-09-30)
+
+- `lib/ide/ide_hover.dart` adapts `src/vs/platform/hover/browser/{hover.ts,
+  hover.css,hoverWidget.ts}` and `base/browser/ui/hover/hoverWidget.css`
+  (Dark 2026 colors since the Modern UI update below, compact 12px, `workbench.hover.delay` 1500/500 ms,
+  pointer for the activity and status bars) over Flutter's `RawTooltip`.
+  Deviations: instant re-show while another hover is still up rather than
+  within 200 ms of a hide; hides 100 ms after the pointer leaves; pointer
+  hovers do not flip sides; no hover actions/status row.
+- `tool/generate_codicons.mjs` bundles `@vscode/codicons@0.0.46-40` (pinned by
+  the VS Code checkout's package-lock) as `assets/codicons/codicon.ttf` with
+  `lib/theme/codicons.dart` generated from `codiconsLibrary.ts`/`codicons.ts`.
+  Completion/symbol icons follow `CompletionItemKinds`/`SymbolKinds.toIcon`
+  and `symbolIcons.ts` colors; code action groups follow `codeActionMenu.ts`.
+
+## Modern UI and editor hover markdown (2026-09-30)
+
+- `lib/ide/ide_modern_ui.dart` ports the default-density Modern UI layout
+  (`browser/media/floatingPanels.css`, `contrib/modernUI/browser/media/
+  {activityBar,editorBorder,sashHandles}.css`, `activitybarPart.ts` floating
+  sizes, `baseSizes.ts` tokens) with Dark 2026 colors (`2026-dark.json`).
+  Deviations: no compact density; activity bar on the left only.
+- `lib/ide/lsp_ui/hover_markdown.dart` renders hover/signature/suggest
+  markdown like `.monaco-hover` (`hoverWidget.css`, `hover.css`,
+  `hoverContribution.ts`); fenced code goes through
+  `MonacoSyntaxService.colorize` like `EditorMarkdownCodeBlockRenderer`
+  (fence language via `getLanguageIdByLanguageName`, else the editor's).
+  Deviations: no hover status bar row; tables and HTML shown as text; only
+  http(s)/mailto links open.

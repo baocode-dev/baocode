@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
+import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
+import 'ide_hover.dart';
 import 'project_tools.dart';
 
 /// The compact, independent tools shown beside the IDE workbench.
@@ -97,7 +99,7 @@ class _IdeToolsPanelState extends State<IdeToolsPanel> {
               isDense: true,
               hintText: 'Search files',
               hintStyle: const TextStyle(color: CursorColors.textFaint),
-              prefixIcon: const Icon(Icons.search, size: 16),
+              prefixIcon: const Icon(Codicons.search, size: 16),
               prefixIconConstraints: const BoxConstraints(minWidth: 30),
               filled: true,
               fillColor: CursorColors.surface,
@@ -173,12 +175,10 @@ class _IdeToolsPanelState extends State<IdeToolsPanel> {
       children: [
         _PanelHeader(
           title: 'SOURCE CONTROL',
-          trailing: IconButton(
-            onPressed: _refreshGit,
-            icon: const Icon(Icons.refresh, size: 16),
-            color: CursorColors.textMuted,
+          trailing: IdeActionButton(
+            icon: Codicons.refresh,
             tooltip: 'Refresh Git status',
-            splashRadius: 16,
+            onPressed: _refreshGit,
           ),
         ),
         Expanded(

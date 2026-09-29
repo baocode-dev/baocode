@@ -1,0 +1,14 @@
+assets/lsp/languages.json is derived from Helix's languages.toml
+(https://github.com/helix-editor/helix/blob/ba40e547426b0f9896c8bdc699a4ab11f2b37dbc/languages.toml),
+commit ba40e547426b0f9896c8bdc699a4ab11f2b37dbc, by tool/generate_lsp_languages.mjs: the file types,
+shebangs, roots and language servers of each language, and each server's
+command, arguments, environment and configuration.
+
+Helix is Copyright (c) the Helix contributors and is distributed under the
+Mozilla Public License, Version 2.0. The source form of the covered file is
+available at the URL above. A copy of the license is available at
+https://mozilla.org/MPL/2.0/.
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.

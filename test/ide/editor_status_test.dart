@@ -4,6 +4,7 @@ import 'package:monad/ide/editor/monaco/flutter/editor_document_model.dart';
 import 'package:monad/ide/editor/monaco/vs/editor/common/core/range.dart';
 import 'package:monad/ide/file_service.dart';
 import 'package:monad/ide/ide_editor.dart';
+import 'package:monad/ide/ide_tab_bar.dart';
 import 'package:monad/ide/ide_workbench.dart';
 import 'package:monad/ide/ide_workspace.dart';
 import 'package:monad/workspace/workspace.dart';
@@ -22,7 +23,7 @@ class _MemoryFiles implements IdeFileService {
   ];
 
   @override
-  Future<String> read(String path) async =>
+  Future<String> read(String path, {bool force = false}) async =>
       contents[path] ?? (throw StateError('Missing test file: $path'));
 
   @override
@@ -31,6 +32,10 @@ class _MemoryFiles implements IdeFileService {
     contents[path] = text;
   }
 }
+
+/// A tab's label (the explorer and breadcrumbs may show the same name).
+Finder _tab(String name) =>
+    find.descendant(of: find.byType(IdeTabBar), matching: find.text(name));
 
 void main() {
   testWidgets('status line follows selection, typing, and active tab', (
@@ -54,6 +59,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: IdeWorkbench(
+          nativeEditorEnabled: false,
           workspace: workspace,
           project: Project.at(root),
           visible: true,
@@ -63,11 +69,11 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('Ln 1, Col 1   UTF-8'), findsOneWidget);
+    expect(find.text('Ln 1, Col 1'), findsOneWidget);
     await tester.state<IdeEditorState>(find.byType(IdeEditor)).revealLine(2);
     await tester.pump();
     await tester.pump();
-    expect(find.text('Ln 2, Col 1   UTF-8'), findsOneWidget);
+    expect(find.text('Ln 2, Col 1'), findsOneWidget);
 
     TextEditingController controller() => tester
         .widget<TextField>(
@@ -81,7 +87,7 @@ void main() {
     controller().selection = const TextSelection.collapsed(offset: 8);
     await tester.pump();
     await tester.pump();
-    expect(find.text('Ln 2, Col 3   UTF-8'), findsOneWidget);
+    expect(find.text('Ln 2, Col 3'), findsOneWidget);
 
     // The caret is the extent, not the start or end of the selected range.
     controller().selection = const TextSelection(
@@ -90,37 +96,37 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    expect(find.text('Ln 1, Col 2   UTF-8'), findsOneWidget);
+    expect(find.text('Ln 1, Col 2 (8 selected)'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'alpha\nbeta!');
     await tester.pump();
     await tester.pump();
     expect(workspace.active!.text, 'alpha\nbeta!');
-    expect(find.text('Ln 2, Col 6   UTF-8'), findsOneWidget);
+    expect(find.text('Ln 2, Col 6'), findsOneWidget);
 
-    await tester.tap(find.text('other.dart'));
+    await tester.tap(_tab('other.dart'));
     await tester.pump();
     await tester.pump();
     expect(workspace.active!.path, second);
     expect(controller().text, 'one\ntwo\n');
-    expect(find.text('Ln 3, Col 1   UTF-8'), findsOneWidget);
+    expect(find.text('Ln 3, Col 1'), findsOneWidget);
 
     controller().selection = const TextSelection.collapsed(offset: 2);
     await tester.pump();
     await tester.pump();
-    expect(find.text('Ln 1, Col 3   UTF-8'), findsOneWidget);
+    expect(find.text('Ln 1, Col 3'), findsOneWidget);
 
-    await tester.tap(find.textContaining('main.dart'));
+    await tester.tap(_tab('main.dart'));
     await tester.pump();
     await tester.pump();
     expect(workspace.active!.path, first);
     expect(controller().text, 'alpha\nbeta!');
-    expect(find.text('Ln 2, Col 6   UTF-8'), findsOneWidget);
+    expect(find.text('Ln 2, Col 6'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'a\t😀');
     await tester.pump();
     await tester.pump();
-    expect(find.text('Ln 1, Col 6   UTF-8'), findsOneWidget);
+    expect(find.text('Ln 1, Col 6'), findsOneWidget);
 
     workspace.applyEdits(first, [EditorDocumentEdit(Range(1, 1, 1, 2), 'z')]);
     await tester.pump();
@@ -133,14 +139,14 @@ void main() {
     await tester.pump();
     await tester.enterText(find.byType(TextField).last, 'z');
     await tester.pump();
-    expect(find.text('0/1'), findsOneWidget);
+    expect(find.text('? of 1'), findsOneWidget);
     await tester.tap(find.byTooltip('Next match'));
     await tester.pump();
-    expect(find.text('1/1'), findsOneWidget);
+    expect(find.text('1 of 1'), findsOneWidget);
     expect(editorController.selection.textInside(editorController.text), 'z');
     await tester.tap(find.byTooltip('Close find'));
     await tester.pump();
-    expect(find.text('1/1'), findsNothing);
+    expect(find.text('1 of 1'), findsNothing);
   });
 
   testWidgets('replace current and regex replace all keep raw file endings', (
@@ -162,6 +168,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: IdeWorkbench(
+          nativeEditorEnabled: false,
           workspace: workspace,
           project: Project.at(root),
           visible: true,
@@ -213,6 +220,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: IdeEditor(
+            nativeEditorEnabled: false,
             workspace: workspace,
             active: workspace.active!,
             onError: (error) => fail('$error'),
@@ -229,13 +237,13 @@ void main() {
     await tester.pump();
     await tester.tap(find.byTooltip('Next match'));
     await tester.pump();
-    expect(find.text('1/3'), findsOneWidget);
+    expect(find.text('1 of 3'), findsOneWidget);
     await tester.tap(find.byTooltip('Next match'));
     await tester.pump();
-    expect(find.text('2/3'), findsOneWidget);
+    expect(find.text('2 of 3'), findsOneWidget);
     await tester.tap(find.byTooltip('Previous match'));
     await tester.pump();
-    expect(find.text('1/3'), findsOneWidget);
+    expect(find.text('1 of 3'), findsOneWidget);
   });
 
   testWidgets('find respects Monaco case, whole-word and regex options', (
@@ -257,6 +265,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: IdeWorkbench(
+          nativeEditorEnabled: false,
           workspace: workspace,
           project: Project.at(root),
           visible: true,
@@ -270,31 +279,31 @@ void main() {
     await tester.pump();
     await tester.enterText(find.byType(TextField).last, 'alpha');
     await tester.pump();
-    expect(find.text('0/4'), findsOneWidget);
+    expect(find.text('? of 4'), findsOneWidget);
     await tester.tap(find.byTooltip('Previous match'));
     await tester.pump();
-    expect(find.text('4/4'), findsOneWidget);
+    expect(find.text('4 of 4'), findsOneWidget);
     await tester.tap(find.byTooltip('Next match'));
     await tester.pump();
-    expect(find.text('1/4'), findsOneWidget);
+    expect(find.text('1 of 4'), findsOneWidget);
     await tester.tap(find.byTooltip('Previous match'));
     await tester.pump();
-    expect(find.text('4/4'), findsOneWidget);
+    expect(find.text('4 of 4'), findsOneWidget);
     await tester.tap(find.byTooltip('Whole word'));
     await tester.pump();
-    expect(find.text('0/3'), findsOneWidget);
+    expect(find.text('? of 3'), findsOneWidget);
     await tester.tap(find.byTooltip('Match case'));
     await tester.pump();
-    expect(find.text('0/1'), findsOneWidget);
+    expect(find.text('? of 1'), findsOneWidget);
     await tester.tap(find.byTooltip('Regular expression'));
     await tester.enterText(find.byType(TextField).last, 'Alph[a-z]+');
     await tester.pump();
-    expect(find.text('0/2'), findsOneWidget);
+    expect(find.text('? of 2'), findsOneWidget);
     await tester.enterText(find.byType(TextField).last, '[');
     await tester.pump();
-    expect(find.text('0/0'), findsOneWidget);
+    expect(find.text('No results'), findsOneWidget);
     await tester.tap(find.byTooltip('Previous match'));
     await tester.pump();
-    expect(find.text('0/0'), findsOneWidget);
+    expect(find.text('No results'), findsOneWidget);
   });
 }

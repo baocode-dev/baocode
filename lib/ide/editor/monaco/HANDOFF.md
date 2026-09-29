@@ -4,7 +4,7 @@
 
 用户的目标是**在当前 Monad Flutter 仓库中完整移植 Monaco Editor**，不是另起项目、嵌入 WebView 或只复刻外观。目录采用上游相对路径 `lib/ide/editor/monaco/vs/`，Flutter 平台适配在 `lib/ide/editor/monaco/flutter/`；应用接入层是 `lib/ide/ide_editor.dart`。目标尚未完成，**不能宣称 100% 兼容**。详细的源码映射、偏差及未完成项分别见同目录的 [PORTING.md](PORTING.md) 和 [PARITY.md](PARITY.md)。
 
-实验性自绘编辑器通过 `--dart-define=MONAD_NATIVE_EDITOR=true` 开启；**默认仍是 Flutter `TextField`**，不要在未完成 IME、辅助功能、原生菜单、多光标和性能验证前切换默认值。用户已看过 macOS 实验效果并表示满意，明确要求后续**不要再观察/操作 GUI**；可以继续静态分析、自动测试及构建，但不需要重新打开预览。
+**2026-09-29 起自绘 Monaco 编辑器是 Fast IDE 默认编辑器**；`--dart-define=MONAD_NATIVE_EDITOR=false` 回退到 Flutter `TextField`（`IdeWorkbench`/`IdeEditor` 的 `nativeEditorEnabled` 参数同理）。IME、原生菜单与辅助功能仍缺平台验收，保留回退。用户已看过 macOS 实验效果并表示满意，明确要求后续**不要再观察/操作 GUI**；可以继续静态分析、自动测试及构建，但不需要重新打开预览。
 
 ## 固定上游与许可
 
@@ -42,3 +42,88 @@
 3. 查找/替换尚缺完整 FindController、语言级词边界与 JS RegExp 等价、批量替换的大文件策略；自绘视图缺多光标、viewport 真正按需增量化、markers/decorations、行号与 minimap。
 4. Monaco 公共独立 API、语言 providers/workers、diff editor UI、completion/hover/diagnostics、原生 IME/菜单、屏幕阅读器与跨平台验收仍是主要工程量。**绿色测试并不意味着 100% 移植**。
 5. 尊重用户已有工作：任何大改之前查看 `git status`，尤其不要覆盖本分支未跟踪的 IDE 目录；用户并未授权提交/推送。项目工作应该留在此仓库，不另建独立项目。
+
+## 2026-09-29 进展
+
+- 光标/编辑引擎：多光标、单词/智能 Home/翻页/粘性列导航、语言感知输入（自动闭合、onEnter、缩进规则）、注释与行操作、缩进猜测、带选区恢复与输入合并的撤销（见 PORTING.md 的「2026-09-29 additions」）。
+- 视图：固定行高虚拟化布局、行号槽与折叠、括号匹配、缩进参考线、多选区/光标闪烁、覆盖式滚动条与概览标尺、minimap、装饰（查找匹配）。
+- Fast IDE：命令面板（⇧⌘P，含 Monaco 编辑器命令）、快速打开（⌘P，`path:line`）、转到行（⌃G）、VS Code 式标签栏与右键菜单、面包屑、Monaco 式查找控件、状态栏（选区长度、检测到的缩进、编码、EOL、语言）、资源管理器键盘导航、欢迎页、⌘B/⌘J 切换侧栏/聊天。
+- 验证：`flutter analyze --no-pub` 无问题；`flutter test --no-pub` 1270 通过、1 跳过；`flutter build macos --debug` 成功（未启动 GUI）。
+- 性能（JIT 测试模式，10 万行 3.8MB）：按键约 7ms；全文 Monarch 分片 tokenization 约 1.4s（6ms 切片、可取消，不阻塞 UI），增量约 28ms。
+
+## LSP 多语言支持（2026-09-29）
+
+- **结构**：`lib/ide/lsp/` 是通用客户端。
+  - `json_rpc.dart`：Content-Length 帧、请求匹配、`$/cancelRequest`。
+  - `lsp_client.dart`：单个连接，UTF-16 能力协商、动态注册、`workspace/configuration`、progress、applyEdit。
+  - `lsp_manager.dart`：`LspManager`，实现 `LanguageFeatures` 与 `LanguageDocumentSync`。
+  - `lsp_process*.dart`：进程、登记与清理。
+  - `catalog/`：Helix 映射、文件匹配、叠加层。
+  - `install/`：mason 安装器。
+  - `packs/`：用户覆盖 `lsp.json` 与语言包，格式见 `packs/README.md`。
+  - 编辑器界面在 `lib/ide/lsp_ui/`，只依赖接口 `lsp/language_features.dart`，测试可用 `test/ide/lsp_ui/fake_language_features.dart` 替代。
+- **接入**：`main()` → `MonadApp(languagesFor: standardLspManager)` → `Workbench` → `IdeWorkspace(root, languages: …)`。
+  - catalog 与 provider 在后台加载一次，所有项目共享；加载前已打开的文档在加载后由 `LspManager.reloadCatalog()` 重新匹配。
+  - 工作区负责 didOpen、增量 didChange（来自 `EditorDocumentModel.changes`）、didSave、didClose；dispose 时关闭服务器。
+  - 测试里的 `MonadApp()` 与 `Workbench` 默认不启用 LSP，不会拉起真实服务器。
+- **进程**：`lib/platform/child_process_registry.dart` 是通用 pid 登记，`ClaudeProcessRegistry` 继承它；LSP 使用 `AppPaths.dataDir/lsp-processes.json`。
+  - 启动时 `reapLspProcesses()`；退出时与 Claude 一起 `stopLspProcesses()`。
+  - 只清理命令行仍匹配、且父进程为 1 或本进程的条目。
+  - 只杀直接子进程，没有 process group；孙进程靠管道关闭或 initialize 的 `processId` 自行退出。
+- **生命周期**：服务器按"工作区文件夹（rootMarkers）× 服务器"共享，打开文件时启动，无文档 5 分钟后关闭。
+  - 崩溃后按 1s 起、翻倍、最多 30s 的退避重启；3 分钟内崩溃 5 次则 failed，状态栏点击重试。
+  - 找不到可执行文件时为 missing，可安装时状态栏一键安装；缺运行时（node/python3/go/cargo…）会明确提示。
+- **生成与许可**：
+  - `node tool/generate_lsp_languages.mjs [helix-checkout|languages.toml] [out-dir] [--mason registry.json(.zip)]`，固定 Helix `ba40e547426b0f9896c8bdc699a4ab11f2b37dbc`。
+  - `node tool/generate_mason_registry.mjs [registry.json(.zip)] [out-dir]`，固定 mason-registry `2026-09-29-glass-hat`（`27cabd46dfb4e97187a4619d7de966589e3945f7`）。
+  - 无参数时下载固定版本到 /tmp；先跑 languages，再跑 mason。
+  - 许可声明：`assets/lsp/LICENSE-helix`（MPL-2.0）、`assets/lsp/LICENSE-mason-registry`（Apache-2.0）。
+- **验证（2026-09-29）**：
+  - `flutter analyze --no-pub` 无问题。
+  - `flutter test --no-pub` 1457 通过、2 跳过（`e2e`、`lsp-smoke` 标签）。
+  - 冒烟测试 `flutter test --no-pub --run-skipped -t lsp-smoke`（本机 dart 3.13.4 language-server）通过：服务器约 0.2s 就绪；诊断 invalid_assignment 与 unused_local_variable；hover `void print(Object? object)`；定义；补全 75 项；重命名 2 处编辑；符号 `main, Spaced`；格式化 3 处编辑；无残留进程。
+  - `flutter build macos --debug` 成功（未启动 GUI）。
+- **注意**：
+  - 文档路径按 `p.normalize(p.absolute())` 做键，未解析符号链接；服务器返回 realpath URI（如 `/private/var`）时，诊断会落到另一路径。
+  - 只监听项目根做 didChangeWatchedFiles。
+  - `lsp_manager_test` 的空闲关闭用例在全量高负载下曾偶发超时，单独运行稳定。
+
+## 图标、悬浮提示与编辑器选择（2026-09-30）
+
+- **图标**：Fast IDE 全部改用 VS Code 的 Codicons。
+  - 字体来自 VS Code 固定版本 package-lock 里锁定的 `@vscode/codicons@0.0.46-40`（CC-BY-4.0，见 `assets/codicons/LICENSE`）。
+  - `node tool/generate_codicons.mjs <vscode-checkout> <codicons-package> assets/codicons lib/theme/codicons.dart` 生成字体副本和 `Codicons` 常量（名称取自 `codiconsLibrary.ts` 与 `codicons.ts`）。
+  - 补全和符号的图标、颜色按 `languages.ts` 与 `symbolIcons.ts` 对应。
+  - release 构建会裁剪字体，所以 `IconData` 必须是 const。
+- **悬浮提示**：`lib/ide/ide_hover.dart` 基于 `RawTooltip` 实现 VS Code 的 workbench hover。
+  - 样式、延迟、指针与 VS Code 一致：Dark 2026 配色（2026-09-30 晚改，见下节），紧凑样式 12px，延迟 macOS 1500ms、其他平台 500ms，活动栏和状态栏带指针。
+  - `IdeActionButton` 是动作栏按钮（22px、`toolbar.hoverBackground`）。
+  - IDE 内不再使用 Material 的 `Tooltip` 和 `IconButton`。
+  - `find.byTooltip` 仍可用。
+- **编辑器选择**：`Editor.fastIde` 成为标题栏下拉中的一个选项，选中后会记住；主按钮切换到 IDE 布局。`openInEditor` 不会启动它。
+- **release 修复**：`FileIcon` 不再给 `SvgPicture.asset` 传 `bundle:`。flutter_svg 会把 loader 发到 isolate，带缓存的 bundle 在 release 下无法发送，导致文件图标全空。已加 isolate 可发送性的回归测试。
+- **release 打开文件闪退（已修复）**：Dart 3.13.4 的 AOT 编译器会把循环里只靠布尔局部变量提升的可空字段读取（原 `tokenizeIncremental` 中的 `if (reusable && …) previous.…`）提到循环外无条件执行。`previous` 为 null 时就会读到地址 0xf，触发 SIGSEGV；JIT（debug）下不会出现。
+  - 现在可复用的数据先放进普通局部变量，循环里不再读取可空对象。
+  - 已在 `dart compile exe` 的独立程序中复现并验证修复。
+  - 新代码不要在带 `await` 的循环里依赖"布尔变量提升"来访问可空对象。
+
+## Modern UI 与编辑器悬浮框（2026-09-30）
+
+- **起因**：VS Code 1.139/1.140 默认开启 Modern UI（`workbench.experimental.modernUI`），默认主题为 Dark 2026。此前按经典布局和 Dark Modern 实现，所以活动栏、侧边栏和悬浮框看起来都不对。
+- **布局**：`lib/ide/ide_modern_ui.dart` 移植了 Modern UI 的卡片布局（`floatingPanels.css`、`modernUI/browser/media/activityBar.css`、`sashHandles.css`，以及 `activitybarPart.ts` 的浮动尺寸）。
+  - 活动栏、侧边栏、编辑器、聊天都是圆角 8 的卡片，1px `surface.border` 边框。
+  - 卡片间距 4px；离窗口两侧和状态栏也是 4px。
+  - 活动栏卡片宽 44，项 36px，间隔 8，图标 24px。选中项和悬停项的背景是 32px、圆角 4 的方块，没有左侧竖线。
+  - 侧边栏在左侧与活动栏相接（接缝是活动栏的边框）；侧边栏隐藏时，活动栏四角都是圆角。
+  - 分隔条静止时显示三个 2px 的点，悬停或拖动时整条填 `sash.hoverBorder`。
+  - 只实现默认密度，不含 compact。
+- **悬浮框**：`lib/ide/lsp_ui/hover_markdown.dart` 按 VS Code 编辑器悬浮框渲染 Markdown，参考 `hoverWidget.css`、`hover.css`、`hoverContribution.ts` 和 `editorMarkdownCodeBlockRenderer.ts`。
+  - 代码块用编辑器的 Monarch 语法和主题上色：语言取代码块标注（按 id 或别名，大小写不敏感，见 `MonacoLanguageAssets.languageIdForName`），没有标注时用当前编辑器的语言。
+  - 代码块不显示语言标签，也不加外框。
+  - 行内代码使用 `textCodeBlock.background`，圆角 3。
+  - `---` 是贯穿整个悬浮框的半透明分隔线；诊断各自一行，行间有同样的分隔线。
+  - 字号和行高跟随编辑器（13 / 1.45）。
+  - 签名帮助和补全详情用同一个渲染器。
+  - 不支持：状态栏动作行（View Problem / Quick Fix）；表格和 HTML 按纯文本显示。
+- **配色**：悬浮框、编辑器小部件、动作按钮（`icon.foreground` #8C8C8C）都改为 Dark 2026。编辑器 token 配色仍用 `vs-dark`。
+- **图标粗细**：用 headless Chrome（VS Code 所用的 Chromium）和 Flutter 以同样条件渲染 codicon（24px、#8C8C8C、2x），着色覆盖量几乎相同（如 803 与 805）。显得粗是颜色和经典样式造成的，不是光栅化问题，所以仍用字体渲染。

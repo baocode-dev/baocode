@@ -177,6 +177,14 @@ void main() {
     expect(workspace.preferredEditor, Editor.folder);
   });
 
+  testWidgets('the Fast Ide is kept as the editor like the apps are', (
+    tester,
+  ) async {
+    final store = MemoryPreferenceStore({'editor': 'fastIde'});
+    final workspace = await pumpLoaded(tester, preferences: store);
+    expect(workspace.preferredEditor, Editor.fastIde);
+  });
+
   testWidgets('choices are kept between runs: a new agent starts with the '
       'last ones, a kept session with its own', (tester) async {
     final store = MemoryPreferenceStore({

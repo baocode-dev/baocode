@@ -1,0 +1,150 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+// The editor shown for a file the text editor does not show: VS Code's
+// placeholder editors.
+//
+// Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
+// src/vs/workbench/browser/parts/editor/editorPlaceholder.ts (layout and the
+// error editor), media/editorplaceholder.css, binaryEditor.ts (binary
+// files), src/vs/workbench/contrib/files/browser/editors/textFileEditor.ts
+// and src/vs/workbench/common/editor.ts (`createTooLargeFileError`).
+//
+// Deviations: no Configure Limit (there is no setting for it), no Create
+// File for a missing file, and no Show Logs.
+
+import 'package:flutter/material.dart';
+
+import '../theme/codicons.dart';
+import 'file_service.dart';
+import 'ide_button.dart';
+
+/// `editorError.foreground`, `editorWarning.foreground`.
+abstract final class IdePlaceholderColors {
+  static const error = Color(0xFFF14C4C);
+  static const warning = Color(0xFFCCA700);
+  static const label = Color(0xFFBFBFBF);
+}
+
+/// An action of a placeholder: its first is the primary button.
+typedef IdePlaceholderAction = ({String label, VoidCallback run});
+
+/// What the placeholder for [error] says, and the icon it shows.
+({IconData icon, Color color, String label}) idePlaceholderContents(
+  Object error,
+) => switch (error) {
+  IdeBinaryFileException() => (
+    icon: Codicons.warning,
+    color: IdePlaceholderColors.warning,
+    label:
+        'The file is not displayed in the text editor because it is either '
+        'binary or uses an unsupported text encoding.',
+  ),
+  IdeFileTooLargeException(:final size) => (
+    icon: Codicons.warning,
+    color: IdePlaceholderColors.warning,
+    label:
+        'The file is not displayed in the text editor because it is very '
+        'large (${ideFormatSize(size)}).',
+  ),
+  IdeFileNotFoundException() => (
+    icon: Codicons.error,
+    color: IdePlaceholderColors.error,
+    label: 'The editor could not be opened because the file was not found.',
+  ),
+  _ => (
+    icon: Codicons.error,
+    color: IdePlaceholderColors.error,
+    label: 'The editor could not be opened due to an unexpected error.',
+  ),
+};
+
+/// `ByteSize.formatSize`: bytes whole, larger units to two places.
+String ideFormatSize(int size) {
+  const kb = 1024, mb = kb * 1024, gb = mb * 1024, tb = gb * 1024;
+  if (size < kb) return '${size}B';
+  if (size < mb) return '${(size / kb).toStringAsFixed(2)}KB';
+  if (size < gb) return '${(size / mb).toStringAsFixed(2)}MB';
+  if (size < tb) return '${(size / gb).toStringAsFixed(2)}GB';
+  return '${(size / tb).toStringAsFixed(2)}TB';
+}
+
+/// `.monaco-editor-pane-placeholder`: a 48px icon, the label (14px, at
+/// most 450px wide) and the buttons, centered 10px apart. The icon goes
+/// when there is 200px or less of height.
+class IdeEditorPlaceholder extends StatelessWidget {
+  const IdeEditorPlaceholder({
+    super.key,
+    required this.error,
+    required this.onOpenAnyway,
+    required this.onRetry,
+  });
+
+  final Object error;
+
+  /// Binary and very large files: Open Anyway.
+  final VoidCallback onOpenAnyway;
+
+  /// Other errors: Try Again.
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final contents = idePlaceholderContents(error);
+    final List<IdePlaceholderAction> actions = switch (error) {
+      IdeBinaryFileException() ||
+      IdeFileTooLargeException() => [(label: 'Open Anyway', run: onOpenAnyway)],
+      _ => [(label: 'Try Again', run: onRetry)],
+    };
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (constraints.maxHeight > 200) ...[
+                  Icon(contents.icon, size: 48, color: contents.color),
+                  const SizedBox(height: 10),
+                ],
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 450),
+                  child: SelectableText(
+                    contents.label,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: IdePlaceholderColors.label,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  children: [
+                    for (final (index, action) in actions.indexed)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 4,
+                          horizontal: 5,
+                        ),
+                        child: IdeButton(
+                          label: action.label,
+                          secondary: index > 0,
+                          onPressed: action.run,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -8,4 +8,9 @@ abstract final class ProcessTransport {
       );
 
   static Future<String?> usageOffBy() async => null;
+
+  /// No processes to stop on the web.
+  static Future<void> stopAll() async {}
+
+  static Future<void> reapLeftovers() async {}
 }

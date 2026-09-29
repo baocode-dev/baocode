@@ -1,0 +1,18 @@
+{
+  "defaultToken": "",
+  "tokenPostfix": ".toy",
+  "keywords": ["let", "fn", "if", "else"],
+  "tokenizer": {
+    "root": [
+      [";;.*$", "comment"],
+      [{"$regex": "[a-z_]\\w*", "$flags": ""}, {"cases": {"@keywords": "keyword", "@default": "identifier"}}],
+      ["\\d+", "number"],
+      ["\"", "string", "@string"],
+      ["[ \\t]+", "white"]
+    ],
+    "string": [
+      ["[^\"]+", "string"],
+      ["\"", "string", "@pop"]
+    ]
+  }
+}

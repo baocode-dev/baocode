@@ -63,8 +63,9 @@ void main() {
       controller.value = commit;
       expect(document.text, commit.text);
       expect(controller.value.composing, TextRange.empty);
+      // The composition and its commit are one undo step.
       controller.undo();
-      expect(controller.value.text, first.text);
+      expect(controller.value.text, 'A\r\n😀\rZ');
       controller.redo();
       expect(controller.value.text, commit.text);
     },

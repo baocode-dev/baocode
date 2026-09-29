@@ -679,7 +679,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                   // _stickyCover), not painted over, as over the window's
                   // material no color would match the page around it.
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(24, _stickyInset, 24, 0),
+                    padding: EdgeInsets.fromLTRB(
+                      _gutter,
+                      _stickyInset,
+                      _gutter,
+                      0,
+                    ),
                     child: Align(
                       alignment: Alignment.topCenter,
                       child: ConstrainedBox(
@@ -728,7 +733,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
               child: Align(
                 alignment: Alignment.topCenter,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: EdgeInsets.symmetric(horizontal: _gutter),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
                       maxWidth: widget.maxContentWidth,
@@ -942,8 +947,18 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     return 10;
   }
 
+  /// The side margin for the width the history has; see [chatGutter].
+  double _gutter = 24;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      _gutter = chatGutter(constraints.maxWidth);
+      return _buildHistory(context);
+    },
+  );
+
+  Widget _buildHistory(BuildContext context) {
     return Shortcuts(
       shortcuts: _selectionShortcuts,
       // Sees every press and wheel event, the scrollbar's too.
@@ -1018,10 +1033,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                     _feed.itemCount +
                                     (widget.footer == null ? 0 : 1),
                                 cacheExtent: 900,
-                                padding: const EdgeInsets.fromLTRB(
-                                  24,
+                                padding: EdgeInsets.fromLTRB(
+                                  _gutter,
                                   20,
-                                  24,
+                                  _gutter,
                                   24,
                                 ),
                                 itemBuilder: (context, index) {
@@ -1115,6 +1130,13 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     );
   }
 }
+
+/// The conversation's side margin at [width]: roomy in a wide window, and
+/// tighter in a narrow pane (e.g. beside the Fast Ide), where a wide margin
+/// on both sides would crowd the text and the composer. Never under the
+/// scrollbar's track (its thumb and margins), so a press at the end of a
+/// line selects text rather than grabbing the bar.
+double chatGutter(double width) => width < 600 ? 16 : 24;
 
 class _JumpToBottomButton extends StatelessWidget {
   const _JumpToBottomButton({required this.visible, required this.onTap});

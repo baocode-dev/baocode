@@ -213,6 +213,65 @@ void main() {
     );
   });
 
+  test('tabSize renders Monaco tab stops without changing offsets', () {
+    ViewportLayout stops(String text, {Map<int, List<TextSpan>>? spans}) =>
+        ViewportLayout(
+          snapshot: DocumentSnapshot(text),
+          style: style,
+          viewportSize: const Size(400, 100),
+          tabSize: 4,
+          styledLines: spans,
+        );
+    final plain = layout('    x');
+    final space = plain.caretRect(1).left;
+    final geometry = stops('\tx\na\tb\n中\tc');
+    addTearDown(() {
+      plain.dispose();
+      geometry.dispose();
+    });
+    // A leading tab reaches column 4; after one character it advances three
+    // columns (tab stops count columns, like Monaco, even in this
+    // proportional font).
+    expect(geometry.caretRect(1).left, closeTo(4 * space, 0.01));
+    expect(
+      geometry.caretRect(5).left,
+      closeTo(geometry.caretRect(4).left + 3 * space, 0.01),
+    );
+    // A full-width character counts two columns (as in Monaco's renderLine).
+    final third = geometry.snapshot.lineStarts[2];
+    expect(
+      geometry.caretRect(third + 2).left,
+      closeTo(geometry.caretRect(third + 1).left + 2 * space, 0.01),
+    );
+    // Offsets and hit testing still address the tab as one code unit.
+    final rowY = geometry.rows.first.height / 2;
+    expect(geometry.hitTest(Offset(4 * space - 1, rowY)), 1);
+    expect(geometry.hitTest(Offset(space, rowY)), 0);
+    expect(geometry.rows[1].endOffset - geometry.rows[1].startOffset, 3);
+    // Styled spans keep their colors around placeholders.
+    final styled = stops(
+      'a\tb',
+      spans: {
+        1: const [
+          TextSpan(
+            text: 'a\t',
+            style: TextStyle(color: Color(0xffff0000)),
+          ),
+          TextSpan(text: 'b'),
+        ],
+      },
+    );
+    addTearDown(styled.dispose);
+    expect(
+      styled.caretRect(2).left,
+      closeTo(styled.caretRect(1).left + 3 * space, 0.01),
+    );
+    expect(
+      styled.selectionRects(Range(1, 2, 1, 3)).single.width,
+      closeTo(3 * space, 0.01),
+    );
+  });
+
   test('text scaling changes measured advances, heights and wrapping', () {
     final plain = layout('WW WW WW', viewport: const Size(80, 180), wrap: true);
     final scaled = layout(
@@ -283,7 +342,10 @@ void main() {
     );
     var current = layout(lines.join('\n'), viewport: const Size(110, 43));
     expect(current.rows, hasLength(lines.length));
-    expect(current.shapedLineCount, 41);
+    // Virtualized: only the visible rows are shaped, not all 41 variants.
+    expect(current.shapedLineCount, lessThanOrEqualTo(3));
+    var totalShaped = current.shapedLineCount;
+    var nonDeletingEdits = 0;
 
     for (var edit = 0; edit < 16; edit++) {
       final index = random.nextInt(lines.length);
@@ -294,15 +356,12 @@ void main() {
       } else {
         lines[index] = 'edited $edit 中😀\tW';
       }
+      if (edit % 4 != 1) nonDeletingEdits++;
       final next = layout(
         lines.join('\n'),
         viewport: const Size(110, 43),
         previous: current,
       );
-      // Insertions/replacements shape one new paragraph; deletions none,
-      // even though positions and UTF-16 offsets of suffix rows all change.
-      final newShapes = edit % 4 == 1 ? 0 : 1;
-      expect(next.shapedLineCount, newShapes);
       current.dispose();
       current = next;
       expect(current.rows, hasLength(lines.length));
@@ -335,10 +394,93 @@ void main() {
           current.hitTest(const Offset(-100, 1)),
           current.snapshot.lineStarts[target],
         );
-        expect(current.shapedLineCount, newShapes);
       }
+      totalShaped += current.shapedLineCount;
+      // Shapes survive edits: across all layouts, each distinct line text is
+      // shaped at most once (41 original variants plus the edited lines).
+      expect(totalShaped, lessThanOrEqualTo(41 + nonDeletingEdits));
     }
     current.dispose();
+  });
+
+  test('100k-line edits and scrolling shape only visible lines', () {
+    final lines = List<String>.generate(100000, (index) => 'line $index;');
+    final stopwatch = Stopwatch()..start();
+    var current = layout(lines.join('\n'), viewport: const Size(300, 120));
+    expect(current.rows, hasLength(100000));
+    final visible = current.visibleRowRange;
+    expect(current.shapedLineCount, visible.end - visible.start);
+    expect(current.contentHeight, 100000 * current.lineHeight);
+    for (var edit = 0; edit < 20; edit++) {
+      lines[edit * 4999] = 'edited $edit';
+      final next = layout(
+        lines.join('\n'),
+        viewport: const Size(300, 120),
+        previous: current,
+        vertical: current.lineHeight * edit * 4999,
+      );
+      current.dispose();
+      current = next;
+      // Only the edited line (visible at the top) needs a new paragraph.
+      expect(current.shapedLineCount, lessThanOrEqualTo(visible.end));
+      expect(current.visibleRows.first.lineNumber, edit * 4999 + 1);
+      final recorder = ui.PictureRecorder();
+      current.paintVisibleText(Canvas(recorder));
+      recorder.endRecording().dispose();
+      expect(current.shapedLineCount, lessThanOrEqualTo(visible.end + 1));
+    }
+    // Longest-line estimate covers unshaped lines for horizontal scrolling.
+    expect(current.contentWidth, greaterThan(0));
+    stopwatch.stop();
+    // A generous bound: an eager layout of 100k lines is far slower.
+    expect(stopwatch.elapsedMilliseconds, lessThan(10000));
+    current.dispose();
+  });
+
+  test('hidden lines map between model and view lines', () {
+    final hidden = HiddenLineRanges([(3, 4), (8, 8), (5, 6)]);
+    expect(hidden.ranges.toList(), [(3, 6), (8, 8)]);
+    expect(hidden.hiddenLineCount, 5);
+    expect(hidden.viewLineCount(10), 5);
+    expect(
+      [for (var view = 1; view <= 5; view++) hidden.viewToModel(view)],
+      [1, 2, 7, 9, 10],
+    );
+    expect(
+      [for (var line = 1; line <= 10; line++) hidden.modelToView(line)],
+      [1, 2, 2, 2, 2, 2, 3, 3, 4, 5],
+    );
+    expect(hidden.isHidden(2), isFalse);
+    expect(hidden.isHidden(6), isTrue);
+    expect(hidden.rangeContaining(8), (8, 8));
+    expect(hidden.clampTo(5).ranges.toList(), [(3, 5)]);
+
+    final geometry = layout(
+      List.generate(10, (index) => 'L${index + 1}').join('\n'),
+      viewport: const Size(200, 500),
+      previous: null,
+    );
+    addTearDown(geometry.dispose);
+    final folded = ViewportLayout(
+      snapshot: geometry.snapshot,
+      style: style,
+      viewportSize: const Size(200, 500),
+      hiddenLines: hidden,
+      previousLayout: geometry,
+    );
+    addTearDown(folded.dispose);
+    expect(folded.rows.map((row) => row.lineNumber), [1, 2, 7, 9, 10]);
+    expect(folded.contentHeight, 5 * folded.lineHeight);
+    final h = folded.lineHeight;
+    // Row 3 shows model line 7, whose text starts at offset 18.
+    expect(folded.hitTest(Offset(0, 2 * h + 1)), folded.snapshot.lineStarts[6]);
+    expect(folded.caretRect(folded.snapshot.lineStarts[6]).top, 2 * h);
+    // A hidden offset maps to the header row.
+    expect(folded.caretRect(folded.snapshot.lineStarts[3]).top, h);
+    expect(folded.lineTop(9), 3 * h);
+    // Selections spanning hidden lines only paint visible rows.
+    final rects = folded.offsetRangeRects(0, folded.snapshot.text.length);
+    expect(rects.map((rect) => rect.top).toSet(), hasLength(5));
   });
 
   test('reused rows match fresh shaping for wrap, RTL, scaling and styles', () {

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
@@ -16,10 +18,31 @@ import 'editor/monaco/vs/editor/common/core/position.dart';
 import 'editor/monaco/vs/editor/contrib/find/browser/replace_pattern.dart';
 import 'editor/monaco/vs/editor/common/model/search/piece_tree_search.dart';
 import 'editor/monaco/flutter/editor_document_model.dart';
+import 'editor/monaco/flutter/editor_keybindings.dart';
+import 'editor/monaco/flutter/language_configuration_assets.dart';
+import 'editor/monaco/vs/editor/common/languages/language_configuration_registry.dart'
+    show plainTextLanguageConfiguration;
+import 'ide_commands.dart';
+import 'ide_find_widget.dart';
+import 'ide_menu.dart';
 import 'ide_workspace.dart';
+import 'lsp/language_features.dart';
+import 'lsp/lsp_protocol.dart';
+import 'lsp_ui/editor_language_session.dart';
+import 'lsp_ui/language_widgets.dart';
+import 'lsp_ui/lsp_convert.dart';
+import 'lsp_ui/workspace_edit.dart';
 
-/// A Flutter editor with the experimental painted surface available by opt-in.
-/// TextField remains the default while the surface's editing parity is evaluated.
+/// Where the caret is, as the status bar shows it. [selectionLength] is the
+/// selected UTF-16 length (0 for a caret).
+typedef IdeEditorPosition = ({
+  Position position,
+  int statusColumn,
+  int selectionLength,
+});
+
+/// The Fast IDE editor: the painted Monaco port by default, with the Flutter
+/// TextField kept as a fallback (`--dart-define=MONAD_NATIVE_EDITOR=false`).
 class IdeEditor extends StatefulWidget {
   const IdeEditor({
     super.key,
@@ -30,19 +53,39 @@ class IdeEditor extends StatefulWidget {
     required this.onPositionChanged,
     this.nativeEditorEnabled = const bool.fromEnvironment(
       'MONAD_NATIVE_EDITOR',
-      defaultValue: false,
+      defaultValue: true,
     ),
+    this.onOpenLocation,
+    this.onShowReferences,
+    this.onShowCommands,
+    this.formatOnSave = false,
   });
 
   final IdeWorkspace workspace;
   final IdeDocument active;
   final ValueChanged<Object> onError;
   final ValueChanged<String> onLspStatus;
-  final ValueChanged<({Position position, int statusColumn})> onPositionChanged;
+  final ValueChanged<IdeEditorPosition> onPositionChanged;
 
-  /// Opt in with --dart-define=MONAD_NATIVE_EDITOR=true, or override in tests.
-  /// This surface is experimental, not a claim of TextField or Monaco parity.
+  /// Opt out with --dart-define=MONAD_NATIVE_EDITOR=false, or override in
+  /// tests. The painted surface is a partial Monaco port; see PARITY.md.
   final bool nativeEditorEnabled;
+
+  /// Opens a go-to target (the workbench records navigation history and
+  /// opens other files); without it only targets in the active document
+  /// are revealed.
+  final Future<void> Function(IdeLocation location)? onOpenLocation;
+
+  /// Lists references (or several definitions) in the workbench's panel.
+  final void Function(String title, List<IdeLocation> locations)?
+  onShowReferences;
+
+  /// Opens the Command Palette: the context menu's last item.
+  final VoidCallback? onShowCommands;
+
+  /// Formats the document before saving (`editor.formatOnSave`, off by
+  /// default) when a language server can.
+  final bool formatOnSave;
 
   @override
   State<IdeEditor> createState() => IdeEditorState();
@@ -53,10 +96,13 @@ class IdeEditorState extends State<IdeEditor> {
     text: widget.active.text,
   );
   late final FocusNode _focusNode = FocusNode(debugLabel: 'ide editor');
+  // The surface's state implements EditorViewHost, which editor commands use.
+  final GlobalKey _surfaceKey = GlobalKey();
   late final ScrollController _scrollController = ScrollController();
   final TextEditingController _findController = TextEditingController();
   final TextEditingController _replaceController = TextEditingController();
   final FocusNode _findFocusNode = FocusNode(debugLabel: 'ide find');
+  final FocusNode _replaceFocusNode = FocusNode(debugLabel: 'ide replace');
   late DocumentSnapshot _snapshot = widget.active.model.snapshot;
   // Controllers own selection; the workspace documents own text and undo.
   // Cache by document identity so closing/reopening a path starts a new session.
@@ -69,16 +115,20 @@ class IdeEditorState extends State<IdeEditor> {
   );
   MonacoBuiltinTheme? _loadedTheme;
   Map<int, List<TextSpan>>? _styledLines;
+  IdeDocument? _styledDocument;
+  DocumentSnapshot? _styledSnapshot;
   IdeDocument? _syntaxDocument;
   String? _syntaxText;
   int _syntaxRequest = 0;
+  EditorLanguageSession? _language;
+  EditorKeyChord? _pendingChord;
+  bool _languageRebuildScheduled = false;
 
   TextEditingValue get _editingValue =>
       _nativeController?.value ?? _controller.value;
 
-  String get _editorStatus => widget.nativeEditorEnabled
-      ? 'Native editor (experimental)'
-      : 'Native editor';
+  String get _editorStatus =>
+      widget.nativeEditorEnabled ? 'Monaco editor' : 'Text editor';
   bool _findVisible = false;
   bool _replaceVisible = false;
   bool _findMatchCase = false;
@@ -91,6 +141,7 @@ class IdeEditorState extends State<IdeEditor> {
   bool _positionUpdatePending = false;
   Position? _reportedPosition;
   int? _reportedStatusColumn;
+  int? _reportedSelectionLength;
 
   @override
   void initState() {
@@ -109,7 +160,9 @@ class IdeEditorState extends State<IdeEditor> {
   void _activateNativeController() {
     final doc = widget.active;
     _nativeController = _nativeControllers.putIfAbsent(doc, () {
-      final controller = EditorSurfaceController(document: doc.model);
+      final controller = EditorSurfaceController(document: doc.model)
+        ..detectIndentation();
+      unawaited(_loadLanguageConfiguration(doc, controller));
       var previousText = controller.value.text;
       controller.addListener(() {
         final textChanged = previousText != controller.value.text;
@@ -131,6 +184,209 @@ class IdeEditorState extends State<IdeEditor> {
     _snapshot = doc.model.snapshot;
     _selectionChanged();
     _scheduleSyntax();
+    _syncLanguageSession();
+  }
+
+  /// Keeps one [EditorLanguageSession] for the active document when the
+  /// workspace has language services.
+  void _syncLanguageSession() {
+    final languages = widget.workspace.languages;
+    final controller = _nativeController;
+    final doc = widget.active;
+    if (languages == null ||
+        controller == null ||
+        !widget.nativeEditorEnabled) {
+      _disposeLanguageSession();
+      return;
+    }
+    final current = _language;
+    if (current != null &&
+        identical(current.controller, controller) &&
+        identical(current.document, doc) &&
+        identical(current.languages, languages)) {
+      return;
+    }
+    _disposeLanguageSession();
+    _language = EditorLanguageSession(
+      languages: languages,
+      document: doc,
+      controller: controller,
+      onError: (error) {
+        if (mounted) widget.onError(error);
+      },
+      onOpenLocation: _openLocation,
+      onShowReferences: (title, locations) =>
+          widget.onShowReferences?.call(title, locations),
+      onApplyWorkspaceEdit: applyWorkspaceEdit,
+      onFocusEditor: focus,
+    )..addListener(_languageChanged);
+  }
+
+  void _disposeLanguageSession() {
+    final session = _language;
+    if (session == null) return;
+    _language = null;
+    session
+      ..removeListener(_languageChanged)
+      ..dispose();
+  }
+
+  void _languageChanged() {
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      if (_languageRebuildScheduled) return;
+      _languageRebuildScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _languageRebuildScheduled = false;
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+    setState(() {});
+  }
+
+  Future<void> _openLocation(IdeLocation location) async {
+    if (widget.onOpenLocation case final open?) return open(location);
+    if (location.path == widget.active.path) revealRange(location.range);
+  }
+
+  /// The language session of the active document (tests and the
+  /// workbench read its state).
+  @visibleForTesting
+  EditorLanguageSession? get languageSession => _language;
+
+  /// Applies a workspace edit (rename, code actions, `workspace/applyEdit`):
+  /// one undo step per document, cursors mapped in open editors. See
+  /// [applyLspWorkspaceEdit] for unopened files.
+  Future<bool> applyWorkspaceEdit(LspWorkspaceEdit edit) =>
+      applyLspWorkspaceEdit(
+        widget.workspace,
+        edit,
+        applyTo: (doc, edits) {
+          final controller = _nativeControllers[doc];
+          if (controller == null) return false;
+          controller.applyEdits(edits);
+          return true;
+        },
+      );
+
+  /// Selects the protocol [range] (or places the caret at its start unless
+  /// [select]) in the active document and scrolls it into view, centered
+  /// when it was outside the viewport.
+  void revealRange(LspRange range, {bool select = false}) {
+    final snapshot = widget.active.model.snapshot;
+    final (start, end) = lspOffsetsOf(snapshot, range);
+    if (widget.nativeEditorEnabled) {
+      final controller = _nativeController;
+      if (controller == null) return;
+      if (select) {
+        controller.select(start, end);
+      } else {
+        controller.select(start, start);
+      }
+      controller.revealSelection();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final view = _surfaceKey.currentState;
+        if (mounted && view is EditorSurfaceView) {
+          (view as EditorSurfaceView).revealRange(start, end);
+        }
+      });
+      WidgetsBinding.instance.scheduleFrame();
+    } else {
+      _controller.selection = TextSelection(
+        baseOffset: start,
+        extentOffset: select ? end : start,
+      );
+    }
+    focus();
+  }
+
+  /// Keys the language widgets and language commands take before the
+  /// editor's own bindings; everything else (e.g. F8, workbench shortcuts)
+  /// keeps bubbling.
+  KeyEventResult _onEditorKey(KeyEvent event) {
+    final session = _language;
+    if (session == null) return KeyEventResult.ignored;
+    final result = session.handleKey(event);
+    if (result != KeyEventResult.ignored) return result;
+    if (_modifierKeys.contains(event.logicalKey)) return KeyEventResult.ignored;
+    final chord = editorKeyChordOf(event);
+    if (chord == null) return KeyEventResult.ignored;
+    if (_pendingChord case final pending?) {
+      _pendingChord = null;
+      final id = matchEditorLanguageKey(chord, pending: pending);
+      if (id != null && id != editorChordPrefix) session.run(id);
+      // Upstream swallows an unknown second chord too.
+      return KeyEventResult.handled;
+    }
+    final id = matchEditorLanguageKey(chord);
+    if (id == null || id.startsWith('editor.action.marker.')) {
+      return KeyEventResult.ignored;
+    }
+    if (id == editorChordPrefix) {
+      _pendingChord = chord;
+      return KeyEventResult.handled;
+    }
+    return session.run(id) ? KeyEventResult.handled : KeyEventResult.ignored;
+  }
+
+  static final _modifierKeys = {
+    LogicalKeyboardKey.metaLeft,
+    LogicalKeyboardKey.metaRight,
+    LogicalKeyboardKey.controlLeft,
+    LogicalKeyboardKey.controlRight,
+    LogicalKeyboardKey.shiftLeft,
+    LogicalKeyboardKey.shiftRight,
+    LogicalKeyboardKey.altLeft,
+    LogicalKeyboardKey.altRight,
+  };
+
+  void _viewChanged() {
+    _language?.onViewChanged();
+    _languageChanged();
+  }
+
+  /// Snippet placeholders (`editor.snippetTabstopHighlight*`).
+  List<EditorDecoration> _snippetDecorations(
+    EditorSurfaceController controller,
+  ) => [
+    for (final (start, end, _, isFinal) in controller.snippetPlaceholders)
+      if (isFinal)
+        EditorDecoration(
+          start: start,
+          end: end,
+          borderColor: const Color(0xFF525252),
+        )
+      else
+        EditorDecoration(
+          start: start,
+          end: end,
+          backgroundColor: const Color(0x4D7C7C7C),
+        ),
+  ];
+
+  Future<void> _loadLanguageConfiguration(
+    IdeDocument doc,
+    EditorSurfaceController controller,
+  ) async {
+    try {
+      final snapshot = doc.model.snapshot;
+      final firstLine = snapshot.text.substring(0, snapshot.contentEnds.first);
+      final configuration = await languageConfigurationForPath(
+        doc.path,
+        firstLine: firstLine.startsWith('\uFEFF')
+            ? firstLine.substring(1)
+            : firstLine,
+      );
+      if (!mounted || !identical(_nativeControllers[doc], controller)) return;
+      setState(
+        () => controller.languageConfiguration =
+            configuration ?? plainTextLanguageConfiguration,
+      );
+    } catch (error) {
+      if (mounted) widget.onError(error);
+    }
   }
 
   void _scheduleSyntax() {
@@ -140,10 +396,21 @@ class IdeEditorState extends State<IdeEditor> {
     if (identical(_syntaxDocument, doc) && _syntaxText == snapshot.text) return;
     _syntaxDocument = doc;
     _syntaxText = snapshot.text;
-    _styledLines = null;
+    // Keep painting the previous spans until the new ones arrive: lines whose
+    // text no longer matches fall back to plain text in the layout.
+    if (!identical(_tokenizedDocuments[doc]?.snapshot, _styledSnapshot) ||
+        !identical(_styledDocument, doc)) {
+      _styledLines = null;
+    }
     final request = ++_syntaxRequest;
     unawaited(_computeSyntax(request, doc, snapshot));
   }
+
+  /// Code in hovers, in the editor's theme.
+  Future<List<List<TextSpan>>?> _colorizeCode(
+    String language,
+    String code,
+  ) async => _syntax.colorize(language, code, (await _theme).styleForToken);
 
   Future<void> _computeSyntax(
     int request,
@@ -156,6 +423,7 @@ class IdeEditorState extends State<IdeEditor> {
         snapshot,
         doc.path,
         previous: _tokenizedDocuments[doc],
+        isCancelled: () => !mounted || request != _syntaxRequest,
       );
       if (!mounted ||
           !widget.nativeEditorEnabled ||
@@ -167,6 +435,8 @@ class IdeEditorState extends State<IdeEditor> {
       setState(() {
         _loadedTheme = theme;
         if (tokenized != null) _tokenizedDocuments[doc] = tokenized;
+        _styledDocument = doc;
+        _styledSnapshot = tokenized?.snapshot;
         _styledLines = tokenized == null
             ? null
             : _syntax.styledLines(
@@ -175,6 +445,8 @@ class IdeEditorState extends State<IdeEditor> {
                 theme.styleForToken,
               );
       });
+    } on TokenizationCancelled {
+      // A newer edit superseded this pass.
     } catch (error) {
       if (mounted && request == _syntaxRequest) widget.onError(error);
     }
@@ -191,6 +463,9 @@ class IdeEditorState extends State<IdeEditor> {
         if (!open.contains(entry.key)) {
           _nativeControllers.remove(entry.key);
           _tokenizedDocuments.remove(entry.key);
+          if (identical(_language?.controller, controller)) {
+            _disposeLanguageSession();
+          }
           if (identical(_nativeController, controller)) {
             _nativeController = null;
             _focusNode.unfocus();
@@ -216,6 +491,7 @@ class IdeEditorState extends State<IdeEditor> {
   }
 
   void _disposeNativeControllers() {
+    _disposeLanguageSession();
     _nativeController = null;
     _syntaxRequest++;
     _syntaxDocument = null;
@@ -262,15 +538,22 @@ class IdeEditorState extends State<IdeEditor> {
         position.column,
         4,
       );
+      final selection = _editingValue.selection;
+      final selectionLength = selection.isValid
+          ? (selection.end - selection.start).abs()
+          : 0;
       if ((_reportedPosition?.equals(position) ?? false) &&
-          _reportedStatusColumn == statusColumn) {
+          _reportedStatusColumn == statusColumn &&
+          _reportedSelectionLength == selectionLength) {
         return;
       }
       _reportedPosition = position;
       _reportedStatusColumn = statusColumn;
+      _reportedSelectionLength = selectionLength;
       widget.onPositionChanged((
         position: position,
         statusColumn: statusColumn,
+        selectionLength: selectionLength,
       ));
     });
   }
@@ -317,6 +600,7 @@ class IdeEditorState extends State<IdeEditor> {
     _findController.dispose();
     _replaceController.dispose();
     _findFocusNode.dispose();
+    _replaceFocusNode.dispose();
     _controller.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
@@ -360,8 +644,208 @@ class IdeEditorState extends State<IdeEditor> {
     });
   }
 
-  void openFind() {
-    setState(() => _findVisible = true);
+  /// Whether the find widget is open.
+  bool get findVisible => _findVisible;
+
+  /// Whether the find widget shows its replace row.
+  bool get replaceVisible => _findVisible && _replaceVisible;
+
+  /// The current find matches (capped at 999, as the counter shows), for
+  /// painting as decorations. Empty while the find widget is closed.
+  List<FindMatch> get findMatches =>
+      _findVisible ? List.unmodifiable(_findResults) : const [];
+
+  /// Index into [findMatches] of the current match, or -1 when none.
+  int get findIndex => _findVisible ? _findIndex : -1;
+
+  /// Commands contributed by the editor to the workbench's command palette.
+  /// Their keybindings are only labels there: the editor dispatches its keys.
+  List<IdeCommand> get editorCommands => [
+    if (widget.nativeEditorEnabled)
+      for (final MapEntry(key: id, value: label) in editorCommandLabels.entries)
+        IdeCommand(
+          id: id,
+          label: label,
+          category: 'Editor',
+          keybindingLabel: editorCommandKeybindingLabel(id),
+          enabled: _nativeController != null,
+          run: () => _runEditorCommand(id),
+        ),
+    if (widget.nativeEditorEnabled && widget.workspace.languages != null)
+      for (final MapEntry(key: id, value: label)
+          in editorLanguageCommandLabels.entries)
+        // Problem navigation spans files: the workbench owns it.
+        if (!id.startsWith('editor.action.marker.'))
+          IdeCommand(
+            id: id,
+            label: label,
+            category: 'Editor',
+            keybindingLabel: editorLanguageKeybindingLabel(id),
+            enabled: _language != null && _languageCommandEnabled(id),
+            run: () => _runLanguageCommand(id),
+          ),
+  ];
+
+  bool _languageCommandEnabled(String id) {
+    final session = _language;
+    if (session == null) return false;
+    final request = switch (id) {
+      'editor.action.revealDefinition' => LanguageRequest.definition,
+      'editor.action.goToTypeDefinition' => LanguageRequest.typeDefinition,
+      'editor.action.goToImplementation' => LanguageRequest.implementation,
+      'editor.action.goToReferences' => LanguageRequest.references,
+      'editor.action.rename' => LanguageRequest.rename,
+      'editor.action.formatDocument' => LanguageRequest.format,
+      'editor.action.formatSelection' => LanguageRequest.rangeFormat,
+      'editor.action.quickFix' ||
+      'editor.action.refactor' ||
+      'editor.action.sourceAction' => LanguageRequest.codeActions,
+      'editor.action.triggerSuggest' => LanguageRequest.completion,
+      'editor.action.triggerParameterHints' => LanguageRequest.signatureHelp,
+      _ => null,
+    };
+    return request == null || session.supports(request);
+  }
+
+  /// The editor's context menu (`MenuId.EditorContext`): go-to commands,
+  /// then modifications, then the clipboard, then the Command Palette; the
+  /// language items only while the language server has the feature, as
+  /// VS Code hides them without a provider.
+  void _showContextMenu(Offset position) {
+    if (_nativeController == null) return;
+    final hasSelection = _nativeController!.selections.any(
+      (selection) => !selection.isCollapsed,
+    );
+    final language = _language != null;
+    IdeMenuAction languageItem(String id) => IdeMenuAction(
+      editorLanguageCommandLabels[id]!,
+      keybinding: editorLanguageKeybindingLabel(id),
+      onSelected: () => _runLanguageCommand(id),
+    );
+    IdeMenuAction editorItem(String id) => IdeMenuAction(
+      editorCommandLabels[id]!,
+      keybinding: editorCommandKeybindingLabel(id),
+      onSelected: () => _runEditorCommand(id),
+    );
+    List<IdeMenuAction> languageItems(List<String> ids) => [
+      for (final id in ids)
+        if (language && _languageCommandEnabled(id)) languageItem(id),
+    ];
+    final showCommands = widget.onShowCommands;
+    unawaited(
+      showIdeMenu(
+        context,
+        position: position,
+        entries: ideMenuGroups([
+          languageItems(const [
+            'editor.action.revealDefinition',
+            'editor.action.goToTypeDefinition',
+            'editor.action.goToImplementation',
+            'editor.action.goToReferences',
+          ]),
+          [
+            ...languageItems(const ['editor.action.rename']),
+            editorItem('editor.action.changeAll'),
+            ...languageItems([
+              'editor.action.formatDocument',
+              if (hasSelection) 'editor.action.formatSelection',
+              'editor.action.refactor',
+              'editor.action.sourceAction',
+            ]),
+          ],
+          [
+            editorItem('editor.action.clipboardCutAction'),
+            editorItem('editor.action.clipboardCopyAction'),
+            editorItem('editor.action.clipboardPasteAction'),
+          ],
+          [
+            if (showCommands != null)
+              IdeMenuAction(
+                'Command Palette...',
+                keybinding: const IdeKeybinding(
+                  LogicalKeyboardKey.keyP,
+                  primary: true,
+                  shift: true,
+                ).label(),
+                onSelected: showCommands,
+              ),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  /// Palette language commands run once the editor has focus again.
+  void _runLanguageCommand(String id) {
+    _focusNode.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _language?.run(id);
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
+  /// Shows the hover (with the diagnostics) at the caret, e.g. after the
+  /// workbench moved to a problem.
+  void showHoverAtCaret() {
+    final session = _language;
+    if (session != null) unawaited(session.showHoverAtCaret());
+  }
+
+  /// The active document's indentation, as the status bar shows it.
+  String get indentationLabel {
+    final controller = _nativeController;
+    if (controller == null) return 'Spaces: 4';
+    return controller.insertSpaces
+        ? 'Spaces: ${controller.tabSize}'
+        : 'Tab Size: ${controller.tabSize}';
+  }
+
+  /// Palette commands run once the editor has focus again, since the surface
+  /// only accepts edits while focused.
+  void _runEditorCommand(String id) {
+    _focusNode.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final controller = _nativeController;
+      final host = _surfaceKey.currentState;
+      if (!mounted || controller == null || host is! EditorViewHost) return;
+      runEditorCommand(id, controller, host as EditorViewHost);
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
+  /// Find matches as surface decorations; the current match is emphasized.
+  List<EditorDecoration> get _findDecorations {
+    if (!_findVisible || _findResults.isEmpty) return const [];
+    final snapshot = widget.active.model.snapshot;
+    return [
+      for (var i = 0; i < _findResults.length; i++)
+        if (i == _findIndex)
+          EditorDecoration.currentFindMatch(
+            snapshot.offsetAtPosition(_findResults[i].range.getStartPosition()),
+            snapshot.offsetAtPosition(_findResults[i].range.getEndPosition()),
+          )
+        else
+          EditorDecoration.findMatch(
+            snapshot.offsetAtPosition(_findResults[i].range.getStartPosition()),
+            snapshot.offsetAtPosition(_findResults[i].range.getEndPosition()),
+          ),
+    ];
+  }
+
+  /// Opens (or focuses) the find widget, showing the replace row when
+  /// [replace] is set. A single-line selection seeds the search text.
+  void openFind({bool replace = false}) {
+    final selection = _editingValue.selection;
+    if (selection.isValid && !selection.isCollapsed) {
+      final selected = selection.textInside(_editingValue.text);
+      if (!selected.contains('\n') && !selected.contains('\r')) {
+        _findController.text = selected;
+      }
+    }
+    setState(() {
+      _findVisible = true;
+      if (replace) _replaceVisible = true;
+    });
     _refreshFindResults();
     _findFocusNode.requestFocus();
     _findController.selection = TextSelection(
@@ -370,9 +854,23 @@ class IdeEditorState extends State<IdeEditor> {
     );
   }
 
-  void _closeFind() {
-    setState(() => _findVisible = false);
-    _focusNode.requestFocus();
+  /// Opens the find widget with its replace row (⌥⌘F / Ctrl+H).
+  void openReplace() => openFind(replace: true);
+
+  /// Closes the find widget and returns focus to the text.
+  void closeFind() {
+    if (_findVisible) setState(() => _findVisible = false);
+    focus();
+  }
+
+  /// Moves keyboard focus to the text.
+  void focus() {
+    if (_focusNode.canRequestFocus) _focusNode.requestFocus();
+  }
+
+  void _toggleFindOption(void Function() toggle) {
+    setState(toggle);
+    _refreshFindResults();
   }
 
   void _selectFindResult({bool backwards = false}) {
@@ -497,6 +995,12 @@ class IdeEditorState extends State<IdeEditor> {
   Future<void> save() async {
     try {
       await flush();
+      final session = _language;
+      if (widget.formatOnSave &&
+          session != null &&
+          session.supports(LanguageRequest.format)) {
+        await session.format();
+      }
       final doc = widget.workspace.active;
       if (doc != null) await widget.workspace.save(doc);
     } catch (error) {
@@ -512,16 +1016,44 @@ class IdeEditorState extends State<IdeEditor> {
     // controller only after the document is actually removed from the open set.
   }
 
-  Future<void> revealLine(int line) async {
+  /// Places the caret at one-based [line] and [column] (clamped to the
+  /// document and line), reveals it and focuses the text.
+  Future<void> revealLine(int line, [int column = 1]) async {
     if (line < 1) return;
-    final offset = _snapshot.offsetAtPosition(Position(line, 1));
+    final offset = _snapshot.offsetAtPosition(
+      Position(line, column < 1 ? 1 : column),
+    );
     _selectOffsets(offset, offset);
-    if (_focusNode.canRequestFocus) _focusNode.requestFocus();
+    focus();
   }
 
   Future<void> retryLanguageServer() async {
     widget.onLspStatus(_editorStatus);
   }
+
+  Widget _buildFindWidget() => IdeFindWidget(
+    findController: _findController,
+    replaceController: _replaceController,
+    findFocusNode: _findFocusNode,
+    replaceFocusNode: _replaceFocusNode,
+    replaceVisible: _replaceVisible,
+    matchCase: _findMatchCase,
+    wholeWord: _findWholeWord,
+    regex: _findRegex,
+    matchCount: _findResults.length,
+    currentIndex: _findIndex,
+    onToggleReplace: () => setState(() => _replaceVisible = !_replaceVisible),
+    onToggleMatchCase: () =>
+        _toggleFindOption(() => _findMatchCase = !_findMatchCase),
+    onToggleWholeWord: () =>
+        _toggleFindOption(() => _findWholeWord = !_findWholeWord),
+    onToggleRegex: () => _toggleFindOption(() => _findRegex = !_findRegex),
+    onPrevious: () => _selectFindResult(backwards: true),
+    onNext: _selectFindResult,
+    onClose: closeFind,
+    onReplace: _replaceCurrent,
+    onReplaceAll: _replaceAll,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -534,6 +1066,15 @@ class IdeEditorState extends State<IdeEditor> {
             unawaited(save()),
         const SingleActivator(LogicalKeyboardKey.keyF, meta: true): openFind,
         const SingleActivator(LogicalKeyboardKey.keyF, control: true): openFind,
+        // Replace: ⌥⌘F or ⌘H on macOS (where ⌃H deletes), Ctrl+H elsewhere.
+        if (ideUsesMacKeys) ...{
+          const SingleActivator(LogicalKeyboardKey.keyF, meta: true, alt: true):
+              openReplace,
+          const SingleActivator(LogicalKeyboardKey.keyH, meta: true):
+              openReplace,
+        } else
+          const SingleActivator(LogicalKeyboardKey.keyH, control: true):
+              openReplace,
       },
       child: ColoredBox(
         color: CursorColors.code,
@@ -544,12 +1085,30 @@ class IdeEditorState extends State<IdeEditor> {
                   ? _nativeController == null
                         ? const SizedBox.expand()
                         : EditorSurface(
+                            key: _surfaceKey,
                             controller: _nativeController!,
                             focusNode: _focusNode,
-                            backgroundColor:
-                                _loadedTheme?.background ?? CursorColors.code,
+                            backgroundColor: CursorColors.code,
                             caretColor: CursorColors.accent,
-                            styledLines: _styledLines,
+                            styledLines:
+                                _language?.styledLines(_styledLines) ??
+                                _styledLines,
+                            decorations: [
+                              ...?_language?.decorations,
+                              ..._snippetDecorations(_nativeController!),
+                              ..._findDecorations,
+                            ],
+                            onKeyEvent: _onEditorKey,
+                            onHover: _language == null
+                                ? null
+                                : (offset, _) =>
+                                      _language?.onPointerHover(offset),
+                            onContentPointerDown: _language?.onPointerDown,
+                            onContextMenu: _showContextMenu,
+                            onViewChanged: _viewChanged,
+                            contentCursor: _language?.link == null
+                                ? null
+                                : SystemMouseCursors.click,
                             style: TextStyle(
                               color:
                                   _loadedTheme?.foreground ??
@@ -595,161 +1154,32 @@ class IdeEditorState extends State<IdeEditor> {
                       ),
                     ),
             ),
+            if (_language case final session?)
+              Positioned.fill(
+                child: IdeLanguageOverlay(
+                  session: session,
+                  colorize: _colorizeCode,
+                  language: _tokenizedDocuments[widget.active]?.languageId,
+                  view: () => switch (_surfaceKey.currentState) {
+                    final EditorSurfaceView view => view,
+                    _ => null,
+                  },
+                ),
+              ),
             if (_findVisible)
-              Positioned(
-                top: 8,
-                right: 12,
-                width: 440,
-                child: Material(
-                  elevation: 6,
-                  color: CursorColors.surface,
-                  child: CallbackShortcuts(
-                    bindings: {
-                      const SingleActivator(LogicalKeyboardKey.escape):
-                          _closeFind,
-                      const SingleActivator(LogicalKeyboardKey.enter):
-                          _selectFindResult,
-                      const SingleActivator(
-                        LogicalKeyboardKey.enter,
-                        shift: true,
-                      ): () =>
-                          _selectFindResult(backwards: true),
-                    },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _findController,
-                                focusNode: _findFocusNode,
-                                decoration: const InputDecoration(
-                                  hintText: 'Find',
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                  ),
-                                  border: InputBorder.none,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              '${_findResults.isEmpty ? 0 : _findIndex + 1}/${_findResults.length}',
-                            ),
-                            IconButton(
-                              tooltip: 'Toggle replace',
-                              constraints: const BoxConstraints.tightFor(
-                                width: 30,
-                                height: 30,
-                              ),
-                              padding: EdgeInsets.zero,
-                              onPressed: () => setState(
-                                () => _replaceVisible = !_replaceVisible,
-                              ),
-                              icon: const Icon(Icons.find_replace, size: 17),
-                            ),
-                            IconButton(
-                              tooltip: 'Match case',
-                              constraints: const BoxConstraints.tightFor(
-                                width: 30,
-                                height: 30,
-                              ),
-                              padding: EdgeInsets.zero,
-                              color: _findMatchCase
-                                  ? CursorColors.accent
-                                  : CursorColors.textMuted,
-                              onPressed: () {
-                                _findMatchCase = !_findMatchCase;
-                                _refreshFindResults();
-                              },
-                              icon: const Text('Aa'),
-                            ),
-                            IconButton(
-                              tooltip: 'Whole word',
-                              constraints: const BoxConstraints.tightFor(
-                                width: 30,
-                                height: 30,
-                              ),
-                              padding: EdgeInsets.zero,
-                              color: _findWholeWord
-                                  ? CursorColors.accent
-                                  : CursorColors.textMuted,
-                              onPressed: () {
-                                _findWholeWord = !_findWholeWord;
-                                _refreshFindResults();
-                              },
-                              icon: const Text('W'),
-                            ),
-                            IconButton(
-                              tooltip: 'Regular expression',
-                              constraints: const BoxConstraints.tightFor(
-                                width: 30,
-                                height: 30,
-                              ),
-                              padding: EdgeInsets.zero,
-                              color: _findRegex
-                                  ? CursorColors.accent
-                                  : CursorColors.textMuted,
-                              onPressed: () {
-                                _findRegex = !_findRegex;
-                                _refreshFindResults();
-                              },
-                              icon: const Text('.*'),
-                            ),
-                            IconButton(
-                              tooltip: 'Previous match',
-                              onPressed: () =>
-                                  _selectFindResult(backwards: true),
-                              icon: const Icon(
-                                Icons.keyboard_arrow_up,
-                                size: 18,
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Next match',
-                              onPressed: () => _selectFindResult(),
-                              icon: const Icon(
-                                Icons.keyboard_arrow_down,
-                                size: 18,
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Close find',
-                              onPressed: _closeFind,
-                              icon: const Icon(Icons.close, size: 16),
-                            ),
-                          ],
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 14),
+                      child: SizedBox(
+                        width: math.min(
+                          IdeFindWidget.width,
+                          math.max(240, constraints.maxWidth - 28),
                         ),
-                        if (_replaceVisible)
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _replaceController,
-                                  decoration: const InputDecoration(
-                                    hintText: 'Replace',
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                    ),
-                                    border: InputBorder.none,
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Replace match',
-                                onPressed: _replaceCurrent,
-                                icon: const Icon(Icons.find_replace, size: 18),
-                              ),
-                              IconButton(
-                                tooltip: 'Replace all',
-                                onPressed: _replaceAll,
-                                icon: const Icon(Icons.done_all, size: 18),
-                              ),
-                            ],
-                          ),
-                      ],
+                        child: _buildFindWidget(),
+                      ),
                     ),
                   ),
                 ),

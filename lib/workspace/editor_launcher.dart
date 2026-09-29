@@ -8,6 +8,13 @@ import 'editor_launcher_stub.dart'
 
 /// An app a project can be opened in, named as each platform has it.
 enum Editor {
+  /// Monad's own editor: the IDE layout, not an app to launch.
+  fastIde(
+    'Fast Ide',
+    null,
+    icon: Icons.space_dashboard_outlined,
+    builtIn: true,
+  ),
   vscode(
     'VS Code',
     'code',
@@ -44,6 +51,7 @@ enum Editor {
     this.macApp,
     this.windowsLabel,
     this.macOSOnly = false,
+    this.builtIn = false,
   });
 
   /// What macOS calls it.
@@ -63,6 +71,9 @@ enum Editor {
 
   /// Whether only macOS has it.
   final bool macOSOnly;
+
+  /// Whether it is Monad's own ([fastIde]), shown instead of launched.
+  final bool builtIn;
 
   final IconData icon;
 
@@ -84,8 +95,8 @@ enum Editor {
 /// Opens [path] in [editor]. False where that is not possible (the web, a
 /// platform that has no such app) or it failed, e.g. the app is not
 /// installed.
-Future<bool> openInEditor(Editor editor, String path) =>
-    platform.openPath(path, editor: editor);
+Future<bool> openInEditor(Editor editor, String path) async =>
+    !editor.builtIn && await platform.openPath(path, editor: editor);
 
 /// Opens a link or file in its default app (the browser, for a URL).
 Future<bool> openExternal(String target) => platform.openPath(target);

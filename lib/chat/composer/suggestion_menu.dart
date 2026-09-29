@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
-import '../widgets/file_label.dart';
+import '../../theme/material_file_icons.dart';
 import 'composer_mock_data.dart';
 
 /// A ranked suggestion with the indexes of the query characters it matched.
@@ -186,15 +186,10 @@ class _SuggestionRow extends StatelessWidget {
               SizedBox(
                 width: 18,
                 child: switch (suggestion.kind) {
-                  SuggestionKind.file => Icon(
-                    Icons.description_outlined,
-                    size: 14,
-                    color: FileLabel.tint(suggestion.label),
-                  ),
-                  SuggestionKind.folder => const Icon(
-                    Icons.folder_outlined,
-                    size: 14,
-                    color: CursorColors.textMuted,
+                  SuggestionKind.file => FileIcon(suggestion.label, size: 15),
+                  SuggestionKind.folder => FolderIcon(
+                    suggestion.label,
+                    size: 15,
                   ),
                   _ => Icon(
                     suggestion.icon,

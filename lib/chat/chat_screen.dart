@@ -358,48 +358,60 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           ),
           ListenableBuilder(
             listenable: _session,
-            builder: (context, _) => Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: _maxContentWidth + 48,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _PanelSlot(
-                        child: HealthBanner.shows(_session.health)
-                            ? HealthBanner(
-                                health: _session.health,
-                                kernelName: _session.kernel.label,
-                                onRetry: _session.restart,
-                              )
-                            : null,
+            builder: (context, _) => LayoutBuilder(
+              builder: (context, constraints) {
+                final gutter = chatGutter(constraints.maxWidth);
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: _maxContentWidth + gutter * 2,
+                    ),
+                    child: Padding(
+                      // Level with the history's text; a little less below in a
+                      // narrow pane.
+                      padding: EdgeInsets.fromLTRB(
+                        gutter,
+                        0,
+                        gutter,
+                        gutter < 24 ? 12 : 16,
                       ),
-                      _PanelSlot(
-                        child: switch (_session.pendingInteraction) {
-                          final request? => InteractionPanel(
-                            key: ObjectKey(request),
-                            request: request,
-                            onAnswer: _answer,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _PanelSlot(
+                            child: HealthBanner.shows(_session.health)
+                                ? HealthBanner(
+                                    health: _session.health,
+                                    kernelName: _session.kernel.label,
+                                    onRetry: _session.restart,
+                                  )
+                                : null,
                           ),
-                          null => null,
-                        },
+                          _PanelSlot(
+                            child: switch (_session.pendingInteraction) {
+                              final request? => InteractionPanel(
+                                key: ObjectKey(request),
+                                request: request,
+                                onAnswer: _answer,
+                              ),
+                              null => null,
+                            },
+                          ),
+                          // A subagent's conversation takes no messages: how it
+                          // is doing ends it instead (see _buildAgentPage).
+                          _BottomSwitcher(
+                            child: _agentShown == null
+                                ? _buildDock()
+                                : const SizedBox.shrink(key: ValueKey('none')),
+                          ),
+                        ],
                       ),
-                      // A subagent's conversation takes no messages: how it
-                      // is doing ends it instead (see _buildAgentPage).
-                      _BottomSwitcher(
-                        child: _agentShown == null
-                            ? _buildDock()
-                            : const SizedBox.shrink(key: ValueKey('none')),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
           ),
         ],

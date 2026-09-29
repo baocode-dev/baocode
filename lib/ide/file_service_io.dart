@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
@@ -16,6 +17,9 @@ class LocalIdeFileService implements IdeFileService {
   Future<void> _operations = Future<void>.value();
 
   static const _maximumFileBytes = 5 * 1024 * 1024;
+
+  /// The limit for files opened anyway.
+  static const _forcedMaximumFileBytes = 64 * 1024 * 1024;
   static const _hiddenDirectories = {
     '.git',
     '.dart_tool',
@@ -77,35 +81,42 @@ class LocalIdeFileService implements IdeFileService {
   }
 
   @override
-  Future<String> read(String path) => _serialize(() async {
-    final resolved = await _fileInside(path);
-    final handle = await File(resolved).open();
-    late Uint8List bytes;
-    try {
-      _checkSize(await handle.length());
-      // Bound the read itself, not just the earlier stat: files may grow.
-      bytes = await handle.read(_maximumFileBytes + 1);
-      _checkSize(bytes.length);
-      _checkSize(await handle.length());
-      if (await _fileInside(path) != resolved) {
-        throw IdeFileConflictException(path);
-      }
-    } finally {
-      await handle.close();
-    }
-    final text = _decode(bytes);
-    _snapshots[_key(path)] = _FileSnapshot(
-      resolved,
-      bytes,
-      text,
-      RegExp(r'\r\n|\n|\r').firstMatch(text)?.group(0) ?? '\n',
-      bytes.length >= 3 &&
-          bytes[0] == 0xef &&
-          bytes[1] == 0xbb &&
-          bytes[2] == 0xbf,
-    );
-    return text;
-  });
+  Future<String> read(String path, {bool force = false}) =>
+      _serialize(() async {
+        if (!await File(path).exists()) throw IdeFileNotFoundException(path);
+        final resolved = await _fileInside(path);
+        final handle = await File(resolved).open();
+        final limit = force ? _forcedMaximumFileBytes : _maximumFileBytes;
+        void checkSize(int length) => _checkSize(path, length, limit: limit);
+        late Uint8List bytes;
+        try {
+          checkSize(await handle.length());
+          // Bound the read itself, not just the earlier stat: files may grow.
+          bytes = await handle.read(limit + 1);
+          checkSize(bytes.length);
+          checkSize(await handle.length());
+          if (await _fileInside(path) != resolved) {
+            throw IdeFileConflictException(path);
+          }
+        } finally {
+          await handle.close();
+        }
+        final text = force
+            ? utf8.decode(bytes, allowMalformed: true)
+            : _decode(path, bytes);
+        _snapshots[_key(path)] = _FileSnapshot(
+          resolved,
+          bytes,
+          text,
+          RegExp(r'\r\n|\n|\r').firstMatch(text)?.group(0) ?? '\n',
+          bytes.length >= 3 &&
+              bytes[0] == 0xef &&
+              bytes[1] == 0xbb &&
+              bytes[2] == 0xbf,
+          forced: force,
+        );
+        return text;
+      });
 
   @override
   Future<void> write(String path, String text, {String? expectedText}) =>
@@ -128,8 +139,10 @@ class LocalIdeFileService implements IdeFileService {
                 if (snapshot.hasBom) ...[0xef, 0xbb, 0xbf],
                 ...utf8.encode(_lf(text).replaceAll('\n', snapshot.lineEnding)),
               ]);
-        _checkSize(bytes.length);
-        _decode(bytes);
+        if (!snapshot.forced) {
+          _checkSize(path, bytes.length);
+          _decode(path, bytes);
+        }
 
         // Compare the complete file before opening it for writing. Opening in
         // FileMode.write would truncate before a conflict could be detected;
@@ -154,6 +167,7 @@ class LocalIdeFileService implements IdeFileService {
             text,
             snapshot.lineEnding,
             snapshot.hasBom,
+            forced: snapshot.forced,
           );
         } finally {
           try {
@@ -168,21 +182,27 @@ class LocalIdeFileService implements IdeFileService {
 
   static String _lf(String text) => text.replaceAll(RegExp(r'\r\n?'), '\n');
 
-  static void _checkSize(int length) {
-    if (length > _maximumFileBytes) {
-      throw const FormatException('Files over 5 MB cannot be edited');
-    }
+  static void _checkSize(
+    String path,
+    int length, {
+    int limit = _maximumFileBytes,
+  }) {
+    if (length > limit) throw IdeFileTooLargeException(path, length);
   }
 
-  static String _decode(List<int> bytes) {
+  static String _decode(String path, List<int> bytes) {
     if (bytes.any(
       (byte) =>
           (byte < 32 && byte != 9 && byte != 10 && byte != 12 && byte != 13) ||
           byte == 127,
     )) {
-      throw const FormatException('Binary files cannot be edited');
+      throw IdeBinaryFileException(path);
     }
-    return utf8.decode(bytes, allowMalformed: false);
+    try {
+      return utf8.decode(bytes, allowMalformed: false);
+    } on FormatException {
+      throw IdeBinaryFileException(path);
+    }
   }
 
   static bool _sameBytes(List<int> a, List<int> b) {
@@ -200,12 +220,51 @@ class _FileSnapshot {
     this.bytes,
     this.text,
     this.lineEnding,
-    this.hasBom,
-  );
+    this.hasBom, {
+    this.forced = false,
+  });
 
   final String path;
   final Uint8List bytes;
   final String text;
   final String lineEnding;
   final bool hasBom;
+
+  /// Opened anyway: saved without the binary and size checks.
+  final bool forced;
+}
+
+Future<IdeFileListing> walkProjectFiles(
+  String root,
+  Set<String> excluded,
+  int limit,
+) => Isolate.run(() => _walkProjectFiles(root, excluded, limit));
+
+IdeFileListing _walkProjectFiles(String root, Set<String> excluded, int limit) {
+  final paths = <String>[];
+  final pending = <String>[root];
+  var truncated = false;
+  while (pending.isNotEmpty && !truncated) {
+    final directory = pending.removeLast();
+    final List<FileSystemEntity> entries;
+    try {
+      entries = Directory(directory).listSync(followLinks: false);
+    } on FileSystemException {
+      continue;
+    }
+    for (final entry in entries) {
+      final name = p.basename(entry.path);
+      if (entry is Directory) {
+        if (!excluded.contains(name)) pending.add(p.join(directory, name));
+      } else if (entry is File) {
+        paths.add(p.join(directory, name));
+        if (paths.length >= limit) {
+          truncated = true;
+          break;
+        }
+      }
+    }
+  }
+  paths.sort();
+  return IdeFileListing(paths, truncated: truncated);
 }

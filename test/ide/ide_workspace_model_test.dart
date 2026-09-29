@@ -24,7 +24,7 @@ class _FakeIdeFileService implements IdeFileService {
   ];
 
   @override
-  Future<String> read(String path) async {
+  Future<String> read(String path, {bool force = false}) async {
     reads.add(path);
     return contents[path] ?? (throw StateError('Missing test file: $path'));
   }
