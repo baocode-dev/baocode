@@ -87,7 +87,19 @@ Terminal).
 ## Fonts
 
 `CursorFonts.mono` is still Menlo; Windows falls back to Consolas /
-Cascadia Mono via `fontFamilyFallback`.
+Cascadia Mono via `fontFamilyFallback` (`CursorFonts.windowsFallbacks`).
+
+Chinese is the other half of that chain. Segoe UI (the theme's family on
+Windows) and both monospaced families carry no Han glyphs, and where they run
+out Skia picks DengXian, whose Han sit smaller on the body than the rest of
+Windows draws them. `windowsFallbacks` therefore names **Microsoft YaHei UI**
+— the same face Windows' own FontLink table points Segoe UI at — after the
+monospaced families, so it answers for Han without taking the Latin in code
+away from `mono`.
+
+One difference that stays: Flutter draws with grayscale antialiasing, where
+GDI apps use ClearType, so our text is a shade lighter than a native app's at
+the same size.
 
 ## Build / run
 

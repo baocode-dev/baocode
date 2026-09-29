@@ -1,0 +1,120 @@
+; The Windows installer for Monad, compiled by tool/build_windows.dart.
+;
+; It is compiled with three /D defines, all required:
+;   BundleDir  the Release bundle to pack (the folder holding monad.exe)
+;   AppVersion the version pubspec.yaml carries, as it writes it (1.0.0+1)
+;   OutDir     where to write the installer (build/installers)
+;
+; Output: Monad-<version>-setup.exe
+
+#ifndef BundleDir
+  #error BundleDir is not defined: pass /DBundleDir=<release bundle folder>
+#endif
+#ifndef AppVersion
+  #error AppVersion is not defined: pass /DAppVersion=<version from pubspec.yaml>
+#endif
+#ifndef OutDir
+  #error OutDir is not defined: pass /DOutDir=<folder for the installer>
+#endif
+
+; The part of the version Windows records, without the build number pubspec
+; adds after "+".
+#define VersionNumber Copy(AppVersion, 1, Pos("+", AppVersion) - 1)
+#if Pos("+", AppVersion) == 0
+  #undef VersionNumber
+  #define VersionNumber AppVersion
+#endif
+
+[Setup]
+; Base of the identity Windows uses for the installed app. It must not change
+; between versions, or an upgrade installs beside the old one instead of over
+; it.
+AppId={{cde61266-7a57-4e0e-8e32-152bf6536000}
+AppName=Monad
+AppVersion={#VersionNumber}
+AppPublisher=Monad
+AppVerName=Monad {#VersionNumber}
+DefaultDirName={autopf}\Monad
+DefaultGroupName=Monad
+UninstallDisplayName=Monad
+UninstallDisplayIcon={app}\monad.exe
+OutputBaseFilename=Monad-{#VersionNumber}-setup
+OutputDir={#OutDir}
+; What Explorer shows for the installer itself. Windows wants four numbers,
+; where pubspec's version has three.
+VersionInfoVersion={#VersionNumber}.0
+Compression=lzma2/max
+SolidCompression=yes
+WizardStyle=modern
+; The app is 64-bit only (flutter build windows is x64 here).
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+; Installing under Program Files needs elevation; per-user is offered instead
+; on a machine where the user cannot elevate.
+PrivilegesRequiredOverridesAllowed=dialog
+DisableProgramGroupPage=yes
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; \
+  GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "addtopath"; Description: "Add Monad to the PATH"; \
+  GroupDescription: "Other:"; Flags: unchecked
+
+[Files]
+; The whole bundle: monad.exe, the engine and plugin DLLs, and data\ (the
+; AOT app.so and flutter_assets) which sit beside the executable.
+Source: "{#BundleDir}\*"; DestDir: "{app}"; \
+  Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{group}\Monad"; Filename: "{app}\monad.exe"
+Name: "{group}\{cm:UninstallProgram,Monad}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\Monad"; Filename: "{app}\monad.exe"; Tasks: desktopicon
+
+[Registry]
+; Only when asked for. Which hive follows the install mode: a per-machine
+; install writes the machine's PATH (HKLM), a per-user one the user's (HKCU).
+; Writing HKCU while installing as admin would put the entry in whichever
+; account elevated, which is not necessarily the one that runs the app.
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
+  ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; \
+  Tasks: addtopath; Check: IsAdminInstallMode and NeedsAddPath(ExpandConstant('{app}'), True)
+Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; \
+  ValueData: "{olddata};{app}"; Tasks: addtopath; \
+  Check: (not IsAdminInstallMode) and NeedsAddPath(ExpandConstant('{app}'), False)
+
+[Run]
+Filename: "{app}\monad.exe"; Description: "{cm:LaunchProgram,Monad}"; \
+  Flags: nowait postinstall skipifsilent
+
+[Code]
+// Whether {app} is already on the PATH the install will write, so a reinstall
+// does not append it a second time. Machine reads the machine's PATH, user the
+// user's, matching [Registry] above.
+function NeedsAddPath(Param: string; Machine: Boolean): Boolean;
+var
+  Path: String;
+  Subkey: String;
+  RootKey: Integer;
+begin
+  if Machine then
+  begin
+    RootKey := HKEY_LOCAL_MACHINE;
+    Subkey := 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
+  end
+  else
+  begin
+    RootKey := HKEY_CURRENT_USER;
+    Subkey := 'Environment';
+  end;
+
+  if not RegQueryStringValue(RootKey, Subkey, 'Path', Path) then
+  begin
+    Result := True;
+    Exit;
+  end;
+  Result := Pos(';' + Uppercase(Param) + ';', ';' + Uppercase(Path) + ';') = 0;
+end;

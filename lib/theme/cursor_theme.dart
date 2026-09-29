@@ -86,14 +86,29 @@ abstract final class CursorFonts {
   /// The font code, paths and commands are drawn in, as macOS has it.
   static const mono = 'Menlo';
 
-  /// What to fall back on where [mono] is not installed: Windows has no
-  /// Menlo, and would otherwise draw code in its proportional default. Set
-  /// once, for all text, by the theme there (see [buildCursorTheme]): a
-  /// family the text names comes first, so only [mono] falls back to these,
-  /// and what the UI's own font lacks (CJK, emoji) they lack as well.
-  static const monoFallbacks = <String>[
+  /// What Windows falls back on. Set once, for all text, by the theme there
+  /// (see [buildCursorTheme]): a family the text names comes first, so this
+  /// catches only what that family has not got.
+  ///
+  /// The monospaced families come first for [mono], which is Menlo, and which
+  /// Windows has not got: code would otherwise be drawn in the proportional
+  /// default.
+  ///
+  /// [Microsoft YaHei UI] is after them, for Chinese, which nothing above it
+  /// carries: Segoe UI, Consolas and Cascadia Mono have no Han glyphs at all,
+  /// and Skia's own choice where they run out is DengXian, whose Han sit
+  /// smaller on the body than the rest of Windows draws them. Windows answers
+  /// this one itself — its FontLink table (SystemLink, in the registry) points
+  /// Segoe UI at Microsoft YaHei UI — so naming it here is the same answer,
+  /// and the same shapes, as every other app on the machine.
+  ///
+  /// It must stay after the monospaced families, which is the one order that
+  /// leaves them to [mono] and still reaches YaHei for Han: put it first and
+  /// it would answer for the Latin in code as well.
+  static const windowsFallbacks = <String>[
     'Consolas',
     'Cascadia Mono',
+    'Microsoft YaHei UI',
     'monospace',
   ];
 
@@ -111,7 +126,7 @@ ThemeData buildCursorTheme() {
   return ThemeData(
     brightness: Brightness.dark,
     fontFamilyFallback: AppPlatform.isWindows
-        ? CursorFonts.monoFallbacks
+        ? CursorFonts.windowsFallbacks
         : null,
     // The conversation's own color is under it (see Workbench).
     scaffoldBackgroundColor: CursorColors.windowCanvas,
