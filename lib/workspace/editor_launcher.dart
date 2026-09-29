@@ -1,5 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import '../platform/app_platform.dart';
 
 import 'editor_launcher_stub.dart'
     if (dart.library.io) 'editor_launcher_io.dart'
@@ -66,10 +67,11 @@ enum Editor {
   final IconData icon;
 
   /// What the platform calls it.
-  String get platformLabel => _windows ? (windowsLabel ?? label) : label;
+  String get platformLabel =>
+      AppPlatform.isWindows ? (windowsLabel ?? label) : label;
 
   /// Whether the platform has it at all.
-  bool get available => !macOSOnly || !_windows;
+  bool get available => !macOSOnly || !AppPlatform.isWindows;
 
   /// The apps this platform can open a project in, in the order of the
   /// menu.
@@ -77,9 +79,6 @@ enum Editor {
     for (final editor in values)
       if (editor.available) editor,
   ];
-
-  static bool get _windows =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 }
 
 /// Opens [path] in [editor]. False where that is not possible (the web, a

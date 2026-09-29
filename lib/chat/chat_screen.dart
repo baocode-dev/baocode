@@ -18,13 +18,6 @@ import 'panels/context_usage_panel.dart';
 import 'panels/todo_panel.dart';
 import 'widgets/inline_rename_field.dart';
 
-/// Shows or hides the conversation's context usage panel. The window's View
-/// menu asks for it (see window_header/): the panel belongs to the
-/// conversation, so the menu only asks, and this handles it where it lives.
-class ToggleContextPanelIntent extends Intent {
-  const ToggleContextPanelIntent();
-}
-
 /// Layout, top to bottom:
 /// - history + live turn: a virtual list that yields height;
 /// - feedback / modal / indicator panels: take the height they need;
@@ -66,6 +59,11 @@ class ChatScreen extends StatefulWidget {
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
+
+  /// Shows or hides the context usage panel of the chat [key] is on, as the
+  /// window's View menu asks (see window_header/), wherever the focus is.
+  static void toggleContextPanel(GlobalKey key) =>
+      (key.currentState as _ChatScreenState?)?._toggleContextPanel();
 }
 
 class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
@@ -227,7 +225,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     return SizedBox(
       height: CursorMetrics.titleBarHeight,
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: inset),
+        padding: EdgeInsets.only(left: inset, right: 8),
         child: Row(
           children: [
             if (widget.leading case final leading?) ...[
@@ -294,27 +292,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Actions(
-      // What the window's View menu asks of this conversation, which keeps
-      // the panel's state (see ToggleContextPanelIntent and window_header/).
-      actions: {
-        ToggleContextPanelIntent: CallbackAction<ToggleContextPanelIntent>(
-          onInvoke: (_) {
-            _toggleContextPanel();
-            return null;
-          },
-        ),
-      },
-      child: ListenableBuilder(
-        listenable: _session,
-        builder: (context, child) => ComposerVocabulary(
-          commands: _commandSuggestions(),
-          mentions: widget.mentions,
-          suggestFiles: _session.suggestFiles,
-          child: child!,
-        ),
-        child: _buildBody(),
+    return ListenableBuilder(
+      listenable: _session,
+      builder: (context, child) => ComposerVocabulary(
+        commands: _commandSuggestions(),
+        mentions: widget.mentions,
+        suggestFiles: _session.suggestFiles,
+        child: child!,
       ),
+      child: _buildBody(),
     );
   }
 
@@ -519,25 +505,42 @@ class _AgentLayer {
 /// The composer and its panels, or a subagent's status in their place:
 /// the one shown fades in. The height changes at once, as the panels'
 /// do (see [_PanelSlot]); one at a time, the composer having a global key.
-class _BottomSwitcher extends StatelessWidget {
+class _BottomSwitcher extends StatefulWidget {
   const _BottomSwitcher({required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => _FadeIn(key: child.key, child: child);
+  State<_BottomSwitcher> createState() => _BottomSwitcherState();
 }
 
-/// Fades and rises into place once, when first built.
-class _FadeIn extends StatelessWidget {
-  const _FadeIn({super.key, required this.child});
+class _BottomSwitcherState extends State<_BottomSwitcher> {
+  /// Whether it has shown another child since the first: the one it opens
+  /// with is simply there, with the conversation.
+  bool _switched = false;
 
+  @override
+  void didUpdateWidget(_BottomSwitcher oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.child.key != oldWidget.child.key) _switched = true;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _FadeIn(key: widget.child.key, animate: _switched, child: widget.child);
+}
+
+/// Fades and rises into place once, when first built with [animate].
+class _FadeIn extends StatelessWidget {
+  const _FadeIn({super.key, required this.animate, required this.child});
+
+  final bool animate;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
+      tween: Tween(begin: animate ? 0 : 1, end: 1),
       duration: const Duration(milliseconds: 240),
       curve: Curves.easeOutCubic,
       builder: (context, t, child) => Opacity(

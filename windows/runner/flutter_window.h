@@ -5,6 +5,7 @@
 #include <flutter/flutter_view_controller.h>
 
 #include <memory>
+#include <optional>
 
 #include "win32_window.h"
 #include "window_channel.h"
@@ -48,6 +49,10 @@ class FlutterWindow : public Win32Window {
 
   // What Flutter asks of this window.
   std::unique_ptr<WindowChannel> window_channel_;
+
+  // The window button pressed, until the press is let go: the button acts
+  // then, and only if the pointer is still on it, as the system's own do.
+  std::optional<LRESULT> pressed_button_;
 
   // The Flutter view's window, and the procedure it had before ViewProc took
   // its place (put back when the window goes).

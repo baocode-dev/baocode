@@ -86,11 +86,7 @@ class ToolCallRow extends StatelessWidget {
       children: [
         Text(
           path!,
-          style: const TextStyle(
-            fontFamily: CursorFonts.mono,
-            fontFamilyFallback: CursorFonts.monoFallbacks,
-            fontSize: 12,
-          ),
+          style: const TextStyle(fontFamily: CursorFonts.mono, fontSize: 12),
         ),
         if (lines != null)
           Text(

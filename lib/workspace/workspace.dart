@@ -1,14 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 
 import '../chat/chat_models.dart';
 import '../chat/chat_session.dart';
 import '../chat/mock_conversation.dart';
 import '../kernel/agent_kernel.dart';
 import '../kernel/kernel_registry.dart';
-import 'package:path/path.dart' as p;
-
 import '../kernel/kernel_types.dart';
 import 'editor_launcher.dart';
 import 'preference_store.dart';
@@ -476,9 +475,11 @@ class Workspace extends ChangeNotifier {
         case final kernel?) {
       _preferredKernel = kernel;
     }
-    if (Editor.availableEditors
-        .where((e) => e.name == kept['editor'])
-        .firstOrNull
+    // The file manager was kept as `finder` before it was `folder`.
+    final editor = kept['editor'] == 'finder'
+        ? Editor.folder.name
+        : kept['editor'];
+    if (Editor.availableEditors.where((e) => e.name == editor).firstOrNull
         case final editor?) {
       _preferredEditor = editor;
     }

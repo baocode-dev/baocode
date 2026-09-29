@@ -243,10 +243,16 @@ Win32Window::MessageHandler(HWND hwnd,
       return 0;
 
     case WM_GETMINMAXINFO: {
+      // At the dpi the window has now, with the frame it has (see
+      // NonClientSize): the sides and the bottom, no top.
       if (minimum_size_.width > 0 && minimum_size_.height > 0) {
+        const double scale = FlutterDesktopGetDpiForHWND(hwnd) / 96.0;
+        const SIZE border = ResizeBorder();
         auto* info = reinterpret_cast<MINMAXINFO*>(lparam);
-        info->ptMinTrackSize.x = static_cast<LONG>(minimum_size_.width);
-        info->ptMinTrackSize.y = static_cast<LONG>(minimum_size_.height);
+        info->ptMinTrackSize.x =
+            static_cast<LONG>(minimum_size_.width * scale) + 2 * border.cx;
+        info->ptMinTrackSize.y =
+            static_cast<LONG>(minimum_size_.height * scale) + border.cy;
       }
       return 0;
     }
@@ -311,18 +317,25 @@ void Win32Window::SetMinimumSize(const Size& size) {
   minimum_size_ = size;
 }
 
+SIZE Win32Window::ResizeBorder() const {
+  const UINT dpi = FlutterDesktopGetDpiForHWND(window_handle_);
+  const int padding = ::GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+  return {::GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) + padding,
+          ::GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) + padding};
+}
+
 std::optional<LRESULT> Win32Window::NonClientSize(WPARAM wparam,
                                                  LPARAM lparam) const {
   // Both forms of the message: the one with a proposed window rectangle, and
   // the one with a plain rectangle to fill in (sent as the window is
-  // created). Either way the client is the whole window — the system has no
-  // caption to draw and no frame to keep — but the monitor's work area while
-  // maximized: Windows sizes such a window to cover the monitor, and this is
-  // what keeps the content off the taskbar.
+  // created).
   RECT* client = wparam == static_cast<WPARAM>(TRUE)
                      ? &reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam)->rgrc[0]
                      : reinterpret_cast<RECT*>(lparam);
-  if (window_handle_ != nullptr && ::IsZoomed(window_handle_)) {
+  if (window_handle_ == nullptr) {
+    return 0;
+  }
+  if (::IsZoomed(window_handle_)) {
     MONITORINFO monitor = {};
     monitor.cbSize = sizeof(monitor);
     if (::GetMonitorInfoW(::MonitorFromWindow(window_handle_,
@@ -330,7 +343,12 @@ std::optional<LRESULT> Win32Window::NonClientSize(WPARAM wparam,
                           &monitor)) {
       *client = monitor.rcWork;
     }
+    return 0;
   }
+  const SIZE border = ResizeBorder();
+  client->left += border.cx;
+  client->right -= border.cx;
+  client->bottom -= border.cy;
   return 0;
 }
 
@@ -347,15 +365,15 @@ std::optional<LRESULT> Win32Window::ResizeHitTest(const POINT& point) const {
   if (!::GetClientRect(window_handle_, &client)) {
     return std::nullopt;
   }
-  const UINT dpi = ::FlutterDesktopGetDpiForHWND(window_handle_);
-  const int border_x = ::GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) +
-                       ::GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
-  const int border_y = ::GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
-                       ::GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
-  const bool left = point.x < border_x;
-  const bool right = point.x >= client.right - border_x;
-  const bool top = point.y < border_y;
-  const bool bottom = point.y >= client.bottom - border_y;
+  const SIZE border = ResizeBorder();
+  // The top is a strip of the client (there is no frame above it), and its
+  // corners reach in as far as the sides' border reaches out; the sides and
+  // the bottom are the frame, outside the client.
+  const bool top = point.y < border.cy;
+  const LONG corner = top ? border.cx : 0;
+  const bool left = point.x < corner;
+  const bool right = point.x >= client.right - corner;
+  const bool bottom = point.y >= client.bottom;
   if (left && top) {
     return HTTOPLEFT;
   }

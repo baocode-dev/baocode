@@ -39,12 +39,17 @@ class WindowChannel {
   WindowChannel(const WindowChannel&) = delete;
   WindowChannel& operator=(const WindowChannel&) = delete;
 
-  // What the window hit-tests its header with (see CaptionAreas).
+  // What the window hit-tests its header with (see CaptionAreas), at the
+  // dpi it has now.
   std::optional<LRESULT> ButtonAt(POINT point) const {
-    return areas_.ButtonAt(point);
+    return areas_.ButtonAt(point, Scale());
   }
-  bool IsHeaderControl(POINT point) const { return areas_.IsControl(point); }
-  bool IsInHeader(POINT point) const { return areas_.Contains(point); }
+  bool IsHeaderControl(POINT point) const {
+    return areas_.IsControl(point, Scale());
+  }
+  bool IsInHeader(POINT point) const {
+    return areas_.Contains(point, Scale());
+  }
 
   // Tells Flutter which of the window's buttons the pointer is over (the
   // system is the one hit-testing them, so this is how the header paints
@@ -62,6 +67,9 @@ class WindowChannel {
   void Open(const flutter::EncodableMap& arguments,
             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
                 result);
+
+  // The window's dpi over 96: its physical pixels to one of Flutter's.
+  double Scale() const;
 
   // The window the commands act on: the runner's own, not the Flutter view
   // it holds.

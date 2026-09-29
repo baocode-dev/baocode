@@ -183,7 +183,6 @@ class _ServerRow extends StatelessWidget {
                       style: const TextStyle(
                         color: CursorColors.textMuted,
                         fontFamily: CursorFonts.mono,
-                        fontFamilyFallback: CursorFonts.monoFallbacks,
                         fontSize: 11,
                       ),
                     ),

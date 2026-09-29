@@ -220,7 +220,7 @@ class _SidebarState extends State<Sidebar> {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: CursorColors.background,
+      color: CursorColors.sidebarSurface,
       child: ListenableBuilder(
         listenable: _workspace,
         builder: (context, _) => Column(

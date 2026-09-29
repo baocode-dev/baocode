@@ -6,7 +6,6 @@ import 'markdown_view.dart';
 const _codeStyle = TextStyle(
   color: CursorColors.inlineCode,
   fontFamily: CursorFonts.mono,
-  fontFamilyFallback: CursorFonts.monoFallbacks,
   fontSize: 12.5,
   backgroundColor: CursorColors.inlineCodeBackground,
 );

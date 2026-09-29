@@ -19,11 +19,7 @@ class EditStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const count = TextStyle(
-      fontFamily: CursorFonts.mono,
-      fontFamilyFallback: CursorFonts.monoFallbacks,
-      fontSize: 11.5,
-    );
+    const count = TextStyle(fontFamily: CursorFonts.mono, fontSize: 11.5);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -89,7 +85,6 @@ class _DiffLineRow extends StatelessWidget {
     };
     const mono = TextStyle(
       fontFamily: CursorFonts.mono,
-      fontFamilyFallback: CursorFonts.monoFallbacks,
       fontSize: 12,
       height: 1.6,
     );

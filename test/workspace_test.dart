@@ -170,6 +170,13 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
+  testWidgets('the file manager, kept by its old name, is still the one '
+      'picked', (tester) async {
+    final store = MemoryPreferenceStore({'editor': 'finder'});
+    final workspace = await pumpLoaded(tester, preferences: store);
+    expect(workspace.preferredEditor, Editor.folder);
+  });
+
   testWidgets('choices are kept between runs: a new agent starts with the '
       'last ones, a kept session with its own', (tester) async {
     final store = MemoryPreferenceStore({

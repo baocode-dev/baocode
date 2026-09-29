@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/chat/chat_history_view.dart';
+import 'package:monad/chat/chat_models.dart';
 import 'package:monad/chat/chat_screen.dart';
 import 'package:monad/chat/chat_session.dart';
 import 'package:monad/chat/composer/composer.dart';
+import 'package:monad/chat/widgets/image_thumbnails.dart';
 import 'package:monad/chat/widgets/tool_call_row.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
 import 'package:monad/theme/cursor_theme.dart';
@@ -190,5 +192,67 @@ void main() {
       find.ancestor(of: editor, matching: find.byType(ClipRect)).first,
     );
     expect(clip.clipBehavior, Clip.none);
+  });
+
+  testWidgets('editing moves nothing: its pictures and text stay put', (
+    tester,
+  ) async {
+    final session = ChatSession(historyCount: 0);
+    addTearDown(session.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildCursorTheme(),
+        localizationsDelegates: const [FlutterQuillLocalizations.delegate],
+        home: ChatScreen(session: session),
+      ),
+    );
+    await tester.pump();
+    session.send(
+      ComposerMessage(
+        text: '已经吸顶的不要动画了',
+        images: [
+          ImageAttachment(
+            bytes: Uint8List.fromList(const [1, 2, 3]),
+            mediaType: 'image/png',
+          ),
+        ],
+      ),
+    );
+    await tester.pump();
+    session.stop();
+    await tester.pump(const Duration(seconds: 1));
+
+    // Where its pictures and its text are, within it.
+    (Offset, Offset) layout(Finder box) {
+      final origin = tester.getTopLeft(box);
+      final text = find.descendant(
+        of: box,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is RichText && widget.text.toPlainText().contains('吸顶'),
+        ),
+      );
+      return (
+        tester.getTopLeft(
+              find.descendant(of: box, matching: find.byType(ImageThumbnails)),
+            ) -
+            origin,
+        tester.getTopLeft(text.first) - origin,
+      );
+    }
+
+    final history = find.byType(ChatHistoryView);
+    // The one in the list (not its copy for the top).
+    final bubble = find
+        .descendant(of: history, matching: find.byType(UserMessageBubble))
+        .first;
+    final before = layout(bubble);
+    await tester.tap(bubble);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      layout(find.descendant(of: history, matching: find.byType(ChatComposer))),
+      before,
+    );
   });
 }

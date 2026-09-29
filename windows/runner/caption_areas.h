@@ -7,7 +7,10 @@
 #include <vector>
 
 // Where the header Flutter draws put its pieces (see
-// lib/workspace/window_header/), in the window's own physical pixels.
+// lib/workspace/window_header/), as Flutter reports them: in its own logical
+// pixels, taken to the window's physical ones at each hit test, at the dpi
+// the window has then (a move to another monitor changes it, and nothing of
+// the header's layout).
 //
 // The window hit-tests them: the three window buttons are the system's (so a
 // click minimizes, maximizes or closes it, with the system's animations and
@@ -24,9 +27,8 @@ class CaptionAreas {
     double height = 0;
   };
 
-  // What Flutter reported. |scale| is the window's dpi over 96.
-  void Set(double scale,
-           double height,
+  // What Flutter reported.
+  void Set(double height,
            std::vector<Rect> controls,
            Rect minimize,
            Rect maximize,
@@ -36,23 +38,24 @@ class CaptionAreas {
   // host without the channel), the window has no header of its own.
   bool empty() const { return height_ <= 0; }
 
-  // Which of the window's buttons |point| (client pixels) is on, or nullopt;
-  // the code is what the window answers WM_NCHITTEST with.
-  std::optional<LRESULT> ButtonAt(POINT point) const;
+  // Which of the window's buttons |point| (client pixels, at |scale|, the
+  // window's dpi over 96) is on, or nullopt; the code is what the window
+  // answers WM_NCHITTEST with.
+  std::optional<LRESULT> ButtonAt(POINT point, double scale) const;
 
   // Whether |point| is in the header at all.
-  bool Contains(POINT point) const;
+  bool Contains(POINT point, double scale) const;
 
   // Whether |point| is one of the pieces Flutter kept: a click there is
   // Flutter's, not the window's to drag itself by.
-  bool IsControl(POINT point) const;
+  bool IsControl(POINT point, double scale) const;
 
  private:
-  std::vector<RECT> controls_;
-  RECT minimize_ = {};
-  RECT maximize_ = {};
-  RECT close_ = {};
-  int height_ = 0;
+  std::vector<Rect> controls_;
+  Rect minimize_;
+  Rect maximize_;
+  Rect close_;
+  double height_ = 0;
 };
 
 #endif  // RUNNER_CAPTION_AREAS_H_

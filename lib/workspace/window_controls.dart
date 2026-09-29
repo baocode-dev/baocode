@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../chat/chat_models.dart';
+import '../platform/app_platform.dart';
 
 /// One of the window's own buttons, over a header the app draws itself: the
 /// system hit-tests and acts on those pixels, so the header only paints them
@@ -16,18 +17,14 @@ abstract final class WindowControls {
 
   /// Whether the app runs in a window to command: the desktop app, not a
   /// browser tab.
-  static bool get isDesktop =>
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.macOS ||
-          defaultTargetPlatform == TargetPlatform.windows);
+  static bool get isDesktop => AppPlatform.isMacOS || AppPlatform.isWindows;
 
   /// Whether the window is the app's own to draw: Windows, where the header
   /// carries the menus, the session's tools and the window buttons (see
   /// workspace/window_header/). Elsewhere the system draws the caption —
   /// macOS with its traffic lights over a title bar Flutter paints under
   /// them.
-  static bool get drawsHeader =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+  static bool get drawsHeader => AppPlatform.isWindows;
 
   /// Whether the window can be kept on top.
   static bool get canKeepOnTop => isDesktop;
@@ -43,8 +40,9 @@ abstract final class WindowControls {
   }
 
   /// Which of them the pointer is over, or null; the window reports it.
-  static final ValueNotifier<WindowButton?> hoveredWindowButton =
-      ValueNotifier(null);
+  static final ValueNotifier<WindowButton?> hoveredWindowButton = ValueNotifier(
+    null,
+  );
 
   /// Whether the window fills the screen, so its button offers the way back
   /// down; the window reports it.
@@ -125,22 +123,23 @@ abstract final class WindowControls {
   /// for a URL; whatever opens a file or folder), or in [app] when given,
   /// with [arguments] passed to it.
   ///
-  /// Only where the window can do it: the Windows app, which has no
-  /// command of its own to hand a target to (the macOS launcher runs
-  /// `open`) — see windows/runner/window_channel.cpp. False elsewhere, and
-  /// when the app is not there.
+  /// Only the Windows app's window does it, having no command of its own
+  /// to hand a target to (the macOS launcher runs `open`) — see
+  /// windows/runner/window_channel.cpp. False elsewhere, and when the app
+  /// is not there.
   static Future<bool> openExternal(
     String target, {
     String? app,
     List<String> arguments = const [],
   }) async {
-    if (!isDesktop) return false;
+    if (!AppPlatform.isWindows) return false;
     try {
       return await _channel.invokeMethod<bool>('open', {
-        'target': target,
-        'app': ?app,
-        if (arguments.isNotEmpty) 'arguments': arguments,
-      }) ?? false;
+            'target': target,
+            'app': ?app,
+            if (arguments.isNotEmpty) 'arguments': arguments,
+          }) ??
+          false;
     } on MissingPluginException {
       return false;
     }
@@ -174,8 +173,7 @@ abstract final class WindowControls {
 
   /// Whether the OS has a menu bar of its own to carry the Edit commands
   /// (macOS), where the engine's own handling of them falls short.
-  static bool get hasEditMenu =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+  static bool get hasEditMenu => AppPlatform.isMacOS;
 
   /// Runs the Edit menu's [command] on the focused widget: what the macOS
   /// menu bar and the Windows header's Edit menu both ask for.
@@ -190,14 +188,10 @@ abstract final class WindowControls {
       'selectAll' => const SelectAllTextIntent(cause),
       _ => null,
     };
-    if (intent != null) runIntent(intent);
-  }
-
-  /// Runs [intent] where the focus is: what a menu asks of whatever has it
-  /// (the composer, the conversation's selection, the chat it sits in).
-  static void runIntent(Intent intent) {
     final context = FocusManager.instance.primaryFocus?.context;
-    if (context != null) Actions.maybeInvoke(context, intent);
+    if (intent != null && context != null) {
+      Actions.maybeInvoke(context, intent);
+    }
   }
 
   /// Whether menus can be the system's own: the desktop app.

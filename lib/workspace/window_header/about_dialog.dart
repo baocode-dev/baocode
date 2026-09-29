@@ -4,7 +4,8 @@ import '../../chat/panels/interaction_panel.dart';
 import '../../theme/cursor_theme.dart';
 
 /// The version this build is of, as pubspec.yaml says; kept here rather than
-/// read at runtime, which would mean another package for one line.
+/// read at runtime, which would mean another package for one line. A test
+/// holds the two together.
 const monadVersion = '1.0.0';
 
 /// Help → About: what the app is, and which build this is.
@@ -64,7 +65,6 @@ class _AboutMonadDialog extends StatelessWidget {
                     color: CursorColors.textFaint,
                     fontSize: 12,
                     fontFamily: CursorFonts.mono,
-                    fontFamilyFallback: CursorFonts.monoFallbacks,
                   ),
                 ),
               ],

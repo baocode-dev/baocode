@@ -21,10 +21,6 @@ constexpr unsigned int kDefaultHeight = 760;
 constexpr unsigned int kMinClientWidth = 400;
 constexpr unsigned int kMinClientHeight = 540;
 
-int Scale(int source, double scale_factor) {
-  return static_cast<int>(source * scale_factor);
-}
-
 // Places |size| in the centre of the monitor under |origin|, capped to that
 // monitor's work area. |size| and |placed| are in logical pixels: Create
 // scales them for the monitor's DPI.
@@ -59,21 +55,6 @@ void PlaceOnMonitor(const Win32Window::Point& origin,
       (work_height - static_cast<int>(size->height)) / 2);
 }
 
-// The outer-frame size that holds a client area of |client_width| by
-// |client_height| under |style| and |ex_style|, in the same units as those
-// sizes (logical, when they are).
-Win32Window::Size FrameForClient(unsigned int client_width,
-                                 unsigned int client_height,
-                                 DWORD style,
-                                 DWORD ex_style) {
-  RECT rect = {0, 0, static_cast<LONG>(client_width),
-               static_cast<LONG>(client_height)};
-  ::AdjustWindowRectEx(&rect, style, FALSE, ex_style);
-  return Win32Window::Size(
-      static_cast<unsigned int>(rect.right - rect.left),
-      static_cast<unsigned int>(rect.bottom - rect.top));
-}
-
 }  // namespace
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
@@ -103,15 +84,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (!window.Create(L"Monad", placed, size)) {
     return EXIT_FAILURE;
   }
-  // WM_GETMINMAXINFO is in physical pixels; Create took logical ones.
-  const double scale =
-      ::FlutterDesktopGetDpiForHWND(window.GetHandle()) / 96.0;
-  const Win32Window::Size logical_min = FrameForClient(
-      kMinClientWidth, kMinClientHeight, Win32Window::kStyle, 0);
-  window.SetMinimumSize(Win32Window::Size(
-      static_cast<unsigned int>(Scale(static_cast<int>(logical_min.width), scale)),
-      static_cast<unsigned int>(
-          Scale(static_cast<int>(logical_min.height), scale))));
+  window.SetMinimumSize(Win32Window::Size(kMinClientWidth, kMinClientHeight));
   window.SetQuitOnClose(true);
 
   ::MSG msg;

@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
-import '../../chat/chat_screen.dart';
 import '../../sidebar/sidebar.dart';
 import '../../theme/cursor_theme.dart';
 import '../open_in_editor_button.dart';
@@ -29,6 +29,7 @@ class WindowHeader extends StatefulWidget {
     required this.pinned,
     required this.onTogglePin,
     required this.onOpenFolder,
+    required this.onToggleContextPanel,
     this.project,
   });
 
@@ -50,6 +51,9 @@ class WindowHeader extends StatefulWidget {
   /// The File menu's Open Folder: asks for a folder and opens it.
   final Future<void> Function() onOpenFolder;
 
+  /// The View menu's Context Panel: the current chat's.
+  final VoidCallback onToggleContextPanel;
+
   @override
   State<WindowHeader> createState() => _WindowHeaderState();
 }
@@ -70,9 +74,23 @@ class _WindowHeaderState extends State<WindowHeader> {
   List<Rect>? _reported;
 
   @override
+  void initState() {
+    super.initState();
+    _watch();
+  }
+
+  /// Checks where the controls are after every frame, for as long as the
+  /// header is there: they move without it being built again (the editor
+  /// button's label is its own to change). No frame is asked for, and the
+  /// window hears only of a change (see [_report]).
+  void _watch() {
+    if (!mounted) return;
+    _report();
+    SchedulerBinding.instance.addPostFrameCallback((_) => _watch());
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Where the controls ended up is only known once they are laid out.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _report());
     // A Material of its own, as the sidebar has: the strip is outside the
     // chat's Scaffold, and this is what gives its text the app's own style.
     // The line under it is what tells it apart from what it sits over —
@@ -94,12 +112,17 @@ class _WindowHeaderState extends State<WindowHeader> {
                 child: SidebarIconButton(
                   icon: Icons.view_sidebar_outlined,
                   flip: true,
-                  tooltip: widget.sidebarShown ? 'Hide sidebar' : 'Show sidebar',
+                  tooltip: widget.sidebarShown
+                      ? 'Hide sidebar'
+                      : 'Show sidebar',
                   onTap: widget.onToggleSidebar,
                 ),
               ),
               const SizedBox(width: 2),
-              KeyedSubtree(key: _menus, child: HeaderMenuBar(items: _items)),
+              KeyedSubtree(
+                key: _menus,
+                child: HeaderMenuBar(items: _items),
+              ),
               const Spacer(),
               KeyedSubtree(
                 key: _pin,
@@ -134,7 +157,6 @@ class _WindowHeaderState extends State<WindowHeader> {
   /// Tells the window where the header's controls are: the rest of the strip
   /// drags it, and its three buttons are the system's own to run.
   void _report() {
-    if (!mounted) return;
     final controls = <Rect>[
       for (final key in [_toggle, _menus, _pin, _open]) ?_rect(key),
     ];
@@ -229,11 +251,7 @@ class _WindowHeaderState extends State<WindowHeader> {
         onSelected: () => widget.onTogglePin(!widget.pinned),
       ),
       const HeaderMenuItem.rule(),
-      HeaderMenuItem(
-        'Context Panel',
-        onSelected: () =>
-            WindowControls.runIntent(const ToggleContextPanelIntent()),
-      ),
+      HeaderMenuItem('Context Panel', onSelected: widget.onToggleContextPanel),
     ],
     HeaderMenu.help => [
       HeaderMenuItem('About Monad', onSelected: () => showAboutMonad(context)),

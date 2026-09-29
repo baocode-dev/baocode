@@ -229,7 +229,6 @@ class StepBody extends StatelessWidget {
 /// Monospaced text as steps show it: commands, output, matches.
 const stepMono = TextStyle(
   fontFamily: CursorFonts.mono,
-  fontFamilyFallback: CursorFonts.monoFallbacks,
   fontSize: 12,
   height: 1.5,
   color: CursorColors.textMuted,

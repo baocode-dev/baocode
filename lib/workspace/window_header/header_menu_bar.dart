@@ -52,9 +52,7 @@ class _HeaderMenuBarState extends State<HeaderMenuBar> {
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final menu in HeaderMenu.values) _buildLabel(menu),
-      ],
+      children: [for (final menu in HeaderMenu.values) _buildLabel(menu)],
     );
   }
 

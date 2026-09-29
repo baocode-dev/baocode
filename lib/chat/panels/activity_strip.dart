@@ -251,9 +251,6 @@ class _TaskRow extends StatelessWidget {
                     fontFamily: task.kind == KernelTaskKind.command
                         ? CursorFonts.mono
                         : null,
-                    fontFamilyFallback: task.kind == KernelTaskKind.command
-                        ? CursorFonts.monoFallbacks
-                        : null,
                     fontSize: 11.5,
                   ),
                 ),
@@ -346,7 +343,6 @@ class _FilesHeader extends StatelessWidget {
           style: const TextStyle(
             color: CursorColors.added,
             fontFamily: CursorFonts.mono,
-            fontFamilyFallback: CursorFonts.monoFallbacks,
             fontSize: 11.5,
           ),
         ),
@@ -356,7 +352,6 @@ class _FilesHeader extends StatelessWidget {
           style: const TextStyle(
             color: CursorColors.removed,
             fontFamily: CursorFonts.mono,
-            fontFamilyFallback: CursorFonts.monoFallbacks,
             fontSize: 11.5,
           ),
         ),
@@ -412,7 +407,6 @@ class _FileRow extends StatelessWidget {
             style: const TextStyle(
               color: CursorColors.added,
               fontFamily: CursorFonts.mono,
-              fontFamilyFallback: CursorFonts.monoFallbacks,
               fontSize: 11,
             ),
           ),
@@ -423,7 +417,6 @@ class _FileRow extends StatelessWidget {
             style: const TextStyle(
               color: CursorColors.removed,
               fontFamily: CursorFonts.mono,
-              fontFamilyFallback: CursorFonts.monoFallbacks,
               fontSize: 11,
             ),
           ),

@@ -142,9 +142,27 @@ CaptionAreas::Rect ButtonRect(const flutter::EncodableMap& arguments,
 }
 
 // A command line argument: quoted, so that a path with spaces in it stays
-// one argument (neither a path nor a URL holds a quote itself).
+// one argument, and escaped as the program reads its command line back
+// (CommandLineToArgvW): backslashes are only literal where no quote follows
+// them, which the closing one does — a drive's root, `C:\`, would otherwise
+// run on into what comes after it.
 std::wstring Quoted(const std::string& argument) {
-  return L"\"" + Utf16FromUtf8(argument) + L"\"";
+  const std::wstring text = Utf16FromUtf8(argument);
+  std::wstring quoted = L"\"";
+  size_t backslashes = 0;
+  for (const wchar_t c : text) {
+    if (c == L'\\') {
+      ++backslashes;
+      continue;
+    }
+    // Before a quote, each backslash doubled and the quote escaped.
+    quoted.append(c == L'"' ? backslashes * 2 + 1 : backslashes, L'\\');
+    backslashes = 0;
+    quoted += c;
+  }
+  // Before the closing quote, each doubled.
+  quoted.append(backslashes * 2, L'\\');
+  return quoted + L"\"";
 }
 
 // The project folder the user picked through the system's own panel; null
@@ -265,7 +283,7 @@ void WindowChannel::HandleMethodCall(
     }
     // The position is in Flutter's own pixels, from the top left of the
     // client area; the menu opens at the screen point under it.
-    const double scale = ::FlutterDesktopGetDpiForHWND(window_) / 96.0;
+    const double scale = Scale();
     POINT at = {static_cast<LONG>(Number(arguments, "x") * scale),
                 static_cast<LONG>(Number(arguments, "y") * scale)};
     ::ClientToScreen(window_, &at);
@@ -285,9 +303,9 @@ void WindowChannel::HandleMethodCall(
 
   if (method == "setHitTestAreas") {
     // Flutter drew its header: this is where its pieces are, in the app's
-    // own pixels. The window scales them to its own (see CaptionAreas).
-    areas_.Set(::FlutterDesktopGetDpiForHWND(window_) / 96.0,
-               Number(arguments, "height"), Rects(arguments, "controls"),
+    // own pixels. The window scales them to its own as it hit-tests them
+    // (see CaptionAreas).
+    areas_.Set(Number(arguments, "height"), Rects(arguments, "controls"),
                ButtonRect(arguments, "minimize"),
                ButtonRect(arguments, "maximize"),
                ButtonRect(arguments, "close"));
@@ -314,6 +332,10 @@ void WindowChannel::HandleMethodCall(
   }
 
   result->NotImplemented();
+}
+
+double WindowChannel::Scale() const {
+  return ::FlutterDesktopGetDpiForHWND(window_) / 96.0;
 }
 
 void WindowChannel::ReportHover(LRESULT hit) {

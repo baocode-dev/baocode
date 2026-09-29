@@ -87,7 +87,6 @@ class MathView extends StatelessWidget {
         style: const TextStyle(
           color: CursorColors.inlineCode,
           fontFamily: CursorFonts.mono,
-          fontFamilyFallback: CursorFonts.monoFallbacks,
           fontSize: 12.5,
         ),
       ),

@@ -63,8 +63,8 @@ class Win32Window {
   // If true, closing this window will quit the application.
   void SetQuitOnClose(bool quit_on_close);
 
-  // The smallest the window may be, in physical pixels of its outer frame
-  // (what AdjustWindowRectEx returns for a client size). Zero means none.
+  // The smallest the client area may be, in logical pixels: the window's
+  // frame and its dpi at the time are added to it. Zero means none.
   void SetMinimumSize(const Size& size);
 
   // Return a RECT representing the bounds of the current client area.
@@ -90,16 +90,17 @@ class Win32Window {
   // resize border; nullopt when it is not, or the window is maximized (where
   // the system drags it back down by the header instead).
   //
-  // The border is the system's even though the window draws no caption (see
-  // WM_NCCALCSIZE): the window is still a frame to drag and resize, which is
-  // what the header the app draws needs.
+  // The border is the system's at the left, right and bottom, outside the
+  // client (see NonClientSize); at the top there is none, the header being
+  // the app's, so a strip of the client as tall as the border stands in.
   std::optional<LRESULT> ResizeHitTest(const POINT& point) const;
 
-  // The client rectangle for a window that draws its own caption: the whole
-  // window, but the monitor's work area while maximized (Windows sizes a
-  // maximized window to cover the monitor, and that is what keeps the
-  // content off the taskbar). nullopt for the other form of the message,
-  // which the default handles.
+  // The client rectangle for a window that draws its own caption: the window
+  // less the system's resize border at the left, right and bottom (invisible,
+  // it is what those edges are grabbed by, outside the content), up to its
+  // top; the monitor's work area while maximized (Windows sizes a maximized
+  // window to cover the monitor, and that is what keeps the content off the
+  // taskbar).
   //
   // Answered before the engine, which would otherwise have the window keep a
   // frame — and draw a caption over the top of the client, whatever the
@@ -129,8 +130,13 @@ class Win32Window {
 
   bool quit_on_close_ = false;
 
-  // Outer-frame minimum, in physical pixels; see SetMinimumSize.
+  // Client minimum, in logical pixels; see SetMinimumSize.
   Size minimum_size_ = Size(0, 0);
+
+  // How wide the system's resize border is at the window's dpi: kept at the
+  // left, right and bottom (see NonClientSize), and inside the client at the
+  // top, where the app draws the header.
+  SIZE ResizeBorder() const;
 
   // window handle for top level window.
   HWND window_handle_ = nullptr;

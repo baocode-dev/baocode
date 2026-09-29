@@ -158,21 +158,19 @@ class _WorkbenchState extends State<Workbench> {
           _drawerClosing = false;
         }
         return ColoredBox(
-          color: CursorColors.background,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Windows draws its own header over both columns (see
-              // window_header/); elsewhere the system's is above them.
-              if (WindowControls.drawsHeader) _buildHeader(),
-              Expanded(
-                child: ListenableBuilder(
-                  listenable: _workspace,
-                  builder: (context, _) =>
-                      narrow ? _buildNarrow() : _buildWide(),
-                ),
-              ),
-            ],
+          color: CursorColors.windowCanvas,
+          // The header too: it opens the current session's project.
+          child: ListenableBuilder(
+            listenable: _workspace,
+            builder: (context, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Windows draws its own header over both columns (see
+                // window_header/); elsewhere the system's is above them.
+                if (WindowControls.drawsHeader) _buildHeader(),
+                Expanded(child: narrow ? _buildNarrow() : _buildWide()),
+              ],
+            ),
           ),
         );
       },
@@ -196,8 +194,20 @@ class _WorkbenchState extends State<Workbench> {
             ),
           ),
         ),
-        if (_docked) _buildResizeHandle(),
-        Expanded(child: _buildChat(showToggle: !_docked)),
+        // One backdrop for both: two, meeting at a fractional x (a dragged
+        // width), would each half cover the pixel there, and the material
+        // would show through the seam.
+        Expanded(
+          child: _conversation(
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_docked) _buildResizeHandle(),
+                Expanded(child: _buildChat(showToggle: !_docked)),
+              ],
+            ),
+          ),
+        ),
       ],
     );
     return Stack(
@@ -212,7 +222,7 @@ class _WorkbenchState extends State<Workbench> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Positioned.fill(child: _buildChat(showToggle: true)),
+        Positioned.fill(child: _conversation(_buildChat(showToggle: true))),
         // Scrim: a click outside closes the drawer.
         Positioned.fill(
           child: IgnorePointer(
@@ -256,7 +266,9 @@ class _WorkbenchState extends State<Workbench> {
                             BoxShadow(color: Color(0x80000000), blurRadius: 24),
                           ],
                         ),
-                        child: _buildSidebar(onOpened: _closeDrawer),
+                        // Over the chat, not the material: the tint alone
+                        // would show the chat through.
+                        child: _opaque(_buildSidebar(onOpened: _closeDrawer)),
                       ),
                     ),
                     _buildResizeHandle(),
@@ -274,6 +286,15 @@ class _WorkbenchState extends State<Workbench> {
   static const _resizeCursorLayer = MouseRegion(
     cursor: SystemMouseCursors.resizeColumn,
   );
+
+  /// On the window's own color: over the system's material (see
+  /// [CursorColors.windowCanvas]), opaque.
+  static Widget _opaque(Widget child) =>
+      ColoredBox(color: CursorColors.background, child: child);
+
+  /// On the conversation's color: over the material, a tint of it.
+  static Widget _conversation(Widget child) =>
+      ColoredBox(color: CursorColors.conversationSurface, child: child);
 
   Widget _buildSidebar({VoidCallback? onOpened}) {
     return Sidebar(
@@ -297,8 +318,17 @@ class _WorkbenchState extends State<Workbench> {
       pinned: _pinned,
       onTogglePin: _setPinned,
       onOpenFolder: _openFolder,
+      onToggleContextPanel: () {
+        if (_workspace.current case final thread?) {
+          ChatScreen.toggleContextPanel(_chatKey(thread));
+        }
+      },
     );
   }
+
+  /// The chat of [thread]: a state of its own for each (and kept as it
+  /// moves between the wide and narrow layouts), reached by the header.
+  static GlobalKey _chatKey(Object thread) => GlobalObjectKey(thread);
 
   void _endDrag() {
     setState(() {
@@ -380,7 +410,7 @@ class _WorkbenchState extends State<Workbench> {
       );
     }
     return ChatScreen(
-      key: ObjectKey(thread),
+      key: _chatKey(thread),
       session: thread.session,
       title: thread.title,
       autofocus: thread.session.itemCount == 0,

@@ -85,7 +85,6 @@ class _HealthBannerState extends State<HealthBanner> {
                   style: const TextStyle(
                     color: CursorColors.textMuted,
                     fontFamily: CursorFonts.mono,
-                    fontFamilyFallback: CursorFonts.monoFallbacks,
                     fontSize: 11.5,
                     height: 1.45,
                   ),

@@ -1,9 +1,28 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import '../platform/app_platform.dart';
 
 /// Cursor-style dark palette.
 abstract final class CursorColors {
   static const background = Color(0xFF181818);
+
+  /// Whether the window has the system's sidebar material under it (the
+  /// macOS app; see MainFlutterWindow.swift), to show through the sidebar.
+  static bool get usesMacOSMaterial => AppPlatform.isMacOS;
+
+  /// Under everything: the material itself where there is one. All but the
+  /// sidebar cover it (see Workbench).
+  static Color get windowCanvas =>
+      usesMacOSMaterial ? Colors.transparent : background;
+
+  /// The sidebar's: a tint over the material, or as opaque as the rest.
+  static Color get sidebarSurface =>
+      usesMacOSMaterial ? const Color(0xE01C1D20) : background;
+
+  /// The conversation's: over the material a darker tint than the
+  /// sidebar's, or [background].
+  static Color get conversationSurface =>
+      usesMacOSMaterial ? const Color(0xF2161618) : background;
   static const surface = Color(0xFF1F1F1F);
   static const surfaceRaised = Color(0xFF262626);
   static const code = Color(0xFF141414);
@@ -48,8 +67,7 @@ abstract final class CursorMetrics {
   /// Room the native macOS traffic lights take at the left of the title
   /// bar (none on the web, and none on Windows, whose title bar is the
   /// system's own, above the content).
-  static double get trafficLightsWidth =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS ? 78 : 0;
+  static double get trafficLightsWidth => AppPlatform.isMacOS ? 78 : 0;
 
   /// The header the Windows app draws itself, over everything: the menu
   /// bar, the session's tools and the window buttons (see
@@ -69,8 +87,15 @@ abstract final class CursorFonts {
   static const mono = 'Menlo';
 
   /// What to fall back on where [mono] is not installed: Windows has no
-  /// Menlo, and would otherwise draw code in its proportional default.
-  static const monoFallbacks = <String>['Consolas', 'Cascadia Mono', 'monospace'];
+  /// Menlo, and would otherwise draw code in its proportional default. Set
+  /// once, for all text, by the theme there (see [buildCursorTheme]): a
+  /// family the text names comes first, so only [mono] falls back to these,
+  /// and what the UI's own font lacks (CJK, emoji) they lack as well.
+  static const monoFallbacks = <String>[
+    'Consolas',
+    'Cascadia Mono',
+    'monospace',
+  ];
 
   /// The window's own buttons — minimize, maximize, restore, close — drawn in
   /// the font the system draws them in, so they keep the sizes and the shapes
@@ -85,7 +110,11 @@ abstract final class CursorFonts {
 ThemeData buildCursorTheme() {
   return ThemeData(
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: CursorColors.background,
+    fontFamilyFallback: AppPlatform.isWindows
+        ? CursorFonts.monoFallbacks
+        : null,
+    // The conversation's own color is under it (see Workbench).
+    scaffoldBackgroundColor: CursorColors.windowCanvas,
     colorScheme: ColorScheme.fromSeed(
       seedColor: CursorColors.accent,
       brightness: Brightness.dark,

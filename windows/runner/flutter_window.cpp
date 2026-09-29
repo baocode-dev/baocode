@@ -65,18 +65,22 @@ LPCWSTR CursorFor(LRESULT part) {
   }
 }
 
-// What the system runs when |part| of the window's caption (what WindowPart
-// answers with, less the frame) is pressed: the loop that moves it, or the
-// command one of its buttons stands for. nullopt for the parts there are no
-// such commands for.
-std::optional<WPARAM> CommandForPress(HWND window, LRESULT part) {
+// Whether |part| (what WindowPart answers with) is one of the window's
+// buttons.
+bool IsButton(LRESULT part) {
+  return part == HTMINBUTTON || part == HTMAXBUTTON || part == HTCLOSE;
+}
+
+// The command one of the window's buttons stands for, run as a press on it
+// is let go.
+std::optional<WPARAM> CommandForButton(HWND window, LRESULT part) {
   switch (part) {
-    case HTCAPTION:
-      return SC_MOVE | HTCAPTION;
     case HTMINBUTTON:
       return SC_MINIMIZE;
     case HTMAXBUTTON:
       return ::IsZoomed(window) ? SC_RESTORE : SC_MAXIMIZE;
+    case HTCLOSE:
+      return SC_CLOSE;
     default:
       return std::nullopt;
   }
@@ -179,11 +183,12 @@ LRESULT CALLBACK FlutterWindow::ViewProc(HWND hwnd, UINT const message,
     return HTCLIENT;
   }
 
-  // A press on the window's frame. The view keeps those pixels (see above),
-  // and the system sizes a window by a frame of its own to press: this one
-  // has none (the app draws the window's whole top, see NonClientSize), so
-  // the loop that sizes it is the window's to start — from the press, and at
-  // the pointer, which is where the loop takes the window's edge from.
+  // A press on the top edge, the one part of the window's frame inside the
+  // view (the app draws the window's whole top, see NonClientSize). The view
+  // keeps those pixels (see above), and the system sizes a window by a frame
+  // of its own to press, so the loop that sizes it is the window's to start —
+  // from the press, and at the pointer, which is where the loop takes the
+  // window's edge from.
   if (message == WM_LBUTTONDOWN) {
     if (that != nullptr) {
       const POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
@@ -244,28 +249,43 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   // A press on a part of the window that is not the client (see WindowPart):
-  // where it has a frame of its own to press, the system runs these itself,
-  // and this window has none (see NonClientSize). The same commands are run
-  // here — the move and the resizes as their modal loops, and the buttons as
-  // the commands they stand for.
+  // where it has a caption of its own to press, the system runs these
+  // itself, and this window has none (see NonClientSize). The same commands
+  // are run
+  // here — the move as its modal loop; the buttons as the press is let go
+  // over the one pressed (below), so that sliding off one takes it back. The
+  // frame's edges are the system's own, and go on to it.
   if (message == WM_NCLBUTTONDOWN || message == WM_NCLBUTTONDBLCLK) {
     const LRESULT part = static_cast<LRESULT>(wparam);
-    if (part == HTCLOSE) {
-      ::PostMessageW(hwnd, WM_CLOSE, 0, 0);
+    if (IsButton(part)) {
+      pressed_button_ = part;
       return 0;
     }
-    // A double click on the strip is the system's own shortcut for
-    // maximizing, and its other way round again.
-    const std::optional<WPARAM> command =
-        part == HTCAPTION && message == WM_NCLBUTTONDBLCLK
-            ? std::optional<WPARAM>(::IsZoomed(hwnd) ? SC_RESTORE : SC_MAXIMIZE)
-            : CommandForPress(hwnd, part);
-    if (command.has_value()) {
-      ::SendMessageW(hwnd, WM_SYSCOMMAND, *command, lparam);
+    if (part == HTCAPTION) {
+      // A double click on the strip is the system's own shortcut for
+      // maximizing, and its other way round again.
+      const WPARAM command =
+          message == WM_NCLBUTTONDBLCLK
+              ? (::IsZoomed(hwnd) ? SC_RESTORE : SC_MAXIMIZE)
+              : SC_MOVE | HTCAPTION;
+      ::SendMessageW(hwnd, WM_SYSCOMMAND, command, lparam);
       return 0;
     }
   }
-
+  if (message == WM_NCLBUTTONUP) {
+    const LRESULT part = static_cast<LRESULT>(wparam);
+    const std::optional<LRESULT> pressed = pressed_button_;
+    pressed_button_ = std::nullopt;
+    if (IsButton(part)) {
+      if (pressed == part) {
+        if (const std::optional<WPARAM> command =
+                CommandForButton(hwnd, part)) {
+          ::SendMessageW(hwnd, WM_SYSCOMMAND, *command, lparam);
+        }
+      }
+      return 0;
+    }
+  }
 
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
@@ -296,6 +316,8 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     }
 
     case WM_NCMOUSELEAVE:
+      // Let go outside the window, the press is not heard of again.
+      pressed_button_ = std::nullopt;
       if (window_channel_ != nullptr) {
         window_channel_->ReportHover(HTNOWHERE);
       }

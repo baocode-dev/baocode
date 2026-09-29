@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 import '../platform/app_paths.dart';
 import 'preference_store.dart';
 
@@ -17,7 +19,7 @@ class FilePreferenceStore implements PreferenceStore {
     if (path case final path?) return File(path);
     final environment = Platform.environment;
     if (AppPaths.home(environment).isEmpty) return null;
-    return File('${AppPaths.dataDir(environment)}/preferences.json');
+    return File(p.join(AppPaths.dataDir(environment), 'preferences.json'));
   }
 
   /// Writes one after another: the last one written is the last one made.
