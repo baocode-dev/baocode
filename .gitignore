@@ -18,6 +18,12 @@ migrate_working_dir/
 *.iws
 .idea/
 
+# Editors' per-project settings.
+.cursor/
+
+# Working notes, written while a branch is being prepared.
+.pr-body.md
+
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
 # is commented out by default.
@@ -32,6 +38,10 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+
+# The project's own record of how flutter create made it. Removed: it is not
+# read by run or build, and flutter create recreates it on demand.
+.metadata
 
 # Symbolication related
 app.*.symbols

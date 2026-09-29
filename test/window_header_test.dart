@@ -114,6 +114,29 @@ void main() {
     expect(style.fontFamilyFallback, contains('Consolas'));
   }, variant: _windows);
 
+  testWidgets('Chinese falls back to the font Windows itself links to', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildCursorTheme(),
+        home: const Scaffold(body: Text('x')),
+      ),
+    );
+    final style = tester
+        .renderObject<RenderParagraph>(find.text('x'))
+        .text
+        .style!;
+    // The monospaced families carry no Han glyphs, so YaHei has to be in the
+    // chain and reachable — i.e. after them, not before.
+    final fallbacks = style.fontFamilyFallback!;
+    expect(fallbacks, contains('Microsoft YaHei UI'));
+    expect(
+      fallbacks.indexOf('Microsoft YaHei UI'),
+      greaterThan(fallbacks.indexOf('Consolas')),
+    );
+  }, variant: _windows);
+
   testWidgets('on macOS the chat\'s own buttons keep to its right edge', (
     tester,
   ) async {

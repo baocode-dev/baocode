@@ -636,6 +636,11 @@ class _PickerRow extends StatelessWidget {
                   children: [
                     Text(
                       option.label,
+                      // One line, cut with an ellipsis: the row's height is
+                      // fixed, and a name too long for the menu would
+                      // otherwise wrap within it.
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: caution
                             ? CursorColors.caution
