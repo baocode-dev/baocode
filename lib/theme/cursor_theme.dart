@@ -17,12 +17,12 @@ abstract final class CursorColors {
 
   /// The sidebar's: a tint over the material, or as opaque as the rest.
   static Color get sidebarSurface =>
-      usesMacOSMaterial ? const Color(0xE01C1D20) : background;
+      usesMacOSMaterial ? const Color(0xCC1C1D20) : background;
 
   /// The conversation's: over the material a darker tint than the
   /// sidebar's, or [background].
   static Color get conversationSurface =>
-      usesMacOSMaterial ? const Color(0xF2161618) : background;
+      usesMacOSMaterial ? const Color(0xE6161618) : background;
   static const surface = Color(0xFF1F1F1F);
   static const surfaceRaised = Color(0xFF262626);
   static const code = Color(0xFF141414);
