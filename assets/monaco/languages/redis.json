@@ -1,0 +1,461 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "redis",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".redis",
+    "ignoreCase": true,
+    "brackets": [
+      {
+        "open": "[",
+        "close": "]",
+        "token": "delimiter.square"
+      },
+      {
+        "open": "(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      }
+    ],
+    "keywords": [
+      "APPEND",
+      "AUTH",
+      "BGREWRITEAOF",
+      "BGSAVE",
+      "BITCOUNT",
+      "BITFIELD",
+      "BITOP",
+      "BITPOS",
+      "BLPOP",
+      "BRPOP",
+      "BRPOPLPUSH",
+      "CLIENT",
+      "KILL",
+      "LIST",
+      "GETNAME",
+      "PAUSE",
+      "REPLY",
+      "SETNAME",
+      "CLUSTER",
+      "ADDSLOTS",
+      "COUNT-FAILURE-REPORTS",
+      "COUNTKEYSINSLOT",
+      "DELSLOTS",
+      "FAILOVER",
+      "FORGET",
+      "GETKEYSINSLOT",
+      "INFO",
+      "KEYSLOT",
+      "MEET",
+      "NODES",
+      "REPLICATE",
+      "RESET",
+      "SAVECONFIG",
+      "SET-CONFIG-EPOCH",
+      "SETSLOT",
+      "SLAVES",
+      "SLOTS",
+      "COMMAND",
+      "COUNT",
+      "GETKEYS",
+      "CONFIG",
+      "GET",
+      "REWRITE",
+      "SET",
+      "RESETSTAT",
+      "DBSIZE",
+      "DEBUG",
+      "OBJECT",
+      "SEGFAULT",
+      "DECR",
+      "DECRBY",
+      "DEL",
+      "DISCARD",
+      "DUMP",
+      "ECHO",
+      "EVAL",
+      "EVALSHA",
+      "EXEC",
+      "EXISTS",
+      "EXPIRE",
+      "EXPIREAT",
+      "FLUSHALL",
+      "FLUSHDB",
+      "GEOADD",
+      "GEOHASH",
+      "GEOPOS",
+      "GEODIST",
+      "GEORADIUS",
+      "GEORADIUSBYMEMBER",
+      "GETBIT",
+      "GETRANGE",
+      "GETSET",
+      "HDEL",
+      "HEXISTS",
+      "HGET",
+      "HGETALL",
+      "HINCRBY",
+      "HINCRBYFLOAT",
+      "HKEYS",
+      "HLEN",
+      "HMGET",
+      "HMSET",
+      "HSET",
+      "HSETNX",
+      "HSTRLEN",
+      "HVALS",
+      "INCR",
+      "INCRBY",
+      "INCRBYFLOAT",
+      "KEYS",
+      "LASTSAVE",
+      "LINDEX",
+      "LINSERT",
+      "LLEN",
+      "LPOP",
+      "LPUSH",
+      "LPUSHX",
+      "LRANGE",
+      "LREM",
+      "LSET",
+      "LTRIM",
+      "MGET",
+      "MIGRATE",
+      "MONITOR",
+      "MOVE",
+      "MSET",
+      "MSETNX",
+      "MULTI",
+      "PERSIST",
+      "PEXPIRE",
+      "PEXPIREAT",
+      "PFADD",
+      "PFCOUNT",
+      "PFMERGE",
+      "PING",
+      "PSETEX",
+      "PSUBSCRIBE",
+      "PUBSUB",
+      "PTTL",
+      "PUBLISH",
+      "PUNSUBSCRIBE",
+      "QUIT",
+      "RANDOMKEY",
+      "READONLY",
+      "READWRITE",
+      "RENAME",
+      "RENAMENX",
+      "RESTORE",
+      "ROLE",
+      "RPOP",
+      "RPOPLPUSH",
+      "RPUSH",
+      "RPUSHX",
+      "SADD",
+      "SAVE",
+      "SCARD",
+      "SCRIPT",
+      "FLUSH",
+      "LOAD",
+      "SDIFF",
+      "SDIFFSTORE",
+      "SELECT",
+      "SETBIT",
+      "SETEX",
+      "SETNX",
+      "SETRANGE",
+      "SHUTDOWN",
+      "SINTER",
+      "SINTERSTORE",
+      "SISMEMBER",
+      "SLAVEOF",
+      "SLOWLOG",
+      "SMEMBERS",
+      "SMOVE",
+      "SORT",
+      "SPOP",
+      "SRANDMEMBER",
+      "SREM",
+      "STRLEN",
+      "SUBSCRIBE",
+      "SUNION",
+      "SUNIONSTORE",
+      "SWAPDB",
+      "SYNC",
+      "TIME",
+      "TOUCH",
+      "TTL",
+      "TYPE",
+      "UNSUBSCRIBE",
+      "UNLINK",
+      "UNWATCH",
+      "WAIT",
+      "WATCH",
+      "ZADD",
+      "ZCARD",
+      "ZCOUNT",
+      "ZINCRBY",
+      "ZINTERSTORE",
+      "ZLEXCOUNT",
+      "ZRANGE",
+      "ZRANGEBYLEX",
+      "ZREVRANGEBYLEX",
+      "ZRANGEBYSCORE",
+      "ZRANK",
+      "ZREM",
+      "ZREMRANGEBYLEX",
+      "ZREMRANGEBYRANK",
+      "ZREMRANGEBYSCORE",
+      "ZREVRANGE",
+      "ZREVRANGEBYSCORE",
+      "ZREVRANK",
+      "ZSCORE",
+      "ZUNIONSTORE",
+      "SCAN",
+      "SSCAN",
+      "HSCAN",
+      "ZSCAN"
+    ],
+    "operators": [],
+    "builtinFunctions": [],
+    "builtinVariables": [],
+    "pseudoColumns": [],
+    "tokenizer": {
+      "root": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@pseudoColumns"
+        },
+        {
+          "include": "@numbers"
+        },
+        {
+          "include": "@strings"
+        },
+        {
+          "include": "@scopes"
+        },
+        [
+          {
+            "$regex": "[;,.]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "[()]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "[\\w@#$]+",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": "keyword",
+              "@operators": "operator",
+              "@builtinVariables": "predefined",
+              "@builtinFunctions": "predefined",
+              "@default": "identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[<>=!%&+\\-*/|~^]",
+            "$flags": ""
+          },
+          "operator"
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "\\s+",
+            "$flags": ""
+          },
+          "white"
+        ]
+      ],
+      "pseudoColumns": [
+        [
+          {
+            "$regex": "[$][A-Za-z_][\\w@#$]*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@pseudoColumns": "predefined",
+              "@default": "identifier"
+            }
+          }
+        ]
+      ],
+      "numbers": [
+        [
+          {
+            "$regex": "0[xX][0-9a-fA-F]*",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": "[$][+-]*\\d*(\\.\\d*)?",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": "((\\d+(\\.\\d*)?)|(\\.\\d+))([eE][\\-+]?\\d+)?",
+            "$flags": ""
+          },
+          "number"
+        ]
+      ],
+      "strings": [
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@string"
+          }
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.double",
+            "next": "@stringDouble"
+          }
+        ]
+      ],
+      "string": [
+        [
+          {
+            "$regex": "[^']+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "''",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "stringDouble": [
+        [
+          {
+            "$regex": "[^\"]+",
+            "$flags": ""
+          },
+          "string.double"
+        ],
+        [
+          {
+            "$regex": "\"\"",
+            "$flags": ""
+          },
+          "string.double"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.double",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "scopes": []
+    }
+  },
+  "configuration": {
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ]
+  }
+}

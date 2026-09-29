@@ -1,0 +1,286 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "scheme",
+  "language": {
+    "defaultToken": "",
+    "ignoreCase": true,
+    "tokenPostfix": ".scheme",
+    "brackets": [
+      {
+        "open": "(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "{",
+        "close": "}",
+        "token": "delimiter.curly"
+      },
+      {
+        "open": "[",
+        "close": "]",
+        "token": "delimiter.square"
+      }
+    ],
+    "keywords": [
+      "case",
+      "do",
+      "let",
+      "loop",
+      "if",
+      "else",
+      "when",
+      "cons",
+      "car",
+      "cdr",
+      "cond",
+      "lambda",
+      "lambda*",
+      "syntax-rules",
+      "format",
+      "set!",
+      "quote",
+      "eval",
+      "append",
+      "list",
+      "list?",
+      "member?",
+      "load"
+    ],
+    "constants": [
+      "#t",
+      "#f"
+    ],
+    "operators": [
+      "eq?",
+      "eqv?",
+      "equal?",
+      "and",
+      "or",
+      "not",
+      "null?"
+    ],
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "#[xXoObB][0-9a-fA-F]+",
+            "$flags": ""
+          },
+          "number.hex"
+        ],
+        [
+          {
+            "$regex": "[+-]?\\d+(?:(?:\\.\\d*)?(?:[eE][+-]?\\d+)?)?",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "(?:\\b(?:(define|define-syntax|define-macro))\\b)(\\s+)((?:\\w|\\-|\\!|\\?)*)",
+            "$flags": ""
+          },
+          [
+            "keyword",
+            "white",
+            "variable"
+          ]
+        ],
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@strings"
+        },
+        [
+          {
+            "$regex": "[a-zA-Z_#][a-zA-Z0-9_\\-\\?\\!\\*]*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": "keyword",
+              "@constants": "constant",
+              "@operators": "operators",
+              "@default": "identifier"
+            }
+          }
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "[^\\|#]+",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "#\\|",
+            "$flags": ""
+          },
+          "comment",
+          "@push"
+        ],
+        [
+          {
+            "$regex": "\\|#",
+            "$flags": ""
+          },
+          "comment",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[\\|#]",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          "white"
+        ],
+        [
+          {
+            "$regex": "#\\|",
+            "$flags": ""
+          },
+          "comment",
+          "@comment"
+        ],
+        [
+          {
+            "$regex": ";.*$",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "strings": [
+        [
+          {
+            "$regex": "\"$",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "\"(?=.)",
+            "$flags": ""
+          },
+          "string",
+          "@multiLineString"
+        ]
+      ],
+      "multiLineString": [
+        [
+          {
+            "$regex": "[^\\\\\"]+$",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "[^\\\\\"]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "\\\\$",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": ";",
+      "blockComment": [
+        "#|",
+        "|#"
+      ]
+    },
+    "brackets": [
+      [
+        "(",
+        ")"
+      ],
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      }
+    ]
+  }
+}

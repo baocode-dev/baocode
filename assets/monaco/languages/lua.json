@@ -1,0 +1,364 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "lua",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".lua",
+    "keywords": [
+      "and",
+      "break",
+      "do",
+      "else",
+      "elseif",
+      "end",
+      "false",
+      "for",
+      "function",
+      "goto",
+      "if",
+      "in",
+      "local",
+      "nil",
+      "not",
+      "or",
+      "repeat",
+      "return",
+      "then",
+      "true",
+      "until",
+      "while"
+    ],
+    "brackets": [
+      {
+        "token": "delimiter.bracket",
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "token": "delimiter.array",
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "token": "delimiter.parenthesis",
+        "open": "(",
+        "close": ")"
+      }
+    ],
+    "operators": [
+      "+",
+      "-",
+      "*",
+      "/",
+      "%",
+      "^",
+      "#",
+      "==",
+      "~=",
+      "<=",
+      ">=",
+      "<",
+      ">",
+      "=",
+      ";",
+      ":",
+      ",",
+      ".",
+      "..",
+      "..."
+    ],
+    "symbols": {
+      "$regex": "[=><!~?:&|+\\-*\\/\\^%]+",
+      "$flags": ""
+    },
+    "escapes": {
+      "$regex": "\\\\(?:[abfnrtv\\\\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "[a-zA-Z_]\\w*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": {
+                "token": "keyword.$0"
+              },
+              "@default": "identifier"
+            }
+          }
+        ],
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "(,)(\\s*)([a-zA-Z_]\\w*)(\\s*)(:)(?!:)",
+            "$flags": ""
+          },
+          [
+            "delimiter",
+            "",
+            "key",
+            "",
+            "delimiter"
+          ]
+        ],
+        [
+          {
+            "$regex": "({)(\\s*)([a-zA-Z_]\\w*)(\\s*)(:)(?!:)",
+            "$flags": ""
+          },
+          [
+            "@brackets",
+            "",
+            "key",
+            "",
+            "delimiter"
+          ]
+        ],
+        [
+          {
+            "$regex": "[{}()\\[\\]]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "@symbols",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@operators": "delimiter",
+              "@default": ""
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\d*\\.\\d+([eE][\\-+]?\\d+)?",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "0[xX][0-9a-fA-F_]*[0-9a-fA-F]",
+            "$flags": ""
+          },
+          "number.hex"
+        ],
+        [
+          {
+            "$regex": "\\d+?",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": "[;,.]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "\"([^\"\\\\]|\\\\.)*$",
+            "$flags": ""
+          },
+          "string.invalid"
+        ],
+        [
+          {
+            "$regex": "'([^'\\\\]|\\\\.)*$",
+            "$flags": ""
+          },
+          "string.invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@string.\""
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string",
+          "@string.'"
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          ""
+        ],
+        [
+          {
+            "$regex": "--\\[([=]*)\\[",
+            "$flags": ""
+          },
+          "comment",
+          "@comment.$1"
+        ],
+        [
+          {
+            "$regex": "--.*$",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "[^\\]]+",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "\\]([=]*)\\]",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==$S2": {
+                "token": "comment",
+                "next": "@pop"
+              },
+              "@default": "comment"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "string": [
+        [
+          {
+            "$regex": "[^\\\\\"']+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "[\"']",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$#==$S2": {
+                "token": "string",
+                "next": "@pop"
+              },
+              "@default": "string"
+            }
+          }
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "--",
+      "blockComment": [
+        "--[[",
+        "]]"
+      ]
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ]
+  }
+}

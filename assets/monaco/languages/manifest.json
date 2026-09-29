@@ -1,0 +1,1304 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "grammars": [
+    "abap",
+    "apex",
+    "azcli",
+    "bat",
+    "bicep",
+    "cameligo",
+    "clojure",
+    "coffee",
+    "cpp",
+    "csharp",
+    "csp",
+    "css",
+    "cypher",
+    "dart",
+    "dockerfile",
+    "ecl",
+    "elixir",
+    "flow9",
+    "freemarker2",
+    "freemarker2.tag-auto.interpolation-bracket",
+    "freemarker2.tag-angle.interpolation-dollar",
+    "freemarker2.tag-angle.interpolation-bracket",
+    "freemarker2.tag-bracket.interpolation-dollar",
+    "freemarker2.tag-bracket.interpolation-bracket",
+    "fsharp",
+    "go",
+    "graphql",
+    "handlebars",
+    "hcl",
+    "html",
+    "ini",
+    "java",
+    "javascript",
+    "julia",
+    "kotlin",
+    "less",
+    "lexon",
+    "liquid",
+    "lua",
+    "m3",
+    "markdown",
+    "mdx",
+    "mips",
+    "msdax",
+    "mysql",
+    "objective-c",
+    "pascal",
+    "pascaligo",
+    "perl",
+    "pgsql",
+    "php",
+    "pla",
+    "postiats",
+    "powerquery",
+    "powershell",
+    "protobuf",
+    "pug",
+    "python",
+    "qsharp",
+    "r",
+    "razor",
+    "redis",
+    "redshift",
+    "restructuredtext",
+    "ruby",
+    "rust",
+    "sb",
+    "scala",
+    "scheme",
+    "scss",
+    "shell",
+    "solidity",
+    "sophia",
+    "sparql",
+    "sql",
+    "st",
+    "swift",
+    "systemverilog",
+    "tcl",
+    "twig",
+    "typescript",
+    "typespec",
+    "vb",
+    "wgsl",
+    "xml",
+    "yaml"
+  ],
+  "registrations": [
+    {
+      "id": "abap",
+      "extensions": [
+        ".abap"
+      ],
+      "aliases": [
+        "abap",
+        "ABAP"
+      ],
+      "assetId": "abap"
+    },
+    {
+      "id": "apex",
+      "extensions": [
+        ".cls"
+      ],
+      "aliases": [
+        "Apex",
+        "apex"
+      ],
+      "mimetypes": [
+        "text/x-apex-source",
+        "text/x-apex"
+      ],
+      "assetId": "apex"
+    },
+    {
+      "id": "azcli",
+      "extensions": [
+        ".azcli"
+      ],
+      "aliases": [
+        "Azure CLI",
+        "azcli"
+      ],
+      "assetId": "azcli"
+    },
+    {
+      "id": "bat",
+      "extensions": [
+        ".bat",
+        ".cmd"
+      ],
+      "aliases": [
+        "Batch",
+        "bat"
+      ],
+      "assetId": "bat"
+    },
+    {
+      "id": "bicep",
+      "extensions": [
+        ".bicep"
+      ],
+      "aliases": [
+        "Bicep"
+      ],
+      "assetId": "bicep"
+    },
+    {
+      "id": "cameligo",
+      "extensions": [
+        ".mligo"
+      ],
+      "aliases": [
+        "Cameligo"
+      ],
+      "assetId": "cameligo"
+    },
+    {
+      "id": "clojure",
+      "extensions": [
+        ".clj",
+        ".cljs",
+        ".cljc",
+        ".edn"
+      ],
+      "aliases": [
+        "clojure",
+        "Clojure"
+      ],
+      "assetId": "clojure"
+    },
+    {
+      "id": "coffeescript",
+      "extensions": [
+        ".coffee"
+      ],
+      "aliases": [
+        "CoffeeScript",
+        "coffeescript",
+        "coffee"
+      ],
+      "mimetypes": [
+        "text/x-coffeescript",
+        "text/coffeescript"
+      ],
+      "assetId": "coffee"
+    },
+    {
+      "id": "c",
+      "extensions": [
+        ".c",
+        ".h"
+      ],
+      "aliases": [
+        "C",
+        "c"
+      ],
+      "assetId": "cpp"
+    },
+    {
+      "id": "cpp",
+      "extensions": [
+        ".cpp",
+        ".cc",
+        ".cxx",
+        ".hpp",
+        ".hh",
+        ".hxx"
+      ],
+      "aliases": [
+        "C++",
+        "Cpp",
+        "cpp"
+      ],
+      "assetId": "cpp"
+    },
+    {
+      "id": "csharp",
+      "extensions": [
+        ".cs",
+        ".csx",
+        ".cake"
+      ],
+      "aliases": [
+        "C#",
+        "csharp"
+      ],
+      "assetId": "csharp"
+    },
+    {
+      "id": "csp",
+      "extensions": [
+        ".csp"
+      ],
+      "aliases": [
+        "CSP",
+        "csp"
+      ],
+      "assetId": "csp"
+    },
+    {
+      "id": "css",
+      "extensions": [
+        ".css"
+      ],
+      "aliases": [
+        "CSS",
+        "css"
+      ],
+      "mimetypes": [
+        "text/css"
+      ],
+      "assetId": "css"
+    },
+    {
+      "id": "cypher",
+      "extensions": [
+        ".cypher",
+        ".cyp"
+      ],
+      "aliases": [
+        "Cypher",
+        "OpenCypher"
+      ],
+      "assetId": "cypher"
+    },
+    {
+      "id": "dart",
+      "extensions": [
+        ".dart"
+      ],
+      "aliases": [
+        "Dart",
+        "dart"
+      ],
+      "mimetypes": [
+        "text/x-dart-source",
+        "text/x-dart"
+      ],
+      "assetId": "dart"
+    },
+    {
+      "id": "dockerfile",
+      "extensions": [
+        ".dockerfile"
+      ],
+      "filenames": [
+        "Dockerfile"
+      ],
+      "aliases": [
+        "Dockerfile"
+      ],
+      "assetId": "dockerfile"
+    },
+    {
+      "id": "ecl",
+      "extensions": [
+        ".ecl"
+      ],
+      "aliases": [
+        "ECL",
+        "Ecl",
+        "ecl"
+      ],
+      "assetId": "ecl"
+    },
+    {
+      "id": "elixir",
+      "extensions": [
+        ".ex",
+        ".exs"
+      ],
+      "aliases": [
+        "Elixir",
+        "elixir",
+        "ex"
+      ],
+      "assetId": "elixir"
+    },
+    {
+      "id": "flow9",
+      "extensions": [
+        ".flow"
+      ],
+      "aliases": [
+        "Flow9",
+        "Flow",
+        "flow9",
+        "flow"
+      ],
+      "assetId": "flow9"
+    },
+    {
+      "id": "freemarker2",
+      "extensions": [
+        ".ftl",
+        ".ftlh",
+        ".ftlx"
+      ],
+      "aliases": [
+        "FreeMarker2",
+        "Apache FreeMarker2"
+      ],
+      "assetId": "freemarker2"
+    },
+    {
+      "id": "freemarker2.tag-angle.interpolation-dollar",
+      "aliases": [
+        "FreeMarker2 (Angle/Dollar)",
+        "Apache FreeMarker2 (Angle/Dollar)"
+      ],
+      "assetId": "freemarker2.tag-angle.interpolation-dollar"
+    },
+    {
+      "id": "freemarker2.tag-bracket.interpolation-dollar",
+      "aliases": [
+        "FreeMarker2 (Bracket/Dollar)",
+        "Apache FreeMarker2 (Bracket/Dollar)"
+      ],
+      "assetId": "freemarker2.tag-bracket.interpolation-dollar"
+    },
+    {
+      "id": "freemarker2.tag-angle.interpolation-bracket",
+      "aliases": [
+        "FreeMarker2 (Angle/Bracket)",
+        "Apache FreeMarker2 (Angle/Bracket)"
+      ],
+      "assetId": "freemarker2.tag-angle.interpolation-bracket"
+    },
+    {
+      "id": "freemarker2.tag-bracket.interpolation-bracket",
+      "aliases": [
+        "FreeMarker2 (Bracket/Bracket)",
+        "Apache FreeMarker2 (Bracket/Bracket)"
+      ],
+      "assetId": "freemarker2.tag-bracket.interpolation-bracket"
+    },
+    {
+      "id": "freemarker2.tag-auto.interpolation-dollar",
+      "aliases": [
+        "FreeMarker2 (Auto/Dollar)",
+        "Apache FreeMarker2 (Auto/Dollar)"
+      ],
+      "assetId": "freemarker2"
+    },
+    {
+      "id": "freemarker2.tag-auto.interpolation-bracket",
+      "aliases": [
+        "FreeMarker2 (Auto/Bracket)",
+        "Apache FreeMarker2 (Auto/Bracket)"
+      ],
+      "assetId": "freemarker2.tag-auto.interpolation-bracket"
+    },
+    {
+      "id": "fsharp",
+      "extensions": [
+        ".fs",
+        ".fsi",
+        ".ml",
+        ".mli",
+        ".fsx",
+        ".fsscript"
+      ],
+      "aliases": [
+        "F#",
+        "FSharp",
+        "fsharp"
+      ],
+      "assetId": "fsharp"
+    },
+    {
+      "id": "go",
+      "extensions": [
+        ".go"
+      ],
+      "aliases": [
+        "Go"
+      ],
+      "assetId": "go"
+    },
+    {
+      "id": "graphql",
+      "extensions": [
+        ".graphql",
+        ".gql"
+      ],
+      "aliases": [
+        "GraphQL",
+        "graphql",
+        "gql"
+      ],
+      "mimetypes": [
+        "application/graphql"
+      ],
+      "assetId": "graphql"
+    },
+    {
+      "id": "handlebars",
+      "extensions": [
+        ".handlebars",
+        ".hbs"
+      ],
+      "aliases": [
+        "Handlebars",
+        "handlebars",
+        "hbs"
+      ],
+      "mimetypes": [
+        "text/x-handlebars-template"
+      ],
+      "assetId": "handlebars"
+    },
+    {
+      "id": "hcl",
+      "extensions": [
+        ".tf",
+        ".tfvars",
+        ".hcl"
+      ],
+      "aliases": [
+        "Terraform",
+        "tf",
+        "HCL",
+        "hcl"
+      ],
+      "assetId": "hcl"
+    },
+    {
+      "id": "html",
+      "extensions": [
+        ".html",
+        ".htm",
+        ".shtml",
+        ".xhtml",
+        ".mdoc",
+        ".jsp",
+        ".asp",
+        ".aspx",
+        ".jshtm"
+      ],
+      "aliases": [
+        "HTML",
+        "htm",
+        "html",
+        "xhtml"
+      ],
+      "mimetypes": [
+        "text/html",
+        "text/x-jshtm",
+        "text/template",
+        "text/ng-template"
+      ],
+      "assetId": "html"
+    },
+    {
+      "id": "ini",
+      "extensions": [
+        ".ini",
+        ".properties",
+        ".gitconfig"
+      ],
+      "filenames": [
+        "config",
+        ".gitattributes",
+        ".gitconfig",
+        ".editorconfig"
+      ],
+      "aliases": [
+        "Ini",
+        "ini"
+      ],
+      "assetId": "ini"
+    },
+    {
+      "id": "java",
+      "extensions": [
+        ".java",
+        ".jav"
+      ],
+      "aliases": [
+        "Java",
+        "java"
+      ],
+      "mimetypes": [
+        "text/x-java-source",
+        "text/x-java"
+      ],
+      "assetId": "java"
+    },
+    {
+      "id": "javascript",
+      "extensions": [
+        ".js",
+        ".es6",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "firstLine": "^#!.*\\bnode",
+      "filenames": [
+        "jakefile"
+      ],
+      "aliases": [
+        "JavaScript",
+        "javascript",
+        "js"
+      ],
+      "mimetypes": [
+        "text/javascript"
+      ],
+      "assetId": "javascript"
+    },
+    {
+      "id": "julia",
+      "extensions": [
+        ".jl"
+      ],
+      "aliases": [
+        "julia",
+        "Julia"
+      ],
+      "assetId": "julia"
+    },
+    {
+      "id": "kotlin",
+      "extensions": [
+        ".kt",
+        ".kts"
+      ],
+      "aliases": [
+        "Kotlin",
+        "kotlin"
+      ],
+      "mimetypes": [
+        "text/x-kotlin-source",
+        "text/x-kotlin"
+      ],
+      "assetId": "kotlin"
+    },
+    {
+      "id": "less",
+      "extensions": [
+        ".less"
+      ],
+      "aliases": [
+        "Less",
+        "less"
+      ],
+      "mimetypes": [
+        "text/x-less",
+        "text/less"
+      ],
+      "assetId": "less"
+    },
+    {
+      "id": "lexon",
+      "extensions": [
+        ".lex"
+      ],
+      "aliases": [
+        "Lexon"
+      ],
+      "assetId": "lexon"
+    },
+    {
+      "id": "liquid",
+      "extensions": [
+        ".liquid",
+        ".html.liquid"
+      ],
+      "aliases": [
+        "Liquid",
+        "liquid"
+      ],
+      "mimetypes": [
+        "application/liquid"
+      ],
+      "assetId": "liquid"
+    },
+    {
+      "id": "lua",
+      "extensions": [
+        ".lua"
+      ],
+      "aliases": [
+        "Lua",
+        "lua"
+      ],
+      "assetId": "lua"
+    },
+    {
+      "id": "m3",
+      "extensions": [
+        ".m3",
+        ".i3",
+        ".mg",
+        ".ig"
+      ],
+      "aliases": [
+        "Modula-3",
+        "Modula3",
+        "modula3",
+        "m3"
+      ],
+      "assetId": "m3"
+    },
+    {
+      "id": "markdown",
+      "extensions": [
+        ".md",
+        ".markdown",
+        ".mdown",
+        ".mkdn",
+        ".mkd",
+        ".mdwn",
+        ".mdtxt",
+        ".mdtext"
+      ],
+      "aliases": [
+        "Markdown",
+        "markdown"
+      ],
+      "assetId": "markdown"
+    },
+    {
+      "id": "mdx",
+      "extensions": [
+        ".mdx"
+      ],
+      "aliases": [
+        "MDX",
+        "mdx"
+      ],
+      "assetId": "mdx"
+    },
+    {
+      "id": "mips",
+      "extensions": [
+        ".s"
+      ],
+      "aliases": [
+        "MIPS",
+        "MIPS-V"
+      ],
+      "mimetypes": [
+        "text/x-mips",
+        "text/mips",
+        "text/plaintext"
+      ],
+      "assetId": "mips"
+    },
+    {
+      "id": "msdax",
+      "extensions": [
+        ".dax",
+        ".msdax"
+      ],
+      "aliases": [
+        "DAX",
+        "MSDAX"
+      ],
+      "assetId": "msdax"
+    },
+    {
+      "id": "mysql",
+      "extensions": [],
+      "aliases": [
+        "MySQL",
+        "mysql"
+      ],
+      "assetId": "mysql"
+    },
+    {
+      "id": "objective-c",
+      "extensions": [
+        ".m"
+      ],
+      "aliases": [
+        "Objective-C"
+      ],
+      "assetId": "objective-c"
+    },
+    {
+      "id": "pascal",
+      "extensions": [
+        ".pas",
+        ".p",
+        ".pp"
+      ],
+      "aliases": [
+        "Pascal",
+        "pas"
+      ],
+      "mimetypes": [
+        "text/x-pascal-source",
+        "text/x-pascal"
+      ],
+      "assetId": "pascal"
+    },
+    {
+      "id": "pascaligo",
+      "extensions": [
+        ".ligo"
+      ],
+      "aliases": [
+        "Pascaligo",
+        "ligo"
+      ],
+      "assetId": "pascaligo"
+    },
+    {
+      "id": "perl",
+      "extensions": [
+        ".pl",
+        ".pm"
+      ],
+      "aliases": [
+        "Perl",
+        "pl"
+      ],
+      "assetId": "perl"
+    },
+    {
+      "id": "pgsql",
+      "extensions": [],
+      "aliases": [
+        "PostgreSQL",
+        "postgres",
+        "pg",
+        "postgre"
+      ],
+      "assetId": "pgsql"
+    },
+    {
+      "id": "php",
+      "extensions": [
+        ".php",
+        ".php4",
+        ".php5",
+        ".phtml",
+        ".ctp"
+      ],
+      "aliases": [
+        "PHP",
+        "php"
+      ],
+      "mimetypes": [
+        "application/x-php"
+      ],
+      "assetId": "php"
+    },
+    {
+      "id": "pla",
+      "extensions": [
+        ".pla"
+      ],
+      "assetId": "pla"
+    },
+    {
+      "id": "postiats",
+      "extensions": [
+        ".dats",
+        ".sats",
+        ".hats"
+      ],
+      "aliases": [
+        "ATS",
+        "ATS/Postiats"
+      ],
+      "assetId": "postiats"
+    },
+    {
+      "id": "powerquery",
+      "extensions": [
+        ".pq",
+        ".pqm"
+      ],
+      "aliases": [
+        "PQ",
+        "M",
+        "Power Query",
+        "Power Query M"
+      ],
+      "assetId": "powerquery"
+    },
+    {
+      "id": "powershell",
+      "extensions": [
+        ".ps1",
+        ".psm1",
+        ".psd1"
+      ],
+      "aliases": [
+        "PowerShell",
+        "powershell",
+        "ps",
+        "ps1"
+      ],
+      "assetId": "powershell"
+    },
+    {
+      "id": "proto",
+      "extensions": [
+        ".proto"
+      ],
+      "aliases": [
+        "protobuf",
+        "Protocol Buffers"
+      ],
+      "assetId": "protobuf"
+    },
+    {
+      "id": "pug",
+      "extensions": [
+        ".jade",
+        ".pug"
+      ],
+      "aliases": [
+        "Pug",
+        "Jade",
+        "jade"
+      ],
+      "assetId": "pug"
+    },
+    {
+      "id": "python",
+      "extensions": [
+        ".py",
+        ".rpy",
+        ".pyw",
+        ".cpy",
+        ".gyp",
+        ".gypi"
+      ],
+      "aliases": [
+        "Python",
+        "py"
+      ],
+      "firstLine": "^#!/.*\\bpython[0-9.-]*\\b",
+      "assetId": "python"
+    },
+    {
+      "id": "qsharp",
+      "extensions": [
+        ".qs"
+      ],
+      "aliases": [
+        "Q#",
+        "qsharp"
+      ],
+      "assetId": "qsharp"
+    },
+    {
+      "id": "r",
+      "extensions": [
+        ".r",
+        ".rhistory",
+        ".rmd",
+        ".rprofile",
+        ".rt"
+      ],
+      "aliases": [
+        "R",
+        "r"
+      ],
+      "assetId": "r"
+    },
+    {
+      "id": "razor",
+      "extensions": [
+        ".cshtml"
+      ],
+      "aliases": [
+        "Razor",
+        "razor"
+      ],
+      "mimetypes": [
+        "text/x-cshtml"
+      ],
+      "assetId": "razor"
+    },
+    {
+      "id": "redis",
+      "extensions": [
+        ".redis"
+      ],
+      "aliases": [
+        "redis"
+      ],
+      "assetId": "redis"
+    },
+    {
+      "id": "redshift",
+      "extensions": [],
+      "aliases": [
+        "Redshift",
+        "redshift"
+      ],
+      "assetId": "redshift"
+    },
+    {
+      "id": "restructuredtext",
+      "extensions": [
+        ".rst"
+      ],
+      "aliases": [
+        "reStructuredText",
+        "restructuredtext"
+      ],
+      "assetId": "restructuredtext"
+    },
+    {
+      "id": "ruby",
+      "extensions": [
+        ".rb",
+        ".rbx",
+        ".rjs",
+        ".gemspec",
+        ".pp"
+      ],
+      "filenames": [
+        "rakefile",
+        "Gemfile"
+      ],
+      "aliases": [
+        "Ruby",
+        "rb"
+      ],
+      "assetId": "ruby"
+    },
+    {
+      "id": "rust",
+      "extensions": [
+        ".rs",
+        ".rlib"
+      ],
+      "aliases": [
+        "Rust",
+        "rust"
+      ],
+      "assetId": "rust"
+    },
+    {
+      "id": "sb",
+      "extensions": [
+        ".sb"
+      ],
+      "aliases": [
+        "Small Basic",
+        "sb"
+      ],
+      "assetId": "sb"
+    },
+    {
+      "id": "scala",
+      "extensions": [
+        ".scala",
+        ".sc",
+        ".sbt"
+      ],
+      "aliases": [
+        "Scala",
+        "scala",
+        "SBT",
+        "Sbt",
+        "sbt",
+        "Dotty",
+        "dotty"
+      ],
+      "mimetypes": [
+        "text/x-scala-source",
+        "text/x-scala",
+        "text/x-sbt",
+        "text/x-dotty"
+      ],
+      "assetId": "scala"
+    },
+    {
+      "id": "scheme",
+      "extensions": [
+        ".scm",
+        ".ss",
+        ".sch",
+        ".rkt"
+      ],
+      "aliases": [
+        "scheme",
+        "Scheme"
+      ],
+      "assetId": "scheme"
+    },
+    {
+      "id": "scss",
+      "extensions": [
+        ".scss"
+      ],
+      "aliases": [
+        "Sass",
+        "sass",
+        "scss"
+      ],
+      "mimetypes": [
+        "text/x-scss",
+        "text/scss"
+      ],
+      "assetId": "scss"
+    },
+    {
+      "id": "shell",
+      "extensions": [
+        ".sh",
+        ".bash"
+      ],
+      "aliases": [
+        "Shell",
+        "sh"
+      ],
+      "assetId": "shell"
+    },
+    {
+      "id": "sol",
+      "extensions": [
+        ".sol"
+      ],
+      "aliases": [
+        "sol",
+        "solidity",
+        "Solidity"
+      ],
+      "assetId": "solidity"
+    },
+    {
+      "id": "aes",
+      "extensions": [
+        ".aes"
+      ],
+      "aliases": [
+        "aes",
+        "sophia",
+        "Sophia"
+      ],
+      "assetId": "sophia"
+    },
+    {
+      "id": "sparql",
+      "extensions": [
+        ".rq"
+      ],
+      "aliases": [
+        "sparql",
+        "SPARQL"
+      ],
+      "assetId": "sparql"
+    },
+    {
+      "id": "sql",
+      "extensions": [
+        ".sql"
+      ],
+      "aliases": [
+        "SQL"
+      ],
+      "assetId": "sql"
+    },
+    {
+      "id": "st",
+      "extensions": [
+        ".st",
+        ".iecst",
+        ".iecplc",
+        ".lc3lib",
+        ".TcPOU",
+        ".TcDUT",
+        ".TcGVL",
+        ".TcIO"
+      ],
+      "aliases": [
+        "StructuredText",
+        "scl",
+        "stl"
+      ],
+      "assetId": "st"
+    },
+    {
+      "id": "swift",
+      "aliases": [
+        "Swift",
+        "swift"
+      ],
+      "extensions": [
+        ".swift"
+      ],
+      "mimetypes": [
+        "text/swift"
+      ],
+      "assetId": "swift"
+    },
+    {
+      "id": "systemverilog",
+      "extensions": [
+        ".sv",
+        ".svh"
+      ],
+      "aliases": [
+        "SV",
+        "sv",
+        "SystemVerilog",
+        "systemverilog"
+      ],
+      "assetId": "systemverilog"
+    },
+    {
+      "id": "verilog",
+      "extensions": [
+        ".v",
+        ".vh"
+      ],
+      "aliases": [
+        "V",
+        "v",
+        "Verilog",
+        "verilog"
+      ],
+      "assetId": "systemverilog"
+    },
+    {
+      "id": "tcl",
+      "extensions": [
+        ".tcl"
+      ],
+      "aliases": [
+        "tcl",
+        "Tcl",
+        "tcltk",
+        "TclTk",
+        "tcl/tk",
+        "Tcl/Tk"
+      ],
+      "assetId": "tcl"
+    },
+    {
+      "id": "twig",
+      "extensions": [
+        ".twig"
+      ],
+      "aliases": [
+        "Twig",
+        "twig"
+      ],
+      "mimetypes": [
+        "text/x-twig"
+      ],
+      "assetId": "twig"
+    },
+    {
+      "id": "typescript",
+      "extensions": [
+        ".ts",
+        ".tsx",
+        ".cts",
+        ".mts"
+      ],
+      "aliases": [
+        "TypeScript",
+        "ts",
+        "typescript"
+      ],
+      "mimetypes": [
+        "text/typescript"
+      ],
+      "assetId": "typescript"
+    },
+    {
+      "id": "typespec",
+      "extensions": [
+        ".tsp"
+      ],
+      "aliases": [
+        "TypeSpec"
+      ],
+      "assetId": "typespec"
+    },
+    {
+      "id": "vb",
+      "extensions": [
+        ".vb"
+      ],
+      "aliases": [
+        "Visual Basic",
+        "vb"
+      ],
+      "assetId": "vb"
+    },
+    {
+      "id": "wgsl",
+      "extensions": [
+        ".wgsl"
+      ],
+      "aliases": [
+        "WebGPU Shading Language",
+        "WGSL",
+        "wgsl"
+      ],
+      "assetId": "wgsl"
+    },
+    {
+      "id": "xml",
+      "extensions": [
+        ".xml",
+        ".xsd",
+        ".dtd",
+        ".ascx",
+        ".csproj",
+        ".config",
+        ".props",
+        ".targets",
+        ".wxi",
+        ".wxl",
+        ".wxs",
+        ".xaml",
+        ".svg",
+        ".svgz",
+        ".opf",
+        ".xslt",
+        ".xsl"
+      ],
+      "firstLine": "(\\<\\?xml.*)|(\\<svg)|(\\<\\!doctype\\s+svg)",
+      "aliases": [
+        "XML",
+        "xml"
+      ],
+      "mimetypes": [
+        "text/xml",
+        "application/xml",
+        "application/xaml+xml",
+        "application/xml-dtd"
+      ],
+      "assetId": "xml"
+    },
+    {
+      "id": "yaml",
+      "extensions": [
+        ".yaml",
+        ".yml"
+      ],
+      "aliases": [
+        "YAML",
+        "yaml",
+        "YML",
+        "yml"
+      ],
+      "mimetypes": [
+        "application/x-yaml",
+        "text/x-yaml"
+      ],
+      "assetId": "yaml"
+    }
+  ],
+  "failed": []
+}

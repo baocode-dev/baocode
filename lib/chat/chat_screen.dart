@@ -32,6 +32,7 @@ class ChatScreen extends StatefulWidget {
     this.titleBarInset,
     this.onRename,
     this.autofocus = false,
+    this.embedded = false,
     this.mentions = ComposerMockData.mentions,
   });
 
@@ -53,6 +54,9 @@ class ChatScreen extends StatefulWidget {
 
   /// Focuses the composer once shown, e.g. for a new agent.
   final bool autofocus;
+
+  /// When true, omit the window title row so this screen can live in a pane.
+  final bool embedded;
 
   /// What `@` offers: the project's files and other context.
   final List<Suggestion> mentions;
@@ -310,7 +314,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         children: [
           // The session's title, in the row the window's header leaves it
           // (macOS draws a title bar of its own over it; see CursorMetrics).
-          _buildTitleBar(),
+          if (!widget.embedded) _buildTitleBar(),
           Expanded(
             child: CallbackShortcuts(
               bindings: {

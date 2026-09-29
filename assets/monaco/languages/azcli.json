@@ -1,0 +1,113 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "azcli",
+  "language": {
+    "defaultToken": "keyword",
+    "ignoreCase": true,
+    "tokenPostfix": ".azcli",
+    "str": {
+      "$regex": "[^#\\s]",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        {
+          "include": "@comment"
+        },
+        [
+          {
+            "$regex": "\\s-+@str*\\s*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "key.identifier",
+                "next": "@popall"
+              },
+              "@default": {
+                "token": "key.identifier",
+                "next": "@type"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "^-+@str*\\s*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "key.identifier",
+                "next": "@popall"
+              },
+              "@default": {
+                "token": "key.identifier",
+                "next": "@type"
+              }
+            }
+          }
+        ]
+      ],
+      "type": [
+        {
+          "include": "@comment"
+        },
+        [
+          {
+            "$regex": "-+@str*\\s*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "key.identifier",
+                "next": "@popall"
+              },
+              "@default": "key.identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "@str+\\s*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "string",
+                "next": "@popall"
+              },
+              "@default": "string"
+            }
+          }
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "#.*$",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "comment",
+                "next": "@popall"
+              }
+            }
+          }
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "#"
+    }
+  }
+}

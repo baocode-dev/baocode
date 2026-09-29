@@ -1,0 +1,1055 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "twig",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": "",
+    "ignoreCase": true,
+    "keywords": [
+      "apply",
+      "autoescape",
+      "block",
+      "deprecated",
+      "do",
+      "embed",
+      "extends",
+      "flush",
+      "for",
+      "from",
+      "if",
+      "import",
+      "include",
+      "macro",
+      "sandbox",
+      "set",
+      "use",
+      "verbatim",
+      "with",
+      "endapply",
+      "endautoescape",
+      "endblock",
+      "endembed",
+      "endfor",
+      "endif",
+      "endmacro",
+      "endsandbox",
+      "endset",
+      "endwith",
+      "true",
+      "false"
+    ],
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "\\s+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "{#",
+            "$flags": ""
+          },
+          "comment.twig",
+          "@commentState"
+        ],
+        [
+          {
+            "$regex": "{%[-~]?",
+            "$flags": ""
+          },
+          "delimiter.twig",
+          "@blockState"
+        ],
+        [
+          {
+            "$regex": "{{[-~]?",
+            "$flags": ""
+          },
+          "delimiter.twig",
+          "@variableState"
+        ],
+        [
+          {
+            "$regex": "<!DOCTYPE",
+            "$flags": ""
+          },
+          "metatag.html",
+          "@doctype"
+        ],
+        [
+          {
+            "$regex": "<!--",
+            "$flags": ""
+          },
+          "comment.html",
+          "@comment"
+        ],
+        [
+          {
+            "$regex": "(<)((?:[\\w\\-]+:)?[\\w\\-]+)(\\s*)(\\/>)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            "tag.html",
+            "",
+            "delimiter.html"
+          ]
+        ],
+        [
+          {
+            "$regex": "(<)(script)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            {
+              "token": "tag.html",
+              "next": "@script"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(<)(style)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            {
+              "token": "tag.html",
+              "next": "@style"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(<)((?:[\\w\\-]+:)?[\\w\\-]+)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            {
+              "token": "tag.html",
+              "next": "@otherTag"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(<\\/)((?:[\\w\\-]+:)?[\\w\\-]+)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            {
+              "token": "tag.html",
+              "next": "@otherTag"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "<",
+            "$flags": ""
+          },
+          "delimiter.html"
+        ],
+        [
+          {
+            "$regex": "[^<{]+",
+            "$flags": ""
+          }
+        ]
+      ],
+      "commentState": [
+        [
+          {
+            "$regex": "#}",
+            "$flags": ""
+          },
+          "comment.twig",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "comment.twig"
+        ]
+      ],
+      "blockState": [
+        [
+          {
+            "$regex": "[-~]?%}",
+            "$flags": ""
+          },
+          "delimiter.twig",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "\\s+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "(verbatim)(\\s*)([-~]?%})",
+            "$flags": ""
+          },
+          [
+            "keyword.twig",
+            "",
+            {
+              "token": "delimiter.twig",
+              "next": "@rawDataState"
+            }
+          ]
+        ],
+        {
+          "include": "expression"
+        }
+      ],
+      "rawDataState": [
+        [
+          {
+            "$regex": "({%[-~]?)(\\s*)(endverbatim)(\\s*)([-~]?%})",
+            "$flags": ""
+          },
+          [
+            "delimiter.twig",
+            "",
+            "keyword.twig",
+            "",
+            {
+              "token": "delimiter.twig",
+              "next": "@popall"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "string.twig"
+        ]
+      ],
+      "variableState": [
+        [
+          {
+            "$regex": "[-~]?}}",
+            "$flags": ""
+          },
+          "delimiter.twig",
+          "@pop"
+        ],
+        {
+          "include": "expression"
+        }
+      ],
+      "stringState": [
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string.twig",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "#{\\s*",
+            "$flags": ""
+          },
+          "string.twig",
+          "@interpolationState"
+        ],
+        [
+          {
+            "$regex": "[^#\"\\\\]*(?:(?:\\\\.|#(?!\\{))[^#\"\\\\]*)*",
+            "$flags": ""
+          },
+          "string.twig"
+        ]
+      ],
+      "interpolationState": [
+        [
+          {
+            "$regex": "}",
+            "$flags": ""
+          },
+          "string.twig",
+          "@pop"
+        ],
+        {
+          "include": "expression"
+        }
+      ],
+      "expression": [
+        [
+          {
+            "$regex": "\\s+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "\\+|-|\\/{1,2}|%|\\*{1,2}",
+            "$flags": ""
+          },
+          "operators.twig"
+        ],
+        [
+          {
+            "$regex": "(and|or|not|b-and|b-xor|b-or)(\\s+)",
+            "$flags": ""
+          },
+          [
+            "operators.twig",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "==|!=|<|>|>=|<=",
+            "$flags": ""
+          },
+          "operators.twig"
+        ],
+        [
+          {
+            "$regex": "(starts with|ends with|matches)(\\s+)",
+            "$flags": ""
+          },
+          [
+            "operators.twig",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "(in)(\\s+)",
+            "$flags": ""
+          },
+          [
+            "operators.twig",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "(is)(\\s+)",
+            "$flags": ""
+          },
+          [
+            "operators.twig",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "\\||~|:|\\.{1,2}|\\?{1,2}",
+            "$flags": ""
+          },
+          "operators.twig"
+        ],
+        [
+          {
+            "$regex": "[^\\W\\d][\\w]*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": "keyword.twig",
+              "@default": "variable.twig"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\d+(\\.\\d+)?",
+            "$flags": ""
+          },
+          "number.twig"
+        ],
+        [
+          {
+            "$regex": "\\(|\\)|\\[|\\]|{|}|,",
+            "$flags": ""
+          },
+          "delimiter.twig"
+        ],
+        [
+          {
+            "$regex": "\"([^#\"\\\\]*(?:\\\\.[^#\"\\\\]*)*)\"|\\'([^\\'\\\\]*(?:\\\\.[^\\'\\\\]*)*)\\'",
+            "$flags": ""
+          },
+          "string.twig"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string.twig",
+          "@stringState"
+        ],
+        [
+          {
+            "$regex": "=>",
+            "$flags": ""
+          },
+          "operators.twig"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "operators.twig"
+        ]
+      ],
+      "doctype": [
+        [
+          {
+            "$regex": "[^>]+",
+            "$flags": ""
+          },
+          "metatag.content.html"
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          "metatag.html",
+          "@pop"
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "-->",
+            "$flags": ""
+          },
+          "comment.html",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[^-]+",
+            "$flags": ""
+          },
+          "comment.content.html"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "comment.content.html"
+        ]
+      ],
+      "otherTag": [
+        [
+          {
+            "$regex": "\\/?>",
+            "$flags": ""
+          },
+          "delimiter.html",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          "attribute.value.html"
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          "attribute.value.html"
+        ],
+        [
+          {
+            "$regex": "[\\w\\-]+",
+            "$flags": ""
+          },
+          "attribute.name.html"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter.html"
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ]
+      ],
+      "script": [
+        [
+          {
+            "$regex": "type",
+            "$flags": ""
+          },
+          "attribute.name.html",
+          "@scriptAfterType"
+        ],
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          "attribute.value.html"
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          "attribute.value.html"
+        ],
+        [
+          {
+            "$regex": "[\\w\\-]+",
+            "$flags": ""
+          },
+          "attribute.name.html"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter.html"
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@scriptEmbedded",
+            "nextEmbedded": "text/javascript"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "(<\\/)(script\\s*)(>)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            "tag.html",
+            {
+              "token": "delimiter.html",
+              "next": "@pop"
+            }
+          ]
+        ]
+      ],
+      "scriptAfterType": [
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter.html",
+          "@scriptAfterTypeEquals"
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@scriptEmbedded",
+            "nextEmbedded": "text/javascript"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/script\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "scriptAfterTypeEquals": [
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          {
+            "token": "attribute.value.html",
+            "switchTo": "@scriptWithCustomType.$1"
+          }
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          {
+            "token": "attribute.value.html",
+            "switchTo": "@scriptWithCustomType.$1"
+          }
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@scriptEmbedded",
+            "nextEmbedded": "text/javascript"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/script\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "scriptWithCustomType": [
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@scriptEmbedded.$S2",
+            "nextEmbedded": "$S2"
+          }
+        ],
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          "attribute.value.html"
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          "attribute.value.html"
+        ],
+        [
+          {
+            "$regex": "[\\w\\-]+",
+            "$flags": ""
+          },
+          "attribute.name.html"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter.html"
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/script\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "scriptEmbedded": [
+        [
+          {
+            "$regex": "<\\/script",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "[^<]+",
+            "$flags": ""
+          },
+          ""
+        ]
+      ],
+      "style": [
+        [
+          {
+            "$regex": "type",
+            "$flags": ""
+          },
+          "attribute.name.html",
+          "@styleAfterType"
+        ],
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          "attribute.value.html"
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          "attribute.value.html"
+        ],
+        [
+          {
+            "$regex": "[\\w\\-]+",
+            "$flags": ""
+          },
+          "attribute.name.html"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter.html"
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@styleEmbedded",
+            "nextEmbedded": "text/css"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "(<\\/)(style\\s*)(>)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            "tag.html",
+            {
+              "token": "delimiter.html",
+              "next": "@pop"
+            }
+          ]
+        ]
+      ],
+      "styleAfterType": [
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter.html",
+          "@styleAfterTypeEquals"
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@styleEmbedded",
+            "nextEmbedded": "text/css"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/style\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "styleAfterTypeEquals": [
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          {
+            "token": "attribute.value.html",
+            "switchTo": "@styleWithCustomType.$1"
+          }
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          {
+            "token": "attribute.value.html",
+            "switchTo": "@styleWithCustomType.$1"
+          }
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@styleEmbedded",
+            "nextEmbedded": "text/css"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/style\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "styleWithCustomType": [
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@styleEmbedded.$S2",
+            "nextEmbedded": "$S2"
+          }
+        ],
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          "attribute.value.html"
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          "attribute.value.html"
+        ],
+        [
+          {
+            "$regex": "[\\w\\-]+",
+            "$flags": ""
+          },
+          "attribute.name.html"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter.html"
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/style\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "styleEmbedded": [
+        [
+          {
+            "$regex": "<\\/style",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "[^<]+",
+            "$flags": ""
+          },
+          ""
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "wordPattern": {
+      "$regex": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\$\\^\\&\\*\\(\\)\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\s]+)",
+      "$flags": "g"
+    },
+    "comments": {
+      "blockComment": [
+        "{#",
+        "#}"
+      ]
+    },
+    "brackets": [
+      [
+        "{#",
+        "#}"
+      ],
+      [
+        "{%",
+        "%}"
+      ],
+      [
+        "{{",
+        "}}"
+      ],
+      [
+        "(",
+        ")"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "<!--",
+        "-->"
+      ],
+      [
+        "<",
+        ">"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{# ",
+        "close": " #}"
+      },
+      {
+        "open": "{% ",
+        "close": " %}"
+      },
+      {
+        "open": "{{ ",
+        "close": " }}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      },
+      {
+        "open": "<",
+        "close": ">"
+      }
+    ]
+  }
+}

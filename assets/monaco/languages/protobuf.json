@@ -1,0 +1,1453 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "protobuf",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".proto",
+    "brackets": [
+      {
+        "open": "{",
+        "close": "}",
+        "token": "delimiter.curly"
+      },
+      {
+        "open": "[",
+        "close": "]",
+        "token": "delimiter.square"
+      },
+      {
+        "open": "(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "<",
+        "close": ">",
+        "token": "delimiter.angle"
+      }
+    ],
+    "symbols": {
+      "$regex": "[=><!~?:&|+\\-*/^%]+",
+      "$flags": ""
+    },
+    "keywords": [
+      "syntax",
+      "import",
+      "weak",
+      "public",
+      "package",
+      "option",
+      "repeated",
+      "oneof",
+      "map",
+      "reserved",
+      "to",
+      "max",
+      "enum",
+      "message",
+      "service",
+      "rpc",
+      "stream",
+      "returns",
+      "package",
+      "optional",
+      "true",
+      "false"
+    ],
+    "builtinTypes": [
+      "double",
+      "float",
+      "int32",
+      "int64",
+      "uint32",
+      "uint64",
+      "sint32",
+      "sint64",
+      "fixed32",
+      "fixed64",
+      "sfixed32",
+      "sfixed64",
+      "bool",
+      "string",
+      "bytes"
+    ],
+    "operators": [
+      "=",
+      "+",
+      "-"
+    ],
+    "namedLiterals": [
+      "true",
+      "false"
+    ],
+    "escapes": "\\\\(u{[0-9A-Fa-f]+}|n|r|t|\\\\|'|\\${)",
+    "identifier": {
+      "$regex": "[a-zA-Z]\\w*",
+      "$flags": ""
+    },
+    "fullIdentifier": {
+      "$regex": "@identifier(?:\\s*\\.\\s*@identifier)*",
+      "$flags": ""
+    },
+    "optionName": {
+      "$regex": "(?:@identifier|\\(\\s*@fullIdentifier\\s*\\))(?:\\s*\\.\\s*@identifier)*",
+      "$flags": ""
+    },
+    "messageName": {
+      "$regex": "@identifier",
+      "$flags": ""
+    },
+    "enumName": {
+      "$regex": "@identifier",
+      "$flags": ""
+    },
+    "messageType": {
+      "$regex": "\\.?\\s*(?:@identifier\\s*\\.\\s*)*@messageName",
+      "$flags": ""
+    },
+    "enumType": {
+      "$regex": "\\.?\\s*(?:@identifier\\s*\\.\\s*)*@enumName",
+      "$flags": ""
+    },
+    "floatLit": {
+      "$regex": "[0-9]+\\s*\\.\\s*[0-9]*(?:@exponent)?|[0-9]+@exponent|\\.[0-9]+(?:@exponent)?",
+      "$flags": ""
+    },
+    "exponent": {
+      "$regex": "[eE]\\s*[+-]?\\s*[0-9]+",
+      "$flags": ""
+    },
+    "boolLit": {
+      "$regex": "true\\b|false\\b",
+      "$flags": ""
+    },
+    "decimalLit": {
+      "$regex": "[1-9][0-9]*",
+      "$flags": ""
+    },
+    "octalLit": {
+      "$regex": "0[0-7]*",
+      "$flags": ""
+    },
+    "hexLit": {
+      "$regex": "0[xX][0-9a-fA-F]+",
+      "$flags": ""
+    },
+    "type": {
+      "$regex": "double|float|int32|int64|uint32|uint64|sint32|sint64|fixed32|fixed64|sfixed32|sfixed64|bool|string|bytes|@messageType|@enumType",
+      "$flags": ""
+    },
+    "keyType": {
+      "$regex": "int32|int64|uint32|uint64|sint32|sint64|fixed32|fixed64|sfixed32|sfixed64|bool|string",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "syntax",
+            "$flags": ""
+          },
+          "keyword"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "operators"
+        ],
+        [
+          {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "(\")(proto3)(\")",
+            "$flags": ""
+          },
+          [
+            "string.quote",
+            "string",
+            {
+              "token": "string.quote",
+              "switchTo": "@topLevel.proto3"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(\")(proto2)(\")",
+            "$flags": ""
+          },
+          [
+            "string.quote",
+            "string",
+            {
+              "token": "string.quote",
+              "switchTo": "@topLevel.proto2"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": ".*?",
+            "$flags": ""
+          },
+          {
+            "token": "",
+            "switchTo": "@topLevel.proto2"
+          }
+        ]
+      ],
+      "topLevel": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@constant"
+        },
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "operators"
+        ],
+        [
+          {
+            "$regex": "[;.]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "@fullIdentifier",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "option": {
+                "token": "keyword",
+                "next": "@option.$S2"
+              },
+              "enum": {
+                "token": "keyword",
+                "next": "@enumDecl.$S2"
+              },
+              "message": {
+                "token": "keyword",
+                "next": "@messageDecl.$S2"
+              },
+              "service": {
+                "token": "keyword",
+                "next": "@serviceDecl.$S2"
+              },
+              "extend": {
+                "cases": {
+                  "$S2==proto2": {
+                    "token": "keyword",
+                    "next": "@extendDecl.$S2"
+                  }
+                }
+              },
+              "@keywords": "keyword",
+              "@default": "identifier"
+            }
+          }
+        ]
+      ],
+      "enumDecl": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          "type.identifier"
+        ],
+        [
+          {
+            "$regex": "{",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "switchTo": "@enumBody.$S2"
+          }
+        ]
+      ],
+      "enumBody": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@constant"
+        },
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "operators"
+        ],
+        [
+          {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "option\\b",
+            "$flags": ""
+          },
+          "keyword",
+          "@option.$S2"
+        ],
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          "identifier"
+        ],
+        [
+          {
+            "$regex": "\\[",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "next": "@options.$S2"
+          }
+        ],
+        [
+          {
+            "$regex": "}",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "messageDecl": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          "type.identifier"
+        ],
+        [
+          {
+            "$regex": "{",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "switchTo": "@messageBody.$S2"
+          }
+        ]
+      ],
+      "messageBody": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@constant"
+        },
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "operators"
+        ],
+        [
+          {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          "(map)(s*)(<)",
+          [
+            "keyword",
+            "white",
+            {
+              "token": "@brackets",
+              "bracket": "@open",
+              "next": "@map.$S2"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "option": {
+                "token": "keyword",
+                "next": "@option.$S2"
+              },
+              "enum": {
+                "token": "keyword",
+                "next": "@enumDecl.$S2"
+              },
+              "message": {
+                "token": "keyword",
+                "next": "@messageDecl.$S2"
+              },
+              "oneof": {
+                "token": "keyword",
+                "next": "@oneofDecl.$S2"
+              },
+              "extensions": {
+                "cases": {
+                  "$S2==proto2": {
+                    "token": "keyword",
+                    "next": "@reserved.$S2"
+                  }
+                }
+              },
+              "reserved": {
+                "token": "keyword",
+                "next": "@reserved.$S2"
+              },
+              "(?:repeated|optional)": {
+                "token": "keyword",
+                "next": "@field.$S2"
+              },
+              "required": {
+                "cases": {
+                  "$S2==proto2": {
+                    "token": "keyword",
+                    "next": "@field.$S2"
+                  }
+                }
+              },
+              "$S2==proto3": {
+                "token": "@rematch",
+                "next": "@field.$S2"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\[",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "next": "@options.$S2"
+          }
+        ],
+        [
+          {
+            "$regex": "}",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "extendDecl": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          "type.identifier"
+        ],
+        [
+          {
+            "$regex": "{",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "switchTo": "@extendBody.$S2"
+          }
+        ]
+      ],
+      "extendBody": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@constant"
+        },
+        [
+          {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "(?:repeated|optional|required)",
+            "$flags": ""
+          },
+          "keyword",
+          "@field.$S2"
+        ],
+        [
+          {
+            "$regex": "\\[",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "next": "@options.$S2"
+          }
+        ],
+        [
+          {
+            "$regex": "}",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "options": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@constant"
+        },
+        [
+          {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "@optionName",
+            "$flags": ""
+          },
+          "annotation"
+        ],
+        [
+          {
+            "$regex": "[()]",
+            "$flags": ""
+          },
+          "annotation.brackets"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "operator"
+        ],
+        [
+          {
+            "$regex": "\\]",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "option": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@optionName",
+            "$flags": ""
+          },
+          "annotation"
+        ],
+        [
+          {
+            "$regex": "[()]",
+            "$flags": ""
+          },
+          "annotation.brackets"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "operator",
+          "@pop"
+        ]
+      ],
+      "oneofDecl": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          "identifier"
+        ],
+        [
+          {
+            "$regex": "{",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "switchTo": "@oneofBody.$S2"
+          }
+        ]
+      ],
+      "oneofBody": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@constant"
+        },
+        [
+          {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "(@identifier)(\\s*)(=)",
+            "$flags": ""
+          },
+          [
+            "identifier",
+            "white",
+            "delimiter"
+          ]
+        ],
+        [
+          {
+            "$regex": "@fullIdentifier|\\.",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@builtinTypes": "keyword",
+              "@default": "type.identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\[",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "next": "@options.$S2"
+          }
+        ],
+        [
+          {
+            "$regex": "}",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "reserved": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": ",",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "delimiter",
+          "@pop"
+        ],
+        {
+          "include": "@constant"
+        },
+        [
+          {
+            "$regex": "to\\b|max\\b",
+            "$flags": ""
+          },
+          "keyword"
+        ]
+      ],
+      "map": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@fullIdentifier|\\.",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@builtinTypes": "keyword",
+              "@default": "type.identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": ",",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@close",
+            "switchTo": "identifier"
+          }
+        ]
+      ],
+      "field": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          "group",
+          {
+            "cases": {
+              "$S2==proto2": {
+                "token": "keyword",
+                "switchTo": "@groupDecl.$S2"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(@identifier)(\\s*)(=)",
+            "$flags": ""
+          },
+          [
+            "identifier",
+            "white",
+            {
+              "token": "delimiter",
+              "next": "@pop"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "@fullIdentifier|\\.",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@builtinTypes": "keyword",
+              "@default": "type.identifier"
+            }
+          }
+        ]
+      ],
+      "groupDecl": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          "identifier"
+        ],
+        [
+          "=",
+          "operator"
+        ],
+        [
+          {
+            "$regex": "{",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "switchTo": "@messageBody.$S2"
+          }
+        ],
+        {
+          "include": "@constant"
+        }
+      ],
+      "type": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          "type.identifier",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "delimiter"
+        ]
+      ],
+      "identifier": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          "identifier",
+          "@pop"
+        ]
+      ],
+      "serviceDecl": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          "identifier"
+        ],
+        [
+          {
+            "$regex": "{",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "switchTo": "@serviceBody.$S2"
+          }
+        ]
+      ],
+      "serviceBody": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@constant"
+        },
+        [
+          {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "option\\b",
+            "$flags": ""
+          },
+          "keyword",
+          "@option.$S2"
+        ],
+        [
+          {
+            "$regex": "rpc\\b",
+            "$flags": ""
+          },
+          "keyword",
+          "@rpc.$S2"
+        ],
+        [
+          {
+            "$regex": "\\[",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "next": "@options.$S2"
+          }
+        ],
+        [
+          {
+            "$regex": "}",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "rpc": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          "identifier"
+        ],
+        [
+          {
+            "$regex": "\\(",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "switchTo": "@request.$S2"
+          }
+        ],
+        [
+          {
+            "$regex": "{",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "next": "@methodOptions.$S2"
+          }
+        ],
+        [
+          {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "delimiter",
+          "@pop"
+        ]
+      ],
+      "request": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@messageType",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "stream": {
+                "token": "keyword",
+                "next": "@type.$S2"
+              },
+              "@default": "type.identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\)",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@close",
+            "switchTo": "@returns.$S2"
+          }
+        ]
+      ],
+      "returns": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "returns\\b",
+            "$flags": ""
+          },
+          "keyword"
+        ],
+        [
+          {
+            "$regex": "\\(",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "switchTo": "@response.$S2"
+          }
+        ]
+      ],
+      "response": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@messageType",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "stream": {
+                "token": "keyword",
+                "next": "@type.$S2"
+              },
+              "@default": "type.identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\)",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@close",
+            "switchTo": "@rpc.$S2"
+          }
+        ]
+      ],
+      "methodOptions": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@constant"
+        },
+        [
+          {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          "option",
+          "keyword"
+        ],
+        [
+          {
+            "$regex": "@optionName",
+            "$flags": ""
+          },
+          "annotation"
+        ],
+        [
+          {
+            "$regex": "[()]",
+            "$flags": ""
+          },
+          "annotation.brackets"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "operator"
+        ],
+        [
+          {
+            "$regex": "}",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "[^\\/*]+",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "\\/\\*",
+            "$flags": ""
+          },
+          "comment",
+          "@push"
+        ],
+        [
+          "\\*/",
+          "comment",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[\\/*]",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "string": [
+        [
+          {
+            "$regex": "[^\\\\\"]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "stringSingle": [
+        [
+          {
+            "$regex": "[^\\\\']+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "constant": [
+        [
+          "@boolLit",
+          "keyword.constant"
+        ],
+        [
+          "@hexLit",
+          "number.hex"
+        ],
+        [
+          "@octalLit",
+          "number.octal"
+        ],
+        [
+          "@decimalLit",
+          "number"
+        ],
+        [
+          "@floatLit",
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "(\"([^\"\\\\]|\\\\.)*|'([^'\\\\]|\\\\.)*)$",
+            "$flags": ""
+          },
+          "string.invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@string"
+          }
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@stringSingle"
+          }
+        ],
+        [
+          {
+            "$regex": "{",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@open",
+            "next": "@prototext"
+          }
+        ],
+        [
+          {
+            "$regex": "identifier",
+            "$flags": ""
+          },
+          "identifier"
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          "white"
+        ],
+        [
+          {
+            "$regex": "\\/\\*",
+            "$flags": ""
+          },
+          "comment",
+          "@comment"
+        ],
+        [
+          {
+            "$regex": "\\/\\/.*$",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "prototext": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@constant"
+        },
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          "identifier"
+        ],
+        [
+          {
+            "$regex": "[:;]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "}",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "//",
+      "blockComment": [
+        "/*",
+        "*/"
+      ]
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ],
+      [
+        "<",
+        ">"
+      ]
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "<",
+        "close": ">"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "<",
+        "close": ">"
+      },
+      {
+        "open": "\"",
+        "close": "\"",
+        "notIn": [
+          "string"
+        ]
+      },
+      {
+        "open": "'",
+        "close": "'",
+        "notIn": [
+          "string"
+        ]
+      }
+    ],
+    "autoCloseBefore": ".,=}])>' \n\t",
+    "indentationRules": {
+      "increaseIndentPattern": {
+        "$regex": "^((?!\\/\\/).)*(\\{[^}\"'`]*|\\([^)\"'`]*|\\[[^\\]\"'`]*)$",
+        "$flags": ""
+      },
+      "decreaseIndentPattern": {
+        "$regex": "^((?!.*?\\/\\*).*\\*\\/)?\\s*[\\}\\]].*$",
+        "$flags": ""
+      }
+    }
+  }
+}

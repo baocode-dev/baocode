@@ -1,0 +1,245 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "csp",
+  "language": {
+    "keywords": [],
+    "typeKeywords": [],
+    "tokenPostfix": ".csp",
+    "operators": [],
+    "symbols": {
+      "$regex": "[=><!~?:&|+\\-*\\/\\^%]+",
+      "$flags": ""
+    },
+    "escapes": {
+      "$regex": "\\\\(?:[abfnrtv\\\\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "child-src",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "connect-src",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "default-src",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "font-src",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "frame-src",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "img-src",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "manifest-src",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "media-src",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "object-src",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "script-src",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "style-src",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "worker-src",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "base-uri",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "plugin-types",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "sandbox",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "disown-opener",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "form-action",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "frame-ancestors",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "report-uri",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "report-to",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "upgrade-insecure-requests",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "block-all-mixed-content",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "require-sri-for",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "reflected-xss",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "referrer",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "policy-uri",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "'self'",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "'unsafe-inline'",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "'unsafe-eval'",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "'strict-dynamic'",
+            "$flags": ""
+          },
+          "string.quote"
+        ],
+        [
+          {
+            "$regex": "'unsafe-hashed-attributes'",
+            "$flags": ""
+          },
+          "string.quote"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "brackets": [],
+    "autoClosingPairs": [],
+    "surroundingPairs": []
+  }
+}

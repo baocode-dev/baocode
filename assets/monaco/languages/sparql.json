@@ -1,0 +1,388 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "sparql",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".rq",
+    "brackets": [
+      {
+        "token": "delimiter.curly",
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "token": "delimiter.parenthesis",
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "token": "delimiter.square",
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "token": "delimiter.angle",
+        "open": "<",
+        "close": ">"
+      }
+    ],
+    "keywords": [
+      "add",
+      "as",
+      "asc",
+      "ask",
+      "base",
+      "by",
+      "clear",
+      "construct",
+      "copy",
+      "create",
+      "data",
+      "delete",
+      "desc",
+      "describe",
+      "distinct",
+      "drop",
+      "false",
+      "filter",
+      "from",
+      "graph",
+      "group",
+      "having",
+      "in",
+      "insert",
+      "limit",
+      "load",
+      "minus",
+      "move",
+      "named",
+      "not",
+      "offset",
+      "optional",
+      "order",
+      "prefix",
+      "reduced",
+      "select",
+      "service",
+      "silent",
+      "to",
+      "true",
+      "undef",
+      "union",
+      "using",
+      "values",
+      "where",
+      "with"
+    ],
+    "builtinFunctions": [
+      "a",
+      "abs",
+      "avg",
+      "bind",
+      "bnode",
+      "bound",
+      "ceil",
+      "coalesce",
+      "concat",
+      "contains",
+      "count",
+      "datatype",
+      "day",
+      "encode_for_uri",
+      "exists",
+      "floor",
+      "group_concat",
+      "hours",
+      "if",
+      "iri",
+      "isblank",
+      "isiri",
+      "isliteral",
+      "isnumeric",
+      "isuri",
+      "lang",
+      "langmatches",
+      "lcase",
+      "max",
+      "md5",
+      "min",
+      "minutes",
+      "month",
+      "now",
+      "rand",
+      "regex",
+      "replace",
+      "round",
+      "sameterm",
+      "sample",
+      "seconds",
+      "sha1",
+      "sha256",
+      "sha384",
+      "sha512",
+      "str",
+      "strafter",
+      "strbefore",
+      "strdt",
+      "strends",
+      "strlang",
+      "strlen",
+      "strstarts",
+      "struuid",
+      "substr",
+      "sum",
+      "timezone",
+      "tz",
+      "ucase",
+      "uri",
+      "uuid",
+      "year"
+    ],
+    "ignoreCase": true,
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "<[^\\s\\u00a0>]*>?",
+            "$flags": ""
+          },
+          "tag"
+        ],
+        {
+          "include": "@strings"
+        },
+        [
+          {
+            "$regex": "#.*",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "[{}()\\[\\]]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "[;,.]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "[_\\w\\d]+:(\\.(?=[\\w_\\-\\\\%])|[:\\w_-]|\\\\[-\\\\_~.!$&'()*+,;=/?#@%]|%[a-f\\d][a-f\\d])*",
+            "$flags": ""
+          },
+          "tag"
+        ],
+        [
+          {
+            "$regex": ":(\\.(?=[\\w_\\-\\\\%])|[:\\w_-]|\\\\[-\\\\_~.!$&'()*+,;=/?#@%]|%[a-f\\d][a-f\\d])+",
+            "$flags": ""
+          },
+          "tag"
+        ],
+        [
+          {
+            "$regex": "[$?]?[_\\w\\d]+",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": {
+                "token": "keyword"
+              },
+              "@builtinFunctions": {
+                "token": "predefined.sql"
+              },
+              "@default": "identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\^\\^",
+            "$flags": ""
+          },
+          "operator.sql"
+        ],
+        [
+          {
+            "$regex": "\\^[*+\\-<>=&|^\\/!?]*",
+            "$flags": ""
+          },
+          "operator.sql"
+        ],
+        [
+          {
+            "$regex": "[*+\\-<>=&|\\/!?]",
+            "$flags": ""
+          },
+          "operator.sql"
+        ],
+        [
+          {
+            "$regex": "@[a-z\\d\\-]*",
+            "$flags": ""
+          },
+          "metatag.html"
+        ],
+        [
+          {
+            "$regex": "\\s+",
+            "$flags": ""
+          },
+          "white"
+        ]
+      ],
+      "strings": [
+        [
+          {
+            "$regex": "'([^'\\\\]|\\\\.)*$",
+            "$flags": ""
+          },
+          "string.invalid"
+        ],
+        [
+          {
+            "$regex": "'$",
+            "$flags": ""
+          },
+          "string.sql",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string.sql",
+          "@stringBody"
+        ],
+        [
+          {
+            "$regex": "\"([^\"\\\\]|\\\\.)*$",
+            "$flags": ""
+          },
+          "string.invalid"
+        ],
+        [
+          {
+            "$regex": "\"$",
+            "$flags": ""
+          },
+          "string.sql",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string.sql",
+          "@dblStringBody"
+        ]
+      ],
+      "stringBody": [
+        [
+          {
+            "$regex": "[^\\\\']+",
+            "$flags": ""
+          },
+          "string.sql"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string.sql",
+          "@pop"
+        ]
+      ],
+      "dblStringBody": [
+        [
+          {
+            "$regex": "[^\\\\\"]+",
+            "$flags": ""
+          },
+          "string.sql"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string.sql",
+          "@pop"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "#"
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "'",
+        "close": "'",
+        "notIn": [
+          "string"
+        ]
+      },
+      {
+        "open": "\"",
+        "close": "\"",
+        "notIn": [
+          "string"
+        ]
+      },
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      }
+    ]
+  }
+}

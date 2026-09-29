@@ -1,0 +1,2881 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "freemarker2.tag-auto.interpolation-bracket",
+  "language": {
+    "unicode": true,
+    "includeLF": false,
+    "start": "default_auto_bracket",
+    "ignoreCase": false,
+    "defaultToken": "invalid",
+    "tokenPostfix": ".freemarker2",
+    "brackets": [
+      {
+        "open": "{",
+        "close": "}",
+        "token": "delimiter.curly"
+      },
+      {
+        "open": "[",
+        "close": "]",
+        "token": "delimiter.square"
+      },
+      {
+        "open": "(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "<",
+        "close": ">",
+        "token": "delimiter.angle"
+      }
+    ],
+    "open_angle_bracket": {
+      "$regex": "<",
+      "$flags": ""
+    },
+    "close_angle_bracket": {
+      "$regex": ">",
+      "$flags": ""
+    },
+    "iOpen1_angle_bracket": {
+      "$regex": "\\[",
+      "$flags": ""
+    },
+    "iOpen2_angle_bracket": {
+      "$regex": "=",
+      "$flags": ""
+    },
+    "iClose_angle_bracket": {
+      "$regex": "\\]",
+      "$flags": ""
+    },
+    "startTag_angle_bracket": {
+      "$regex": "(@open_angle_bracket)(#)",
+      "$flags": ""
+    },
+    "endTag_angle_bracket": {
+      "$regex": "(@open_angle_bracket)(\\/#)",
+      "$flags": ""
+    },
+    "startOrEndTag_angle_bracket": {
+      "$regex": "(@open_angle_bracket)(\\/?#)",
+      "$flags": ""
+    },
+    "closeTag1_angle_bracket": {
+      "$regex": "((?:@blank)*)(@close_angle_bracket)",
+      "$flags": ""
+    },
+    "closeTag2_angle_bracket": {
+      "$regex": "((?:@blank)*\\/?)(@close_angle_bracket)",
+      "$flags": ""
+    },
+    "blank": {
+      "$regex": "[ \\t\\n\\r]",
+      "$flags": ""
+    },
+    "keywords": [
+      "false",
+      "true",
+      "in",
+      "as",
+      "using"
+    ],
+    "directiveStartCloseTag1": {
+      "$regex": "attempt|recover|sep|auto[eE]sc|no(?:autoe|AutoE)sc|compress|default|no[eE]scape|comment|no[pP]arse",
+      "$flags": ""
+    },
+    "directiveStartCloseTag2": {
+      "$regex": "else|break|continue|return|stop|flush|t|lt|rt|nt|nested|recurse|fallback|ftl",
+      "$flags": ""
+    },
+    "directiveStartBlank": {
+      "$regex": "if|else[iI]f|list|for[eE]ach|switch|case|assign|global|local|include|import|function|macro|transform|visit|stop|return|call|setting|output[fF]ormat|nested|recurse|escape|ftl|items",
+      "$flags": ""
+    },
+    "directiveEndCloseTag1": {
+      "$regex": "if|list|items|sep|recover|attempt|for[eE]ach|local|global|assign|function|macro|output[fF]ormat|auto[eE]sc|no(?:autoe|AutoE)sc|compress|transform|switch|escape|no[eE]scape",
+      "$flags": ""
+    },
+    "escapedChar": {
+      "$regex": "\\\\(?:[ntrfbgla\\\\'\"\\{=]|(?:x[0-9A-Fa-f]{1,4}))",
+      "$flags": ""
+    },
+    "asciiDigit": {
+      "$regex": "[0-9]",
+      "$flags": ""
+    },
+    "integer": {
+      "$regex": "[0-9]+",
+      "$flags": ""
+    },
+    "nonEscapedIdStartChar": {
+      "$regex": "[\\$@-Z_a-z\\u00AA\\u00B5\\u00BA\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u1FFF\\u2071\\u207F\\u2090-\\u209C\\u2102\\u2107\\u210A-\\u2113\\u2115\\u2119-\\u211D\\u2124\\u2126\\u2128\\u212A-\\u212D\\u212F-\\u2139\\u213C-\\u213F\\u2145-\\u2149\\u214E\\u2183-\\u2184\\u2C00-\\u2C2E\\u2C30-\\u2C5E\\u2C60-\\u2CE4\\u2CEB-\\u2CEE\\u2CF2-\\u2CF3\\u2D00-\\u2D25\\u2D27\\u2D2D\\u2D30-\\u2D67\\u2D6F\\u2D80-\\u2D96\\u2DA0-\\u2DA6\\u2DA8-\\u2DAE\\u2DB0-\\u2DB6\\u2DB8-\\u2DBE\\u2DC0-\\u2DC6\\u2DC8-\\u2DCE\\u2DD0-\\u2DD6\\u2DD8-\\u2DDE\\u2E2F\\u3005-\\u3006\\u3031-\\u3035\\u303B-\\u303C\\u3040-\\u318F\\u31A0-\\u31BA\\u31F0-\\u31FF\\u3300-\\u337F\\u3400-\\u4DB5\\u4E00-\\uA48C\\uA4D0-\\uA4FD\\uA500-\\uA60C\\uA610-\\uA62B\\uA640-\\uA66E\\uA67F-\\uA697\\uA6A0-\\uA6E5\\uA717-\\uA71F\\uA722-\\uA788\\uA78B-\\uA78E\\uA790-\\uA793\\uA7A0-\\uA7AA\\uA7F8-\\uA801\\uA803-\\uA805\\uA807-\\uA80A\\uA80C-\\uA822\\uA840-\\uA873\\uA882-\\uA8B3\\uA8D0-\\uA8D9\\uA8F2-\\uA8F7\\uA8FB\\uA900-\\uA925\\uA930-\\uA946\\uA960-\\uA97C\\uA984-\\uA9B2\\uA9CF-\\uA9D9\\uAA00-\\uAA28\\uAA40-\\uAA42\\uAA44-\\uAA4B\\uAA50-\\uAA59\\uAA60-\\uAA76\\uAA7A\\uAA80-\\uAAAF\\uAAB1\\uAAB5-\\uAAB6\\uAAB9-\\uAABD\\uAAC0\\uAAC2\\uAADB-\\uAADD\\uAAE0-\\uAAEA\\uAAF2-\\uAAF4\\uAB01-\\uAB06\\uAB09-\\uAB0E\\uAB11-\\uAB16\\uAB20-\\uAB26\\uAB28-\\uAB2E\\uABC0-\\uABE2\\uABF0-\\uABF9\\uAC00-\\uD7A3\\uD7B0-\\uD7C6\\uD7CB-\\uD7FB\\uF900-\\uFB06\\uFB13-\\uFB17\\uFB1D\\uFB1F-\\uFB28\\uFB2A-\\uFB36\\uFB38-\\uFB3C\\uFB3E\\uFB40-\\uFB41\\uFB43-\\uFB44\\uFB46-\\uFBB1\\uFBD3-\\uFD3D\\uFD50-\\uFD8F\\uFD92-\\uFDC7\\uFDF0-\\uFDFB\\uFE70-\\uFE74\\uFE76-\\uFEFC\\uFF10-\\uFF19\\uFF21-\\uFF3A\\uFF41-\\uFF5A\\uFF66-\\uFFBE\\uFFC2-\\uFFC7\\uFFCA-\\uFFCF\\uFFD2-\\uFFD7\\uFFDA-\\uFFDC]",
+      "$flags": ""
+    },
+    "escapedIdChar": {
+      "$regex": "\\\\[\\-\\.:#]",
+      "$flags": ""
+    },
+    "idStartChar": {
+      "$regex": "(?:@nonEscapedIdStartChar)|(?:@escapedIdChar)",
+      "$flags": ""
+    },
+    "id": {
+      "$regex": "(?:@idStartChar)(?:(?:@idStartChar)|(?:@asciiDigit))*",
+      "$flags": ""
+    },
+    "specialHashKeys": {
+      "$regex": "\\*\\*|\\*|false|true|in|as|using",
+      "$flags": ""
+    },
+    "namedSymbols": {
+      "$regex": "&lt;=|&gt;=|\\\\lte|\\\\lt|&lt;|\\\\gte|\\\\gt|&gt;|&amp;&amp;|\\\\and|-&gt;|->|==|!=|\\+=|-=|\\*=|\\/=|%=|\\+\\+|--|<=|&&|\\|\\||:|\\.\\.\\.|\\.\\.\\*|\\.\\.<|\\.\\.!|\\?\\?|=|<|\\+|-|\\*|\\/|%|\\||\\.\\.|\\?|!|&|\\.|,|;",
+      "$flags": ""
+    },
+    "arrows": [
+      "->",
+      "-&gt;"
+    ],
+    "delimiters": [
+      ";",
+      ":",
+      ",",
+      "."
+    ],
+    "stringOperators": [
+      "lte",
+      "lt",
+      "gte",
+      "gt"
+    ],
+    "noParseTags": [
+      "noparse",
+      "noParse",
+      "comment"
+    ],
+    "tokenizer": {
+      "default_angle_bracket": [
+        {
+          "include": "@directive_token_angle_bracket"
+        },
+        {
+          "include": "@interpolation_and_text_token_angle_bracket"
+        }
+      ],
+      "fmExpression_angle_bracket.directive": [
+        {
+          "include": "@blank_and_expression_comment_token_angle_bracket"
+        },
+        {
+          "include": "@directive_end_token_angle_bracket"
+        },
+        {
+          "include": "@expression_token_angle_bracket"
+        }
+      ],
+      "fmExpression_angle_bracket.interpolation": [
+        {
+          "include": "@blank_and_expression_comment_token_angle_bracket"
+        },
+        {
+          "include": "@expression_token_angle_bracket"
+        },
+        {
+          "include": "@greater_operators_token_angle_bracket"
+        }
+      ],
+      "inParen_angle_bracket.plain": [
+        {
+          "include": "@blank_and_expression_comment_token_angle_bracket"
+        },
+        {
+          "include": "@directive_end_token_angle_bracket"
+        },
+        {
+          "include": "@expression_token_angle_bracket"
+        }
+      ],
+      "inParen_angle_bracket.gt": [
+        {
+          "include": "@blank_and_expression_comment_token_angle_bracket"
+        },
+        {
+          "include": "@expression_token_angle_bracket"
+        },
+        {
+          "include": "@greater_operators_token_angle_bracket"
+        }
+      ],
+      "noSpaceExpression_angle_bracket": [
+        {
+          "include": "@no_space_expression_end_token_angle_bracket"
+        },
+        {
+          "include": "@directive_end_token_angle_bracket"
+        },
+        {
+          "include": "@expression_token_angle_bracket"
+        }
+      ],
+      "unifiedCall_angle_bracket": [
+        {
+          "include": "@unified_call_token_angle_bracket"
+        }
+      ],
+      "singleString_angle_bracket": [
+        {
+          "include": "@string_single_token_angle_bracket"
+        }
+      ],
+      "doubleString_angle_bracket": [
+        {
+          "include": "@string_double_token_angle_bracket"
+        }
+      ],
+      "rawSingleString_angle_bracket": [
+        {
+          "include": "@string_single_raw_token_angle_bracket"
+        }
+      ],
+      "rawDoubleString_angle_bracket": [
+        {
+          "include": "@string_double_raw_token_angle_bracket"
+        }
+      ],
+      "expressionComment_angle_bracket": [
+        {
+          "include": "@expression_comment_token_angle_bracket"
+        }
+      ],
+      "noParse_angle_bracket": [
+        {
+          "include": "@no_parse_token_angle_bracket"
+        }
+      ],
+      "terseComment_angle_bracket": [
+        {
+          "include": "@terse_comment_token_angle_bracket"
+        }
+      ],
+      "directive_token_angle_bracket": [
+        [
+          {
+            "$regex": "(?:@startTag_angle_bracket)(@directiveStartCloseTag1)(?:@closeTag1_angle_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "cases": {
+                "@noParseTags": {
+                  "token": "tag",
+                  "next": "@noParse_angle_bracket.$3"
+                },
+                "@default": {
+                  "token": "tag"
+                }
+              }
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(?:@startTag_angle_bracket)(@directiveStartCloseTag2)(?:@closeTag2_angle_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "tag"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(?:@startTag_angle_bracket)(@directiveStartBlank)(@blank)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "tag"
+            },
+            {
+              "token": "",
+              "next": "@fmExpression_angle_bracket.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(?:@endTag_angle_bracket)(@directiveEndCloseTag1)(?:@closeTag1_angle_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "tag"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(@open_angle_bracket)(@)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive",
+              "next": "@unifiedCall_angle_bracket"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(@open_angle_bracket)(\\/@)((?:(?:@id)(?:\\.(?:@id))*)?)(?:@closeTag1_angle_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "tag"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(@open_angle_bracket)#--",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@terseComment_angle_bracket"
+          }
+        ],
+        [
+          {
+            "$regex": "(?:@startOrEndTag_angle_bracket)([a-zA-Z_]+)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "tag.invalid",
+              "next": "@fmExpression_angle_bracket.directive"
+            }
+          ]
+        ]
+      ],
+      "interpolation_and_text_token_angle_bracket": [
+        [
+          {
+            "$regex": "(@iOpen1_angle_bracket)(@iOpen2_angle_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.interpolation"
+            },
+            {
+              "token": "delimiter.interpolation",
+              "next": "@fmExpression_angle_bracket.interpolation"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "[\\$#<\\[\\{]|(?:@blank)+|[^\\$<#\\[\\{\\n\\r\\t ]+",
+            "$flags": ""
+          },
+          {
+            "token": "source"
+          }
+        ]
+      ],
+      "string_single_token_angle_bracket": [
+        [
+          {
+            "$regex": "[^'\\\\]",
+            "$flags": ""
+          },
+          {
+            "token": "string"
+          }
+        ],
+        [
+          {
+            "$regex": "@escapedChar",
+            "$flags": ""
+          },
+          {
+            "token": "string.escape"
+          }
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "string_double_token_angle_bracket": [
+        [
+          {
+            "$regex": "[^\"\\\\]",
+            "$flags": ""
+          },
+          {
+            "token": "string"
+          }
+        ],
+        [
+          {
+            "$regex": "@escapedChar",
+            "$flags": ""
+          },
+          {
+            "token": "string.escape"
+          }
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "string_single_raw_token_angle_bracket": [
+        [
+          {
+            "$regex": "[^']+",
+            "$flags": ""
+          },
+          {
+            "token": "string.raw"
+          }
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string.raw",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "string_double_raw_token_angle_bracket": [
+        [
+          {
+            "$regex": "[^\"]+",
+            "$flags": ""
+          },
+          {
+            "token": "string.raw"
+          }
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.raw",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "expression_token_angle_bracket": [
+        [
+          {
+            "$regex": "(r?)(['\"])",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "r'": [
+                {
+                  "token": "keyword"
+                },
+                {
+                  "token": "string.raw",
+                  "next": "@rawSingleString_angle_bracket"
+                }
+              ],
+              "r\"": [
+                {
+                  "token": "keyword"
+                },
+                {
+                  "token": "string.raw",
+                  "next": "@rawDoubleString_angle_bracket"
+                }
+              ],
+              "'": [
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "string",
+                  "next": "@singleString_angle_bracket"
+                }
+              ],
+              "\"": [
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "string",
+                  "next": "@doubleString_angle_bracket"
+                }
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(?:@integer)(?:\\.(?:@integer))?",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "(?:@integer)": {
+                "token": "number"
+              },
+              "@default": {
+                "token": "number.float"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(\\.)(@blank*)(@specialHashKeys)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "delimiter"
+            },
+            {
+              "token": ""
+            },
+            {
+              "token": "identifier"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(?:@namedSymbols)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@arrows": {
+                "token": "meta.arrow"
+              },
+              "@delimiters": {
+                "token": "delimiter"
+              },
+              "@default": {
+                "token": "operators"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "@id",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": {
+                "token": "keyword.$0"
+              },
+              "@stringOperators": {
+                "token": "operators"
+              },
+              "@default": {
+                "token": "identifier"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[\\[\\]\\(\\)\\{\\}]",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "\\[": {
+                "cases": {
+                  "$S2==gt": {
+                    "token": "@brackets",
+                    "next": "@inParen_angle_bracket.gt"
+                  },
+                  "@default": {
+                    "token": "@brackets",
+                    "next": "@inParen_angle_bracket.plain"
+                  }
+                }
+              },
+              "\\]": {
+                "cases": {
+                  "$S2==interpolation": {
+                    "token": "@brackets.interpolation",
+                    "next": "@popall"
+                  },
+                  "$S1==inParen_angle_bracket": {
+                    "token": "@brackets",
+                    "next": "@pop"
+                  },
+                  "@default": {
+                    "token": "@brackets"
+                  }
+                }
+              },
+              "\\(": {
+                "token": "@brackets",
+                "next": "@inParen_angle_bracket.gt"
+              },
+              "\\)": {
+                "cases": {
+                  "$S1==inParen_angle_bracket": {
+                    "token": "@brackets",
+                    "next": "@pop"
+                  },
+                  "@default": {
+                    "token": "@brackets"
+                  }
+                }
+              },
+              "\\{": {
+                "cases": {
+                  "$S2==gt": {
+                    "token": "@brackets",
+                    "next": "@inParen_angle_bracket.gt"
+                  },
+                  "@default": {
+                    "token": "@brackets",
+                    "next": "@inParen_angle_bracket.plain"
+                  }
+                }
+              },
+              "\\}": {
+                "cases": {
+                  "$S1==inParen_angle_bracket": {
+                    "token": "@brackets",
+                    "next": "@pop"
+                  },
+                  "@default": {
+                    "token": "@brackets"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\$\\{",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.invalid"
+          }
+        ]
+      ],
+      "blank_and_expression_comment_token_angle_bracket": [
+        [
+          {
+            "$regex": "(?:@blank)+",
+            "$flags": ""
+          },
+          {
+            "token": ""
+          }
+        ],
+        [
+          {
+            "$regex": "[<\\[][#!]--",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@expressionComment_angle_bracket"
+          }
+        ]
+      ],
+      "directive_end_token_angle_bracket": [
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets.directive",
+            "next": "@popall"
+          }
+        ],
+        [
+          {
+            "$regex": "(\\/)(@close_angle_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive",
+              "next": "@popall"
+            }
+          ]
+        ]
+      ],
+      "greater_operators_token_angle_bracket": [
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "operators"
+          }
+        ],
+        [
+          {
+            "$regex": ">=",
+            "$flags": ""
+          },
+          {
+            "token": "operators"
+          }
+        ]
+      ],
+      "no_space_expression_end_token_angle_bracket": [
+        [
+          {
+            "$regex": "(?:@blank)+",
+            "$flags": ""
+          },
+          {
+            "token": "",
+            "switchTo": "@fmExpression_angle_bracket.directive"
+          }
+        ]
+      ],
+      "unified_call_token_angle_bracket": [
+        [
+          {
+            "$regex": "(@id)((?:@blank)+)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "tag"
+            },
+            {
+              "token": "",
+              "next": "@fmExpression_angle_bracket.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(@id)(\\/?)(@close_angle_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "tag"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive",
+              "next": "@popall"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@noSpaceExpression_angle_bracket"
+          }
+        ]
+      ],
+      "no_parse_token_angle_bracket": [
+        [
+          {
+            "$regex": "(@open_angle_bracket)(\\/#?)([a-zA-Z]+)((?:@blank)*)(@close_angle_bracket)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$S2==$3": [
+                {
+                  "token": "@brackets.directive"
+                },
+                {
+                  "token": "delimiter.directive"
+                },
+                {
+                  "token": "tag"
+                },
+                {
+                  "token": ""
+                },
+                {
+                  "token": "@brackets.directive",
+                  "next": "@popall"
+                }
+              ],
+              "$S2==comment": [
+                {
+                  "token": "comment"
+                },
+                {
+                  "token": "comment"
+                },
+                {
+                  "token": "comment"
+                },
+                {
+                  "token": "comment"
+                },
+                {
+                  "token": "comment"
+                }
+              ],
+              "@default": [
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "source"
+                }
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[^<\\[\\-]+|[<\\[\\-]",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$S2==comment": {
+                "token": "comment"
+              },
+              "@default": {
+                "token": "source"
+              }
+            }
+          }
+        ]
+      ],
+      "expression_comment_token_angle_bracket": [
+        [
+          {
+            "$regex": "--[>\\]]",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "[^\\->\\]]+|[>\\]\\-]",
+            "$flags": ""
+          },
+          {
+            "token": "comment"
+          }
+        ]
+      ],
+      "terse_comment_token_angle_bracket": [
+        [
+          {
+            "$regex": "--(?:@close_angle_bracket)",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@popall"
+          }
+        ],
+        [
+          {
+            "$regex": "[^<\\[\\-]+|[<\\[\\-]",
+            "$flags": ""
+          },
+          {
+            "token": "comment"
+          }
+        ]
+      ],
+      "default_bracket_bracket": [
+        {
+          "include": "@directive_token_bracket_bracket"
+        },
+        {
+          "include": "@interpolation_and_text_token_bracket_bracket"
+        }
+      ],
+      "fmExpression_bracket_bracket.directive": [
+        {
+          "include": "@blank_and_expression_comment_token_bracket_bracket"
+        },
+        {
+          "include": "@directive_end_token_bracket_bracket"
+        },
+        {
+          "include": "@expression_token_bracket_bracket"
+        }
+      ],
+      "fmExpression_bracket_bracket.interpolation": [
+        {
+          "include": "@blank_and_expression_comment_token_bracket_bracket"
+        },
+        {
+          "include": "@expression_token_bracket_bracket"
+        },
+        {
+          "include": "@greater_operators_token_bracket_bracket"
+        }
+      ],
+      "inParen_bracket_bracket.plain": [
+        {
+          "include": "@blank_and_expression_comment_token_bracket_bracket"
+        },
+        {
+          "include": "@directive_end_token_bracket_bracket"
+        },
+        {
+          "include": "@expression_token_bracket_bracket"
+        }
+      ],
+      "inParen_bracket_bracket.gt": [
+        {
+          "include": "@blank_and_expression_comment_token_bracket_bracket"
+        },
+        {
+          "include": "@expression_token_bracket_bracket"
+        },
+        {
+          "include": "@greater_operators_token_bracket_bracket"
+        }
+      ],
+      "noSpaceExpression_bracket_bracket": [
+        {
+          "include": "@no_space_expression_end_token_bracket_bracket"
+        },
+        {
+          "include": "@directive_end_token_bracket_bracket"
+        },
+        {
+          "include": "@expression_token_bracket_bracket"
+        }
+      ],
+      "unifiedCall_bracket_bracket": [
+        {
+          "include": "@unified_call_token_bracket_bracket"
+        }
+      ],
+      "singleString_bracket_bracket": [
+        {
+          "include": "@string_single_token_bracket_bracket"
+        }
+      ],
+      "doubleString_bracket_bracket": [
+        {
+          "include": "@string_double_token_bracket_bracket"
+        }
+      ],
+      "rawSingleString_bracket_bracket": [
+        {
+          "include": "@string_single_raw_token_bracket_bracket"
+        }
+      ],
+      "rawDoubleString_bracket_bracket": [
+        {
+          "include": "@string_double_raw_token_bracket_bracket"
+        }
+      ],
+      "expressionComment_bracket_bracket": [
+        {
+          "include": "@expression_comment_token_bracket_bracket"
+        }
+      ],
+      "noParse_bracket_bracket": [
+        {
+          "include": "@no_parse_token_bracket_bracket"
+        }
+      ],
+      "terseComment_bracket_bracket": [
+        {
+          "include": "@terse_comment_token_bracket_bracket"
+        }
+      ],
+      "directive_token_bracket_bracket": [
+        [
+          {
+            "$regex": "(?:@startTag_bracket_bracket)(@directiveStartCloseTag1)(?:@closeTag1_bracket_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "cases": {
+                "@noParseTags": {
+                  "token": "tag",
+                  "next": "@noParse_bracket_bracket.$3"
+                },
+                "@default": {
+                  "token": "tag"
+                }
+              }
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(?:@startTag_bracket_bracket)(@directiveStartCloseTag2)(?:@closeTag2_bracket_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "tag"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(?:@startTag_bracket_bracket)(@directiveStartBlank)(@blank)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "tag"
+            },
+            {
+              "token": "",
+              "next": "@fmExpression_bracket_bracket.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(?:@endTag_bracket_bracket)(@directiveEndCloseTag1)(?:@closeTag1_bracket_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "tag"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(@open_bracket_bracket)(@)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive",
+              "next": "@unifiedCall_bracket_bracket"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(@open_bracket_bracket)(\\/@)((?:(?:@id)(?:\\.(?:@id))*)?)(?:@closeTag1_bracket_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "tag"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(@open_bracket_bracket)#--",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@terseComment_bracket_bracket"
+          }
+        ],
+        [
+          {
+            "$regex": "(?:@startOrEndTag_bracket_bracket)([a-zA-Z_]+)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "tag.invalid",
+              "next": "@fmExpression_bracket_bracket.directive"
+            }
+          ]
+        ]
+      ],
+      "interpolation_and_text_token_bracket_bracket": [
+        [
+          {
+            "$regex": "(@iOpen1_bracket_bracket)(@iOpen2_bracket_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.interpolation"
+            },
+            {
+              "token": "delimiter.interpolation",
+              "next": "@fmExpression_bracket_bracket.interpolation"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "[\\$#<\\[\\{]|(?:@blank)+|[^\\$<#\\[\\{\\n\\r\\t ]+",
+            "$flags": ""
+          },
+          {
+            "token": "source"
+          }
+        ]
+      ],
+      "string_single_token_bracket_bracket": [
+        [
+          {
+            "$regex": "[^'\\\\]",
+            "$flags": ""
+          },
+          {
+            "token": "string"
+          }
+        ],
+        [
+          {
+            "$regex": "@escapedChar",
+            "$flags": ""
+          },
+          {
+            "token": "string.escape"
+          }
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "string_double_token_bracket_bracket": [
+        [
+          {
+            "$regex": "[^\"\\\\]",
+            "$flags": ""
+          },
+          {
+            "token": "string"
+          }
+        ],
+        [
+          {
+            "$regex": "@escapedChar",
+            "$flags": ""
+          },
+          {
+            "token": "string.escape"
+          }
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "string_single_raw_token_bracket_bracket": [
+        [
+          {
+            "$regex": "[^']+",
+            "$flags": ""
+          },
+          {
+            "token": "string.raw"
+          }
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string.raw",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "string_double_raw_token_bracket_bracket": [
+        [
+          {
+            "$regex": "[^\"]+",
+            "$flags": ""
+          },
+          {
+            "token": "string.raw"
+          }
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.raw",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "expression_token_bracket_bracket": [
+        [
+          {
+            "$regex": "(r?)(['\"])",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "r'": [
+                {
+                  "token": "keyword"
+                },
+                {
+                  "token": "string.raw",
+                  "next": "@rawSingleString_bracket_bracket"
+                }
+              ],
+              "r\"": [
+                {
+                  "token": "keyword"
+                },
+                {
+                  "token": "string.raw",
+                  "next": "@rawDoubleString_bracket_bracket"
+                }
+              ],
+              "'": [
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "string",
+                  "next": "@singleString_bracket_bracket"
+                }
+              ],
+              "\"": [
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "string",
+                  "next": "@doubleString_bracket_bracket"
+                }
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(?:@integer)(?:\\.(?:@integer))?",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "(?:@integer)": {
+                "token": "number"
+              },
+              "@default": {
+                "token": "number.float"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(\\.)(@blank*)(@specialHashKeys)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "delimiter"
+            },
+            {
+              "token": ""
+            },
+            {
+              "token": "identifier"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(?:@namedSymbols)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@arrows": {
+                "token": "meta.arrow"
+              },
+              "@delimiters": {
+                "token": "delimiter"
+              },
+              "@default": {
+                "token": "operators"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "@id",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": {
+                "token": "keyword.$0"
+              },
+              "@stringOperators": {
+                "token": "operators"
+              },
+              "@default": {
+                "token": "identifier"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[\\[\\]\\(\\)\\{\\}]",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "\\[": {
+                "cases": {
+                  "$S2==gt": {
+                    "token": "@brackets",
+                    "next": "@inParen_bracket_bracket.gt"
+                  },
+                  "@default": {
+                    "token": "@brackets",
+                    "next": "@inParen_bracket_bracket.plain"
+                  }
+                }
+              },
+              "\\]": {
+                "cases": {
+                  "$S2==interpolation": {
+                    "token": "@brackets.interpolation",
+                    "next": "@popall"
+                  },
+                  "$S2==directive": {
+                    "token": "@brackets.directive",
+                    "next": "@popall"
+                  },
+                  "$S1==inParen_bracket_bracket": {
+                    "token": "@brackets",
+                    "next": "@pop"
+                  },
+                  "@default": {
+                    "token": "@brackets"
+                  }
+                }
+              },
+              "\\(": {
+                "token": "@brackets",
+                "next": "@inParen_bracket_bracket.gt"
+              },
+              "\\)": {
+                "cases": {
+                  "$S1==inParen_bracket_bracket": {
+                    "token": "@brackets",
+                    "next": "@pop"
+                  },
+                  "@default": {
+                    "token": "@brackets"
+                  }
+                }
+              },
+              "\\{": {
+                "cases": {
+                  "$S2==gt": {
+                    "token": "@brackets",
+                    "next": "@inParen_bracket_bracket.gt"
+                  },
+                  "@default": {
+                    "token": "@brackets",
+                    "next": "@inParen_bracket_bracket.plain"
+                  }
+                }
+              },
+              "\\}": {
+                "cases": {
+                  "$S1==inParen_bracket_bracket": {
+                    "token": "@brackets",
+                    "next": "@pop"
+                  },
+                  "@default": {
+                    "token": "@brackets"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\$\\{",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.invalid"
+          }
+        ]
+      ],
+      "blank_and_expression_comment_token_bracket_bracket": [
+        [
+          {
+            "$regex": "(?:@blank)+",
+            "$flags": ""
+          },
+          {
+            "token": ""
+          }
+        ],
+        [
+          {
+            "$regex": "[<\\[][#!]--",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@expressionComment_bracket_bracket"
+          }
+        ]
+      ],
+      "directive_end_token_bracket_bracket": [
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "operators"
+          }
+        ],
+        [
+          {
+            "$regex": "(\\/)(@close_bracket_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive",
+              "next": "@popall"
+            }
+          ]
+        ]
+      ],
+      "greater_operators_token_bracket_bracket": [
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "operators"
+          }
+        ],
+        [
+          {
+            "$regex": ">=",
+            "$flags": ""
+          },
+          {
+            "token": "operators"
+          }
+        ]
+      ],
+      "no_space_expression_end_token_bracket_bracket": [
+        [
+          {
+            "$regex": "(?:@blank)+",
+            "$flags": ""
+          },
+          {
+            "token": "",
+            "switchTo": "@fmExpression_bracket_bracket.directive"
+          }
+        ]
+      ],
+      "unified_call_token_bracket_bracket": [
+        [
+          {
+            "$regex": "(@id)((?:@blank)+)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "tag"
+            },
+            {
+              "token": "",
+              "next": "@fmExpression_bracket_bracket.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(@id)(\\/?)(@close_bracket_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "tag"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive",
+              "next": "@popall"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@noSpaceExpression_bracket_bracket"
+          }
+        ]
+      ],
+      "no_parse_token_bracket_bracket": [
+        [
+          {
+            "$regex": "(@open_bracket_bracket)(\\/#?)([a-zA-Z]+)((?:@blank)*)(@close_bracket_bracket)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$S2==$3": [
+                {
+                  "token": "@brackets.directive"
+                },
+                {
+                  "token": "delimiter.directive"
+                },
+                {
+                  "token": "tag"
+                },
+                {
+                  "token": ""
+                },
+                {
+                  "token": "@brackets.directive",
+                  "next": "@popall"
+                }
+              ],
+              "$S2==comment": [
+                {
+                  "token": "comment"
+                },
+                {
+                  "token": "comment"
+                },
+                {
+                  "token": "comment"
+                },
+                {
+                  "token": "comment"
+                },
+                {
+                  "token": "comment"
+                }
+              ],
+              "@default": [
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "source"
+                }
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[^<\\[\\-]+|[<\\[\\-]",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$S2==comment": {
+                "token": "comment"
+              },
+              "@default": {
+                "token": "source"
+              }
+            }
+          }
+        ]
+      ],
+      "expression_comment_token_bracket_bracket": [
+        [
+          {
+            "$regex": "--[>\\]]",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "[^\\->\\]]+|[>\\]\\-]",
+            "$flags": ""
+          },
+          {
+            "token": "comment"
+          }
+        ]
+      ],
+      "terse_comment_token_bracket_bracket": [
+        [
+          {
+            "$regex": "--(?:@close_bracket_bracket)",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@popall"
+          }
+        ],
+        [
+          {
+            "$regex": "[^<\\[\\-]+|[<\\[\\-]",
+            "$flags": ""
+          },
+          {
+            "token": "comment"
+          }
+        ]
+      ],
+      "default_auto_bracket": [
+        {
+          "include": "@directive_token_auto_bracket"
+        },
+        {
+          "include": "@interpolation_and_text_token_auto_bracket"
+        }
+      ],
+      "fmExpression_auto_bracket.directive": [
+        {
+          "include": "@blank_and_expression_comment_token_auto_bracket"
+        },
+        {
+          "include": "@directive_end_token_auto_bracket"
+        },
+        {
+          "include": "@expression_token_auto_bracket"
+        }
+      ],
+      "fmExpression_auto_bracket.interpolation": [
+        {
+          "include": "@blank_and_expression_comment_token_auto_bracket"
+        },
+        {
+          "include": "@expression_token_auto_bracket"
+        },
+        {
+          "include": "@greater_operators_token_auto_bracket"
+        }
+      ],
+      "inParen_auto_bracket.plain": [
+        {
+          "include": "@blank_and_expression_comment_token_auto_bracket"
+        },
+        {
+          "include": "@directive_end_token_auto_bracket"
+        },
+        {
+          "include": "@expression_token_auto_bracket"
+        }
+      ],
+      "inParen_auto_bracket.gt": [
+        {
+          "include": "@blank_and_expression_comment_token_auto_bracket"
+        },
+        {
+          "include": "@expression_token_auto_bracket"
+        },
+        {
+          "include": "@greater_operators_token_auto_bracket"
+        }
+      ],
+      "noSpaceExpression_auto_bracket": [
+        {
+          "include": "@no_space_expression_end_token_auto_bracket"
+        },
+        {
+          "include": "@directive_end_token_auto_bracket"
+        },
+        {
+          "include": "@expression_token_auto_bracket"
+        }
+      ],
+      "unifiedCall_auto_bracket": [
+        {
+          "include": "@unified_call_token_auto_bracket"
+        }
+      ],
+      "singleString_auto_bracket": [
+        {
+          "include": "@string_single_token_auto_bracket"
+        }
+      ],
+      "doubleString_auto_bracket": [
+        {
+          "include": "@string_double_token_auto_bracket"
+        }
+      ],
+      "rawSingleString_auto_bracket": [
+        {
+          "include": "@string_single_raw_token_auto_bracket"
+        }
+      ],
+      "rawDoubleString_auto_bracket": [
+        {
+          "include": "@string_double_raw_token_auto_bracket"
+        }
+      ],
+      "expressionComment_auto_bracket": [
+        {
+          "include": "@expression_comment_token_auto_bracket"
+        }
+      ],
+      "noParse_auto_bracket": [
+        {
+          "include": "@no_parse_token_auto_bracket"
+        }
+      ],
+      "terseComment_auto_bracket": [
+        {
+          "include": "@terse_comment_token_auto_bracket"
+        }
+      ],
+      "directive_token_auto_bracket": [
+        [
+          {
+            "$regex": "(?:@startTag_auto_bracket)(@directiveStartCloseTag1)(?:@closeTag1_auto_bracket)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==<": {
+                "token": "@rematch",
+                "switchTo": "@default_angle_bracket"
+              },
+              "$1==[": {
+                "token": "@rematch",
+                "switchTo": "@default_bracket_bracket"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(?:@startTag_auto_bracket)(@directiveStartCloseTag2)(?:@closeTag2_auto_bracket)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==<": {
+                "token": "@rematch",
+                "switchTo": "@default_angle_bracket"
+              },
+              "$1==[": {
+                "token": "@rematch",
+                "switchTo": "@default_bracket_bracket"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(?:@startTag_auto_bracket)(@directiveStartBlank)(@blank)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==<": {
+                "token": "@rematch",
+                "switchTo": "@default_angle_bracket"
+              },
+              "$1==[": {
+                "token": "@rematch",
+                "switchTo": "@default_bracket_bracket"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(?:@endTag_auto_bracket)(@directiveEndCloseTag1)(?:@closeTag1_auto_bracket)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==<": {
+                "token": "@rematch",
+                "switchTo": "@default_angle_bracket"
+              },
+              "$1==[": {
+                "token": "@rematch",
+                "switchTo": "@default_bracket_bracket"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(@open_auto_bracket)(@)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==<": {
+                "token": "@rematch",
+                "switchTo": "@default_angle_bracket"
+              },
+              "$1==[": {
+                "token": "@rematch",
+                "switchTo": "@default_bracket_bracket"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(@open_auto_bracket)(\\/@)((?:(?:@id)(?:\\.(?:@id))*)?)(?:@closeTag1_auto_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.directive"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "tag"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(@open_auto_bracket)#--",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==<": {
+                "token": "@rematch",
+                "switchTo": "@default_angle_bracket"
+              },
+              "$1==[": {
+                "token": "@rematch",
+                "switchTo": "@default_bracket_bracket"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(?:@startOrEndTag_auto_bracket)([a-zA-Z_]+)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==<": {
+                "token": "@rematch",
+                "switchTo": "@default_angle_bracket"
+              },
+              "$1==[": {
+                "token": "@rematch",
+                "switchTo": "@default_bracket_bracket"
+              }
+            }
+          }
+        ]
+      ],
+      "interpolation_and_text_token_auto_bracket": [
+        [
+          {
+            "$regex": "(@iOpen1_auto_bracket)(@iOpen2_auto_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "@brackets.interpolation"
+            },
+            {
+              "token": "delimiter.interpolation",
+              "next": "@fmExpression_auto_bracket.interpolation"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "[\\$#<\\[\\{]|(?:@blank)+|[^\\$<#\\[\\{\\n\\r\\t ]+",
+            "$flags": ""
+          },
+          {
+            "token": "source"
+          }
+        ]
+      ],
+      "string_single_token_auto_bracket": [
+        [
+          {
+            "$regex": "[^'\\\\]",
+            "$flags": ""
+          },
+          {
+            "token": "string"
+          }
+        ],
+        [
+          {
+            "$regex": "@escapedChar",
+            "$flags": ""
+          },
+          {
+            "token": "string.escape"
+          }
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "string_double_token_auto_bracket": [
+        [
+          {
+            "$regex": "[^\"\\\\]",
+            "$flags": ""
+          },
+          {
+            "token": "string"
+          }
+        ],
+        [
+          {
+            "$regex": "@escapedChar",
+            "$flags": ""
+          },
+          {
+            "token": "string.escape"
+          }
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "string_single_raw_token_auto_bracket": [
+        [
+          {
+            "$regex": "[^']+",
+            "$flags": ""
+          },
+          {
+            "token": "string.raw"
+          }
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string.raw",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "string_double_raw_token_auto_bracket": [
+        [
+          {
+            "$regex": "[^\"]+",
+            "$flags": ""
+          },
+          {
+            "token": "string.raw"
+          }
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.raw",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "expression_token_auto_bracket": [
+        [
+          {
+            "$regex": "(r?)(['\"])",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "r'": [
+                {
+                  "token": "keyword"
+                },
+                {
+                  "token": "string.raw",
+                  "next": "@rawSingleString_auto_bracket"
+                }
+              ],
+              "r\"": [
+                {
+                  "token": "keyword"
+                },
+                {
+                  "token": "string.raw",
+                  "next": "@rawDoubleString_auto_bracket"
+                }
+              ],
+              "'": [
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "string",
+                  "next": "@singleString_auto_bracket"
+                }
+              ],
+              "\"": [
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "string",
+                  "next": "@doubleString_auto_bracket"
+                }
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(?:@integer)(?:\\.(?:@integer))?",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "(?:@integer)": {
+                "token": "number"
+              },
+              "@default": {
+                "token": "number.float"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(\\.)(@blank*)(@specialHashKeys)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "delimiter"
+            },
+            {
+              "token": ""
+            },
+            {
+              "token": "identifier"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(?:@namedSymbols)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@arrows": {
+                "token": "meta.arrow"
+              },
+              "@delimiters": {
+                "token": "delimiter"
+              },
+              "@default": {
+                "token": "operators"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "@id",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": {
+                "token": "keyword.$0"
+              },
+              "@stringOperators": {
+                "token": "operators"
+              },
+              "@default": {
+                "token": "identifier"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[\\[\\]\\(\\)\\{\\}]",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "\\[": {
+                "cases": {
+                  "$S2==gt": {
+                    "token": "@brackets",
+                    "next": "@inParen_auto_bracket.gt"
+                  },
+                  "@default": {
+                    "token": "@brackets",
+                    "next": "@inParen_auto_bracket.plain"
+                  }
+                }
+              },
+              "\\]": {
+                "cases": {
+                  "$S2==interpolation": {
+                    "token": "@brackets.interpolation",
+                    "next": "@popall"
+                  },
+                  "$S1==inParen_auto_bracket": {
+                    "token": "@brackets",
+                    "next": "@pop"
+                  },
+                  "@default": {
+                    "token": "@brackets"
+                  }
+                }
+              },
+              "\\(": {
+                "token": "@brackets",
+                "next": "@inParen_auto_bracket.gt"
+              },
+              "\\)": {
+                "cases": {
+                  "$S1==inParen_auto_bracket": {
+                    "token": "@brackets",
+                    "next": "@pop"
+                  },
+                  "@default": {
+                    "token": "@brackets"
+                  }
+                }
+              },
+              "\\{": {
+                "cases": {
+                  "$S2==gt": {
+                    "token": "@brackets",
+                    "next": "@inParen_auto_bracket.gt"
+                  },
+                  "@default": {
+                    "token": "@brackets",
+                    "next": "@inParen_auto_bracket.plain"
+                  }
+                }
+              },
+              "\\}": {
+                "cases": {
+                  "$S1==inParen_auto_bracket": {
+                    "token": "@brackets",
+                    "next": "@pop"
+                  },
+                  "@default": {
+                    "token": "@brackets"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\$\\{",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.invalid"
+          }
+        ]
+      ],
+      "blank_and_expression_comment_token_auto_bracket": [
+        [
+          {
+            "$regex": "(?:@blank)+",
+            "$flags": ""
+          },
+          {
+            "token": ""
+          }
+        ],
+        [
+          {
+            "$regex": "[<\\[][#!]--",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@expressionComment_auto_bracket"
+          }
+        ]
+      ],
+      "directive_end_token_auto_bracket": [
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets.directive",
+            "next": "@popall"
+          }
+        ],
+        [
+          {
+            "$regex": "(\\/)(@close_auto_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive",
+              "next": "@popall"
+            }
+          ]
+        ]
+      ],
+      "greater_operators_token_auto_bracket": [
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "operators"
+          }
+        ],
+        [
+          {
+            "$regex": ">=",
+            "$flags": ""
+          },
+          {
+            "token": "operators"
+          }
+        ]
+      ],
+      "no_space_expression_end_token_auto_bracket": [
+        [
+          {
+            "$regex": "(?:@blank)+",
+            "$flags": ""
+          },
+          {
+            "token": "",
+            "switchTo": "@fmExpression_auto_bracket.directive"
+          }
+        ]
+      ],
+      "unified_call_token_auto_bracket": [
+        [
+          {
+            "$regex": "(@id)((?:@blank)+)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "tag"
+            },
+            {
+              "token": "",
+              "next": "@fmExpression_auto_bracket.directive"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(@id)(\\/?)(@close_auto_bracket)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "tag"
+            },
+            {
+              "token": "delimiter.directive"
+            },
+            {
+              "token": "@brackets.directive",
+              "next": "@popall"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@noSpaceExpression_auto_bracket"
+          }
+        ]
+      ],
+      "no_parse_token_auto_bracket": [
+        [
+          {
+            "$regex": "(@open_auto_bracket)(\\/#?)([a-zA-Z]+)((?:@blank)*)(@close_auto_bracket)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$S2==$3": [
+                {
+                  "token": "@brackets.directive"
+                },
+                {
+                  "token": "delimiter.directive"
+                },
+                {
+                  "token": "tag"
+                },
+                {
+                  "token": ""
+                },
+                {
+                  "token": "@brackets.directive",
+                  "next": "@popall"
+                }
+              ],
+              "$S2==comment": [
+                {
+                  "token": "comment"
+                },
+                {
+                  "token": "comment"
+                },
+                {
+                  "token": "comment"
+                },
+                {
+                  "token": "comment"
+                },
+                {
+                  "token": "comment"
+                }
+              ],
+              "@default": [
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "source"
+                },
+                {
+                  "token": "source"
+                }
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[^<\\[\\-]+|[<\\[\\-]",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$S2==comment": {
+                "token": "comment"
+              },
+              "@default": {
+                "token": "source"
+              }
+            }
+          }
+        ]
+      ],
+      "expression_comment_token_auto_bracket": [
+        [
+          {
+            "$regex": "--[>\\]]",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "[^\\->\\]]+|[>\\]\\-]",
+            "$flags": ""
+          },
+          {
+            "token": "comment"
+          }
+        ]
+      ],
+      "terse_comment_token_auto_bracket": [
+        [
+          {
+            "$regex": "--(?:@close_auto_bracket)",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@popall"
+          }
+        ],
+        [
+          {
+            "$regex": "[^<\\[\\-]+|[<\\[\\-]",
+            "$flags": ""
+          },
+          {
+            "token": "comment"
+          }
+        ]
+      ]
+    },
+    "open_bracket_bracket": {
+      "$regex": "\\[",
+      "$flags": ""
+    },
+    "close_bracket_bracket": {
+      "$regex": "\\]",
+      "$flags": ""
+    },
+    "iOpen1_bracket_bracket": {
+      "$regex": "\\[",
+      "$flags": ""
+    },
+    "iOpen2_bracket_bracket": {
+      "$regex": "=",
+      "$flags": ""
+    },
+    "iClose_bracket_bracket": {
+      "$regex": "\\]",
+      "$flags": ""
+    },
+    "startTag_bracket_bracket": {
+      "$regex": "(@open_bracket_bracket)(#)",
+      "$flags": ""
+    },
+    "endTag_bracket_bracket": {
+      "$regex": "(@open_bracket_bracket)(\\/#)",
+      "$flags": ""
+    },
+    "startOrEndTag_bracket_bracket": {
+      "$regex": "(@open_bracket_bracket)(\\/?#)",
+      "$flags": ""
+    },
+    "closeTag1_bracket_bracket": {
+      "$regex": "((?:@blank)*)(@close_bracket_bracket)",
+      "$flags": ""
+    },
+    "closeTag2_bracket_bracket": {
+      "$regex": "((?:@blank)*\\/?)(@close_bracket_bracket)",
+      "$flags": ""
+    },
+    "open_auto_bracket": {
+      "$regex": "[<\\[]",
+      "$flags": ""
+    },
+    "close_auto_bracket": {
+      "$regex": "[>\\]]",
+      "$flags": ""
+    },
+    "iOpen1_auto_bracket": {
+      "$regex": "\\[",
+      "$flags": ""
+    },
+    "iOpen2_auto_bracket": {
+      "$regex": "=",
+      "$flags": ""
+    },
+    "iClose_auto_bracket": {
+      "$regex": "\\]",
+      "$flags": ""
+    },
+    "startTag_auto_bracket": {
+      "$regex": "(@open_auto_bracket)(#)",
+      "$flags": ""
+    },
+    "endTag_auto_bracket": {
+      "$regex": "(@open_auto_bracket)(\\/#)",
+      "$flags": ""
+    },
+    "startOrEndTag_auto_bracket": {
+      "$regex": "(@open_auto_bracket)(\\/?#)",
+      "$flags": ""
+    },
+    "closeTag1_auto_bracket": {
+      "$regex": "((?:@blank)*)(@close_auto_bracket)",
+      "$flags": ""
+    },
+    "closeTag2_auto_bracket": {
+      "$regex": "((?:@blank)*\\/?)(@close_auto_bracket)",
+      "$flags": ""
+    }
+  },
+  "configuration": {
+    "brackets": [
+      [
+        "<",
+        ">"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ],
+      [
+        "{",
+        "}"
+      ]
+    ],
+    "autoCloseBefore": "\n\r\t }]),.:;=",
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\"",
+        "notIn": [
+          "string"
+        ]
+      },
+      {
+        "open": "'",
+        "close": "'",
+        "notIn": [
+          "string"
+        ]
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      },
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "<",
+        "close": ">"
+      }
+    ],
+    "folding": {
+      "markers": {
+        "start": {
+          "$regex": "[<\\[]#(?:attempt|autoesc|autoEsc|compress|comment|escape|noescape|function|if|list|items|sep|macro|noparse|noParse|noautoesc|noAutoEsc|outputformat|switch|visit|recurse)([^/>\\]]*(?!\\/)[>\\]])[^<\\[]*$",
+          "$flags": ""
+        },
+        "end": {
+          "$regex": "[<\\[]\\/#(?:attempt|autoesc|autoEsc|compress|comment|escape|noescape|function|if|list|items|sep|macro|noparse|noParse|noautoesc|noAutoEsc|outputformat|switch|visit|recurse)[\\r\\n\\t ]*>",
+          "$flags": ""
+        }
+      }
+    },
+    "onEnterRules": [
+      {
+        "beforeText": {
+          "$regex": "[<\\[]#(?!(?:assign|flush|ftl|return|global|import|include|break|continue|local|nested|nt|setting|stop|t|lt|rt|fallback))([a-zA-Z_]+)([^/>\\]]*(?!\\/)[>\\]])[^[<\\[]]*$",
+          "$flags": ""
+        },
+        "afterText": {
+          "$regex": "^[<\\[]\\/#([a-zA-Z_]+)[\\r\\n\\t ]*[>\\]]$",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 2
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "[<\\[]#(?!(?:assign|flush|ftl|return|global|import|include|break|continue|local|nested|nt|setting|stop|t|lt|rt|fallback))([a-zA-Z_]+)([^/>\\]]*(?!\\/)[>\\]])[^[<\\[]]*$",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 1
+        }
+      }
+    ]
+  }
+}

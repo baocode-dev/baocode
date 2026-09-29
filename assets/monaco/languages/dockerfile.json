@@ -1,0 +1,367 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "dockerfile",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".dockerfile",
+    "variable": {
+      "$regex": "\\${?[\\w]+}?",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@comment"
+        },
+        [
+          {
+            "$regex": "(ONBUILD)(\\s+)",
+            "$flags": ""
+          },
+          [
+            "keyword",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "(ENV)(\\s+)([\\w]+)",
+            "$flags": ""
+          },
+          [
+            "keyword",
+            "",
+            {
+              "token": "variable",
+              "next": "@arguments"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(FROM|MAINTAINER|RUN|EXPOSE|ENV|ADD|ARG|VOLUME|LABEL|USER|WORKDIR|COPY|CMD|STOPSIGNAL|SHELL|HEALTHCHECK|ENTRYPOINT)",
+            "$flags": ""
+          },
+          {
+            "token": "keyword",
+            "next": "@arguments"
+          }
+        ]
+      ],
+      "arguments": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@strings"
+        },
+        [
+          {
+            "$regex": "(@variable)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "variable",
+                "next": "@popall"
+              },
+              "@default": "variable"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\\\",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": "",
+              "@default": ""
+            }
+          }
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "",
+                "next": "@popall"
+              },
+              "@default": ""
+            }
+          }
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "\\s+",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "",
+                "next": "@popall"
+              },
+              "@default": ""
+            }
+          }
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "(^#.*$)",
+            "$flags": ""
+          },
+          "comment",
+          "@popall"
+        ]
+      ],
+      "strings": [
+        [
+          {
+            "$regex": "\\\\'$",
+            "$flags": ""
+          },
+          "",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "\\\\'",
+            "$flags": ""
+          },
+          ""
+        ],
+        [
+          {
+            "$regex": "'$",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string",
+          "@stringBody"
+        ],
+        [
+          {
+            "$regex": "\"$",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@dblStringBody"
+        ]
+      ],
+      "stringBody": [
+        [
+          {
+            "$regex": "[^\\\\\\$']",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "string",
+                "next": "@popall"
+              },
+              "@default": "string"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "'$",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "(@variable)",
+            "$flags": ""
+          },
+          "variable"
+        ],
+        [
+          {
+            "$regex": "\\\\$",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "$",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ]
+      ],
+      "dblStringBody": [
+        [
+          {
+            "$regex": "[^\\\\\\$\"]",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "string",
+                "next": "@popall"
+              },
+              "@default": "string"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\"$",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "(@variable)",
+            "$flags": ""
+          },
+          "variable"
+        ],
+        [
+          {
+            "$regex": "\\\\$",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "$",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ]
+  }
+}

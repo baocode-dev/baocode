@@ -52,6 +52,10 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  assets:
+    - assets/monaco/LICENSE.txt
+    - assets/monaco/themes.json
+    - assets/monaco/languages/
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

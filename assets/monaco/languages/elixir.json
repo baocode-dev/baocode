@@ -1,0 +1,1280 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "elixir",
+  "language": {
+    "defaultToken": "source",
+    "tokenPostfix": ".elixir",
+    "brackets": [
+      {
+        "open": "[",
+        "close": "]",
+        "token": "delimiter.square"
+      },
+      {
+        "open": "(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "{",
+        "close": "}",
+        "token": "delimiter.curly"
+      },
+      {
+        "open": "<<",
+        "close": ">>",
+        "token": "delimiter.angle.special"
+      }
+    ],
+    "declarationKeywords": [
+      "def",
+      "defp",
+      "defn",
+      "defnp",
+      "defguard",
+      "defguardp",
+      "defmacro",
+      "defmacrop",
+      "defdelegate",
+      "defcallback",
+      "defmacrocallback",
+      "defmodule",
+      "defprotocol",
+      "defexception",
+      "defimpl",
+      "defstruct"
+    ],
+    "operatorKeywords": [
+      "and",
+      "in",
+      "not",
+      "or",
+      "when"
+    ],
+    "namespaceKeywords": [
+      "alias",
+      "import",
+      "require",
+      "use"
+    ],
+    "otherKeywords": [
+      "after",
+      "case",
+      "catch",
+      "cond",
+      "do",
+      "else",
+      "end",
+      "fn",
+      "for",
+      "if",
+      "quote",
+      "raise",
+      "receive",
+      "rescue",
+      "super",
+      "throw",
+      "try",
+      "unless",
+      "unquote_splicing",
+      "unquote",
+      "with"
+    ],
+    "constants": [
+      "true",
+      "false",
+      "nil"
+    ],
+    "nameBuiltin": [
+      "__MODULE__",
+      "__DIR__",
+      "__ENV__",
+      "__CALLER__",
+      "__STACKTRACE__"
+    ],
+    "operator": {
+      "$regex": "-[->]?|!={0,2}|\\*{1,2}|\\/|\\\\\\\\|&{1,3}|\\.\\.?|\\^(?:\\^\\^)?|\\+\\+?|<(?:-|<<|=|>|\\|>|~>?)?|=~|={1,3}|>(?:=|>>)?|\\|~>|\\|>|\\|{1,3}|~>>?|~~~|::",
+      "$flags": ""
+    },
+    "variableName": {
+      "$regex": "[a-z_][a-zA-Z0-9_]*[?!]?",
+      "$flags": ""
+    },
+    "atomName": {
+      "$regex": "[a-zA-Z_][a-zA-Z0-9_@]*[?!]?|@specialAtomName|@operator",
+      "$flags": ""
+    },
+    "specialAtomName": {
+      "$regex": "\\.\\.\\.|<<>>|%\\{\\}|%|\\{\\}",
+      "$flags": ""
+    },
+    "aliasPart": {
+      "$regex": "[A-Z][a-zA-Z0-9_]*",
+      "$flags": ""
+    },
+    "moduleName": {
+      "$regex": "@aliasPart(?:\\.@aliasPart)*",
+      "$flags": ""
+    },
+    "sigilSymmetricDelimiter": {
+      "$regex": "\"\"\"|'''|\"|'|\\/|\\|",
+      "$flags": ""
+    },
+    "sigilStartDelimiter": {
+      "$regex": "@sigilSymmetricDelimiter|<|\\{|\\[|\\(",
+      "$flags": ""
+    },
+    "sigilEndDelimiter": {
+      "$regex": "@sigilSymmetricDelimiter|>|\\}|\\]|\\)",
+      "$flags": ""
+    },
+    "sigilModifiers": {
+      "$regex": "[a-zA-Z0-9]*",
+      "$flags": ""
+    },
+    "decimal": {
+      "$regex": "\\d(?:_?\\d)*",
+      "$flags": ""
+    },
+    "hex": {
+      "$regex": "[0-9a-fA-F](_?[0-9a-fA-F])*",
+      "$flags": ""
+    },
+    "octal": {
+      "$regex": "[0-7](_?[0-7])*",
+      "$flags": ""
+    },
+    "binary": {
+      "$regex": "[01](_?[01])*",
+      "$flags": ""
+    },
+    "escape": {
+      "$regex": "\\\\u[0-9a-fA-F]{4}|\\\\x[0-9a-fA-F]{2}|\\\\.",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@comments"
+        },
+        {
+          "include": "@keywordsShorthand"
+        },
+        {
+          "include": "@numbers"
+        },
+        {
+          "include": "@identifiers"
+        },
+        {
+          "include": "@strings"
+        },
+        {
+          "include": "@atoms"
+        },
+        {
+          "include": "@sigils"
+        },
+        {
+          "include": "@attributes"
+        },
+        {
+          "include": "@symbols"
+        }
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "\\s+",
+            "$flags": ""
+          },
+          "white"
+        ]
+      ],
+      "comments": [
+        [
+          {
+            "$regex": "(#)(.*)",
+            "$flags": ""
+          },
+          [
+            "comment.punctuation",
+            "comment"
+          ]
+        ]
+      ],
+      "keywordsShorthand": [
+        [
+          {
+            "$regex": "(@atomName)(:)(\\s+)",
+            "$flags": ""
+          },
+          [
+            "constant",
+            "constant.punctuation",
+            "white"
+          ]
+        ],
+        [
+          {
+            "$regex": "\"(?=([^\"]|#\\{.*?\\}|\\\\\")*\":)",
+            "$flags": ""
+          },
+          {
+            "token": "constant.delimiter",
+            "next": "@doubleQuotedStringKeyword"
+          }
+        ],
+        [
+          {
+            "$regex": "'(?=([^']|#\\{.*?\\}|\\\\')*':)",
+            "$flags": ""
+          },
+          {
+            "token": "constant.delimiter",
+            "next": "@singleQuotedStringKeyword"
+          }
+        ]
+      ],
+      "doubleQuotedStringKeyword": [
+        [
+          {
+            "$regex": "\":",
+            "$flags": ""
+          },
+          {
+            "token": "constant.delimiter",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@stringConstantContentInterpol"
+        }
+      ],
+      "singleQuotedStringKeyword": [
+        [
+          {
+            "$regex": "':",
+            "$flags": ""
+          },
+          {
+            "token": "constant.delimiter",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@stringConstantContentInterpol"
+        }
+      ],
+      "numbers": [
+        [
+          {
+            "$regex": "0b@binary",
+            "$flags": ""
+          },
+          "number.binary"
+        ],
+        [
+          {
+            "$regex": "0o@octal",
+            "$flags": ""
+          },
+          "number.octal"
+        ],
+        [
+          {
+            "$regex": "0x@hex",
+            "$flags": ""
+          },
+          "number.hex"
+        ],
+        [
+          {
+            "$regex": "@decimal\\.@decimal([eE]-?@decimal)?",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "@decimal",
+            "$flags": ""
+          },
+          "number"
+        ]
+      ],
+      "identifiers": [
+        [
+          {
+            "$regex": "\\b(defp?|defnp?|defmacrop?|defguardp?|defdelegate)(\\s+)(@variableName)(?!\\s+@operator)",
+            "$flags": ""
+          },
+          [
+            "keyword.declaration",
+            "white",
+            {
+              "cases": {
+                "unquote": "keyword",
+                "@default": "function"
+              }
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(@variableName)(?=\\s*\\.?\\s*\\()",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@declarationKeywords": "keyword.declaration",
+              "@namespaceKeywords": "keyword",
+              "@otherKeywords": "keyword",
+              "@default": "function.call"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "(@moduleName)(\\s*)(\\.)(\\s*)(@variableName)",
+            "$flags": ""
+          },
+          [
+            "type.identifier",
+            "white",
+            "operator",
+            "white",
+            "function.call"
+          ]
+        ],
+        [
+          {
+            "$regex": "(:)(@atomName)(\\s*)(\\.)(\\s*)(@variableName)",
+            "$flags": ""
+          },
+          [
+            "constant.punctuation",
+            "constant",
+            "white",
+            "operator",
+            "white",
+            "function.call"
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\|>)(\\s*)(@variableName)",
+            "$flags": ""
+          },
+          [
+            "operator",
+            "white",
+            {
+              "cases": {
+                "@otherKeywords": "keyword",
+                "@default": "function.call"
+              }
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(&)(\\s*)(@variableName)",
+            "$flags": ""
+          },
+          [
+            "operator",
+            "white",
+            "function.call"
+          ]
+        ],
+        [
+          {
+            "$regex": "@variableName",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@declarationKeywords": "keyword.declaration",
+              "@operatorKeywords": "keyword.operator",
+              "@namespaceKeywords": "keyword",
+              "@otherKeywords": "keyword",
+              "@constants": "constant.language",
+              "@nameBuiltin": "variable.language",
+              "_.*": "comment.unused",
+              "@default": "identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "@moduleName",
+            "$flags": ""
+          },
+          "type.identifier"
+        ]
+      ],
+      "strings": [
+        [
+          {
+            "$regex": "\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.delimiter",
+            "next": "@doubleQuotedHeredoc"
+          }
+        ],
+        [
+          {
+            "$regex": "'''",
+            "$flags": ""
+          },
+          {
+            "token": "string.delimiter",
+            "next": "@singleQuotedHeredoc"
+          }
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.delimiter",
+            "next": "@doubleQuotedString"
+          }
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string.delimiter",
+            "next": "@singleQuotedString"
+          }
+        ]
+      ],
+      "doubleQuotedHeredoc": [
+        [
+          {
+            "$regex": "\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.delimiter",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@stringContentInterpol"
+        }
+      ],
+      "singleQuotedHeredoc": [
+        [
+          {
+            "$regex": "'''",
+            "$flags": ""
+          },
+          {
+            "token": "string.delimiter",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@stringContentInterpol"
+        }
+      ],
+      "doubleQuotedString": [
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.delimiter",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@stringContentInterpol"
+        }
+      ],
+      "singleQuotedString": [
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string.delimiter",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@stringContentInterpol"
+        }
+      ],
+      "atoms": [
+        [
+          {
+            "$regex": "(:)(@atomName)",
+            "$flags": ""
+          },
+          [
+            "constant.punctuation",
+            "constant"
+          ]
+        ],
+        [
+          {
+            "$regex": ":\"",
+            "$flags": ""
+          },
+          {
+            "token": "constant.delimiter",
+            "next": "@doubleQuotedStringAtom"
+          }
+        ],
+        [
+          {
+            "$regex": ":'",
+            "$flags": ""
+          },
+          {
+            "token": "constant.delimiter",
+            "next": "@singleQuotedStringAtom"
+          }
+        ]
+      ],
+      "doubleQuotedStringAtom": [
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "constant.delimiter",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@stringConstantContentInterpol"
+        }
+      ],
+      "singleQuotedStringAtom": [
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "constant.delimiter",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@stringConstantContentInterpol"
+        }
+      ],
+      "sigils": [
+        [
+          {
+            "$regex": "~[a-z]@sigilStartDelimiter",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@sigil.interpol"
+          }
+        ],
+        [
+          {
+            "$regex": "~([A-Z]+)@sigilStartDelimiter",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@sigil.noInterpol"
+          }
+        ]
+      ],
+      "sigil": [
+        [
+          {
+            "$regex": "~([a-z]|[A-Z]+)\\{",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@sigilStart.$S2.$1.{.}"
+          }
+        ],
+        [
+          {
+            "$regex": "~([a-z]|[A-Z]+)\\[",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@sigilStart.$S2.$1.[.]"
+          }
+        ],
+        [
+          {
+            "$regex": "~([a-z]|[A-Z]+)\\(",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@sigilStart.$S2.$1.(.)"
+          }
+        ],
+        [
+          {
+            "$regex": "~([a-z]|[A-Z]+)\\<",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@sigilStart.$S2.$1.<.>"
+          }
+        ],
+        [
+          {
+            "$regex": "~([a-z]|[A-Z]+)(@sigilSymmetricDelimiter)",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@sigilStart.$S2.$1.$2.$2"
+          }
+        ]
+      ],
+      "sigilStart.interpol.s": [
+        [
+          {
+            "$regex": "~s@sigilStartDelimiter",
+            "$flags": ""
+          },
+          {
+            "token": "string.delimiter",
+            "switchTo": "@sigilContinue.$S2.$S3.$S4.$S5"
+          }
+        ]
+      ],
+      "sigilContinue.interpol.s": [
+        [
+          {
+            "$regex": "(@sigilEndDelimiter)@sigilModifiers",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==$S5": {
+                "token": "string.delimiter",
+                "next": "@pop"
+              },
+              "@default": "string"
+            }
+          }
+        ],
+        {
+          "include": "@stringContentInterpol"
+        }
+      ],
+      "sigilStart.noInterpol.S": [
+        [
+          {
+            "$regex": "~S@sigilStartDelimiter",
+            "$flags": ""
+          },
+          {
+            "token": "string.delimiter",
+            "switchTo": "@sigilContinue.$S2.$S3.$S4.$S5"
+          }
+        ]
+      ],
+      "sigilContinue.noInterpol.S": [
+        [
+          {
+            "$regex": "(^|[^\\\\])\\\\@sigilEndDelimiter",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "(@sigilEndDelimiter)@sigilModifiers",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==$S5": {
+                "token": "string.delimiter",
+                "next": "@pop"
+              },
+              "@default": "string"
+            }
+          }
+        ],
+        {
+          "include": "@stringContent"
+        }
+      ],
+      "sigilStart.interpol.r": [
+        [
+          {
+            "$regex": "~r@sigilStartDelimiter",
+            "$flags": ""
+          },
+          {
+            "token": "regexp.delimiter",
+            "switchTo": "@sigilContinue.$S2.$S3.$S4.$S5"
+          }
+        ]
+      ],
+      "sigilContinue.interpol.r": [
+        [
+          {
+            "$regex": "(@sigilEndDelimiter)@sigilModifiers",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==$S5": {
+                "token": "regexp.delimiter",
+                "next": "@pop"
+              },
+              "@default": "regexp"
+            }
+          }
+        ],
+        {
+          "include": "@regexpContentInterpol"
+        }
+      ],
+      "sigilStart.noInterpol.R": [
+        [
+          {
+            "$regex": "~R@sigilStartDelimiter",
+            "$flags": ""
+          },
+          {
+            "token": "regexp.delimiter",
+            "switchTo": "@sigilContinue.$S2.$S3.$S4.$S5"
+          }
+        ]
+      ],
+      "sigilContinue.noInterpol.R": [
+        [
+          {
+            "$regex": "(^|[^\\\\])\\\\@sigilEndDelimiter",
+            "$flags": ""
+          },
+          "regexp"
+        ],
+        [
+          {
+            "$regex": "(@sigilEndDelimiter)@sigilModifiers",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==$S5": {
+                "token": "regexp.delimiter",
+                "next": "@pop"
+              },
+              "@default": "regexp"
+            }
+          }
+        ],
+        {
+          "include": "@regexpContent"
+        }
+      ],
+      "sigilStart.interpol": [
+        [
+          {
+            "$regex": "~([a-z]|[A-Z]+)@sigilStartDelimiter",
+            "$flags": ""
+          },
+          {
+            "token": "sigil.delimiter",
+            "switchTo": "@sigilContinue.$S2.$S3.$S4.$S5"
+          }
+        ]
+      ],
+      "sigilContinue.interpol": [
+        [
+          {
+            "$regex": "(@sigilEndDelimiter)@sigilModifiers",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==$S5": {
+                "token": "sigil.delimiter",
+                "next": "@pop"
+              },
+              "@default": "sigil"
+            }
+          }
+        ],
+        {
+          "include": "@sigilContentInterpol"
+        }
+      ],
+      "sigilStart.noInterpol": [
+        [
+          {
+            "$regex": "~([a-z]|[A-Z]+)@sigilStartDelimiter",
+            "$flags": ""
+          },
+          {
+            "token": "sigil.delimiter",
+            "switchTo": "@sigilContinue.$S2.$S3.$S4.$S5"
+          }
+        ]
+      ],
+      "sigilContinue.noInterpol": [
+        [
+          {
+            "$regex": "(^|[^\\\\])\\\\@sigilEndDelimiter",
+            "$flags": ""
+          },
+          "sigil"
+        ],
+        [
+          {
+            "$regex": "(@sigilEndDelimiter)@sigilModifiers",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==$S5": {
+                "token": "sigil.delimiter",
+                "next": "@pop"
+              },
+              "@default": "sigil"
+            }
+          }
+        ],
+        {
+          "include": "@sigilContent"
+        }
+      ],
+      "attributes": [
+        [
+          {
+            "$regex": "\\@(module|type)?doc (~[sS])?\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "comment.block.documentation",
+            "next": "@doubleQuotedHeredocDocstring"
+          }
+        ],
+        [
+          {
+            "$regex": "\\@(module|type)?doc (~[sS])?'''",
+            "$flags": ""
+          },
+          {
+            "token": "comment.block.documentation",
+            "next": "@singleQuotedHeredocDocstring"
+          }
+        ],
+        [
+          {
+            "$regex": "\\@(module|type)?doc (~[sS])?\"",
+            "$flags": ""
+          },
+          {
+            "token": "comment.block.documentation",
+            "next": "@doubleQuotedStringDocstring"
+          }
+        ],
+        [
+          {
+            "$regex": "\\@(module|type)?doc (~[sS])?'",
+            "$flags": ""
+          },
+          {
+            "token": "comment.block.documentation",
+            "next": "@singleQuotedStringDocstring"
+          }
+        ],
+        [
+          {
+            "$regex": "\\@(module|type)?doc false",
+            "$flags": ""
+          },
+          "comment.block.documentation"
+        ],
+        [
+          {
+            "$regex": "\\@(@variableName)",
+            "$flags": ""
+          },
+          "variable"
+        ]
+      ],
+      "doubleQuotedHeredocDocstring": [
+        [
+          {
+            "$regex": "\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "comment.block.documentation",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@docstringContent"
+        }
+      ],
+      "singleQuotedHeredocDocstring": [
+        [
+          {
+            "$regex": "'''",
+            "$flags": ""
+          },
+          {
+            "token": "comment.block.documentation",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@docstringContent"
+        }
+      ],
+      "doubleQuotedStringDocstring": [
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "comment.block.documentation",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@docstringContent"
+        }
+      ],
+      "singleQuotedStringDocstring": [
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "comment.block.documentation",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@docstringContent"
+        }
+      ],
+      "symbols": [
+        [
+          {
+            "$regex": "\\?(\\\\.|[^\\\\\\s])",
+            "$flags": ""
+          },
+          "number.constant"
+        ],
+        [
+          {
+            "$regex": "&\\d+",
+            "$flags": ""
+          },
+          "operator"
+        ],
+        [
+          {
+            "$regex": "<<<|>>>",
+            "$flags": ""
+          },
+          "operator"
+        ],
+        [
+          {
+            "$regex": "[()\\[\\]\\{\\}]|<<|>>",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "\\.\\.\\.",
+            "$flags": ""
+          },
+          "identifier"
+        ],
+        [
+          {
+            "$regex": "=>",
+            "$flags": ""
+          },
+          "punctuation"
+        ],
+        [
+          {
+            "$regex": "@operator",
+            "$flags": ""
+          },
+          "operator"
+        ],
+        [
+          {
+            "$regex": "[:;,.%]",
+            "$flags": ""
+          },
+          "punctuation"
+        ]
+      ],
+      "stringContentInterpol": [
+        {
+          "include": "@interpolation"
+        },
+        {
+          "include": "@escapeChar"
+        },
+        {
+          "include": "@stringContent"
+        }
+      ],
+      "stringContent": [
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "stringConstantContentInterpol": [
+        {
+          "include": "@interpolation"
+        },
+        {
+          "include": "@escapeChar"
+        },
+        {
+          "include": "@stringConstantContent"
+        }
+      ],
+      "stringConstantContent": [
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "constant"
+        ]
+      ],
+      "regexpContentInterpol": [
+        {
+          "include": "@interpolation"
+        },
+        {
+          "include": "@escapeChar"
+        },
+        {
+          "include": "@regexpContent"
+        }
+      ],
+      "regexpContent": [
+        [
+          {
+            "$regex": "(\\s)(#)(\\s.*)$",
+            "$flags": ""
+          },
+          [
+            "white",
+            "comment.punctuation",
+            "comment"
+          ]
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "regexp"
+        ]
+      ],
+      "sigilContentInterpol": [
+        {
+          "include": "@interpolation"
+        },
+        {
+          "include": "@escapeChar"
+        },
+        {
+          "include": "@sigilContent"
+        }
+      ],
+      "sigilContent": [
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "sigil"
+        ]
+      ],
+      "docstringContent": [
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "comment.block.documentation"
+        ]
+      ],
+      "escapeChar": [
+        [
+          {
+            "$regex": "@escape",
+            "$flags": ""
+          },
+          "constant.character.escape"
+        ]
+      ],
+      "interpolation": [
+        [
+          {
+            "$regex": "#{",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.bracket.embed",
+            "next": "@interpolationContinue"
+          }
+        ]
+      ],
+      "interpolationContinue": [
+        [
+          {
+            "$regex": "}",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.bracket.embed",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@root"
+        }
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "#"
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "'",
+        "close": "'"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      }
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "'",
+        "close": "'",
+        "notIn": [
+          "string",
+          "comment"
+        ]
+      },
+      {
+        "open": "\"",
+        "close": "\"",
+        "notIn": [
+          "comment"
+        ]
+      },
+      {
+        "open": "\"\"\"",
+        "close": "\"\"\""
+      },
+      {
+        "open": "`",
+        "close": "`",
+        "notIn": [
+          "string",
+          "comment"
+        ]
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "<<",
+        "close": ">>"
+      }
+    ],
+    "indentationRules": {
+      "increaseIndentPattern": {
+        "$regex": "^\\s*(after|else|catch|rescue|fn|[^#]*(do|<\\-|\\->|\\{|\\[|\\=))\\s*$",
+        "$flags": ""
+      },
+      "decreaseIndentPattern": {
+        "$regex": "^\\s*((\\}|\\])\\s*$|(after|else|catch|rescue|end)\\b)",
+        "$flags": ""
+      }
+    }
+  }
+}

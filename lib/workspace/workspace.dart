@@ -12,6 +12,9 @@ import '../kernel/kernel_types.dart';
 import 'editor_launcher.dart';
 import 'preference_store.dart';
 
+/// The arrangement of the project and its conversation in the window.
+enum WorkspaceLayout { chat, ide }
+
 /// A directory agents work in.
 class Project {
   const Project(this.name, this.path);
@@ -434,6 +437,15 @@ class Workspace extends ChangeNotifier {
 
   // --- Preferences ------------------------------------------------------------
 
+  WorkspaceLayout get layout => _layout;
+  WorkspaceLayout _layout = WorkspaceLayout.chat;
+  set layout(WorkspaceLayout layout) {
+    if (_layout == layout) return;
+    _layout = layout;
+    _save();
+    notifyListeners();
+  }
+
   /// Where "Open" in the title bar opens a project.
   Editor get preferredEditor => _preferredEditor;
   Editor _preferredEditor = Editor.vscode;
@@ -483,6 +495,9 @@ class Workspace extends ChangeNotifier {
         case final editor?) {
       _preferredEditor = editor;
     }
+    if (kept['layout'] == WorkspaceLayout.ide.name) {
+      _layout = WorkspaceLayout.ide;
+    }
     _settings.addAll(strings(kept['settings']));
     if (kept['agents'] case final Map<Object?, Object?> agents) {
       for (final MapEntry(:key, :value) in agents.entries) {
@@ -495,6 +510,7 @@ class Workspace extends ChangeNotifier {
     _store?.write({
       'kernel': _preferredKernel.id,
       'editor': _preferredEditor.name,
+      'layout': _layout.name,
       'settings': _settings,
       'agents': _agentSettings,
     }),

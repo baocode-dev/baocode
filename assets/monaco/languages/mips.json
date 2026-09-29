@@ -1,0 +1,463 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "mips",
+  "language": {
+    "defaultToken": "",
+    "ignoreCase": false,
+    "tokenPostfix": ".mips",
+    "regEx": {
+      "$regex": "\\/(?!\\/\\/)(?:[^\\/\\\\]|\\\\.)*\\/[igm]*",
+      "$flags": ""
+    },
+    "keywords": [
+      ".data",
+      ".text",
+      "syscall",
+      "trap",
+      "add",
+      "addu",
+      "addi",
+      "addiu",
+      "and",
+      "andi",
+      "div",
+      "divu",
+      "mult",
+      "multu",
+      "nor",
+      "or",
+      "ori",
+      "sll",
+      "slv",
+      "sra",
+      "srav",
+      "srl",
+      "srlv",
+      "sub",
+      "subu",
+      "xor",
+      "xori",
+      "lhi",
+      "lho",
+      "lhi",
+      "llo",
+      "slt",
+      "slti",
+      "sltu",
+      "sltiu",
+      "beq",
+      "bgtz",
+      "blez",
+      "bne",
+      "j",
+      "jal",
+      "jalr",
+      "jr",
+      "lb",
+      "lbu",
+      "lh",
+      "lhu",
+      "lw",
+      "li",
+      "la",
+      "sb",
+      "sh",
+      "sw",
+      "mfhi",
+      "mflo",
+      "mthi",
+      "mtlo",
+      "move"
+    ],
+    "symbols": {
+      "$regex": "[\\.,\\:]+",
+      "$flags": ""
+    },
+    "escapes": {
+      "$regex": "\\\\(?:[abfnrtv\\\\\"'$]|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "\\$[a-zA-Z_]\\w*",
+            "$flags": ""
+          },
+          "variable.predefined"
+        ],
+        [
+          {
+            "$regex": "[.a-zA-Z_]\\w*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "this": "variable.predefined",
+              "@keywords": {
+                "token": "keyword.$0"
+              },
+              "@default": ""
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          ""
+        ],
+        [
+          {
+            "$regex": "#.*$",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          "///",
+          {
+            "token": "regexp",
+            "next": "@hereregexp"
+          }
+        ],
+        [
+          {
+            "$regex": "^(\\s*)(@regEx)",
+            "$flags": ""
+          },
+          [
+            "",
+            "regexp"
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\,)(\\s*)(@regEx)",
+            "$flags": ""
+          },
+          [
+            "delimiter",
+            "",
+            "regexp"
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\:)(\\s*)(@regEx)",
+            "$flags": ""
+          },
+          [
+            "delimiter",
+            "",
+            "regexp"
+          ]
+        ],
+        [
+          {
+            "$regex": "@symbols",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "\\d+[eE]([\\-+]?\\d+)?",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "\\d+\\.\\d+([eE][\\-+]?\\d+)?",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "0[xX][0-9a-fA-F]+",
+            "$flags": ""
+          },
+          "number.hex"
+        ],
+        [
+          {
+            "$regex": "0[0-7]+(?!\\d)",
+            "$flags": ""
+          },
+          "number.octal"
+        ],
+        [
+          {
+            "$regex": "\\d+",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": "[,.]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "\"\"\"",
+            "$flags": ""
+          },
+          "string",
+          "@herestring.\"\"\""
+        ],
+        [
+          {
+            "$regex": "'''",
+            "$flags": ""
+          },
+          "string",
+          "@herestring.'''"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": "string",
+              "@default": {
+                "token": "string",
+                "next": "@string.\""
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": "string",
+              "@default": {
+                "token": "string",
+                "next": "@string.'"
+              }
+            }
+          }
+        ]
+      ],
+      "string": [
+        [
+          {
+            "$regex": "[^\"'\\#\\\\]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "#{",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$S2==\"": {
+                "token": "string",
+                "next": "root.interpolatedstring"
+              },
+              "@default": "string"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[\"']",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$#==$S2": {
+                "token": "string",
+                "next": "@pop"
+              },
+              "@default": "string"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "#",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "herestring": [
+        [
+          {
+            "$regex": "(\"\"\"|''')",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==$S2": {
+                "token": "string",
+                "next": "@pop"
+              },
+              "@default": "string"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[^#\\\\'\"]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "['\"]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "#{",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "next": "root.interpolatedstring"
+          }
+        ],
+        [
+          {
+            "$regex": "#",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "[^#]+",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "#",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "hereregexp": [
+        [
+          {
+            "$regex": "[^\\\\\\/#]+",
+            "$flags": ""
+          },
+          "regexp"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "regexp"
+        ],
+        [
+          {
+            "$regex": "#.*$",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          "///[igm]*",
+          {
+            "token": "regexp",
+            "next": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "\\/",
+            "$flags": ""
+          },
+          "regexp"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "wordPattern": {
+      "$regex": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#%\\^\\&\\*\\(\\)\\=\\$\\-\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
+      "$flags": "g"
+    },
+    "comments": {
+      "blockComment": [
+        "###",
+        "###"
+      ],
+      "lineComment": "#"
+    },
+    "folding": {
+      "markers": {
+        "start": {
+          "$regex": "^\\s*#region\\b",
+          "$flags": ""
+        },
+        "end": {
+          "$regex": "^\\s*#endregion\\b",
+          "$flags": ""
+        }
+      }
+    }
+  }
+}

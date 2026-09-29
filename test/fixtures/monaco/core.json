@@ -1,0 +1,7302 @@
+{
+  "revision": "6a598d4a13031703d483d103c1d934a36ad27971",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see lib/ide/editor/monaco/LICENSE.txt.",
+  "position": [
+    {
+      "input": [
+        15,
+        4,
+        11,
+        26
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 4,
+      "delta": {
+        "lineNumber": 13,
+        "column": 7
+      },
+      "withPosition": {
+        "lineNumber": 11,
+        "column": 4
+      },
+      "display": "(15,4)"
+    },
+    {
+      "input": [
+        13,
+        16,
+        17,
+        12
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -4,
+      "delta": {
+        "lineNumber": 11,
+        "column": 19
+      },
+      "withPosition": {
+        "lineNumber": 17,
+        "column": 16
+      },
+      "display": "(13,16)"
+    },
+    {
+      "input": [
+        15,
+        20,
+        -3,
+        2
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 18,
+      "delta": {
+        "lineNumber": 13,
+        "column": 23
+      },
+      "withPosition": {
+        "lineNumber": -3,
+        "column": 20
+      },
+      "display": "(15,20)"
+    },
+    {
+      "input": [
+        7,
+        6,
+        -3,
+        22
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 10,
+      "delta": {
+        "lineNumber": 5,
+        "column": 9
+      },
+      "withPosition": {
+        "lineNumber": -3,
+        "column": 6
+      },
+      "display": "(7,6)"
+    },
+    {
+      "input": [
+        21,
+        14,
+        15,
+        22
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 6,
+      "delta": {
+        "lineNumber": 19,
+        "column": 17
+      },
+      "withPosition": {
+        "lineNumber": 15,
+        "column": 14
+      },
+      "display": "(21,14)"
+    },
+    {
+      "input": [
+        -3,
+        16,
+        13,
+        0
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -16,
+      "delta": {
+        "lineNumber": 1,
+        "column": 19
+      },
+      "withPosition": {
+        "lineNumber": 13,
+        "column": 16
+      },
+      "display": "(-3,16)"
+    },
+    {
+      "input": [
+        -3,
+        -2,
+        11,
+        8
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -14,
+      "delta": {
+        "lineNumber": 1,
+        "column": 1
+      },
+      "withPosition": {
+        "lineNumber": 11,
+        "column": -2
+      },
+      "display": "(-3,-2)"
+    },
+    {
+      "input": [
+        25,
+        0,
+        -3,
+        8
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 28,
+      "delta": {
+        "lineNumber": 23,
+        "column": 3
+      },
+      "withPosition": {
+        "lineNumber": -3,
+        "column": 0
+      },
+      "display": "(25,0)"
+    },
+    {
+      "input": [
+        21,
+        10,
+        11,
+        14
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 10,
+      "delta": {
+        "lineNumber": 19,
+        "column": 13
+      },
+      "withPosition": {
+        "lineNumber": 11,
+        "column": 10
+      },
+      "display": "(21,10)"
+    },
+    {
+      "input": [
+        17,
+        4,
+        11,
+        20
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 6,
+      "delta": {
+        "lineNumber": 15,
+        "column": 7
+      },
+      "withPosition": {
+        "lineNumber": 11,
+        "column": 4
+      },
+      "display": "(17,4)"
+    },
+    {
+      "input": [
+        -3,
+        24,
+        11,
+        4
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -14,
+      "delta": {
+        "lineNumber": 1,
+        "column": 27
+      },
+      "withPosition": {
+        "lineNumber": 11,
+        "column": 24
+      },
+      "display": "(-3,24)"
+    },
+    {
+      "input": [
+        11,
+        6,
+        1,
+        14
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 10,
+      "delta": {
+        "lineNumber": 9,
+        "column": 9
+      },
+      "withPosition": {
+        "lineNumber": 1,
+        "column": 6
+      },
+      "display": "(11,6)"
+    },
+    {
+      "input": [
+        -3,
+        16,
+        11,
+        20
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -14,
+      "delta": {
+        "lineNumber": 1,
+        "column": 19
+      },
+      "withPosition": {
+        "lineNumber": 11,
+        "column": 16
+      },
+      "display": "(-3,16)"
+    },
+    {
+      "input": [
+        -1,
+        20,
+        15,
+        18
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -16,
+      "delta": {
+        "lineNumber": 1,
+        "column": 23
+      },
+      "withPosition": {
+        "lineNumber": 15,
+        "column": 20
+      },
+      "display": "(-1,20)"
+    },
+    {
+      "input": [
+        25,
+        24,
+        23,
+        2
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 2,
+      "delta": {
+        "lineNumber": 23,
+        "column": 27
+      },
+      "withPosition": {
+        "lineNumber": 23,
+        "column": 24
+      },
+      "display": "(25,24)"
+    },
+    {
+      "input": [
+        -1,
+        16,
+        21,
+        8
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -22,
+      "delta": {
+        "lineNumber": 1,
+        "column": 19
+      },
+      "withPosition": {
+        "lineNumber": 21,
+        "column": 16
+      },
+      "display": "(-1,16)"
+    },
+    {
+      "input": [
+        9,
+        20,
+        15,
+        10
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -6,
+      "delta": {
+        "lineNumber": 7,
+        "column": 23
+      },
+      "withPosition": {
+        "lineNumber": 15,
+        "column": 20
+      },
+      "display": "(9,20)"
+    },
+    {
+      "input": [
+        5,
+        24,
+        19,
+        22
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -14,
+      "delta": {
+        "lineNumber": 3,
+        "column": 27
+      },
+      "withPosition": {
+        "lineNumber": 19,
+        "column": 24
+      },
+      "display": "(5,24)"
+    },
+    {
+      "input": [
+        25,
+        22,
+        21,
+        20
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 4,
+      "delta": {
+        "lineNumber": 23,
+        "column": 25
+      },
+      "withPosition": {
+        "lineNumber": 21,
+        "column": 22
+      },
+      "display": "(25,22)"
+    },
+    {
+      "input": [
+        -3,
+        10,
+        19,
+        26
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -22,
+      "delta": {
+        "lineNumber": 1,
+        "column": 13
+      },
+      "withPosition": {
+        "lineNumber": 19,
+        "column": 10
+      },
+      "display": "(-3,10)"
+    },
+    {
+      "input": [
+        13,
+        26,
+        -1,
+        -2
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 14,
+      "delta": {
+        "lineNumber": 11,
+        "column": 29
+      },
+      "withPosition": {
+        "lineNumber": -1,
+        "column": 26
+      },
+      "display": "(13,26)"
+    },
+    {
+      "input": [
+        11,
+        20,
+        23,
+        -2
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -12,
+      "delta": {
+        "lineNumber": 9,
+        "column": 23
+      },
+      "withPosition": {
+        "lineNumber": 23,
+        "column": 20
+      },
+      "display": "(11,20)"
+    },
+    {
+      "input": [
+        9,
+        22,
+        -1,
+        26
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 10,
+      "delta": {
+        "lineNumber": 7,
+        "column": 25
+      },
+      "withPosition": {
+        "lineNumber": -1,
+        "column": 22
+      },
+      "display": "(9,22)"
+    },
+    {
+      "input": [
+        -3,
+        14,
+        15,
+        10
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -18,
+      "delta": {
+        "lineNumber": 1,
+        "column": 17
+      },
+      "withPosition": {
+        "lineNumber": 15,
+        "column": 14
+      },
+      "display": "(-3,14)"
+    },
+    {
+      "input": [
+        23,
+        16,
+        11,
+        18
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 12,
+      "delta": {
+        "lineNumber": 21,
+        "column": 19
+      },
+      "withPosition": {
+        "lineNumber": 11,
+        "column": 16
+      },
+      "display": "(23,16)"
+    },
+    {
+      "input": [
+        23,
+        8,
+        15,
+        12
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 8,
+      "delta": {
+        "lineNumber": 21,
+        "column": 11
+      },
+      "withPosition": {
+        "lineNumber": 15,
+        "column": 8
+      },
+      "display": "(23,8)"
+    },
+    {
+      "input": [
+        7,
+        24,
+        -1,
+        12
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 8,
+      "delta": {
+        "lineNumber": 5,
+        "column": 27
+      },
+      "withPosition": {
+        "lineNumber": -1,
+        "column": 24
+      },
+      "display": "(7,24)"
+    },
+    {
+      "input": [
+        3,
+        -2,
+        11,
+        20
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -8,
+      "delta": {
+        "lineNumber": 1,
+        "column": 1
+      },
+      "withPosition": {
+        "lineNumber": 11,
+        "column": -2
+      },
+      "display": "(3,-2)"
+    },
+    {
+      "input": [
+        1,
+        22,
+        23,
+        14
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -22,
+      "delta": {
+        "lineNumber": 1,
+        "column": 25
+      },
+      "withPosition": {
+        "lineNumber": 23,
+        "column": 22
+      },
+      "display": "(1,22)"
+    },
+    {
+      "input": [
+        11,
+        8,
+        15,
+        8
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -4,
+      "delta": {
+        "lineNumber": 9,
+        "column": 11
+      },
+      "withPosition": {
+        "lineNumber": 15,
+        "column": 8
+      },
+      "display": "(11,8)"
+    },
+    {
+      "input": [
+        5,
+        20,
+        15,
+        -2
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -10,
+      "delta": {
+        "lineNumber": 3,
+        "column": 23
+      },
+      "withPosition": {
+        "lineNumber": 15,
+        "column": 20
+      },
+      "display": "(5,20)"
+    },
+    {
+      "input": [
+        1,
+        22,
+        5,
+        22
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -4,
+      "delta": {
+        "lineNumber": 1,
+        "column": 25
+      },
+      "withPosition": {
+        "lineNumber": 5,
+        "column": 22
+      },
+      "display": "(1,22)"
+    },
+    {
+      "input": [
+        25,
+        26,
+        15,
+        10
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 10,
+      "delta": {
+        "lineNumber": 23,
+        "column": 29
+      },
+      "withPosition": {
+        "lineNumber": 15,
+        "column": 26
+      },
+      "display": "(25,26)"
+    },
+    {
+      "input": [
+        -1,
+        2,
+        7,
+        2
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -8,
+      "delta": {
+        "lineNumber": 1,
+        "column": 5
+      },
+      "withPosition": {
+        "lineNumber": 7,
+        "column": 2
+      },
+      "display": "(-1,2)"
+    },
+    {
+      "input": [
+        3,
+        4,
+        -3,
+        26
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 6,
+      "delta": {
+        "lineNumber": 1,
+        "column": 7
+      },
+      "withPosition": {
+        "lineNumber": -3,
+        "column": 4
+      },
+      "display": "(3,4)"
+    },
+    {
+      "input": [
+        -3,
+        4,
+        17,
+        -2
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -20,
+      "delta": {
+        "lineNumber": 1,
+        "column": 7
+      },
+      "withPosition": {
+        "lineNumber": 17,
+        "column": 4
+      },
+      "display": "(-3,4)"
+    },
+    {
+      "input": [
+        9,
+        16,
+        19,
+        20
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -10,
+      "delta": {
+        "lineNumber": 7,
+        "column": 19
+      },
+      "withPosition": {
+        "lineNumber": 19,
+        "column": 16
+      },
+      "display": "(9,16)"
+    },
+    {
+      "input": [
+        3,
+        -2,
+        17,
+        10
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -14,
+      "delta": {
+        "lineNumber": 1,
+        "column": 1
+      },
+      "withPosition": {
+        "lineNumber": 17,
+        "column": -2
+      },
+      "display": "(3,-2)"
+    },
+    {
+      "input": [
+        -3,
+        8,
+        19,
+        20
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -22,
+      "delta": {
+        "lineNumber": 1,
+        "column": 11
+      },
+      "withPosition": {
+        "lineNumber": 19,
+        "column": 8
+      },
+      "display": "(-3,8)"
+    },
+    {
+      "input": [
+        3,
+        16,
+        11,
+        2
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -8,
+      "delta": {
+        "lineNumber": 1,
+        "column": 19
+      },
+      "withPosition": {
+        "lineNumber": 11,
+        "column": 16
+      },
+      "display": "(3,16)"
+    },
+    {
+      "input": [
+        5,
+        8,
+        9,
+        2
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -4,
+      "delta": {
+        "lineNumber": 3,
+        "column": 11
+      },
+      "withPosition": {
+        "lineNumber": 9,
+        "column": 8
+      },
+      "display": "(5,8)"
+    },
+    {
+      "input": [
+        9,
+        12,
+        17,
+        4
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -8,
+      "delta": {
+        "lineNumber": 7,
+        "column": 15
+      },
+      "withPosition": {
+        "lineNumber": 17,
+        "column": 12
+      },
+      "display": "(9,12)"
+    },
+    {
+      "input": [
+        3,
+        6,
+        15,
+        4
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -12,
+      "delta": {
+        "lineNumber": 1,
+        "column": 9
+      },
+      "withPosition": {
+        "lineNumber": 15,
+        "column": 6
+      },
+      "display": "(3,6)"
+    },
+    {
+      "input": [
+        15,
+        18,
+        13,
+        14
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 2,
+      "delta": {
+        "lineNumber": 13,
+        "column": 21
+      },
+      "withPosition": {
+        "lineNumber": 13,
+        "column": 18
+      },
+      "display": "(15,18)"
+    },
+    {
+      "input": [
+        5,
+        8,
+        23,
+        10
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -18,
+      "delta": {
+        "lineNumber": 3,
+        "column": 11
+      },
+      "withPosition": {
+        "lineNumber": 23,
+        "column": 8
+      },
+      "display": "(5,8)"
+    },
+    {
+      "input": [
+        21,
+        10,
+        13,
+        14
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 8,
+      "delta": {
+        "lineNumber": 19,
+        "column": 13
+      },
+      "withPosition": {
+        "lineNumber": 13,
+        "column": 10
+      },
+      "display": "(21,10)"
+    },
+    {
+      "input": [
+        1,
+        0,
+        7,
+        4
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -6,
+      "delta": {
+        "lineNumber": 1,
+        "column": 3
+      },
+      "withPosition": {
+        "lineNumber": 7,
+        "column": 0
+      },
+      "display": "(1,0)"
+    },
+    {
+      "input": [
+        15,
+        20,
+        1,
+        2
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 14,
+      "delta": {
+        "lineNumber": 13,
+        "column": 23
+      },
+      "withPosition": {
+        "lineNumber": 1,
+        "column": 20
+      },
+      "display": "(15,20)"
+    },
+    {
+      "input": [
+        9,
+        24,
+        3,
+        2
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 6,
+      "delta": {
+        "lineNumber": 7,
+        "column": 27
+      },
+      "withPosition": {
+        "lineNumber": 3,
+        "column": 24
+      },
+      "display": "(9,24)"
+    },
+    {
+      "input": [
+        23,
+        18,
+        25,
+        0
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -2,
+      "delta": {
+        "lineNumber": 21,
+        "column": 21
+      },
+      "withPosition": {
+        "lineNumber": 25,
+        "column": 18
+      },
+      "display": "(23,18)"
+    },
+    {
+      "input": [
+        -1,
+        24,
+        9,
+        -2
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -10,
+      "delta": {
+        "lineNumber": 1,
+        "column": 27
+      },
+      "withPosition": {
+        "lineNumber": 9,
+        "column": 24
+      },
+      "display": "(-1,24)"
+    },
+    {
+      "input": [
+        9,
+        -2,
+        13,
+        10
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -4,
+      "delta": {
+        "lineNumber": 7,
+        "column": 1
+      },
+      "withPosition": {
+        "lineNumber": 13,
+        "column": -2
+      },
+      "display": "(9,-2)"
+    },
+    {
+      "input": [
+        -3,
+        12,
+        11,
+        18
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -14,
+      "delta": {
+        "lineNumber": 1,
+        "column": 15
+      },
+      "withPosition": {
+        "lineNumber": 11,
+        "column": 12
+      },
+      "display": "(-3,12)"
+    },
+    {
+      "input": [
+        9,
+        10,
+        -1,
+        12
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 10,
+      "delta": {
+        "lineNumber": 7,
+        "column": 13
+      },
+      "withPosition": {
+        "lineNumber": -1,
+        "column": 10
+      },
+      "display": "(9,10)"
+    },
+    {
+      "input": [
+        7,
+        6,
+        -3,
+        -2
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 10,
+      "delta": {
+        "lineNumber": 5,
+        "column": 9
+      },
+      "withPosition": {
+        "lineNumber": -3,
+        "column": 6
+      },
+      "display": "(7,6)"
+    },
+    {
+      "input": [
+        -3,
+        24,
+        -1,
+        10
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -2,
+      "delta": {
+        "lineNumber": 1,
+        "column": 27
+      },
+      "withPosition": {
+        "lineNumber": -1,
+        "column": 24
+      },
+      "display": "(-3,24)"
+    },
+    {
+      "input": [
+        15,
+        20,
+        5,
+        18
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 10,
+      "delta": {
+        "lineNumber": 13,
+        "column": 23
+      },
+      "withPosition": {
+        "lineNumber": 5,
+        "column": 20
+      },
+      "display": "(15,20)"
+    },
+    {
+      "input": [
+        11,
+        8,
+        25,
+        16
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -14,
+      "delta": {
+        "lineNumber": 9,
+        "column": 11
+      },
+      "withPosition": {
+        "lineNumber": 25,
+        "column": 8
+      },
+      "display": "(11,8)"
+    },
+    {
+      "input": [
+        15,
+        16,
+        3,
+        2
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 12,
+      "delta": {
+        "lineNumber": 13,
+        "column": 19
+      },
+      "withPosition": {
+        "lineNumber": 3,
+        "column": 16
+      },
+      "display": "(15,16)"
+    },
+    {
+      "input": [
+        13,
+        4,
+        9,
+        10
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 4,
+      "delta": {
+        "lineNumber": 11,
+        "column": 7
+      },
+      "withPosition": {
+        "lineNumber": 9,
+        "column": 4
+      },
+      "display": "(13,4)"
+    },
+    {
+      "input": [
+        21,
+        16,
+        15,
+        16
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": 6,
+      "delta": {
+        "lineNumber": 19,
+        "column": 19
+      },
+      "withPosition": {
+        "lineNumber": 15,
+        "column": 16
+      },
+      "display": "(21,16)"
+    },
+    {
+      "input": [
+        1,
+        14,
+        7,
+        12
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -6,
+      "delta": {
+        "lineNumber": 1,
+        "column": 17
+      },
+      "withPosition": {
+        "lineNumber": 7,
+        "column": 14
+      },
+      "display": "(1,14)"
+    },
+    {
+      "input": [
+        23,
+        16,
+        23,
+        26
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -10,
+      "delta": {
+        "lineNumber": 21,
+        "column": 19
+      },
+      "withPosition": {
+        "lineNumber": 23,
+        "column": 16
+      },
+      "display": "(23,16)"
+    },
+    {
+      "input": [
+        5,
+        2,
+        19,
+        6
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -14,
+      "delta": {
+        "lineNumber": 3,
+        "column": 5
+      },
+      "withPosition": {
+        "lineNumber": 19,
+        "column": 2
+      },
+      "display": "(5,2)"
+    },
+    {
+      "input": [
+        2147483648,
+        4294967296,
+        1,
+        1
+      ],
+      "equals": false,
+      "before": false,
+      "beforeOrEqual": false,
+      "compare": -2147483649,
+      "delta": {
+        "lineNumber": 2147483646,
+        "column": 4294967299
+      },
+      "withPosition": {
+        "lineNumber": 1,
+        "column": 4294967296
+      },
+      "display": "(2147483648,4294967296)"
+    },
+    {
+      "input": [
+        0,
+        -1,
+        2147483647,
+        2147483648
+      ],
+      "equals": false,
+      "before": true,
+      "beforeOrEqual": true,
+      "compare": -2147483647,
+      "delta": {
+        "lineNumber": 1,
+        "column": 2
+      },
+      "withPosition": {
+        "lineNumber": 2147483647,
+        "column": -1
+      },
+      "display": "(0,-1)"
+    }
+  ],
+  "range": [
+    {
+      "input": [
+        15,
+        4,
+        11,
+        26
+      ],
+      "other": [
+        13,
+        16,
+        17,
+        12
+      ],
+      "normalized": {
+        "startLineNumber": 11,
+        "startColumn": 26,
+        "endLineNumber": 15,
+        "endColumn": 4
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 11,
+        "startColumn": 26,
+        "endLineNumber": 17,
+        "endColumn": 12
+      },
+      "intersection": {
+        "startLineNumber": 13,
+        "startColumn": 16,
+        "endLineNumber": 15,
+        "endColumn": 4
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -2,
+      "compareEnds": -2,
+      "display": "[11,26 -> 15,4]"
+    },
+    {
+      "input": [
+        13,
+        16,
+        17,
+        12
+      ],
+      "other": [
+        15,
+        20,
+        -3,
+        2
+      ],
+      "normalized": {
+        "startLineNumber": 13,
+        "startColumn": 16,
+        "endLineNumber": 17,
+        "endColumn": 12
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 2,
+        "endLineNumber": 17,
+        "endColumn": 12
+      },
+      "intersection": {
+        "startLineNumber": 13,
+        "startColumn": 16,
+        "endLineNumber": 15,
+        "endColumn": 20
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 16,
+      "compareEnds": 2,
+      "display": "[13,16 -> 17,12]"
+    },
+    {
+      "input": [
+        15,
+        20,
+        -3,
+        2
+      ],
+      "other": [
+        7,
+        6,
+        -3,
+        22
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 2,
+        "endLineNumber": 15,
+        "endColumn": 20
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 2,
+        "endLineNumber": 15,
+        "endColumn": 20
+      },
+      "intersection": {
+        "startLineNumber": -3,
+        "startColumn": 22,
+        "endLineNumber": 7,
+        "endColumn": 6
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -20,
+      "compareEnds": 8,
+      "display": "[-3,2 -> 15,20]"
+    },
+    {
+      "input": [
+        7,
+        6,
+        -3,
+        22
+      ],
+      "other": [
+        21,
+        14,
+        15,
+        22
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 22,
+        "endLineNumber": 7,
+        "endColumn": 6
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 22,
+        "endLineNumber": 21,
+        "endColumn": 14
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": -18,
+      "compareEnds": -14,
+      "display": "[-3,22 -> 7,6]"
+    },
+    {
+      "input": [
+        21,
+        14,
+        15,
+        22
+      ],
+      "other": [
+        -3,
+        16,
+        13,
+        0
+      ],
+      "normalized": {
+        "startLineNumber": 15,
+        "startColumn": 22,
+        "endLineNumber": 21,
+        "endColumn": 14
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 16,
+        "endLineNumber": 21,
+        "endColumn": 14
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": 18,
+      "compareEnds": 8,
+      "display": "[15,22 -> 21,14]"
+    },
+    {
+      "input": [
+        -3,
+        16,
+        13,
+        0
+      ],
+      "other": [
+        -3,
+        -2,
+        11,
+        8
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 16,
+        "endLineNumber": 13,
+        "endColumn": 0
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": -2,
+        "endLineNumber": 13,
+        "endColumn": 0
+      },
+      "intersection": {
+        "startLineNumber": -3,
+        "startColumn": 16,
+        "endLineNumber": 11,
+        "endColumn": 8
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 18,
+      "compareEnds": 2,
+      "display": "[-3,16 -> 13,0]"
+    },
+    {
+      "input": [
+        -3,
+        -2,
+        11,
+        8
+      ],
+      "other": [
+        25,
+        0,
+        -3,
+        8
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": -2,
+        "endLineNumber": 11,
+        "endColumn": 8
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": -2,
+        "endLineNumber": 25,
+        "endColumn": 0
+      },
+      "intersection": {
+        "startLineNumber": -3,
+        "startColumn": 8,
+        "endLineNumber": 11,
+        "endColumn": 8
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -10,
+      "compareEnds": -14,
+      "display": "[-3,-2 -> 11,8]"
+    },
+    {
+      "input": [
+        25,
+        0,
+        -3,
+        8
+      ],
+      "other": [
+        21,
+        10,
+        11,
+        14
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 8,
+        "endLineNumber": 25,
+        "endColumn": 0
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 8,
+        "endLineNumber": 25,
+        "endColumn": 0
+      },
+      "intersection": {
+        "startLineNumber": 11,
+        "startColumn": 14,
+        "endLineNumber": 21,
+        "endColumn": 10
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -14,
+      "compareEnds": 4,
+      "display": "[-3,8 -> 25,0]"
+    },
+    {
+      "input": [
+        21,
+        10,
+        11,
+        14
+      ],
+      "other": [
+        17,
+        4,
+        11,
+        20
+      ],
+      "normalized": {
+        "startLineNumber": 11,
+        "startColumn": 14,
+        "endLineNumber": 21,
+        "endColumn": 10
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": 11,
+        "startColumn": 14,
+        "endLineNumber": 21,
+        "endColumn": 10
+      },
+      "intersection": {
+        "startLineNumber": 11,
+        "startColumn": 20,
+        "endLineNumber": 17,
+        "endColumn": 4
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -6,
+      "compareEnds": 4,
+      "display": "[11,14 -> 21,10]"
+    },
+    {
+      "input": [
+        17,
+        4,
+        11,
+        20
+      ],
+      "other": [
+        -3,
+        24,
+        11,
+        4
+      ],
+      "normalized": {
+        "startLineNumber": 11,
+        "startColumn": 20,
+        "endLineNumber": 17,
+        "endColumn": 4
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 24,
+        "endLineNumber": 17,
+        "endColumn": 4
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": 14,
+      "compareEnds": 6,
+      "display": "[11,20 -> 17,4]"
+    },
+    {
+      "input": [
+        -3,
+        24,
+        11,
+        4
+      ],
+      "other": [
+        11,
+        6,
+        1,
+        14
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 24,
+        "endLineNumber": 11,
+        "endColumn": 4
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 24,
+        "endLineNumber": 11,
+        "endColumn": 6
+      },
+      "intersection": {
+        "startLineNumber": 1,
+        "startColumn": 14,
+        "endLineNumber": 11,
+        "endColumn": 4
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -4,
+      "compareEnds": -2,
+      "display": "[-3,24 -> 11,4]"
+    },
+    {
+      "input": [
+        11,
+        6,
+        1,
+        14
+      ],
+      "other": [
+        -3,
+        16,
+        11,
+        20
+      ],
+      "normalized": {
+        "startLineNumber": 1,
+        "startColumn": 14,
+        "endLineNumber": 11,
+        "endColumn": 6
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 16,
+        "endLineNumber": 11,
+        "endColumn": 20
+      },
+      "intersection": {
+        "startLineNumber": 1,
+        "startColumn": 14,
+        "endLineNumber": 11,
+        "endColumn": 6
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 4,
+      "compareEnds": -14,
+      "display": "[1,14 -> 11,6]"
+    },
+    {
+      "input": [
+        -3,
+        16,
+        11,
+        20
+      ],
+      "other": [
+        -1,
+        20,
+        15,
+        18
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 16,
+        "endLineNumber": 11,
+        "endColumn": 20
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 16,
+        "endLineNumber": 15,
+        "endColumn": 18
+      },
+      "intersection": {
+        "startLineNumber": -1,
+        "startColumn": 20,
+        "endLineNumber": 11,
+        "endColumn": 20
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -2,
+      "compareEnds": -4,
+      "display": "[-3,16 -> 11,20]"
+    },
+    {
+      "input": [
+        -1,
+        20,
+        15,
+        18
+      ],
+      "other": [
+        25,
+        24,
+        23,
+        2
+      ],
+      "normalized": {
+        "startLineNumber": -1,
+        "startColumn": 20,
+        "endLineNumber": 15,
+        "endColumn": 18
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -1,
+        "startColumn": 20,
+        "endLineNumber": 25,
+        "endColumn": 24
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": -24,
+      "compareEnds": -10,
+      "display": "[-1,20 -> 15,18]"
+    },
+    {
+      "input": [
+        25,
+        24,
+        23,
+        2
+      ],
+      "other": [
+        -1,
+        16,
+        21,
+        8
+      ],
+      "normalized": {
+        "startLineNumber": 23,
+        "startColumn": 2,
+        "endLineNumber": 25,
+        "endColumn": 24
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -1,
+        "startColumn": 16,
+        "endLineNumber": 25,
+        "endColumn": 24
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": 24,
+      "compareEnds": 4,
+      "display": "[23,2 -> 25,24]"
+    },
+    {
+      "input": [
+        -1,
+        16,
+        21,
+        8
+      ],
+      "other": [
+        9,
+        20,
+        15,
+        10
+      ],
+      "normalized": {
+        "startLineNumber": -1,
+        "startColumn": 16,
+        "endLineNumber": 21,
+        "endColumn": 8
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": -1,
+        "startColumn": 16,
+        "endLineNumber": 21,
+        "endColumn": 8
+      },
+      "intersection": {
+        "startLineNumber": 9,
+        "startColumn": 20,
+        "endLineNumber": 15,
+        "endColumn": 10
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -10,
+      "compareEnds": 6,
+      "display": "[-1,16 -> 21,8]"
+    },
+    {
+      "input": [
+        9,
+        20,
+        15,
+        10
+      ],
+      "other": [
+        5,
+        24,
+        19,
+        22
+      ],
+      "normalized": {
+        "startLineNumber": 9,
+        "startColumn": 20,
+        "endLineNumber": 15,
+        "endColumn": 10
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 5,
+        "startColumn": 24,
+        "endLineNumber": 19,
+        "endColumn": 22
+      },
+      "intersection": {
+        "startLineNumber": 9,
+        "startColumn": 20,
+        "endLineNumber": 15,
+        "endColumn": 10
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 4,
+      "compareEnds": -4,
+      "display": "[9,20 -> 15,10]"
+    },
+    {
+      "input": [
+        5,
+        24,
+        19,
+        22
+      ],
+      "other": [
+        25,
+        22,
+        21,
+        20
+      ],
+      "normalized": {
+        "startLineNumber": 5,
+        "startColumn": 24,
+        "endLineNumber": 19,
+        "endColumn": 22
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 5,
+        "startColumn": 24,
+        "endLineNumber": 25,
+        "endColumn": 22
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": -16,
+      "compareEnds": -6,
+      "display": "[5,24 -> 19,22]"
+    },
+    {
+      "input": [
+        25,
+        22,
+        21,
+        20
+      ],
+      "other": [
+        -3,
+        10,
+        19,
+        26
+      ],
+      "normalized": {
+        "startLineNumber": 21,
+        "startColumn": 20,
+        "endLineNumber": 25,
+        "endColumn": 22
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 10,
+        "endLineNumber": 25,
+        "endColumn": 22
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": 24,
+      "compareEnds": 6,
+      "display": "[21,20 -> 25,22]"
+    },
+    {
+      "input": [
+        -3,
+        10,
+        19,
+        26
+      ],
+      "other": [
+        13,
+        26,
+        -1,
+        -2
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 10,
+        "endLineNumber": 19,
+        "endColumn": 26
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 10,
+        "endLineNumber": 19,
+        "endColumn": 26
+      },
+      "intersection": {
+        "startLineNumber": -1,
+        "startColumn": -2,
+        "endLineNumber": 13,
+        "endColumn": 26
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -2,
+      "compareEnds": 6,
+      "display": "[-3,10 -> 19,26]"
+    },
+    {
+      "input": [
+        13,
+        26,
+        -1,
+        -2
+      ],
+      "other": [
+        11,
+        20,
+        23,
+        -2
+      ],
+      "normalized": {
+        "startLineNumber": -1,
+        "startColumn": -2,
+        "endLineNumber": 13,
+        "endColumn": 26
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -1,
+        "startColumn": -2,
+        "endLineNumber": 23,
+        "endColumn": -2
+      },
+      "intersection": {
+        "startLineNumber": 11,
+        "startColumn": 20,
+        "endLineNumber": 13,
+        "endColumn": 26
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -12,
+      "compareEnds": -10,
+      "display": "[-1,-2 -> 13,26]"
+    },
+    {
+      "input": [
+        11,
+        20,
+        23,
+        -2
+      ],
+      "other": [
+        9,
+        22,
+        -1,
+        26
+      ],
+      "normalized": {
+        "startLineNumber": 11,
+        "startColumn": 20,
+        "endLineNumber": 23,
+        "endColumn": -2
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -1,
+        "startColumn": 26,
+        "endLineNumber": 23,
+        "endColumn": -2
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": 12,
+      "compareEnds": 14,
+      "display": "[11,20 -> 23,-2]"
+    },
+    {
+      "input": [
+        9,
+        22,
+        -1,
+        26
+      ],
+      "other": [
+        -3,
+        14,
+        15,
+        10
+      ],
+      "normalized": {
+        "startLineNumber": -1,
+        "startColumn": 26,
+        "endLineNumber": 9,
+        "endColumn": 22
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 14,
+        "endLineNumber": 15,
+        "endColumn": 10
+      },
+      "intersection": {
+        "startLineNumber": -1,
+        "startColumn": 26,
+        "endLineNumber": 9,
+        "endColumn": 22
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 2,
+      "compareEnds": -6,
+      "display": "[-1,26 -> 9,22]"
+    },
+    {
+      "input": [
+        -3,
+        14,
+        15,
+        10
+      ],
+      "other": [
+        23,
+        16,
+        11,
+        18
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 14,
+        "endLineNumber": 15,
+        "endColumn": 10
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 14,
+        "endLineNumber": 23,
+        "endColumn": 16
+      },
+      "intersection": {
+        "startLineNumber": 11,
+        "startColumn": 18,
+        "endLineNumber": 15,
+        "endColumn": 10
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -14,
+      "compareEnds": -8,
+      "display": "[-3,14 -> 15,10]"
+    },
+    {
+      "input": [
+        23,
+        16,
+        11,
+        18
+      ],
+      "other": [
+        23,
+        8,
+        15,
+        12
+      ],
+      "normalized": {
+        "startLineNumber": 11,
+        "startColumn": 18,
+        "endLineNumber": 23,
+        "endColumn": 16
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": 11,
+        "startColumn": 18,
+        "endLineNumber": 23,
+        "endColumn": 16
+      },
+      "intersection": {
+        "startLineNumber": 15,
+        "startColumn": 12,
+        "endLineNumber": 23,
+        "endColumn": 8
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -4,
+      "compareEnds": 8,
+      "display": "[11,18 -> 23,16]"
+    },
+    {
+      "input": [
+        23,
+        8,
+        15,
+        12
+      ],
+      "other": [
+        7,
+        24,
+        -1,
+        12
+      ],
+      "normalized": {
+        "startLineNumber": 15,
+        "startColumn": 12,
+        "endLineNumber": 23,
+        "endColumn": 8
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -1,
+        "startColumn": 12,
+        "endLineNumber": 23,
+        "endColumn": 8
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": 16,
+      "compareEnds": 16,
+      "display": "[15,12 -> 23,8]"
+    },
+    {
+      "input": [
+        7,
+        24,
+        -1,
+        12
+      ],
+      "other": [
+        3,
+        -2,
+        11,
+        20
+      ],
+      "normalized": {
+        "startLineNumber": -1,
+        "startColumn": 12,
+        "endLineNumber": 7,
+        "endColumn": 24
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -1,
+        "startColumn": 12,
+        "endLineNumber": 11,
+        "endColumn": 20
+      },
+      "intersection": {
+        "startLineNumber": 3,
+        "startColumn": -2,
+        "endLineNumber": 7,
+        "endColumn": 24
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -4,
+      "compareEnds": -4,
+      "display": "[-1,12 -> 7,24]"
+    },
+    {
+      "input": [
+        3,
+        -2,
+        11,
+        20
+      ],
+      "other": [
+        1,
+        22,
+        23,
+        14
+      ],
+      "normalized": {
+        "startLineNumber": 3,
+        "startColumn": -2,
+        "endLineNumber": 11,
+        "endColumn": 20
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 1,
+        "startColumn": 22,
+        "endLineNumber": 23,
+        "endColumn": 14
+      },
+      "intersection": {
+        "startLineNumber": 3,
+        "startColumn": -2,
+        "endLineNumber": 11,
+        "endColumn": 20
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 2,
+      "compareEnds": -12,
+      "display": "[3,-2 -> 11,20]"
+    },
+    {
+      "input": [
+        1,
+        22,
+        23,
+        14
+      ],
+      "other": [
+        11,
+        8,
+        15,
+        8
+      ],
+      "normalized": {
+        "startLineNumber": 1,
+        "startColumn": 22,
+        "endLineNumber": 23,
+        "endColumn": 14
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": 1,
+        "startColumn": 22,
+        "endLineNumber": 23,
+        "endColumn": 14
+      },
+      "intersection": {
+        "startLineNumber": 11,
+        "startColumn": 8,
+        "endLineNumber": 15,
+        "endColumn": 8
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -10,
+      "compareEnds": 8,
+      "display": "[1,22 -> 23,14]"
+    },
+    {
+      "input": [
+        11,
+        8,
+        15,
+        8
+      ],
+      "other": [
+        5,
+        20,
+        15,
+        -2
+      ],
+      "normalized": {
+        "startLineNumber": 11,
+        "startColumn": 8,
+        "endLineNumber": 15,
+        "endColumn": 8
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 5,
+        "startColumn": 20,
+        "endLineNumber": 15,
+        "endColumn": 8
+      },
+      "intersection": {
+        "startLineNumber": 11,
+        "startColumn": 8,
+        "endLineNumber": 15,
+        "endColumn": -2
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 6,
+      "compareEnds": 10,
+      "display": "[11,8 -> 15,8]"
+    },
+    {
+      "input": [
+        5,
+        20,
+        15,
+        -2
+      ],
+      "other": [
+        1,
+        22,
+        5,
+        22
+      ],
+      "normalized": {
+        "startLineNumber": 5,
+        "startColumn": 20,
+        "endLineNumber": 15,
+        "endColumn": -2
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 1,
+        "startColumn": 22,
+        "endLineNumber": 15,
+        "endColumn": -2
+      },
+      "intersection": {
+        "startLineNumber": 5,
+        "startColumn": 20,
+        "endLineNumber": 5,
+        "endColumn": 22
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 4,
+      "compareEnds": 10,
+      "display": "[5,20 -> 15,-2]"
+    },
+    {
+      "input": [
+        1,
+        22,
+        5,
+        22
+      ],
+      "other": [
+        25,
+        26,
+        15,
+        10
+      ],
+      "normalized": {
+        "startLineNumber": 1,
+        "startColumn": 22,
+        "endLineNumber": 5,
+        "endColumn": 22
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 1,
+        "startColumn": 22,
+        "endLineNumber": 25,
+        "endColumn": 26
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": -14,
+      "compareEnds": -20,
+      "display": "[1,22 -> 5,22]"
+    },
+    {
+      "input": [
+        25,
+        26,
+        15,
+        10
+      ],
+      "other": [
+        -1,
+        2,
+        7,
+        2
+      ],
+      "normalized": {
+        "startLineNumber": 15,
+        "startColumn": 10,
+        "endLineNumber": 25,
+        "endColumn": 26
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -1,
+        "startColumn": 2,
+        "endLineNumber": 25,
+        "endColumn": 26
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": 16,
+      "compareEnds": 18,
+      "display": "[15,10 -> 25,26]"
+    },
+    {
+      "input": [
+        -1,
+        2,
+        7,
+        2
+      ],
+      "other": [
+        3,
+        4,
+        -3,
+        26
+      ],
+      "normalized": {
+        "startLineNumber": -1,
+        "startColumn": 2,
+        "endLineNumber": 7,
+        "endColumn": 2
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 26,
+        "endLineNumber": 7,
+        "endColumn": 2
+      },
+      "intersection": {
+        "startLineNumber": -1,
+        "startColumn": 2,
+        "endLineNumber": 3,
+        "endColumn": 4
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 2,
+      "compareEnds": 4,
+      "display": "[-1,2 -> 7,2]"
+    },
+    {
+      "input": [
+        3,
+        4,
+        -3,
+        26
+      ],
+      "other": [
+        -3,
+        4,
+        17,
+        -2
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 26,
+        "endLineNumber": 3,
+        "endColumn": 4
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 4,
+        "endLineNumber": 17,
+        "endColumn": -2
+      },
+      "intersection": {
+        "startLineNumber": -3,
+        "startColumn": 26,
+        "endLineNumber": 3,
+        "endColumn": 4
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 22,
+      "compareEnds": -14,
+      "display": "[-3,26 -> 3,4]"
+    },
+    {
+      "input": [
+        -3,
+        4,
+        17,
+        -2
+      ],
+      "other": [
+        9,
+        16,
+        19,
+        20
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 4,
+        "endLineNumber": 17,
+        "endColumn": -2
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 4,
+        "endLineNumber": 19,
+        "endColumn": 20
+      },
+      "intersection": {
+        "startLineNumber": 9,
+        "startColumn": 16,
+        "endLineNumber": 17,
+        "endColumn": -2
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -12,
+      "compareEnds": -2,
+      "display": "[-3,4 -> 17,-2]"
+    },
+    {
+      "input": [
+        9,
+        16,
+        19,
+        20
+      ],
+      "other": [
+        3,
+        -2,
+        17,
+        10
+      ],
+      "normalized": {
+        "startLineNumber": 9,
+        "startColumn": 16,
+        "endLineNumber": 19,
+        "endColumn": 20
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 3,
+        "startColumn": -2,
+        "endLineNumber": 19,
+        "endColumn": 20
+      },
+      "intersection": {
+        "startLineNumber": 9,
+        "startColumn": 16,
+        "endLineNumber": 17,
+        "endColumn": 10
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 6,
+      "compareEnds": 2,
+      "display": "[9,16 -> 19,20]"
+    },
+    {
+      "input": [
+        3,
+        -2,
+        17,
+        10
+      ],
+      "other": [
+        -3,
+        8,
+        19,
+        20
+      ],
+      "normalized": {
+        "startLineNumber": 3,
+        "startColumn": -2,
+        "endLineNumber": 17,
+        "endColumn": 10
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 8,
+        "endLineNumber": 19,
+        "endColumn": 20
+      },
+      "intersection": {
+        "startLineNumber": 3,
+        "startColumn": -2,
+        "endLineNumber": 17,
+        "endColumn": 10
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 6,
+      "compareEnds": -2,
+      "display": "[3,-2 -> 17,10]"
+    },
+    {
+      "input": [
+        -3,
+        8,
+        19,
+        20
+      ],
+      "other": [
+        3,
+        16,
+        11,
+        2
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 8,
+        "endLineNumber": 19,
+        "endColumn": 20
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 8,
+        "endLineNumber": 19,
+        "endColumn": 20
+      },
+      "intersection": {
+        "startLineNumber": 3,
+        "startColumn": 16,
+        "endLineNumber": 11,
+        "endColumn": 2
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -6,
+      "compareEnds": 8,
+      "display": "[-3,8 -> 19,20]"
+    },
+    {
+      "input": [
+        3,
+        16,
+        11,
+        2
+      ],
+      "other": [
+        5,
+        8,
+        9,
+        2
+      ],
+      "normalized": {
+        "startLineNumber": 3,
+        "startColumn": 16,
+        "endLineNumber": 11,
+        "endColumn": 2
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": 3,
+        "startColumn": 16,
+        "endLineNumber": 11,
+        "endColumn": 2
+      },
+      "intersection": {
+        "startLineNumber": 5,
+        "startColumn": 8,
+        "endLineNumber": 9,
+        "endColumn": 2
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -2,
+      "compareEnds": 2,
+      "display": "[3,16 -> 11,2]"
+    },
+    {
+      "input": [
+        5,
+        8,
+        9,
+        2
+      ],
+      "other": [
+        9,
+        12,
+        17,
+        4
+      ],
+      "normalized": {
+        "startLineNumber": 5,
+        "startColumn": 8,
+        "endLineNumber": 9,
+        "endColumn": 2
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 5,
+        "startColumn": 8,
+        "endLineNumber": 17,
+        "endColumn": 4
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": -4,
+      "compareEnds": -8,
+      "display": "[5,8 -> 9,2]"
+    },
+    {
+      "input": [
+        9,
+        12,
+        17,
+        4
+      ],
+      "other": [
+        3,
+        6,
+        15,
+        4
+      ],
+      "normalized": {
+        "startLineNumber": 9,
+        "startColumn": 12,
+        "endLineNumber": 17,
+        "endColumn": 4
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 3,
+        "startColumn": 6,
+        "endLineNumber": 17,
+        "endColumn": 4
+      },
+      "intersection": {
+        "startLineNumber": 9,
+        "startColumn": 12,
+        "endLineNumber": 15,
+        "endColumn": 4
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 6,
+      "compareEnds": 2,
+      "display": "[9,12 -> 17,4]"
+    },
+    {
+      "input": [
+        3,
+        6,
+        15,
+        4
+      ],
+      "other": [
+        15,
+        18,
+        13,
+        14
+      ],
+      "normalized": {
+        "startLineNumber": 3,
+        "startColumn": 6,
+        "endLineNumber": 15,
+        "endColumn": 4
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 3,
+        "startColumn": 6,
+        "endLineNumber": 15,
+        "endColumn": 18
+      },
+      "intersection": {
+        "startLineNumber": 13,
+        "startColumn": 14,
+        "endLineNumber": 15,
+        "endColumn": 4
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -10,
+      "compareEnds": -14,
+      "display": "[3,6 -> 15,4]"
+    },
+    {
+      "input": [
+        15,
+        18,
+        13,
+        14
+      ],
+      "other": [
+        5,
+        8,
+        23,
+        10
+      ],
+      "normalized": {
+        "startLineNumber": 13,
+        "startColumn": 14,
+        "endLineNumber": 15,
+        "endColumn": 18
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 5,
+        "startColumn": 8,
+        "endLineNumber": 23,
+        "endColumn": 10
+      },
+      "intersection": {
+        "startLineNumber": 13,
+        "startColumn": 14,
+        "endLineNumber": 15,
+        "endColumn": 18
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 8,
+      "compareEnds": -8,
+      "display": "[13,14 -> 15,18]"
+    },
+    {
+      "input": [
+        5,
+        8,
+        23,
+        10
+      ],
+      "other": [
+        21,
+        10,
+        13,
+        14
+      ],
+      "normalized": {
+        "startLineNumber": 5,
+        "startColumn": 8,
+        "endLineNumber": 23,
+        "endColumn": 10
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": 5,
+        "startColumn": 8,
+        "endLineNumber": 23,
+        "endColumn": 10
+      },
+      "intersection": {
+        "startLineNumber": 13,
+        "startColumn": 14,
+        "endLineNumber": 21,
+        "endColumn": 10
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -8,
+      "compareEnds": 2,
+      "display": "[5,8 -> 23,10]"
+    },
+    {
+      "input": [
+        21,
+        10,
+        13,
+        14
+      ],
+      "other": [
+        1,
+        0,
+        7,
+        4
+      ],
+      "normalized": {
+        "startLineNumber": 13,
+        "startColumn": 14,
+        "endLineNumber": 21,
+        "endColumn": 10
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 1,
+        "startColumn": 0,
+        "endLineNumber": 21,
+        "endColumn": 10
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": 12,
+      "compareEnds": 14,
+      "display": "[13,14 -> 21,10]"
+    },
+    {
+      "input": [
+        1,
+        0,
+        7,
+        4
+      ],
+      "other": [
+        15,
+        20,
+        1,
+        2
+      ],
+      "normalized": {
+        "startLineNumber": 1,
+        "startColumn": 0,
+        "endLineNumber": 7,
+        "endColumn": 4
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 1,
+        "startColumn": 0,
+        "endLineNumber": 15,
+        "endColumn": 20
+      },
+      "intersection": {
+        "startLineNumber": 1,
+        "startColumn": 2,
+        "endLineNumber": 7,
+        "endColumn": 4
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -2,
+      "compareEnds": -8,
+      "display": "[1,0 -> 7,4]"
+    },
+    {
+      "input": [
+        15,
+        20,
+        1,
+        2
+      ],
+      "other": [
+        9,
+        24,
+        3,
+        2
+      ],
+      "normalized": {
+        "startLineNumber": 1,
+        "startColumn": 2,
+        "endLineNumber": 15,
+        "endColumn": 20
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": 1,
+        "startColumn": 2,
+        "endLineNumber": 15,
+        "endColumn": 20
+      },
+      "intersection": {
+        "startLineNumber": 3,
+        "startColumn": 2,
+        "endLineNumber": 9,
+        "endColumn": 24
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -2,
+      "compareEnds": 6,
+      "display": "[1,2 -> 15,20]"
+    },
+    {
+      "input": [
+        9,
+        24,
+        3,
+        2
+      ],
+      "other": [
+        23,
+        18,
+        25,
+        0
+      ],
+      "normalized": {
+        "startLineNumber": 3,
+        "startColumn": 2,
+        "endLineNumber": 9,
+        "endColumn": 24
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 3,
+        "startColumn": 2,
+        "endLineNumber": 25,
+        "endColumn": 0
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": -20,
+      "compareEnds": -16,
+      "display": "[3,2 -> 9,24]"
+    },
+    {
+      "input": [
+        23,
+        18,
+        25,
+        0
+      ],
+      "other": [
+        -1,
+        24,
+        9,
+        -2
+      ],
+      "normalized": {
+        "startLineNumber": 23,
+        "startColumn": 18,
+        "endLineNumber": 25,
+        "endColumn": 0
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -1,
+        "startColumn": 24,
+        "endLineNumber": 25,
+        "endColumn": 0
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": 24,
+      "compareEnds": 16,
+      "display": "[23,18 -> 25,0]"
+    },
+    {
+      "input": [
+        -1,
+        24,
+        9,
+        -2
+      ],
+      "other": [
+        9,
+        -2,
+        13,
+        10
+      ],
+      "normalized": {
+        "startLineNumber": -1,
+        "startColumn": 24,
+        "endLineNumber": 9,
+        "endColumn": -2
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -1,
+        "startColumn": 24,
+        "endLineNumber": 13,
+        "endColumn": 10
+      },
+      "intersection": {
+        "startLineNumber": 9,
+        "startColumn": -2,
+        "endLineNumber": 9,
+        "endColumn": -2
+      },
+      "touching": true,
+      "intersecting": false,
+      "onlyIntersecting": true,
+      "compareStarts": -10,
+      "compareEnds": -4,
+      "display": "[-1,24 -> 9,-2]"
+    },
+    {
+      "input": [
+        9,
+        -2,
+        13,
+        10
+      ],
+      "other": [
+        -3,
+        12,
+        11,
+        18
+      ],
+      "normalized": {
+        "startLineNumber": 9,
+        "startColumn": -2,
+        "endLineNumber": 13,
+        "endColumn": 10
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 12,
+        "endLineNumber": 13,
+        "endColumn": 10
+      },
+      "intersection": {
+        "startLineNumber": 9,
+        "startColumn": -2,
+        "endLineNumber": 11,
+        "endColumn": 18
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 12,
+      "compareEnds": 2,
+      "display": "[9,-2 -> 13,10]"
+    },
+    {
+      "input": [
+        -3,
+        12,
+        11,
+        18
+      ],
+      "other": [
+        9,
+        10,
+        -1,
+        12
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 12,
+        "endLineNumber": 11,
+        "endColumn": 18
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 12,
+        "endLineNumber": 11,
+        "endColumn": 18
+      },
+      "intersection": {
+        "startLineNumber": -1,
+        "startColumn": 12,
+        "endLineNumber": 9,
+        "endColumn": 10
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -2,
+      "compareEnds": 2,
+      "display": "[-3,12 -> 11,18]"
+    },
+    {
+      "input": [
+        9,
+        10,
+        -1,
+        12
+      ],
+      "other": [
+        7,
+        6,
+        -3,
+        -2
+      ],
+      "normalized": {
+        "startLineNumber": -1,
+        "startColumn": 12,
+        "endLineNumber": 9,
+        "endColumn": 10
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": -2,
+        "endLineNumber": 9,
+        "endColumn": 10
+      },
+      "intersection": {
+        "startLineNumber": -1,
+        "startColumn": 12,
+        "endLineNumber": 7,
+        "endColumn": 6
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 2,
+      "compareEnds": 2,
+      "display": "[-1,12 -> 9,10]"
+    },
+    {
+      "input": [
+        7,
+        6,
+        -3,
+        -2
+      ],
+      "other": [
+        -3,
+        24,
+        -1,
+        10
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": -2,
+        "endLineNumber": 7,
+        "endColumn": 6
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": -2,
+        "endLineNumber": 7,
+        "endColumn": 6
+      },
+      "intersection": {
+        "startLineNumber": -3,
+        "startColumn": 24,
+        "endLineNumber": -1,
+        "endColumn": 10
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -26,
+      "compareEnds": 8,
+      "display": "[-3,-2 -> 7,6]"
+    },
+    {
+      "input": [
+        -3,
+        24,
+        -1,
+        10
+      ],
+      "other": [
+        15,
+        20,
+        5,
+        18
+      ],
+      "normalized": {
+        "startLineNumber": -3,
+        "startColumn": 24,
+        "endLineNumber": -1,
+        "endColumn": 10
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": -3,
+        "startColumn": 24,
+        "endLineNumber": 15,
+        "endColumn": 20
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": -8,
+      "compareEnds": -16,
+      "display": "[-3,24 -> -1,10]"
+    },
+    {
+      "input": [
+        15,
+        20,
+        5,
+        18
+      ],
+      "other": [
+        11,
+        8,
+        25,
+        16
+      ],
+      "normalized": {
+        "startLineNumber": 5,
+        "startColumn": 18,
+        "endLineNumber": 15,
+        "endColumn": 20
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 5,
+        "startColumn": 18,
+        "endLineNumber": 25,
+        "endColumn": 16
+      },
+      "intersection": {
+        "startLineNumber": 11,
+        "startColumn": 8,
+        "endLineNumber": 15,
+        "endColumn": 20
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -6,
+      "compareEnds": -10,
+      "display": "[5,18 -> 15,20]"
+    },
+    {
+      "input": [
+        11,
+        8,
+        25,
+        16
+      ],
+      "other": [
+        15,
+        16,
+        3,
+        2
+      ],
+      "normalized": {
+        "startLineNumber": 11,
+        "startColumn": 8,
+        "endLineNumber": 25,
+        "endColumn": 16
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 3,
+        "startColumn": 2,
+        "endLineNumber": 25,
+        "endColumn": 16
+      },
+      "intersection": {
+        "startLineNumber": 11,
+        "startColumn": 8,
+        "endLineNumber": 15,
+        "endColumn": 16
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 8,
+      "compareEnds": 10,
+      "display": "[11,8 -> 25,16]"
+    },
+    {
+      "input": [
+        15,
+        16,
+        3,
+        2
+      ],
+      "other": [
+        13,
+        4,
+        9,
+        10
+      ],
+      "normalized": {
+        "startLineNumber": 3,
+        "startColumn": 2,
+        "endLineNumber": 15,
+        "endColumn": 16
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": 3,
+        "startColumn": 2,
+        "endLineNumber": 15,
+        "endColumn": 16
+      },
+      "intersection": {
+        "startLineNumber": 9,
+        "startColumn": 10,
+        "endLineNumber": 13,
+        "endColumn": 4
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -6,
+      "compareEnds": 2,
+      "display": "[3,2 -> 15,16]"
+    },
+    {
+      "input": [
+        13,
+        4,
+        9,
+        10
+      ],
+      "other": [
+        21,
+        16,
+        15,
+        16
+      ],
+      "normalized": {
+        "startLineNumber": 9,
+        "startColumn": 10,
+        "endLineNumber": 13,
+        "endColumn": 4
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 9,
+        "startColumn": 10,
+        "endLineNumber": 21,
+        "endColumn": 16
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": -6,
+      "compareEnds": -8,
+      "display": "[9,10 -> 13,4]"
+    },
+    {
+      "input": [
+        21,
+        16,
+        15,
+        16
+      ],
+      "other": [
+        1,
+        14,
+        7,
+        12
+      ],
+      "normalized": {
+        "startLineNumber": 15,
+        "startColumn": 16,
+        "endLineNumber": 21,
+        "endColumn": 16
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 1,
+        "startColumn": 14,
+        "endLineNumber": 21,
+        "endColumn": 16
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": 14,
+      "compareEnds": 14,
+      "display": "[15,16 -> 21,16]"
+    },
+    {
+      "input": [
+        1,
+        14,
+        7,
+        12
+      ],
+      "other": [
+        23,
+        16,
+        23,
+        26
+      ],
+      "normalized": {
+        "startLineNumber": 1,
+        "startColumn": 14,
+        "endLineNumber": 7,
+        "endColumn": 12
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 1,
+        "startColumn": 14,
+        "endLineNumber": 23,
+        "endColumn": 26
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": -22,
+      "compareEnds": -16,
+      "display": "[1,14 -> 7,12]"
+    },
+    {
+      "input": [
+        23,
+        16,
+        23,
+        26
+      ],
+      "other": [
+        5,
+        2,
+        19,
+        6
+      ],
+      "normalized": {
+        "startLineNumber": 23,
+        "startColumn": 16,
+        "endLineNumber": 23,
+        "endColumn": 26
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 5,
+        "startColumn": 2,
+        "endLineNumber": 23,
+        "endColumn": 26
+      },
+      "intersection": null,
+      "touching": false,
+      "intersecting": false,
+      "onlyIntersecting": false,
+      "compareStarts": 18,
+      "compareEnds": 4,
+      "display": "[23,16 -> 23,26]"
+    },
+    {
+      "input": [
+        5,
+        2,
+        19,
+        6
+      ],
+      "other": [
+        2147483648,
+        4294967296,
+        1,
+        1
+      ],
+      "normalized": {
+        "startLineNumber": 5,
+        "startColumn": 2,
+        "endLineNumber": 19,
+        "endColumn": 6
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 1,
+        "startColumn": 1,
+        "endLineNumber": 2147483648,
+        "endColumn": 4294967296
+      },
+      "intersection": {
+        "startLineNumber": 5,
+        "startColumn": 2,
+        "endLineNumber": 19,
+        "endColumn": 6
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 4,
+      "compareEnds": -2147483629,
+      "display": "[5,2 -> 19,6]"
+    },
+    {
+      "input": [
+        2147483648,
+        4294967296,
+        1,
+        1
+      ],
+      "other": [
+        0,
+        -1,
+        2147483647,
+        2147483648
+      ],
+      "normalized": {
+        "startLineNumber": 1,
+        "startColumn": 1,
+        "endLineNumber": 2147483648,
+        "endColumn": 4294967296
+      },
+      "empty": false,
+      "contains": false,
+      "strictContains": false,
+      "union": {
+        "startLineNumber": 0,
+        "startColumn": -1,
+        "endLineNumber": 2147483648,
+        "endColumn": 4294967296
+      },
+      "intersection": {
+        "startLineNumber": 1,
+        "startColumn": 1,
+        "endLineNumber": 2147483647,
+        "endColumn": 2147483648
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": 1,
+      "compareEnds": 1,
+      "display": "[1,1 -> 2147483648,4294967296]"
+    },
+    {
+      "input": [
+        0,
+        -1,
+        2147483647,
+        2147483648
+      ],
+      "other": [
+        15,
+        4,
+        11,
+        26
+      ],
+      "normalized": {
+        "startLineNumber": 0,
+        "startColumn": -1,
+        "endLineNumber": 2147483647,
+        "endColumn": 2147483648
+      },
+      "empty": false,
+      "contains": true,
+      "strictContains": true,
+      "union": {
+        "startLineNumber": 0,
+        "startColumn": -1,
+        "endLineNumber": 2147483647,
+        "endColumn": 2147483648
+      },
+      "intersection": {
+        "startLineNumber": 11,
+        "startColumn": 26,
+        "endLineNumber": 15,
+        "endColumn": 4
+      },
+      "touching": true,
+      "intersecting": true,
+      "onlyIntersecting": true,
+      "compareStarts": -11,
+      "compareEnds": 2147483632,
+      "display": "[0,-1 -> 2147483647,2147483648]"
+    }
+  ],
+  "selection": [
+    {
+      "input": [
+        15,
+        4,
+        11,
+        26
+      ],
+      "value": {
+        "startLineNumber": 11,
+        "startColumn": 26,
+        "endLineNumber": 15,
+        "endColumn": 4,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 11,
+        "positionColumn": 26
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 15,
+        "endColumn": 4,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 11,
+        "endColumn": 26,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 11,
+        "positionColumn": 26
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 11,
+        "startColumn": 26,
+        "endLineNumber": 15,
+        "endColumn": 4,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 11,
+        "positionColumn": 26
+      },
+      "display": "[15,4 -> 11,26]"
+    },
+    {
+      "input": [
+        13,
+        16,
+        17,
+        12
+      ],
+      "value": {
+        "startLineNumber": 13,
+        "startColumn": 16,
+        "endLineNumber": 17,
+        "endColumn": 12,
+        "selectionStartLineNumber": 13,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 17,
+        "positionColumn": 12
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 17,
+        "endColumn": 12,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 17,
+        "positionColumn": 12
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 13,
+        "endColumn": 16,
+        "selectionStartLineNumber": 13,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 13,
+        "startColumn": 16,
+        "endLineNumber": 17,
+        "endColumn": 12,
+        "selectionStartLineNumber": 17,
+        "selectionStartColumn": 12,
+        "positionLineNumber": 13,
+        "positionColumn": 16
+      },
+      "display": "[13,16 -> 17,12]"
+    },
+    {
+      "input": [
+        15,
+        20,
+        -3,
+        2
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 2,
+        "endLineNumber": 15,
+        "endColumn": 20,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 20,
+        "positionLineNumber": -3,
+        "positionColumn": 2
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 15,
+        "endColumn": 20,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 2,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": -3,
+        "positionColumn": 2
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 2,
+        "endLineNumber": 15,
+        "endColumn": 20,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 20,
+        "positionLineNumber": -3,
+        "positionColumn": 2
+      },
+      "display": "[15,20 -> -3,2]"
+    },
+    {
+      "input": [
+        7,
+        6,
+        -3,
+        22
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 22,
+        "endLineNumber": 7,
+        "endColumn": 6,
+        "selectionStartLineNumber": 7,
+        "selectionStartColumn": 6,
+        "positionLineNumber": -3,
+        "positionColumn": 22
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 7,
+        "endColumn": 6,
+        "selectionStartLineNumber": 7,
+        "selectionStartColumn": 6,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 22,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": -3,
+        "positionColumn": 22
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 22,
+        "endLineNumber": 7,
+        "endColumn": 6,
+        "selectionStartLineNumber": 7,
+        "selectionStartColumn": 6,
+        "positionLineNumber": -3,
+        "positionColumn": 22
+      },
+      "display": "[7,6 -> -3,22]"
+    },
+    {
+      "input": [
+        21,
+        14,
+        15,
+        22
+      ],
+      "value": {
+        "startLineNumber": 15,
+        "startColumn": 22,
+        "endLineNumber": 21,
+        "endColumn": 14,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 14,
+        "positionLineNumber": 15,
+        "positionColumn": 22
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 21,
+        "endColumn": 14,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 14,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 15,
+        "endColumn": 22,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 15,
+        "positionColumn": 22
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 15,
+        "startColumn": 22,
+        "endLineNumber": 21,
+        "endColumn": 14,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 14,
+        "positionLineNumber": 15,
+        "positionColumn": 22
+      },
+      "display": "[21,14 -> 15,22]"
+    },
+    {
+      "input": [
+        -3,
+        16,
+        13,
+        0
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 16,
+        "endLineNumber": 13,
+        "endColumn": 0,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 13,
+        "positionColumn": 0
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 13,
+        "endColumn": 0,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 13,
+        "positionColumn": 0
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 16,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 16,
+        "endLineNumber": 13,
+        "endColumn": 0,
+        "selectionStartLineNumber": 13,
+        "selectionStartColumn": 0,
+        "positionLineNumber": -3,
+        "positionColumn": 16
+      },
+      "display": "[-3,16 -> 13,0]"
+    },
+    {
+      "input": [
+        -3,
+        -2,
+        11,
+        8
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": -2,
+        "endLineNumber": 11,
+        "endColumn": 8,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": -2,
+        "positionLineNumber": 11,
+        "positionColumn": 8
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 11,
+        "endColumn": 8,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 11,
+        "positionColumn": 8
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": -2,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": -2,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": -2,
+        "endLineNumber": 11,
+        "endColumn": 8,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 8,
+        "positionLineNumber": -3,
+        "positionColumn": -2
+      },
+      "display": "[-3,-2 -> 11,8]"
+    },
+    {
+      "input": [
+        25,
+        0,
+        -3,
+        8
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 8,
+        "endLineNumber": 25,
+        "endColumn": 0,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 0,
+        "positionLineNumber": -3,
+        "positionColumn": 8
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 25,
+        "endColumn": 0,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 0,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 8,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": -3,
+        "positionColumn": 8
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 8,
+        "endLineNumber": 25,
+        "endColumn": 0,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 0,
+        "positionLineNumber": -3,
+        "positionColumn": 8
+      },
+      "display": "[25,0 -> -3,8]"
+    },
+    {
+      "input": [
+        21,
+        10,
+        11,
+        14
+      ],
+      "value": {
+        "startLineNumber": 11,
+        "startColumn": 14,
+        "endLineNumber": 21,
+        "endColumn": 10,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 11,
+        "positionColumn": 14
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 21,
+        "endColumn": 10,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 11,
+        "endColumn": 14,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 11,
+        "positionColumn": 14
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 11,
+        "startColumn": 14,
+        "endLineNumber": 21,
+        "endColumn": 10,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 11,
+        "positionColumn": 14
+      },
+      "display": "[21,10 -> 11,14]"
+    },
+    {
+      "input": [
+        17,
+        4,
+        11,
+        20
+      ],
+      "value": {
+        "startLineNumber": 11,
+        "startColumn": 20,
+        "endLineNumber": 17,
+        "endColumn": 4,
+        "selectionStartLineNumber": 17,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 11,
+        "positionColumn": 20
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 17,
+        "endColumn": 4,
+        "selectionStartLineNumber": 17,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 11,
+        "endColumn": 20,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 11,
+        "positionColumn": 20
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 11,
+        "startColumn": 20,
+        "endLineNumber": 17,
+        "endColumn": 4,
+        "selectionStartLineNumber": 17,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 11,
+        "positionColumn": 20
+      },
+      "display": "[17,4 -> 11,20]"
+    },
+    {
+      "input": [
+        -3,
+        24,
+        11,
+        4
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 24,
+        "endLineNumber": 11,
+        "endColumn": 4,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 11,
+        "positionColumn": 4
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 11,
+        "endColumn": 4,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 11,
+        "positionColumn": 4
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 24,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 24,
+        "endLineNumber": 11,
+        "endColumn": 4,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 4,
+        "positionLineNumber": -3,
+        "positionColumn": 24
+      },
+      "display": "[-3,24 -> 11,4]"
+    },
+    {
+      "input": [
+        11,
+        6,
+        1,
+        14
+      ],
+      "value": {
+        "startLineNumber": 1,
+        "startColumn": 14,
+        "endLineNumber": 11,
+        "endColumn": 6,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 6,
+        "positionLineNumber": 1,
+        "positionColumn": 14
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 11,
+        "endColumn": 6,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 6,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 1,
+        "startColumn": 14,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 1,
+        "positionColumn": 14
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 1,
+        "startColumn": 14,
+        "endLineNumber": 11,
+        "endColumn": 6,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 6,
+        "positionLineNumber": 1,
+        "positionColumn": 14
+      },
+      "display": "[11,6 -> 1,14]"
+    },
+    {
+      "input": [
+        -3,
+        16,
+        11,
+        20
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 16,
+        "endLineNumber": 11,
+        "endColumn": 20,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 11,
+        "positionColumn": 20
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 11,
+        "endColumn": 20,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 11,
+        "positionColumn": 20
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 16,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 16,
+        "endLineNumber": 11,
+        "endColumn": 20,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 20,
+        "positionLineNumber": -3,
+        "positionColumn": 16
+      },
+      "display": "[-3,16 -> 11,20]"
+    },
+    {
+      "input": [
+        -1,
+        20,
+        15,
+        18
+      ],
+      "value": {
+        "startLineNumber": -1,
+        "startColumn": 20,
+        "endLineNumber": 15,
+        "endColumn": 18,
+        "selectionStartLineNumber": -1,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 15,
+        "positionColumn": 18
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 15,
+        "endColumn": 18,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 15,
+        "positionColumn": 18
+      },
+      "changeEnd": {
+        "startLineNumber": -1,
+        "startColumn": 20,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -1,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -1,
+        "startColumn": 20,
+        "endLineNumber": 15,
+        "endColumn": 18,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 18,
+        "positionLineNumber": -1,
+        "positionColumn": 20
+      },
+      "display": "[-1,20 -> 15,18]"
+    },
+    {
+      "input": [
+        25,
+        24,
+        23,
+        2
+      ],
+      "value": {
+        "startLineNumber": 23,
+        "startColumn": 2,
+        "endLineNumber": 25,
+        "endColumn": 24,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 23,
+        "positionColumn": 2
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 25,
+        "endColumn": 24,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 23,
+        "endColumn": 2,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 23,
+        "positionColumn": 2
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 23,
+        "startColumn": 2,
+        "endLineNumber": 25,
+        "endColumn": 24,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 23,
+        "positionColumn": 2
+      },
+      "display": "[25,24 -> 23,2]"
+    },
+    {
+      "input": [
+        -1,
+        16,
+        21,
+        8
+      ],
+      "value": {
+        "startLineNumber": -1,
+        "startColumn": 16,
+        "endLineNumber": 21,
+        "endColumn": 8,
+        "selectionStartLineNumber": -1,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 21,
+        "positionColumn": 8
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 21,
+        "endColumn": 8,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 21,
+        "positionColumn": 8
+      },
+      "changeEnd": {
+        "startLineNumber": -1,
+        "startColumn": 16,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -1,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -1,
+        "startColumn": 16,
+        "endLineNumber": 21,
+        "endColumn": 8,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 8,
+        "positionLineNumber": -1,
+        "positionColumn": 16
+      },
+      "display": "[-1,16 -> 21,8]"
+    },
+    {
+      "input": [
+        9,
+        20,
+        15,
+        10
+      ],
+      "value": {
+        "startLineNumber": 9,
+        "startColumn": 20,
+        "endLineNumber": 15,
+        "endColumn": 10,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 15,
+        "positionColumn": 10
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 15,
+        "endColumn": 10,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 15,
+        "positionColumn": 10
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 9,
+        "endColumn": 20,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 9,
+        "startColumn": 20,
+        "endLineNumber": 15,
+        "endColumn": 10,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 9,
+        "positionColumn": 20
+      },
+      "display": "[9,20 -> 15,10]"
+    },
+    {
+      "input": [
+        5,
+        24,
+        19,
+        22
+      ],
+      "value": {
+        "startLineNumber": 5,
+        "startColumn": 24,
+        "endLineNumber": 19,
+        "endColumn": 22,
+        "selectionStartLineNumber": 5,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 19,
+        "positionColumn": 22
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 19,
+        "endColumn": 22,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 19,
+        "positionColumn": 22
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 5,
+        "endColumn": 24,
+        "selectionStartLineNumber": 5,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 5,
+        "startColumn": 24,
+        "endLineNumber": 19,
+        "endColumn": 22,
+        "selectionStartLineNumber": 19,
+        "selectionStartColumn": 22,
+        "positionLineNumber": 5,
+        "positionColumn": 24
+      },
+      "display": "[5,24 -> 19,22]"
+    },
+    {
+      "input": [
+        25,
+        22,
+        21,
+        20
+      ],
+      "value": {
+        "startLineNumber": 21,
+        "startColumn": 20,
+        "endLineNumber": 25,
+        "endColumn": 22,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 22,
+        "positionLineNumber": 21,
+        "positionColumn": 20
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 25,
+        "endColumn": 22,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 22,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 21,
+        "endColumn": 20,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 21,
+        "positionColumn": 20
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 21,
+        "startColumn": 20,
+        "endLineNumber": 25,
+        "endColumn": 22,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 22,
+        "positionLineNumber": 21,
+        "positionColumn": 20
+      },
+      "display": "[25,22 -> 21,20]"
+    },
+    {
+      "input": [
+        -3,
+        10,
+        19,
+        26
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 10,
+        "endLineNumber": 19,
+        "endColumn": 26,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 19,
+        "positionColumn": 26
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 19,
+        "endColumn": 26,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 19,
+        "positionColumn": 26
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 10,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 10,
+        "endLineNumber": 19,
+        "endColumn": 26,
+        "selectionStartLineNumber": 19,
+        "selectionStartColumn": 26,
+        "positionLineNumber": -3,
+        "positionColumn": 10
+      },
+      "display": "[-3,10 -> 19,26]"
+    },
+    {
+      "input": [
+        13,
+        26,
+        -1,
+        -2
+      ],
+      "value": {
+        "startLineNumber": -1,
+        "startColumn": -2,
+        "endLineNumber": 13,
+        "endColumn": 26,
+        "selectionStartLineNumber": 13,
+        "selectionStartColumn": 26,
+        "positionLineNumber": -1,
+        "positionColumn": -2
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 13,
+        "endColumn": 26,
+        "selectionStartLineNumber": 13,
+        "selectionStartColumn": 26,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": -1,
+        "startColumn": -2,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": -1,
+        "positionColumn": -2
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -1,
+        "startColumn": -2,
+        "endLineNumber": 13,
+        "endColumn": 26,
+        "selectionStartLineNumber": 13,
+        "selectionStartColumn": 26,
+        "positionLineNumber": -1,
+        "positionColumn": -2
+      },
+      "display": "[13,26 -> -1,-2]"
+    },
+    {
+      "input": [
+        11,
+        20,
+        23,
+        -2
+      ],
+      "value": {
+        "startLineNumber": 11,
+        "startColumn": 20,
+        "endLineNumber": 23,
+        "endColumn": -2,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 23,
+        "positionColumn": -2
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 23,
+        "endColumn": -2,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 23,
+        "positionColumn": -2
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 11,
+        "endColumn": 20,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 11,
+        "startColumn": 20,
+        "endLineNumber": 23,
+        "endColumn": -2,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": -2,
+        "positionLineNumber": 11,
+        "positionColumn": 20
+      },
+      "display": "[11,20 -> 23,-2]"
+    },
+    {
+      "input": [
+        9,
+        22,
+        -1,
+        26
+      ],
+      "value": {
+        "startLineNumber": -1,
+        "startColumn": 26,
+        "endLineNumber": 9,
+        "endColumn": 22,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 22,
+        "positionLineNumber": -1,
+        "positionColumn": 26
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 9,
+        "endColumn": 22,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 22,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": -1,
+        "startColumn": 26,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": -1,
+        "positionColumn": 26
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -1,
+        "startColumn": 26,
+        "endLineNumber": 9,
+        "endColumn": 22,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 22,
+        "positionLineNumber": -1,
+        "positionColumn": 26
+      },
+      "display": "[9,22 -> -1,26]"
+    },
+    {
+      "input": [
+        -3,
+        14,
+        15,
+        10
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 14,
+        "endLineNumber": 15,
+        "endColumn": 10,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 14,
+        "positionLineNumber": 15,
+        "positionColumn": 10
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 15,
+        "endColumn": 10,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 15,
+        "positionColumn": 10
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 14,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 14,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 14,
+        "endLineNumber": 15,
+        "endColumn": 10,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 10,
+        "positionLineNumber": -3,
+        "positionColumn": 14
+      },
+      "display": "[-3,14 -> 15,10]"
+    },
+    {
+      "input": [
+        23,
+        16,
+        11,
+        18
+      ],
+      "value": {
+        "startLineNumber": 11,
+        "startColumn": 18,
+        "endLineNumber": 23,
+        "endColumn": 16,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 11,
+        "positionColumn": 18
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 23,
+        "endColumn": 16,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 11,
+        "endColumn": 18,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 11,
+        "positionColumn": 18
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 11,
+        "startColumn": 18,
+        "endLineNumber": 23,
+        "endColumn": 16,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 11,
+        "positionColumn": 18
+      },
+      "display": "[23,16 -> 11,18]"
+    },
+    {
+      "input": [
+        23,
+        8,
+        15,
+        12
+      ],
+      "value": {
+        "startLineNumber": 15,
+        "startColumn": 12,
+        "endLineNumber": 23,
+        "endColumn": 8,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 15,
+        "positionColumn": 12
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 23,
+        "endColumn": 8,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 15,
+        "endColumn": 12,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 15,
+        "positionColumn": 12
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 15,
+        "startColumn": 12,
+        "endLineNumber": 23,
+        "endColumn": 8,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 15,
+        "positionColumn": 12
+      },
+      "display": "[23,8 -> 15,12]"
+    },
+    {
+      "input": [
+        7,
+        24,
+        -1,
+        12
+      ],
+      "value": {
+        "startLineNumber": -1,
+        "startColumn": 12,
+        "endLineNumber": 7,
+        "endColumn": 24,
+        "selectionStartLineNumber": 7,
+        "selectionStartColumn": 24,
+        "positionLineNumber": -1,
+        "positionColumn": 12
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 7,
+        "endColumn": 24,
+        "selectionStartLineNumber": 7,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": -1,
+        "startColumn": 12,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": -1,
+        "positionColumn": 12
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -1,
+        "startColumn": 12,
+        "endLineNumber": 7,
+        "endColumn": 24,
+        "selectionStartLineNumber": 7,
+        "selectionStartColumn": 24,
+        "positionLineNumber": -1,
+        "positionColumn": 12
+      },
+      "display": "[7,24 -> -1,12]"
+    },
+    {
+      "input": [
+        3,
+        -2,
+        11,
+        20
+      ],
+      "value": {
+        "startLineNumber": 3,
+        "startColumn": -2,
+        "endLineNumber": 11,
+        "endColumn": 20,
+        "selectionStartLineNumber": 3,
+        "selectionStartColumn": -2,
+        "positionLineNumber": 11,
+        "positionColumn": 20
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 11,
+        "endColumn": 20,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 11,
+        "positionColumn": 20
+      },
+      "changeEnd": {
+        "startLineNumber": 3,
+        "startColumn": -2,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 3,
+        "selectionStartColumn": -2,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 3,
+        "startColumn": -2,
+        "endLineNumber": 11,
+        "endColumn": 20,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 3,
+        "positionColumn": -2
+      },
+      "display": "[3,-2 -> 11,20]"
+    },
+    {
+      "input": [
+        1,
+        22,
+        23,
+        14
+      ],
+      "value": {
+        "startLineNumber": 1,
+        "startColumn": 22,
+        "endLineNumber": 23,
+        "endColumn": 14,
+        "selectionStartLineNumber": 1,
+        "selectionStartColumn": 22,
+        "positionLineNumber": 23,
+        "positionColumn": 14
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 23,
+        "endColumn": 14,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 23,
+        "positionColumn": 14
+      },
+      "changeEnd": {
+        "startLineNumber": 1,
+        "startColumn": 22,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 1,
+        "selectionStartColumn": 22,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 1,
+        "startColumn": 22,
+        "endLineNumber": 23,
+        "endColumn": 14,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 14,
+        "positionLineNumber": 1,
+        "positionColumn": 22
+      },
+      "display": "[1,22 -> 23,14]"
+    },
+    {
+      "input": [
+        11,
+        8,
+        15,
+        8
+      ],
+      "value": {
+        "startLineNumber": 11,
+        "startColumn": 8,
+        "endLineNumber": 15,
+        "endColumn": 8,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 15,
+        "positionColumn": 8
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 15,
+        "endColumn": 8,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 15,
+        "positionColumn": 8
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 11,
+        "endColumn": 8,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 11,
+        "startColumn": 8,
+        "endLineNumber": 15,
+        "endColumn": 8,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 11,
+        "positionColumn": 8
+      },
+      "display": "[11,8 -> 15,8]"
+    },
+    {
+      "input": [
+        5,
+        20,
+        15,
+        -2
+      ],
+      "value": {
+        "startLineNumber": 5,
+        "startColumn": 20,
+        "endLineNumber": 15,
+        "endColumn": -2,
+        "selectionStartLineNumber": 5,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 15,
+        "positionColumn": -2
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 15,
+        "endColumn": -2,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 15,
+        "positionColumn": -2
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 5,
+        "endColumn": 20,
+        "selectionStartLineNumber": 5,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 5,
+        "startColumn": 20,
+        "endLineNumber": 15,
+        "endColumn": -2,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": -2,
+        "positionLineNumber": 5,
+        "positionColumn": 20
+      },
+      "display": "[5,20 -> 15,-2]"
+    },
+    {
+      "input": [
+        1,
+        22,
+        5,
+        22
+      ],
+      "value": {
+        "startLineNumber": 1,
+        "startColumn": 22,
+        "endLineNumber": 5,
+        "endColumn": 22,
+        "selectionStartLineNumber": 1,
+        "selectionStartColumn": 22,
+        "positionLineNumber": 5,
+        "positionColumn": 22
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 5,
+        "endColumn": 22,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 5,
+        "positionColumn": 22
+      },
+      "changeEnd": {
+        "startLineNumber": 1,
+        "startColumn": 22,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 1,
+        "selectionStartColumn": 22,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 1,
+        "startColumn": 22,
+        "endLineNumber": 5,
+        "endColumn": 22,
+        "selectionStartLineNumber": 5,
+        "selectionStartColumn": 22,
+        "positionLineNumber": 1,
+        "positionColumn": 22
+      },
+      "display": "[1,22 -> 5,22]"
+    },
+    {
+      "input": [
+        25,
+        26,
+        15,
+        10
+      ],
+      "value": {
+        "startLineNumber": 15,
+        "startColumn": 10,
+        "endLineNumber": 25,
+        "endColumn": 26,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 26,
+        "positionLineNumber": 15,
+        "positionColumn": 10
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 25,
+        "endColumn": 26,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 26,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 15,
+        "endColumn": 10,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 15,
+        "positionColumn": 10
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 15,
+        "startColumn": 10,
+        "endLineNumber": 25,
+        "endColumn": 26,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 26,
+        "positionLineNumber": 15,
+        "positionColumn": 10
+      },
+      "display": "[25,26 -> 15,10]"
+    },
+    {
+      "input": [
+        -1,
+        2,
+        7,
+        2
+      ],
+      "value": {
+        "startLineNumber": -1,
+        "startColumn": 2,
+        "endLineNumber": 7,
+        "endColumn": 2,
+        "selectionStartLineNumber": -1,
+        "selectionStartColumn": 2,
+        "positionLineNumber": 7,
+        "positionColumn": 2
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 7,
+        "endColumn": 2,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 7,
+        "positionColumn": 2
+      },
+      "changeEnd": {
+        "startLineNumber": -1,
+        "startColumn": 2,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -1,
+        "selectionStartColumn": 2,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -1,
+        "startColumn": 2,
+        "endLineNumber": 7,
+        "endColumn": 2,
+        "selectionStartLineNumber": 7,
+        "selectionStartColumn": 2,
+        "positionLineNumber": -1,
+        "positionColumn": 2
+      },
+      "display": "[-1,2 -> 7,2]"
+    },
+    {
+      "input": [
+        3,
+        4,
+        -3,
+        26
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 26,
+        "endLineNumber": 3,
+        "endColumn": 4,
+        "selectionStartLineNumber": 3,
+        "selectionStartColumn": 4,
+        "positionLineNumber": -3,
+        "positionColumn": 26
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 3,
+        "endColumn": 4,
+        "selectionStartLineNumber": 3,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 26,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": -3,
+        "positionColumn": 26
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 26,
+        "endLineNumber": 3,
+        "endColumn": 4,
+        "selectionStartLineNumber": 3,
+        "selectionStartColumn": 4,
+        "positionLineNumber": -3,
+        "positionColumn": 26
+      },
+      "display": "[3,4 -> -3,26]"
+    },
+    {
+      "input": [
+        -3,
+        4,
+        17,
+        -2
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 4,
+        "endLineNumber": 17,
+        "endColumn": -2,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 17,
+        "positionColumn": -2
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 17,
+        "endColumn": -2,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 17,
+        "positionColumn": -2
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 4,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 4,
+        "endLineNumber": 17,
+        "endColumn": -2,
+        "selectionStartLineNumber": 17,
+        "selectionStartColumn": -2,
+        "positionLineNumber": -3,
+        "positionColumn": 4
+      },
+      "display": "[-3,4 -> 17,-2]"
+    },
+    {
+      "input": [
+        9,
+        16,
+        19,
+        20
+      ],
+      "value": {
+        "startLineNumber": 9,
+        "startColumn": 16,
+        "endLineNumber": 19,
+        "endColumn": 20,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 19,
+        "positionColumn": 20
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 19,
+        "endColumn": 20,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 19,
+        "positionColumn": 20
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 9,
+        "endColumn": 16,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 9,
+        "startColumn": 16,
+        "endLineNumber": 19,
+        "endColumn": 20,
+        "selectionStartLineNumber": 19,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 9,
+        "positionColumn": 16
+      },
+      "display": "[9,16 -> 19,20]"
+    },
+    {
+      "input": [
+        3,
+        -2,
+        17,
+        10
+      ],
+      "value": {
+        "startLineNumber": 3,
+        "startColumn": -2,
+        "endLineNumber": 17,
+        "endColumn": 10,
+        "selectionStartLineNumber": 3,
+        "selectionStartColumn": -2,
+        "positionLineNumber": 17,
+        "positionColumn": 10
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 17,
+        "endColumn": 10,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 17,
+        "positionColumn": 10
+      },
+      "changeEnd": {
+        "startLineNumber": 3,
+        "startColumn": -2,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 3,
+        "selectionStartColumn": -2,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 3,
+        "startColumn": -2,
+        "endLineNumber": 17,
+        "endColumn": 10,
+        "selectionStartLineNumber": 17,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 3,
+        "positionColumn": -2
+      },
+      "display": "[3,-2 -> 17,10]"
+    },
+    {
+      "input": [
+        -3,
+        8,
+        19,
+        20
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 8,
+        "endLineNumber": 19,
+        "endColumn": 20,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 19,
+        "positionColumn": 20
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 19,
+        "endColumn": 20,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 19,
+        "positionColumn": 20
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 8,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 8,
+        "endLineNumber": 19,
+        "endColumn": 20,
+        "selectionStartLineNumber": 19,
+        "selectionStartColumn": 20,
+        "positionLineNumber": -3,
+        "positionColumn": 8
+      },
+      "display": "[-3,8 -> 19,20]"
+    },
+    {
+      "input": [
+        3,
+        16,
+        11,
+        2
+      ],
+      "value": {
+        "startLineNumber": 3,
+        "startColumn": 16,
+        "endLineNumber": 11,
+        "endColumn": 2,
+        "selectionStartLineNumber": 3,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 11,
+        "positionColumn": 2
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 11,
+        "endColumn": 2,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 11,
+        "positionColumn": 2
+      },
+      "changeEnd": {
+        "startLineNumber": 3,
+        "startColumn": 16,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 3,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 3,
+        "startColumn": 16,
+        "endLineNumber": 11,
+        "endColumn": 2,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 2,
+        "positionLineNumber": 3,
+        "positionColumn": 16
+      },
+      "display": "[3,16 -> 11,2]"
+    },
+    {
+      "input": [
+        5,
+        8,
+        9,
+        2
+      ],
+      "value": {
+        "startLineNumber": 5,
+        "startColumn": 8,
+        "endLineNumber": 9,
+        "endColumn": 2,
+        "selectionStartLineNumber": 5,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 9,
+        "positionColumn": 2
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 9,
+        "endColumn": 2,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 9,
+        "positionColumn": 2
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 5,
+        "endColumn": 8,
+        "selectionStartLineNumber": 5,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 5,
+        "startColumn": 8,
+        "endLineNumber": 9,
+        "endColumn": 2,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 2,
+        "positionLineNumber": 5,
+        "positionColumn": 8
+      },
+      "display": "[5,8 -> 9,2]"
+    },
+    {
+      "input": [
+        9,
+        12,
+        17,
+        4
+      ],
+      "value": {
+        "startLineNumber": 9,
+        "startColumn": 12,
+        "endLineNumber": 17,
+        "endColumn": 4,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 12,
+        "positionLineNumber": 17,
+        "positionColumn": 4
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 17,
+        "endColumn": 4,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 17,
+        "positionColumn": 4
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 9,
+        "endColumn": 12,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 12,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 9,
+        "startColumn": 12,
+        "endLineNumber": 17,
+        "endColumn": 4,
+        "selectionStartLineNumber": 17,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 9,
+        "positionColumn": 12
+      },
+      "display": "[9,12 -> 17,4]"
+    },
+    {
+      "input": [
+        3,
+        6,
+        15,
+        4
+      ],
+      "value": {
+        "startLineNumber": 3,
+        "startColumn": 6,
+        "endLineNumber": 15,
+        "endColumn": 4,
+        "selectionStartLineNumber": 3,
+        "selectionStartColumn": 6,
+        "positionLineNumber": 15,
+        "positionColumn": 4
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 15,
+        "endColumn": 4,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 15,
+        "positionColumn": 4
+      },
+      "changeEnd": {
+        "startLineNumber": 3,
+        "startColumn": 6,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 3,
+        "selectionStartColumn": 6,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 3,
+        "startColumn": 6,
+        "endLineNumber": 15,
+        "endColumn": 4,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 3,
+        "positionColumn": 6
+      },
+      "display": "[3,6 -> 15,4]"
+    },
+    {
+      "input": [
+        15,
+        18,
+        13,
+        14
+      ],
+      "value": {
+        "startLineNumber": 13,
+        "startColumn": 14,
+        "endLineNumber": 15,
+        "endColumn": 18,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 18,
+        "positionLineNumber": 13,
+        "positionColumn": 14
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 15,
+        "endColumn": 18,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 18,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 13,
+        "endColumn": 14,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 13,
+        "positionColumn": 14
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 13,
+        "startColumn": 14,
+        "endLineNumber": 15,
+        "endColumn": 18,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 18,
+        "positionLineNumber": 13,
+        "positionColumn": 14
+      },
+      "display": "[15,18 -> 13,14]"
+    },
+    {
+      "input": [
+        5,
+        8,
+        23,
+        10
+      ],
+      "value": {
+        "startLineNumber": 5,
+        "startColumn": 8,
+        "endLineNumber": 23,
+        "endColumn": 10,
+        "selectionStartLineNumber": 5,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 23,
+        "positionColumn": 10
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 23,
+        "endColumn": 10,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 23,
+        "positionColumn": 10
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 5,
+        "endColumn": 8,
+        "selectionStartLineNumber": 5,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 5,
+        "startColumn": 8,
+        "endLineNumber": 23,
+        "endColumn": 10,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 5,
+        "positionColumn": 8
+      },
+      "display": "[5,8 -> 23,10]"
+    },
+    {
+      "input": [
+        21,
+        10,
+        13,
+        14
+      ],
+      "value": {
+        "startLineNumber": 13,
+        "startColumn": 14,
+        "endLineNumber": 21,
+        "endColumn": 10,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 13,
+        "positionColumn": 14
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 21,
+        "endColumn": 10,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 13,
+        "endColumn": 14,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 13,
+        "positionColumn": 14
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 13,
+        "startColumn": 14,
+        "endLineNumber": 21,
+        "endColumn": 10,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 13,
+        "positionColumn": 14
+      },
+      "display": "[21,10 -> 13,14]"
+    },
+    {
+      "input": [
+        1,
+        0,
+        7,
+        4
+      ],
+      "value": {
+        "startLineNumber": 1,
+        "startColumn": 0,
+        "endLineNumber": 7,
+        "endColumn": 4,
+        "selectionStartLineNumber": 1,
+        "selectionStartColumn": 0,
+        "positionLineNumber": 7,
+        "positionColumn": 4
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 7,
+        "endColumn": 4,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 7,
+        "positionColumn": 4
+      },
+      "changeEnd": {
+        "startLineNumber": 1,
+        "startColumn": 0,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 1,
+        "selectionStartColumn": 0,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 1,
+        "startColumn": 0,
+        "endLineNumber": 7,
+        "endColumn": 4,
+        "selectionStartLineNumber": 7,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 1,
+        "positionColumn": 0
+      },
+      "display": "[1,0 -> 7,4]"
+    },
+    {
+      "input": [
+        15,
+        20,
+        1,
+        2
+      ],
+      "value": {
+        "startLineNumber": 1,
+        "startColumn": 2,
+        "endLineNumber": 15,
+        "endColumn": 20,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 1,
+        "positionColumn": 2
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 15,
+        "endColumn": 20,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 1,
+        "startColumn": 2,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 1,
+        "positionColumn": 2
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 1,
+        "startColumn": 2,
+        "endLineNumber": 15,
+        "endColumn": 20,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 1,
+        "positionColumn": 2
+      },
+      "display": "[15,20 -> 1,2]"
+    },
+    {
+      "input": [
+        9,
+        24,
+        3,
+        2
+      ],
+      "value": {
+        "startLineNumber": 3,
+        "startColumn": 2,
+        "endLineNumber": 9,
+        "endColumn": 24,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 3,
+        "positionColumn": 2
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 9,
+        "endColumn": 24,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 3,
+        "startColumn": 2,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 3,
+        "positionColumn": 2
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 3,
+        "startColumn": 2,
+        "endLineNumber": 9,
+        "endColumn": 24,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 3,
+        "positionColumn": 2
+      },
+      "display": "[9,24 -> 3,2]"
+    },
+    {
+      "input": [
+        23,
+        18,
+        25,
+        0
+      ],
+      "value": {
+        "startLineNumber": 23,
+        "startColumn": 18,
+        "endLineNumber": 25,
+        "endColumn": 0,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 18,
+        "positionLineNumber": 25,
+        "positionColumn": 0
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 25,
+        "endColumn": 0,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 25,
+        "positionColumn": 0
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 23,
+        "endColumn": 18,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 18,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 23,
+        "startColumn": 18,
+        "endLineNumber": 25,
+        "endColumn": 0,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 0,
+        "positionLineNumber": 23,
+        "positionColumn": 18
+      },
+      "display": "[23,18 -> 25,0]"
+    },
+    {
+      "input": [
+        -1,
+        24,
+        9,
+        -2
+      ],
+      "value": {
+        "startLineNumber": -1,
+        "startColumn": 24,
+        "endLineNumber": 9,
+        "endColumn": -2,
+        "selectionStartLineNumber": -1,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 9,
+        "positionColumn": -2
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 9,
+        "endColumn": -2,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 9,
+        "positionColumn": -2
+      },
+      "changeEnd": {
+        "startLineNumber": -1,
+        "startColumn": 24,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -1,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -1,
+        "startColumn": 24,
+        "endLineNumber": 9,
+        "endColumn": -2,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": -2,
+        "positionLineNumber": -1,
+        "positionColumn": 24
+      },
+      "display": "[-1,24 -> 9,-2]"
+    },
+    {
+      "input": [
+        9,
+        -2,
+        13,
+        10
+      ],
+      "value": {
+        "startLineNumber": 9,
+        "startColumn": -2,
+        "endLineNumber": 13,
+        "endColumn": 10,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": -2,
+        "positionLineNumber": 13,
+        "positionColumn": 10
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 13,
+        "endColumn": 10,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 13,
+        "positionColumn": 10
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 9,
+        "endColumn": -2,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": -2,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 9,
+        "startColumn": -2,
+        "endLineNumber": 13,
+        "endColumn": 10,
+        "selectionStartLineNumber": 13,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 9,
+        "positionColumn": -2
+      },
+      "display": "[9,-2 -> 13,10]"
+    },
+    {
+      "input": [
+        -3,
+        12,
+        11,
+        18
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 12,
+        "endLineNumber": 11,
+        "endColumn": 18,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 12,
+        "positionLineNumber": 11,
+        "positionColumn": 18
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 11,
+        "endColumn": 18,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 11,
+        "positionColumn": 18
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 12,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 12,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 12,
+        "endLineNumber": 11,
+        "endColumn": 18,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 18,
+        "positionLineNumber": -3,
+        "positionColumn": 12
+      },
+      "display": "[-3,12 -> 11,18]"
+    },
+    {
+      "input": [
+        9,
+        10,
+        -1,
+        12
+      ],
+      "value": {
+        "startLineNumber": -1,
+        "startColumn": 12,
+        "endLineNumber": 9,
+        "endColumn": 10,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 10,
+        "positionLineNumber": -1,
+        "positionColumn": 12
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 9,
+        "endColumn": 10,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 10,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": -1,
+        "startColumn": 12,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": -1,
+        "positionColumn": 12
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -1,
+        "startColumn": 12,
+        "endLineNumber": 9,
+        "endColumn": 10,
+        "selectionStartLineNumber": 9,
+        "selectionStartColumn": 10,
+        "positionLineNumber": -1,
+        "positionColumn": 12
+      },
+      "display": "[9,10 -> -1,12]"
+    },
+    {
+      "input": [
+        7,
+        6,
+        -3,
+        -2
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": -2,
+        "endLineNumber": 7,
+        "endColumn": 6,
+        "selectionStartLineNumber": 7,
+        "selectionStartColumn": 6,
+        "positionLineNumber": -3,
+        "positionColumn": -2
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 7,
+        "endColumn": 6,
+        "selectionStartLineNumber": 7,
+        "selectionStartColumn": 6,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": -2,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": -3,
+        "positionColumn": -2
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": -2,
+        "endLineNumber": 7,
+        "endColumn": 6,
+        "selectionStartLineNumber": 7,
+        "selectionStartColumn": 6,
+        "positionLineNumber": -3,
+        "positionColumn": -2
+      },
+      "display": "[7,6 -> -3,-2]"
+    },
+    {
+      "input": [
+        -3,
+        24,
+        -1,
+        10
+      ],
+      "value": {
+        "startLineNumber": -3,
+        "startColumn": 24,
+        "endLineNumber": -1,
+        "endColumn": 10,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 24,
+        "positionLineNumber": -1,
+        "positionColumn": 10
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": -1,
+        "startColumn": 10,
+        "endLineNumber": 2,
+        "endColumn": 3,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": -1,
+        "positionColumn": 10
+      },
+      "changeEnd": {
+        "startLineNumber": -3,
+        "startColumn": 24,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": -3,
+        "selectionStartColumn": 24,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": -3,
+        "startColumn": 24,
+        "endLineNumber": -1,
+        "endColumn": 10,
+        "selectionStartLineNumber": -1,
+        "selectionStartColumn": 10,
+        "positionLineNumber": -3,
+        "positionColumn": 24
+      },
+      "display": "[-3,24 -> -1,10]"
+    },
+    {
+      "input": [
+        15,
+        20,
+        5,
+        18
+      ],
+      "value": {
+        "startLineNumber": 5,
+        "startColumn": 18,
+        "endLineNumber": 15,
+        "endColumn": 20,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 5,
+        "positionColumn": 18
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 15,
+        "endColumn": 20,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 5,
+        "endColumn": 18,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 5,
+        "positionColumn": 18
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 5,
+        "startColumn": 18,
+        "endLineNumber": 15,
+        "endColumn": 20,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 20,
+        "positionLineNumber": 5,
+        "positionColumn": 18
+      },
+      "display": "[15,20 -> 5,18]"
+    },
+    {
+      "input": [
+        11,
+        8,
+        25,
+        16
+      ],
+      "value": {
+        "startLineNumber": 11,
+        "startColumn": 8,
+        "endLineNumber": 25,
+        "endColumn": 16,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 25,
+        "positionColumn": 16
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 25,
+        "endColumn": 16,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 25,
+        "positionColumn": 16
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 11,
+        "endColumn": 8,
+        "selectionStartLineNumber": 11,
+        "selectionStartColumn": 8,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 11,
+        "startColumn": 8,
+        "endLineNumber": 25,
+        "endColumn": 16,
+        "selectionStartLineNumber": 25,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 11,
+        "positionColumn": 8
+      },
+      "display": "[11,8 -> 25,16]"
+    },
+    {
+      "input": [
+        15,
+        16,
+        3,
+        2
+      ],
+      "value": {
+        "startLineNumber": 3,
+        "startColumn": 2,
+        "endLineNumber": 15,
+        "endColumn": 16,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 3,
+        "positionColumn": 2
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 15,
+        "endColumn": 16,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 3,
+        "startColumn": 2,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 3,
+        "positionColumn": 2
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 3,
+        "startColumn": 2,
+        "endLineNumber": 15,
+        "endColumn": 16,
+        "selectionStartLineNumber": 15,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 3,
+        "positionColumn": 2
+      },
+      "display": "[15,16 -> 3,2]"
+    },
+    {
+      "input": [
+        13,
+        4,
+        9,
+        10
+      ],
+      "value": {
+        "startLineNumber": 9,
+        "startColumn": 10,
+        "endLineNumber": 13,
+        "endColumn": 4,
+        "selectionStartLineNumber": 13,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 9,
+        "positionColumn": 10
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 13,
+        "endColumn": 4,
+        "selectionStartLineNumber": 13,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 9,
+        "endColumn": 10,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 9,
+        "positionColumn": 10
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 9,
+        "startColumn": 10,
+        "endLineNumber": 13,
+        "endColumn": 4,
+        "selectionStartLineNumber": 13,
+        "selectionStartColumn": 4,
+        "positionLineNumber": 9,
+        "positionColumn": 10
+      },
+      "display": "[13,4 -> 9,10]"
+    },
+    {
+      "input": [
+        21,
+        16,
+        15,
+        16
+      ],
+      "value": {
+        "startLineNumber": 15,
+        "startColumn": 16,
+        "endLineNumber": 21,
+        "endColumn": 16,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 15,
+        "positionColumn": 16
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 21,
+        "endColumn": 16,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 15,
+        "endColumn": 16,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 15,
+        "positionColumn": 16
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 15,
+        "startColumn": 16,
+        "endLineNumber": 21,
+        "endColumn": 16,
+        "selectionStartLineNumber": 21,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 15,
+        "positionColumn": 16
+      },
+      "display": "[21,16 -> 15,16]"
+    },
+    {
+      "input": [
+        1,
+        14,
+        7,
+        12
+      ],
+      "value": {
+        "startLineNumber": 1,
+        "startColumn": 14,
+        "endLineNumber": 7,
+        "endColumn": 12,
+        "selectionStartLineNumber": 1,
+        "selectionStartColumn": 14,
+        "positionLineNumber": 7,
+        "positionColumn": 12
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 7,
+        "endColumn": 12,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 7,
+        "positionColumn": 12
+      },
+      "changeEnd": {
+        "startLineNumber": 1,
+        "startColumn": 14,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 1,
+        "selectionStartColumn": 14,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 1,
+        "startColumn": 14,
+        "endLineNumber": 7,
+        "endColumn": 12,
+        "selectionStartLineNumber": 7,
+        "selectionStartColumn": 12,
+        "positionLineNumber": 1,
+        "positionColumn": 14
+      },
+      "display": "[1,14 -> 7,12]"
+    },
+    {
+      "input": [
+        23,
+        16,
+        23,
+        26
+      ],
+      "value": {
+        "startLineNumber": 23,
+        "startColumn": 16,
+        "endLineNumber": 23,
+        "endColumn": 26,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 23,
+        "positionColumn": 26
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 23,
+        "endColumn": 26,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 23,
+        "positionColumn": 26
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 23,
+        "endColumn": 16,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 16,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 23,
+        "startColumn": 16,
+        "endLineNumber": 23,
+        "endColumn": 26,
+        "selectionStartLineNumber": 23,
+        "selectionStartColumn": 26,
+        "positionLineNumber": 23,
+        "positionColumn": 16
+      },
+      "display": "[23,16 -> 23,26]"
+    },
+    {
+      "input": [
+        5,
+        2,
+        19,
+        6
+      ],
+      "value": {
+        "startLineNumber": 5,
+        "startColumn": 2,
+        "endLineNumber": 19,
+        "endColumn": 6,
+        "selectionStartLineNumber": 5,
+        "selectionStartColumn": 2,
+        "positionLineNumber": 19,
+        "positionColumn": 6
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 19,
+        "endColumn": 6,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 19,
+        "positionColumn": 6
+      },
+      "changeEnd": {
+        "startLineNumber": 4,
+        "startColumn": 5,
+        "endLineNumber": 5,
+        "endColumn": 2,
+        "selectionStartLineNumber": 5,
+        "selectionStartColumn": 2,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 5,
+        "startColumn": 2,
+        "endLineNumber": 19,
+        "endColumn": 6,
+        "selectionStartLineNumber": 19,
+        "selectionStartColumn": 6,
+        "positionLineNumber": 5,
+        "positionColumn": 2
+      },
+      "display": "[5,2 -> 19,6]"
+    },
+    {
+      "input": [
+        2147483648,
+        4294967296,
+        1,
+        1
+      ],
+      "value": {
+        "startLineNumber": 1,
+        "startColumn": 1,
+        "endLineNumber": 2147483648,
+        "endColumn": 4294967296,
+        "selectionStartLineNumber": 2147483648,
+        "selectionStartColumn": 4294967296,
+        "positionLineNumber": 1,
+        "positionColumn": 1
+      },
+      "direction": 1,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 2147483648,
+        "endColumn": 4294967296,
+        "selectionStartLineNumber": 2147483648,
+        "selectionStartColumn": 4294967296,
+        "positionLineNumber": 2,
+        "positionColumn": 3
+      },
+      "changeEnd": {
+        "startLineNumber": 1,
+        "startColumn": 1,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 4,
+        "selectionStartColumn": 5,
+        "positionLineNumber": 1,
+        "positionColumn": 1
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 1,
+        "startColumn": 1,
+        "endLineNumber": 2147483648,
+        "endColumn": 4294967296,
+        "selectionStartLineNumber": 2147483648,
+        "selectionStartColumn": 4294967296,
+        "positionLineNumber": 1,
+        "positionColumn": 1
+      },
+      "display": "[2147483648,4294967296 -> 1,1]"
+    },
+    {
+      "input": [
+        0,
+        -1,
+        2147483647,
+        2147483648
+      ],
+      "value": {
+        "startLineNumber": 0,
+        "startColumn": -1,
+        "endLineNumber": 2147483647,
+        "endColumn": 2147483648,
+        "selectionStartLineNumber": 0,
+        "selectionStartColumn": -1,
+        "positionLineNumber": 2147483647,
+        "positionColumn": 2147483648
+      },
+      "direction": 0,
+      "changeStart": {
+        "startLineNumber": 2,
+        "startColumn": 3,
+        "endLineNumber": 2147483647,
+        "endColumn": 2147483648,
+        "selectionStartLineNumber": 2,
+        "selectionStartColumn": 3,
+        "positionLineNumber": 2147483647,
+        "positionColumn": 2147483648
+      },
+      "changeEnd": {
+        "startLineNumber": 0,
+        "startColumn": -1,
+        "endLineNumber": 4,
+        "endColumn": 5,
+        "selectionStartLineNumber": 0,
+        "selectionStartColumn": -1,
+        "positionLineNumber": 4,
+        "positionColumn": 5
+      },
+      "fromRangeReverse": {
+        "startLineNumber": 0,
+        "startColumn": -1,
+        "endLineNumber": 2147483647,
+        "endColumn": 2147483648,
+        "selectionStartLineNumber": 2147483647,
+        "selectionStartColumn": 2147483648,
+        "positionLineNumber": 0,
+        "positionColumn": -1
+      },
+      "display": "[0,-1 -> 2147483647,2147483648]"
+    }
+  ]
+}

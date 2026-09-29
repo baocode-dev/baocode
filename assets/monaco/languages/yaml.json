@@ -1,0 +1,585 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "yaml",
+  "language": {
+    "tokenPostfix": ".yaml",
+    "brackets": [
+      {
+        "token": "delimiter.bracket",
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "token": "delimiter.square",
+        "open": "[",
+        "close": "]"
+      }
+    ],
+    "keywords": [
+      "true",
+      "True",
+      "TRUE",
+      "false",
+      "False",
+      "FALSE",
+      "null",
+      "Null",
+      "Null",
+      "~"
+    ],
+    "numberInteger": {
+      "$regex": "(?:0|[+-]?[0-9]+)",
+      "$flags": ""
+    },
+    "numberFloat": {
+      "$regex": "(?:0|[+-]?[0-9]+)(?:\\.[0-9]+)?(?:e[-+][1-9][0-9]*)?",
+      "$flags": ""
+    },
+    "numberOctal": {
+      "$regex": "0o[0-7]+",
+      "$flags": ""
+    },
+    "numberHex": {
+      "$regex": "0x[0-9a-fA-F]+",
+      "$flags": ""
+    },
+    "numberInfinity": {
+      "$regex": "[+-]?\\.(?:inf|Inf|INF)",
+      "$flags": ""
+    },
+    "numberNaN": {
+      "$regex": "\\.(?:nan|Nan|NAN)",
+      "$flags": ""
+    },
+    "numberDate": {
+      "$regex": "\\d{4}-\\d\\d-\\d\\d([Tt ]\\d\\d:\\d\\d:\\d\\d(\\.\\d+)?(( ?[+-]\\d\\d?(:\\d\\d)?)|Z)?)?",
+      "$flags": ""
+    },
+    "escapes": {
+      "$regex": "\\\\(?:[btnfr\\\\\"']|[0-7][0-7]?|[0-3][0-7]{2})",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@comment"
+        },
+        [
+          {
+            "$regex": "%[^ ]+.*$",
+            "$flags": ""
+          },
+          "meta.directive"
+        ],
+        [
+          {
+            "$regex": "---",
+            "$flags": ""
+          },
+          "operators.directivesEnd"
+        ],
+        [
+          {
+            "$regex": "\\.{3}",
+            "$flags": ""
+          },
+          "operators.documentEnd"
+        ],
+        [
+          {
+            "$regex": "[-?:](?= )",
+            "$flags": ""
+          },
+          "operators"
+        ],
+        {
+          "include": "@anchor"
+        },
+        {
+          "include": "@tagHandle"
+        },
+        {
+          "include": "@flowCollections"
+        },
+        {
+          "include": "@blockStyle"
+        },
+        [
+          {
+            "$regex": "@numberInteger(?![ \\t]*\\S+)",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": "@numberFloat(?![ \\t]*\\S+)",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "@numberOctal(?![ \\t]*\\S+)",
+            "$flags": ""
+          },
+          "number.octal"
+        ],
+        [
+          {
+            "$regex": "@numberHex(?![ \\t]*\\S+)",
+            "$flags": ""
+          },
+          "number.hex"
+        ],
+        [
+          {
+            "$regex": "@numberInfinity(?![ \\t]*\\S+)",
+            "$flags": ""
+          },
+          "number.infinity"
+        ],
+        [
+          {
+            "$regex": "@numberNaN(?![ \\t]*\\S+)",
+            "$flags": ""
+          },
+          "number.nan"
+        ],
+        [
+          {
+            "$regex": "@numberDate(?![ \\t]*\\S+)",
+            "$flags": ""
+          },
+          "number.date"
+        ],
+        [
+          {
+            "$regex": "(\".*?\"|'.*?'|[^#'\"]*?)([ \\t]*)(:)( |$)",
+            "$flags": ""
+          },
+          [
+            "type",
+            "white",
+            "operators",
+            "white"
+          ]
+        ],
+        {
+          "include": "@flowScalars"
+        },
+        [
+          {
+            "$regex": ".+?(?=(\\s+#|$))",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": "keyword",
+              "@default": "string"
+            }
+          }
+        ]
+      ],
+      "object": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@comment"
+        },
+        [
+          {
+            "$regex": "\\}",
+            "$flags": ""
+          },
+          "@brackets",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": ",",
+            "$flags": ""
+          },
+          "delimiter.comma"
+        ],
+        [
+          {
+            "$regex": ":(?= )",
+            "$flags": ""
+          },
+          "operators"
+        ],
+        [
+          {
+            "$regex": "(?:\".*?\"|'.*?'|[^,\\{\\[]+?)(?=: )",
+            "$flags": ""
+          },
+          "type"
+        ],
+        {
+          "include": "@flowCollections"
+        },
+        {
+          "include": "@flowScalars"
+        },
+        {
+          "include": "@tagHandle"
+        },
+        {
+          "include": "@anchor"
+        },
+        {
+          "include": "@flowNumber"
+        },
+        [
+          {
+            "$regex": "[^\\},]+",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": "keyword",
+              "@default": "string"
+            }
+          }
+        ]
+      ],
+      "array": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@comment"
+        },
+        [
+          {
+            "$regex": "\\]",
+            "$flags": ""
+          },
+          "@brackets",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": ",",
+            "$flags": ""
+          },
+          "delimiter.comma"
+        ],
+        {
+          "include": "@flowCollections"
+        },
+        {
+          "include": "@flowScalars"
+        },
+        {
+          "include": "@tagHandle"
+        },
+        {
+          "include": "@anchor"
+        },
+        {
+          "include": "@flowNumber"
+        },
+        [
+          {
+            "$regex": "[^\\],]+",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": "keyword",
+              "@default": "string"
+            }
+          }
+        ]
+      ],
+      "multiString": [
+        [
+          {
+            "$regex": "^( +).+$",
+            "$flags": ""
+          },
+          "string",
+          "@multiStringContinued.$1"
+        ]
+      ],
+      "multiStringContinued": [
+        [
+          {
+            "$regex": "^( *).+$",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==$S2": "string",
+              "@default": {
+                "token": "@rematch",
+                "next": "@popall"
+              }
+            }
+          }
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          "white"
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "#.*$",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "flowCollections": [
+        [
+          {
+            "$regex": "\\[",
+            "$flags": ""
+          },
+          "@brackets",
+          "@array"
+        ],
+        [
+          {
+            "$regex": "\\{",
+            "$flags": ""
+          },
+          "@brackets",
+          "@object"
+        ]
+      ],
+      "flowScalars": [
+        [
+          {
+            "$regex": "\"([^\"\\\\]|\\\\.)*$",
+            "$flags": ""
+          },
+          "string.invalid"
+        ],
+        [
+          {
+            "$regex": "'([^'\\\\]|\\\\.)*$",
+            "$flags": ""
+          },
+          "string.invalid"
+        ],
+        [
+          {
+            "$regex": "'[^']*'",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@doubleQuotedString"
+        ]
+      ],
+      "doubleQuotedString": [
+        [
+          {
+            "$regex": "[^\\\\\"]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@pop"
+        ]
+      ],
+      "blockStyle": [
+        [
+          {
+            "$regex": "[>|][0-9]*[+-]?$",
+            "$flags": ""
+          },
+          "operators",
+          "@multiString"
+        ]
+      ],
+      "flowNumber": [
+        [
+          {
+            "$regex": "@numberInteger(?=[ \\t]*[,\\]\\}])",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": "@numberFloat(?=[ \\t]*[,\\]\\}])",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "@numberOctal(?=[ \\t]*[,\\]\\}])",
+            "$flags": ""
+          },
+          "number.octal"
+        ],
+        [
+          {
+            "$regex": "@numberHex(?=[ \\t]*[,\\]\\}])",
+            "$flags": ""
+          },
+          "number.hex"
+        ],
+        [
+          {
+            "$regex": "@numberInfinity(?=[ \\t]*[,\\]\\}])",
+            "$flags": ""
+          },
+          "number.infinity"
+        ],
+        [
+          {
+            "$regex": "@numberNaN(?=[ \\t]*[,\\]\\}])",
+            "$flags": ""
+          },
+          "number.nan"
+        ],
+        [
+          {
+            "$regex": "@numberDate(?=[ \\t]*[,\\]\\}])",
+            "$flags": ""
+          },
+          "number.date"
+        ]
+      ],
+      "tagHandle": [
+        [
+          {
+            "$regex": "\\![^ ]*",
+            "$flags": ""
+          },
+          "tag"
+        ]
+      ],
+      "anchor": [
+        [
+          {
+            "$regex": "[&*][^ ]+",
+            "$flags": ""
+          },
+          "namespace"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "#"
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "folding": {
+      "offSide": true
+    },
+    "onEnterRules": [
+      {
+        "beforeText": {
+          "$regex": ":\\s*$",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 1
+        }
+      }
+    ]
+  }
+}

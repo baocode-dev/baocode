@@ -1,0 +1,343 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "graphql",
+  "language": {
+    "defaultToken": "invalid",
+    "tokenPostfix": ".gql",
+    "keywords": [
+      "null",
+      "true",
+      "false",
+      "query",
+      "mutation",
+      "subscription",
+      "extend",
+      "schema",
+      "directive",
+      "scalar",
+      "type",
+      "interface",
+      "union",
+      "enum",
+      "input",
+      "implements",
+      "fragment",
+      "on"
+    ],
+    "typeKeywords": [
+      "Int",
+      "Float",
+      "String",
+      "Boolean",
+      "ID"
+    ],
+    "directiveLocations": [
+      "SCHEMA",
+      "SCALAR",
+      "OBJECT",
+      "FIELD_DEFINITION",
+      "ARGUMENT_DEFINITION",
+      "INTERFACE",
+      "UNION",
+      "ENUM",
+      "ENUM_VALUE",
+      "INPUT_OBJECT",
+      "INPUT_FIELD_DEFINITION",
+      "QUERY",
+      "MUTATION",
+      "SUBSCRIPTION",
+      "FIELD",
+      "FRAGMENT_DEFINITION",
+      "FRAGMENT_SPREAD",
+      "INLINE_FRAGMENT",
+      "VARIABLE_DEFINITION"
+    ],
+    "operators": [
+      "=",
+      "!",
+      "?",
+      ":",
+      "&",
+      "|"
+    ],
+    "symbols": {
+      "$regex": "[=!?:&|]+",
+      "$flags": ""
+    },
+    "escapes": {
+      "$regex": "\\\\(?:[\"\\\\\\/bfnrt]|u[0-9A-Fa-f]{4})",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "[a-z_][\\w$]*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": "keyword",
+              "@default": "key.identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[$][\\w$]*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": "keyword",
+              "@default": "argument.identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[A-Z][\\w\\$]*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@typeKeywords": "keyword",
+              "@default": "type.identifier"
+            }
+          }
+        ],
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "[{}()\\[\\]]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "@symbols",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@operators": "operator",
+              "@default": ""
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "@\\s*[a-zA-Z_\\$][\\w\\$]*",
+            "$flags": ""
+          },
+          {
+            "token": "annotation",
+            "log": "annotation token: $0"
+          }
+        ],
+        [
+          {
+            "$regex": "\\d*\\.\\d+([eE][\\-+]?\\d+)?",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "0[xX][0-9a-fA-F]+",
+            "$flags": ""
+          },
+          "number.hex"
+        ],
+        [
+          {
+            "$regex": "\\d+",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": "[;,.]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@mlstring",
+            "nextEmbedded": "markdown"
+          }
+        ],
+        [
+          {
+            "$regex": "\"([^\"\\\\]|\\\\.)*$",
+            "$flags": ""
+          },
+          "string.invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@string"
+          }
+        ]
+      ],
+      "mlstring": [
+        [
+          {
+            "$regex": "[^\"]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          "\"\"\"",
+          {
+            "token": "string",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ]
+      ],
+      "string": [
+        [
+          {
+            "$regex": "[^\\\\\"]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          ""
+        ],
+        [
+          {
+            "$regex": "#.*$",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "#"
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"\"\"",
+        "close": "\"\"\"",
+        "notIn": [
+          "string",
+          "comment"
+        ]
+      },
+      {
+        "open": "\"",
+        "close": "\"",
+        "notIn": [
+          "string",
+          "comment"
+        ]
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"\"\"",
+        "close": "\"\"\""
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      }
+    ],
+    "folding": {
+      "offSide": true
+    }
+  }
+}

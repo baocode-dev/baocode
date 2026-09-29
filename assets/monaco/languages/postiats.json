@@ -1,0 +1,1088 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "postiats",
+  "language": {
+    "tokenPostfix": ".pats",
+    "defaultToken": "invalid",
+    "keywords": [
+      "abstype",
+      "abst0ype",
+      "absprop",
+      "absview",
+      "absvtype",
+      "absviewtype",
+      "absvt0ype",
+      "absviewt0ype",
+      "as",
+      "and",
+      "assume",
+      "begin",
+      "classdec",
+      "datasort",
+      "datatype",
+      "dataprop",
+      "dataview",
+      "datavtype",
+      "dataviewtype",
+      "do",
+      "end",
+      "extern",
+      "extype",
+      "extvar",
+      "exception",
+      "fn",
+      "fnx",
+      "fun",
+      "prfn",
+      "prfun",
+      "praxi",
+      "castfn",
+      "if",
+      "then",
+      "else",
+      "ifcase",
+      "in",
+      "infix",
+      "infixl",
+      "infixr",
+      "prefix",
+      "postfix",
+      "implmnt",
+      "implement",
+      "primplmnt",
+      "primplement",
+      "import",
+      "let",
+      "local",
+      "macdef",
+      "macrodef",
+      "nonfix",
+      "symelim",
+      "symintr",
+      "overload",
+      "of",
+      "op",
+      "rec",
+      "sif",
+      "scase",
+      "sortdef",
+      "sta",
+      "stacst",
+      "stadef",
+      "static",
+      "staload",
+      "dynload",
+      "try",
+      "tkindef",
+      "typedef",
+      "propdef",
+      "viewdef",
+      "vtypedef",
+      "viewtypedef",
+      "prval",
+      "var",
+      "prvar",
+      "when",
+      "where",
+      "with",
+      "withtype",
+      "withprop",
+      "withview",
+      "withvtype",
+      "withviewtype"
+    ],
+    "keywords_dlr": [
+      "$delay",
+      "$ldelay",
+      "$arrpsz",
+      "$arrptrsize",
+      "$d2ctype",
+      "$effmask",
+      "$effmask_ntm",
+      "$effmask_exn",
+      "$effmask_ref",
+      "$effmask_wrt",
+      "$effmask_all",
+      "$extern",
+      "$extkind",
+      "$extype",
+      "$extype_struct",
+      "$extval",
+      "$extfcall",
+      "$extmcall",
+      "$literal",
+      "$myfilename",
+      "$mylocation",
+      "$myfunction",
+      "$lst",
+      "$lst_t",
+      "$lst_vt",
+      "$list",
+      "$list_t",
+      "$list_vt",
+      "$rec",
+      "$rec_t",
+      "$rec_vt",
+      "$record",
+      "$record_t",
+      "$record_vt",
+      "$tup",
+      "$tup_t",
+      "$tup_vt",
+      "$tuple",
+      "$tuple_t",
+      "$tuple_vt",
+      "$break",
+      "$continue",
+      "$raise",
+      "$showtype",
+      "$vcopyenv_v",
+      "$vcopyenv_vt",
+      "$tempenver",
+      "$solver_assert",
+      "$solver_verify"
+    ],
+    "keywords_srp": [
+      "#if",
+      "#ifdef",
+      "#ifndef",
+      "#then",
+      "#elif",
+      "#elifdef",
+      "#elifndef",
+      "#else",
+      "#endif",
+      "#error",
+      "#prerr",
+      "#print",
+      "#assert",
+      "#undef",
+      "#define",
+      "#include",
+      "#require",
+      "#pragma",
+      "#codegen2",
+      "#codegen3"
+    ],
+    "irregular_keyword_list": [
+      "val+",
+      "val-",
+      "val",
+      "case+",
+      "case-",
+      "case",
+      "addr@",
+      "addr",
+      "fold@",
+      "free@",
+      "fix@",
+      "fix",
+      "lam@",
+      "lam",
+      "llam@",
+      "llam",
+      "viewt@ype+",
+      "viewt@ype-",
+      "viewt@ype",
+      "viewtype+",
+      "viewtype-",
+      "viewtype",
+      "view+",
+      "view-",
+      "view@",
+      "view",
+      "type+",
+      "type-",
+      "type",
+      "vtype+",
+      "vtype-",
+      "vtype",
+      "vt@ype+",
+      "vt@ype-",
+      "vt@ype",
+      "viewt@ype+",
+      "viewt@ype-",
+      "viewt@ype",
+      "viewtype+",
+      "viewtype-",
+      "viewtype",
+      "prop+",
+      "prop-",
+      "prop",
+      "type+",
+      "type-",
+      "type",
+      "t@ype",
+      "t@ype+",
+      "t@ype-",
+      "abst@ype",
+      "abstype",
+      "absviewt@ype",
+      "absvt@ype",
+      "for*",
+      "for",
+      "while*",
+      "while"
+    ],
+    "keywords_types": [
+      "bool",
+      "double",
+      "byte",
+      "int",
+      "short",
+      "char",
+      "void",
+      "unit",
+      "long",
+      "float",
+      "string",
+      "strptr"
+    ],
+    "keywords_effects": [
+      "0",
+      "fun",
+      "clo",
+      "prf",
+      "funclo",
+      "cloptr",
+      "cloref",
+      "ref",
+      "ntm",
+      "1"
+    ],
+    "operators": [
+      "@",
+      "!",
+      "|",
+      "`",
+      ":",
+      "$",
+      ".",
+      "=",
+      "#",
+      "~",
+      "..",
+      "...",
+      "=>",
+      "=<>",
+      "=/=>",
+      "=>>",
+      "=/=>>",
+      "<",
+      ">",
+      "><",
+      ".<",
+      ">.",
+      ".<>.",
+      "->",
+      "-<>"
+    ],
+    "brackets": [
+      {
+        "open": ",(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "`(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "%(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "'(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "'{",
+        "close": "}",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "@(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "@{",
+        "close": "}",
+        "token": "delimiter.brace"
+      },
+      {
+        "open": "@[",
+        "close": "]",
+        "token": "delimiter.square"
+      },
+      {
+        "open": "#[",
+        "close": "]",
+        "token": "delimiter.square"
+      },
+      {
+        "open": "{",
+        "close": "}",
+        "token": "delimiter.curly"
+      },
+      {
+        "open": "[",
+        "close": "]",
+        "token": "delimiter.square"
+      },
+      {
+        "open": "(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "<",
+        "close": ">",
+        "token": "delimiter.angle"
+      }
+    ],
+    "symbols": {
+      "$regex": "[=><!~?:&|+\\-*\\/\\^%]+",
+      "$flags": ""
+    },
+    "IDENTFST": {
+      "$regex": "[a-zA-Z_]",
+      "$flags": ""
+    },
+    "IDENTRST": {
+      "$regex": "[a-zA-Z0-9_'$]",
+      "$flags": ""
+    },
+    "symbolic": {
+      "$regex": "[%&+-./:=@~`^|*!$#?<>]",
+      "$flags": ""
+    },
+    "digit": {
+      "$regex": "[0-9]",
+      "$flags": ""
+    },
+    "digitseq0": {
+      "$regex": "@digit*",
+      "$flags": ""
+    },
+    "xdigit": {
+      "$regex": "[0-9A-Za-z]",
+      "$flags": ""
+    },
+    "xdigitseq0": {
+      "$regex": "@xdigit*",
+      "$flags": ""
+    },
+    "INTSP": {
+      "$regex": "[lLuU]",
+      "$flags": ""
+    },
+    "FLOATSP": {
+      "$regex": "[fFlL]",
+      "$flags": ""
+    },
+    "fexponent": {
+      "$regex": "[eE][+-]?[0-9]+",
+      "$flags": ""
+    },
+    "fexponent_bin": {
+      "$regex": "[pP][+-]?[0-9]+",
+      "$flags": ""
+    },
+    "deciexp": {
+      "$regex": "\\.[0-9]*@fexponent?",
+      "$flags": ""
+    },
+    "hexiexp": {
+      "$regex": "\\.[0-9a-zA-Z]*@fexponent_bin?",
+      "$flags": ""
+    },
+    "irregular_keywords": {
+      "$regex": "val[+-]?|case[+-]?|addr\\@?|fold\\@|free\\@|fix\\@?|lam\\@?|llam\\@?|prop[+-]?|type[+-]?|view[+-@]?|viewt@?ype[+-]?|t@?ype[+-]?|v(iew)?t@?ype[+-]?|abst@?ype|absv(iew)?t@?ype|for\\*?|while\\*?",
+      "$flags": ""
+    },
+    "ESCHAR": {
+      "$regex": "[ntvbrfa\\\\\\?'\"\\(\\[\\{]",
+      "$flags": ""
+    },
+    "start": "root",
+    "tokenizer": {
+      "root": [
+        {
+          "regex": {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          "action": {
+            "token": ""
+          }
+        },
+        {
+          "regex": {
+            "$regex": "\\(\\*\\)",
+            "$flags": ""
+          },
+          "action": {
+            "token": "invalid"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "\\(\\*",
+            "$flags": ""
+          },
+          "action": {
+            "token": "comment",
+            "next": "lexing_COMMENT_block_ml"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "\\(",
+            "$flags": ""
+          },
+          "action": "@brackets"
+        },
+        {
+          "regex": {
+            "$regex": "\\)",
+            "$flags": ""
+          },
+          "action": "@brackets"
+        },
+        {
+          "regex": {
+            "$regex": "\\[",
+            "$flags": ""
+          },
+          "action": "@brackets"
+        },
+        {
+          "regex": {
+            "$regex": "\\]",
+            "$flags": ""
+          },
+          "action": "@brackets"
+        },
+        {
+          "regex": {
+            "$regex": "\\{",
+            "$flags": ""
+          },
+          "action": "@brackets"
+        },
+        {
+          "regex": {
+            "$regex": "\\}",
+            "$flags": ""
+          },
+          "action": "@brackets"
+        },
+        {
+          "regex": {
+            "$regex": ",\\(",
+            "$flags": ""
+          },
+          "action": "@brackets"
+        },
+        {
+          "regex": {
+            "$regex": ",",
+            "$flags": ""
+          },
+          "action": {
+            "token": "delimiter.comma"
+          }
+        },
+        {
+          "regex": {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "action": {
+            "token": "delimiter.semicolon"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "@\\(",
+            "$flags": ""
+          },
+          "action": "@brackets"
+        },
+        {
+          "regex": {
+            "$regex": "@\\[",
+            "$flags": ""
+          },
+          "action": "@brackets"
+        },
+        {
+          "regex": {
+            "$regex": "@\\{",
+            "$flags": ""
+          },
+          "action": "@brackets"
+        },
+        {
+          "regex": {
+            "$regex": ":<",
+            "$flags": ""
+          },
+          "action": {
+            "token": "keyword",
+            "next": "@lexing_EFFECT_commaseq0"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "\\.@symbolic+",
+            "$flags": ""
+          },
+          "action": {
+            "token": "identifier.sym"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "\\.@digit*@fexponent@FLOATSP*",
+            "$flags": ""
+          },
+          "action": {
+            "token": "number.float"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "\\.@digit+",
+            "$flags": ""
+          },
+          "action": {
+            "token": "number.float"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "\\$@IDENTFST@IDENTRST*",
+            "$flags": ""
+          },
+          "action": {
+            "cases": {
+              "@keywords_dlr": {
+                "token": "keyword.dlr"
+              },
+              "@default": {
+                "token": "namespace"
+              }
+            }
+          }
+        },
+        {
+          "regex": {
+            "$regex": "\\#@IDENTFST@IDENTRST*",
+            "$flags": ""
+          },
+          "action": {
+            "cases": {
+              "@keywords_srp": {
+                "token": "keyword.srp"
+              },
+              "@default": {
+                "token": "identifier"
+              }
+            }
+          }
+        },
+        {
+          "regex": {
+            "$regex": "%\\(",
+            "$flags": ""
+          },
+          "action": {
+            "token": "delimiter.parenthesis"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "^%{(#|\\^|\\$)?",
+            "$flags": ""
+          },
+          "action": {
+            "token": "keyword",
+            "next": "@lexing_EXTCODE",
+            "nextEmbedded": "text/javascript"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "^%}",
+            "$flags": ""
+          },
+          "action": {
+            "token": "keyword"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "'\\(",
+            "$flags": ""
+          },
+          "action": {
+            "token": "delimiter.parenthesis"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "'\\[",
+            "$flags": ""
+          },
+          "action": {
+            "token": "delimiter.bracket"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "'\\{",
+            "$flags": ""
+          },
+          "action": {
+            "token": "delimiter.brace"
+          }
+        },
+        [
+          {
+            "$regex": "(')(\\\\@ESCHAR|\\\\[xX]@xdigit+|\\\\@digit+)(')",
+            "$flags": ""
+          },
+          [
+            "string",
+            "string.escape",
+            "string"
+          ]
+        ],
+        [
+          {
+            "$regex": "'[^\\\\']'",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string.quote",
+          "@lexing_DQUOTE"
+        ],
+        {
+          "regex": {
+            "$regex": "`\\(",
+            "$flags": ""
+          },
+          "action": "@brackets"
+        },
+        {
+          "regex": {
+            "$regex": "\\\\",
+            "$flags": ""
+          },
+          "action": {
+            "token": "punctuation"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "@irregular_keywords(?!@IDENTRST)",
+            "$flags": ""
+          },
+          "action": {
+            "token": "keyword"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "@IDENTFST@IDENTRST*[<!\\[]?",
+            "$flags": ""
+          },
+          "action": {
+            "cases": {
+              "@keywords": {
+                "token": "keyword"
+              },
+              "@keywords_types": {
+                "token": "type"
+              },
+              "@default": {
+                "token": "identifier"
+              }
+            }
+          }
+        },
+        {
+          "regex": {
+            "$regex": "\\/\\/\\/\\/",
+            "$flags": ""
+          },
+          "action": {
+            "token": "comment",
+            "next": "@lexing_COMMENT_rest"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "\\/\\/.*$",
+            "$flags": ""
+          },
+          "action": {
+            "token": "comment"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "\\/\\*",
+            "$flags": ""
+          },
+          "action": {
+            "token": "comment",
+            "next": "@lexing_COMMENT_block_c"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "-<|=<",
+            "$flags": ""
+          },
+          "action": {
+            "token": "keyword",
+            "next": "@lexing_EFFECT_commaseq0"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "@symbolic+",
+            "$flags": ""
+          },
+          "action": {
+            "cases": {
+              "@operators": "keyword",
+              "@default": "operator"
+            }
+          }
+        },
+        {
+          "regex": {
+            "$regex": "0[xX]@xdigit+(@hexiexp|@fexponent_bin)@FLOATSP*",
+            "$flags": ""
+          },
+          "action": {
+            "token": "number.float"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "0[xX]@xdigit+@INTSP*",
+            "$flags": ""
+          },
+          "action": {
+            "token": "number.hex"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "0[0-7]+(?![0-9])@INTSP*",
+            "$flags": ""
+          },
+          "action": {
+            "token": "number.octal"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "@digit+(@fexponent|@deciexp)@FLOATSP*",
+            "$flags": ""
+          },
+          "action": {
+            "token": "number.float"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "@digit@digitseq0@INTSP*",
+            "$flags": ""
+          },
+          "action": {
+            "token": "number.decimal"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "@digit+@INTSP*",
+            "$flags": ""
+          },
+          "action": {
+            "token": "number"
+          }
+        }
+      ],
+      "lexing_COMMENT_block_ml": [
+        [
+          {
+            "$regex": "[^\\(\\*]+",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "\\(\\*",
+            "$flags": ""
+          },
+          "comment",
+          "@push"
+        ],
+        [
+          {
+            "$regex": "\\(\\*",
+            "$flags": ""
+          },
+          "comment.invalid"
+        ],
+        [
+          {
+            "$regex": "\\*\\)",
+            "$flags": ""
+          },
+          "comment",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "\\*",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "lexing_COMMENT_block_c": [
+        [
+          {
+            "$regex": "[^\\/*]+",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "\\*\\/",
+            "$flags": ""
+          },
+          "comment",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[\\/*]",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "lexing_COMMENT_rest": [
+        [
+          {
+            "$regex": "$",
+            "$flags": ""
+          },
+          "comment",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": ".*",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "lexing_EFFECT_commaseq0": [
+        {
+          "regex": {
+            "$regex": "@IDENTFST@IDENTRST+|@digit+",
+            "$flags": ""
+          },
+          "action": {
+            "cases": {
+              "@keywords_effects": {
+                "token": "type.effect"
+              },
+              "@default": {
+                "token": "identifier"
+              }
+            }
+          }
+        },
+        {
+          "regex": {
+            "$regex": ",",
+            "$flags": ""
+          },
+          "action": {
+            "token": "punctuation"
+          }
+        },
+        {
+          "regex": {
+            "$regex": ">",
+            "$flags": ""
+          },
+          "action": {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        }
+      ],
+      "lexing_EXTCODE": [
+        {
+          "regex": {
+            "$regex": "^%}",
+            "$flags": ""
+          },
+          "action": {
+            "token": "@rematch",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "[^%]+",
+            "$flags": ""
+          },
+          "action": ""
+        }
+      ],
+      "lexing_DQUOTE": [
+        {
+          "regex": {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "action": {
+            "token": "string.quote",
+            "next": "@pop"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "(\\{\\$)(@IDENTFST@IDENTRST*)(\\})",
+            "$flags": ""
+          },
+          "action": [
+            {
+              "token": "string.escape"
+            },
+            {
+              "token": "identifier"
+            },
+            {
+              "token": "string.escape"
+            }
+          ]
+        },
+        {
+          "regex": {
+            "$regex": "\\\\$",
+            "$flags": ""
+          },
+          "action": {
+            "token": "string.escape"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "\\\\(@ESCHAR|[xX]@xdigit+|@digit+)",
+            "$flags": ""
+          },
+          "action": {
+            "token": "string.escape"
+          }
+        },
+        {
+          "regex": {
+            "$regex": "[^\\\\\"]+",
+            "$flags": ""
+          },
+          "action": {
+            "token": "string"
+          }
+        }
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "//",
+      "blockComment": [
+        "(*",
+        "*)"
+      ]
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ],
+      [
+        "<",
+        ">"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "\"",
+        "close": "\"",
+        "notIn": [
+          "string",
+          "comment"
+        ]
+      },
+      {
+        "open": "{",
+        "close": "}",
+        "notIn": [
+          "string",
+          "comment"
+        ]
+      },
+      {
+        "open": "[",
+        "close": "]",
+        "notIn": [
+          "string",
+          "comment"
+        ]
+      },
+      {
+        "open": "(",
+        "close": ")",
+        "notIn": [
+          "string",
+          "comment"
+        ]
+      }
+    ]
+  }
+}

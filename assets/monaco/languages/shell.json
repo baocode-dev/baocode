@@ -1,0 +1,533 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "shell",
+  "language": {
+    "defaultToken": "",
+    "ignoreCase": true,
+    "tokenPostfix": ".shell",
+    "brackets": [
+      {
+        "token": "delimiter.bracket",
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "token": "delimiter.parenthesis",
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "token": "delimiter.square",
+        "open": "[",
+        "close": "]"
+      }
+    ],
+    "keywords": [
+      "if",
+      "then",
+      "do",
+      "else",
+      "elif",
+      "while",
+      "until",
+      "for",
+      "in",
+      "esac",
+      "fi",
+      "fin",
+      "fil",
+      "done",
+      "exit",
+      "set",
+      "unset",
+      "export",
+      "function"
+    ],
+    "builtins": [
+      "ab",
+      "awk",
+      "bash",
+      "beep",
+      "cat",
+      "cc",
+      "cd",
+      "chown",
+      "chmod",
+      "chroot",
+      "clear",
+      "cp",
+      "curl",
+      "cut",
+      "diff",
+      "echo",
+      "find",
+      "gawk",
+      "gcc",
+      "get",
+      "git",
+      "grep",
+      "hg",
+      "kill",
+      "killall",
+      "ln",
+      "ls",
+      "make",
+      "mkdir",
+      "openssl",
+      "mv",
+      "nc",
+      "node",
+      "npm",
+      "ping",
+      "ps",
+      "restart",
+      "rm",
+      "rmdir",
+      "sed",
+      "service",
+      "sh",
+      "shopt",
+      "shred",
+      "source",
+      "sort",
+      "sleep",
+      "ssh",
+      "start",
+      "stop",
+      "su",
+      "sudo",
+      "svn",
+      "tee",
+      "telnet",
+      "top",
+      "touch",
+      "vi",
+      "vim",
+      "wall",
+      "wc",
+      "wget",
+      "who",
+      "write",
+      "yes",
+      "zsh"
+    ],
+    "startingWithDash": {
+      "$regex": "\\-+\\w+",
+      "$flags": ""
+    },
+    "identifiersWithDashes": {
+      "$regex": "[a-zA-Z]\\w+(?:@startingWithDash)+",
+      "$flags": ""
+    },
+    "symbols": {
+      "$regex": "[=><!~?&|+\\-*\\/\\^;\\.,]+",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "@identifiersWithDashes",
+            "$flags": ""
+          },
+          ""
+        ],
+        [
+          {
+            "$regex": "(\\s)((?:@startingWithDash)+)",
+            "$flags": ""
+          },
+          [
+            "white",
+            "attribute.name"
+          ]
+        ],
+        [
+          {
+            "$regex": "[a-zA-Z]\\w*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": "keyword",
+              "@builtins": "type.identifier",
+              "@default": ""
+            }
+          }
+        ],
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@strings"
+        },
+        {
+          "include": "@parameters"
+        },
+        {
+          "include": "@heredoc"
+        },
+        [
+          {
+            "$regex": "[{}\\[\\]()]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "@symbols",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        {
+          "include": "@numbers"
+        },
+        [
+          {
+            "$regex": "[,;]",
+            "$flags": ""
+          },
+          "delimiter"
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "\\s+",
+            "$flags": ""
+          },
+          "white"
+        ],
+        [
+          {
+            "$regex": "(^#!.*$)",
+            "$flags": ""
+          },
+          "metatag"
+        ],
+        [
+          {
+            "$regex": "(^#.*$)",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "numbers": [
+        [
+          {
+            "$regex": "\\d*\\.\\d+([eE][\\-+]?\\d+)?",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "0[xX][0-9a-fA-F_]*[0-9a-fA-F]",
+            "$flags": ""
+          },
+          "number.hex"
+        ],
+        [
+          {
+            "$regex": "\\d+",
+            "$flags": ""
+          },
+          "number"
+        ]
+      ],
+      "strings": [
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string",
+          "@stringBody"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@dblStringBody"
+        ]
+      ],
+      "stringBody": [
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "dblStringBody": [
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "heredoc": [
+        [
+          {
+            "$regex": "(<<[-<]?)(\\s*)(['\"`]?)([\\w\\-]+)(['\"`]?)",
+            "$flags": ""
+          },
+          [
+            "constants",
+            "white",
+            "string.heredoc.delimiter",
+            "string.heredoc",
+            "string.heredoc.delimiter"
+          ]
+        ]
+      ],
+      "parameters": [
+        [
+          {
+            "$regex": "\\$\\d+",
+            "$flags": ""
+          },
+          "variable.predefined"
+        ],
+        [
+          {
+            "$regex": "\\$\\w+",
+            "$flags": ""
+          },
+          "variable"
+        ],
+        [
+          {
+            "$regex": "\\$[*@#?\\-$!0_]",
+            "$flags": ""
+          },
+          "variable"
+        ],
+        [
+          {
+            "$regex": "\\$'",
+            "$flags": ""
+          },
+          "variable",
+          "@parameterBodyQuote"
+        ],
+        [
+          {
+            "$regex": "\\$\"",
+            "$flags": ""
+          },
+          "variable",
+          "@parameterBodyDoubleQuote"
+        ],
+        [
+          {
+            "$regex": "\\$\\(",
+            "$flags": ""
+          },
+          "variable",
+          "@parameterBodyParen"
+        ],
+        [
+          {
+            "$regex": "\\$\\{",
+            "$flags": ""
+          },
+          "variable",
+          "@parameterBodyCurlyBrace"
+        ]
+      ],
+      "parameterBodyQuote": [
+        [
+          {
+            "$regex": "[^#:%*@\\-!_']+",
+            "$flags": ""
+          },
+          "variable"
+        ],
+        [
+          {
+            "$regex": "[#:%*@\\-!_]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "[']",
+            "$flags": ""
+          },
+          "variable",
+          "@pop"
+        ]
+      ],
+      "parameterBodyDoubleQuote": [
+        [
+          {
+            "$regex": "[^#:%*@\\-!_\"]+",
+            "$flags": ""
+          },
+          "variable"
+        ],
+        [
+          {
+            "$regex": "[#:%*@\\-!_]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "[\"]",
+            "$flags": ""
+          },
+          "variable",
+          "@pop"
+        ]
+      ],
+      "parameterBodyParen": [
+        [
+          {
+            "$regex": "[^#:%*@\\-!_)]+",
+            "$flags": ""
+          },
+          "variable"
+        ],
+        [
+          {
+            "$regex": "[#:%*@\\-!_]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "[)]",
+            "$flags": ""
+          },
+          "variable",
+          "@pop"
+        ]
+      ],
+      "parameterBodyCurlyBrace": [
+        [
+          {
+            "$regex": "[^#:%*@\\-!_}]+",
+            "$flags": ""
+          },
+          "variable"
+        ],
+        [
+          {
+            "$regex": "[#:%*@\\-!_]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "[}]",
+            "$flags": ""
+          },
+          "variable",
+          "@pop"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "#"
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      },
+      {
+        "open": "`",
+        "close": "`"
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      },
+      {
+        "open": "`",
+        "close": "`"
+      }
+    ]
+  }
+}

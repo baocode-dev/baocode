@@ -1,0 +1,474 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "hcl",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".hcl",
+    "keywords": [
+      "var",
+      "local",
+      "path",
+      "for_each",
+      "any",
+      "string",
+      "number",
+      "bool",
+      "true",
+      "false",
+      "null",
+      "if ",
+      "else ",
+      "endif ",
+      "for ",
+      "in",
+      "endfor"
+    ],
+    "operators": [
+      "=",
+      ">=",
+      "<=",
+      "==",
+      "!=",
+      "+",
+      "-",
+      "*",
+      "/",
+      "%",
+      "&&",
+      "||",
+      "!",
+      "<",
+      ">",
+      "?",
+      "...",
+      ":"
+    ],
+    "symbols": {
+      "$regex": "[=><!~?:&|+\\-*\\/\\^%]+",
+      "$flags": ""
+    },
+    "escapes": {
+      "$regex": "\\\\(?:[abfnrtv\\\\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})",
+      "$flags": ""
+    },
+    "terraformFunctions": {
+      "$regex": "(abs|ceil|floor|log|max|min|pow|signum|chomp|format|formatlist|indent|join|lower|regex|regexall|replace|split|strrev|substr|title|trimspace|upper|chunklist|coalesce|coalescelist|compact|concat|contains|distinct|element|flatten|index|keys|length|list|lookup|map|matchkeys|merge|range|reverse|setintersection|setproduct|setunion|slice|sort|transpose|values|zipmap|base64decode|base64encode|base64gzip|csvdecode|jsondecode|jsonencode|urlencode|yamldecode|yamlencode|abspath|dirname|pathexpand|basename|file|fileexists|fileset|filebase64|templatefile|formatdate|timeadd|timestamp|base64sha256|base64sha512|bcrypt|filebase64sha256|filebase64sha512|filemd5|filemd1|filesha256|filesha512|md5|rsadecrypt|sha1|sha256|sha512|uuid|uuidv5|cidrhost|cidrnetmask|cidrsubnet|tobool|tolist|tomap|tonumber|toset|tostring)",
+      "$flags": ""
+    },
+    "terraformMainBlocks": {
+      "$regex": "(module|data|terraform|resource|provider|variable|output|locals)",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "^@terraformMainBlocks([ \\t]*)([\\w-]+|\"[\\w-]+\"|)([ \\t]*)([\\w-]+|\"[\\w-]+\"|)([ \\t]*)(\\{)",
+            "$flags": ""
+          },
+          [
+            "type",
+            "",
+            "string",
+            "",
+            "string",
+            "",
+            "@brackets"
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\w+[ \\t]+)([ \\t]*)([\\w-]+|\"[\\w-]+\"|)([ \\t]*)([\\w-]+|\"[\\w-]+\"|)([ \\t]*)(\\{)",
+            "$flags": ""
+          },
+          [
+            "identifier",
+            "",
+            "string",
+            "",
+            "string",
+            "",
+            "@brackets"
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\w+[ \\t]+)([ \\t]*)([\\w-]+|\"[\\w-]+\"|)([ \\t]*)([\\w-]+|\"[\\w-]+\"|)(=)(\\{)",
+            "$flags": ""
+          },
+          [
+            "identifier",
+            "",
+            "string",
+            "",
+            "operator",
+            "",
+            "@brackets"
+          ]
+        ],
+        {
+          "include": "@terraform"
+        }
+      ],
+      "terraform": [
+        [
+          {
+            "$regex": "@terraformFunctions(\\()",
+            "$flags": ""
+          },
+          [
+            "type",
+            "@brackets"
+          ]
+        ],
+        [
+          {
+            "$regex": "[a-zA-Z_]\\w*-*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": {
+                "token": "keyword.$0"
+              },
+              "@default": "variable"
+            }
+          }
+        ],
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@heredoc"
+        },
+        [
+          {
+            "$regex": "[{}()\\[\\]]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "[<>](?!@symbols)",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "@symbols",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@operators": "operator",
+              "@default": ""
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\d*\\d+[eE]([\\-+]?\\d+)?",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "\\d*\\.\\d+([eE][\\-+]?\\d+)?",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "\\d[\\d']*",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": "\\d",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": "[;,.]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@string"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "invalid"
+        ]
+      ],
+      "heredoc": [
+        [
+          {
+            "$regex": "<<[-]*\\s*[\"]?([\\w\\-]+)[\"]?",
+            "$flags": ""
+          },
+          {
+            "token": "string.heredoc.delimiter",
+            "next": "@heredocBody.$1"
+          }
+        ]
+      ],
+      "heredocBody": [
+        [
+          {
+            "$regex": "([\\w\\-]+)$",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1==$S2": [
+                {
+                  "token": "string.heredoc.delimiter",
+                  "next": "@popall"
+                }
+              ],
+              "@default": "string.heredoc"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "string.heredoc"
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          ""
+        ],
+        [
+          {
+            "$regex": "\\/\\*",
+            "$flags": ""
+          },
+          "comment",
+          "@comment"
+        ],
+        [
+          {
+            "$regex": "\\/\\/.*$",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "#.*$",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "[^\\/*]+",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "\\*\\/",
+            "$flags": ""
+          },
+          "comment",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[\\/*]",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "string": [
+        [
+          {
+            "$regex": "\\$\\{",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter",
+            "next": "@stringExpression"
+          }
+        ],
+        [
+          {
+            "$regex": "[^\\\\\"\\$]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ]
+      ],
+      "stringInsideExpression": [
+        [
+          {
+            "$regex": "[^\\\\\"]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@pop"
+        ]
+      ],
+      "stringExpression": [
+        [
+          {
+            "$regex": "\\}",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter",
+            "next": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@stringInsideExpression"
+        ],
+        {
+          "include": "@terraform"
+        }
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "#",
+      "blockComment": [
+        "/*",
+        "*/"
+      ]
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\"",
+        "notIn": [
+          "string"
+        ]
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      }
+    ]
+  }
+}

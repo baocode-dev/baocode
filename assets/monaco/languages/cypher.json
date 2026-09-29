@@ -1,0 +1,557 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "cypher",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".cypher",
+    "ignoreCase": true,
+    "brackets": [
+      {
+        "open": "{",
+        "close": "}",
+        "token": "delimiter.curly"
+      },
+      {
+        "open": "[",
+        "close": "]",
+        "token": "delimiter.bracket"
+      },
+      {
+        "open": "(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      }
+    ],
+    "keywords": [
+      "ALL",
+      "AND",
+      "AS",
+      "ASC",
+      "ASCENDING",
+      "BY",
+      "CALL",
+      "CASE",
+      "CONTAINS",
+      "CREATE",
+      "DELETE",
+      "DESC",
+      "DESCENDING",
+      "DETACH",
+      "DISTINCT",
+      "ELSE",
+      "END",
+      "ENDS",
+      "EXISTS",
+      "IN",
+      "IS",
+      "LIMIT",
+      "MANDATORY",
+      "MATCH",
+      "MERGE",
+      "NOT",
+      "ON",
+      "ON",
+      "OPTIONAL",
+      "OR",
+      "ORDER",
+      "REMOVE",
+      "RETURN",
+      "SET",
+      "SKIP",
+      "STARTS",
+      "THEN",
+      "UNION",
+      "UNWIND",
+      "WHEN",
+      "WHERE",
+      "WITH",
+      "XOR",
+      "YIELD"
+    ],
+    "builtinLiterals": [
+      "true",
+      "TRUE",
+      "false",
+      "FALSE",
+      "null",
+      "NULL"
+    ],
+    "builtinFunctions": [
+      "abs",
+      "acos",
+      "asin",
+      "atan",
+      "atan2",
+      "avg",
+      "ceil",
+      "coalesce",
+      "collect",
+      "cos",
+      "cot",
+      "count",
+      "degrees",
+      "e",
+      "endNode",
+      "exists",
+      "exp",
+      "floor",
+      "head",
+      "id",
+      "keys",
+      "labels",
+      "last",
+      "left",
+      "length",
+      "log",
+      "log10",
+      "lTrim",
+      "max",
+      "min",
+      "nodes",
+      "percentileCont",
+      "percentileDisc",
+      "pi",
+      "properties",
+      "radians",
+      "rand",
+      "range",
+      "relationships",
+      "replace",
+      "reverse",
+      "right",
+      "round",
+      "rTrim",
+      "sign",
+      "sin",
+      "size",
+      "split",
+      "sqrt",
+      "startNode",
+      "stDev",
+      "stDevP",
+      "substring",
+      "sum",
+      "tail",
+      "tan",
+      "timestamp",
+      "toBoolean",
+      "toFloat",
+      "toInteger",
+      "toLower",
+      "toString",
+      "toUpper",
+      "trim",
+      "type"
+    ],
+    "operators": [
+      "+",
+      "-",
+      "*",
+      "/",
+      "%",
+      "^",
+      "=",
+      "<>",
+      "<",
+      ">",
+      "<=",
+      ">=",
+      "->",
+      "<-",
+      "-->",
+      "<--"
+    ],
+    "escapes": {
+      "$regex": "\\\\(?:[tbnrf\\\\\"'`]|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})",
+      "$flags": ""
+    },
+    "digits": {
+      "$regex": "\\d+",
+      "$flags": ""
+    },
+    "octaldigits": {
+      "$regex": "[0-7]+",
+      "$flags": ""
+    },
+    "hexdigits": {
+      "$regex": "[0-9a-fA-F]+",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "[{}[\\]()]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        {
+          "include": "common"
+        }
+      ],
+      "common": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@numbers"
+        },
+        {
+          "include": "@strings"
+        },
+        [
+          {
+            "$regex": ":[a-zA-Z_][\\w]*",
+            "$flags": ""
+          },
+          "type.identifier"
+        ],
+        [
+          {
+            "$regex": "[a-zA-Z_][\\w]*(?=\\()",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@builtinFunctions": "predefined.function"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[a-zA-Z_$][\\w$]*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": "keyword",
+              "@builtinLiterals": "predefined.literal",
+              "@default": "identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "`",
+            "$flags": ""
+          },
+          "identifier.escape",
+          "@identifierBacktick"
+        ],
+        [
+          {
+            "$regex": "[;,.:|]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "[<>=%+\\-*/^]+",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@operators": "delimiter",
+              "@default": ""
+            }
+          }
+        ]
+      ],
+      "numbers": [
+        [
+          {
+            "$regex": "-?(@digits)[eE](-?(@digits))?",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "-?(@digits)?\\.(@digits)([eE]-?(@digits))?",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "-?0x(@hexdigits)",
+            "$flags": ""
+          },
+          "number.hex"
+        ],
+        [
+          {
+            "$regex": "-?0(@octaldigits)",
+            "$flags": ""
+          },
+          "number.octal"
+        ],
+        [
+          {
+            "$regex": "-?(@digits)",
+            "$flags": ""
+          },
+          "number"
+        ]
+      ],
+      "strings": [
+        [
+          {
+            "$regex": "\"([^\"\\\\]|\\\\.)*$",
+            "$flags": ""
+          },
+          "string.invalid"
+        ],
+        [
+          {
+            "$regex": "'([^'\\\\]|\\\\.)*$",
+            "$flags": ""
+          },
+          "string.invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@stringDouble"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string",
+          "@stringSingle"
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          "white"
+        ],
+        [
+          {
+            "$regex": "\\/\\*",
+            "$flags": ""
+          },
+          "comment",
+          "@comment"
+        ],
+        [
+          {
+            "$regex": "\\/\\/.*$",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "\\/\\/.*",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "[^/*]+",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "\\*\\/",
+            "$flags": ""
+          },
+          "comment",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[/*]",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "stringDouble": [
+        [
+          {
+            "$regex": "[^\\\\\"]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string",
+          "@pop"
+        ]
+      ],
+      "stringSingle": [
+        [
+          {
+            "$regex": "[^\\\\']+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.invalid"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string",
+          "@pop"
+        ]
+      ],
+      "identifierBacktick": [
+        [
+          {
+            "$regex": "[^\\\\`]+",
+            "$flags": ""
+          },
+          "identifier.escape"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "identifier.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "identifier.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "`",
+            "$flags": ""
+          },
+          "identifier.escape",
+          "@pop"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "//",
+      "blockComment": [
+        "/*",
+        "*/"
+      ]
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      },
+      {
+        "open": "`",
+        "close": "`"
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      },
+      {
+        "open": "`",
+        "close": "`"
+      }
+    ]
+  }
+}

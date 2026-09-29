@@ -1,0 +1,668 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "python",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".python",
+    "keywords": [
+      "False",
+      "None",
+      "True",
+      "_",
+      "and",
+      "as",
+      "assert",
+      "async",
+      "await",
+      "break",
+      "case",
+      "class",
+      "continue",
+      "def",
+      "del",
+      "elif",
+      "else",
+      "except",
+      "exec",
+      "finally",
+      "for",
+      "from",
+      "global",
+      "if",
+      "import",
+      "in",
+      "is",
+      "lambda",
+      "match",
+      "nonlocal",
+      "not",
+      "or",
+      "pass",
+      "print",
+      "raise",
+      "return",
+      "try",
+      "type",
+      "while",
+      "with",
+      "yield",
+      "int",
+      "float",
+      "long",
+      "complex",
+      "hex",
+      "abs",
+      "all",
+      "any",
+      "apply",
+      "basestring",
+      "bin",
+      "bool",
+      "buffer",
+      "bytearray",
+      "callable",
+      "chr",
+      "classmethod",
+      "cmp",
+      "coerce",
+      "compile",
+      "complex",
+      "delattr",
+      "dict",
+      "dir",
+      "divmod",
+      "enumerate",
+      "eval",
+      "execfile",
+      "file",
+      "filter",
+      "format",
+      "frozenset",
+      "getattr",
+      "globals",
+      "hasattr",
+      "hash",
+      "help",
+      "id",
+      "input",
+      "intern",
+      "isinstance",
+      "issubclass",
+      "iter",
+      "len",
+      "locals",
+      "list",
+      "map",
+      "max",
+      "memoryview",
+      "min",
+      "next",
+      "object",
+      "oct",
+      "open",
+      "ord",
+      "pow",
+      "print",
+      "property",
+      "reversed",
+      "range",
+      "raw_input",
+      "reduce",
+      "reload",
+      "repr",
+      "reversed",
+      "round",
+      "self",
+      "set",
+      "setattr",
+      "slice",
+      "sorted",
+      "staticmethod",
+      "str",
+      "sum",
+      "super",
+      "tuple",
+      "type",
+      "unichr",
+      "unicode",
+      "vars",
+      "xrange",
+      "zip",
+      "__dict__",
+      "__methods__",
+      "__members__",
+      "__class__",
+      "__bases__",
+      "__name__",
+      "__mro__",
+      "__subclasses__",
+      "__init__",
+      "__import__"
+    ],
+    "brackets": [
+      {
+        "open": "{",
+        "close": "}",
+        "token": "delimiter.curly"
+      },
+      {
+        "open": "[",
+        "close": "]",
+        "token": "delimiter.bracket"
+      },
+      {
+        "open": "(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      }
+    ],
+    "tokenizer": {
+      "root": [
+        {
+          "include": "@whitespace"
+        },
+        {
+          "include": "@numbers"
+        },
+        {
+          "include": "@strings"
+        },
+        [
+          {
+            "$regex": "[,:;]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "[{}\\[\\]()]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "@[a-zA-Z_]\\w*",
+            "$flags": ""
+          },
+          "tag"
+        ],
+        [
+          {
+            "$regex": "[a-zA-Z_]\\w*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": "keyword",
+              "@default": "identifier"
+            }
+          }
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "\\s+",
+            "$flags": ""
+          },
+          "white"
+        ],
+        [
+          {
+            "$regex": "(^#.*$)",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "'''",
+            "$flags": ""
+          },
+          "string",
+          "@endDocString"
+        ],
+        [
+          {
+            "$regex": "\"\"\"",
+            "$flags": ""
+          },
+          "string",
+          "@endDblDocString"
+        ]
+      ],
+      "endDocString": [
+        [
+          {
+            "$regex": "[^']+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\\\\'",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "'''",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "endDblDocString": [
+        [
+          {
+            "$regex": "[^\"]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\\\\\"",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\"\"\"",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "numbers": [
+        [
+          {
+            "$regex": "-?0x([abcdef]|[ABCDEF]|\\d)+[lL]?",
+            "$flags": ""
+          },
+          "number.hex"
+        ],
+        [
+          {
+            "$regex": "-?(\\d*\\.)?\\d+([eE][+\\-]?\\d+)?[jJ]?[lL]?",
+            "$flags": ""
+          },
+          "number"
+        ]
+      ],
+      "strings": [
+        [
+          {
+            "$regex": "'$",
+            "$flags": ""
+          },
+          "string.escape",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "f'{1,3}",
+            "$flags": ""
+          },
+          "string.escape",
+          "@fStringBody"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string.escape",
+          "@stringBody"
+        ],
+        [
+          {
+            "$regex": "\"$",
+            "$flags": ""
+          },
+          "string.escape",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "f\"{1,3}",
+            "$flags": ""
+          },
+          "string.escape",
+          "@fDblStringBody"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string.escape",
+          "@dblStringBody"
+        ]
+      ],
+      "fStringBody": [
+        [
+          {
+            "$regex": "[^\\\\'\\{\\}]+$",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "[^\\\\'\\{\\}]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\\{[^\\}':!=]+",
+            "$flags": ""
+          },
+          "identifier",
+          "@fStringDetail"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string.escape",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "\\\\$",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "stringBody": [
+        [
+          {
+            "$regex": "[^\\\\']+$",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "[^\\\\']+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string.escape",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "\\\\$",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "fDblStringBody": [
+        [
+          {
+            "$regex": "[^\\\\\"\\{\\}]+$",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "[^\\\\\"\\{\\}]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\\{[^\\}':!=]+",
+            "$flags": ""
+          },
+          "identifier",
+          "@fStringDetail"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string.escape",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "\\\\$",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "dblStringBody": [
+        [
+          {
+            "$regex": "[^\\\\\"]+$",
+            "$flags": ""
+          },
+          "string",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "[^\\\\\"]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string.escape",
+          "@popall"
+        ],
+        [
+          {
+            "$regex": "\\\\$",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "fStringDetail": [
+        [
+          {
+            "$regex": "[:][^}]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "[!][ars]",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\\}",
+            "$flags": ""
+          },
+          "identifier",
+          "@pop"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "#",
+      "blockComment": [
+        "'''",
+        "'''"
+      ]
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\"",
+        "notIn": [
+          "string"
+        ]
+      },
+      {
+        "open": "'",
+        "close": "'",
+        "notIn": [
+          "string",
+          "comment"
+        ]
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "onEnterRules": [
+      {
+        "beforeText": {
+          "$regex": "^\\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async|match|case).*?:\\s*$",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 1
+        }
+      }
+    ],
+    "folding": {
+      "offSide": true,
+      "markers": {
+        "start": {
+          "$regex": "^\\s*#region\\b",
+          "$flags": ""
+        },
+        "end": {
+          "$regex": "^\\s*#endregion\\b",
+          "$flags": ""
+        }
+      }
+    }
+  }
+}

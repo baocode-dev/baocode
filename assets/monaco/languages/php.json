@@ -1,0 +1,1292 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "php",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": "",
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInSimpleState.root"
+          }
+        ],
+        [
+          {
+            "$regex": "<!DOCTYPE",
+            "$flags": ""
+          },
+          "metatag.html",
+          "@doctype"
+        ],
+        [
+          {
+            "$regex": "<!--",
+            "$flags": ""
+          },
+          "comment.html",
+          "@comment"
+        ],
+        [
+          {
+            "$regex": "(<)(\\w+)(\\/>)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            "tag.html",
+            "delimiter.html"
+          ]
+        ],
+        [
+          {
+            "$regex": "(<)(script)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            {
+              "token": "tag.html",
+              "next": "@script"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(<)(style)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            {
+              "token": "tag.html",
+              "next": "@style"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(<)([:\\w]+)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            {
+              "token": "tag.html",
+              "next": "@otherTag"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(<\\/)(\\w+)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            {
+              "token": "tag.html",
+              "next": "@otherTag"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "<",
+            "$flags": ""
+          },
+          "delimiter.html"
+        ],
+        [
+          {
+            "$regex": "[^<]+",
+            "$flags": ""
+          }
+        ]
+      ],
+      "doctype": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInSimpleState.comment"
+          }
+        ],
+        [
+          {
+            "$regex": "[^>]+",
+            "$flags": ""
+          },
+          "metatag.content.html"
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          "metatag.html",
+          "@pop"
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInSimpleState.comment"
+          }
+        ],
+        [
+          {
+            "$regex": "-->",
+            "$flags": ""
+          },
+          "comment.html",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[^-]+",
+            "$flags": ""
+          },
+          "comment.content.html"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "comment.content.html"
+        ]
+      ],
+      "otherTag": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInSimpleState.otherTag"
+          }
+        ],
+        [
+          {
+            "$regex": "\\/?>",
+            "$flags": ""
+          },
+          "delimiter.html",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          "attribute.value"
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          "attribute.value"
+        ],
+        [
+          {
+            "$regex": "[\\w\\-]+",
+            "$flags": ""
+          },
+          "attribute.name"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ]
+      ],
+      "script": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInSimpleState.script"
+          }
+        ],
+        [
+          {
+            "$regex": "type",
+            "$flags": ""
+          },
+          "attribute.name",
+          "@scriptAfterType"
+        ],
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          "attribute.value"
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          "attribute.value"
+        ],
+        [
+          {
+            "$regex": "[\\w\\-]+",
+            "$flags": ""
+          },
+          "attribute.name"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@scriptEmbedded.text/javascript",
+            "nextEmbedded": "text/javascript"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "(<\\/)(script\\s*)(>)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            "tag.html",
+            {
+              "token": "delimiter.html",
+              "next": "@pop"
+            }
+          ]
+        ]
+      ],
+      "scriptAfterType": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInSimpleState.scriptAfterType"
+          }
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter",
+          "@scriptAfterTypeEquals"
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@scriptEmbedded.text/javascript",
+            "nextEmbedded": "text/javascript"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/script\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "scriptAfterTypeEquals": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInSimpleState.scriptAfterTypeEquals"
+          }
+        ],
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          {
+            "token": "attribute.value",
+            "switchTo": "@scriptWithCustomType.$1"
+          }
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          {
+            "token": "attribute.value",
+            "switchTo": "@scriptWithCustomType.$1"
+          }
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@scriptEmbedded.text/javascript",
+            "nextEmbedded": "text/javascript"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/script\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "scriptWithCustomType": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInSimpleState.scriptWithCustomType.$S2"
+          }
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@scriptEmbedded.$S2",
+            "nextEmbedded": "$S2"
+          }
+        ],
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          "attribute.value"
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          "attribute.value"
+        ],
+        [
+          {
+            "$regex": "[\\w\\-]+",
+            "$flags": ""
+          },
+          "attribute.name"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/script\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "scriptEmbedded": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInEmbeddedState.scriptEmbedded.$S2",
+            "nextEmbedded": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/script",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ]
+      ],
+      "style": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInSimpleState.style"
+          }
+        ],
+        [
+          {
+            "$regex": "type",
+            "$flags": ""
+          },
+          "attribute.name",
+          "@styleAfterType"
+        ],
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          "attribute.value"
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          "attribute.value"
+        ],
+        [
+          {
+            "$regex": "[\\w\\-]+",
+            "$flags": ""
+          },
+          "attribute.name"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@styleEmbedded.text/css",
+            "nextEmbedded": "text/css"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "(<\\/)(style\\s*)(>)",
+            "$flags": ""
+          },
+          [
+            "delimiter.html",
+            "tag.html",
+            {
+              "token": "delimiter.html",
+              "next": "@pop"
+            }
+          ]
+        ]
+      ],
+      "styleAfterType": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInSimpleState.styleAfterType"
+          }
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter",
+          "@styleAfterTypeEquals"
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@styleEmbedded.text/css",
+            "nextEmbedded": "text/css"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/style\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "styleAfterTypeEquals": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInSimpleState.styleAfterTypeEquals"
+          }
+        ],
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          {
+            "token": "attribute.value",
+            "switchTo": "@styleWithCustomType.$1"
+          }
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          {
+            "token": "attribute.value",
+            "switchTo": "@styleWithCustomType.$1"
+          }
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@styleEmbedded.text/css",
+            "nextEmbedded": "text/css"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/style\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "styleWithCustomType": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInSimpleState.styleWithCustomType.$S2"
+          }
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.html",
+            "next": "@styleEmbedded.$S2",
+            "nextEmbedded": "$S2"
+          }
+        ],
+        [
+          {
+            "$regex": "\"([^\"]*)\"",
+            "$flags": ""
+          },
+          "attribute.value"
+        ],
+        [
+          {
+            "$regex": "'([^']*)'",
+            "$flags": ""
+          },
+          "attribute.value"
+        ],
+        [
+          {
+            "$regex": "[\\w\\-]+",
+            "$flags": ""
+          },
+          "attribute.name"
+        ],
+        [
+          {
+            "$regex": "=",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/style\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "styleEmbedded": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "switchTo": "@phpInEmbeddedState.styleEmbedded.$S2",
+            "nextEmbedded": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/style",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ]
+      ],
+      "phpInSimpleState": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          "metatag.php"
+        ],
+        [
+          {
+            "$regex": "\\?>",
+            "$flags": ""
+          },
+          {
+            "token": "metatag.php",
+            "switchTo": "@$S2.$S3"
+          }
+        ],
+        {
+          "include": "phpRoot"
+        }
+      ],
+      "phpInEmbeddedState": [
+        [
+          {
+            "$regex": "<\\?((php)|=)?",
+            "$flags": ""
+          },
+          "metatag.php"
+        ],
+        [
+          {
+            "$regex": "\\?>",
+            "$flags": ""
+          },
+          {
+            "token": "metatag.php",
+            "switchTo": "@$S2.$S3",
+            "nextEmbedded": "$S3"
+          }
+        ],
+        {
+          "include": "phpRoot"
+        }
+      ],
+      "phpRoot": [
+        [
+          {
+            "$regex": "[a-zA-Z_]\\w*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@phpKeywords": {
+                "token": "keyword.php"
+              },
+              "@phpCompileTimeConstants": {
+                "token": "constant.php"
+              },
+              "@default": "identifier.php"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[$a-zA-Z_]\\w*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@phpPreDefinedVariables": {
+                "token": "variable.predefined.php"
+              },
+              "@default": "variable.php"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[{}]",
+            "$flags": ""
+          },
+          "delimiter.bracket.php"
+        ],
+        [
+          {
+            "$regex": "[\\[\\]]",
+            "$flags": ""
+          },
+          "delimiter.array.php"
+        ],
+        [
+          {
+            "$regex": "[()]",
+            "$flags": ""
+          },
+          "delimiter.parenthesis.php"
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          }
+        ],
+        [
+          {
+            "$regex": "(#|\\/\\/)$",
+            "$flags": ""
+          },
+          "comment.php"
+        ],
+        [
+          {
+            "$regex": "(#|\\/\\/)",
+            "$flags": ""
+          },
+          "comment.php",
+          "@phpLineComment"
+        ],
+        [
+          {
+            "$regex": "\\/\\*",
+            "$flags": ""
+          },
+          "comment.php",
+          "@phpComment"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string.php",
+          "@phpDoubleQuoteString"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string.php",
+          "@phpSingleQuoteString"
+        ],
+        [
+          {
+            "$regex": "[\\+\\-\\*\\%\\&\\|\\^\\~\\!\\=\\<\\>\\/\\?\\;\\:\\.\\,\\@]",
+            "$flags": ""
+          },
+          "delimiter.php"
+        ],
+        [
+          {
+            "$regex": "\\d*\\d+[eE]([\\-+]?\\d+)?",
+            "$flags": ""
+          },
+          "number.float.php"
+        ],
+        [
+          {
+            "$regex": "\\d*\\.\\d+([eE][\\-+]?\\d+)?",
+            "$flags": ""
+          },
+          "number.float.php"
+        ],
+        [
+          {
+            "$regex": "0[xX][0-9a-fA-F']*[0-9a-fA-F]",
+            "$flags": ""
+          },
+          "number.hex.php"
+        ],
+        [
+          {
+            "$regex": "0[0-7']*[0-7]",
+            "$flags": ""
+          },
+          "number.octal.php"
+        ],
+        [
+          {
+            "$regex": "0[bB][0-1']*[0-1]",
+            "$flags": ""
+          },
+          "number.binary.php"
+        ],
+        [
+          {
+            "$regex": "\\d[\\d']*",
+            "$flags": ""
+          },
+          "number.php"
+        ],
+        [
+          {
+            "$regex": "\\d",
+            "$flags": ""
+          },
+          "number.php"
+        ]
+      ],
+      "phpComment": [
+        [
+          {
+            "$regex": "\\*\\/",
+            "$flags": ""
+          },
+          "comment.php",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[^*]+",
+            "$flags": ""
+          },
+          "comment.php"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "comment.php"
+        ]
+      ],
+      "phpLineComment": [
+        [
+          {
+            "$regex": "\\?>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": ".$",
+            "$flags": ""
+          },
+          "comment.php",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[^?]+$",
+            "$flags": ""
+          },
+          "comment.php",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[^?]+",
+            "$flags": ""
+          },
+          "comment.php"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "comment.php"
+        ]
+      ],
+      "phpDoubleQuoteString": [
+        [
+          {
+            "$regex": "[^\\\\\"]+",
+            "$flags": ""
+          },
+          "string.php"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape.php"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid.php"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string.php",
+          "@pop"
+        ]
+      ],
+      "phpSingleQuoteString": [
+        [
+          {
+            "$regex": "[^\\\\']+",
+            "$flags": ""
+          },
+          "string.php"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape.php"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid.php"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string.php",
+          "@pop"
+        ]
+      ]
+    },
+    "phpKeywords": [
+      "abstract",
+      "and",
+      "array",
+      "as",
+      "break",
+      "callable",
+      "case",
+      "catch",
+      "cfunction",
+      "class",
+      "clone",
+      "const",
+      "continue",
+      "declare",
+      "default",
+      "do",
+      "else",
+      "elseif",
+      "enddeclare",
+      "endfor",
+      "endforeach",
+      "endif",
+      "endswitch",
+      "endwhile",
+      "extends",
+      "false",
+      "final",
+      "for",
+      "foreach",
+      "function",
+      "global",
+      "goto",
+      "if",
+      "implements",
+      "interface",
+      "instanceof",
+      "insteadof",
+      "namespace",
+      "new",
+      "null",
+      "object",
+      "old_function",
+      "or",
+      "private",
+      "protected",
+      "public",
+      "resource",
+      "static",
+      "switch",
+      "throw",
+      "trait",
+      "try",
+      "true",
+      "use",
+      "var",
+      "while",
+      "xor",
+      "die",
+      "echo",
+      "empty",
+      "exit",
+      "eval",
+      "include",
+      "include_once",
+      "isset",
+      "list",
+      "require",
+      "require_once",
+      "return",
+      "print",
+      "unset",
+      "yield",
+      "__construct"
+    ],
+    "phpCompileTimeConstants": [
+      "__CLASS__",
+      "__DIR__",
+      "__FILE__",
+      "__LINE__",
+      "__NAMESPACE__",
+      "__METHOD__",
+      "__FUNCTION__",
+      "__TRAIT__"
+    ],
+    "phpPreDefinedVariables": [
+      "$GLOBALS",
+      "$_SERVER",
+      "$_GET",
+      "$_POST",
+      "$_FILES",
+      "$_REQUEST",
+      "$_SESSION",
+      "$_ENV",
+      "$_COOKIE",
+      "$php_errormsg",
+      "$HTTP_RAW_POST_DATA",
+      "$http_response_header",
+      "$argc",
+      "$argv"
+    ],
+    "escapes": {
+      "$regex": "\\\\(?:[abfnrtv\\\\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})",
+      "$flags": ""
+    }
+  },
+  "configuration": {
+    "wordPattern": {
+      "$regex": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)",
+      "$flags": "g"
+    },
+    "comments": {
+      "lineComment": "//",
+      "blockComment": [
+        "/*",
+        "*/"
+      ]
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}",
+        "notIn": [
+          "string"
+        ]
+      },
+      {
+        "open": "[",
+        "close": "]",
+        "notIn": [
+          "string"
+        ]
+      },
+      {
+        "open": "(",
+        "close": ")",
+        "notIn": [
+          "string"
+        ]
+      },
+      {
+        "open": "\"",
+        "close": "\"",
+        "notIn": [
+          "string"
+        ]
+      },
+      {
+        "open": "'",
+        "close": "'",
+        "notIn": [
+          "string",
+          "comment"
+        ]
+      }
+    ],
+    "folding": {
+      "markers": {
+        "start": {
+          "$regex": "^\\s*(#|\\/\\/)region\\b",
+          "$flags": ""
+        },
+        "end": {
+          "$regex": "^\\s*(#|\\/\\/)endregion\\b",
+          "$flags": ""
+        }
+      }
+    }
+  }
+}

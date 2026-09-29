@@ -1,0 +1,1736 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "mdx",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".mdx",
+    "control": {
+      "$regex": "[!#()*+.[\\\\\\]_`{}\\-]",
+      "$flags": ""
+    },
+    "escapes": {
+      "$regex": "\\\\@control",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "^---$",
+            "$flags": ""
+          },
+          {
+            "token": "meta.content",
+            "next": "@frontmatter",
+            "nextEmbedded": "yaml"
+          }
+        ],
+        [
+          {
+            "$regex": "^\\s*import",
+            "$flags": ""
+          },
+          {
+            "token": "keyword",
+            "next": "@import",
+            "nextEmbedded": "js"
+          }
+        ],
+        [
+          {
+            "$regex": "^\\s*export",
+            "$flags": ""
+          },
+          {
+            "token": "keyword",
+            "next": "@export",
+            "nextEmbedded": "js"
+          }
+        ],
+        [
+          {
+            "$regex": "<\\w+",
+            "$flags": ""
+          },
+          {
+            "token": "type.identifier",
+            "next": "@jsx"
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/?\\w+>",
+            "$flags": ""
+          },
+          "type.identifier"
+        ],
+        [
+          {
+            "$regex": "^(\\s*)(>*\\s*)(#{1,6}\\s)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "white"
+            },
+            {
+              "token": "comment"
+            },
+            {
+              "token": "keyword",
+              "next": "@header"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "^(\\s*)(>*\\s*)([*+-])(\\s+)",
+            "$flags": ""
+          },
+          [
+            "white",
+            "comment",
+            "keyword",
+            "white"
+          ]
+        ],
+        [
+          {
+            "$regex": "^(\\s*)(>*\\s*)(\\d{1,9}\\.)(\\s+)",
+            "$flags": ""
+          },
+          [
+            "white",
+            "comment",
+            "number",
+            "white"
+          ]
+        ],
+        [
+          {
+            "$regex": "^(\\s*)(>*\\s*)(\\d{1,9}\\.)(\\s+)",
+            "$flags": ""
+          },
+          [
+            "white",
+            "comment",
+            "number",
+            "white"
+          ]
+        ],
+        [
+          {
+            "$regex": "^(\\s*)(>*\\s*)(-{3,}|\\*{3,}|_{3,})$",
+            "$flags": ""
+          },
+          [
+            "white",
+            "comment",
+            "keyword"
+          ]
+        ],
+        [
+          {
+            "$regex": "`{3,}(\\s.*)?$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@codeblock_backtick"
+          }
+        ],
+        [
+          {
+            "$regex": "~{3,}(\\s.*)?$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@codeblock_tilde"
+          }
+        ],
+        [
+          {
+            "$regex": "`{3,}(\\S+).*$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@codeblock_highlight_backtick",
+            "nextEmbedded": "$1"
+          }
+        ],
+        [
+          {
+            "$regex": "~{3,}(\\S+).*$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@codeblock_highlight_tilde",
+            "nextEmbedded": "$1"
+          }
+        ],
+        [
+          {
+            "$regex": "^(\\s*)(-{4,})$",
+            "$flags": ""
+          },
+          [
+            "white",
+            "comment"
+          ]
+        ],
+        [
+          {
+            "$regex": "^(\\s*)(>+)",
+            "$flags": ""
+          },
+          [
+            "white",
+            "comment"
+          ]
+        ],
+        {
+          "include": "content"
+        }
+      ],
+      "content": [
+        [
+          {
+            "$regex": "(\\[)(.+)(]\\()(.+)(\\s+\".*\")(\\))",
+            "$flags": ""
+          },
+          [
+            "",
+            "string.link",
+            "",
+            "type.identifier",
+            "string.link",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\[)(.+)(]\\()(.+)(\\))",
+            "$flags": ""
+          },
+          [
+            "",
+            "type.identifier",
+            "",
+            "string.link",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\[)(.+)(]\\[)(.+)(])",
+            "$flags": ""
+          },
+          [
+            "",
+            "type.identifier",
+            "",
+            "type.identifier",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\[)(.+)(]:\\s+)(\\S*)",
+            "$flags": ""
+          },
+          [
+            "",
+            "type.identifier",
+            "",
+            "string.link"
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\[)(.+)(])",
+            "$flags": ""
+          },
+          [
+            "",
+            "type.identifier",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "`.*`",
+            "$flags": ""
+          },
+          "variable.source"
+        ],
+        [
+          {
+            "$regex": "_",
+            "$flags": ""
+          },
+          {
+            "token": "emphasis",
+            "next": "@emphasis_underscore"
+          }
+        ],
+        [
+          {
+            "$regex": "\\*(?!\\*)",
+            "$flags": ""
+          },
+          {
+            "token": "emphasis",
+            "next": "@emphasis_asterisk"
+          }
+        ],
+        [
+          {
+            "$regex": "\\*\\*",
+            "$flags": ""
+          },
+          {
+            "token": "strong",
+            "next": "@strong"
+          }
+        ],
+        [
+          {
+            "$regex": "{",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.bracket",
+            "next": "@expression",
+            "nextEmbedded": "js"
+          }
+        ]
+      ],
+      "import": [
+        [
+          {
+            "$regex": "'\\s*(;|$)",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ]
+      ],
+      "expression": [
+        [
+          {
+            "$regex": "{",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.bracket",
+            "next": "@expression"
+          }
+        ],
+        [
+          {
+            "$regex": "}",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.bracket",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ]
+      ],
+      "export": [
+        [
+          {
+            "$regex": "^\\s*$",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.bracket",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ]
+      ],
+      "jsx": [
+        [
+          {
+            "$regex": "\\s+",
+            "$flags": ""
+          },
+          ""
+        ],
+        [
+          {
+            "$regex": "(\\w+)(=)(\"(?:[^\"\\\\]|\\\\.)*\")",
+            "$flags": ""
+          },
+          [
+            "attribute.name",
+            "operator",
+            "string"
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\w+)(=)('(?:[^'\\\\]|\\\\.)*')",
+            "$flags": ""
+          },
+          [
+            "attribute.name",
+            "operator",
+            "string"
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\w+(?=\\s|>|={|$))",
+            "$flags": ""
+          },
+          [
+            "attribute.name"
+          ]
+        ],
+        [
+          {
+            "$regex": "={",
+            "$flags": ""
+          },
+          {
+            "token": "delimiter.bracket",
+            "next": "@expression",
+            "nextEmbedded": "js"
+          }
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "token": "type.identifier",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "header": [
+        [
+          {
+            "$regex": ".$",
+            "$flags": ""
+          },
+          {
+            "token": "keyword",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "content"
+        },
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          {
+            "token": "keyword"
+          }
+        ]
+      ],
+      "strong": [
+        [
+          {
+            "$regex": "\\*\\*",
+            "$flags": ""
+          },
+          {
+            "token": "strong",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "content"
+        },
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          {
+            "token": "strong"
+          }
+        ]
+      ],
+      "emphasis_underscore": [
+        [
+          {
+            "$regex": "_",
+            "$flags": ""
+          },
+          {
+            "token": "emphasis",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "content"
+        },
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          {
+            "token": "emphasis"
+          }
+        ]
+      ],
+      "emphasis_asterisk": [
+        [
+          {
+            "$regex": "\\*(?!\\*)",
+            "$flags": ""
+          },
+          {
+            "token": "emphasis",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "content"
+        },
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          {
+            "token": "emphasis"
+          }
+        ]
+      ],
+      "frontmatter": [
+        [
+          {
+            "$regex": "^---$",
+            "$flags": ""
+          },
+          {
+            "token": "meta.content",
+            "nextEmbedded": "@pop",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "codeblock_highlight_backtick": [
+        [
+          {
+            "$regex": "\\s*`{3,}\\s*$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": ".*$",
+            "$flags": ""
+          },
+          "variable.source"
+        ]
+      ],
+      "codeblock_highlight_tilde": [
+        [
+          {
+            "$regex": "\\s*~{3,}\\s*$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": ".*$",
+            "$flags": ""
+          },
+          "variable.source"
+        ]
+      ],
+      "codeblock_backtick": [
+        [
+          {
+            "$regex": "\\s*`{3,}\\s*$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": ".*$",
+            "$flags": ""
+          },
+          "variable.source"
+        ]
+      ],
+      "codeblock_tilde": [
+        [
+          {
+            "$regex": "\\s*~{3,}\\s*$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": ".*$",
+            "$flags": ""
+          },
+          "variable.source"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "blockComment": [
+        "{/*",
+        "*/}"
+      ]
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      },
+      {
+        "open": "“",
+        "close": "”"
+      },
+      {
+        "open": "‘",
+        "close": "’"
+      },
+      {
+        "open": "`",
+        "close": "`"
+      },
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "_",
+        "close": "_"
+      },
+      {
+        "open": "**",
+        "close": "**"
+      },
+      {
+        "open": "<",
+        "close": ">"
+      }
+    ],
+    "onEnterRules": [
+      {
+        "beforeText": {
+          "$regex": "^\\s*- .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "- "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^\\s*\\+ .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "+ "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^\\s*\\* .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "* "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^> ",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "> "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "<\\w+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 1
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "\\s+>\\s*$",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 1
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "<\\/\\w+>",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 3
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^0\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "1. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^1\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "2. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^2\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "3. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^3\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "4. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^4\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "5. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^5\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "6. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^6\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "7. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^7\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "8. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^8\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "9. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^9\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "10. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^10\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "11. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^11\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "12. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^12\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "13. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^13\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "14. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^14\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "15. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^15\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "16. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^16\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "17. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^17\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "18. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^18\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "19. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^19\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "20. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^20\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "21. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^21\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "22. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^22\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "23. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^23\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "24. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^24\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "25. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^25\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "26. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^26\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "27. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^27\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "28. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^28\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "29. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^29\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "30. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^30\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "31. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^31\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "32. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^32\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "33. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^33\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "34. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^34\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "35. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^35\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "36. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^36\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "37. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^37\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "38. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^38\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "39. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^39\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "40. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^40\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "41. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^41\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "42. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^42\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "43. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^43\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "44. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^44\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "45. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^45\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "46. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^46\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "47. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^47\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "48. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^48\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "49. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^49\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "50. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^50\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "51. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^51\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "52. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^52\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "53. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^53\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "54. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^54\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "55. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^55\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "56. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^56\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "57. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^57\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "58. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^58\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "59. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^59\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "60. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^60\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "61. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^61\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "62. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^62\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "63. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^63\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "64. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^64\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "65. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^65\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "66. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^66\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "67. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^67\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "68. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^68\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "69. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^69\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "70. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^70\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "71. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^71\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "72. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^72\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "73. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^73\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "74. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^74\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "75. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^75\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "76. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^76\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "77. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^77\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "78. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^78\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "79. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^79\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "80. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^80\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "81. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^81\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "82. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^82\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "83. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^83\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "84. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^84\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "85. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^85\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "86. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^86\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "87. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^87\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "88. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^88\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "89. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^89\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "90. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^90\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "91. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^91\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "92. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^92\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "93. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^93\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "94. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^94\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "95. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^95\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "96. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^96\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "97. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^97\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "98. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^98\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "99. "
+        }
+      },
+      {
+        "beforeText": {
+          "$regex": "^99\\. .+",
+          "$flags": ""
+        },
+        "action": {
+          "indentAction": 0,
+          "appendText": "100. "
+        }
+      }
+    ]
+  }
+}

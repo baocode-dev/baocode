@@ -1,0 +1,1258 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "ruby",
+  "language": {
+    "tokenPostfix": ".ruby",
+    "keywords": [
+      "__LINE__",
+      "__ENCODING__",
+      "__FILE__",
+      "BEGIN",
+      "END",
+      "alias",
+      "and",
+      "begin",
+      "break",
+      "case",
+      "class",
+      "def",
+      "defined?",
+      "do",
+      "else",
+      "elsif",
+      "end",
+      "ensure",
+      "for",
+      "false",
+      "if",
+      "in",
+      "module",
+      "next",
+      "nil",
+      "not",
+      "or",
+      "redo",
+      "rescue",
+      "retry",
+      "return",
+      "self",
+      "super",
+      "then",
+      "true",
+      "undef",
+      "unless",
+      "until",
+      "when",
+      "while",
+      "yield"
+    ],
+    "keywordops": [
+      "::",
+      "..",
+      "...",
+      "?",
+      ":",
+      "=>"
+    ],
+    "builtins": [
+      "require",
+      "public",
+      "private",
+      "include",
+      "extend",
+      "attr_reader",
+      "protected",
+      "private_class_method",
+      "protected_class_method",
+      "new"
+    ],
+    "declarations": [
+      "module",
+      "class",
+      "def",
+      "case",
+      "do",
+      "begin",
+      "for",
+      "if",
+      "while",
+      "until",
+      "unless"
+    ],
+    "linedecls": [
+      "def",
+      "case",
+      "do",
+      "begin",
+      "for",
+      "if",
+      "while",
+      "until",
+      "unless"
+    ],
+    "operators": [
+      "^",
+      "&",
+      "|",
+      "<=>",
+      "==",
+      "===",
+      "!~",
+      "=~",
+      ">",
+      ">=",
+      "<",
+      "<=",
+      "<<",
+      ">>",
+      "+",
+      "-",
+      "*",
+      "/",
+      "%",
+      "**",
+      "~",
+      "+@",
+      "-@",
+      "[]",
+      "[]=",
+      "`",
+      "+=",
+      "-=",
+      "*=",
+      "**=",
+      "/=",
+      "^=",
+      "%=",
+      "<<=",
+      ">>=",
+      "&=",
+      "&&=",
+      "||=",
+      "|="
+    ],
+    "brackets": [
+      {
+        "open": "(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "{",
+        "close": "}",
+        "token": "delimiter.curly"
+      },
+      {
+        "open": "[",
+        "close": "]",
+        "token": "delimiter.square"
+      }
+    ],
+    "symbols": {
+      "$regex": "[=><!~?:&|+\\-*\\/\\^%\\.]+",
+      "$flags": ""
+    },
+    "escape": {
+      "$regex": "(?:[abefnrstv\\\\\"'\\n\\r]|[0-7]{1,3}|x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{4})",
+      "$flags": ""
+    },
+    "escapes": {
+      "$regex": "\\\\(?:C\\-(@escape|.)|c(@escape|.)|@escape)",
+      "$flags": ""
+    },
+    "decpart": {
+      "$regex": "\\d(_?\\d)*",
+      "$flags": ""
+    },
+    "decimal": {
+      "$regex": "0|@decpart",
+      "$flags": ""
+    },
+    "delim": {
+      "$regex": "[^a-zA-Z0-9\\s\\n\\r]",
+      "$flags": ""
+    },
+    "heredelim": {
+      "$regex": "(?:\\w+|'[^']*'|\"[^\"]*\"|`[^`]*`)",
+      "$flags": ""
+    },
+    "regexpctl": {
+      "$regex": "[(){}\\[\\]\\$\\^|\\-*+?\\.]",
+      "$flags": ""
+    },
+    "regexpesc": {
+      "$regex": "\\\\(?:[AzZbBdDfnrstvwWn0\\\\\\/]|@regexpctl|c[A-Z]|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4})?",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "^(\\s*)([a-z_]\\w*[!?=]?)",
+            "$flags": ""
+          },
+          [
+            "white",
+            {
+              "cases": {
+                "for|until|while": {
+                  "token": "keyword.$2",
+                  "next": "@dodecl.$2"
+                },
+                "@declarations": {
+                  "token": "keyword.$2",
+                  "next": "@root.$2"
+                },
+                "end": {
+                  "token": "keyword.$S2",
+                  "next": "@pop"
+                },
+                "@keywords": "keyword",
+                "@builtins": "predefined",
+                "@default": "identifier"
+              }
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "[a-z_]\\w*[!?=]?",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "if|unless|while|until": {
+                "token": "keyword.$0x",
+                "next": "@modifier.$0x"
+              },
+              "for": {
+                "token": "keyword.$2",
+                "next": "@dodecl.$2"
+              },
+              "@linedecls": {
+                "token": "keyword.$0",
+                "next": "@root.$0"
+              },
+              "end": {
+                "token": "keyword.$S2",
+                "next": "@pop"
+              },
+              "@keywords": "keyword",
+              "@builtins": "predefined",
+              "@default": "identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[A-Z][\\w]*[!?=]?",
+            "$flags": ""
+          },
+          "constructor.identifier"
+        ],
+        [
+          {
+            "$regex": "\\$[\\w]*",
+            "$flags": ""
+          },
+          "global.constant"
+        ],
+        [
+          {
+            "$regex": "@[\\w]*",
+            "$flags": ""
+          },
+          "namespace.instance.identifier"
+        ],
+        [
+          {
+            "$regex": "@@@[\\w]*",
+            "$flags": ""
+          },
+          "namespace.class.identifier"
+        ],
+        [
+          {
+            "$regex": "<<[-~](@heredelim).*",
+            "$flags": ""
+          },
+          {
+            "token": "string.heredoc.delimiter",
+            "next": "@heredoc.$1"
+          }
+        ],
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+<<(@heredelim).*",
+            "$flags": ""
+          },
+          {
+            "token": "string.heredoc.delimiter",
+            "next": "@heredoc.$1"
+          }
+        ],
+        [
+          {
+            "$regex": "^<<(@heredelim).*",
+            "$flags": ""
+          },
+          {
+            "token": "string.heredoc.delimiter",
+            "next": "@heredoc.$1"
+          }
+        ],
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.d.delim",
+            "next": "@dstring.d.\""
+          }
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string.sq.delim",
+            "next": "@sstring.sq"
+          }
+        ],
+        [
+          {
+            "$regex": "%([rsqxwW]|Q?)",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "pstring"
+          }
+        ],
+        [
+          {
+            "$regex": "`",
+            "$flags": ""
+          },
+          {
+            "token": "string.x.delim",
+            "next": "@dstring.x.`"
+          }
+        ],
+        [
+          {
+            "$regex": ":(\\w|[$@])\\w*[!?=]?",
+            "$flags": ""
+          },
+          "string.s"
+        ],
+        [
+          {
+            "$regex": ":\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.s.delim",
+            "next": "@dstring.s.\""
+          }
+        ],
+        [
+          {
+            "$regex": ":'",
+            "$flags": ""
+          },
+          {
+            "token": "string.s.delim",
+            "next": "@sstring.s"
+          }
+        ],
+        [
+          {
+            "$regex": "\\/(?=(\\\\\\/|[^\\/\\n])+\\/)",
+            "$flags": ""
+          },
+          {
+            "token": "regexp.delim",
+            "next": "@regexp"
+          }
+        ],
+        [
+          {
+            "$regex": "[{}()\\[\\]]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "@symbols",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywordops": "keyword",
+              "@operators": "operator",
+              "@default": ""
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[;,]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "0[xX][0-9a-fA-F](_?[0-9a-fA-F])*",
+            "$flags": ""
+          },
+          "number.hex"
+        ],
+        [
+          {
+            "$regex": "0[_oO][0-7](_?[0-7])*",
+            "$flags": ""
+          },
+          "number.octal"
+        ],
+        [
+          {
+            "$regex": "0[bB][01](_?[01])*",
+            "$flags": ""
+          },
+          "number.binary"
+        ],
+        [
+          {
+            "$regex": "0[dD]@decpart",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": "@decimal((\\.@decpart)?([eE][\\-+]?@decpart)?)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$1": "number.float",
+              "@default": "number"
+            }
+          }
+        ]
+      ],
+      "dodecl": [
+        [
+          {
+            "$regex": "^",
+            "$flags": ""
+          },
+          {
+            "token": "",
+            "switchTo": "@root.$S2"
+          }
+        ],
+        [
+          {
+            "$regex": "[a-z_]\\w*[!?=]?",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "end": {
+                "token": "keyword.$S2",
+                "next": "@pop"
+              },
+              "do": {
+                "token": "keyword",
+                "switchTo": "@root.$S2"
+              },
+              "@linedecls": {
+                "token": "@rematch",
+                "switchTo": "@root.$S2"
+              },
+              "@keywords": "keyword",
+              "@builtins": "predefined",
+              "@default": "identifier"
+            }
+          }
+        ],
+        {
+          "include": "@root"
+        }
+      ],
+      "modifier": [
+        [
+          {
+            "$regex": "^",
+            "$flags": ""
+          },
+          "",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[a-z_]\\w*[!?=]?",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "end": {
+                "token": "keyword.$S2",
+                "next": "@pop"
+              },
+              "then|else|elsif|do": {
+                "token": "keyword",
+                "switchTo": "@root.$S2"
+              },
+              "@linedecls": {
+                "token": "@rematch",
+                "switchTo": "@root.$S2"
+              },
+              "@keywords": "keyword",
+              "@builtins": "predefined",
+              "@default": "identifier"
+            }
+          }
+        ],
+        {
+          "include": "@root"
+        }
+      ],
+      "sstring": [
+        [
+          {
+            "$regex": "[^\\\\']+",
+            "$flags": ""
+          },
+          "string.$S2"
+        ],
+        [
+          {
+            "$regex": "\\\\\\\\|\\\\'|\\\\$",
+            "$flags": ""
+          },
+          "string.$S2.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.$S2.invalid"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string.$S2.delim",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "dstring": [
+        [
+          {
+            "$regex": "[^\\\\`\"#]+",
+            "$flags": ""
+          },
+          "string.$S2"
+        ],
+        [
+          {
+            "$regex": "#",
+            "$flags": ""
+          },
+          "string.$S2.escape",
+          "@interpolated"
+        ],
+        [
+          {
+            "$regex": "\\\\$",
+            "$flags": ""
+          },
+          "string.$S2.escape"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.$S2.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.$S2.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "[`\"]",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$#==$S3": {
+                "token": "string.$S2.delim",
+                "next": "@pop"
+              },
+              "@default": "string.$S2"
+            }
+          }
+        ]
+      ],
+      "heredoc": [
+        [
+          {
+            "$regex": "^(\\s*)(@heredelim)$",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$2==$S2": [
+                "string.heredoc",
+                {
+                  "token": "string.heredoc.delimiter",
+                  "next": "@pop"
+                }
+              ],
+              "@default": [
+                "string.heredoc",
+                "string.heredoc"
+              ]
+            }
+          }
+        ],
+        [
+          {
+            "$regex": ".*",
+            "$flags": ""
+          },
+          "string.heredoc"
+        ]
+      ],
+      "interpolated": [
+        [
+          {
+            "$regex": "\\$\\w*",
+            "$flags": ""
+          },
+          "global.constant",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "@\\w*",
+            "$flags": ""
+          },
+          "namespace.class.identifier",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "@@@\\w*",
+            "$flags": ""
+          },
+          "namespace.instance.identifier",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[{]",
+            "$flags": ""
+          },
+          {
+            "token": "string.escape.curly",
+            "switchTo": "@interpolated_compound"
+          }
+        ],
+        [
+          "",
+          "",
+          "@pop"
+        ]
+      ],
+      "interpolated_compound": [
+        [
+          {
+            "$regex": "[}]",
+            "$flags": ""
+          },
+          {
+            "token": "string.escape.curly",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "@root"
+        }
+      ],
+      "pregexp": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "[^\\(\\{\\[\\\\]",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$#==$S3": {
+                "token": "regexp.delim",
+                "next": "@pop"
+              },
+              "$#==$S2": {
+                "token": "regexp.delim",
+                "next": "@push"
+              },
+              "~[)}\\]]": "@brackets.regexp.escape.control",
+              "~@regexpctl": "regexp.escape.control",
+              "@default": "regexp"
+            }
+          }
+        ],
+        {
+          "include": "@regexcontrol"
+        }
+      ],
+      "regexp": [
+        {
+          "include": "@regexcontrol"
+        },
+        [
+          {
+            "$regex": "[^\\\\\\/]",
+            "$flags": ""
+          },
+          "regexp"
+        ],
+        [
+          "/[ixmp]*",
+          {
+            "token": "regexp.delim"
+          },
+          "@pop"
+        ]
+      ],
+      "regexcontrol": [
+        [
+          {
+            "$regex": "(\\{)(\\d+(?:,\\d*)?)(\\})",
+            "$flags": ""
+          },
+          [
+            "@brackets.regexp.escape.control",
+            "regexp.escape.control",
+            "@brackets.regexp.escape.control"
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\[)(\\^?)",
+            "$flags": ""
+          },
+          [
+            "@brackets.regexp.escape.control",
+            {
+              "token": "regexp.escape.control",
+              "next": "@regexrange"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\()(\\?[:=!])",
+            "$flags": ""
+          },
+          [
+            "@brackets.regexp.escape.control",
+            "regexp.escape.control"
+          ]
+        ],
+        [
+          {
+            "$regex": "\\(\\?#",
+            "$flags": ""
+          },
+          {
+            "token": "regexp.escape.control",
+            "next": "@regexpcomment"
+          }
+        ],
+        [
+          {
+            "$regex": "[()]",
+            "$flags": ""
+          },
+          "@brackets.regexp.escape.control"
+        ],
+        [
+          {
+            "$regex": "@regexpctl",
+            "$flags": ""
+          },
+          "regexp.escape.control"
+        ],
+        [
+          {
+            "$regex": "\\\\$",
+            "$flags": ""
+          },
+          "regexp.escape"
+        ],
+        [
+          {
+            "$regex": "@regexpesc",
+            "$flags": ""
+          },
+          "regexp.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\\\.",
+            "$flags": ""
+          },
+          "regexp.invalid"
+        ],
+        [
+          {
+            "$regex": "#",
+            "$flags": ""
+          },
+          "regexp.escape",
+          "@interpolated"
+        ]
+      ],
+      "regexrange": [
+        [
+          {
+            "$regex": "-",
+            "$flags": ""
+          },
+          "regexp.escape.control"
+        ],
+        [
+          {
+            "$regex": "\\^",
+            "$flags": ""
+          },
+          "regexp.invalid"
+        ],
+        [
+          {
+            "$regex": "\\\\$",
+            "$flags": ""
+          },
+          "regexp.escape"
+        ],
+        [
+          {
+            "$regex": "@regexpesc",
+            "$flags": ""
+          },
+          "regexp.escape"
+        ],
+        [
+          {
+            "$regex": "[^\\]]",
+            "$flags": ""
+          },
+          "regexp"
+        ],
+        [
+          {
+            "$regex": "\\]",
+            "$flags": ""
+          },
+          "@brackets.regexp.escape.control",
+          "@pop"
+        ]
+      ],
+      "regexpcomment": [
+        [
+          {
+            "$regex": "[^)]+",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "\\)",
+            "$flags": ""
+          },
+          {
+            "token": "regexp.escape.control",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "pstring": [
+        [
+          {
+            "$regex": "%([qws])\\(",
+            "$flags": ""
+          },
+          {
+            "token": "string.$1.delim",
+            "switchTo": "@qstring.$1.(.)"
+          }
+        ],
+        [
+          {
+            "$regex": "%([qws])\\[",
+            "$flags": ""
+          },
+          {
+            "token": "string.$1.delim",
+            "switchTo": "@qstring.$1.[.]"
+          }
+        ],
+        [
+          {
+            "$regex": "%([qws])\\{",
+            "$flags": ""
+          },
+          {
+            "token": "string.$1.delim",
+            "switchTo": "@qstring.$1.{.}"
+          }
+        ],
+        [
+          {
+            "$regex": "%([qws])<",
+            "$flags": ""
+          },
+          {
+            "token": "string.$1.delim",
+            "switchTo": "@qstring.$1.<.>"
+          }
+        ],
+        [
+          {
+            "$regex": "%([qws])(@delim)",
+            "$flags": ""
+          },
+          {
+            "token": "string.$1.delim",
+            "switchTo": "@qstring.$1.$2.$2"
+          }
+        ],
+        [
+          {
+            "$regex": "%r\\(",
+            "$flags": ""
+          },
+          {
+            "token": "regexp.delim",
+            "switchTo": "@pregexp.(.)"
+          }
+        ],
+        [
+          {
+            "$regex": "%r\\[",
+            "$flags": ""
+          },
+          {
+            "token": "regexp.delim",
+            "switchTo": "@pregexp.[.]"
+          }
+        ],
+        [
+          {
+            "$regex": "%r\\{",
+            "$flags": ""
+          },
+          {
+            "token": "regexp.delim",
+            "switchTo": "@pregexp.{.}"
+          }
+        ],
+        [
+          {
+            "$regex": "%r<",
+            "$flags": ""
+          },
+          {
+            "token": "regexp.delim",
+            "switchTo": "@pregexp.<.>"
+          }
+        ],
+        [
+          {
+            "$regex": "%r(@delim)",
+            "$flags": ""
+          },
+          {
+            "token": "regexp.delim",
+            "switchTo": "@pregexp.$1.$1"
+          }
+        ],
+        [
+          {
+            "$regex": "%(x|W|Q?)\\(",
+            "$flags": ""
+          },
+          {
+            "token": "string.$1.delim",
+            "switchTo": "@qqstring.$1.(.)"
+          }
+        ],
+        [
+          {
+            "$regex": "%(x|W|Q?)\\[",
+            "$flags": ""
+          },
+          {
+            "token": "string.$1.delim",
+            "switchTo": "@qqstring.$1.[.]"
+          }
+        ],
+        [
+          {
+            "$regex": "%(x|W|Q?)\\{",
+            "$flags": ""
+          },
+          {
+            "token": "string.$1.delim",
+            "switchTo": "@qqstring.$1.{.}"
+          }
+        ],
+        [
+          {
+            "$regex": "%(x|W|Q?)<",
+            "$flags": ""
+          },
+          {
+            "token": "string.$1.delim",
+            "switchTo": "@qqstring.$1.<.>"
+          }
+        ],
+        [
+          {
+            "$regex": "%(x|W|Q?)(@delim)",
+            "$flags": ""
+          },
+          {
+            "token": "string.$1.delim",
+            "switchTo": "@qqstring.$1.$2.$2"
+          }
+        ],
+        [
+          {
+            "$regex": "%([rqwsxW]|Q?).",
+            "$flags": ""
+          },
+          {
+            "token": "invalid",
+            "next": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          {
+            "token": "invalid",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "qstring": [
+        [
+          {
+            "$regex": "\\\\$",
+            "$flags": ""
+          },
+          "string.$S2.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.$S2.escape"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$#==$S4": {
+                "token": "string.$S2.delim",
+                "next": "@pop"
+              },
+              "$#==$S3": {
+                "token": "string.$S2.delim",
+                "next": "@push"
+              },
+              "@default": "string.$S2"
+            }
+          }
+        ]
+      ],
+      "qqstring": [
+        [
+          {
+            "$regex": "#",
+            "$flags": ""
+          },
+          "string.$S2.escape",
+          "@interpolated"
+        ],
+        {
+          "include": "@qstring"
+        }
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          ""
+        ],
+        [
+          {
+            "$regex": "^\\s*=begin\\b",
+            "$flags": ""
+          },
+          "comment",
+          "@comment"
+        ],
+        [
+          {
+            "$regex": "#.*$",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "[^=]+",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "^\\s*=begin\\b",
+            "$flags": ""
+          },
+          "comment.invalid"
+        ],
+        [
+          {
+            "$regex": "^\\s*=end\\b.*",
+            "$flags": ""
+          },
+          "comment",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[=]",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "#",
+      "blockComment": [
+        "=begin",
+        "=end"
+      ]
+    },
+    "brackets": [
+      [
+        "(",
+        ")"
+      ],
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "indentationRules": {
+      "increaseIndentPattern": {
+        "$regex": "^\\s*((begin|class|(private|protected)\\s+def|def|else|elsif|ensure|for|if|module|rescue|unless|until|when|while|case)|([^#]*\\sdo\\b)|([^#]*=\\s*(case|if|unless)))\\b([^#\\{;]|(\"|'|\\/).*\\4)*(#.*)?$",
+        "$flags": ""
+      },
+      "decreaseIndentPattern": {
+        "$regex": "^\\s*([}\\]]([,)]?\\s*(#|$)|\\.[a-zA-Z_]\\w*\\b)|(end|rescue|ensure|else|elsif|when)\\b)",
+        "$flags": ""
+      }
+    }
+  }
+}

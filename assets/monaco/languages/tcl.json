@@ -1,0 +1,560 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "tcl",
+  "language": {
+    "tokenPostfix": ".tcl",
+    "specialFunctions": [
+      "set",
+      "unset",
+      "rename",
+      "variable",
+      "proc",
+      "coroutine",
+      "foreach",
+      "incr",
+      "append",
+      "lappend",
+      "linsert",
+      "lreplace"
+    ],
+    "mainFunctions": [
+      "if",
+      "then",
+      "elseif",
+      "else",
+      "case",
+      "switch",
+      "while",
+      "for",
+      "break",
+      "continue",
+      "return",
+      "package",
+      "namespace",
+      "catch",
+      "exit",
+      "eval",
+      "expr",
+      "uplevel",
+      "upvar"
+    ],
+    "builtinFunctions": [
+      "file",
+      "info",
+      "concat",
+      "join",
+      "lindex",
+      "list",
+      "llength",
+      "lrange",
+      "lsearch",
+      "lsort",
+      "split",
+      "array",
+      "parray",
+      "binary",
+      "format",
+      "regexp",
+      "regsub",
+      "scan",
+      "string",
+      "subst",
+      "dict",
+      "cd",
+      "clock",
+      "exec",
+      "glob",
+      "pid",
+      "pwd",
+      "close",
+      "eof",
+      "fblocked",
+      "fconfigure",
+      "fcopy",
+      "fileevent",
+      "flush",
+      "gets",
+      "open",
+      "puts",
+      "read",
+      "seek",
+      "socket",
+      "tell",
+      "interp",
+      "after",
+      "auto_execok",
+      "auto_load",
+      "auto_mkindex",
+      "auto_reset",
+      "bgerror",
+      "error",
+      "global",
+      "history",
+      "load",
+      "source",
+      "time",
+      "trace",
+      "unknown",
+      "unset",
+      "update",
+      "vwait",
+      "winfo",
+      "wm",
+      "bind",
+      "event",
+      "pack",
+      "place",
+      "grid",
+      "font",
+      "bell",
+      "clipboard",
+      "destroy",
+      "focus",
+      "grab",
+      "lower",
+      "option",
+      "raise",
+      "selection",
+      "send",
+      "tk",
+      "tkwait",
+      "tk_bisque",
+      "tk_focusNext",
+      "tk_focusPrev",
+      "tk_focusFollowsMouse",
+      "tk_popup",
+      "tk_setPalette"
+    ],
+    "symbols": {
+      "$regex": "[=><!~?:&|+\\-*\\/\\^%]+",
+      "$flags": ""
+    },
+    "brackets": [
+      {
+        "open": "(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      },
+      {
+        "open": "{",
+        "close": "}",
+        "token": "delimiter.curly"
+      },
+      {
+        "open": "[",
+        "close": "]",
+        "token": "delimiter.square"
+      }
+    ],
+    "escapes": {
+      "$regex": "\\\\(?:[abfnrtv\\\\\"'\\[\\]\\{\\};\\$]|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})",
+      "$flags": ""
+    },
+    "variables": {
+      "$regex": "(?:\\$+(?:(?:\\:\\:?)?[a-zA-Z_]\\w*)+)",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "[a-zA-Z_]\\w*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@specialFunctions": {
+                "token": "keyword.flow",
+                "next": "@specialFunc"
+              },
+              "@mainFunctions": "keyword",
+              "@builtinFunctions": "variable",
+              "@default": "operator.scss"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\s+\\-+(?!\\d|\\.)\\w*|{\\*}",
+            "$flags": ""
+          },
+          "metatag"
+        ],
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "[{}()\\[\\]]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "@symbols",
+            "$flags": ""
+          },
+          "operator"
+        ],
+        [
+          {
+            "$regex": "\\$+(?:\\:\\:)?\\{",
+            "$flags": ""
+          },
+          {
+            "token": "identifier",
+            "next": "@nestedVariable"
+          }
+        ],
+        [
+          {
+            "$regex": "@variables",
+            "$flags": ""
+          },
+          "type.identifier"
+        ],
+        [
+          {
+            "$regex": "\\.(?!\\d|\\.)[\\w\\-]*",
+            "$flags": ""
+          },
+          "operator.sql"
+        ],
+        [
+          {
+            "$regex": "\\d+(\\.\\d+)?",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": "\\d+",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@dstring"
+          }
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@sstring"
+          }
+        ]
+      ],
+      "dstring": [
+        [
+          {
+            "$regex": "\\[",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "next": "@nestedCall"
+          }
+        ],
+        [
+          {
+            "$regex": "\\$+(?:\\:\\:)?\\{",
+            "$flags": ""
+          },
+          {
+            "token": "identifier",
+            "next": "@nestedVariable"
+          }
+        ],
+        [
+          {
+            "$regex": "@variables",
+            "$flags": ""
+          },
+          "type.identifier"
+        ],
+        [
+          {
+            "$regex": "[^\\\\$\\[\\]\"]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "sstring": [
+        [
+          {
+            "$regex": "\\[",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "next": "@nestedCall"
+          }
+        ],
+        [
+          {
+            "$regex": "\\$+(?:\\:\\:)?\\{",
+            "$flags": ""
+          },
+          {
+            "token": "identifier",
+            "next": "@nestedVariable"
+          }
+        ],
+        [
+          {
+            "$regex": "@variables",
+            "$flags": ""
+          },
+          "type.identifier"
+        ],
+        [
+          {
+            "$regex": "[^\\\\$\\[\\]']+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          "white"
+        ],
+        [
+          {
+            "$regex": "#.*\\\\$",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@newlineComment"
+          }
+        ],
+        [
+          {
+            "$regex": "#.*(?!\\\\)$",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "newlineComment": [
+        [
+          {
+            "$regex": ".*\\\\$",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": ".*(?!\\\\)$",
+            "$flags": ""
+          },
+          {
+            "token": "comment",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "nestedVariable": [
+        [
+          {
+            "$regex": "[^\\{\\}\\$]+",
+            "$flags": ""
+          },
+          "type.identifier"
+        ],
+        [
+          {
+            "$regex": "\\}",
+            "$flags": ""
+          },
+          {
+            "token": "identifier",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "nestedCall": [
+        [
+          {
+            "$regex": "\\[",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "next": "@nestedCall"
+          }
+        ],
+        [
+          {
+            "$regex": "\\]",
+            "$flags": ""
+          },
+          {
+            "token": "@brackets",
+            "next": "@pop"
+          }
+        ],
+        {
+          "include": "root"
+        }
+      ],
+      "specialFunc": [
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@dstring"
+          }
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@sstring"
+          }
+        ],
+        [
+          {
+            "$regex": "\\S+",
+            "$flags": ""
+          },
+          {
+            "token": "type",
+            "next": "@pop"
+          }
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ]
+  }
+}

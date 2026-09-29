@@ -1,0 +1,626 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "markdown",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".md",
+    "control": {
+      "$regex": "[\\\\`*_\\[\\]{}()#+\\-\\.!]",
+      "$flags": ""
+    },
+    "noncontrol": {
+      "$regex": "[^\\\\`*_\\[\\]{}()#+\\-\\.!]",
+      "$flags": ""
+    },
+    "escapes": {
+      "$regex": "\\\\(?:@control)",
+      "$flags": ""
+    },
+    "jsescapes": {
+      "$regex": "\\\\(?:[btnfr\\\\\"']|[0-7][0-7]?|[0-3][0-7]{2})",
+      "$flags": ""
+    },
+    "empty": [
+      "area",
+      "base",
+      "basefont",
+      "br",
+      "col",
+      "frame",
+      "hr",
+      "img",
+      "input",
+      "isindex",
+      "link",
+      "meta",
+      "param"
+    ],
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "^\\s*\\|",
+            "$flags": ""
+          },
+          "@rematch",
+          "@table_header"
+        ],
+        [
+          {
+            "$regex": "^(\\s{0,3})(#+)((?:[^\\\\#]|@escapes)+)((?:#+)?)",
+            "$flags": ""
+          },
+          [
+            "white",
+            "keyword",
+            "keyword",
+            "keyword"
+          ]
+        ],
+        [
+          {
+            "$regex": "^\\s*(=+|\\-+)\\s*$",
+            "$flags": ""
+          },
+          "keyword"
+        ],
+        [
+          {
+            "$regex": "^\\s*((\\*[ ]?)+)\\s*$",
+            "$flags": ""
+          },
+          "meta.separator"
+        ],
+        [
+          {
+            "$regex": "^\\s*>+",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "^\\s*([\\*\\-+:]|\\d+\\.)\\s",
+            "$flags": ""
+          },
+          "keyword"
+        ],
+        [
+          {
+            "$regex": "^(\\t|[ ]{4})[^ ].*$",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "^\\s*~~~\\s*((?:\\w|[\\/\\-#])+)?\\s*$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@codeblock"
+          }
+        ],
+        [
+          {
+            "$regex": "^\\s*```\\s*((?:\\w|[\\/\\-#])+).*$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@codeblockgh",
+            "nextEmbedded": "$1"
+          }
+        ],
+        [
+          {
+            "$regex": "^\\s*```\\s*$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@codeblock"
+          }
+        ],
+        {
+          "include": "@linecontent"
+        }
+      ],
+      "table_header": [
+        {
+          "include": "@table_common"
+        },
+        [
+          {
+            "$regex": "[^\\|]+",
+            "$flags": ""
+          },
+          "keyword.table.header"
+        ]
+      ],
+      "table_body": [
+        {
+          "include": "@table_common"
+        },
+        {
+          "include": "@linecontent"
+        }
+      ],
+      "table_common": [
+        [
+          {
+            "$regex": "\\s*[\\-:]+\\s*",
+            "$flags": ""
+          },
+          {
+            "token": "keyword",
+            "switchTo": "table_body"
+          }
+        ],
+        [
+          {
+            "$regex": "^\\s*\\|",
+            "$flags": ""
+          },
+          "keyword.table.left"
+        ],
+        [
+          {
+            "$regex": "^\\s*[^\\|]",
+            "$flags": ""
+          },
+          "@rematch",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "^\\s*$",
+            "$flags": ""
+          },
+          "@rematch",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "\\|",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": "keyword.table.right",
+              "@default": "keyword.table.middle"
+            }
+          }
+        ]
+      ],
+      "codeblock": [
+        [
+          {
+            "$regex": "^\\s*~~~\\s*$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "^\\s*```\\s*$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": ".*$",
+            "$flags": ""
+          },
+          "variable.source"
+        ]
+      ],
+      "codeblockgh": [
+        [
+          {
+            "$regex": "```\\s*$",
+            "$flags": ""
+          },
+          {
+            "token": "string",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "[^`]+",
+            "$flags": ""
+          },
+          "variable.source"
+        ]
+      ],
+      "linecontent": [
+        [
+          {
+            "$regex": "&\\w+;",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "escape"
+        ],
+        [
+          {
+            "$regex": "\\b__([^\\\\_]|@escapes|_(?!_))+__\\b",
+            "$flags": ""
+          },
+          "strong"
+        ],
+        [
+          {
+            "$regex": "\\*\\*([^\\\\*]|@escapes|\\*(?!\\*))+\\*\\*",
+            "$flags": ""
+          },
+          "strong"
+        ],
+        [
+          {
+            "$regex": "\\b_[^_]+_\\b",
+            "$flags": ""
+          },
+          "emphasis"
+        ],
+        [
+          {
+            "$regex": "\\*([^\\\\*]|@escapes)+\\*",
+            "$flags": ""
+          },
+          "emphasis"
+        ],
+        [
+          {
+            "$regex": "`([^\\\\`]|@escapes)+`",
+            "$flags": ""
+          },
+          "variable"
+        ],
+        [
+          {
+            "$regex": "\\{+[^}]+\\}+",
+            "$flags": ""
+          },
+          "string.target"
+        ],
+        [
+          {
+            "$regex": "(!?\\[)((?:[^\\]\\\\]|@escapes)*)(\\]\\([^\\)]+\\))",
+            "$flags": ""
+          },
+          [
+            "string.link",
+            "",
+            "string.link"
+          ]
+        ],
+        [
+          {
+            "$regex": "(!?\\[)((?:[^\\]\\\\]|@escapes)*)(\\])",
+            "$flags": ""
+          },
+          "string.link"
+        ],
+        {
+          "include": "html"
+        }
+      ],
+      "html": [
+        [
+          {
+            "$regex": "<(\\w+)\\/>",
+            "$flags": ""
+          },
+          "tag"
+        ],
+        [
+          {
+            "$regex": "<(\\w+)(\\-|\\w)*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@empty": {
+                "token": "tag",
+                "next": "@tag.$1"
+              },
+              "@default": {
+                "token": "tag",
+                "next": "@tag.$1"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "<\\/(\\w+)(\\-|\\w)*\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "tag"
+          }
+        ],
+        [
+          {
+            "$regex": "<!--",
+            "$flags": ""
+          },
+          "comment",
+          "@comment"
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "[^<\\-]+",
+            "$flags": ""
+          },
+          "comment.content"
+        ],
+        [
+          {
+            "$regex": "-->",
+            "$flags": ""
+          },
+          "comment",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "<!--",
+            "$flags": ""
+          },
+          "comment.content.invalid"
+        ],
+        [
+          {
+            "$regex": "[<\\-]",
+            "$flags": ""
+          },
+          "comment.content"
+        ]
+      ],
+      "tag": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          "white"
+        ],
+        [
+          {
+            "$regex": "(type)(\\s*=\\s*)(\")([^\"]+)(\")",
+            "$flags": ""
+          },
+          [
+            "attribute.name.html",
+            "delimiter.html",
+            "string.html",
+            {
+              "token": "string.html",
+              "switchTo": "@tag.$S2.$4"
+            },
+            "string.html"
+          ]
+        ],
+        [
+          {
+            "$regex": "(type)(\\s*=\\s*)(')([^']+)(')",
+            "$flags": ""
+          },
+          [
+            "attribute.name.html",
+            "delimiter.html",
+            "string.html",
+            {
+              "token": "string.html",
+              "switchTo": "@tag.$S2.$4"
+            },
+            "string.html"
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\w+)(\\s*=\\s*)(\"[^\"]*\"|'[^']*')",
+            "$flags": ""
+          },
+          [
+            "attribute.name.html",
+            "delimiter.html",
+            "string.html"
+          ]
+        ],
+        [
+          {
+            "$regex": "\\w+",
+            "$flags": ""
+          },
+          "attribute.name.html"
+        ],
+        [
+          {
+            "$regex": "\\/>",
+            "$flags": ""
+          },
+          "tag",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": ">",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "$S2==style": {
+                "token": "tag",
+                "switchTo": "embeddedStyle",
+                "nextEmbedded": "text/css"
+              },
+              "$S2==script": {
+                "cases": {
+                  "$S3": {
+                    "token": "tag",
+                    "switchTo": "embeddedScript",
+                    "nextEmbedded": "$S3"
+                  },
+                  "@default": {
+                    "token": "tag",
+                    "switchTo": "embeddedScript",
+                    "nextEmbedded": "text/javascript"
+                  }
+                }
+              },
+              "@default": {
+                "token": "tag",
+                "next": "@pop"
+              }
+            }
+          }
+        ]
+      ],
+      "embeddedStyle": [
+        [
+          {
+            "$regex": "[^<]+",
+            "$flags": ""
+          },
+          ""
+        ],
+        [
+          {
+            "$regex": "<\\/style\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "<",
+            "$flags": ""
+          },
+          ""
+        ]
+      ],
+      "embeddedScript": [
+        [
+          {
+            "$regex": "[^<]+",
+            "$flags": ""
+          },
+          ""
+        ],
+        [
+          {
+            "$regex": "<\\/script\\s*>",
+            "$flags": ""
+          },
+          {
+            "token": "@rematch",
+            "next": "@pop",
+            "nextEmbedded": "@pop"
+          }
+        ],
+        [
+          {
+            "$regex": "<",
+            "$flags": ""
+          },
+          ""
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "blockComment": [
+        "<!--",
+        "-->"
+      ]
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "<",
+        "close": ">",
+        "notIn": [
+          "string"
+        ]
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "`",
+        "close": "`"
+      }
+    ],
+    "folding": {
+      "markers": {
+        "start": {
+          "$regex": "^\\s*<!--\\s*#?region\\b.*-->",
+          "$flags": ""
+        },
+        "end": {
+          "$regex": "^\\s*<!--\\s*#?endregion\\b.*-->",
+          "$flags": ""
+        }
+      }
+    }
+  }
+}

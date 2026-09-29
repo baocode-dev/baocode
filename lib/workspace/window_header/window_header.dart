@@ -110,12 +110,18 @@ class _WindowHeaderState extends State<WindowHeader> {
               KeyedSubtree(
                 key: _toggle,
                 child: SidebarIconButton(
-                  icon: Icons.view_sidebar_outlined,
-                  flip: true,
-                  tooltip: widget.sidebarShown
+                  icon: widget.workspace.layout == WorkspaceLayout.ide
+                      ? Icons.chat_bubble_outline_rounded
+                      : Icons.view_sidebar_outlined,
+                  flip: widget.workspace.layout != WorkspaceLayout.ide,
+                  tooltip: widget.workspace.layout == WorkspaceLayout.ide
+                      ? 'Back to chat'
+                      : widget.sidebarShown
                       ? 'Hide sidebar'
                       : 'Show sidebar',
-                  onTap: widget.onToggleSidebar,
+                  onTap: widget.workspace.layout == WorkspaceLayout.ide
+                      ? () => widget.workspace.layout = WorkspaceLayout.chat
+                      : widget.onToggleSidebar,
                 ),
               ),
               const SizedBox(width: 2),
@@ -240,11 +246,17 @@ class _WindowHeaderState extends State<WindowHeader> {
       ),
     ],
     HeaderMenu.view => [
-      HeaderMenuItem(
-        widget.sidebarShown ? 'Hide Sidebar' : 'Show Sidebar',
-        shortcut: 'Ctrl+B',
-        onSelected: widget.onToggleSidebar,
-      ),
+      if (widget.workspace.layout == WorkspaceLayout.ide)
+        HeaderMenuItem(
+          'Back to Chat',
+          onSelected: () => widget.workspace.layout = WorkspaceLayout.chat,
+        )
+      else
+        HeaderMenuItem(
+          widget.sidebarShown ? 'Hide Sidebar' : 'Show Sidebar',
+          shortcut: 'Ctrl+B',
+          onSelected: widget.onToggleSidebar,
+        ),
       HeaderMenuItem(
         'Keep on Top',
         checked: widget.pinned,

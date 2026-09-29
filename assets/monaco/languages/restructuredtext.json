@@ -1,0 +1,614 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "restructuredtext",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".rst",
+    "control": {
+      "$regex": "[\\\\`*_\\[\\]{}()#+\\-\\.!]",
+      "$flags": ""
+    },
+    "escapes": {
+      "$regex": "\\\\(?:@control)",
+      "$flags": ""
+    },
+    "empty": [
+      "area",
+      "base",
+      "basefont",
+      "br",
+      "col",
+      "frame",
+      "hr",
+      "img",
+      "input",
+      "isindex",
+      "link",
+      "meta",
+      "param"
+    ],
+    "alphanumerics": {
+      "$regex": "[A-Za-z0-9]",
+      "$flags": ""
+    },
+    "simpleRefNameWithoutBq": {
+      "$regex": "(?:@alphanumerics[-_+:.]*@alphanumerics)+|(?:@alphanumerics+)",
+      "$flags": ""
+    },
+    "simpleRefName": {
+      "$regex": "(?:`@phrase`|@simpleRefNameWithoutBq)",
+      "$flags": ""
+    },
+    "phrase": {
+      "$regex": "@simpleRefNameWithoutBq(?:\\s@simpleRefNameWithoutBq)*",
+      "$flags": ""
+    },
+    "citationName": {
+      "$regex": "[A-Za-z][A-Za-z0-9-_.]*",
+      "$flags": ""
+    },
+    "blockLiteralStart": {
+      "$regex": "(?:[!\"#$%&'()*+,-./:;<=>?@\\[\\]^_`{|}~]|[\\s])",
+      "$flags": ""
+    },
+    "precedingChars": {
+      "$regex": "(?:[ -:/'\"<([{])",
+      "$flags": ""
+    },
+    "followingChars": {
+      "$regex": "(?:[ -.,:;!?/'\")\\]}>]|$)",
+      "$flags": ""
+    },
+    "punctuation": {
+      "$regex": "(=|-|~|`|#|\"|\\^|\\+|\\*|:|\\.|'|_|\\+)",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "^(@punctuation{3,}$){1,1}?",
+            "$flags": ""
+          },
+          "keyword"
+        ],
+        [
+          {
+            "$regex": "^\\s*([\\*\\-+‣•]|[a-zA-Z0-9]+\\.|\\([a-zA-Z0-9]+\\)|[a-zA-Z0-9]+\\))\\s",
+            "$flags": ""
+          },
+          "keyword"
+        ],
+        [
+          {
+            "$regex": "([ ]::)\\s*$",
+            "$flags": ""
+          },
+          "keyword",
+          "@blankLineOfLiteralBlocks"
+        ],
+        [
+          {
+            "$regex": "(::)\\s*$",
+            "$flags": ""
+          },
+          "keyword",
+          "@blankLineOfLiteralBlocks"
+        ],
+        {
+          "include": "@tables"
+        },
+        {
+          "include": "@explicitMarkupBlocks"
+        },
+        {
+          "include": "@inlineMarkup"
+        }
+      ],
+      "explicitMarkupBlocks": [
+        {
+          "include": "@citations"
+        },
+        {
+          "include": "@footnotes"
+        },
+        [
+          {
+            "$regex": "^(\\.\\.\\s)(@simpleRefName)(::\\s)(.*)$",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "",
+              "next": "subsequentLines"
+            },
+            "keyword",
+            "",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "^(\\.\\.)(\\s+)(_)(@simpleRefName)(:)(\\s+)(.*)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "",
+              "next": "hyperlinks"
+            },
+            "",
+            "",
+            "string.link",
+            "",
+            "",
+            "string.link"
+          ]
+        ],
+        [
+          {
+            "$regex": "^((?:(?:\\.\\.)(?:\\s+))?)(__)(:)(\\s+)(.*)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "",
+              "next": "subsequentLines"
+            },
+            "",
+            "",
+            "",
+            "string.link"
+          ]
+        ],
+        [
+          {
+            "$regex": "^(__\\s+)(.+)",
+            "$flags": ""
+          },
+          [
+            "",
+            "string.link"
+          ]
+        ],
+        [
+          {
+            "$regex": "^(\\.\\.)( \\|)([^| ]+[^|]*[^| ]*)(\\| )(@simpleRefName)(:: .*)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "",
+              "next": "subsequentLines"
+            },
+            "",
+            "string.link",
+            "",
+            "keyword",
+            ""
+          ],
+          "@rawBlocks"
+        ],
+        [
+          {
+            "$regex": "(\\|)([^| ]+[^|]*[^| ]*)(\\|_{0,2})",
+            "$flags": ""
+          },
+          [
+            "",
+            "string.link",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "^(\\.\\.)([ ].*)$",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "",
+              "next": "@comments"
+            },
+            "comment"
+          ]
+        ]
+      ],
+      "inlineMarkup": [
+        {
+          "include": "@citationsReference"
+        },
+        {
+          "include": "@footnotesReference"
+        },
+        [
+          {
+            "$regex": "(@simpleRefName)(_{1,2})",
+            "$flags": ""
+          },
+          [
+            "string.link",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "(`)([^<`]+\\s+)(<)(.*)(>)(`)(_)",
+            "$flags": ""
+          },
+          [
+            "",
+            "string.link",
+            "",
+            "string.link",
+            "",
+            "",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "\\*\\*([^\\\\*]|\\*(?!\\*))+\\*\\*",
+            "$flags": ""
+          },
+          "strong"
+        ],
+        [
+          {
+            "$regex": "\\*[^*]+\\*",
+            "$flags": ""
+          },
+          "emphasis"
+        ],
+        [
+          {
+            "$regex": "(``)((?:[^`]|\\`(?!`))+)(``)",
+            "$flags": ""
+          },
+          [
+            "",
+            "keyword",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "(__\\s+)(.+)",
+            "$flags": ""
+          },
+          [
+            "",
+            "keyword"
+          ]
+        ],
+        [
+          {
+            "$regex": "(:)((?:@simpleRefNameWithoutBq)?)(:`)([^`]+)(`)",
+            "$flags": ""
+          },
+          [
+            "",
+            "keyword",
+            "",
+            "",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "(`)([^`]+)(`:)((?:@simpleRefNameWithoutBq)?)(:)",
+            "$flags": ""
+          },
+          [
+            "",
+            "",
+            "",
+            "keyword",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "(`)([^`]+)(`)",
+            "$flags": ""
+          },
+          ""
+        ],
+        [
+          {
+            "$regex": "(_`)(@phrase)(`)",
+            "$flags": ""
+          },
+          [
+            "",
+            "string.link",
+            ""
+          ]
+        ]
+      ],
+      "citations": [
+        [
+          {
+            "$regex": "^(\\.\\.\\s+\\[)((?:@citationName))(\\]\\s+)(.*)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "",
+              "next": "@subsequentLines"
+            },
+            "string.link",
+            "",
+            ""
+          ]
+        ]
+      ],
+      "citationsReference": [
+        [
+          {
+            "$regex": "(\\[)(@citationName)(\\]_)",
+            "$flags": ""
+          },
+          [
+            "",
+            "string.link",
+            ""
+          ]
+        ]
+      ],
+      "footnotes": [
+        [
+          {
+            "$regex": "^(\\.\\.\\s+\\[)((?:[0-9]+))(\\]\\s+.*)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "",
+              "next": "@subsequentLines"
+            },
+            "string.link",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "^(\\.\\.\\s+\\[)((?:#@simpleRefName?))(\\]\\s+)(.*)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "",
+              "next": "@subsequentLines"
+            },
+            "string.link",
+            "",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "^(\\.\\.\\s+\\[)((?:\\*))(\\]\\s+)(.*)",
+            "$flags": ""
+          },
+          [
+            {
+              "token": "",
+              "next": "@subsequentLines"
+            },
+            "string.link",
+            "",
+            ""
+          ]
+        ]
+      ],
+      "footnotesReference": [
+        [
+          {
+            "$regex": "(\\[)([0-9]+)(\\])(_)",
+            "$flags": ""
+          },
+          [
+            "",
+            "string.link",
+            "",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\[)(#@simpleRefName?)(\\])(_)",
+            "$flags": ""
+          },
+          [
+            "",
+            "string.link",
+            "",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "(\\[)(\\*)(\\])(_)",
+            "$flags": ""
+          },
+          [
+            "",
+            "string.link",
+            "",
+            ""
+          ]
+        ]
+      ],
+      "blankLineOfLiteralBlocks": [
+        [
+          {
+            "$regex": "^$",
+            "$flags": ""
+          },
+          "",
+          "@subsequentLinesOfLiteralBlocks"
+        ],
+        [
+          {
+            "$regex": "^.*$",
+            "$flags": ""
+          },
+          "",
+          "@pop"
+        ]
+      ],
+      "subsequentLinesOfLiteralBlocks": [
+        [
+          {
+            "$regex": "(@blockLiteralStart+)(.*)",
+            "$flags": ""
+          },
+          [
+            "keyword",
+            ""
+          ]
+        ],
+        [
+          {
+            "$regex": "^(?!blockLiteralStart)",
+            "$flags": ""
+          },
+          "",
+          "@popall"
+        ]
+      ],
+      "subsequentLines": [
+        [
+          {
+            "$regex": "^[\\s]+.*",
+            "$flags": ""
+          },
+          ""
+        ],
+        [
+          {
+            "$regex": "^(?!\\s)",
+            "$flags": ""
+          },
+          "",
+          "@pop"
+        ]
+      ],
+      "hyperlinks": [
+        [
+          {
+            "$regex": "^[\\s]+.*",
+            "$flags": ""
+          },
+          "string.link"
+        ],
+        [
+          {
+            "$regex": "^(?!\\s)",
+            "$flags": ""
+          },
+          "",
+          "@pop"
+        ]
+      ],
+      "comments": [
+        [
+          {
+            "$regex": "^[\\s]+.*",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "^(?!\\s)",
+            "$flags": ""
+          },
+          "",
+          "@pop"
+        ]
+      ],
+      "tables": [
+        [
+          {
+            "$regex": "\\+-[+-]+",
+            "$flags": ""
+          },
+          "keyword"
+        ],
+        [
+          {
+            "$regex": "\\+=[+=]+",
+            "$flags": ""
+          },
+          "keyword"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "<",
+        "close": ">",
+        "notIn": [
+          "string"
+        ]
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "`",
+        "close": "`"
+      }
+    ],
+    "folding": {
+      "markers": {
+        "start": {
+          "$regex": "^\\s*<!--\\s*#?region\\b.*-->",
+          "$flags": ""
+        },
+        "end": {
+          "$regex": "^\\s*<!--\\s*#?endregion\\b.*-->",
+          "$flags": ""
+        }
+      }
+    }
+  }
+}

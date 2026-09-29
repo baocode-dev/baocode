@@ -1,0 +1,1319 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "scala",
+  "language": {
+    "tokenPostfix": ".scala",
+    "keywords": [
+      "asInstanceOf",
+      "catch",
+      "class",
+      "classOf",
+      "def",
+      "do",
+      "else",
+      "extends",
+      "finally",
+      "for",
+      "foreach",
+      "forSome",
+      "if",
+      "import",
+      "isInstanceOf",
+      "macro",
+      "match",
+      "new",
+      "object",
+      "package",
+      "return",
+      "throw",
+      "trait",
+      "try",
+      "type",
+      "until",
+      "val",
+      "var",
+      "while",
+      "with",
+      "yield",
+      "given",
+      "enum",
+      "then"
+    ],
+    "softKeywords": [
+      "as",
+      "export",
+      "extension",
+      "end",
+      "derives",
+      "on"
+    ],
+    "constants": [
+      "true",
+      "false",
+      "null",
+      "this",
+      "super"
+    ],
+    "modifiers": [
+      "abstract",
+      "final",
+      "implicit",
+      "lazy",
+      "override",
+      "private",
+      "protected",
+      "sealed"
+    ],
+    "softModifiers": [
+      "inline",
+      "opaque",
+      "open",
+      "transparent",
+      "using"
+    ],
+    "name": {
+      "$regex": "(?:[a-z_$][\\w$]*|`[^`]+`)",
+      "$flags": ""
+    },
+    "type": {
+      "$regex": "(?:[A-Z][\\w$]*)",
+      "$flags": ""
+    },
+    "symbols": {
+      "$regex": "[=><!~?:&|+\\-*\\/^\\\\%@#]+",
+      "$flags": ""
+    },
+    "digits": {
+      "$regex": "\\d+(_+\\d+)*",
+      "$flags": ""
+    },
+    "hexdigits": {
+      "$regex": "[[0-9a-fA-F]+(_+[0-9a-fA-F]+)*",
+      "$flags": ""
+    },
+    "escapes": {
+      "$regex": "\\\\(?:[btnfr\\\\\"']|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})",
+      "$flags": ""
+    },
+    "fstring_conv": {
+      "$regex": "[bBhHsScCdoxXeEfgGaAt]|[Tn](?:[HIklMSLNpzZsQ]|[BbhAaCYyjmde]|[RTrDFC])",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "\\braw\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@rawstringt"
+          }
+        ],
+        [
+          {
+            "$regex": "\\braw\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@rawstring"
+          }
+        ],
+        [
+          {
+            "$regex": "\\bs\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@sstringt"
+          }
+        ],
+        [
+          {
+            "$regex": "\\bs\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@sstring"
+          }
+        ],
+        [
+          {
+            "$regex": "\\bf\"\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@fstringt"
+          }
+        ],
+        [
+          {
+            "$regex": "\\bf\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@fstring"
+          }
+        ],
+        [
+          {
+            "$regex": "\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@stringt"
+          }
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@open",
+            "next": "@string"
+          }
+        ],
+        [
+          {
+            "$regex": "(@digits)[eE]([\\-+]?(@digits))?[fFdD]?",
+            "$flags": ""
+          },
+          "number.float",
+          "@allowMethod"
+        ],
+        [
+          {
+            "$regex": "(@digits)\\.(@digits)([eE][\\-+]?(@digits))?[fFdD]?",
+            "$flags": ""
+          },
+          "number.float",
+          "@allowMethod"
+        ],
+        [
+          {
+            "$regex": "0[xX](@hexdigits)[Ll]?",
+            "$flags": ""
+          },
+          "number.hex",
+          "@allowMethod"
+        ],
+        [
+          {
+            "$regex": "(@digits)[fFdD]",
+            "$flags": ""
+          },
+          "number.float",
+          "@allowMethod"
+        ],
+        [
+          {
+            "$regex": "(@digits)[lL]?",
+            "$flags": ""
+          },
+          "number",
+          "@allowMethod"
+        ],
+        [
+          {
+            "$regex": "\\b_\\*",
+            "$flags": ""
+          },
+          "key"
+        ],
+        [
+          {
+            "$regex": "\\b(_)\\b",
+            "$flags": ""
+          },
+          "keyword",
+          "@allowMethod"
+        ],
+        [
+          {
+            "$regex": "\\bimport\\b",
+            "$flags": ""
+          },
+          "keyword",
+          "@import"
+        ],
+        [
+          {
+            "$regex": "\\b(case)([ \\t]+)(class)\\b",
+            "$flags": ""
+          },
+          [
+            "keyword.modifier",
+            "white",
+            "keyword"
+          ]
+        ],
+        [
+          {
+            "$regex": "\\bcase\\b",
+            "$flags": ""
+          },
+          "keyword",
+          "@case"
+        ],
+        [
+          {
+            "$regex": "\\bva[lr]\\b",
+            "$flags": ""
+          },
+          "keyword",
+          "@vardef"
+        ],
+        [
+          {
+            "$regex": "\\b(def)([ \\t]+)((?:unary_)?@symbols|@name(?:_=)|@name)",
+            "$flags": ""
+          },
+          [
+            "keyword",
+            "white",
+            "identifier"
+          ]
+        ],
+        [
+          {
+            "$regex": "@name(?=[ \\t]*:(?!:))",
+            "$flags": ""
+          },
+          "variable"
+        ],
+        [
+          {
+            "$regex": "(\\.)(@name|@symbols)",
+            "$flags": ""
+          },
+          [
+            "operator",
+            {
+              "token": "@rematch",
+              "next": "@allowMethod"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "([{(])(\\s*)(@name(?=\\s*=>))",
+            "$flags": ""
+          },
+          [
+            "@brackets",
+            "white",
+            "variable"
+          ]
+        ],
+        [
+          {
+            "$regex": "@name",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": "keyword",
+              "@softKeywords": "keyword",
+              "@modifiers": "keyword.modifier",
+              "@softModifiers": "keyword.modifier",
+              "@constants": {
+                "token": "constant",
+                "next": "@allowMethod"
+              },
+              "@default": {
+                "token": "identifier",
+                "next": "@allowMethod"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "@type",
+            "$flags": ""
+          },
+          "type",
+          "@allowMethod"
+        ],
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@[a-zA-Z_$][\\w$]*(?:\\.[a-zA-Z_$][\\w$]*)*",
+            "$flags": ""
+          },
+          "annotation"
+        ],
+        [
+          {
+            "$regex": "[{(]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "[})]",
+            "$flags": ""
+          },
+          "@brackets",
+          "@allowMethod"
+        ],
+        [
+          {
+            "$regex": "\\[",
+            "$flags": ""
+          },
+          "operator.square"
+        ],
+        [
+          {
+            "$regex": "](?!\\s*(?:va[rl]|def|type)\\b)",
+            "$flags": ""
+          },
+          "operator.square",
+          "@allowMethod"
+        ],
+        [
+          {
+            "$regex": "]",
+            "$flags": ""
+          },
+          "operator.square"
+        ],
+        [
+          {
+            "$regex": "([=-]>|<-|>:|<:|:>|<%)(?=[\\s\\w()[\\]{},\\.\"'`])",
+            "$flags": ""
+          },
+          "keyword"
+        ],
+        [
+          {
+            "$regex": "@symbols",
+            "$flags": ""
+          },
+          "operator"
+        ],
+        [
+          {
+            "$regex": "[;,\\.]",
+            "$flags": ""
+          },
+          "delimiter"
+        ],
+        [
+          {
+            "$regex": "'[a-zA-Z$][\\w$]*(?!')",
+            "$flags": ""
+          },
+          "attribute.name"
+        ],
+        [
+          {
+            "$regex": "'[^\\\\']'",
+            "$flags": ""
+          },
+          "string",
+          "@allowMethod"
+        ],
+        [
+          {
+            "$regex": "(')(@escapes)(')",
+            "$flags": ""
+          },
+          [
+            "string",
+            "string.escape",
+            {
+              "token": "string",
+              "next": "@allowMethod"
+            }
+          ]
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "string.invalid"
+        ]
+      ],
+      "import": [
+        [
+          {
+            "$regex": ";",
+            "$flags": ""
+          },
+          "delimiter",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "^|$",
+            "$flags": ""
+          },
+          "",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[ \\t]+",
+            "$flags": ""
+          },
+          "white"
+        ],
+        [
+          {
+            "$regex": "[\\n\\r]+",
+            "$flags": ""
+          },
+          "white",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "\\/\\*",
+            "$flags": ""
+          },
+          "comment",
+          "@comment"
+        ],
+        [
+          {
+            "$regex": "@name|@type",
+            "$flags": ""
+          },
+          "type"
+        ],
+        [
+          {
+            "$regex": "[(){}]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "[[\\]]",
+            "$flags": ""
+          },
+          "operator.square"
+        ],
+        [
+          {
+            "$regex": "[\\.,]",
+            "$flags": ""
+          },
+          "delimiter"
+        ]
+      ],
+      "allowMethod": [
+        [
+          {
+            "$regex": "^|$",
+            "$flags": ""
+          },
+          "",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[ \\t]+",
+            "$flags": ""
+          },
+          "white"
+        ],
+        [
+          {
+            "$regex": "[\\n\\r]+",
+            "$flags": ""
+          },
+          "white",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "\\/\\*",
+            "$flags": ""
+          },
+          "comment",
+          "@comment"
+        ],
+        [
+          {
+            "$regex": "(?==>[\\s\\w([{])",
+            "$flags": ""
+          },
+          "keyword",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "(@name|@symbols)(?=[ \\t]*[[({\"'`]|[ \\t]+(?:[+-]?\\.?\\d|\\w))",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": {
+                "token": "keyword",
+                "next": "@pop"
+              },
+              "->|<-|>:|<:|<%": {
+                "token": "keyword",
+                "next": "@pop"
+              },
+              "@default": {
+                "token": "@rematch",
+                "next": "@pop"
+              }
+            }
+          }
+        ],
+        [
+          "",
+          "",
+          "@pop"
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "[^\\/*]+",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "\\/\\*",
+            "$flags": ""
+          },
+          "comment",
+          "@push"
+        ],
+        [
+          {
+            "$regex": "\\*\\/",
+            "$flags": ""
+          },
+          "comment",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[\\/*]",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "case": [
+        [
+          {
+            "$regex": "\\b_\\*",
+            "$flags": ""
+          },
+          "key"
+        ],
+        [
+          {
+            "$regex": "\\b(_|true|false|null|this|super)\\b",
+            "$flags": ""
+          },
+          "keyword",
+          "@allowMethod"
+        ],
+        [
+          {
+            "$regex": "\\bif\\b|=>",
+            "$flags": ""
+          },
+          "keyword",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "`[^`]+`",
+            "$flags": ""
+          },
+          "identifier",
+          "@allowMethod"
+        ],
+        [
+          {
+            "$regex": "@name",
+            "$flags": ""
+          },
+          "variable",
+          "@allowMethod"
+        ],
+        [
+          {
+            "$regex": ":::?|\\||@(?![a-z_$])",
+            "$flags": ""
+          },
+          "keyword"
+        ],
+        {
+          "include": "@root"
+        }
+      ],
+      "vardef": [
+        [
+          {
+            "$regex": "\\b_\\*",
+            "$flags": ""
+          },
+          "key"
+        ],
+        [
+          {
+            "$regex": "\\b(_|true|false|null|this|super)\\b",
+            "$flags": ""
+          },
+          "keyword"
+        ],
+        [
+          {
+            "$regex": "@name",
+            "$flags": ""
+          },
+          "variable"
+        ],
+        [
+          {
+            "$regex": ":::?|\\||@(?![a-z_$])",
+            "$flags": ""
+          },
+          "keyword"
+        ],
+        [
+          {
+            "$regex": "=|:(?!:)",
+            "$flags": ""
+          },
+          "operator",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "$",
+            "$flags": ""
+          },
+          "white",
+          "@pop"
+        ],
+        {
+          "include": "@root"
+        }
+      ],
+      "string": [
+        [
+          {
+            "$regex": "[^\\\\\"\\n\\r]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "switchTo": "@allowMethod"
+          }
+        ]
+      ],
+      "stringt": [
+        [
+          {
+            "$regex": "[^\\\\\"\\n\\r]+",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "string.escape.invalid"
+        ],
+        [
+          {
+            "$regex": "\"(?=\"\"\")",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "switchTo": "@allowMethod"
+          }
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "fstring": [
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "switchTo": "@allowMethod"
+          }
+        ],
+        [
+          {
+            "$regex": "\\$\\$",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "(\\$)([a-z_]\\w*)",
+            "$flags": ""
+          },
+          [
+            "operator",
+            "identifier"
+          ]
+        ],
+        [
+          {
+            "$regex": "\\$\\{",
+            "$flags": ""
+          },
+          "operator",
+          "@interp"
+        ],
+        [
+          {
+            "$regex": "%%",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "(%)([\\-#+ 0,(])(\\d+|\\.\\d+|\\d+\\.\\d+)(@fstring_conv)",
+            "$flags": ""
+          },
+          [
+            "metatag",
+            "keyword.modifier",
+            "number",
+            "metatag"
+          ]
+        ],
+        [
+          {
+            "$regex": "(%)(\\d+|\\.\\d+|\\d+\\.\\d+)(@fstring_conv)",
+            "$flags": ""
+          },
+          [
+            "metatag",
+            "number",
+            "metatag"
+          ]
+        ],
+        [
+          {
+            "$regex": "(%)([\\-#+ 0,(])(@fstring_conv)",
+            "$flags": ""
+          },
+          [
+            "metatag",
+            "keyword.modifier",
+            "metatag"
+          ]
+        ],
+        [
+          {
+            "$regex": "(%)(@fstring_conv)",
+            "$flags": ""
+          },
+          [
+            "metatag",
+            "metatag"
+          ]
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "fstringt": [
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\"(?=\"\"\")",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "switchTo": "@allowMethod"
+          }
+        ],
+        [
+          {
+            "$regex": "\\$\\$",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "(\\$)([a-z_]\\w*)",
+            "$flags": ""
+          },
+          [
+            "operator",
+            "identifier"
+          ]
+        ],
+        [
+          {
+            "$regex": "\\$\\{",
+            "$flags": ""
+          },
+          "operator",
+          "@interp"
+        ],
+        [
+          {
+            "$regex": "%%",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "(%)([\\-#+ 0,(])(\\d+|\\.\\d+|\\d+\\.\\d+)(@fstring_conv)",
+            "$flags": ""
+          },
+          [
+            "metatag",
+            "keyword.modifier",
+            "number",
+            "metatag"
+          ]
+        ],
+        [
+          {
+            "$regex": "(%)(\\d+|\\.\\d+|\\d+\\.\\d+)(@fstring_conv)",
+            "$flags": ""
+          },
+          [
+            "metatag",
+            "number",
+            "metatag"
+          ]
+        ],
+        [
+          {
+            "$regex": "(%)([\\-#+ 0,(])(@fstring_conv)",
+            "$flags": ""
+          },
+          [
+            "metatag",
+            "keyword.modifier",
+            "metatag"
+          ]
+        ],
+        [
+          {
+            "$regex": "(%)(@fstring_conv)",
+            "$flags": ""
+          },
+          [
+            "metatag",
+            "metatag"
+          ]
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "sstring": [
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "switchTo": "@allowMethod"
+          }
+        ],
+        [
+          {
+            "$regex": "\\$\\$",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "(\\$)([a-z_]\\w*)",
+            "$flags": ""
+          },
+          [
+            "operator",
+            "identifier"
+          ]
+        ],
+        [
+          {
+            "$regex": "\\$\\{",
+            "$flags": ""
+          },
+          "operator",
+          "@interp"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "sstringt": [
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\"(?=\"\"\")",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "switchTo": "@allowMethod"
+          }
+        ],
+        [
+          {
+            "$regex": "\\$\\$",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "(\\$)([a-z_]\\w*)",
+            "$flags": ""
+          },
+          [
+            "operator",
+            "identifier"
+          ]
+        ],
+        [
+          {
+            "$regex": "\\$\\{",
+            "$flags": ""
+          },
+          "operator",
+          "@interp"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "interp": [
+        [
+          {
+            "$regex": "{",
+            "$flags": ""
+          },
+          "operator",
+          "@push"
+        ],
+        [
+          {
+            "$regex": "}",
+            "$flags": ""
+          },
+          "operator",
+          "@pop"
+        ],
+        {
+          "include": "@root"
+        }
+      ],
+      "rawstring": [
+        [
+          {
+            "$regex": "[^\"]",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "switchTo": "@allowMethod"
+          }
+        ]
+      ],
+      "rawstringt": [
+        [
+          {
+            "$regex": "[^\"]",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\"(?=\"\"\")",
+            "$flags": ""
+          },
+          "string"
+        ],
+        [
+          {
+            "$regex": "\"\"\"",
+            "$flags": ""
+          },
+          {
+            "token": "string.quote",
+            "bracket": "@close",
+            "switchTo": "@allowMethod"
+          }
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          "white"
+        ],
+        [
+          {
+            "$regex": "\\/\\*",
+            "$flags": ""
+          },
+          "comment",
+          "@comment"
+        ],
+        [
+          {
+            "$regex": "\\/\\/.*$",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "wordPattern": {
+      "$regex": "(unary_[@~!#%^&*()\\-=+\\\\|:<>\\/?]+)|([a-zA-Z_$][\\w$]*?_=)|(`[^`]+`)|([a-zA-Z_$][\\w$]*)",
+      "$flags": "g"
+    },
+    "comments": {
+      "lineComment": "//",
+      "blockComment": [
+        "/*",
+        "*/"
+      ]
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "\"",
+        "close": "\""
+      },
+      {
+        "open": "'",
+        "close": "'"
+      }
+    ],
+    "folding": {
+      "markers": {
+        "start": {
+          "$regex": "^\\s*\\/\\/\\s*(?:(?:#?region\\b)|(?:<editor-fold\\b))",
+          "$flags": ""
+        },
+        "end": {
+          "$regex": "^\\s*\\/\\/\\s*(?:(?:#?endregion\\b)|(?:<\\/editor-fold>))",
+          "$flags": ""
+        }
+      }
+    }
+  }
+}

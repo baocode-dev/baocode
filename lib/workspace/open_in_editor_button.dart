@@ -33,6 +33,12 @@ class OpenInEditorButton extends StatelessWidget {
       width: 200,
       placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
       items: () => [
+        SidebarMenuItem(
+          'Fast Ide',
+          icon: Icons.space_dashboard_outlined,
+          checked: workspace.layout == WorkspaceLayout.ide,
+          onSelected: () => workspace.layout = WorkspaceLayout.ide,
+        ),
         for (final option in Editor.availableEditors)
           SidebarMenuItem(
             option.platformLabel,

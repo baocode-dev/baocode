@@ -1,0 +1,267 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "pla",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".pla",
+    "brackets": [
+      {
+        "open": "[",
+        "close": "]",
+        "token": "delimiter.square"
+      },
+      {
+        "open": "<",
+        "close": ">",
+        "token": "delimiter.angle"
+      },
+      {
+        "open": "(",
+        "close": ")",
+        "token": "delimiter.parenthesis"
+      }
+    ],
+    "keywords": [
+      ".i",
+      ".o",
+      ".mv",
+      ".ilb",
+      ".ob",
+      ".label",
+      ".type",
+      ".phase",
+      ".pair",
+      ".symbolic",
+      ".symbolic-output",
+      ".kiss",
+      ".p",
+      ".e",
+      ".end"
+    ],
+    "comment": {
+      "$regex": "#.*$",
+      "$flags": ""
+    },
+    "identifier": {
+      "$regex": "[a-zA-Z]+[a-zA-Z0-9_\\-]*",
+      "$flags": ""
+    },
+    "plaContent": {
+      "$regex": "[01\\-~\\|]+",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "@comment",
+            "$flags": ""
+          },
+          "comment"
+        ],
+        [
+          {
+            "$regex": "\\.([a-zA-Z_\\-]+)",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "keyword.$1"
+              },
+              "@keywords": {
+                "cases": {
+                  ".type": {
+                    "token": "keyword.$1",
+                    "next": "@type"
+                  },
+                  "@default": {
+                    "token": "keyword.$1",
+                    "next": "@keywordArg"
+                  }
+                }
+              },
+              "@default": {
+                "token": "keyword.$1"
+              }
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          "identifier"
+        ],
+        [
+          {
+            "$regex": "@plaContent",
+            "$flags": ""
+          },
+          "string"
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          ""
+        ]
+      ],
+      "type": [
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "\\w+",
+            "$flags": ""
+          },
+          {
+            "token": "type",
+            "next": "@pop"
+          }
+        ]
+      ],
+      "keywordArg": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "",
+                "next": "@pop"
+              },
+              "@default": ""
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "@comment",
+            "$flags": ""
+          },
+          "comment",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": "[<>()\\[\\]]",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "@brackets",
+                "next": "@pop"
+              },
+              "@default": "@brackets"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "\\-?\\d+",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "number",
+                "next": "@pop"
+              },
+              "@default": "number"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "@identifier",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "identifier",
+                "next": "@pop"
+              },
+              "@default": "identifier"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "[;=]",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@eos": {
+                "token": "delimiter",
+                "next": "@pop"
+              },
+              "@default": "delimiter"
+            }
+          }
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "lineComment": "#"
+    },
+    "brackets": [
+      [
+        "[",
+        "]"
+      ],
+      [
+        "<",
+        ">"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "<",
+        "close": ">"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      }
+    ],
+    "surroundingPairs": [
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "<",
+        "close": ">"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      }
+    ]
+  }
+}

@@ -1,0 +1,447 @@
+{
+  "revision": "d61824269f1377111d34306e4a47172327777083",
+  "attribution": "Copyright (c) Microsoft Corporation. Licensed under the MIT License; see assets/monaco/LICENSE.txt.",
+  "languageId": "m3",
+  "language": {
+    "defaultToken": "",
+    "tokenPostfix": ".m3",
+    "brackets": [
+      {
+        "token": "delimiter.curly",
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "token": "delimiter.parenthesis",
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "token": "delimiter.square",
+        "open": "[",
+        "close": "]"
+      }
+    ],
+    "keywords": [
+      "AND",
+      "ANY",
+      "ARRAY",
+      "AS",
+      "BEGIN",
+      "BITS",
+      "BRANDED",
+      "BY",
+      "CASE",
+      "CONST",
+      "DIV",
+      "DO",
+      "ELSE",
+      "ELSIF",
+      "END",
+      "EVAL",
+      "EXCEPT",
+      "EXCEPTION",
+      "EXIT",
+      "EXPORTS",
+      "FINALLY",
+      "FOR",
+      "FROM",
+      "GENERIC",
+      "IF",
+      "IMPORT",
+      "IN",
+      "INTERFACE",
+      "LOCK",
+      "LOOP",
+      "METHODS",
+      "MOD",
+      "MODULE",
+      "NOT",
+      "OBJECT",
+      "OF",
+      "OR",
+      "OVERRIDES",
+      "PROCEDURE",
+      "RAISE",
+      "RAISES",
+      "READONLY",
+      "RECORD",
+      "REF",
+      "REPEAT",
+      "RETURN",
+      "REVEAL",
+      "SET",
+      "THEN",
+      "TO",
+      "TRY",
+      "TYPE",
+      "TYPECASE",
+      "UNSAFE",
+      "UNTIL",
+      "UNTRACED",
+      "VALUE",
+      "VAR",
+      "WHILE",
+      "WITH"
+    ],
+    "reservedConstNames": [
+      "ABS",
+      "ADR",
+      "ADRSIZE",
+      "BITSIZE",
+      "BYTESIZE",
+      "CEILING",
+      "DEC",
+      "DISPOSE",
+      "FALSE",
+      "FIRST",
+      "FLOAT",
+      "FLOOR",
+      "INC",
+      "ISTYPE",
+      "LAST",
+      "LOOPHOLE",
+      "MAX",
+      "MIN",
+      "NARROW",
+      "NEW",
+      "NIL",
+      "NUMBER",
+      "ORD",
+      "ROUND",
+      "SUBARRAY",
+      "TRUE",
+      "TRUNC",
+      "TYPECODE",
+      "VAL"
+    ],
+    "reservedTypeNames": [
+      "ADDRESS",
+      "ANY",
+      "BOOLEAN",
+      "CARDINAL",
+      "CHAR",
+      "EXTENDED",
+      "INTEGER",
+      "LONGCARD",
+      "LONGINT",
+      "LONGREAL",
+      "MUTEX",
+      "NULL",
+      "REAL",
+      "REFANY",
+      "ROOT",
+      "TEXT"
+    ],
+    "operators": [
+      "+",
+      "-",
+      "*",
+      "/",
+      "&",
+      "^",
+      "."
+    ],
+    "relations": [
+      "=",
+      "#",
+      "<",
+      "<=",
+      ">",
+      ">=",
+      "<:",
+      ":"
+    ],
+    "delimiters": [
+      "|",
+      "..",
+      "=>",
+      ",",
+      ";",
+      ":="
+    ],
+    "symbols": {
+      "$regex": "[>=<#.,:;+\\-*/&^]+",
+      "$flags": ""
+    },
+    "escapes": {
+      "$regex": "\\\\(?:[\\\\fnrt\"']|[0-7]{3})",
+      "$flags": ""
+    },
+    "tokenizer": {
+      "root": [
+        [
+          {
+            "$regex": "_\\w*",
+            "$flags": ""
+          },
+          "invalid"
+        ],
+        [
+          {
+            "$regex": "[a-zA-Z][a-zA-Z0-9_]*",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@keywords": {
+                "token": "keyword.$0"
+              },
+              "@reservedConstNames": {
+                "token": "constant.reserved.$0"
+              },
+              "@reservedTypeNames": {
+                "token": "type.reserved.$0"
+              },
+              "@default": "identifier"
+            }
+          }
+        ],
+        {
+          "include": "@whitespace"
+        },
+        [
+          {
+            "$regex": "[{}()\\[\\]]",
+            "$flags": ""
+          },
+          "@brackets"
+        ],
+        [
+          {
+            "$regex": "[0-9]+\\.[0-9]+(?:[DdEeXx][\\+\\-]?[0-9]+)?",
+            "$flags": ""
+          },
+          "number.float"
+        ],
+        [
+          {
+            "$regex": "[0-9]+(?:\\_[0-9a-fA-F]+)?L?",
+            "$flags": ""
+          },
+          "number"
+        ],
+        [
+          {
+            "$regex": "@symbols",
+            "$flags": ""
+          },
+          {
+            "cases": {
+              "@operators": "operators",
+              "@relations": "operators",
+              "@delimiters": "delimiter",
+              "@default": "invalid"
+            }
+          }
+        ],
+        [
+          {
+            "$regex": "'[^\\\\']'",
+            "$flags": ""
+          },
+          "string.char"
+        ],
+        [
+          {
+            "$regex": "(')(@escapes)(')",
+            "$flags": ""
+          },
+          [
+            "string.char",
+            "string.escape",
+            "string.char"
+          ]
+        ],
+        [
+          {
+            "$regex": "'",
+            "$flags": ""
+          },
+          "invalid"
+        ],
+        [
+          {
+            "$regex": "\"([^\"\\\\]|\\\\.)*$",
+            "$flags": ""
+          },
+          "invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string.text",
+          "@text"
+        ]
+      ],
+      "text": [
+        [
+          {
+            "$regex": "[^\\\\\"]+",
+            "$flags": ""
+          },
+          "string.text"
+        ],
+        [
+          {
+            "$regex": "@escapes",
+            "$flags": ""
+          },
+          "string.escape"
+        ],
+        [
+          {
+            "$regex": "\\\\.",
+            "$flags": ""
+          },
+          "invalid"
+        ],
+        [
+          {
+            "$regex": "\"",
+            "$flags": ""
+          },
+          "string.text",
+          "@pop"
+        ]
+      ],
+      "comment": [
+        [
+          {
+            "$regex": "\\(\\*",
+            "$flags": ""
+          },
+          "comment",
+          "@push"
+        ],
+        [
+          {
+            "$regex": "\\*\\)",
+            "$flags": ""
+          },
+          "comment",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "comment"
+        ]
+      ],
+      "pragma": [
+        [
+          {
+            "$regex": "<\\*",
+            "$flags": ""
+          },
+          "keyword.pragma",
+          "@push"
+        ],
+        [
+          {
+            "$regex": "\\*>",
+            "$flags": ""
+          },
+          "keyword.pragma",
+          "@pop"
+        ],
+        [
+          {
+            "$regex": ".",
+            "$flags": ""
+          },
+          "keyword.pragma"
+        ]
+      ],
+      "whitespace": [
+        [
+          {
+            "$regex": "[ \\t\\r\\n]+",
+            "$flags": ""
+          },
+          "white"
+        ],
+        [
+          {
+            "$regex": "\\(\\*",
+            "$flags": ""
+          },
+          "comment",
+          "@comment"
+        ],
+        [
+          {
+            "$regex": "<\\*",
+            "$flags": ""
+          },
+          "keyword.pragma",
+          "@pragma"
+        ]
+      ]
+    }
+  },
+  "configuration": {
+    "comments": {
+      "blockComment": [
+        "(*",
+        "*)"
+      ]
+    },
+    "brackets": [
+      [
+        "{",
+        "}"
+      ],
+      [
+        "[",
+        "]"
+      ],
+      [
+        "(",
+        ")"
+      ]
+    ],
+    "autoClosingPairs": [
+      {
+        "open": "[",
+        "close": "]"
+      },
+      {
+        "open": "{",
+        "close": "}"
+      },
+      {
+        "open": "(",
+        "close": ")"
+      },
+      {
+        "open": "(*",
+        "close": "*)"
+      },
+      {
+        "open": "<*",
+        "close": "*>"
+      },
+      {
+        "open": "'",
+        "close": "'",
+        "notIn": [
+          "string",
+          "comment"
+        ]
+      },
+      {
+        "open": "\"",
+        "close": "\"",
+        "notIn": [
+          "string",
+          "comment"
+        ]
+      }
+    ]
+  }
+}

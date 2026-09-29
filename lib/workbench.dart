@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 
 import 'chat/chat_screen.dart';
 import 'chat/panels/interaction_panel.dart';
+import 'ide/ide_workbench.dart';
+import 'ide/ide_workspace.dart';
 import 'sidebar/sidebar.dart';
 import 'theme/cursor_theme.dart';
 import 'workspace/open_in_editor_button.dart';
@@ -23,9 +25,12 @@ import 'workspace/workspace.dart';
 /// button). In a narrow window it is hidden by default and opens over the
 /// chat as a drawer instead of pushing it aside.
 class Workbench extends StatefulWidget {
-  const Workbench({super.key, required this.workspace});
+  const Workbench({super.key, required this.workspace, this.ideEditorBuilder});
 
   final Workspace workspace;
+
+  @visibleForTesting
+  final Widget Function(BuildContext, IdeWorkspace)? ideEditorBuilder;
 
   /// Below this width the sidebar becomes a drawer.
   static const narrowWidth = 720.0;
@@ -77,6 +82,7 @@ class _WorkbenchState extends State<Workbench> {
   bool _narrow = false;
 
   Workspace get _workspace => widget.workspace;
+  final Map<String, IdeWorkspace> _ideSpaces = {};
 
   /// The window is kept above other apps' windows.
   bool _pinned = false;
@@ -105,6 +111,9 @@ class _WorkbenchState extends State<Workbench> {
   void dispose() {
     _lifecycle.dispose();
     HardwareKeyboard.instance.removeHandler(_handleKey);
+    for (final ide in _ideSpaces.values) {
+      ide.dispose();
+    }
     super.dispose();
   }
 
@@ -119,7 +128,10 @@ class _WorkbenchState extends State<Workbench> {
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.iOS;
     final command = mac ? keyboard.isMetaPressed : keyboard.isControlPressed;
-    if (!command || keyboard.isShiftPressed || keyboard.isAltPressed) {
+    if (!command ||
+        keyboard.isShiftPressed ||
+        keyboard.isAltPressed ||
+        _workspace.layout == WorkspaceLayout.ide) {
       return false;
     }
     _toggle();
@@ -168,12 +180,49 @@ class _WorkbenchState extends State<Workbench> {
                 // Windows draws its own header over both columns (see
                 // window_header/); elsewhere the system's is above them.
                 if (WindowControls.drawsHeader) _buildHeader(),
-                Expanded(child: narrow ? _buildNarrow() : _buildWide()),
+                Expanded(child: _buildContent(narrow)),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildContent(bool narrow) {
+    final project = _workspace.current?.project;
+    final ide = _workspace.layout == WorkspaceLayout.ide && project != null;
+    if (ide) {
+      _ideSpaces.putIfAbsent(project.path, () => IdeWorkspace(project.path));
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (final entry in _ideSpaces.entries)
+          Offstage(
+            key: ValueKey(entry.key),
+            offstage: !ide || project.path != entry.key,
+            child: TickerMode(
+              enabled: ide && project.path == entry.key,
+              child: ExcludeFocus(
+                excluding: !ide || project.path != entry.key,
+                child: IdeWorkbench(
+                  workspace: entry.value,
+                  project: Project.at(entry.key),
+                  visible: ide && project.path == entry.key,
+                  onBack: () => _workspace.layout = WorkspaceLayout.chat,
+                  editorBuilder: widget.ideEditorBuilder,
+                  chat: ide && project.path == entry.key
+                      ? _conversation(
+                          _buildChat(showToggle: false, embedded: true),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          ),
+        if (!ide) narrow ? _buildNarrow() : _buildWide(),
+      ],
     );
   }
 
@@ -382,7 +431,7 @@ class _WorkbenchState extends State<Workbench> {
     _closeDrawer();
   }
 
-  Widget _buildChat({required bool showToggle}) {
+  Widget _buildChat({required bool showToggle, bool embedded = false}) {
     final thread = _workspace.current;
     // Windows keeps the toggle, the pin and the editor button in its header
     // (see window_header/): all that is left for this row is the session's
@@ -411,6 +460,7 @@ class _WorkbenchState extends State<Workbench> {
     }
     return ChatScreen(
       key: _chatKey(thread),
+      embedded: embedded,
       session: thread.session,
       title: thread.title,
       autofocus: thread.session.itemCount == 0,
@@ -420,7 +470,7 @@ class _WorkbenchState extends State<Workbench> {
       // Beside the sidebar, the traffic lights are over it, not here.
       titleBarInset: titleBarInset,
       leading: leading,
-      trailing: header
+      trailing: header || embedded
           ? null
           : Row(
               mainAxisSize: MainAxisSize.min,
