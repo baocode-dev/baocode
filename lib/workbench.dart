@@ -234,6 +234,8 @@ class _WorkbenchState extends State<Workbench> {
                   project: Project.at(entry.key),
                   visible: ide && project.path == entry.key,
                   onBack: () => _workspace.layout = WorkspaceLayout.chat,
+                  pinned: _pinned,
+                  onPinnedChanged: _setPinned,
                   editorBuilder: widget.ideEditorBuilder,
                   ignoredRecommendations:
                       _workspace.ignoredServerRecommendations,

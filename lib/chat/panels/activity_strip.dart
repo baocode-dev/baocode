@@ -314,39 +314,54 @@ class _FilesHeader extends StatelessWidget {
     return _StripRow(
       onTap: onToggle,
       children: [
-        AnimatedRotation(
-          turns: expanded ? 0.25 : 0,
-          duration: const Duration(milliseconds: 150),
-          child: const Icon(
-            Icons.chevron_right_rounded,
-            size: 16,
-            color: CursorColors.textMuted,
+        // Narrow, the label gives way to the buttons.
+        Expanded(
+          child: Row(
+            children: [
+              AnimatedRotation(
+                turns: expanded ? 0.25 : 0,
+                duration: const Duration(milliseconds: 150),
+                child: const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 16,
+                  color: CursorColors.textMuted,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  '${changes.length} ${changes.length == 1 ? 'file' : 'files'} changed',
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: CursorColors.text,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '+$added',
+                style: const TextStyle(
+                  color: CursorColors.added,
+                  fontFamily: CursorFonts.mono,
+                  fontSize: 11.5,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '-$removed',
+                style: const TextStyle(
+                  color: CursorColors.removed,
+                  fontFamily: CursorFonts.mono,
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '${changes.length} ${changes.length == 1 ? 'file' : 'files'} changed',
-          style: const TextStyle(color: CursorColors.text, fontSize: 12),
         ),
         const SizedBox(width: 8),
-        Text(
-          '+$added',
-          style: const TextStyle(
-            color: CursorColors.added,
-            fontFamily: CursorFonts.mono,
-            fontSize: 11.5,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '-$removed',
-          style: const TextStyle(
-            color: CursorColors.removed,
-            fontFamily: CursorFonts.mono,
-            fontSize: 11.5,
-          ),
-        ),
-        const Spacer(),
         if (onUndo case final onUndo?) ...[
           SizedBox(
             height: 20,

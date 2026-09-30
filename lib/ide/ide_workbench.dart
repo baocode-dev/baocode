@@ -8,6 +8,8 @@ import 'package:path/path.dart' as p;
 
 import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
+import '../workspace/back_to_chat_button.dart';
+import '../workspace/pin_window_button.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
 import 'editor/monaco/flutter/document_snapshot.dart';
@@ -20,6 +22,7 @@ import 'git/git_repository.dart';
 import 'git/ide_scm_view.dart';
 import 'git/ide_timeline_view.dart';
 import 'ide_breadcrumbs.dart';
+import 'ide_columns.dart';
 import 'ide_commands.dart';
 import 'ide_dialog.dart';
 import 'ide_editor.dart';
@@ -67,6 +70,8 @@ class IdeWorkbench extends StatefulWidget {
     this.textSearch = ideSearchText,
     this.extensions,
     this.commitMessage = ideClaudeCommitMessage,
+    this.pinned = false,
+    this.onPinnedChanged,
   });
 
   final IdeWorkspace workspace;
@@ -100,6 +105,11 @@ class IdeWorkbench extends StatefulWidget {
   /// fake in widget tests).
   final IdeCommitMessageModel commitMessage;
 
+  /// Whether the window is kept on top of other apps; [onPinnedChanged]
+  /// toggles it from the title bar, as the chat's pin does.
+  final bool pinned;
+  final ValueChanged<bool>? onPinnedChanged;
+
   @override
   State<IdeWorkbench> createState() => IdeWorkbenchState();
 }
@@ -121,12 +131,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   final IdeRecentList _recentCommands = IdeRecentList();
   final List<String> _closedEditors = [];
 
-  double _chatWidth = 420;
-  double _sidebarWidth = 240;
+  /// The widths the side bar and the chat open at, and have while there is
+  /// room (see [IdeColumns.fit]).
+  double _chatWidth = IdeColumns.defaultChat;
+  double _sidebarWidth = IdeColumns.defaultSidebar;
 
-  /// The dragged width when the drag began: a sash follows the pointer from
-  /// there, so past a limit it waits until the pointer comes back to it.
-  double _dragFrom = 0;
+  /// The widths, and the room for them, when a sash's drag began: it
+  /// follows the pointer from there, so what it pushed aside or snapped
+  /// shut comes back as it returns. (The room is the start's: the chat
+  /// snapped shut takes the window's gap beside it along.)
+  ({IdeColumns columns, double room})? _dragStart;
   bool _sidebarShown = true;
   bool _chatShown = true;
   IdeSideView _view = IdeSideView.explorer;
@@ -184,9 +198,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   final List<_NavigationEntry> _forwardStack = [];
   bool _formatOnSave = false;
 
-  static const _minSidebarWidth = 170.0;
-  static const _maxSidebarWidth = 520.0;
-  static const _minEditorWidth = 320.0;
   static const _sashWidth = IdeModernUI.gap;
 
   IdeEditorState? get _editor => _editorKey.currentState;
@@ -1631,19 +1642,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   /// The chat, kept mounted (and its state kept) while hidden.
-  Widget _chatSlot(double size, Axis axis) {
-    final shown = _chatShown;
-    final horizontal = axis == Axis.horizontal;
+  Widget _chatSlot(double width) {
+    final shown = width > 0;
+    final laidOut = shown ? width : _chatWidth;
     return SizedBox(
       key: const ValueKey('ide-chat'),
-      width: horizontal ? (shown ? size : 0) : null,
-      height: horizontal ? null : (shown ? size : 0),
+      width: width,
       child: OverflowBox(
         alignment: Alignment.topLeft,
-        minWidth: horizontal ? size : null,
-        maxWidth: horizontal ? size : null,
-        minHeight: horizontal ? null : size,
-        maxHeight: horizontal ? null : size,
+        minWidth: laidOut,
+        maxWidth: laidOut,
         child: Offstage(
           offstage: !shown,
           child: TickerMode(
@@ -1659,109 +1667,96 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   /// The Modern UI's cards on the shell: 4px apart, and 4px from the
-  /// window's sides and the status bar.
-  Widget _split(double width, double height, List<IdeCommand> commands) {
+  /// window's sides and the status bar. The chat stays on the right however
+  /// narrow the window (see [IdeColumns.fit]).
+  Widget _split(double width, List<IdeCommand> commands) {
     const gap = IdeModernUI.gap;
-    const outside = EdgeInsets.fromLTRB(gap, 0, gap, gap);
-    // Width left for the parts beside the activity bar.
-    final inner = width - outside.horizontal - IdeModernUI.activityBarWidth;
-    final narrow = width < 760;
-    if (narrow) {
-      final sidebarVisible = _sidebarShown && inner - 200 >= _minEditorWidth;
-      return Padding(
-        padding: outside,
-        child: Column(
-          children: [
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _activityBar(joined: sidebarVisible),
-                  if (sidebarVisible)
-                    SizedBox(
-                      key: const ValueKey('ide-sidebar'),
-                      width: math.min(200, width * .36),
-                      child: _sidebarCard(),
-                    ),
-                  const SizedBox(width: gap),
-                  Expanded(
-                    key: const ValueKey('ide-editor'),
-                    child: _editorArea(commands),
-                  ),
-                ],
-              ),
-            ),
-            if (_chatShown) const SizedBox(height: gap),
-            _chatSlot(height * .44, Axis.vertical),
-          ],
-        ),
-      );
-    }
-    const minChat = 300.0;
-    var chatWidth = _chatWidth
-        .clamp(minChat, math.max(minChat, width * .48))
-        .toDouble();
-    // Room for the sidebar once the editor keeps its minimum width.
-    double roomBeside(double chat) =>
-        inner -
-        (_chatShown ? chat + _sashWidth : 0) -
-        _sashWidth -
-        _minEditorWidth;
-    var sidebarWidth = math.min(_sidebarWidth, roomBeside(chatWidth));
-    if (_sidebarShown && _chatShown && sidebarWidth < _sidebarWidth) {
-      // Narrow the chat, down to its minimum, before the sidebar.
-      final shrink = math.min(
-        _sidebarWidth - sidebarWidth,
-        chatWidth - minChat,
-      );
-      chatWidth -= shrink;
-      sidebarWidth += shrink;
-    }
-    final room = roomBeside(chatWidth);
-    final sidebarVisible = _sidebarShown && sidebarWidth >= _minSidebarWidth;
+    // Hidden, the chat leaves its sash as the gap at the window's side.
+    final outside = EdgeInsets.fromLTRB(gap, 0, _chatShown ? gap : 0, gap);
+    final room =
+        width -
+        outside.horizontal -
+        IdeModernUI.activityBarWidth -
+        2 * _sashWidth;
+    final columns = IdeColumns.fit(
+      room,
+      sidebar: _sidebarShown ? _sidebarWidth : null,
+      chat: _chatShown ? _chatWidth : null,
+    );
+    final sidebarVisible = columns.sidebar > 0;
+    final chatVisible = columns.chat > 0;
     return Padding(
       padding: outside,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _activityBar(joined: sidebarVisible),
-          if (sidebarVisible) ...[
+          if (sidebarVisible)
             SizedBox(
               key: const ValueKey('ide-sidebar'),
-              width: sidebarWidth,
+              width: columns.sidebar,
               child: _sidebarCard(),
             ),
-            _Sash(
-              key: const ValueKey('ide-sidebar-sash'),
-              onStart: () => _dragFrom = sidebarWidth,
-              onDrag: (dx) => setState(() {
-                _sidebarWidth = (_dragFrom + dx).clamp(
-                  _minSidebarWidth,
-                  math.max(_minSidebarWidth, math.min(_maxSidebarWidth, room)),
-                );
-              }),
-            ),
-          ] else
-            const SizedBox(width: _sashWidth),
+          // With the side bar hidden, the gap by the activity bar: dragged
+          // out, it opens the side bar.
+          _Sash(
+            key: const ValueKey('ide-sidebar-sash'),
+            grip: sidebarVisible,
+            canMoveLeft: sidebarVisible,
+            canMoveRight: columns.canGrowSidebar(room),
+            onStart: () => _dragStart = (columns: columns, room: room),
+            onDrag: (dx) =>
+                _dragTo((start, room) => start.dragSidebar(room, dx)),
+            onReset: () => setState(() {
+              _sidebarShown = true;
+              _sidebarWidth = IdeColumns.defaultSidebar;
+            }),
+          ),
           Expanded(
             key: const ValueKey('ide-editor'),
             child: _editorArea(commands),
           ),
-          if (_chatShown)
-            _Sash(
-              key: const ValueKey('ide-chat-sash'),
-              onStart: () => _dragFrom = chatWidth,
-              onDrag: (dx) => setState(() {
-                _chatWidth = (_dragFrom - dx).clamp(
-                  minChat,
-                  math.max(minChat, width * .48),
-                );
-              }),
-            ),
-          _chatSlot(chatWidth, Axis.horizontal),
+          _Sash(
+            key: const ValueKey('ide-chat-sash'),
+            grip: chatVisible,
+            canMoveLeft: columns.canGrowChat(room),
+            canMoveRight: chatVisible,
+            onStart: () => _dragStart = (columns: columns, room: room),
+            onDrag: (dx) => _dragTo((start, room) => start.dragChat(room, dx)),
+            onReset: () => setState(() {
+              _chatShown = true;
+              _chatWidth = IdeColumns.defaultChat;
+            }),
+          ),
+          _chatSlot(columns.chat),
         ],
       ),
     );
+  }
+
+  /// Where a sash's drag has got to, [drag] from its start. A part pushed
+  /// or snapped shut opens again (⌘B, ⌘J) as wide as it was.
+  void _dragTo(IdeColumns Function(IdeColumns start, double room) drag) {
+    final start = _dragStart;
+    if (start == null) return;
+    final columns = start.columns;
+    final next = drag(columns, start.room);
+    setState(() {
+      if (next.sidebar > 0) {
+        _sidebarShown = true;
+        _sidebarWidth = next.sidebar;
+      } else if (columns.sidebar > 0) {
+        _sidebarShown = false;
+        _sidebarWidth = columns.sidebar;
+      }
+      if (next.chat > 0) {
+        _chatShown = true;
+        _chatWidth = next.chat;
+      } else if (columns.chat > 0) {
+        _chatShown = false;
+        _chatWidth = columns.chat;
+      }
+    });
   }
 
   Widget _titleBar() {
@@ -1807,12 +1802,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             'Toggle Chat (${const IdeKeybinding(LogicalKeyboardKey.keyJ, primary: true).label()})',
             _toggleChat,
           ),
-          const SizedBox(width: 4),
-          TextButton.icon(
-            onPressed: () => unawaited(_back()),
-            icon: const Icon(Codicons.commentDiscussion, size: 14),
-            label: const Text('Back to chat', style: TextStyle(fontSize: 12)),
-          ),
+          if (widget.onPinnedChanged case final onPinnedChanged?) ...[
+            const SizedBox(width: 2),
+            PinWindowButton(pinned: widget.pinned, onChanged: onPinnedChanged),
+          ],
+          const SizedBox(width: 8),
+          BackToChatButton(onPressed: () => unawaited(_back())),
           const SizedBox(width: 8),
         ],
       ),
@@ -1907,11 +1902,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                       if (!WindowControls.drawsHeader) _titleBar(),
                       Expanded(
                         child: LayoutBuilder(
-                          builder: (context, constraints) => _split(
-                            constraints.maxWidth,
-                            constraints.maxHeight,
-                            commands,
-                          ),
+                          builder: (context, constraints) =>
+                              _split(constraints.maxWidth, commands),
                         ),
                       ),
                       _statusBar(),
@@ -2031,14 +2023,39 @@ class _CommandCenterState extends State<_CommandCenter> {
   }
 }
 
-/// A draggable border between two panes, highlighted while hovered/dragged.
+/// A draggable border between two panes, highlighted while hovered or
+/// dragged. Its cursor says which ways it can go (`.monaco-sash.minimum`,
+/// `.maximum`), and stays while dragged past where it stops; a double click
+/// resets what it sizes.
 class _Sash extends StatefulWidget {
-  const _Sash({super.key, required this.onStart, required this.onDrag});
+  const _Sash({
+    super.key,
+    required this.onStart,
+    required this.onDrag,
+    required this.onReset,
+    this.grip = true,
+    this.canMoveLeft = true,
+    this.canMoveRight = true,
+  });
 
   final VoidCallback onStart;
 
   /// How far the pointer is from where the drag began.
   final ValueChanged<double> onDrag;
+  final VoidCallback onReset;
+
+  /// The Modern UI's grip dots at rest: not for a sash that stands for a
+  /// hidden part.
+  final bool grip;
+  final bool canMoveLeft;
+  final bool canMoveRight;
+
+  MouseCursor get cursor => switch ((canMoveLeft, canMoveRight)) {
+    (true, true) => SystemMouseCursors.resizeColumn,
+    (true, false) => SystemMouseCursors.resizeLeft,
+    (false, true) => SystemMouseCursors.resizeRight,
+    (false, false) => SystemMouseCursors.basic,
+  };
 
   @override
   State<_Sash> createState() => _SashState();
@@ -2049,32 +2066,77 @@ class _SashState extends State<_Sash> {
   bool _dragging = false;
   double _startX = 0;
 
+  /// Over the window while dragging, with the sash's cursor: the pointer
+  /// leaves the sash where it stops, and the cursor goes with it rather
+  /// than turn into what it is over (VS Code's drag shield).
+  OverlayEntry? _shield;
+
+  @override
+  void didUpdateWidget(_Sash oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // After this frame's build: the shield is the overlay's, not below us.
+    if (_shield != null && widget.cursor != oldWidget.cursor) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _shield?.markNeedsBuild(),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _removeShield();
+    super.dispose();
+  }
+
+  void _start(DragStartDetails details) {
+    _startX = details.globalPosition.dx;
+    widget.onStart();
+    setState(() => _dragging = true);
+    if (Overlay.maybeOf(context) case final overlay?) {
+      _shield = OverlayEntry(
+        builder: (context) => MouseRegion(cursor: widget.cursor, opaque: true),
+      );
+      overlay.insert(_shield!);
+    }
+  }
+
+  void _end() {
+    _removeShield();
+    setState(() => _dragging = false);
+  }
+
+  void _removeShield() {
+    _shield
+      ?..remove()
+      ..dispose();
+    _shield = null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final active = _hover || _dragging;
     return MouseRegion(
-      cursor: SystemMouseCursors.resizeColumn,
+      cursor: widget.cursor,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         dragStartBehavior: DragStartBehavior.down,
-        onHorizontalDragStart: (details) {
-          _startX = details.globalPosition.dx;
-          widget.onStart();
-          setState(() => _dragging = true);
-        },
+        onHorizontalDragStart: _start,
         onHorizontalDragUpdate: (details) =>
             widget.onDrag(details.globalPosition.dx - _startX),
-        onHorizontalDragEnd: (_) => setState(() => _dragging = false),
-        onHorizontalDragCancel: () => setState(() => _dragging = false),
+        onHorizontalDragEnd: (_) => _end(),
+        onHorizontalDragCancel: _end,
+        onDoubleTap: widget.onReset,
         // At rest, the Modern UI's three grip dots; hovered or dragged,
         // the `sash.hoverBorder` filling the gap.
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
           width: IdeWorkbenchState._sashWidth,
           color: active ? IdeModernUI.sashHover : Colors.transparent,
-          child: active ? null : const CustomPaint(painter: _SashGripPainter()),
+          child: active || !widget.grip
+              ? null
+              : const CustomPaint(painter: _SashGripPainter()),
         ),
       ),
     );

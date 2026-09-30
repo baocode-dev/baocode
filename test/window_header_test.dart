@@ -8,6 +8,7 @@ import 'package:monad/chat/chat_screen.dart';
 import 'package:monad/chat/panels/context_usage_panel.dart';
 import 'package:monad/main.dart';
 import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/workspace/back_to_chat_button.dart';
 import 'package:monad/workspace/editor_launcher.dart';
 import 'package:monad/workspace/open_in_editor_button.dart';
 import 'package:monad/workspace/window_header/about_dialog.dart';
@@ -80,6 +81,59 @@ void main() {
     List<Object?> controls(MethodCall call) =>
         (call.arguments as Map)['controls'] as List<Object?>;
     expect(controls(reports().last), isNot(controls(reports().first)));
+  }, variant: _windows);
+
+  testWidgets('over the IDE it is the IDE\'s title bar: no line under it, '
+      'and the way back to the chat on the right', (tester) async {
+    final (workspace, calls) = await pumpWindowsApp(tester);
+    final header = find.byType(WindowHeader);
+    BoxBorder? line() =>
+        (tester
+                    .widget<DecoratedBox>(
+                      find
+                          .descendant(
+                            of: header,
+                            matching: find.byType(DecoratedBox),
+                          )
+                          .first,
+                    )
+                    .decoration
+                as BoxDecoration)
+            .border;
+    final back = find.descendant(
+      of: header,
+      matching: find.byType(BackToChatButton),
+    );
+    expect(line(), isNotNull);
+    expect(back, findsNothing);
+
+    workspace.layout = WorkspaceLayout.ide;
+    await tester.pump();
+    await tester.pump();
+    expect(line(), isNull);
+    expect(back, findsOneWidget);
+    final button = tester.getRect(back);
+    expect(button.height, 22);
+    expect(button.center.dy, tester.getRect(header).center.dy);
+    // The window leaves it to Flutter, rather than dragging by it.
+    final report = calls.lastWhere((call) => call.method == 'setHitTestAreas');
+    expect(
+      (report.arguments as Map)['controls'],
+      contains(
+        equals({
+          'left': button.left,
+          'top': button.top,
+          'width': button.width,
+          'height': button.height,
+        }),
+      ),
+    );
+
+    await tester.tap(back);
+    await tester.pump();
+    expect(workspace.layout, WorkspaceLayout.chat);
+    await tester.pump();
+    expect(back, findsNothing);
   }, variant: _windows);
 
   testWidgets('View → Context Panel opens the chat\'s, wherever the focus '

@@ -101,6 +101,7 @@
   - IDE 内不再使用 Material 的 `Tooltip` 和 `IconButton`。
   - `find.byTooltip` 仍可用。
 - **编辑器选择**：`Editor.fastIde` 成为标题栏下拉中的一个选项，选中后会记住；主按钮切换到 IDE 布局。`openInEditor` 不会启动它。
+- **返回聊天**：标题栏右侧的 `BackToChatButton`（`lib/workspace/back_to_chat_button.dart`）是带图标的实心 `IdeButton`，高 22px。macOS 下位于 IDE 自己的标题栏；Windows 下位于应用绘制的 header，在窗口按钮左侧。IDE 模式下 Windows header 使用 IDE 的底色，没有下边线，左侧不再显示返回聊天的小图标。
 - **release 修复**：`FileIcon` 不再给 `SvgPicture.asset` 传 `bundle:`。flutter_svg 会把 loader 发到 isolate，带缓存的 bundle 在 release 下无法发送，导致文件图标全空。已加 isolate 可发送性的回归测试。
 - **release 打开文件闪退（已修复）**：Dart 3.13.4 的 AOT 编译器会把循环里只靠布尔局部变量提升的可空字段读取（原 `tokenizeIncremental` 中的 `if (reusable && …) previous.…`）提到循环外无条件执行。`previous` 为 null 时就会读到地址 0xf，触发 SIGSEGV；JIT（debug）下不会出现。
   - 现在可复用的数据先放进普通局部变量，循环里不再读取可空对象。
@@ -117,6 +118,14 @@
   - 侧边栏在左侧与活动栏相接（接缝是活动栏的边框）；侧边栏隐藏时，活动栏四角都是圆角。
   - 分隔条静止时显示三个 2px 的点，悬停或拖动时整条填 `sash.hoverBorder`。
   - 只实现默认密度，不含 compact。
+- **列宽与分隔条**：`lib/ide/ide_columns.dart` 按 VS Code grid（`splitview.ts`）分配侧边栏、编辑器、聊天三列的宽度。
+  - 各列最小宽度：侧边栏 170、编辑器 320、聊天 360。各列没有最大宽度。
+  - 窗口变窄时，先缩聊天到最小宽度，再缩侧边栏到最小宽度，然后隐藏侧边栏。聊天始终在右侧，不再有窄窗口下把聊天放到底部的布局。
+  - 分隔条拖过编辑器的最小宽度后，会继续挤压另一侧的列。拖回原处时，被挤压的列恢复原宽度（按拖动开始时的宽度计算）。
+  - 另一侧的列被挤到最小宽度后，再往前拖超过它最小宽度的一半，它会吸附隐藏，被拖的列跟随指针变宽。拖回来时它重新显示（VS Code `splitview.ts` 的 `snapAfter`/`snapBefore`）。拖动过程中始终用拖动开始时的可用宽度计算，因为聊天隐藏后会连带去掉窗口边上的 4px 间隙。
+  - 拖到本列最小宽度的一半以下会吸附隐藏，再拖出超过一半时显示。拖动隐藏后，⌘B/⌘J 按隐藏前的宽度重新打开。列隐藏时，它的分隔条就是窗口边缘那 4px 间隙，可以从这里拖出来。
+  - 光标表示分隔条能移动的方向：两边都能动时为 `resizeColumn`，只能向左时为 `resizeLeft`，只能向右时为 `resizeRight`（对应 VS Code 的 `.minimum`/`.maximum`）。拖动时在 Overlay 上盖一层遮罩，所以指针越过分隔条后光标保持不变。
+  - 双击分隔条会显示对应的列，并恢复默认宽度（侧边栏 240，聊天 420）。
 - **悬浮框**：`lib/ide/lsp_ui/hover_markdown.dart` 按 VS Code 编辑器悬浮框渲染 Markdown，参考 `hoverWidget.css`、`hover.css`、`hoverContribution.ts` 和 `editorMarkdownCodeBlockRenderer.ts`。
   - 代码块用编辑器的 Monarch 语法和主题上色：语言取代码块标注（按 id 或别名，大小写不敏感，见 `MonacoLanguageAssets.languageIdForName`），没有标注时用当前编辑器的语言。
   - 代码块不显示语言标签，也不加外框。

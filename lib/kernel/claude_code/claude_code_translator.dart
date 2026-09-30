@@ -32,14 +32,7 @@ class ClaudeTranslator {
   }
 
   /// A turn was sent: the agent is at work from now, before the CLI says so.
-  void begin() {
-    _interruptShown = null;
-    _report(_waiting());
-  }
-
-  /// The "Interrupted" notice, while nothing has come after it: a stop
-  /// that cut several requests short shows once.
-  String? _interruptShown;
+  void begin() => _report(_waiting());
 
   KernelActivity _waiting() =>
       KernelActivity(KernelActivityKind.waiting, DateTime.now());
@@ -103,8 +96,6 @@ class ClaudeTranslator {
 
   // --- Items -------------------------------------------------------------------
 
-  static const _interrupted = NoticeItem(NoticeKind.info, 'Interrupted');
-
   /// Adds or replaces [id], at the top level or in the subagent [parent].
   void _put(
     String id,
@@ -119,7 +110,6 @@ class ClaudeTranslator {
       _putAgent(parent);
       return;
     }
-    _interruptShown = item == _interrupted ? id : null;
     emit(ItemUpserted(nextSeq(), id, item, streaming: streaming));
   }
 
@@ -372,11 +362,8 @@ class ClaudeTranslator {
       }
       return;
     }
-    if (trimmed.startsWith('[Request interrupted by user')) {
-      final shown = _interruptShown;
-      if (shown == null || shown == id) _put(id, _interrupted);
-      return;
-    }
+    // The CLI's note to the model that the user stopped it: not shown.
+    if (trimmed.startsWith('[Request interrupted by user')) return;
     _put(id, UserMessageItem(text: trimmed, images: images));
   }
 

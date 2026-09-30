@@ -590,8 +590,8 @@ void main() {
       kernel.dispose();
     });
 
-    test('a turn stopped as soon as sent stays stopped, its interruption '
-        'shown once', () async {
+    test('a turn stopped as soon as sent stays stopped; the CLI\'s notes of '
+        'the interruption do not show', () async {
       final cli = FakeCli();
       final (:kernel, :transcript, events: _) = claude(cli);
       Map<String, Object?> interruption(String uuid) => {
@@ -604,10 +604,6 @@ void main() {
           ],
         },
       };
-      int interruptions() => [
-        for (var i = 0; i < transcript.length; i++)
-          if (transcript.itemAt(i) case NoticeItem(text: 'Interrupted')) i,
-      ].length;
 
       kernel.send(const KernelTurn(id: 'u1', text: 'look at my code'));
       await pumpEventQueue();
@@ -625,19 +621,12 @@ void main() {
       await pumpEventQueue();
       expect(cli.requests('interrupt'), hasLength(1));
 
-      // However many requests the stop cut short, one notice.
       cli
         ..push(interruption('i1'))
         ..push(interruption('i2'));
       await pumpEventQueue();
-      expect(interruptions(), 1);
-      // The next turn's shows too.
-      kernel.send(const KernelTurn(id: 'u2', text: 'again'));
-      await pumpEventQueue();
-      kernel.cancel();
-      cli.push(interruption('i3'));
-      await pumpEventQueue();
-      expect(interruptions(), 2);
+      expect(transcript.length, 1);
+      expect(transcript.itemAt(0), isA<UserMessageItem>());
       kernel.dispose();
     });
 

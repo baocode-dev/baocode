@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/ide/ide_editor.dart';
 import 'package:monad/ide/ide_find_widget.dart';
+import 'package:monad/ide/ide_status_bar.dart';
+import 'package:monad/workspace/back_to_chat_button.dart';
+import 'package:monad/workspace/pin_window_button.dart';
 
 import 'fake_files.dart';
 
@@ -128,5 +131,30 @@ void main() {
     expect(find.text('Mixed'), findsOneWidget);
     expect(find.text('UTF-8'), findsOneWidget);
     expect(find.text('Plain Text'), findsOneWidget);
+  });
+
+  testWidgets('status bar: its right items against the right edge, however '
+      'few', (tester) async {
+    await pumpWorkbench(tester, const {'a.dart': 'a'});
+    final bar = tester.getRect(find.byType(IdeStatusBar));
+    // No editor: the notifications bell alone.
+    final bell = tester.getRect(find.byTooltip('No Notifications'));
+    expect(bell.right, closeTo(bar.right - 6, 1));
+  });
+
+  testWidgets('title bar: the window pin beside the way back to the chat', (
+    tester,
+  ) async {
+    final pins = <bool>[];
+    await pumpWorkbench(tester, const {
+      'a.dart': 'a',
+    }, onPinnedChanged: pins.add);
+    final pin = find.byType(PinWindowButton);
+    expect(pin, findsOneWidget);
+    expect(
+      tester.getRect(pin).right,
+      lessThan(tester.getRect(find.byType(BackToChatButton)).left),
+    );
+    expect(tester.widget<PinWindowButton>(pin).onChanged, pins.add);
   });
 }

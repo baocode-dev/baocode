@@ -31,13 +31,21 @@ class IdeButton extends StatefulWidget {
     super.key,
     required this.label,
     required this.onPressed,
+    this.icon,
     this.secondary = false,
     this.expand = false,
+    this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
   });
 
   final String label;
   final VoidCallback? onPressed;
+
+  /// A 16px codicon before [label], as `$(icon) label` gives.
+  final IconData? icon;
   final bool secondary;
+
+  /// Less in a bar lower than a button, e.g. a title bar.
+  final EdgeInsets padding;
 
   /// As wide as it may be (`width: 100%`), else as its label.
   final bool expand;
@@ -53,6 +61,24 @@ class _IdeButtonState extends State<IdeButton> {
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null;
     final secondary = widget.secondary;
+    final foreground = secondary
+        ? IdeButtonColors.secondaryForeground
+        : IdeButtonColors.foreground;
+    Widget label = Text(
+      widget.label,
+      textAlign: TextAlign.center,
+      style: TextStyle(fontSize: 12, height: 16 / 12, color: foreground),
+    );
+    if (widget.icon case final icon?) {
+      label = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: foreground),
+          const SizedBox(width: 4),
+          Flexible(child: label),
+        ],
+      );
+    }
     final background = secondary
         ? (_hover && enabled
               ? IdeButtonColors.secondaryHoverBackground
@@ -75,7 +101,7 @@ class _IdeButtonState extends State<IdeButton> {
           child: Opacity(
             opacity: enabled ? 1 : 0.4,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: widget.padding,
               alignment: widget.expand ? Alignment.center : null,
               decoration: BoxDecoration(
                 color: background,
@@ -86,17 +112,7 @@ class _IdeButtonState extends State<IdeButton> {
                 ),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
-                widget.label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 16 / 12,
-                  color: secondary
-                      ? IdeButtonColors.secondaryForeground
-                      : IdeButtonColors.foreground,
-                ),
-              ),
+              child: label,
             ),
           ),
         ),

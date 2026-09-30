@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../../ide/ide_modern_ui.dart';
 import '../../sidebar/sidebar.dart';
 import '../../theme/cursor_theme.dart';
+import '../back_to_chat_button.dart';
 import '../open_in_editor_button.dart';
 import '../pin_window_button.dart';
 import '../window_controls.dart';
@@ -15,7 +17,8 @@ import 'window_buttons.dart';
 
 /// The bar the Windows app draws itself, over everything: the sidebar toggle,
 /// the menu bar, the session's tools and the window buttons (see
-/// [WindowControls.drawsHeader]).
+/// [WindowControls.drawsHeader]); over the IDE, the way back to the chat in
+/// place of the sidebar toggle.
 ///
 /// It tells the window where its controls are; the window leaves those pixels
 /// to Flutter, drags itself by the rest of the strip, and runs the three
@@ -65,6 +68,7 @@ class _WindowHeaderState extends State<WindowHeader> {
   final _menus = GlobalKey(debugLabel: 'header menus');
   final _pin = GlobalKey(debugLabel: 'header pin');
   final _open = GlobalKey(debugLabel: 'header open in editor');
+  final _back = GlobalKey(debugLabel: 'header back to chat');
   final _minimize = GlobalKey(debugLabel: 'window minimize');
   final _maximize = GlobalKey(debugLabel: 'window maximize');
   final _close = GlobalKey(debugLabel: 'window close');
@@ -91,40 +95,41 @@ class _WindowHeaderState extends State<WindowHeader> {
 
   @override
   Widget build(BuildContext context) {
+    final ide = widget.workspace.layout == WorkspaceLayout.ide;
     // A Material of its own, as the sidebar has: the strip is outside the
     // chat's Scaffold, and this is what gives its text the app's own style.
-    // The line under it is what tells it apart from what it sits over —
-    // Flutter's own pixels are the whole of the window's top on Windows
-    // (see WindowControls.drawsHeader), so the system draws none.
+    // Over the chat, the line under it is what tells it apart from what it
+    // sits over — Flutter's own pixels are the whole of the window's top on
+    // Windows (see WindowControls.drawsHeader), so the system draws none.
+    // Over the IDE it is the IDE's title bar: its color, no line, and the
+    // way back to the chat on the right, as on macOS.
     return Material(
-      color: CursorColors.background,
+      color: ide ? IdeModernUI.shell : CursorColors.background,
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: CursorColors.border)),
+        decoration: BoxDecoration(
+          border: ide
+              ? null
+              : const Border(bottom: BorderSide(color: CursorColors.border)),
         ),
         child: SizedBox(
           height: CursorMetrics.headerHeight,
           child: Row(
             children: [
               const SizedBox(width: 6),
-              KeyedSubtree(
-                key: _toggle,
-                child: SidebarIconButton(
-                  icon: widget.workspace.layout == WorkspaceLayout.ide
-                      ? Icons.chat_bubble_outline_rounded
-                      : Icons.view_sidebar_outlined,
-                  flip: widget.workspace.layout != WorkspaceLayout.ide,
-                  tooltip: widget.workspace.layout == WorkspaceLayout.ide
-                      ? 'Back to chat'
-                      : widget.sidebarShown
-                      ? 'Hide sidebar'
-                      : 'Show sidebar',
-                  onTap: widget.workspace.layout == WorkspaceLayout.ide
-                      ? () => widget.workspace.layout = WorkspaceLayout.chat
-                      : widget.onToggleSidebar,
+              if (!ide) ...[
+                KeyedSubtree(
+                  key: _toggle,
+                  child: SidebarIconButton(
+                    icon: Icons.view_sidebar_outlined,
+                    flip: true,
+                    tooltip: widget.sidebarShown
+                        ? 'Hide sidebar'
+                        : 'Show sidebar',
+                    onTap: widget.onToggleSidebar,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 2),
+                const SizedBox(width: 2),
+              ],
               KeyedSubtree(
                 key: _menus,
                 child: HeaderMenuBar(items: _items),
@@ -147,6 +152,16 @@ class _WindowHeaderState extends State<WindowHeader> {
                   ),
                 ),
               ],
+              if (ide) ...[
+                const SizedBox(width: 8),
+                KeyedSubtree(
+                  key: _back,
+                  child: BackToChatButton(
+                    onPressed: () =>
+                        widget.workspace.layout = WorkspaceLayout.chat,
+                  ),
+                ),
+              ],
               const SizedBox(width: 10),
               WindowButtons(
                 minimizeKey: _minimize,
@@ -164,7 +179,7 @@ class _WindowHeaderState extends State<WindowHeader> {
   /// drags it, and its three buttons are the system's own to run.
   void _report() {
     final controls = <Rect>[
-      for (final key in [_toggle, _menus, _pin, _open]) ?_rect(key),
+      for (final key in [_toggle, _menus, _pin, _open, _back]) ?_rect(key),
     ];
     final minimize = _rect(_minimize);
     final maximize = _rect(_maximize);

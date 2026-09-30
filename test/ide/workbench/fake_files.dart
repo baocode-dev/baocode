@@ -152,6 +152,7 @@ Future<IdeWorkspace> pumpWorkbench(
   IdeTextSearch? textSearch,
   IdeExtensions? extensions,
   IdeCommitMessageModel? commitMessage,
+  ValueChanged<bool>? onPinnedChanged,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -186,6 +187,7 @@ Future<IdeWorkspace> pumpWorkbench(
         extensions: extensions,
         // Never the real Claude Code under test.
         commitMessage: commitMessage ?? _noModel,
+        onPinnedChanged: onPinnedChanged,
       ),
     ),
   );

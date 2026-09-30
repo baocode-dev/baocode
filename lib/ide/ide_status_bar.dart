@@ -47,27 +47,32 @@ class IdeStatusBar extends StatelessWidget {
         border: Border(top: BorderSide(color: CursorColors.border)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                for (final item in left) Flexible(child: _StatusItem(item)),
-              ],
-            ),
-          ),
-          // Scrolls instead of overflowing in a narrow window.
-          Flexible(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              reverse: true,
+      child: LayoutBuilder(
+        builder: (context, constraints) => Row(
+          children: [
+            Expanded(
               child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [for (final item in right) _StatusItem(item)],
+                children: [
+                  for (final item in left) Flexible(child: _StatusItem(item)),
+                ],
               ),
             ),
-          ),
-        ],
+            // Against the right edge, in up to half the bar (a Flexible
+            // would start at the half); scrolls instead of overflowing in
+            // a narrow window.
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth / 2),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                reverse: true,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [for (final item in right) _StatusItem(item)],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

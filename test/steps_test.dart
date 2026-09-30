@@ -346,6 +346,42 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('narrow, the changes\' label gives way to their buttons', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            // Too narrow for the whole label in the test font.
+            width: 440,
+            child: ActivityStrip(
+              tasks: const [],
+              changes: const [
+                FileChange(path: '/a/clauding.html', added: 119, removed: 0),
+              ],
+              onUndo: () {},
+              onKeep: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    // No overflow, and the buttons still against the end.
+    final keep = tester.getRect(
+      find.ancestor(
+        of: find.text('Keep all'),
+        matching: find.byType(FittedBox),
+      ),
+    );
+    final strip = tester.getRect(find.byType(ActivityStrip));
+    expect(keep.right, strip.right - (10 + 1 + 3 + 7));
+    expect(
+      tester.getRect(find.text('-0')).right,
+      lessThan(tester.getRect(find.text('Undo all')).left),
+    );
+  });
+
   testWidgets('many running tasks scroll within the strip', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
