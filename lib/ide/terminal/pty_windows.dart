@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -12,10 +13,15 @@ import 'pty.dart';
 /// A process on a Windows pseudo console (ConPTY, Windows 10 1809 and
 /// later), run as node-pty's conpty agent runs one, over anonymous pipes.
 ///
-/// Three helper isolates make the calls that block: one reads the console's
-/// output until the console closes, one writes the input, one waits for the
-/// process to exit. The console outlives the process: it is closed once the
-/// output has been quiet a while, and closing it ends the output.
+/// No Dart isolate waits in a blocking call: the Dart VM's sampling
+/// profiler (on in debug builds) walks such a thread's stack by its frame
+/// pointer, which Windows does not keep in system calls, and crashes the
+/// app reading a page of the stack not committed (see HANDOFF). So the
+/// output is read, and the process's exit seen, by [ConsolePoll] on this
+/// isolate; the console is closed on a thread of Windows' own; and a helper
+/// isolate writes the input, blocking only while a write waits. The console
+/// outlives the process: it is closed once the output has been quiet a
+/// while, and closing it ends the output.
 final class WindowsPty extends Pty {
   WindowsPty._(
     this.pid,
@@ -23,7 +29,15 @@ final class WindowsPty extends Pty {
     this._console,
     this._inputHandle,
     this._outputHandle,
-  );
+  ) {
+    _poll = ConsolePoll(
+      available: _available,
+      read: _read,
+      onOutput: _received,
+      onOutputDone: _outputEnded,
+      check: _check,
+    );
+  }
 
   static bool get supported {
     try {
@@ -218,18 +232,21 @@ final class WindowsPty extends Pty {
   final int _inputHandle;
   final int _outputHandle;
 
-  final _outputPort = ReceivePort();
   final _output = StreamController<Uint8List>();
   final _exitCode = Completer<int>();
   SendPort? _writer;
+  late final ConsolePoll _poll;
 
-  /// Set while [pause]d, for the output isolate to see: native memory, which
-  /// both isolates reach. Freed once the output isolate has ended.
-  Pointer<Int32>? _paused = _heapAlloc(
-    _getProcessHeap(),
-    _heapZeroMemory,
-    sizeOf<Int32>(),
-  ).cast<Int32>();
+  /// The output's buffer and a count, for the calls on this isolate; freed
+  /// once all is over.
+  final _io = _Heap();
+  late final Pointer<Uint8> _buffer = _io<Uint8>(ConsolePoll.chunk);
+  late final Pointer<Uint32> _count = _io<Uint32>(sizeOf<Uint32>());
+
+  /// The thread closing the console, 0 when none; and whether the process
+  /// is ended once it has.
+  int _closer = 0;
+  bool _terminate = false;
 
   int? _code;
   Timer? _flush;
@@ -245,38 +262,61 @@ final class WindowsPty extends Pty {
   Future<int> get exitCode => _exitCode.future;
 
   Future<void> _serve() async {
-    _outputPort.listen(_receive);
-    await Isolate.spawn(_readConsole, (
-      _outputPort.sendPort,
-      _outputHandle,
-      _paused!.address,
-    ), debugName: 'conpty output');
     final writer = ReceivePort();
     await Isolate.spawn(_writeConsole, (
       writer.sendPort,
       _inputHandle,
     ), debugName: 'conpty input');
     _writer = await writer.first as SendPort;
-    unawaited(_exitCodeOf(_process).then(_exited));
+    _poll.start();
   }
 
-  static Future<int> _exitCodeOf(int process) =>
-      Isolate.run(() => _waitForExit(process));
+  /// The bytes waiting in the output pipe; -1 once it is broken, the console
+  /// having closed its end, and empty.
+  int _available() =>
+      _peekNamedPipe(_outputHandle, nullptr, 0, nullptr, _count, nullptr) == 0
+      ? -1
+      : _count.value;
 
-  static Future<void> _closeConsoleOf(int console, int process) =>
-      Isolate.run(() => _closeConsole(console, process));
-
-  void _receive(Object? message) {
-    if (message is TransferableTypedData) {
-      _output.add(message.materialize().asUint8List());
-      if (_code != null) _closeWhenQuiet();
-    } else {
-      _outputDone = true;
-      final paused = _paused;
-      _paused = null;
-      if (paused != null) _heapFree(_getProcessHeap(), 0, paused.cast());
-      _finish();
+  /// [count] bytes that are waiting: the read does not block.
+  Uint8List _read(int count) {
+    if (_readFile(_outputHandle, _buffer, count, _count, nullptr) == 0) {
+      return Uint8List(0);
     }
+    return Uint8List.fromList(_buffer.asTypedList(_count.value));
+  }
+
+  void _received(Uint8List data) {
+    _output.add(data);
+    if (_code != null) _closeWhenQuiet();
+  }
+
+  void _outputEnded() {
+    _closeHandle(_outputHandle);
+    _outputDone = true;
+    _finish();
+  }
+
+  /// Whether the process has exited, or the console closed, since last
+  /// looked.
+  bool _check() {
+    var changed = false;
+    if (_code == null && _waitForSingleObject(_process, 0) == _waitObject0) {
+      _exited(
+        _getExitCodeProcess(_process, _count) == 0
+            ? 0
+            : _count.value.toSigned(32),
+      );
+      changed = true;
+    }
+    final closer = _closer;
+    if (closer != 0 && _waitForSingleObject(closer, 0) == _waitObject0) {
+      _closer = 0;
+      _closeHandle(closer);
+      _consoleGone();
+      changed = true;
+    }
+    return changed;
   }
 
   void _exited(int code) {
@@ -294,29 +334,53 @@ final class WindowsPty extends Pty {
   }
 
   /// Closes the console: what still runs in it gets CTRL_CLOSE_EVENT; with
-  /// [terminate], the process is ended too, as node-pty's kill does. Off
-  /// this isolate, as it waits for the console to go.
+  /// [terminate], the process is ended too, as node-pty's kill does.
+  ///
+  /// ClosePseudoConsole waits for the console to go (up to seconds before
+  /// Windows 11 24H2), so it runs as the start routine of a thread of its
+  /// own, not a Dart isolate's (see [ConsolePoll]): it takes one
+  /// pointer-sized argument as one does, and what it leaves in the return
+  /// register is the thread's exit code, unused.
   void _close({bool terminate = false}) {
     if (_consoleClosing) return;
     _consoleClosing = true;
+    _terminate = terminate;
     resume();
     _flush?.cancel();
-    unawaited(
-      _closeConsoleOf(_console, terminate ? _process : 0).then((_) {
-        _consoleClosed = true;
-        _finish();
-      }),
+    _closer = _createThread(
+      nullptr,
+      0,
+      _closePseudoConsoleRoutine,
+      Pointer.fromAddress(_console),
+      0,
+      nullptr,
     );
+    if (_closer == 0) {
+      final console = _console;
+      unawaited(
+        Isolate.run(() => _closePseudoConsole(console)).then((_) {
+          if (!_finished) _consoleGone();
+        }),
+      );
+    }
+    _poll.hurry();
+  }
+
+  void _consoleGone() {
+    if (_terminate) _terminateProcess(_process, 1);
+    _consoleClosed = true;
+    _finish();
   }
 
   void _finish() {
     final code = _code;
     if (!_outputDone || !_consoleClosed || code == null || _finished) return;
     _finished = true;
+    _poll.stop();
+    _io.free();
     _writer?.send(null);
     _writer = null;
     _closeHandle(_process);
-    _outputPort.close();
     // The exit code comes once a listener has had the end of the output.
     final closed = _output.close();
     if (_output.hasListener) {
@@ -330,6 +394,8 @@ final class WindowsPty extends Pty {
   void write(Uint8List data) {
     if (_code != null || _consoleClosing || data.isEmpty) return;
     _writer?.send(data);
+    // Its echo is on the way.
+    _poll.hurry();
   }
 
   @override
@@ -355,11 +421,121 @@ final class WindowsPty extends Pty {
 
   @override
   void pause() {
-    if (_code == null && !_consoleClosing) _paused?.value = 1;
+    if (_code == null && !_consoleClosing) _poll.pause();
   }
 
   @override
-  void resume() => _paused?.value = 0;
+  void resume() => _poll.resume();
+}
+
+/// Reads a console's output, and looks at what else is watched (the
+/// process's exit, the console's closing), from the isolate that runs it:
+/// by polling, so that no isolate waits in a blocking call (see
+/// [WindowsPty]). Looks again at once while output floods in, soon after it
+/// came or input was sent, and less and less often, up to [slowest], while
+/// all is quiet. Paused (flow control), it reads nothing: the pipe fills,
+/// then the console and the process wait.
+@visibleForTesting
+final class ConsolePoll {
+  ConsolePoll({
+    required this.available,
+    required this.read,
+    required this.onOutput,
+    required this.onOutputDone,
+    required this.check,
+  });
+
+  /// The bytes waiting in the output pipe; negative once it has ended.
+  final int Function() available;
+
+  /// Reads that many bytes, which are waiting.
+  final Uint8List Function(int count) read;
+
+  final void Function(Uint8List data) onOutput;
+  final void Function() onOutputDone;
+
+  /// Looks at what else is watched; returns whether anything happened.
+  final bool Function() check;
+
+  /// The most read at a time, and in one turn of the event loop: a flood
+  /// leaves the app its turns.
+  static const chunk = 64 * 1024;
+  static const budget = 4 * chunk;
+
+  static const fastest = Duration(milliseconds: 1);
+  static const slowest = Duration(milliseconds: 32);
+
+  Timer? _timer;
+  Duration _interval = fastest;
+  bool _ticking = false;
+  bool _paused = false;
+  bool _outputDone = false;
+  bool _stopped = false;
+
+  void start() => _schedule(Duration.zero);
+
+  void pause() => _paused = true;
+
+  void resume() {
+    if (!_paused) return;
+    _paused = false;
+    hurry();
+  }
+
+  /// Looks again soon, something being expected.
+  void hurry() {
+    _interval = fastest;
+    if (!_ticking && !_stopped) _schedule(fastest);
+  }
+
+  void stop() {
+    _stopped = true;
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  void _schedule(Duration delay) {
+    _timer?.cancel();
+    _timer = Timer(delay, _tick);
+  }
+
+  void _tick() {
+    _timer = null;
+    _ticking = true;
+    var busy = false;
+    var total = 0;
+    try {
+      busy = check();
+      while (!_stopped && !_paused && !_outputDone && total < budget) {
+        final count = available();
+        if (count < 0) {
+          _outputDone = true;
+          busy = true;
+          onOutputDone();
+          break;
+        }
+        if (count == 0) break;
+        final data = read(math.min(count, chunk));
+        if (data.isEmpty) break;
+        total += data.length;
+        onOutput(data);
+      }
+    } finally {
+      _ticking = false;
+    }
+    if (_stopped) return;
+    if (total >= budget && !_paused) {
+      _schedule(Duration.zero);
+      return;
+    }
+    final slower = _interval * 2;
+    _interval = busy || total > 0
+        ? fastest
+        : slower > slowest
+        ? slowest
+        : slower;
+    _schedule(_interval);
+  }
 }
 
 /// The command line for [executable] and [arguments], quoted for the C
@@ -419,35 +595,6 @@ String? _lookUp(Map<String, String> environment, String name) {
   return null;
 }
 
-const _chunk = 64 * 1024;
-const _pausedPoll = Duration(milliseconds: 10);
-
-/// The output isolate: reads until the console closes its end of the pipe;
-/// while paused, looks again every [_pausedPoll] instead of reading.
-void _readConsole((SendPort, int, int) setup) {
-  final (port, handle, pausedAddress) = setup;
-  final paused = Pointer<Int32>.fromAddress(pausedAddress);
-  final heap = _Heap();
-  try {
-    final buffer = heap<Uint8>(_chunk);
-    final read = heap<Uint32>(sizeOf<Uint32>());
-    while (true) {
-      while (paused.value != 0) {
-        sleep(_pausedPoll);
-      }
-      if (_readFile(handle, buffer, _chunk, read, nullptr) == 0) break;
-      if (read.value == 0) continue;
-      port.send(
-        TransferableTypedData.fromList([buffer.asTypedList(read.value)]),
-      );
-    }
-  } finally {
-    _closeHandle(handle);
-    heap.free();
-    port.send(null);
-  }
-}
-
 /// The input isolate: writes what it is sent, in order, until sent null.
 void _writeConsole((SendPort, int) setup) {
   final (reply, handle) = setup;
@@ -488,23 +635,6 @@ bool _writeAll(int handle, Uint8List data) {
   }
 }
 
-int _waitForExit(int process) {
-  _waitForSingleObject(process, _infinite);
-  final heap = _Heap();
-  try {
-    final code = heap<Uint32>(sizeOf<Uint32>());
-    if (_getExitCodeProcess(process, code) == 0) return 0;
-    return code.value.toSigned(32);
-  } finally {
-    heap.free();
-  }
-}
-
-void _closeConsole(int console, int process) {
-  _closePseudoConsole(console);
-  if (process != 0) _terminateProcess(process, 1);
-}
-
 /// Native memory for one call, freed together.
 final class _Heap {
   final _allocated = <Pointer<Void>>[];
@@ -536,7 +666,7 @@ final class _Heap {
 
 // kernel32, by hand: handles are pointer-sized integers, BOOL an Int32.
 
-const _infinite = 0xFFFFFFFF;
+const _waitObject0 = 0;
 const _heapZeroMemory = 0x00000008;
 const _startfUseStdHandles = 0x00000100;
 const _extendedStartupInfoPresent = 0x00080000;
@@ -642,6 +772,33 @@ final _closePseudoConsole = _kernel32
       'ClosePseudoConsole',
     );
 
+/// ClosePseudoConsole, as a thread's start routine (see
+/// [WindowsPty._close]).
+final _closePseudoConsoleRoutine = _kernel32
+    .lookup<NativeFunction<Uint32 Function(Pointer<Void>)>>(
+      'ClosePseudoConsole',
+    );
+
+final _createThread = _kernel32
+    .lookupFunction<
+      IntPtr Function(
+        Pointer<Void>,
+        IntPtr,
+        Pointer<NativeFunction<Uint32 Function(Pointer<Void>)>>,
+        Pointer<Void>,
+        Uint32,
+        Pointer<Uint32>,
+      ),
+      int Function(
+        Pointer<Void>,
+        int,
+        Pointer<NativeFunction<Uint32 Function(Pointer<Void>)>>,
+        Pointer<Void>,
+        int,
+        Pointer<Uint32>,
+      )
+    >('CreateThread');
+
 final _initializeProcThreadAttributeList = _kernel32
     .lookupFunction<
       Int32 Function(Pointer<Void>, Uint32, Uint32, Pointer<IntPtr>),
@@ -715,6 +872,26 @@ final _readFile = _kernel32
       ),
       int Function(int, Pointer<Uint8>, int, Pointer<Uint32>, Pointer<Void>)
     >('ReadFile');
+
+final _peekNamedPipe = _kernel32
+    .lookupFunction<
+      Int32 Function(
+        IntPtr,
+        Pointer<Void>,
+        Uint32,
+        Pointer<Uint32>,
+        Pointer<Uint32>,
+        Pointer<Uint32>,
+      ),
+      int Function(
+        int,
+        Pointer<Void>,
+        int,
+        Pointer<Uint32>,
+        Pointer<Uint32>,
+        Pointer<Uint32>,
+      )
+    >('PeekNamedPipe', isLeaf: true);
 
 final _writeFile = _kernel32
     .lookupFunction<

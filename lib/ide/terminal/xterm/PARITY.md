@@ -26,7 +26,8 @@
 - 直接启动 `$SHELL` 本身；VS Code 是按名字在 PATH 里找对应的配置。不查 `/etc/passwd`。
 - Linux 上启动 shell 不加登录参数；macOS 上 bash、zsh、fish 加 `-l`，tmux、pwsh 不加，其他名字里带 zsh 或 bash 的加 `--login`。
 - Windows 按 VS Code 的顺序找 PowerShell，找不到再用 `ComSpec`，最后是 `cmd.exe`。
-- 输出流控照 VS Code 的 `FlowControlConstants`：没解析完的超过 100000 就暂停进程的输出，降到 5000 以下再恢复。VS Code 按字符数算，由渲染进程每 5000 字符分批确认给 pty host；这里在同一进程里，按字节算，内核每解析完一块就确认。暂停时读输出的 isolate 每 10 ms 看一次标志（node-pty 是停掉 socket 的读取），进程写满 PTY 缓冲区后就会阻塞等待。
+- Windows 上 ConPTY 的输出靠轮询读取（有输出或刚输入时 1 ms 后再看，安静时最长 32 ms），node-pty 是事件驱动的命名管道。空闲后第一次输出最多晚 32 ms 左右。
+- 输出流控照 VS Code 的 `FlowControlConstants`：没解析完的超过 100000 就暂停进程的输出，降到 5000 以下再恢复。VS Code 按字符数算，由渲染进程每 5000 字符分批确认给 pty host；这里在同一进程里，按字节算，内核每解析完一块就确认。暂停时 macOS/Linux 上读输出的 isolate 每 10 ms 看一次标志，Windows 上轮询停止读取（node-pty 是停掉 socket 的读取），进程写满 PTY 缓冲区后就会阻塞等待。
 
 ## 绘制
 

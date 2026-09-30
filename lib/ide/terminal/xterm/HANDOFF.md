@@ -6,7 +6,7 @@
 
 - **PTY**：`lib/ide/terminal/pty*.dart`，外加一层很薄的原生代码。网页版没有 PTY。
   - macOS/Linux：`native/pty/monad_pty.c`（forkpty 之类的一小段 C），由 `hook/build.dart` 用 Dart 的 build hook（native assets）编译成 `monad_pty.framework`。
-  - Windows：ConPTY，直接用 `dart:ffi` 调 kernel32，没有原生库。
+  - Windows：ConPTY，直接用 `dart:ffi` 调 kernel32，没有原生库。输出和进程退出在 UI isolate 上轮询，没有 isolate 停在阻塞调用里（原因见“已知问题”里 Dart 分析器那条）。
 - **内核**：`lib/ide/terminal/xterm/`，是 xterm.js 无界面部分的纯 Dart 移植，网页版也能编译。
 - **渲染和交互**：`lib/ide/terminal/`，用 Flutter 自己画。
 
@@ -40,7 +40,7 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 - shell 集成脚本打包成 Dart 常量（`tool/generate_shell_integration_scripts.dart` 从 VS Code 源码原样生成），启动时写到临时目录：shell 本来就要一个真实路径，用常量省掉资源注册和异步的 `rootBundle`，纯单元测试也能用。有测试核对文件名、字节数和许可头。
 - 每个终端都有 shell 集成的 nonce：注入时由启动参数带给 shell，没注入时随机生成一个（VS Code 也是每个终端一个），这样输出里伪造的 `633;E` 命令行不会被当真。
 - 查找、链接和 shell 集成都挂在 `TerminalInstance` 上：查找第一次用时才创建，链接检测按需，shell 集成在知道启动参数后、进程启动前创建，保证看得到第一个提示符。
-- 输出流控照 VS Code 的水位（100000 / 5000），但按字节计、由内核 `write` 的回调在解析完每块后确认。暂停用一个原生内存里的标志，读输出的 isolate 每 10 ms 看一次；不用 `SIGSTOP`，那样会连进程的输入处理一起停掉。内核的写缓冲超过 50 MB 会抛错，有了流控就到不了。
+- 输出流控照 VS Code 的水位（100000 / 5000），但按字节计、由内核 `write` 的回调在解析完每块后确认。暂停在 macOS/Linux 上用一个原生内存里的标志，读输出的 isolate 每 10 ms 看一次；Windows 上轮询停止读取即可。不用 `SIGSTOP`，那样会连进程的输入处理一起停掉。内核的写缓冲超过 50 MB 会抛错，有了流控就到不了。
 - 应用启动时调用 `reapPtyProcesses()`，退出前调用 `stopPtyProcesses()`（`lib/main.dart`）。
 
 ## 性能
@@ -74,7 +74,8 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 
 ## 已知问题
 
-- Windows 的 ConPTY 没有实机跑过。
+- Windows 的 ConPTY 只在实机上手动用过，`test/ide/terminal/pty_windows_test.dart` 里真实进程的测试还没在 Windows 上跑过。
+- Dart VM 的采样分析器在 Windows 上会让应用闪退（Flutter 3.47.5 引擎，调试模式；桌面端的 `flutter run` 总是带 `enable-dart-profiling=true`）。分析器定时挂起每个 isolate 线程，用 `RBP` 当帧指针回溯（`ProfilerNativeStackWalker::walk`，`runtime/vm/profiler.cc:275` 的 `fp = CallerFP(fp)`）。Windows x64 在系统调用里不保证 `RBP` 是帧指针，而检查只看指针是否落在 `GetCurrentThreadStackLimits` 给出的整段保留栈里、是否 8 字节对齐；读到还没提交的页就是 `0xc0000005`。原来每个 Windows 终端有两个 isolate 一直停在 `ReadFile`、`WaitForSingleObject` 里，`ClosePseudoConsole` 也在 isolate 里等，终端一多很快就崩。本地绕开：输出和退出改由 `ConsolePoll` 在 UI isolate 上轮询（`PeekNamedPipe` 后只读已有的字节，`WaitForSingleObject(process, 0)`），有输出或刚输入时 1 ms 后再看，安静时逐次加倍到 32 ms；`ClosePseudoConsole` 作为线程入口交给 `CreateThread` 起的系统线程，Dart VM 不认识这个线程，分析器不会碰它。写输入的 isolate 保留：空闲时不占线程，只在一次写入等管道时停在 `WriteFile` 里。没有向上游报告。
 - Linux 上如果 Dart 自己的子进程回收抢先，退出码可能读成 0。
 - fork 到 exec 之间会短暂阻塞 UI isolate。
 - `CircularList` 按回滚上限一次性分配指针数组（上游是稀疏数组），回滚设得很大时会立刻占内存。
@@ -83,7 +84,7 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 
 ## 下一步
 
-- 在 Windows 实机上跑 ConPTY：`test/ide/terminal/pty_test.dart` 里 `cmd.exe` 的测试，以及 shell 集成的 pwsh 脚本。
+- 在 Windows 实机上跑 `test/ide/terminal/pty_windows_test.dart`（`cmd.exe` 的真实进程测试，含暂停和恢复），以及 shell 集成的 pwsh 脚本。
 - sticky scroll 和终端补全（suggest）没做，见 PARITY 的“暂不做”。
 - 终端选项（光标样式、回滚行数、`macOptionIsMeta` 等）固定用 VS Code 的默认值（`vscodeTerminalOptions`），IDE 还没有设置入口。
 - 待决事项里的几项定下来后改相应默认值。
