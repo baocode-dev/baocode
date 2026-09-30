@@ -176,12 +176,12 @@ void main() {
 
     await tester.tap(toggle);
     await tester.pump();
-    expect(workspace.sidebarShown.value, isFalse);
+    expect(workspace.layout.sidebar, isFalse);
     expect(icon(), Codicons.layoutSidebarLeftOff);
     expect(find.text('Explorer'), findsNothing);
 
     // Shown from elsewhere (the header Windows draws).
-    workspace.sidebarShown.value = true;
+    workspace.layout.sidebar = true;
     await tester.pump();
     expect(icon(), Codicons.layoutSidebarLeft);
     expect(find.text('Explorer'), findsOneWidget);

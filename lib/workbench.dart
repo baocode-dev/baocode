@@ -396,9 +396,8 @@ class _WorkbenchState extends State<Workbench> {
       project: project,
       sidebarShown: _narrow ? _drawerOpen : _docked,
       onToggleSidebar: _toggle,
-      ideSidebarShown:
-          _workspace.layout == WorkspaceLayout.ide && project != null
-          ? _ideSpace(project).sidebarShown
+      ideLayout: _workspace.layout == WorkspaceLayout.ide && project != null
+          ? _ideSpace(project).layout
           : null,
       pinned: _pinned,
       onTogglePin: _setPinned,

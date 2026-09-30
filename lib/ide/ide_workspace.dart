@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'editor/monaco/flutter/editor_document_model.dart';
 import 'file_service.dart';
 import 'git/git_repository.dart';
+import 'ide_layout.dart';
 import 'lsp/language_features.dart';
 import 'lsp/lsp_protocol.dart';
 
@@ -67,10 +68,9 @@ class IdeWorkspace extends ChangeNotifier {
     _ => null,
   };
 
-  /// Whether the primary side bar shows: the workbench toggles it, and on
-  /// Windows the window's header does too, the workbench having no title
-  /// bar of its own there.
-  final ValueNotifier<bool> sidebarShown = ValueNotifier(true);
+  /// Which of the workbench's parts show, for the window's header to toggle
+  /// as well (see [IdeLayout]).
+  final IdeLayout layout = IdeLayout();
 
   final Map<IdeDocument, StreamSubscription<EditorContentChangeEvent>>
   _syncing = {};
@@ -329,7 +329,7 @@ class IdeWorkspace extends ChangeNotifier {
     _documents.clear();
     if (_sync case final sync?) unawaited(sync.shutdown());
     git?.dispose();
-    sidebarShown.dispose();
+    layout.dispose();
     super.dispose();
   }
 }

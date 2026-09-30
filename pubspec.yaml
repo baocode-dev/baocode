@@ -64,6 +64,21 @@ flutter:
     - assets/material_icons/
     - assets/material_icons/icons/
     - assets/codicons/LICENSE
+    # VS Code TextMate grammars and color themes (tool/generate_textmate_assets.mjs).
+    - assets/textmate/
+    - assets/textmate/grammars/javascript/
+    - assets/textmate/grammars/typescript-basics/
+    - assets/textmate/grammars/typescript-basics/syntaxes/
+    - assets/textmate/themes/theme-abyss/themes/
+    - assets/textmate/themes/theme-defaults/themes/
+    - assets/textmate/themes/theme-kimbie-dark/themes/
+    - assets/textmate/themes/theme-monokai-dimmed/themes/
+    - assets/textmate/themes/theme-monokai/themes/
+    - assets/textmate/themes/theme-quietlight/themes/
+    - assets/textmate/themes/theme-red/themes/
+    - assets/textmate/themes/theme-solarized-dark/themes/
+    - assets/textmate/themes/theme-solarized-light/themes/
+    - assets/textmate/themes/theme-tomorrow-night-blue/themes/
 
   # VS Code's icon font (tool/generate_codicons.mjs; lib/theme/codicons.dart).
   fonts:

@@ -37,7 +37,20 @@ revision, not the Monaco repository's generated bundles:
 | `src/vs/editor/standalone/common/monarch/{monarchTypes,monarchCommon,monarchCompile,monarchLexer}.ts` | `vs/editor/standalone/common/monarch/` |
 | `src/vs/editor/common/commands/{replaceCommand,surroundSelectionCommand,trimTrailingWhitespaceCommand,shiftCommand}.ts` (subsets) | `vs/editor/common/commands/` |
 | `src/vs/editor/contrib/find/browser/replacePattern.ts` | `vs/editor/contrib/find/browser/replace_pattern.dart` |
+| `src/vs/base/common/json.ts` (scanner, `visit`, `parse`, `getNodeType`) | `vs/base/common/json.dart` |
+| `src/vs/base/common/jsonErrorMessages.ts` | `vs/base/common/json_error_messages.dart` |
+| `src/vs/base/common/color.ts` (subset: `RGBA`, `Color`, CSS hex format/parse) | `vs/base/common/color.dart` |
+| `src/vs/platform/theme/common/theme.ts` | `vs/platform/theme/common/theme.dart` |
+| `src/vs/workbench/services/themes/common/workbenchThemeService.ts` (subset) | `vs/workbench/services/themes/common/workbench_theme_service.dart` |
+| `src/vs/workbench/services/themes/common/themeCompatibility.ts` | `vs/workbench/services/themes/common/theme_compatibility.dart` |
+| `src/vs/workbench/services/themes/common/plistParser.ts` (`parse`) | `vs/workbench/services/themes/common/plist_parser.dart` |
+| `src/vs/workbench/services/themes/common/colorThemeData.ts` (subset) | `vs/workbench/services/themes/common/color_theme_data.dart` |
+| `src/vs/workbench/services/textMate/common/TMGrammars.ts` (subset) | `vs/workbench/services/text_mate/common/tm_grammars.dart` |
+| `src/vs/workbench/services/textMate/common/TMScopeRegistry.ts` | `vs/workbench/services/text_mate/common/tm_scope_registry.dart` |
+| `src/vs/workbench/services/textMate/common/TMGrammarFactory.ts` | `vs/workbench/services/text_mate/common/tm_grammar_factory.dart` |
+| `src/vs/workbench/services/textMate/browser/textMateTokenizationFeatureImpl.ts` (subset) | `vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart` |
 | `src/vs/editor/test/common/core/range.test.ts` | `test/ide/editor/monaco/vs/editor/common/core/range_test.dart` |
+| `src/vs/base/test/common/json.test.ts` | `test/ide/editor/textmate/workbench/json_test.dart` |
 
 `Position`, `Range`, `Selection`, the `EditOperation` factories, `TextChange`,
 and the EOL counter are ported editor-core primitives. Dart tests live in
@@ -254,3 +267,30 @@ Catalog and installer:
   (fence language via `getLanguageIdByLanguageName`, else the editor's).
   Deviations: no hover status bar row; tables and HTML shown as text; only
   http(s)/mailto links open.
+
+## TextMate assets, fixtures and color themes (2026-09-30)
+
+- `tool/generate_textmate_assets.mjs` copies, at the pinned revision, the
+  `typescript-basics` grammars and language configuration, the `jsx-tags`
+  registration (`extensions/javascript`), and the `theme-defaults`, Monokai,
+  Monokai Dimmed, Solarized, Abyss, Kimbie Dark, Quiet Light, Red and Tomorrow
+  Night Blue themes (with their `include` chains) into `assets/textmate/`,
+  with `manifest.json` (the `contributes` entries, labels localized) and
+  `LICENSE.txt` (VS Code MIT plus the grammar/theme notices).
+  `lib/ide/editor/textmate/textmate_manifest.dart` models the manifest.
+- `tool/generate_textmate_fixtures.mjs` runs vscode-textmate 9.3.2 and
+  vscode-oniguruma 1.7.0 the way `TMGrammarFactory` and
+  `textMateTokenizationFeatureImpl.ts` do, with the themes converted by the
+  upstream theme code, and writes `test/fixtures/textmate/`: the colorize
+  samples, `typescript_tokens.json` (decoded tokens per sample and theme,
+  scopes, a `textModel.ts` benchmark) and `themes/<id>.json` (each theme's
+  IRawTheme and token color map). It cross-checks scopes and colors against
+  `extensions/vscode-colorize-tests/test/colorize-results`.
+- The theme loader ports read files through a
+  `Future<String> Function(String path)` reader instead of URIs and cover a
+  theme's defaults only: no user customizations, transient colors, semantic
+  token styling or font index. `colors` keeps the theme's strings;
+  `getColor` applies `Color.fromHex`. `toRawTheme` drops a rule's font
+  family, size and line height, which `IRawThemeSettingStyle` cannot hold.
+  `test/ide/editor/textmate/workbench/` checks every bundled theme against
+  its fixture.

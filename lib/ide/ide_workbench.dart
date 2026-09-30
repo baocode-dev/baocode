@@ -31,6 +31,7 @@ import 'ide_editor.dart';
 import 'ide_editor_placeholder.dart';
 import 'ide_explorer.dart';
 import 'ide_hover.dart';
+import 'ide_layout.dart';
 import 'ide_modern_ui.dart';
 import 'ide_notifications.dart';
 import 'ide_panes.dart';
@@ -155,11 +156,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// snapped shut takes the window's gap beside it along.)
   ({IdeColumns columns, double room})? _dragStart;
 
-  /// The workspace's, for the window's header to toggle as well (see
-  /// [IdeWorkspace.sidebarShown]).
-  bool get _sidebarShown => widget.workspace.sidebarShown.value;
-  set _sidebarShown(bool value) => widget.workspace.sidebarShown.value = value;
-  bool _chatShown = true;
+  /// Which parts show: the workspace's, for the window's header to toggle
+  /// as well (see [IdeLayout]); [_layoutChanged] follows it.
+  IdeLayout get _layout => widget.workspace.layout;
+  bool get _sidebarShown => _layout.sidebar;
+  set _sidebarShown(bool value) => _layout.sidebar = value;
+  bool get _chatShown => _layout.chat;
+  set _chatShown(bool value) => _layout.chat = value;
 
   /// The panel's height below the editor; null is a third of the column
   /// (see [IdeRows]). Whether it shows, and what, is [_panel].
@@ -217,20 +220,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   late Listenable _quickRefresh;
 
   /// The panel's tab, or null when the panel is hidden.
-  IdePanelTab? get _panel => _panelTab;
-  set _panel(IdePanelTab? tab) {
-    // What had the keyboard there goes: it goes back to the editor.
-    if (tab != _panelTab && _panelFocus.hasFocus) _focusSoon();
-    _panelTab = tab;
-    if (tab != null) _lastPanel = tab;
-    // VS Code makes a terminal when its view shows with none.
-    if (tab == IdePanelTab.terminal) _terminals?.ensureTerminal();
-  }
-
-  IdePanelTab? _panelTab;
+  IdePanelTab? get _panel => _layout.panel;
+  set _panel(IdePanelTab? tab) => _layout.panel = tab;
 
   /// The tab the panel shows again when toggled back.
-  IdePanelTab _lastPanel = IdePanelTab.problems;
+  IdePanelTab get _lastPanel => _layout.lastPanel;
+
+  /// The panel's tab as [_layoutChanged] last saw it.
+  IdePanelTab? _shownPanel;
 
   /// Around the panel: whether the keyboard is in it.
   final FocusNode _panelFocus = FocusNode(
@@ -287,7 +284,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _forwardStack.clear();
     _references = null;
     workspace.addListener(_workspaceChanged);
-    workspace.sidebarShown.addListener(_sidebarChanged);
+    workspace.layout.addListener(_layoutChanged);
+    _shownPanel = workspace.layout.panel;
     _activePath = null;
     _workspaceChanged();
     _git = workspace.git?..addListener(_gitChanged);
@@ -298,7 +296,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _detach(IdeWorkspace workspace) {
     workspace.removeListener(_workspaceChanged);
-    workspace.sidebarShown.removeListener(_sidebarChanged);
+    workspace.layout.removeListener(_layoutChanged);
     _git?.removeListener(_gitChanged);
     _git = null;
     _scm.dispose();
@@ -903,8 +901,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _toggleSidebar() => setState(() => _sidebarShown = !_sidebarShown);
 
-  /// Toggled from the window's header, too.
-  void _sidebarChanged() {
+  /// A part shown or hidden, here or from the window's header.
+  void _layoutChanged() {
+    final panel = _layout.panel;
+    if (panel != _shownPanel) {
+      _shownPanel = panel;
+      // What had the keyboard there goes: it goes back to the editor.
+      if (_panelFocus.hasFocus) _focusSoon();
+      // VS Code makes a terminal when its view shows with none.
+      if (panel == IdePanelTab.terminal) _terminals?.ensureTerminal();
+    }
     if (mounted) setState(() {});
   }
 
@@ -2104,10 +2110,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   Widget _titleBar() {
-    Widget toggle(IconData icon, String tooltip, VoidCallback onTap) => Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: IdeActionButton(icon: icon, tooltip: tooltip, onPressed: onTap),
-    );
     final quickOpen = const IdeKeybinding(
       LogicalKeyboardKey.keyP,
       primary: true,
@@ -2117,15 +2119,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       child: Row(
         children: [
           SizedBox(width: CursorMetrics.trafficLightsWidth + 6),
-          // VS Code's layout controls: the icon shows whether it is open.
-          // The side bar's is on its side, after the traffic lights.
-          toggle(
-            _sidebarShown
-                ? Codicons.layoutSidebarLeft
-                : Codicons.layoutSidebarLeftOff,
-            'Toggle Primary Side Bar (${const IdeKeybinding(LogicalKeyboardKey.keyB, primary: true).label()})',
-            _toggleSidebar,
-          ),
+          // VS Code's layout controls; the side bar's on its side, after
+          // the traffic lights.
+          IdeLayoutToggle.sidebar(_layout),
           const SizedBox(width: 12),
           Expanded(
             child: Center(
@@ -2136,18 +2132,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               ),
             ),
           ),
-          toggle(
-            _panel != null ? Codicons.layoutPanel : Codicons.layoutPanelOff,
-            'Toggle Panel (${const IdeKeybinding(LogicalKeyboardKey.backquote, control: true).label()})',
-            _togglePanelVisibility,
-          ),
-          toggle(
-            _chatShown
-                ? Codicons.layoutSidebarRight
-                : Codicons.layoutSidebarRightOff,
-            'Toggle Chat (${const IdeKeybinding(LogicalKeyboardKey.keyJ, primary: true).label()})',
-            _toggleChat,
-          ),
+          IdeLayoutToggle.panel(_layout),
+          IdeLayoutToggle.chat(_layout),
           if (widget.onPinnedChanged case final onPinnedChanged?) ...[
             const SizedBox(width: 2),
             PinWindowButton(pinned: widget.pinned, onChanged: onPinnedChanged),

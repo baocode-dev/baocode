@@ -1,0 +1,243 @@
+{
+  "revision": "6a598d4a13031703d483d103c1d934a36ad27971",
+  "attribution": "Copyright (c) Microsoft Corporation and others. See LICENSE.txt in this directory.",
+  "grammars": [
+    {
+      "extension": "typescript-basics",
+      "language": "typescript",
+      "scopeName": "source.ts",
+      "path": "grammars/typescript-basics/syntaxes/TypeScript.tmLanguage.json",
+      "tokenTypes": {
+        "punctuation.definition.template-expression": "other",
+        "entity.name.type.instance.jsdoc": "other",
+        "entity.name.function.tagged-template": "other",
+        "meta.import string.quoted": "other",
+        "variable.other.jsdoc": "other"
+      },
+      "unbalancedBracketScopes": [
+        "keyword.operator.relational",
+        "storage.type.function.arrow",
+        "keyword.operator.bitwise.shift",
+        "meta.brace.angle",
+        "punctuation.definition.tag",
+        "keyword.operator.assignment.compound.bitwise.ts"
+      ]
+    },
+    {
+      "extension": "typescript-basics",
+      "language": "typescriptreact",
+      "scopeName": "source.tsx",
+      "path": "grammars/typescript-basics/syntaxes/TypeScriptReact.tmLanguage.json",
+      "embeddedLanguages": {
+        "meta.tag.tsx": "jsx-tags",
+        "meta.tag.without-attributes.tsx": "jsx-tags",
+        "meta.tag.attributes.tsx": "typescriptreact",
+        "meta.embedded.expression.tsx": "typescriptreact"
+      },
+      "tokenTypes": {
+        "punctuation.definition.template-expression": "other",
+        "entity.name.type.instance.jsdoc": "other",
+        "entity.name.function.tagged-template": "other",
+        "meta.import string.quoted": "other",
+        "variable.other.jsdoc": "other"
+      },
+      "unbalancedBracketScopes": [
+        "keyword.operator.relational",
+        "storage.type.function.arrow",
+        "keyword.operator.bitwise.shift",
+        "punctuation.definition.tag",
+        "keyword.operator.assignment.compound.bitwise.ts"
+      ]
+    },
+    {
+      "extension": "typescript-basics",
+      "scopeName": "documentation.injection.ts",
+      "path": "grammars/typescript-basics/syntaxes/jsdoc.ts.injection.tmLanguage.json",
+      "injectTo": [
+        "source.ts",
+        "source.tsx"
+      ]
+    },
+    {
+      "extension": "typescript-basics",
+      "scopeName": "documentation.injection.js.jsx",
+      "path": "grammars/typescript-basics/syntaxes/jsdoc.js.injection.tmLanguage.json",
+      "injectTo": [
+        "source.js",
+        "source.js.jsx"
+      ]
+    }
+  ],
+  "languages": [
+    {
+      "extension": "typescript-basics",
+      "id": "typescript",
+      "aliases": [
+        "TypeScript",
+        "ts",
+        "typescript"
+      ],
+      "extensions": [
+        ".ts",
+        ".cts",
+        ".mts"
+      ],
+      "firstLine": "^#!.*\\b(deno|bun|ts-node)\\b",
+      "configuration": "grammars/typescript-basics/language-configuration.json"
+    },
+    {
+      "extension": "typescript-basics",
+      "id": "typescriptreact",
+      "aliases": [
+        "TypeScript JSX",
+        "TypeScript React",
+        "tsx"
+      ],
+      "extensions": [
+        ".tsx"
+      ],
+      "configuration": "grammars/typescript-basics/language-configuration.json"
+    },
+    {
+      "extension": "javascript",
+      "id": "jsx-tags",
+      "aliases": [],
+      "configuration": "grammars/javascript/tags-language-configuration.json"
+    }
+  ],
+  "themes": [
+    {
+      "extension": "theme-defaults",
+      "id": "Light 2026",
+      "label": "Light 2026",
+      "uiTheme": "vs",
+      "path": "themes/theme-defaults/themes/2026-light.json"
+    },
+    {
+      "extension": "theme-defaults",
+      "id": "Dark 2026",
+      "label": "Dark 2026",
+      "uiTheme": "vs-dark",
+      "path": "themes/theme-defaults/themes/2026-dark.json"
+    },
+    {
+      "extension": "theme-defaults",
+      "id": "Dark+",
+      "label": "Dark+",
+      "uiTheme": "vs-dark",
+      "path": "themes/theme-defaults/themes/dark_plus.json"
+    },
+    {
+      "extension": "theme-defaults",
+      "id": "Dark Modern",
+      "label": "Dark Modern",
+      "uiTheme": "vs-dark",
+      "path": "themes/theme-defaults/themes/dark_modern.json"
+    },
+    {
+      "extension": "theme-defaults",
+      "id": "Light+",
+      "label": "Light+",
+      "uiTheme": "vs",
+      "path": "themes/theme-defaults/themes/light_plus.json"
+    },
+    {
+      "extension": "theme-defaults",
+      "id": "Light Modern",
+      "label": "Light Modern",
+      "uiTheme": "vs",
+      "path": "themes/theme-defaults/themes/light_modern.json"
+    },
+    {
+      "extension": "theme-defaults",
+      "id": "Visual Studio Dark",
+      "label": "Dark (Visual Studio)",
+      "uiTheme": "vs-dark",
+      "path": "themes/theme-defaults/themes/dark_vs.json"
+    },
+    {
+      "extension": "theme-defaults",
+      "id": "Visual Studio Light",
+      "label": "Light (Visual Studio)",
+      "uiTheme": "vs",
+      "path": "themes/theme-defaults/themes/light_vs.json"
+    },
+    {
+      "extension": "theme-defaults",
+      "id": "Default High Contrast",
+      "label": "Dark High Contrast",
+      "uiTheme": "hc-black",
+      "path": "themes/theme-defaults/themes/hc_black.json"
+    },
+    {
+      "extension": "theme-defaults",
+      "id": "Default High Contrast Light",
+      "label": "Light High Contrast",
+      "uiTheme": "hc-light",
+      "path": "themes/theme-defaults/themes/hc_light.json"
+    },
+    {
+      "extension": "theme-monokai",
+      "id": "Monokai",
+      "label": "Monokai",
+      "uiTheme": "vs-dark",
+      "path": "themes/theme-monokai/themes/monokai-color-theme.json"
+    },
+    {
+      "extension": "theme-monokai-dimmed",
+      "id": "Monokai Dimmed",
+      "label": "Monokai Dimmed",
+      "uiTheme": "vs-dark",
+      "path": "themes/theme-monokai-dimmed/themes/dimmed-monokai-color-theme.json"
+    },
+    {
+      "extension": "theme-solarized-dark",
+      "id": "Solarized Dark",
+      "label": "Solarized Dark",
+      "uiTheme": "vs-dark",
+      "path": "themes/theme-solarized-dark/themes/solarized-dark-color-theme.json"
+    },
+    {
+      "extension": "theme-solarized-light",
+      "id": "Solarized Light",
+      "label": "Solarized Light",
+      "uiTheme": "vs",
+      "path": "themes/theme-solarized-light/themes/solarized-light-color-theme.json"
+    },
+    {
+      "extension": "theme-abyss",
+      "id": "Abyss",
+      "label": "Abyss",
+      "uiTheme": "vs-dark",
+      "path": "themes/theme-abyss/themes/abyss-color-theme.json"
+    },
+    {
+      "extension": "theme-kimbie-dark",
+      "id": "Kimbie Dark",
+      "label": "Kimbie Dark",
+      "uiTheme": "vs-dark",
+      "path": "themes/theme-kimbie-dark/themes/kimbie-dark-color-theme.json"
+    },
+    {
+      "extension": "theme-quietlight",
+      "id": "Quiet Light",
+      "label": "Quiet Light",
+      "uiTheme": "vs",
+      "path": "themes/theme-quietlight/themes/quietlight-color-theme.json"
+    },
+    {
+      "extension": "theme-red",
+      "id": "Red",
+      "label": "Red",
+      "uiTheme": "vs-dark",
+      "path": "themes/theme-red/themes/Red-color-theme.json"
+    },
+    {
+      "extension": "theme-tomorrow-night-blue",
+      "id": "Tomorrow Night Blue",
+      "label": "Tomorrow Night Blue",
+      "uiTheme": "vs-dark",
+      "path": "themes/theme-tomorrow-night-blue/themes/tomorrow-night-blue-color-theme.json"
+    }
+  ]
+}

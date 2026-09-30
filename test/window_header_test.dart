@@ -6,7 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/chat/chat_screen.dart';
 import 'package:monad/chat/panels/context_usage_panel.dart';
+import 'package:monad/ide/ide_layout.dart';
 import 'package:monad/ide/ide_workbench.dart';
+import 'package:monad/ide/lsp_ui/problems_panel.dart';
 import 'package:monad/main.dart';
 import 'package:monad/sidebar/sidebar.dart';
 import 'package:monad/theme/codicons.dart';
@@ -14,6 +16,7 @@ import 'package:monad/theme/cursor_theme.dart';
 import 'package:monad/workspace/back_to_chat_button.dart';
 import 'package:monad/workspace/editor_launcher.dart';
 import 'package:monad/workspace/open_in_editor_button.dart';
+import 'package:monad/workspace/pin_window_button.dart';
 import 'package:monad/workspace/window_header/about_dialog.dart';
 import 'package:monad/workspace/window_header/header_menu_bar.dart';
 import 'package:monad/workspace/window_header/window_header.dart';
@@ -141,10 +144,8 @@ void main() {
   }, variant: _windows);
 
   testWidgets('the sidebar toggle comes after the menus, in the IDE\'s '
-      'layout icons; over the IDE it is the IDE\'s side bar\'s', (
-    tester,
-  ) async {
-    final (workspace, calls) = await pumpWindowsApp(tester);
+      'layout icons', (tester) async {
+    await pumpWindowsApp(tester);
     final header = find.byType(WindowHeader);
     final menus = find.descendant(
       of: header,
@@ -163,45 +164,98 @@ void main() {
     await tester.tap(toggle);
     await tester.pump();
     expect(icon(), Codicons.layoutSidebarLeftOff);
-    await tester.tap(toggle);
-    await tester.pump();
+  }, variant: _windows);
 
+  testWidgets('over the IDE, the IDE\'s layout toggles as on its own title '
+      'bar: the side bar\'s after the menus, the panel\'s and the chat\'s on '
+      'the right; no editor to open the project in', (tester) async {
+    final (workspace, calls) = await pumpWindowsApp(tester);
     workspace.layout = WorkspaceLayout.ide;
     await tester.pump();
     await tester.pump();
-    final ide = tester
+    final header = find.byType(WindowHeader);
+    final layout = tester
         .widget<IdeWorkbench>(find.byType(IdeWorkbench))
-        .workspace;
+        .workspace
+        .layout;
+    Finder toggle(String tooltip) =>
+        find.descendant(of: header, matching: find.byTooltip(tooltip));
+    final sidebar = toggle('Toggle Primary Side Bar (Ctrl+B)');
+    final panel = toggle('Toggle Panel (Ctrl+`)');
+    final chat = toggle('Toggle Chat (Ctrl+J)');
+    List<IconData> icons() => [
+      for (final toggle in [sidebar, panel, chat])
+        tester
+            .widget<Icon>(
+              find.descendant(of: toggle, matching: find.byType(Icon)),
+            )
+            .icon!,
+    ];
+
+    final menus = find.descendant(
+      of: header,
+      matching: find.byType(HeaderMenuBar),
+    );
+    final pin = find.descendant(
+      of: header,
+      matching: find.byType(PinWindowButton),
+    );
     expect(
-      tester.getRect(toggle).left,
+      tester.getRect(sidebar).left,
       greaterThan(tester.getRect(menus).right),
     );
     expect(
-      tester.widget<SidebarIconButton>(toggle).tooltip,
-      'Toggle Primary Side Bar (Ctrl+B)',
+      tester.getRect(panel).right,
+      lessThanOrEqualTo(tester.getRect(chat).left),
     );
-    expect(icon(), Codicons.layoutSidebarLeft);
-    expect(find.text('Explorer'), findsOneWidget);
-    await tester.tap(toggle);
-    await tester.pump();
-    expect(ide.sidebarShown.value, isFalse);
-    expect(icon(), Codicons.layoutSidebarLeftOff);
-    expect(find.text('Explorer'), findsNothing);
-    // The window leaves it to Flutter, rather than dragging by it.
-    await tester.pump();
-    final button = tester.getRect(toggle);
-    final report = calls.lastWhere((call) => call.method == 'setHitTestAreas');
+    expect(tester.getRect(chat).right, lessThan(tester.getRect(pin).left));
     expect(
-      (report.arguments as Map)['controls'],
-      contains(
-        equals({
-          'left': button.left,
-          'top': button.top,
-          'width': button.width,
-          'height': button.height,
-        }),
-      ),
+      find.descendant(of: header, matching: find.byType(OpenInEditorButton)),
+      findsNothing,
     );
+    expect(icons(), [
+      Codicons.layoutSidebarLeft,
+      Codicons.layoutPanelOff,
+      Codicons.layoutSidebarRight,
+    ]);
+    expect(find.text('Explorer'), findsOneWidget);
+    expect(find.text('PROBLEMS'), findsNothing);
+
+    // The IDE follows them.
+    for (final toggle in [sidebar, panel, chat]) {
+      await tester.tap(toggle);
+      await tester.pump();
+    }
+    expect(layout.sidebar, isFalse);
+    expect(layout.panel, IdePanelTab.problems);
+    expect(layout.chat, isFalse);
+    expect(icons(), [
+      Codicons.layoutSidebarLeftOff,
+      Codicons.layoutPanel,
+      Codicons.layoutSidebarRightOff,
+    ]);
+    expect(find.text('Explorer'), findsNothing);
+    expect(find.text('PROBLEMS'), findsOneWidget);
+
+    // The window leaves them to Flutter, rather than dragging by them.
+    await tester.pump();
+    final report = calls.lastWhere((call) => call.method == 'setHitTestAreas');
+    for (final toggle in [sidebar, panel, chat]) {
+      final rect = tester.getRect(
+        find.ancestor(of: toggle, matching: find.byType(IdeLayoutToggle)),
+      );
+      expect(
+        (report.arguments as Map)['controls'],
+        contains(
+          equals({
+            'left': rect.left,
+            'top': rect.top,
+            'width': rect.width,
+            'height': rect.height,
+          }),
+        ),
+      );
+    }
   }, variant: _windows);
 
   testWidgets('View → Context Panel opens the chat\'s, wherever the focus '
