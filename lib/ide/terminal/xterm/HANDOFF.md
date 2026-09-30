@@ -78,6 +78,7 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 - Dart VM 的采样分析器在 Windows 上会让应用闪退（Flutter 3.47.5 引擎，调试模式；桌面端的 `flutter run` 总是带 `enable-dart-profiling=true`）。分析器定时挂起每个 isolate 线程，用 `RBP` 当帧指针回溯（`ProfilerNativeStackWalker::walk`，`runtime/vm/profiler.cc:275` 的 `fp = CallerFP(fp)`）。Windows x64 在系统调用里不保证 `RBP` 是帧指针，而检查只看指针是否落在 `GetCurrentThreadStackLimits` 给出的整段保留栈里、是否 8 字节对齐；读到还没提交的页就是 `0xc0000005`。原来每个 Windows 终端有两个 isolate 一直停在 `ReadFile`、`WaitForSingleObject` 里，`ClosePseudoConsole` 也在 isolate 里等，终端一多很快就崩。本地绕开：输出和退出改由 `ConsolePoll` 在 UI isolate 上轮询（`PeekNamedPipe` 后只读已有的字节，`WaitForSingleObject(process, 0)`），有输出或刚输入时 1 ms 后再看，安静时逐次加倍到 32 ms；`ClosePseudoConsole` 作为线程入口交给 `CreateThread` 起的系统线程，Dart VM 不认识这个线程，分析器不会碰它。写输入的 isolate 保留：空闲时不占线程，只在一次写入等管道时停在 `WriteFile` 里。没有向上游报告。
 - Linux 上如果 Dart 自己的子进程回收抢先，退出码可能读成 0。
 - fork 到 exec 之间会短暂阻塞 UI isolate。
+- Flutter 3.47 的 `OverlayPortal` 把浮层的语义节点嫁接到锚点下（traversal parent），但锚点离开语义树再回来时（侧栏收起再展开、锚点滚出视野），浮层节点不会重发；桌面端引擎公共的 `AccessibilityBridge` 用 ui::AXTree，删锚点时连浮层节点一起删了，之后每次更新都报 “Failed to update ui::AXTree … Nodes left pending”，树从此对不上。Windows 上只要有 UI Automation 客户端（输入法、讲述人等）就会开无障碍，出现在闪退之前。本地绕开，没有向上游报告：`FloatingLayer`（聊天的浮层、侧栏菜单、标题栏菜单）只在打开和关闭动画期间显示浮层入口，打开时换一个事先 `show()` 过的控制器，同一帧就能显示；锚点被裁掉时，这一帧浮层保持原样（透明度设为 0，语义不变），帧后隐藏，锚点回来再显示。`test/flutter_test_config.dart` 让每个组件测试都按桌面引擎的规则应用语义更新（`test/semantics_tree.dart`），引擎会拒绝的更新会让测试失败。
 - `CircularList` 按回滚上限一次性分配指针数组（上游是稀疏数组），回滚设得很大时会立刻占内存。
 - 快捷键标签显示 “Ctrl+Page Down”，VS Code 是 “Ctrl+PageDown”。
 - 根目录变化只影响之后新建的终端。

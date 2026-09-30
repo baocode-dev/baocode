@@ -261,6 +261,9 @@ void main() {
     position.jumpTo(start - 1000);
     await tester.pump();
     await tester.pump();
+    // Out of sight, then out of the overlay after the frame (its semantics
+    // left as they were while the anchor's go).
+    await tester.pump();
     expect(find.text('Haiku 4.5'), findsNothing);
 
     // Still open: back in view, back on screen.

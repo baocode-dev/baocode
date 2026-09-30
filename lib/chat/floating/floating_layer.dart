@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'floating_placement.dart';
 
@@ -18,6 +19,14 @@ import 'floating_placement.dart';
 /// Opens with a quick fade and scale and closes with a shorter fade; while
 /// closing, the last built content stays so the exit can animate after the
 /// owner's state already says closed.
+///
+/// Its overlay entry is there only while it is open or closing. The
+/// overlay child is grafted under the anchor in the semantics tree, and
+/// the desktop engines' accessibility bridge loses it when the anchor
+/// leaves the tree and comes back (the sidebar hidden and shown): the
+/// framework does not send it again, and the engine's tree stops taking
+/// updates. For the same reason it is hidden while the anchor is out of
+/// view, and shown again once the anchor is back.
 class FloatingLayer extends StatefulWidget {
   const FloatingLayer({
     super.key,
@@ -71,7 +80,7 @@ class FloatingLayer extends StatefulWidget {
 
 class _FloatingLayerState extends State<FloatingLayer>
     with SingleTickerProviderStateMixin {
-  final OverlayPortalController _portal = OverlayPortalController();
+  OverlayPortalController _portal = OverlayPortalController();
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: widget.enterDuration,
@@ -94,15 +103,92 @@ class _FloatingLayerState extends State<FloatingLayer>
   /// The content as last built while visible, shown during the exit.
   Widget? _content;
 
+  bool _hideScheduled = false;
+
+  /// Whether the entry is hidden, open, as the anchor is out of view.
+  bool _clipped = false;
+
+  /// The overlay as last built in view: kept as it is for the frame the
+  /// anchor goes out of view, when the anchor's semantics node goes and
+  /// with it the entry's, so that nothing of the entry is sent then.
+  Widget? _shown;
+
   @override
   void initState() {
     super.initState();
-    // The overlay entry stays in place (empty while closed): showing it
-    // cannot happen during build, and opening must not wait a frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _portal.show();
+    if (widget.visible) {
+      _controller.value = 1;
+      _portal.show();
+    }
+  }
+
+  /// Shows the overlay entry, in the build that opens it: an attached
+  /// controller cannot show then, but one not attached yet can, and the
+  /// portal shows when it takes it.
+  void _showPortal() {
+    _clipped = false;
+    if (_portal.isShowing) return;
+    _portal = OverlayPortalController()..show();
+  }
+
+  /// Hides the entry after this frame, the anchor being out of view, and
+  /// looks after each frame for it to be back.
+  void _hideWhileClipped() {
+    if (_clipped) return;
+    _clipped = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_clipped) return;
+      if (_portal.isShowing) _portal.hide();
+      _watchClip();
     });
-    if (widget.visible) _controller.value = 1;
+  }
+
+  void _watchClip() {
+    if (!mounted || !_clipped) return;
+    if (!widget.visible) {
+      _clipped = false;
+      return;
+    }
+    if (!_anchorHidden()) {
+      _clipped = false;
+      _portal.show();
+      return;
+    }
+    SchedulerBinding.instance.addPostFrameCallback((_) => _watchClip());
+  }
+
+  bool _anchorHidden() {
+    final anchor = context.findRenderObject();
+    final overlay = Overlay.maybeOf(context)?.context.findRenderObject();
+    if (anchor is! RenderBox ||
+        !anchor.attached ||
+        !anchor.hasSize ||
+        overlay == null) {
+      return true;
+    }
+    final rect = MatrixUtils.transformRect(
+      anchor.getTransformTo(overlay),
+      Offset.zero & anchor.size,
+    );
+    return isAnchorHidden(rect, _clipRect(rect));
+  }
+
+  /// Hides the overlay entry once closed; after the frame when called
+  /// during one's build.
+  void _hidePortal() {
+    if (!mounted || widget.visible || !_controller.isDismissed) return;
+    if (!_portal.isShowing) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      if (_hideScheduled) return;
+      _hideScheduled = true;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        _hideScheduled = false;
+        _hidePortal();
+      });
+      return;
+    }
+    _portal.hide();
   }
 
   @override
@@ -113,6 +199,7 @@ class _FloatingLayerState extends State<FloatingLayer>
       ..reverseDuration = widget.exitDuration;
     if (widget.visible != oldWidget.visible) {
       if (widget.visible) {
+        _showPortal();
         // Part-way in, so the very first frame already shows it: the
         // transition should not add a frame of latency.
         _controller.forward(from: math.max(_controller.value, 0.2));
@@ -129,7 +216,10 @@ class _FloatingLayerState extends State<FloatingLayer>
   }
 
   void _handleStatus(AnimationStatus status) {
-    if (status == AnimationStatus.dismissed) setState(() => _content = null);
+    if (status == AnimationStatus.dismissed) {
+      setState(() => _content = null);
+      _hidePortal();
+    }
   }
 
   /// What of the screen the anchor can show in, in overlay coordinates
@@ -165,7 +255,7 @@ class _FloatingLayerState extends State<FloatingLayer>
       _content = null;
     }
     final content = _content;
-    if (content == null) return const SizedBox.shrink();
+    if (content == null) return _shown = const SizedBox.shrink();
 
     final childRect = MatrixUtils.transformRect(
       info.childPaintTransform,
@@ -173,8 +263,22 @@ class _FloatingLayerState extends State<FloatingLayer>
     );
     if (widget.hideWhenClipped &&
         isAnchorHidden(childRect, _clipRect(childRect))) {
-      return const SizedBox.shrink();
+      _hideWhileClipped();
+      // Out of sight at once, its semantics as they were.
+      return Opacity(
+        opacity: 0,
+        alwaysIncludeSemantics: true,
+        child: _shown ?? const SizedBox.shrink(),
+      );
     }
+    return Opacity(
+      opacity: 1,
+      alwaysIncludeSemantics: true,
+      child: _shown = _layout(content, childRect, info),
+    );
+  }
+
+  Widget _layout(Widget content, Rect childRect, OverlayChildLayoutInfo info) {
     return CustomSingleChildLayout(
       delegate: _FloatingLayoutDelegate(
         anchor: widget.anchorRect?.call(childRect) ?? childRect,
