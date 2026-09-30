@@ -403,14 +403,18 @@ class _TerminalWidgetState extends State<TerminalWidget>
     if (oldWidget.source != widget.source) {
       _disposeRenderer();
       _createRenderer();
-      _renderer.devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+      _renderer.devicePixelRatio = _devicePixelRatio;
     }
   }
+
+  double get _devicePixelRatio =>
+      MediaQuery.maybeDevicePixelRatioOf(context) ??
+      View.of(context).devicePixelRatio;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _renderer.devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    _renderer.devicePixelRatio = _devicePixelRatio;
     _renderer.viewportVisible = TickerMode.valuesOf(context).enabled;
   }
 
@@ -760,6 +764,9 @@ class _TerminalWidgetState extends State<TerminalWidget>
             onPointerPanZoomUpdate: _handlePanZoomUpdate,
             onPointerPanZoomEnd: _handlePanZoomEnd,
             child: Stack(
+              // The grid is left to right whatever the app's direction.
+              alignment: Alignment.topLeft,
+              textDirection: TextDirection.ltr,
               fit: StackFit.expand,
               clipBehavior: Clip.hardEdge,
               children: [
@@ -944,7 +951,14 @@ class _RenderTerminalGrid extends RenderBox {
       ..save()
       ..clipRect(bounds)
       ..drawRect(bounds, Paint()..color = _renderer.backgroundColor);
-    _renderer.paint(canvas, offset + _origin);
+    // Cells on whole device pixels in the window, where the widget is not.
+    final dpr = _renderer.devicePixelRatio;
+    final global = localToGlobal(_origin) * dpr;
+    final snap = Offset(
+      global.dx.roundToDouble() - global.dx,
+      global.dy.roundToDouble() - global.dy,
+    );
+    _renderer.paint(canvas, offset + _origin + snap / dpr);
     canvas.restore();
   }
 }

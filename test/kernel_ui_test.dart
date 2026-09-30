@@ -1,3 +1,4 @@
+import 'dart:math' show Random;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,8 @@ import 'package:monad/chat/panels/context_usage_panel.dart';
 import 'package:monad/chat/panels/mcp_servers_panel.dart';
 import 'package:monad/chat/widgets/image_thumbnails.dart';
 import 'package:monad/chat/widgets/activity_row.dart';
+import 'package:monad/chat/widgets/shimmer_text.dart';
+import 'package:monad/chat/widgets/thinking_spark.dart';
 import 'package:monad/chat/widgets/command_step.dart';
 import 'package:monad/chat/widgets/orbit_indicator.dart';
 import 'package:monad/chat/chat_models.dart';
@@ -431,6 +434,74 @@ void main() {
     );
     expect(find.text('Planning next move'), findsOneWidget);
     expect(find.textContaining('…'), findsNothing);
+    expect(find.byType(ThinkingSpark), findsOneWidget);
+  });
+
+  test('the spark blooms from a dot and folds back', () {
+    expect(
+      [
+        for (var i = 0; i < 12; i++)
+          ThinkingSpark.shapeAt(ThinkingSpark.frameTime * i),
+      ],
+      [0, 1, 2, 3, 4, 5, 4, 3, 2, 1, 0, 1],
+    );
+    // A turn holds whole bounces: it goes round without a jump.
+    expect(ThinkingSpark.shapeAt(ThinkingSpark.turn), 0);
+  });
+
+  testWidgets('a whimsical status row muses: two sweeps, then a cursor types '
+      'the next phrase over it', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ActivityRow(
+            label: 'Planning next move',
+            whimsical: true,
+            random: Random(1),
+          ),
+        ),
+      ),
+    );
+    String shown() => tester.widget<Text>(find.byType(Text)).data!;
+    final cursor = find.byKey(const ValueKey('cursor'));
+    final first = shown();
+    expect(ActivityRow.musings, contains(first));
+    expect(find.text('Planning next move'), findsNothing);
+
+    await tester.pump(ShimmerText.period * 2 - const Duration(milliseconds: 1));
+    expect(shown(), first);
+    expect(cursor, findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(cursor, findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 2));
+    expect(cursor, findsNothing);
+    final second = shown();
+    expect(ActivityRow.musings, contains(second));
+    expect(second, isNot(first));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('the status row is still where motion is turned down', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: Scaffold(
+            body: ActivityRow(
+              label: 'Planning next move',
+              whimsical: true,
+              random: Random(1),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 10));
+    expect(find.byKey(const ValueKey('cursor')), findsNothing);
   });
 
   testWidgets('the composer\'s pickers start at the left, its actions end '

@@ -7,7 +7,9 @@ import 'package:monad/chat/panels/activity_strip.dart';
 import 'package:monad/chat/widgets/chat_item_view.dart';
 import 'package:monad/chat/widgets/shell_highlight.dart';
 import 'package:monad/chat/widgets/shimmer_text.dart';
+import 'package:monad/chat/widgets/step_header.dart';
 import 'package:monad/chat/widgets/wheel_latch.dart';
+import 'package:monad/ide/terminal/terminal_colors.dart';
 import 'package:monad/kernel/kernel_types.dart';
 import 'package:monad/theme/cursor_theme.dart';
 
@@ -118,6 +120,79 @@ void main() {
       await tester.tap(find.text('Move to background'));
       await tester.pump(const Duration(milliseconds: 300));
       expect(moved, isTrue);
+    });
+
+    testWidgets('a command\'s output shows as a terminal does: in color, '
+        'what it wrote over as it ended; copied without escapes', (
+      tester,
+    ) async {
+      String? copied;
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ChatItemView(
+              item: TerminalItem(
+                command: 'npm test',
+                output:
+                    '\x1b[32m✓\x1b[0m passes\n'
+                    '\x1b[1;31m✗ fails\x1b[0m\n'
+                    ' 10%\r 50%\r100%\n',
+              ),
+              expanded: true,
+            ),
+          ),
+        ),
+      );
+      const shown = '✓ passes\n✗ fails\n100%';
+      final output = find.text(shown, findRichText: true);
+      expect(output, findsOneWidget);
+      final spans = <String, TextStyle?>{};
+      tester.widget<RichText>(output).text.visitChildren((span) {
+        if (span is TextSpan && span.text != null) {
+          spans[span.text!] = span.style;
+        }
+        return true;
+      });
+      expect(spans['✓']?.color, TerminalColors.ansi[2]);
+      expect(spans[' passes\n'], isNull);
+      // Bold red, brightened.
+      expect(spans['✗ fails\n']?.color, TerminalColors.ansi[9]);
+      expect(spans['✗ fails\n']?.fontWeight, FontWeight.bold);
+      expect(spans['100%'], isNull);
+      // In the step's font, as plain output.
+      expect(tester.widget<Text>(find.text(shown)).style, stepMono);
+      for (final text in tester.widgetList<RichText>(find.byType(RichText))) {
+        expect(text.text.toPlainText(), isNot(matches('[\x1b\r]')));
+      }
+
+      await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Copy output'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(copied, shown);
+    });
+
+    testWidgets('plain output shows as it is', (tester) async {
+      await pumpStep(
+        tester,
+        const TerminalItem(command: 'ls', output: 'a.txt\tb.txt\n\n'),
+      );
+      await tester.tap(header('Ran ls'));
+      await tester.pump();
+      final text = tester.widget<Text>(find.text('a.txt\tb.txt'));
+      expect(text.data, 'a.txt\tb.txt');
+      expect(text.style, stepMono);
     });
 
     testWidgets('an edit: one line with its counts, opening to the diff', (

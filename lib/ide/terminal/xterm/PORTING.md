@@ -176,6 +176,29 @@ Every ported file follows these, so the parts ported separately fit.
 | `addons/addon-webgl/src/customGlyphs/CustomGlyphDefinitions.ts` | `addons/addon_webgl/custom_glyphs/custom_glyph_definitions.dart` | converted by script; all 778 definitions and `blockPatternCodepoints` checked equal; under `// dart format off` |
 | `addons/addon-webgl/src/customGlyphs/CustomGlyphRasterizer.ts` | `lib/ide/terminal/terminal_custom_glyphs.dart` | Flutter painter, outside `xterm/`: `tryDrawCustomGlyph` is `paintCustomGlyph`; no `createPatternCanvas` |
 | `src/browser/Types.ts` | `lib/ide/terminal/terminal_colors.dart` | subset: `DEFAULT_ANSI_COLORS` is `terminalAnsiColors` |
+| `src/browser/selection/Types.ts` | `browser/selection/types.dart` | |
+| `src/browser/selection/SelectionModel.ts` | `browser/selection/selection_model.dart` | |
+| `src/browser/Clipboard.ts` | `browser/clipboard.dart` | subset: `prepareTextForTerminal`, `bracketTextForPaste`, `paste` (no textarea) |
+| `src/browser/input/MoveToCell.ts` | `browser/input/move_to_cell.dart` | |
+| `src/browser/input/Mouse.ts` | `browser/input/mouse.dart` | subset: `getCoords`, from a position relative to the grid |
+| `src/browser/services/SelectionService.ts` | `lib/ide/terminal/terminal_selection.dart` | adapted: Flutter pointer events; the platform is a parameter, not `isMac` |
+| `src/browser/services/MouseService.ts`, `CoreBrowserTerminal.ts` (mouse) | `lib/ide/terminal/terminal_mouse.dart` | adapted, as selection |
+| `src/browser/services/KeyboardService.ts`, `CoreBrowserTerminal.ts` (keys) | `lib/ide/terminal/terminal_keyboard.dart` | adapted: Flutter `KeyEvent`s, with VS Code's terminal keybindings |
+| `src/browser/Clipboard.ts` (events), VS Code's clipboard commands | `lib/ide/terminal/terminal_clipboard.dart` | adapted |
+| `addons/addon-webgl/src/WebglRenderer.ts`, `src/browser/renderer/shared/RendererUtils.ts`, `SelectionRenderModel.ts`, `src/browser/services/RenderService.ts` | `lib/ide/terminal/terminal_renderer.dart` | adapted: `dart:ui` instead of WebGL; a model per viewport row, its picture cached by content; at most one paint per frame |
+| `src/browser/Viewport.ts`, `src/browser/decorations/OverviewRulerRenderer.ts`, `ColorZoneStore.ts`, `src/browser/input/Mouse.ts` (grid coordinates) | `lib/ide/terminal/terminal_widget.dart` | adapted; the scrollbar follows VS Code's `ScrollableElement` |
+| `src/browser/services/ThemeService.ts`, `src/browser/ColorContrastCache.ts`, `CoreBrowserTerminal.ts` (color requests) | `lib/ide/terminal/terminal_render_theme.dart` | adapted; VS Code's option and theme defaults as `vscodeTerminalOptions` / `vscodeTerminalTheme` |
+| `src/browser/services/CharSizeService.ts`, `src/browser/renderer/dom/WidthCache.ts`, `WebglRenderer._updateDimensions` | `lib/ide/terminal/terminal_render_metrics.dart` | adapted: measured with `dart:ui` paragraphs |
+| `addons/addon-webgl/src/CursorBlinkStateManager.ts`, `src/browser/renderer/shared/TextBlinkStateManager.ts` | `lib/ide/terminal/terminal_render_blink.dart` | |
+| `src/browser/public/Terminal.ts` (selection, `registerDecoration`) | `lib/ide/terminal/terminal_xterm.dart` | the headless public `Terminal` plus the browser terminal's selection and decorations, as the search addon's `ISearchTerminal`; VS Code's `XtermTerminal` |
+| `addons/addon-search/typings/addon-search.d.ts` | `addons/addon_search/typings/addon_search.dart` | adds `ISearchTerminal`, the browser `Terminal`'s selection and decorations |
+| `addons/addon-search/src/SearchAddon.ts` | `addons/addon_search/search_addon.dart` | `activate` takes a `covariant ISearchTerminal` |
+| `addons/addon-search/src/SearchEngine.ts` | `addons/addon_search/search_engine.dart` | an invalid regex throws `FormatException` |
+| `addons/addon-search/src/SearchLineCache.ts` | `addons/addon_search/search_line_cache.dart` | the sparse cache array is a map |
+| `addons/addon-search/src/SearchResultTracker.ts` | `addons/addon_search/search_result_tracker.dart` | |
+| `addons/addon-search/src/SearchState.ts` | `addons/addon_search/search_state.dart` | |
+| `addons/addon-search/src/DecorationManager.ts` | `addons/addon_search/decoration_manager.dart` | subset: no `_applyStyles` (CSS class and outline on the DOM element), so `matchBorder`/`activeMatchBorder` go unused |
+| VS Code's `terminalFindWidget.ts`, `simpleFindWidget.ts` (state), `xtermTerminal.ts` (search) | `lib/ide/terminal/terminal_find.dart` | adapted: the find widget's state and actions, no widget |
 
 Every ported `*.test.ts` of these files is ported in full under
 `test/ide/terminal/xterm/common/` (Event, CircularList, SortedList,
@@ -197,6 +220,17 @@ run against a `UnicodeService` behind a stand-in `Terminal`; tests marked
 through `dart:io`'s `ZLibEncoder` (VM only). `WriteBuffer`'s tests use real
 timers.
 
+The search addon's tests (SearchEngine, SearchLineCache, DecorationManager
+and the Playwright `SearchAddon.test.ts`) are ported in full. They run on
+`test/.../addon_search/search_test_terminal.dart`, the headless public
+terminal with a `SelectionModel` and a `DecorationService` standing in for
+the browser terminal; its `getSelectionPositionMock` and
+`registerDecorationMock` replace upstream's method assignments. An invalid
+regex expects `FormatException`; the Playwright decoration options give
+`matchOverviewRuler: ''` where upstream omits it; the #2444 fixture is copied
+under `fixtures/` and read with `dart:io` (VM only). A case marked "New: not
+upstream" covers a wide character wrapped to the next line.
+
 ## Tests not ported
 
 | Upstream test | Reason |
@@ -204,6 +238,9 @@ timers.
 | `addons/addon-webgl/src/customGlyphs/CustomGlyphRasterizer.test.ts` | tests `createPatternCanvas`; shades are drawn as device-pixel squares instead |
 | `addons/addon-webgl/test/WebglCustomGlyphs.test.ts` (document adoption) | needs an iframe, the DOM and the WebGL atlas; the shade cases are in `terminal_custom_glyphs_test.dart` with pixel tests |
 | `addons/addon-unicode-graphemes/benchmark/` | a benchmark |
+| `src/browser/services/MouseService.test.ts` (`AltMouseCursorController`, document listeners of several windows) | DOM only; covered by the `mouseEventsEnabled` and `mouseCursor` tests |
+| `src/browser/Clipboard.test.ts` (DOM copy and paste events) | needs a DOM |
+| `src/browser/input/CompositionHelper.test.ts`, `src/browser/Terminal.test.ts`, `Terminal2.test.ts` | need the DOM textarea or the whole browser terminal |
 
 ## Dart API adaptations
 
@@ -330,3 +367,24 @@ Later parts:
   `allowProposedApi`, disposing an addon that is not loaded, and a buffer
   that is neither normal nor alt throw `StateError`. `modes` builds a new
   object on each read; `markers` is the live list.
+- **Search addon.** Upstream's addon runs on the browser `Terminal`; the
+  typings add `ISearchTerminal`, the headless `Terminal` plus the browser
+  one's `onSelectionChange`, `registerDecoration`, `hasSelection`,
+  `getSelection`, `getSelectionPosition` (the selection service's 0-based
+  `[x, y]` start and exclusive end), `clearSelection` and `select`, which the
+  embedder implements over its selection and decoration services.
+  `SearchAddon.activate` narrows `ITerminalAddon`'s parameter with
+  `covariant`, so `loadAddon` must hand the addon the `ISearchTerminal` itself
+  (a subclass of the public `Terminal` does). `ISearchOptions`,
+  `ISearchDecorationOptions`, `ISearchAddonOptions` (a nullable
+  `highlightLimit`: upstream's `Partial`), `ISearchResultChangeEvent` and
+  `ISearchResult` are classes, the last two with `==`; `LineCacheEntry` is
+  the record `(String lineAsString, List<int> lineOffsets)`; `IHighlight` and
+  `IMultiHighlight` are classes, and `IMultiHighlight` implements the
+  tracker's `ISelectedDecoration`. Getter/setter pairs over a field are
+  fields. `indexOf`/`lastIndexOf` clamp their start as JavaScript does, and a
+  `g` regex's `exec` from `lastIndex` is `allMatches` from there. Upstream
+  quirks are kept: `incremental` is never read, and new options with the same
+  term do not highlight again (the options are compared with themselves). The
+  delayed search after new output runs with `''` if the term was cleared
+  meanwhile (upstream: `undefined`, which finds nothing the same way).

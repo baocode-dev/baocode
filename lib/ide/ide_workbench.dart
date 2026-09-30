@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
 import '../workspace/back_to_chat_button.dart';
+import '../workspace/editor_launcher.dart';
 import '../workspace/pin_window_button.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
@@ -50,6 +51,7 @@ import 'lsp_ui/workspace_edit.dart';
 import 'project_tools.dart';
 import 'search/ide_search_view.dart';
 import 'search/text_search.dart';
+import 'terminal/links/terminal_links.dart';
 import 'terminal/terminal_instance.dart';
 import 'terminal/terminal_panel.dart';
 import 'terminal/terminal_service.dart';
@@ -1956,10 +1958,38 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             _panelHeight = null;
           }),
         ),
-        _panelSlot(rows.panel),
+        _panelSlot(rows.panel, commands),
         if (shown) const SizedBox(height: IdeModernUI.gap),
       ],
     );
+  }
+
+  /// Opens a link from a terminal, as VS Code's link openers: a URL in the
+  /// browser, a file in the editor at its line and column, a folder of the
+  /// workspace in the explorer (another in the system's file manager, where
+  /// VS Code opens a window), a word in quick open.
+  void _openTerminalLink(TerminalLink link) {
+    switch (link.type) {
+      case TerminalLinkType.url:
+        unawaited(openExternal(link.text));
+      case TerminalLinkType.localFile:
+        unawaited(
+          _open(
+            link.path!,
+            line: link.line,
+            column: link.column,
+            focusEditor: true,
+          ),
+        );
+      case TerminalLinkType.localFolder:
+        if (link.inWorkspace) {
+          _revealInExplorer(link.path!);
+        } else {
+          unawaited(openExternal(link.path!));
+        }
+      case TerminalLinkType.search:
+        _showQuickInput(link.searchText ?? link.text);
+    }
   }
 
   /// The panel's sash, [dy] from where its drag began. Snapped shut, the
@@ -1980,7 +2010,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   /// The panel, kept mounted (and its terminals running) while hidden.
-  Widget _panelSlot(double height) {
+  Widget _panelSlot(double height, List<IdeCommand> commands) {
     final shown = height > 0;
     final laidOut = shown ? height : _panelHeight ?? IdeRows.minPanel;
     return SizedBox(
@@ -2016,6 +2046,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                       final terminals? => TerminalPanel(
                         terminals: terminals,
                         onNew: _newTerminal,
+                        onOpenLink: _openTerminalLink,
+                        skipShell: [
+                          for (final command in commands)
+                            if (terminalCommandsToSkipShell.contains(
+                              command.id,
+                            ))
+                              ...command.keybindings,
+                        ],
                       ),
                       null => null,
                     },

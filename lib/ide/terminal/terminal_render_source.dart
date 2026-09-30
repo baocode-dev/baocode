@@ -80,7 +80,8 @@ abstract interface class TerminalRenderSource {
 /// A [TerminalRenderSource] over the core's services, for a terminal
 /// assembled from them. Whoever writes to the buffer reports the rows it
 /// changed with [refreshRows] and cursor moves with [cursorMoved].
-class TerminalServicesSource extends Disposable implements TerminalRenderSource {
+class TerminalServicesSource extends Disposable
+    implements TerminalRenderSource {
   TerminalServicesSource({
     required this.bufferService,
     required this.coreService,
@@ -155,8 +156,7 @@ class TerminalServicesSource extends Disposable implements TerminalRenderSource 
   @override
   bool? get cursorBlink => coreService.decPrivateModes.cursorBlink;
   @override
-  bool get synchronizedOutput =>
-      coreService.decPrivateModes.synchronizedOutput;
+  bool get synchronizedOutput => coreService.decPrivateModes.synchronizedOutput;
   @override
   set synchronizedOutput(bool value) =>
       coreService.decPrivateModes.synchronizedOutput = value;

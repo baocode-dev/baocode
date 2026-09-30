@@ -16,12 +16,16 @@ Future<PtyLaunch> fakeTerminalLaunch(
   rows: rows,
 );
 
-/// Terminals on fakes: each one started is added to [started].
+/// Terminals on fakes: each one started is added to [started]. Links'
+/// paths are looked up in [files] (path to whether it is a folder), never
+/// on the disk.
 TerminalBackend fakeTerminalBackend(
   List<FakePty> started, {
   bool supported = true,
+  Map<String, bool> files = const {},
 }) => TerminalBackend(
   launch: fakeTerminalLaunch,
   start: FakePty.starter(started),
+  linkStat: (path) async => files[path],
   supported: supported,
 );

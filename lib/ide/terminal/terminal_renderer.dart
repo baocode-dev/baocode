@@ -59,6 +59,40 @@ const double dimOpacity = 0.5;
 bool isPowerlineGlyph(int codepoint) =>
     0xE0A4 <= codepoint && codepoint <= 0xE0D6;
 
+/// Upstream `isEmoji`, for [allowRescaling].
+bool isEmoji(int codepoint) =>
+    codepoint >= 0x1F600 && codepoint <= 0x1F64F || // Emoticons
+    codepoint >= 0x1F300 &&
+        codepoint <= 0x1F5FF || // Misc Symbols and Pictographs
+    codepoint >= 0x1F680 && codepoint <= 0x1F6FF || // Transport and Map
+    codepoint >= 0x2600 && codepoint <= 0x26FF || // Misc symbols
+    codepoint >= 0x2700 && codepoint <= 0x27BF || // Dingbats
+    codepoint >= 0xFE00 && codepoint <= 0xFE0F || // Variation Selectors
+    codepoint >= 0x1F900 &&
+        codepoint <= 0x1F9FF || // Supplemental Symbols and Pictographs
+    codepoint >= 0x1F1E6 && codepoint <= 0x1F1FF;
+
+/// Upstream `allowRescaling`: whether a one cell glyph [glyphWidth] device
+/// pixels wide is squeezed into its cell (`rescaleOverlappingGlyphs`).
+bool allowRescaling(
+  int codepoint,
+  int width,
+  double glyphWidth,
+  int deviceCellWidth,
+) =>
+    // Is single cell width
+    width == 1 &&
+    // Glyph exceeds cell bounds, add 50% to avoid hurting readability by
+    // rescaling glyphs that barely overlap
+    glyphWidth > (deviceCellWidth * 1.5).ceil() &&
+    // Never rescale ascii
+    codepoint > 0xFF &&
+    // Never rescale emoji
+    !isEmoji(codepoint) &&
+    // Never rescale powerline or nerd fonts
+    !isPowerlineGlyph(codepoint) &&
+    !(0xE000 <= codepoint && codepoint <= 0xF8FF);
+
 /// Upstream `treatGlyphAsBackgroundColor`: glyphs that draw a background
 /// (Powerline, box drawing, blocks).
 bool treatGlyphAsBackgroundColor(int codepoint) =>
@@ -146,6 +180,7 @@ const int _fUnderlineShift = 6; // 3 bits: 0 none, else UnderlineStyle
 const int _fUnderlineMask = 7 << _fUnderlineShift;
 const int _fVariantShift = 9; // 2 bits: shade variant
 const int _fCombined = 1 << 11; // code indexes the row's strings
+const int _fRescale = 1 << 12; // text squeezed into its cell, drawn alone
 const int _fDecorations = _fStrike | _fOverline | _fUnderlineMask;
 
 final class _RowModel {
@@ -614,6 +649,7 @@ class TerminalRenderer {
   // Per frame.
   bool _drawBoldTextInBrightColors = true;
   double _minimumContrastRatio = 1;
+  bool _rescaleOverlappingGlyphs = false;
 
   // --- Cell color resolution (CellColorResolver) ------------------------
 
@@ -978,7 +1014,22 @@ class TerminalRenderer {
               flags |= variant << _fVariantShift;
             }
           } else if (code != 0x20) {
-            flags |= _fGlyph;
+            // Upstream measures the glyph's ink; this its advance.
+            flags |=
+                _rescaleOverlappingGlyphs &&
+                    allowRescaling(
+                      code,
+                      width,
+                      metrics.widthOfCodePoint(
+                            code,
+                            bold: (fg & FgFlags.bold) != 0,
+                            italic: (bg & BgFlags.italic) != 0,
+                          ) *
+                          dims.devicePixelRatio,
+                      dims.deviceCellWidth,
+                    )
+                ? _fRescale
+                : _fGlyph;
           }
         }
         attrs
@@ -1134,7 +1185,7 @@ class TerminalRenderer {
     for (var x = 0; x < cols; x++) {
       final flags = data[x * _stride + _iFlags];
       if (flags & _fGlyph != 0) lastGlyph = x;
-      if (flags & (_fCustom | _fDecorations) != 0) others = true;
+      if (flags & (_fCustom | _fRescale | _fDecorations) != 0) others = true;
     }
     if (lastGlyph < 0 && !others) return null;
     final recorder = ui.PictureRecorder();
@@ -1181,16 +1232,17 @@ class TerminalRenderer {
       if (width == 0) continue;
       final flags = data[base + _iFlags];
       if (flags & _fGlyph != 0) {
-        final chars = _charsOf(model, base);
         final variant = flags & (_fBold | _fItalic);
+        final bold = variant & _fBold != 0;
+        final italic = variant & _fItalic != 0;
         final argb = data[base + _iFg];
+        final code = data[base + _iCode];
+        final combined = flags & _fCombined != 0;
         final spacing =
             width * cellWidth -
-            metrics.width(
-              chars,
-              bold: variant & _fBold != 0,
-              italic: variant & _fItalic != 0,
-            );
+            (combined
+                ? metrics.width(model.strings[code], bold: bold, italic: italic)
+                : metrics.widthOfCodePoint(code, bold: bold, italic: italic));
         if (text.isNotEmpty &&
             (spacing != runSpacing ||
                 runHasGlyph && (argb != runArgb || variant != runVariant) ||
@@ -1203,7 +1255,11 @@ class TerminalRenderer {
         }
         runSpacing = spacing;
         runHasGlyph = true;
-        text.write(chars);
+        if (combined) {
+          text.write(model.strings[code]);
+        } else {
+          text.writeCharCode(code);
+        }
       } else {
         // A space holds the cell: in the run's style when its advance fits.
         final spacing =
@@ -1255,7 +1311,7 @@ class TerminalRenderer {
     for (var x = 0; x < cols; x++) {
       final base = x * _stride;
       final flags = data[base + _iFlags];
-      if (flags & (_fCustom | _fDecorations) == 0) continue;
+      if (flags & (_fCustom | _fRescale | _fDecorations) == 0) continue;
       final width = data[base + _iWidth];
       final argb = data[base + _iFg];
       if (flags & _fCustom != 0) {
@@ -1274,6 +1330,9 @@ class TerminalRenderer {
               : null,
         );
       }
+      if (flags & _fRescale != 0) {
+        _drawRescaled(canvas, x, data[base + _iCode], flags, argb, dims);
+      }
       if (flags & _fDecorations != 0) {
         _drawLines(
           canvas,
@@ -1286,6 +1345,38 @@ class TerminalRenderer {
         );
       }
     }
+  }
+
+  /// A one cell glyph wider than a cell and a half, squeezed to the cell
+  /// less a pixel (upstream GlyphRenderer's `rescaleOverlappingGlyphs`).
+  void _drawRescaled(
+    ui.Canvas canvas,
+    int x,
+    int code,
+    int flags,
+    int argb,
+    TerminalRenderDimensions dims,
+  ) {
+    final metrics = this.metrics;
+    final bold = flags & _fBold != 0;
+    final italic = flags & _fItalic != 0;
+    final advance = metrics.widthOfCodePoint(code, bold: bold, italic: italic);
+    if (advance <= 0) return;
+    final builder = ui.ParagraphBuilder(metrics.paragraphStyle)
+      ..pushStyle(_style(argb, flags & (_fBold | _fItalic), 0))
+      ..addText(stringFromCodePoint(code));
+    final paragraph = builder.build()
+      ..layout(const ui.ParagraphConstraints(width: double.infinity));
+    canvas
+      ..save()
+      ..translate(
+        x * dims.cellWidth + dims.charLeft,
+        dims.charTop + dims.charHeight - metrics.charHeight,
+      )
+      ..scale((dims.deviceCellWidth - 1) / dims.devicePixelRatio / advance, 1)
+      ..drawParagraph(paragraph, ui.Offset.zero)
+      ..restore();
+    paragraph.dispose();
   }
 
   /// Underline, overline and strikethrough of a cell, in upstream's device
@@ -1483,6 +1574,7 @@ class TerminalRenderer {
 
     _drawBoldTextInBrightColors = options.drawBoldTextInBrightColors;
     _minimumContrastRatio = options.minimumContrastRatio;
+    _rescaleOverlappingGlyphs = options.rescaleOverlappingGlyphs;
     final decorations = source.decorationService;
     _hasDecorations = decorations != null && decorations.decorations.isNotEmpty;
     for (var y = math.max(firstVisible, 0); y <= lastVisible && y < rows; y++) {
@@ -1716,7 +1808,9 @@ class TerminalRenderer {
       if (width == 0) continue;
       final flags = model.data[base + _iFlags];
       text.write(
-        flags & (_fGlyph | _fCustom) != 0 ? _charsOf(model, base) : ' ',
+        flags & (_fGlyph | _fCustom | _fRescale) != 0
+            ? _charsOf(model, base)
+            : ' ',
       );
     }
     return text.toString().trimRight();

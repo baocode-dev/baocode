@@ -12,36 +12,38 @@ import 'ide_input.dart';
 /// the "N of M" counter, previous/next/close, and replace / replace all.
 ///
 /// Stateless about search itself: the editor owns the controllers, options
-/// and results and passes callbacks in.
+/// and results and passes callbacks in. Without [onToggleReplace] it is
+/// VS Code's simple find widget (the terminal's): no replace row.
 class IdeFindWidget extends StatefulWidget {
   const IdeFindWidget({
     super.key,
     required this.findController,
-    required this.replaceController,
+    this.replaceController,
     required this.findFocusNode,
-    required this.replaceFocusNode,
-    required this.replaceVisible,
+    this.replaceFocusNode,
+    this.replaceVisible = false,
     required this.matchCase,
     required this.wholeWord,
     required this.regex,
     required this.matchCount,
     required this.currentIndex,
-    required this.onToggleReplace,
+    this.onToggleReplace,
     required this.onToggleMatchCase,
     required this.onToggleWholeWord,
     required this.onToggleRegex,
     required this.onPrevious,
     required this.onNext,
     required this.onClose,
-    required this.onReplace,
-    required this.onReplaceAll,
+    this.onReplace,
+    this.onReplaceAll,
     this.matchLimit = 999,
+    this.enterFindsPrevious = false,
   });
 
   final TextEditingController findController;
-  final TextEditingController replaceController;
+  final TextEditingController? replaceController;
   final FocusNode findFocusNode;
-  final FocusNode replaceFocusNode;
+  final FocusNode? replaceFocusNode;
   final bool replaceVisible;
   final bool matchCase;
   final bool wholeWord;
@@ -53,15 +55,19 @@ class IdeFindWidget extends StatefulWidget {
 
   /// Counts at or above this are shown as `N+` (results are capped).
   final int matchLimit;
-  final VoidCallback onToggleReplace;
+  final VoidCallback? onToggleReplace;
   final VoidCallback onToggleMatchCase;
   final VoidCallback onToggleWholeWord;
   final VoidCallback onToggleRegex;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onClose;
-  final VoidCallback onReplace;
-  final VoidCallback onReplaceAll;
+  final VoidCallback? onReplace;
+  final VoidCallback? onReplaceAll;
+
+  /// Enter finds the previous match and ⇧Enter the next, as in VS Code's
+  /// terminal, whose latest output is at the bottom.
+  final bool enterFindsPrevious;
 
   static const width = 419.0;
   static const rowHeight = 33.0;
@@ -82,7 +88,7 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
   void initState() {
     super.initState();
     widget.findFocusNode.addListener(_changed);
-    widget.replaceFocusNode.addListener(_changed);
+    widget.replaceFocusNode?.addListener(_changed);
   }
 
   @override
@@ -93,21 +99,26 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
       widget.findFocusNode.addListener(_changed);
     }
     if (oldWidget.replaceFocusNode != widget.replaceFocusNode) {
-      oldWidget.replaceFocusNode.removeListener(_changed);
-      widget.replaceFocusNode.addListener(_changed);
+      oldWidget.replaceFocusNode?.removeListener(_changed);
+      widget.replaceFocusNode?.addListener(_changed);
     }
   }
 
   @override
   void dispose() {
     widget.findFocusNode.removeListener(_changed);
-    widget.replaceFocusNode.removeListener(_changed);
+    widget.replaceFocusNode?.removeListener(_changed);
     super.dispose();
   }
 
   void _changed() {
     if (mounted) setState(() {});
   }
+
+  bool get _replaceShown =>
+      widget.replaceVisible &&
+      widget.replaceController != null &&
+      widget.replaceFocusNode != null;
 
   Map<ShortcutActivator, VoidCallback> get _toggleBindings {
     final mac = ideUsesMacKeys;
@@ -146,9 +157,10 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): widget.onClose,
-        const SingleActivator(LogicalKeyboardKey.enter): widget.onNext,
+        const SingleActivator(LogicalKeyboardKey.enter):
+            widget.enterFindsPrevious ? widget.onPrevious : widget.onNext,
         const SingleActivator(LogicalKeyboardKey.enter, shift: true):
-            widget.onPrevious,
+            widget.enterFindsPrevious ? widget.onNext : widget.onPrevious,
         const SingleActivator(LogicalKeyboardKey.f3): widget.onNext,
         const SingleActivator(LogicalKeyboardKey.f3, shift: true):
             widget.onPrevious,
@@ -163,16 +175,19 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
           side: BorderSide(color: CursorColors.border),
         ),
         child: SizedBox(
-          height: widget.replaceVisible
+          height: _replaceShown
               ? IdeFindWidget.rowHeight * 2 - 4
               : IdeFindWidget.rowHeight,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _ReplaceToggle(
-                expanded: widget.replaceVisible,
-                onTap: widget.onToggleReplace,
-              ),
+              if (widget.onToggleReplace case final onToggleReplace?)
+                _ReplaceToggle(
+                  expanded: widget.replaceVisible,
+                  onTap: onToggleReplace,
+                )
+              else
+                const SizedBox(width: 2),
               Expanded(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -261,7 +276,7 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
                         ],
                       ),
                     ),
-                    if (widget.replaceVisible)
+                    if (_replaceShown)
                       SizedBox(
                         height: IdeFindWidget.rowHeight - 4,
                         child: Padding(
@@ -273,16 +288,16 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
                                   bindings: {
                                     const SingleActivator(
                                       LogicalKeyboardKey.enter,
-                                    ): widget.onReplace,
+                                    ): widget.onReplace ?? () {},
                                     SingleActivator(
                                       LogicalKeyboardKey.enter,
                                       meta: mac,
                                       control: !mac,
-                                    ): widget.onReplaceAll,
+                                    ): widget.onReplaceAll ?? () {},
                                   },
                                   child: _FindInput(
-                                    controller: widget.replaceController,
-                                    focusNode: widget.replaceFocusNode,
+                                    controller: widget.replaceController!,
+                                    focusNode: widget.replaceFocusNode!,
                                     hint: 'Replace',
                                     error: false,
                                     toggles: const [],

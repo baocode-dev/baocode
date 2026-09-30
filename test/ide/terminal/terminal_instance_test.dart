@@ -203,4 +203,43 @@ void main() {
     expect(pty.kills, [PtySignal.hangup]);
     expect(terminal.pty, isNull);
   });
+
+  test('what the process prints goes into the emulator; its shell '
+      'integration trusts the command lines its launch\'s nonce comes '
+      'with', () async {
+    final ptys = <FakePty>[];
+    final (:terminal, started: _, exits: _) = _start(
+      backend: TerminalBackend(
+        launch: (root, {columns = 80, rows = 24}) async => PtyLaunch(
+          executable: '/bin/zsh',
+          arguments: const ['-l'],
+          workingDirectory: root,
+          environment: const {'VSCODE_NONCE': 'n0nce'},
+        ),
+        start: FakePty.starter(ptys),
+        linkStat: (_) async => null,
+        supported: true,
+      ),
+    );
+    await pumpEventQueue();
+    expect(terminal.shellIntegration, isNotNull);
+
+    // A command line reported with the nonce is trusted; one with another
+    // is ignored (VS Code's OSC 633;E), the line then being what was typed
+    // at the prompt: nothing here.
+    String command(String line, String nonce) =>
+        '\x1b]633;A\x07\$ \x1b]633;B\x07\x1b]633;E;$line;$nonce\x07'
+        '\x1b]633;C\x07\r\n\x1b]633;D;0\x07';
+    ptys.single.emitText('${command('ls', 'n0nce')}${command('rm', 'other')}');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    final commands = terminal.shellIntegration!.commands;
+    expect(
+      [for (final c in commands) (c.command, c.isTrusted)],
+      [('ls', true), ('', false)],
+    );
+    expect(
+      terminal.terminal.buffer.lines.get(0)!.translateToString(true),
+      r'$ ',
+    );
+  });
 }

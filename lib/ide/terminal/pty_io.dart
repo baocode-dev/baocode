@@ -15,6 +15,7 @@ import '../../platform/child_process_registry.dart';
 import 'pty.dart';
 import 'pty_native.dart';
 import 'pty_windows.dart';
+import 'shell_integration/shell_integration_files.dart';
 import 'terminal_shell.dart';
 
 abstract final class PtyProcesses {
@@ -58,6 +59,7 @@ abstract final class PtyProcesses {
     String root, {
     required int columns,
     required int rows,
+    required bool shellIntegration,
   }) async {
     final os = Platform.isWindows
         ? TerminalOs.windows
@@ -82,7 +84,7 @@ abstract final class PtyProcesses {
         }
       },
     );
-    return PtyLaunch(
+    final launch = PtyLaunch(
       executable: shell.executable,
       arguments: shell.arguments,
       workingDirectory: root,
@@ -94,6 +96,7 @@ abstract final class PtyProcesses {
       columns: columns,
       rows: rows,
     );
+    return shellIntegration ? injectShellIntegration(launch, os: os) : launch;
   }
 
   /// Hangs up every terminal this run started, and waits (up to [timeout]

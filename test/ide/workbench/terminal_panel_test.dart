@@ -7,6 +7,7 @@ import 'package:monad/ide/terminal/pty.dart';
 import 'package:monad/ide/terminal/terminal_instance.dart';
 import 'package:monad/ide/terminal/terminal_tabs.dart';
 import 'package:monad/ide/terminal/terminal_view.dart';
+import 'package:monad/ide/terminal/terminal_widget.dart';
 import 'package:monad/theme/codicons.dart';
 
 import '../terminal/fake_pty.dart';
@@ -24,6 +25,18 @@ double _panelHeight(WidgetTester tester) => tester.getSize(_panel).height;
 /// The terminal the panel shows.
 TerminalInstance _shown(WidgetTester tester) =>
     tester.widget<TerminalView>(find.byType(TerminalView)).instance;
+
+/// What a terminal's screen shows: its lines, wrapped ones joined.
+String _screen(TerminalInstance instance) {
+  final lines = instance.terminal.buffer.lines;
+  final text = StringBuffer();
+  for (var i = 0; i < lines.length; i++) {
+    final line = lines.get(i)!;
+    if (i > 0 && !line.isWrapped) text.write('\n');
+    text.write(line.translateToString(true));
+  }
+  return text.toString();
+}
 
 IdeWorkbenchState _workbench(WidgetTester tester) =>
     tester.state<IdeWorkbenchState>(find.byType(IdeWorkbench));
@@ -240,12 +253,15 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(_shown(tester).id, 3);
+    // Written into the terminal, as VS Code's `formatMessageForTerminal`.
+    // (Parsed on timers, in slices of 12ms.)
+    await tester.pump(const Duration(milliseconds: 1));
     expect(
-      find.text(
-        ' *   The terminal process "/bin/zsh \'-l\'" terminated with exit '
-        'code: 1. ',
+      _screen(_shown(tester)),
+      contains(
+        ' *  The terminal process "/bin/zsh \'-l\'" terminated with exit '
+        'code: 1.',
       ),
-      findsOneWidget,
     );
     expect(_inTabs(find.byIcon(Codicons.error)), findsOneWidget);
     expect(ptys[2].kills, isEmpty);
@@ -331,5 +347,44 @@ void main() {
     expect(_panelHeight(tester), greaterThan(0));
     expect(_inPanel(find.text('PROBLEMS')), findsOneWidget);
     expect(_inPanel(find.text('TERMINAL')), findsNothing);
+  });
+
+  testWidgets('a Ctrl-click on a path with a line and column in a terminal '
+      'opens the file there in the editor', (tester) async {
+    final ptys = <FakePty>[];
+    final workspace = await pumpWorkbench(tester, {
+      'lib/a.dart': 'one\ntwo words\nthree',
+    }, startPty: FakePty.starter(ptys));
+    await _toggleTerminal(tester);
+    ptys.single.emitText('lib/a.dart:2:3');
+    await tester.pump(const Duration(milliseconds: 1));
+
+    final terminal = find.byType(TerminalWidget);
+    final controller = tester.widget<TerminalWidget>(terminal).controller!;
+    final at =
+        tester.getTopLeft(terminal) +
+        controller.gridOrigin +
+        Offset(
+          3.5 * controller.cellSize.width,
+          0.5 * controller.cellSize.height,
+        );
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: at);
+    await mouse.moveTo(at + const Offset(1, 0));
+    await tester.pump();
+    await tester.pump();
+    expect(controller.linkUnderline, isNotNull);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await mouse.down(at);
+    await mouse.up();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(workspace.active?.path, inRoot('lib/a.dart'));
+    expect(find.text('Ln 2, Col 3'), findsOneWidget);
+    await tester.pump(kDoubleTapTimeout);
   });
 }

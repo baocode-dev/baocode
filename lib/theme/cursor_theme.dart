@@ -36,6 +36,9 @@ abstract final class CursorColors {
   static const textFaint = Color(0xFF5E5E5E);
 
   static const accent = Color(0xFF4C9DFF);
+
+  /// Claude's terracotta: its spark while it thinks.
+  static const claude = Color(0xFFD97857);
   static const inlineCode = Color(0xFFE2C08D);
 
   /// #2A2A2A over [background], and see-through: a selection is painted

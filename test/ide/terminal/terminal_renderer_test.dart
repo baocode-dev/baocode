@@ -13,6 +13,7 @@ import 'package:monad/ide/terminal/terminal_render_adapter.dart';
 import 'package:monad/ide/terminal/terminal_render_source.dart';
 import 'package:monad/ide/terminal/terminal_render_theme.dart';
 import 'package:monad/ide/terminal/terminal_renderer.dart';
+import 'package:monad/ide/terminal/xterm/addons/addon_unicode11/unicode_v11.dart';
 import 'package:monad/ide/terminal/xterm/common/buffer/attribute_data.dart';
 import 'package:monad/ide/terminal/xterm/common/buffer/constants.dart';
 import 'package:monad/ide/terminal/xterm/common/services/buffer_service.dart';
@@ -226,18 +227,52 @@ void main() {
     test('a wide character takes two cells', () async {
       final h = _Harness();
       addTearDown(h.dispose);
-      h.write('中A\u{1F600}é');
+      // Unicode 11's widths, as VS Code activates them: the emoji is wide.
+      h.terminal.unicodeService
+        ..register(UnicodeV11())
+        ..activeVersion = '11';
+      h.write('中A\u{1F600}e\u0301!');
       final pixels = await h.paint();
-      expect(h.renderer.debugRowText(0), '中A\u{1F600}é');
-      // The ideograph's glyph (one em of the test font) spreads over both
-      // of its cells; A is in the third.
-      expect(pixels.at(8, 5), _fg);
-      expect(pixels.at(12, 5), _fg);
+      expect(h.renderer.debugRowText(0), '中A\u{1F600}e\u0301!');
+      // The ideograph (one em of the test font) is drawn at the left of its
+      // two cells, as upstream draws it; A is in the third cell, the
+      // combined e in the sixth.
+      expect(pixels.at(5, 5), _fg);
+      expect(pixels.at(15, 5), _bg);
       expect(pixels.at(25, 5), _fg);
-      expect(h.terminal.buffer.x, 6);
-      // ignore: avoid_print
-      print('DEBUG ${h.source.isCursorInitialized} ${h.source.isCursorHidden} ${h.renderer.debugCellColors(6, 0)} ${h.renderer.debugCellColors(5, 0)} ${[for (var x = 0; x < 10; x++) pixels.at(x * 10 + 5, 5)]}');
-      expect(pixels.at(65, 5), _cursor);
+      expect(pixels.at(55, 5), _fg);
+      expect(pixels.at(65, 5), _fg);
+      expect(h.terminal.buffer.x, 7);
+      expect(pixels.at(75, 5), _cursor);
+    });
+
+    test('squeezes a glyph wider than its cell', () async {
+      Future<_Pixels> paint({required bool rescale}) async {
+        // Letter spacing makes 6 pixel cells (from -2) of the glyph, wider
+        // than 9.
+        final h = _Harness(
+          configure: (o) => o
+            ..letterSpacing = -4
+            ..rescaleOverlappingGlyphs = rescale,
+        );
+        addTearDown(h.dispose);
+        h.write('\x1b[?25l\u216B');
+        return h.paint();
+      }
+
+      // Ink right of the cell's first 4 pixels.
+      int inkPast(_Pixels p) {
+        var ink = 0;
+        for (var y = 0; y < 10; y++) {
+          for (var x = 4; x < 20; x++) {
+            if (p.at(x, y) != _bg) ink++;
+          }
+        }
+        return ink;
+      }
+
+      expect(inkPast(await paint(rescale: true)), 0);
+      expect(inkPast(await paint(rescale: false)), greaterThan(0));
     });
 
     test('box drawing and blocks meet without seams', () async {
@@ -551,7 +586,11 @@ void main() {
         coreService: core,
         optionsService: options,
       );
-      final renderer = TerminalRenderer(source, onNeedsPaint: () {});
+      final renderer = TerminalRenderer(
+        source,
+        onNeedsPaint: () {},
+        isFocused: true,
+      );
       addTearDown(() {
         renderer.dispose();
         source.dispose();

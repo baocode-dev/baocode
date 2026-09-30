@@ -8,6 +8,7 @@ import 'command_step.dart';
 import 'notice_row.dart';
 import 'step_header.dart';
 import 'edit_step.dart';
+import 'terminal_output.dart';
 import 'thinking_section.dart';
 import 'tool_call_row.dart';
 import 'user_message_bubble.dart';
@@ -123,7 +124,10 @@ class ChatItemView extends StatelessWidget {
         expanded: expanded,
         onToggle: onToggle,
       ),
-      LiveStatusItem(:final label) => ActivityRow(label: label),
+      LiveStatusItem(:final label, :final whimsical) => ActivityRow(
+        label: label,
+        whimsical: whimsical,
+      ),
     };
   }
 }
@@ -193,7 +197,9 @@ String chatItemPlainText(ChatItem item, {bool expanded = false}) {
         ),
         if (expanded) ...[
           '\$ $command',
-          if (output.trim().isNotEmpty) output.trimRight(),
+          if (terminalOutput(output).text case final printed
+              when printed.isNotEmpty)
+            printed,
         ],
       ].join('\n'),
     CodeDiffItem(:final fileName, :final lines) => [

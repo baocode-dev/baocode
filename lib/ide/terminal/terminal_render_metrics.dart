@@ -144,7 +144,8 @@ class TerminalTextMetrics {
 
   // Widths by style: bit 0 bold, bit 1 italic. ASCII and Latin-1 in a flat
   // table (NaN: not measured yet), the rest in maps.
-  final Float64List _latin1 = Float64List(256 * 4)..fillRange(0, 256 * 4, 0.0 / 0.0);
+  final Float64List _latin1 = Float64List(256 * 4)
+    ..fillRange(0, 256 * 4, 0.0 / 0.0);
   final List<Map<String, double>> _others = List.generate(
     4,
     (_) => <String, double>{},
@@ -183,7 +184,11 @@ class TerminalTextMetrics {
     paragraph.dispose();
   }
 
-  ui.Paragraph _layout(String text, {required bool bold, required bool italic}) {
+  ui.Paragraph _layout(
+    String text, {
+    required bool bold,
+    required bool italic,
+  }) {
     final builder = ui.ParagraphBuilder(paragraphStyle)
       ..pushStyle(textStyle(bold: bold, italic: italic))
       ..addText(text);
@@ -205,6 +210,20 @@ class TerminalTextMetrics {
       }
     }
     return _others[variant][chars] ??= _measureText(chars, bold, italic);
+  }
+
+  /// [width] of one code point, without a string for Latin-1 ones.
+  double widthOfCodePoint(
+    int code, {
+    required bool bold,
+    required bool italic,
+  }) {
+    if (code < 256) {
+      final index = ((bold ? 1 : 0) | (italic ? 2 : 0)) * 256 + code;
+      final cached = _latin1[index];
+      if (!cached.isNaN) return cached;
+    }
+    return width(String.fromCharCode(code), bold: bold, italic: italic);
   }
 
   double _measureText(String chars, bool bold, bool italic) {

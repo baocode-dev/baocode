@@ -15,6 +15,7 @@ abstract final class PtyProcesses {
     String root, {
     required int columns,
     required int rows,
+    required bool shellIntegration,
   }) async => throw _unsupported;
 
   /// No processes to stop on the web.

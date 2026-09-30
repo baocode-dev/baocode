@@ -360,10 +360,15 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   ChatItem itemAt(int index) {
     if (index < _transcript.length) return _transcript.itemAt(index);
     final activity = _activity!;
-    return LiveStatusItem(switch (activity.kind) {
-      KernelActivityKind.waiting => 'Planning next move',
-      KernelActivityKind.compacting => 'Compacting conversation',
-    });
+    return switch (activity.kind) {
+      KernelActivityKind.waiting => const LiveStatusItem(
+        'Planning next move',
+        whimsical: true,
+      ),
+      KernelActivityKind.compacting => const LiveStatusItem(
+        'Compacting conversation',
+      ),
+    };
   }
 
   KernelActivity? get _activity {

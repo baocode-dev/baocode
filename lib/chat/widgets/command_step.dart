@@ -8,6 +8,7 @@ import '../floating/floating_placement.dart';
 import 'hover_builder.dart';
 import 'shell_highlight.dart';
 import 'step_header.dart';
+import 'terminal_output.dart';
 
 /// A shell command as a step: "Ran  Check the Flutter version", opening to
 /// the command, colored, and what it printed.
@@ -58,6 +59,8 @@ class CommandStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rendered once opened: most steps stay closed.
+    final printed = expanded ? terminalOutput(output) : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -94,9 +97,12 @@ class CommandStep extends StatelessWidget {
                   ),
                   style: stepMono,
                 ),
-                if (output.trim().isNotEmpty) ...[
+                if (printed != null && printed.text.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Text(output.trimRight(), style: stepMono),
+                  if (printed.styled)
+                    Text.rich(printed.span, style: stepMono)
+                  else
+                    Text(printed.text, style: stepMono),
                 ],
               ],
             ),
@@ -132,11 +138,12 @@ class _CommandMenu extends StatelessWidget {
           icon: Icons.content_copy_rounded,
           onSelected: () => _copy(command),
         ),
-        if (output.trim().isNotEmpty)
+        if (terminalOutput(output).text case final printed
+            when printed.isNotEmpty)
           SidebarMenuItem(
             'Copy output',
             icon: Icons.notes_rounded,
-            onSelected: () => _copy(output.trimRight()),
+            onSelected: () => _copy(printed),
           ),
         if (onMoveToBackground case final move?)
           SidebarMenuItem(

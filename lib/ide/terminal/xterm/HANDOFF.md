@@ -20,10 +20,10 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 | --- | --- |
 | M1 内核 | 完成：解析器、InputHandler、Buffer/BufferLine/CircularList/reflow、Charsets、各 service、Marker、键盘、无界面 `Terminal` 及其公开 API、unicode11 和 graphemes 插件；上游测试全部移植（`test/ide/terminal/xterm/`，1427 个） |
 | M2 PTY | 完成：接口和假实现、macOS/Linux 原生层、Windows ConPTY、按 VS Code 设置环境变量和默认 shell；macOS 实测通过，Windows 未实测 |
-| M3 渲染和交互 | 进行中 |
-| M4 IDE 集成 | 面板、多标签、⌃\`、分隔条已完成；终端内容还是占位，等 M3 接入 |
-| M5 上层功能 | 进行中：搜索、链接、shell 集成 |
-| M6 聊天输出（可选） | 未开始 |
+| M3 渲染和交互 | 完成：按行缓存的渲染器（每帧最多画一次，只画可见行）、宽字符和 emoji、自绘框线和 powerline 字形、光标样式和闪烁、失焦样式、拖选和双击三击、复制粘贴（含括号粘贴和多行警告）、键盘（macOptionIsMeta 默认关，同 VS Code）、鼠标上报、备用屏幕、输入法、滚轮遵守 WheelLatch、`terminal.*` 主题色、字体跟编辑器一致 |
+| M4 IDE 集成 | 完成：编辑区下方的面板、分隔条、多标签（新建、关闭、重命名、退出状态）、⌃\` 开关、右键菜单；工作台的快捷键不进 shell |
+| M5 上层功能 | 完成：查找（移植 addon-search，界面用 `IdeFindWidget`）；链接（移植 VS Code 的四种检测器，网址交给浏览器，`路径:行:列` 在编辑器里打开，⌘/Ctrl 点击）；shell 集成（注入 VS Code 的 zsh、bash、fish、pwsh 脚本，解析 OSC 633/133/7/1337，命令在左侧留白处标出成功或失败，点开可重新运行或复制；链接按每行的 cwd 解析）。sticky scroll 和补全不做，记在 PARITY |
+| M6 聊天输出（可选） | 完成：聊天里命令的输出经内核解析后显示颜色，`\r` 进度条和光标上移改写收拢成最终结果；纯文本输出与以前完全一样（`lib/chat/widgets/terminal_output.dart`） |
 
 ## 决策
 
@@ -33,6 +33,13 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 - 原生构建用 Dart build hook：`pubspec.yaml` 加了 `hooks`、`code_assets`、`native_toolchain_c` 三个依赖（版本与 Flutter 工具自带的一致）。`tool/build_macos.dart` 会检查产物里有 `monad_pty.framework`。
 - ⌘J 仍是聊天区的开关；VS Code 的“切换面板”命令保留但不绑快捷键，终端用 ⌃\` 开关。
 - 标签列表照 VS Code 默认的 `terminal.integrated.tabs.focusMode`（`doubleClick`）：单击选中，双击把键盘交给终端；重命名用 F2（macOS 上是 Enter）或右键菜单。
+- 每个 `TerminalInstance` 自己持有内核 `Terminal`、装饰服务、渲染数据源和键盘、鼠标、选择、剪贴板四个控制器；视图只在显示时接上它们。这样切到别的标签，后台终端照样解析输出，选区也保留。
+- 输入法沿用编辑器的做法（`TextInput.attach`，把光标位置报给系统），没有复用编辑器的类：编辑器的输入法逻辑写在 `EditorSurface` 的 State 里，拆不出来。组字时按键全部交给输入法，组好的字通过 `handleTextInput` 发给进程。
+- VS Code 的 `commandsToSkipShell` 只取了这里有的命令（`terminalCommandsToSkipShell`，在 `terminal_panel.dart`）：快速打开、命令面板、切换编辑器、终端的新建、关闭、切换、聚焦，以及 ⌘J（这里是聊天区）。macOS 上所有 ⌘ 组合键本来就交给 IDE。
+- 进程退出的说明按 VS Code 的 `formatMessageForTerminal` 写进终端屏幕，不再是单独的文字控件。
+- shell 集成脚本打包成 Dart 常量（`tool/generate_shell_integration_scripts.dart` 从 VS Code 源码原样生成），启动时写到临时目录：shell 本来就要一个真实路径，用常量省掉资源注册和异步的 `rootBundle`，纯单元测试也能用。有测试核对文件名、字节数和许可头。
+- 每个终端都有 shell 集成的 nonce：注入时由启动参数带给 shell，没注入时随机生成一个（VS Code 也是每个终端一个），这样输出里伪造的 `633;E` 命令行不会被当真。
+- 查找、链接和 shell 集成都挂在 `TerminalInstance` 上：查找第一次用时才创建，链接检测按需，shell 集成在知道启动参数后、进程启动前创建，保证看得到第一个提示符。
 - 应用启动时调用 `reapPtyProcesses()`，退出前调用 `stopPtyProcesses()`（`lib/main.dart`）。
 
 ## 性能

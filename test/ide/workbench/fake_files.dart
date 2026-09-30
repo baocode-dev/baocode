@@ -201,6 +201,15 @@ Future<IdeWorkspace> pumpWorkbench(
         terminalBackend: TerminalBackend(
           launch: fakeTerminalLaunch,
           start: startPty ?? FakePty.starter([]),
+          // Links name the fake files (and their folders), not the disk's.
+          linkStat: (path) async =>
+              files.containsKey(
+                p.relative(path, from: testRoot).replaceAll(r'\', '/'),
+              )
+              ? false
+              : files.keys.any((file) => p.isWithin(path, inRoot(file)))
+              ? true
+              : null,
           supported: terminals,
         ),
       ),

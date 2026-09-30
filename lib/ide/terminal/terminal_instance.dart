@@ -9,23 +9,42 @@
 //
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/workbench/contrib/terminal/browser/terminalInstance.ts
-// (`_onProcessExit`, `parseExitResult`, `rename`) and
-// terminalProcessManager.ts (input queued until the process is there).
+// (`_onProcessExit`, `parseExitResult`, `rename`), terminalProcessManager.ts
+// (input queued until the process is there) and
+// src/vs/platform/terminal/common/terminalStrings.ts
+// (`formatMessageForTerminal`).
 //
-// The emulator is not here yet: what the process prints comes out of
-// [TerminalInstance.output] (the emulator is to take it where [_printed]
-// is, so that terminals in the background keep their screens); what the
-// user types goes in by [TerminalInstance.write], and the view's grid by
-// [TerminalInstance.resize].
+// It owns its emulator, as VS Code's instance owns its xterm: what the
+// process prints is parsed into [TerminalInstance.terminal] here, so that
+// terminals in the background keep their screens, and so are the keyboard,
+// mouse and selection, which the view drives while it shows.
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
 import 'pty.dart';
+import 'shell_integration/shell_integration.dart';
+import 'shell_integration/shell_integration_injection.dart';
+import 'terminal_clipboard.dart';
+import 'terminal_keyboard.dart';
+import 'terminal_mouse.dart';
+import 'terminal_render_adapter.dart';
+import 'terminal_render_theme.dart';
+import 'terminal_selection.dart';
+import 'links/terminal_link_resolver.dart';
+import 'links/terminal_links.dart';
+import 'terminal_colors.dart';
+import 'terminal_find.dart';
+import 'terminal_xterm.dart';
+import 'xterm/addons/addon_search/typings/addon_search.dart';
+import 'xterm/common/color.dart';
+import 'xterm/common/platform.dart';
+import 'xterm/common/services/decoration_service.dart';
+import 'xterm/headless/terminal.dart' as internal;
 
 /// What a new terminal runs in [root]: [terminalLaunch] in the app.
 typedef TerminalLauncher = Future<PtyLaunch> Function(
@@ -36,16 +55,21 @@ typedef TerminalLauncher = Future<PtyLaunch> Function(
 
 /// Where terminals' processes come from, as VS Code's terminal backend:
 /// [launch] says what a new terminal runs and [start] runs it on a pseudo
-/// terminal. Widget tests give fakes, never a real shell.
+/// terminal; [linkStat] says what is at the paths links name. Widget tests
+/// give fakes, never a real shell or disk.
 class TerminalBackend {
   const TerminalBackend({
     this.launch = terminalLaunch,
     this.start = startPty,
+    this.linkStat,
     this._supported,
   });
 
   final TerminalLauncher launch;
   final PtyStarter start;
+
+  /// Null checks the disk ([TerminalFileLinkResolver]'s default).
+  final TerminalLinkStat? linkStat;
   final bool? _supported;
 
   /// Whether terminals run here ([ptySupported]): not on the web.
@@ -62,8 +86,52 @@ class TerminalInstance extends ChangeNotifier {
     this._rows = 24,
     this.onExit,
   }) {
+    _initPlatform();
+    xterm = TerminalXterm(vscodeTerminalOptions(cols: _columns, rows: _rows));
+    source = TerminalCoreSource(terminal, decorationService: decorations);
+    clipboard = TerminalClipboard(
+      selection: selection,
+      coreService: terminal.coreService,
+      optionsService: terminal.optionsService,
+    );
+    mouse = TerminalMouse(
+      bufferService: terminal.bufferService,
+      coreService: terminal.coreService,
+      mouseStateService: terminal.mouseStateService,
+      optionsService: terminal.optionsService,
+      selection: selection,
+      clipboard: clipboard,
+    );
+    keyboard = TerminalKeyboard(
+      bufferService: terminal.bufferService,
+      coreService: terminal.coreService,
+      optionsService: terminal.optionsService,
+      selection: selection,
+      clipboard: clipboard,
+    );
+    // What the keyboard, the mouse and the app's replies send.
+    terminal.onData(writeText);
+    terminal.onBinary((data) => write(latin1.encode(data)));
     unawaited(_start());
   }
+
+  /// xterm.js reads the platform from the browser; here, from Flutter's.
+  static void _initPlatform() {
+    if (_platformSet) return;
+    _platformSet = true;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.macOS || TargetPlatform.iOS:
+        initPlatform(userAgent: 'Macintosh', platform: 'MacIntel');
+      case TargetPlatform.windows:
+        initPlatform(userAgent: 'Windows', platform: 'Win32');
+      case TargetPlatform.linux ||
+          TargetPlatform.android ||
+          TargetPlatform.fuchsia:
+        initPlatform(userAgent: 'Linux', platform: 'Linux x86_64');
+    }
+  }
+
+  static bool _platformSet = false;
 
   /// Its number, from 1 up, as VS Code's `instanceId`.
   final int id;
@@ -78,6 +146,48 @@ class TerminalInstance extends ChangeNotifier {
 
   /// The keyboard's way into the terminal: its view's focus.
   final FocusNode focusNode = FocusNode(debugLabel: 'terminal');
+
+  /// The emulator, as VS Code's instance holds its xterm.
+  late final TerminalXterm xterm;
+
+  /// The emulator's core: the process's output parsed into a screen.
+  internal.Terminal get terminal => xterm.core;
+
+  /// The marks drawn on the screen and its scrollbar (as VS Code's
+  /// decoration addon and find matches).
+  DecorationService get decorations => xterm.decorationService;
+
+  TerminalSelection get selection => xterm.selection;
+
+  /// What the view draws.
+  late final TerminalCoreSource source;
+
+  /// The links on the screen: URLs, paths (resolved against [root]) and
+  /// words, as VS Code's link detectors find them.
+  late final TerminalLinkDetection links = TerminalLinkDetection(
+    xterm,
+    resolver: TerminalFileLinkResolver(stat: backend.linkStat),
+    initialCwd: root,
+    workspaceFolders: [root],
+    cwdForLine: (line) =>
+        _shellIntegration?.commandDetection?.getCwdForLine(line),
+  );
+
+  /// What the shell's integration reports: its commands and their marks,
+  /// its folder. There from the launch on, to see the first prompt.
+  ShellIntegration? get shellIntegration => _shellIntegration;
+  ShellIntegration? _shellIntegration;
+
+  /// Find in the terminal: made the first time it is asked for.
+  late final TerminalFind find = () {
+    _findCreated = true;
+    return TerminalFind(xterm, decorations: _findDecorations());
+  }();
+  bool _findCreated = false;
+
+  late final TerminalClipboard clipboard;
+  late final TerminalMouse mouse;
+  late final TerminalKeyboard keyboard;
 
   final _output = StreamController<Uint8List>.broadcast();
   StreamSubscription<Uint8List>? _printing;
@@ -168,6 +278,7 @@ class TerminalInstance extends ChangeNotifier {
     if (columns == _columns && rows == _rows) return;
     _columns = columns;
     _rows = rows;
+    terminal.resize(columns, rows);
     if (!_exited) _pty?.resize(columns, rows);
     notifyListeners();
   }
@@ -180,6 +291,11 @@ class TerminalInstance extends ChangeNotifier {
       final launch = await backend.launch(root, columns: _columns, rows: _rows);
       if (_disposed) return;
       _launch = launch;
+      _shellIntegration = ShellIntegration(
+        terminal,
+        nonce: shellIntegrationNonce(launch),
+        decorationService: decorations,
+      );
       notifyListeners();
       final pty = await backend.start(launch);
       if (_disposed) {
@@ -205,8 +321,11 @@ class TerminalInstance extends ChangeNotifier {
     }
   }
 
-  /// What the process printed. The emulator is to parse it here.
-  void _printed(Uint8List data) => _output.add(data);
+  /// What the process printed, into the emulator.
+  void _printed(Uint8List data) {
+    terminal.write(data);
+    _output.add(data);
+  }
 
   void _processExited(int code) {
     if (_disposed) return;
@@ -228,6 +347,7 @@ class TerminalInstance extends ChangeNotifier {
     _exitCode = code;
     _exitMessage = message;
     _typedAhead.clear();
+    if (message != null) terminal.write(formatMessageForTerminal(message));
     notifyListeners();
     onExit?.call(this);
   }
@@ -240,6 +360,13 @@ class TerminalInstance extends ChangeNotifier {
     if (!_exited) _pty?.kill();
     unawaited(_printing?.cancel());
     unawaited(_output.close());
+    if (_findCreated) find.dispose();
+    _shellIntegration?.dispose();
+    keyboard.dispose();
+    mouse.dispose();
+    clipboard.dispose();
+    source.dispose();
+    xterm.dispose();
     focusNode.dispose();
     super.dispose();
   }
@@ -249,3 +376,39 @@ class TerminalInstance extends ChangeNotifier {
 /// argument quoted (joined by commas, as its `join()` does).
 String _commandLine(PtyLaunch launch) =>
     launch.executable + launch.arguments.map((a) => " '$a'").join(',');
+
+/// A message from the app written into the terminal: an inverse ` * `, then
+/// the message (VS Code's `formatMessageForTerminal`).
+String formatMessageForTerminal(
+  String message, {
+  bool excludeLeadingNewLine = false,
+  bool loudFormatting = false,
+}) {
+  final result = StringBuffer();
+  if (!excludeLeadingNewLine) result.write('\r\n');
+  result.write('\x1b[0m\x1b[7m * ');
+  result.write(loudFormatting ? '\x1b[0;104m' : '\x1b[0m');
+  result.write(' $message \x1b[0m\n\r');
+  return result.toString();
+}
+
+/// The find matches' colors, as VS Code's `_updateFindColors` takes them
+/// from the theme.
+ISearchDecorationOptions _findDecorations() {
+  String css(Color color) => channels.toCss(
+    (color.r * 255).round(),
+    (color.g * 255).round(),
+    (color.b * 255).round(),
+    (color.a * 255).round(),
+  );
+  return ISearchDecorationOptions(
+    activeMatchBackground: css(TerminalColors.findMatchBackground),
+    activeMatchBorder: 'transparent',
+    activeMatchColorOverviewRuler: css(
+      TerminalColors.overviewRulerCursorForeground,
+    ),
+    matchBackground: css(TerminalColors.findMatchHighlightBackgroundOpaque),
+    matchBorder: 'transparent',
+    matchOverviewRuler: css(TerminalColors.overviewRulerFindMatchForeground),
+  );
+}

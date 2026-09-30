@@ -24,6 +24,7 @@ import '../../theme/codicons.dart';
 import '../ide_commands.dart';
 import '../ide_hover.dart';
 import '../ide_menu.dart';
+import 'links/terminal_links.dart';
 import 'terminal_instance.dart';
 import 'terminal_service.dart';
 import 'terminal_tabs.dart';
@@ -63,6 +64,24 @@ abstract final class TerminalKeys {
   ];
 }
 
+/// VS Code's `DEFAULT_COMMANDS_TO_SKIP_SHELL`, of the commands there are
+/// here: their keys go to the workbench while a terminal has focus.
+const terminalCommandsToSkipShell = {
+  'workbench.action.quickOpen',
+  'workbench.action.showCommands',
+  'workbench.action.nextEditor',
+  'workbench.action.previousEditor',
+  'workbench.action.togglePanel',
+  'workbench.action.terminal.focus',
+  'workbench.action.terminal.focusNext',
+  'workbench.action.terminal.focusPrevious',
+  'workbench.action.terminal.kill',
+  'workbench.action.terminal.new',
+  'workbench.action.terminal.toggleTerminal',
+  // ⌘J, the chat's here where it is the panel's in VS Code.
+  'workbench.action.toggleAuxiliaryBar',
+};
+
 /// The TERMINAL tab's content: the active terminal's view and, with more
 /// than one terminal, their tabs.
 class TerminalPanel extends StatelessWidget {
@@ -70,12 +89,20 @@ class TerminalPanel extends StatelessWidget {
     super.key,
     required this.terminals,
     required this.onNew,
+    this.skipShell = const [],
+    this.onOpenLink,
   });
 
   final TerminalService terminals;
 
   /// New Terminal, from the tabs.
   final VoidCallback onNew;
+
+  /// The keybindings of the workbench's [terminalCommandsToSkipShell].
+  final List<IdeKeybinding> skipShell;
+
+  /// Opens a link ⌘-clicked in a terminal.
+  final ValueChanged<TerminalLink>? onOpenLink;
 
   @override
   Widget build(BuildContext context) {
@@ -105,7 +132,21 @@ class TerminalPanel extends StatelessWidget {
               Expanded(
                 child: active == null
                     ? const SizedBox.shrink()
-                    : TerminalView(active, key: ObjectKey(active)),
+                    : TerminalView(
+                        active,
+                        key: ObjectKey(active),
+                        skipShell: [
+                          for (final binding in [
+                            ...skipShell,
+                            ...TerminalKeys.focusNext,
+                            ...TerminalKeys.focusPrevious,
+                          ])
+                            if (binding.appliesTo(mac: mac))
+                              binding.activator(mac: mac),
+                        ],
+                        onKill: () => terminals.kill(active),
+                        onOpenLink: onOpenLink,
+                      ),
               ),
               if (terminals.instances.length > 1)
                 SizedBox(

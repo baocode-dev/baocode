@@ -455,10 +455,7 @@ ITheme vscodeTerminalTheme() {
 String vscodeTerminalFontFamily() {
   final families = [
     CursorFonts.mono,
-    if (AppPlatform.isWindows)
-      ...CursorFonts.windowsFallbacks
-    else
-      'monospace',
+    if (AppPlatform.isWindows) ...CursorFonts.windowsFallbacks else 'monospace',
     if (AppPlatform.isMacOS) 'AppleBraille',
   ];
   return families.map((f) => f.contains(' ') ? "'$f'" : f).join(', ');
@@ -468,9 +465,9 @@ String vscodeTerminalFontFamily() {
 /// reads, at their defaults: the editor's font at 13px (this app's editor
 /// size), `terminal.integrated.lineHeight` 1, `letterSpacing` 0, a block
 /// cursor that does not blink and an outline when unfocused, bold in bright
-/// colors, a minimum contrast ratio of 4.5, 1000 lines of scrollback, no
-/// smooth scrolling and Modern UI's 10px scrollbar with the overview ruler's
-/// top border.
+/// colors, a minimum contrast ratio of 4.5, overlapping glyphs rescaled,
+/// 1000 lines of scrollback, no smooth scrolling and Modern UI's 10px
+/// scrollbar with the overview ruler's top border.
 ITerminalOptions vscodeTerminalOptions({int? cols, int? rows}) =>
     ITerminalOptions(
       cols: cols,
@@ -500,6 +497,6 @@ ITerminalOptions vscodeTerminalOptions({int? cols, int? rows}) =>
         width: 10,
         overviewRuler: IOverviewRulerOptions(showTopBorder: true),
       ),
-      rescaleOverlappingGlyphs: false,
+      rescaleOverlappingGlyphs: true,
       allowTransparency: false,
     );
