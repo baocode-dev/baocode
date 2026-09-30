@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 import '../../theme/cursor_theme.dart';
 import 'thinking_spark.dart';
 
-/// What the agent is busy with out of sight, after Claude's spark, dots
-/// counting up behind it: "Compacting conversation..". [whimsical] (a wait
-/// with nothing to name, the model yet to answer), it muses instead, a
-/// passing phrase at a time.
+/// What the agent is busy with out of sight, after Claude's spark: typed
+/// out, then dots counting up behind it ("Compacting conversation..").
+/// [whimsical] (a wait with nothing to name, the model yet to answer), it
+/// muses instead, a passing phrase at a time.
 class ActivityRow extends StatelessWidget {
   const ActivityRow({
     super.key,
@@ -90,9 +90,10 @@ class ActivityRow extends StatelessWidget {
   }
 }
 
-/// [phrases], one at a time from any, dots counting up to three behind each,
-/// twice; then a terminal's block cursor types the next over it, cell by
-/// cell. One phrase only counts its dots. Still where motion is turned down.
+/// [phrases], one at a time from any: a terminal's block cursor types each
+/// out from the start, then dots count up to three behind it, twice, and it
+/// clears for the next. One phrase is typed once, then only counts its dots.
+/// Still, and whole, where motion is turned down.
 class _Musing extends StatefulWidget {
   const _Musing(this.phrases, {this.random});
 
@@ -104,6 +105,12 @@ class _Musing extends StatefulWidget {
 }
 
 class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
+  /// The cursor's time on a letter.
+  static const _key = Duration(milliseconds: 45);
+
+  /// Letters' worth of time the cursor rests at the end, before it goes.
+  static const _rest = 6;
+
   /// Up to three dots, from none.
   static const _dots = 4;
 
@@ -113,59 +120,40 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
   /// Times the dots count up behind each phrase.
   static const _rounds = 2;
 
-  /// The cursor's time on a cell.
-  static const _cell = Duration(milliseconds: 35);
-
-  /// Cells' worth of time the cursor rests at the end, before it goes.
-  static const _rest = 4;
-
   static const _style = TextStyle(fontSize: 13, color: CursorColors.textMuted);
 
   late final math.Random _random = widget.random ?? math.Random();
   late int _shown;
-  late int _next;
+
+  /// Whether [_shown] is yet to be typed out.
+  bool _typing = true;
+  bool _still = false;
   late final AnimationController _controller = AnimationController(vsync: this)
     ..addStatusListener(_advance);
 
   List<String> get _phrases => widget.phrases;
-  bool get _rolls => _phrases.length > 1;
+  String get _phrase => _phrases[_shown];
 
-  /// What the cursor types over: the phrase, its dots all out.
-  String get _from => '${_phrases[_shown]}${'.' * (_dots - 1)}';
-  String get _to => _phrases[_next];
+  /// Typing the phrase: a letter at a time, then one past its last, and
+  /// rest there.
+  Duration get _typingTime =>
+      _typing ? _key * (_phrase.length + 1 + _rest) : Duration.zero;
 
-  /// Cells the cursor crosses: the longer text's.
-  int get _cells => math.max(_from.length, _to.length);
-
-  Duration get _counting => _dot * (_dots * _rounds);
-
-  /// A phrase's time: its dots, then the cursor's pass to the end (one cell
-  /// past its last) and rest there.
-  Duration get _cycle =>
-      _rolls ? _counting + _cell * (_cells + 1 + _rest) : _counting;
+  Duration get _cycle => _typingTime + _dot * (_dots * _rounds);
 
   @override
   void initState() {
     super.initState();
-    _pick();
+    _shown = _random.nextInt(_phrases.length);
   }
 
   @override
   void didUpdateWidget(_Musing old) {
     super.didUpdateWidget(old);
     if (listEquals(old.phrases, _phrases)) return;
-    _pick();
-    if (_controller.isAnimating) _start();
-  }
-
-  void _pick() {
     _shown = _random.nextInt(_phrases.length);
-    _next = _rolls ? _other(_shown) : _shown;
-  }
-
-  int _other(int index) {
-    final pick = _random.nextInt(_phrases.length - 1);
-    return pick < index ? pick : pick + 1;
+    _typing = true;
+    if (_controller.isAnimating) _start();
   }
 
   void _start() {
@@ -176,21 +164,22 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
 
   void _advance(AnimationStatus status) {
     if (status != AnimationStatus.completed) return;
-    if (_rolls) {
-      setState(() {
-        _shown = _next;
-        _next = _other(_shown);
-      });
-    }
+    setState(() {
+      _typing = _phrases.length > 1;
+      if (_typing) {
+        final pick = _random.nextInt(_phrases.length - 1);
+        _shown = pick < _shown ? pick : pick + 1;
+      }
+    });
     _start();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
+    _still = MediaQuery.disableAnimationsOf(context);
+    if (_still) {
       _controller.stop();
-      _controller.value = 0;
     } else if (!_controller.isAnimating) {
       _start();
     }
@@ -204,29 +193,25 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    if (_still) return _text(_phrase);
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
         final elapsed = _cycle * _controller.value;
-        if (elapsed < _counting || !_rolls) {
-          final dots = elapsed.inMicroseconds ~/ _dot.inMicroseconds % _dots;
-          return Text(
-            '${_phrases[_shown]}${'.' * dots}',
-            style: _style,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          );
+        final typing = _typingTime;
+        if (elapsed >= typing) {
+          final dots =
+              (elapsed - typing).inMicroseconds ~/ _dot.inMicroseconds % _dots;
+          return _text('$_phrase${'.' * dots}');
         }
-        // Behind the cursor the next phrase, ahead of it what is left of
-        // this one, the cell under it hidden.
-        final at = math.min(
-          (elapsed - _counting).inMicroseconds ~/ _cell.inMicroseconds,
-          _cells,
+        final typed = math.min(
+          elapsed.inMicroseconds ~/ _key.inMicroseconds,
+          _phrase.length,
         );
         return Text.rich(
           TextSpan(
             children: [
-              TextSpan(text: _to.substring(0, math.min(at, _to.length))),
+              TextSpan(text: _phrase.substring(0, typed)),
               const WidgetSpan(
                 alignment: PlaceholderAlignment.middle,
                 child: SizedBox(
@@ -236,7 +221,6 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
                   child: ColoredBox(color: CursorColors.textMuted),
                 ),
               ),
-              TextSpan(text: _from.substring(math.min(at + 1, _from.length))),
             ],
           ),
           style: _style,
@@ -246,4 +230,7 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
       },
     );
   }
+
+  Widget _text(String text) =>
+      Text(text, style: _style, maxLines: 1, overflow: TextOverflow.ellipsis);
 }

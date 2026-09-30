@@ -425,21 +425,27 @@ void main() {
     });
   });
 
-  testWidgets('the status row says what, without a clock', (tester) async {
+  testWidgets('the status row says what, without a clock: typed out, then '
+      'dots count up behind it', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(body: ActivityRow(label: 'Planning next move')),
       ),
     );
+    final cursor = find.byKey(const ValueKey('cursor'));
+    expect(find.byType(ThinkingSpark), findsOneWidget);
+    expect(cursor, findsOneWidget);
+    // A letter every 45ms, and a rest.
+    await tester.pump(const Duration(milliseconds: 45 * (18 + 1 + 6)));
+    expect(cursor, findsNothing);
     expect(find.text('Planning next move'), findsOneWidget);
     expect(find.textContaining('…'), findsNothing);
-    expect(find.byType(ThinkingSpark), findsOneWidget);
-    // Its dots count up; it stays itself.
     await tester.pump(const Duration(milliseconds: 1200));
     expect(find.text('Planning next move...'), findsOneWidget);
+    // It stays itself, typed but once.
     await tester.pump(const Duration(seconds: 10));
     expect(find.textContaining('Planning next move'), findsOneWidget);
-    expect(find.byKey(const ValueKey('cursor')), findsNothing);
+    expect(cursor, findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -455,8 +461,10 @@ void main() {
     expect(ThinkingSpark.shapeAt(ThinkingSpark.turn), 0);
   });
 
-  testWidgets('a whimsical status row muses: dots count up twice, then a '
-      'cursor types the next phrase over it', (tester) async {
+  testWidgets('a whimsical status row muses: each phrase typed out from the '
+      'start, its dots counted up twice, then cleared for the next', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -468,27 +476,34 @@ void main() {
         ),
       ),
     );
-    String shown() => tester.widget<Text>(find.byType(Text)).data!;
+    String shown() => tester
+        .widget<RichText>(find.byType(RichText))
+        .text
+        .toPlainText()
+        .replaceAll('￼', '');
     final cursor = find.byKey(const ValueKey('cursor'));
-    final first = shown();
+    expect(cursor, findsOneWidget);
+    expect(shown(), '');
+
+    await tester.pump(const Duration(milliseconds: 45 * 3));
+    final start = shown();
+    expect(start, hasLength(3));
+    await tester.pump(const Duration(milliseconds: 45 * 30));
+    expect(cursor, findsNothing);
+    final first = shown().replaceAll('.', '');
     expect(ActivityRow.musings, contains(first));
+    expect(first, startsWith(start));
     expect(find.text('Planning next move'), findsNothing);
 
-    const dot = Duration(milliseconds: 400);
-    await tester.pump(dot);
-    expect(shown(), '$first.');
-    await tester.pump(dot * 2);
+    // Its whole time: typed, rested, and two rounds of dots.
+    final cycle = Duration(milliseconds: 45 * (first.length + 1 + 6) + 3200);
+    await tester.pump(cycle - const Duration(milliseconds: 45 * 33 + 1));
     expect(shown(), '$first...');
-    await tester.pump(dot);
-    expect(shown(), first);
-    await tester.pump(dot * 4 - const Duration(milliseconds: 1));
-    expect(shown(), '$first...');
-    expect(cursor, findsNothing);
-
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 2));
     expect(cursor, findsOneWidget);
+    expect(shown(), '');
 
-    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 45 * 32));
     expect(cursor, findsNothing);
     final second = shown().replaceAll('.', '');
     expect(ActivityRow.musings, contains(second));
@@ -496,24 +511,19 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('the status row is still where motion is turned down', (
-    tester,
-  ) async {
+  testWidgets('the status row is still, and whole, where motion is turned '
+      'down', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
+      const MaterialApp(
         home: MediaQuery(
-          data: const MediaQueryData(disableAnimations: true),
-          child: Scaffold(
-            body: ActivityRow(
-              label: 'Planning next move',
-              whimsical: true,
-              random: Random(1),
-            ),
-          ),
+          data: MediaQueryData(disableAnimations: true),
+          child: Scaffold(body: ActivityRow(label: 'Planning next move')),
         ),
       ),
     );
+    expect(find.text('Planning next move'), findsOneWidget);
     await tester.pump(const Duration(seconds: 10));
+    expect(find.text('Planning next move'), findsOneWidget);
     expect(find.byKey(const ValueKey('cursor')), findsNothing);
   });
 

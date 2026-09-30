@@ -204,6 +204,29 @@ void main() {
     expect(terminal.pty, isNull);
   });
 
+  test('printing faster than the emulator parses pauses the process until '
+      'it catches up (VS Code\'s flow control)', () async {
+    final (:terminal, :started, exits: _) = _start();
+    await pumpEventQueue();
+    final pty = started.single;
+
+    pty.emitText('small\r\n');
+    await pumpEventQueue();
+    expect(pty.pauses, 0);
+
+    for (var i = 0; i < 3; i++) {
+      pty.emit(List.filled(60000, 0x78));
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(pty.pauses, 1);
+    expect(pty.paused, isFalse);
+    final buffer = terminal.terminal.buffer;
+    expect(
+      buffer.lines.get(buffer.ybase + buffer.y - 1)!.translateToString(true),
+      'x' * 100,
+    );
+  });
+
   test('what the process prints goes into the emulator; its shell '
       'integration trusts the command lines its launch\'s nonce comes '
       'with', () async {

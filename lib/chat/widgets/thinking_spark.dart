@@ -107,12 +107,13 @@ class _SparkPainter extends CustomPainter {
       case 2:
         paint
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.13;
+          ..strokeWidth = 0.16
+          ..strokeCap = StrokeCap.round;
         for (var i = 0; i < 8; i++) {
           final angle = i * math.pi / 4;
           canvas.drawLine(
             Offset.zero,
-            Offset(math.cos(angle), math.sin(angle)) * 0.88,
+            Offset(math.cos(angle), math.sin(angle)) * 0.8,
             paint,
           );
         }
@@ -121,13 +122,21 @@ class _SparkPainter extends CustomPainter {
         final star = Path();
         for (var i = 0; i < 12; i++) {
           final angle = i * math.pi / 6 - math.pi / 2;
-          final radius = i.isEven ? 1.0 : 0.4;
+          final radius = i.isEven ? 0.88 : 0.46;
           final point = Offset(math.cos(angle), math.sin(angle)) * radius;
           i == 0
               ? star.moveTo(point.dx, point.dy)
               : star.lineTo(point.dx, point.dy);
         }
-        canvas.drawPath(star..close(), paint);
+        // Its points rounded off: filled, and outlined with round joins.
+        canvas.drawPath(
+          star..close(),
+          paint
+            ..style = PaintingStyle.fill
+            ..strokeWidth = 0.18
+            ..strokeJoin = StrokeJoin.round,
+        );
+        canvas.drawPath(star, paint..style = PaintingStyle.stroke);
       // ✻
       case 4:
         _petals(canvas, paint, 6, length: 0.98, bulb: 0.19, neck: 0.04);

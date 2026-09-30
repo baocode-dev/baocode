@@ -18,8 +18,8 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 
 | 里程碑 | 状态 |
 | --- | --- |
-| M1 内核 | 完成：解析器、InputHandler、Buffer/BufferLine/CircularList/reflow、Charsets、各 service、Marker、键盘、无界面 `Terminal` 及其公开 API、unicode11 和 graphemes 插件；上游测试全部移植（`test/ide/terminal/xterm/`，1427 个） |
-| M2 PTY | 完成：接口和假实现、macOS/Linux 原生层、Windows ConPTY、按 VS Code 设置环境变量和默认 shell；macOS 实测通过，Windows 未实测 |
+| M1 内核 | 完成：解析器、InputHandler、Buffer/BufferLine/CircularList/reflow、Charsets、各 service、Marker、键盘、无界面 `Terminal` 及其公开 API、unicode11 和 graphemes 插件；上游测试全部移植（`test/ide/terminal/xterm/` 现有 1543 个，含后来的搜索插件和浏览器部分） |
+| M2 PTY | 完成：接口和假实现、macOS/Linux 原生层、Windows ConPTY、按 VS Code 设置环境变量和默认 shell、输出流控；macOS 实测通过，Windows 未实测 |
 | M3 渲染和交互 | 完成：按行缓存的渲染器（每帧最多画一次，只画可见行）、宽字符和 emoji、自绘框线和 powerline 字形、光标样式和闪烁、失焦样式、拖选和双击三击、复制粘贴（含括号粘贴和多行警告）、键盘（macOptionIsMeta 默认关，同 VS Code）、鼠标上报、备用屏幕、输入法、滚轮遵守 WheelLatch、`terminal.*` 主题色、字体跟编辑器一致 |
 | M4 IDE 集成 | 完成：编辑区下方的面板、分隔条、多标签（新建、关闭、重命名、退出状态）、⌃\` 开关、右键菜单；工作台的快捷键不进 shell |
 | M5 上层功能 | 完成：查找（移植 addon-search，界面用 `IdeFindWidget`）；链接（移植 VS Code 的四种检测器，网址交给浏览器，`路径:行:列` 在编辑器里打开，⌘/Ctrl 点击）；shell 集成（注入 VS Code 的 zsh、bash、fish、pwsh 脚本，解析 OSC 633/133/7/1337，命令在左侧留白处标出成功或失败，点开可重新运行或复制；链接按每行的 cwd 解析）。sticky scroll 和补全不做，记在 PARITY |
@@ -40,6 +40,7 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 - shell 集成脚本打包成 Dart 常量（`tool/generate_shell_integration_scripts.dart` 从 VS Code 源码原样生成），启动时写到临时目录：shell 本来就要一个真实路径，用常量省掉资源注册和异步的 `rootBundle`，纯单元测试也能用。有测试核对文件名、字节数和许可头。
 - 每个终端都有 shell 集成的 nonce：注入时由启动参数带给 shell，没注入时随机生成一个（VS Code 也是每个终端一个），这样输出里伪造的 `633;E` 命令行不会被当真。
 - 查找、链接和 shell 集成都挂在 `TerminalInstance` 上：查找第一次用时才创建，链接检测按需，shell 集成在知道启动参数后、进程启动前创建，保证看得到第一个提示符。
+- 输出流控照 VS Code 的水位（100000 / 5000），但按字节计、由内核 `write` 的回调在解析完每块后确认。暂停用一个原生内存里的标志，读输出的 isolate 每 10 ms 看一次；不用 `SIGSTOP`，那样会连进程的输入处理一起停掉。内核的写缓冲超过 50 MB 会抛错，有了流控就到不了。
 - 应用启动时调用 `reapPtyProcesses()`，退出前调用 `stopPtyProcesses()`（`lib/main.dart`）。
 
 ## 性能
@@ -59,6 +60,8 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 
 光标移动里最慢的是滚动区域内换行加 IL/DL（AOT 23），这是上游算法本身的开销；进度条 149、多行重绘 63、全屏 TUI 帧 56。
 
+大量输出时界面不卡：内核每次最多连续解析 12 ms 就让出事件循环（上游 WriteBuffer 的做法），渲染每帧最多画一次、只画可见行；没解析完的输出超过 100 KB 就暂停读 PTY，进程随之阻塞，内存不会无限涨。
+
 ## 待决事项
 
 以下都先按合理的默认做了，需要时再改：
@@ -74,12 +77,13 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 - Windows 的 ConPTY 没有实机跑过。
 - Linux 上如果 Dart 自己的子进程回收抢先，退出码可能读成 0。
 - fork 到 exec 之间会短暂阻塞 UI isolate。
-- 还没有输出流控：进程输出很快时全部进内核排队解析。
 - `CircularList` 按回滚上限一次性分配指针数组（上游是稀疏数组），回滚设得很大时会立刻占内存。
 - 快捷键标签显示 “Ctrl+Page Down”，VS Code 是 “Ctrl+PageDown”。
 - 根目录变化只影响之后新建的终端。
 
 ## 下一步
 
-- M3 完成后接入：`TerminalInstance` 持有内核 `Terminal`，在收到 PTY 输出的地方喂给它；`TerminalView` 换成渲染控件加键盘、鼠标、选择、剪贴板控制器。
-- M5：搜索接 `IdeFindWidget`，链接接编辑器和浏览器，shell 集成画命令装饰。
+- 在 Windows 实机上跑 ConPTY：`test/ide/terminal/pty_test.dart` 里 `cmd.exe` 的测试，以及 shell 集成的 pwsh 脚本。
+- sticky scroll 和终端补全（suggest）没做，见 PARITY 的“暂不做”。
+- 终端选项（光标样式、回滚行数、`macOptionIsMeta` 等）固定用 VS Code 的默认值（`vscodeTerminalOptions`），IDE 还没有设置入口。
+- 待决事项里的几项定下来后改相应默认值。
