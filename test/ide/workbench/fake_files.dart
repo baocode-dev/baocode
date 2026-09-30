@@ -9,8 +9,13 @@ import 'package:monad/ide/ide_workbench.dart';
 import 'package:monad/ide/ide_workspace.dart';
 import 'package:monad/ide/lsp/language_features.dart';
 import 'package:monad/ide/search/text_search.dart';
+import 'package:monad/ide/terminal/pty.dart';
+import 'package:monad/ide/terminal/terminal_instance.dart';
 import 'package:monad/workspace/workspace.dart';
 import 'package:path/path.dart' as p;
+
+import '../terminal/fake_pty.dart';
+import '../terminal/fake_terminal.dart';
 
 /// An in-memory project: files by absolute path; folders are implied, or
 /// [folders] when empty.
@@ -139,6 +144,8 @@ String inRoot(String relative) => p.joinAll([testRoot, ...relative.split('/')]);
 const chatKey = Key('test-chat');
 
 /// Pumps an [IdeWorkbench] over [files] (relative paths), opening [open].
+/// Its terminals run on fakes ([startPty], [FakePty.starter]), and there
+/// are none unless [terminals] (as on the web).
 Future<IdeWorkspace> pumpWorkbench(
   WidgetTester tester,
   Map<String, String> files, {
@@ -153,6 +160,8 @@ Future<IdeWorkspace> pumpWorkbench(
   IdeExtensions? extensions,
   IdeCommitMessageModel? commitMessage,
   ValueChanged<bool>? onPinnedChanged,
+  PtyStarter? startPty,
+  bool terminals = true,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -188,6 +197,12 @@ Future<IdeWorkspace> pumpWorkbench(
         // Never the real Claude Code under test.
         commitMessage: commitMessage ?? _noModel,
         onPinnedChanged: onPinnedChanged,
+        // Never a real shell under test.
+        terminalBackend: TerminalBackend(
+          launch: fakeTerminalLaunch,
+          start: startPty ?? FakePty.starter([]),
+          supported: terminals,
+        ),
       ),
     ),
   );

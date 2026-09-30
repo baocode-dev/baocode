@@ -23,6 +23,7 @@ import 'git/ide_scm_view.dart';
 import 'git/ide_timeline_view.dart';
 import 'ide_breadcrumbs.dart';
 import 'ide_columns.dart';
+import 'ide_rows.dart';
 import 'ide_commands.dart';
 import 'ide_dialog.dart';
 import 'ide_editor.dart';
@@ -49,6 +50,10 @@ import 'lsp_ui/workspace_edit.dart';
 import 'project_tools.dart';
 import 'search/ide_search_view.dart';
 import 'search/text_search.dart';
+import 'terminal/terminal_instance.dart';
+import 'terminal/terminal_panel.dart';
+import 'terminal/terminal_service.dart';
+import 'terminal/terminal_tabs.dart';
 
 /// The IDE shell is kept mounted when the user returns to the conversation.
 class IdeWorkbench extends StatefulWidget {
@@ -72,6 +77,7 @@ class IdeWorkbench extends StatefulWidget {
     this.commitMessage = ideClaudeCommitMessage,
     this.pinned = false,
     this.onPinnedChanged,
+    this.terminalBackend = const TerminalBackend(),
   });
 
   final IdeWorkspace workspace;
@@ -110,6 +116,11 @@ class IdeWorkbench extends StatefulWidget {
   final bool pinned;
   final ValueChanged<bool>? onPinnedChanged;
 
+  /// Where the panel's terminals come from: the user's shell on a pseudo
+  /// terminal; fakes in widget tests. Without one (the web), there is no
+  /// TERMINAL tab.
+  final TerminalBackend terminalBackend;
+
   @override
   State<IdeWorkbench> createState() => IdeWorkbenchState();
 }
@@ -143,6 +154,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   ({IdeColumns columns, double room})? _dragStart;
   bool _sidebarShown = true;
   bool _chatShown = true;
+
+  /// The panel's height below the editor; null is a third of the column
+  /// (see [IdeRows]). Whether it shows, and what, is [_panel].
+  double? _panelHeight;
+
+  /// The panel's height, and the room for it, when its sash's drag began.
+  ({IdeRows rows, double room})? _panelDragStart;
   IdeSideView _view = IdeSideView.explorer;
   final IdeNotifications _notifications = IdeNotifications();
 
@@ -191,7 +209,32 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   IdeDocumentSymbols? _symbols;
   StreamSubscription<LspApplyEditRequest>? _editRequests;
   late Listenable _quickRefresh;
-  IdePanelTab? _panel;
+
+  /// The panel's tab, or null when the panel is hidden.
+  IdePanelTab? get _panel => _panelTab;
+  set _panel(IdePanelTab? tab) {
+    // What had the keyboard there goes: it goes back to the editor.
+    if (tab != _panelTab && _panelFocus.hasFocus) _focusSoon();
+    _panelTab = tab;
+    if (tab != null) _lastPanel = tab;
+    // VS Code makes a terminal when its view shows with none.
+    if (tab == IdePanelTab.terminal) _terminals?.ensureTerminal();
+  }
+
+  IdePanelTab? _panelTab;
+
+  /// The tab the panel shows again when toggled back.
+  IdePanelTab _lastPanel = IdePanelTab.problems;
+
+  /// Around the panel: whether the keyboard is in it.
+  final FocusNode _panelFocus = FocusNode(
+    debugLabel: 'ide panel',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+
+  /// The panel's terminals; none where they cannot run (the web).
+  TerminalService? _terminals;
   IdeReferences? _references;
   MarkerList<LspDiagnostic>? _markers;
   final List<_NavigationEntry> _backStack = [];
@@ -206,6 +249,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void initState() {
     super.initState();
     _notifications.addListener(_notificationsChanged);
+    if (widget.terminalBackend.supported) {
+      _terminals = TerminalService(
+        root: widget.workspace.root,
+        backend: widget.terminalBackend,
+      )..addListener(_terminalsChanged);
+    }
     _attach();
     IdeLanguageNames.ensureLoaded(() {
       if (mounted) setState(() {});
@@ -236,6 +285,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _workspaceChanged();
     _git = workspace.git?..addListener(_gitChanged);
     _gitChanged();
+    // New terminals start in the project; those running stay where they are.
+    _terminals?.root = workspace.root;
   }
 
   void _detach(IdeWorkspace workspace) {
@@ -280,6 +331,20 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (mounted) setState(() {});
   }
 
+  /// The terminal commands follow them. Once the last terminal is gone,
+  /// the panel hides, as VS Code's `terminal.integrated.hideOnLastClosed`.
+  void _terminalsChanged() {
+    if (!mounted) return;
+    setState(() {
+      if (_panel == IdePanelTab.terminal &&
+          (_terminals?.instances.isEmpty ?? true)) {
+        _panel = null;
+        // Its keyboard went with it, to the editor.
+        _focusSoon();
+      }
+    });
+  }
+
   void _symbolsChanged() {
     if (mounted) setState(() {});
   }
@@ -322,6 +387,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _extensions?.dispose();
     _notifications.dispose();
     _scm.dispose();
+    _terminals
+      ?..removeListener(_terminalsChanged)
+      ..dispose();
+    _panelFocus.dispose();
     super.dispose();
   }
 
@@ -671,6 +740,55 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _togglePanel(IdePanelTab tab) =>
       setState(() => _panel = _panel == tab ? null : tab);
 
+  void _selectPanel(IdePanelTab tab) => setState(() => _panel = tab);
+
+  // --- Terminals -------------------------------------------------------------
+
+  /// Toggle Terminal (⌃`): the panel on TERMINAL, with the keyboard in the
+  /// terminal, or hidden.
+  void _toggleTerminal() {
+    _togglePanel(IdePanelTab.terminal);
+    if (_panel == IdePanelTab.terminal) _focusTerminalSoon();
+  }
+
+  /// Create New Terminal (⌃⇧`), shown and focused.
+  void _newTerminal() {
+    _terminals?.create();
+    _showTerminal();
+  }
+
+  /// The panel on TERMINAL (a terminal made if there is none), the active
+  /// terminal focused, as VS Code's `showPanel(true)`.
+  void _showTerminal() {
+    if (_terminals == null) return;
+    setState(() => _panel = IdePanelTab.terminal);
+    _focusTerminalSoon();
+  }
+
+  /// Once the panel shows (and lets its terminals have the keyboard).
+  void _focusTerminalSoon() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _terminals?.active?.focus();
+    });
+  }
+
+  /// Focus Next (Previous) Terminal Group.
+  void _cycleTerminal(bool next) {
+    final terminals = _terminals;
+    if (terminals == null) return;
+    next ? terminals.focusNext() : terminals.focusPrevious();
+    _showTerminal();
+  }
+
+  /// Rename...: the active terminal's name, edited in its tab (in the
+  /// panel's title when it is the only one).
+  void _renameTerminal() {
+    final terminals = _terminals;
+    if (terminals?.active == null) return;
+    setState(() => _panel = IdePanelTab.terminal);
+    terminals!.startRename();
+  }
+
   Future<String?> _textOf(String path) async {
     for (final doc in widget.workspace.documents) {
       if (doc.path == path) return doc.text;
@@ -779,6 +897,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _toggleChat() => setState(() => _chatShown = !_chatShown);
 
+  /// VS Code's Toggle Panel: the panel as it was last, or hidden.
+  void _togglePanelVisibility() =>
+      setState(() => _panel = _panel == null ? _lastPanel : null);
+
   // --- Quick input ---------------------------------------------------------
 
   /// Opens the quick input with [prefix] (`>` commands, `:` go to line, none
@@ -870,6 +992,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final workspace = widget.workspace;
     final active = workspace.active;
     final hasEditors = workspace.documents.isNotEmpty;
+    final terminals = _terminals;
+    final terminal = terminals?.active;
     return [
       IdeCommand(
         id: 'workbench.action.showCommands',
@@ -1048,6 +1172,70 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           IdeKeybinding(LogicalKeyboardKey.keyB, primary: true, alt: true),
         ],
         run: _toggleChat,
+      ),
+      // VS Code's ⌘J toggles the panel; here it is the chat's.
+      IdeCommand(
+        id: 'workbench.action.togglePanel',
+        category: 'View',
+        label: 'Toggle Panel Visibility',
+        run: _togglePanelVisibility,
+      ),
+      IdeCommand(
+        id: 'workbench.action.terminal.toggleTerminal',
+        category: 'Terminal',
+        label: 'Toggle Terminal',
+        keybindings: const [
+          IdeKeybinding(LogicalKeyboardKey.backquote, control: true),
+        ],
+        enabled: terminals != null,
+        run: _toggleTerminal,
+      ),
+      IdeCommand(
+        id: 'workbench.action.terminal.new',
+        category: 'Terminal',
+        label: 'Create New Terminal',
+        keybindings: const [TerminalKeys.create],
+        enabled: terminals != null,
+        run: _newTerminal,
+      ),
+      IdeCommand(
+        id: 'workbench.action.terminal.kill',
+        category: 'Terminal',
+        label: 'Kill the Active Terminal Instance',
+        enabled: terminal != null,
+        run: () => terminals?.kill(),
+      ),
+      IdeCommand(
+        id: 'workbench.action.terminal.rename',
+        category: 'Terminal',
+        label: 'Rename...',
+        enabled: terminal != null,
+        run: _renameTerminal,
+      ),
+      // Their keys are the terminal's own, while it has focus (see
+      // TerminalPanel): elsewhere they switch editors.
+      IdeCommand(
+        id: 'workbench.action.terminal.focusNext',
+        category: 'Terminal',
+        label: 'Focus Next Terminal Group',
+        keybindingLabel: terminalKeyLabel(TerminalKeys.focusNext),
+        enabled: terminal != null,
+        run: () => _cycleTerminal(true),
+      ),
+      IdeCommand(
+        id: 'workbench.action.terminal.focusPrevious',
+        category: 'Terminal',
+        label: 'Focus Previous Terminal Group',
+        keybindingLabel: terminalKeyLabel(TerminalKeys.focusPrevious),
+        enabled: terminal != null,
+        run: () => _cycleTerminal(false),
+      ),
+      IdeCommand(
+        id: 'workbench.action.terminal.focus',
+        category: 'Terminal',
+        label: 'Focus Terminal',
+        enabled: terminals != null,
+        run: _showTerminal,
       ),
       IdeCommand(
         id: 'workbench.view.explorer',
@@ -1611,18 +1799,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         formatOnSave: _formatOnSave,
                       ),
           ),
-          if (_panel case final tab?)
-            IdeBottomPanel(
-              tab: tab,
-              root: widget.workspace.root,
-              languages: _languages,
-              references: _references,
-              onTab: (tab) => setState(() => _panel = tab),
-              onClose: () => setState(() => _panel = null),
-              onOpen: (location, {select = false}) =>
-                  unawaited(_openLocation(location, select: select)),
-              textOf: _textOf,
-            ),
         ],
       ),
     );
@@ -1671,8 +1847,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// narrow the window (see [IdeColumns.fit]).
   Widget _split(double width, List<IdeCommand> commands) {
     const gap = IdeModernUI.gap;
-    // Hidden, the chat leaves its sash as the gap at the window's side.
-    final outside = EdgeInsets.fromLTRB(gap, 0, _chatShown ? gap : 0, gap);
+    // Hidden, the chat leaves its sash as the gap at the window's side. The
+    // gap above the status bar is each column's: the panel's sash, hidden.
+    final outside = EdgeInsets.fromLTRB(gap, 0, _chatShown ? gap : 0, 0);
+    Widget above(Widget column) => Padding(
+      padding: const EdgeInsets.only(bottom: gap),
+      child: column,
+    );
     final room =
         width -
         outside.horizontal -
@@ -1690,46 +1871,167 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _activityBar(joined: sidebarVisible),
+          above(_activityBar(joined: sidebarVisible)),
           if (sidebarVisible)
-            SizedBox(
-              key: const ValueKey('ide-sidebar'),
-              width: columns.sidebar,
-              child: _sidebarCard(),
+            above(
+              SizedBox(
+                key: const ValueKey('ide-sidebar'),
+                width: columns.sidebar,
+                child: _sidebarCard(),
+              ),
             ),
           // With the side bar hidden, the gap by the activity bar: dragged
           // out, it opens the side bar.
-          _Sash(
-            key: const ValueKey('ide-sidebar-sash'),
-            grip: sidebarVisible,
-            canMoveLeft: sidebarVisible,
-            canMoveRight: columns.canGrowSidebar(room),
-            onStart: () => _dragStart = (columns: columns, room: room),
-            onDrag: (dx) =>
-                _dragTo((start, room) => start.dragSidebar(room, dx)),
-            onReset: () => setState(() {
-              _sidebarShown = true;
-              _sidebarWidth = IdeColumns.defaultSidebar;
-            }),
+          above(
+            _Sash(
+              key: const ValueKey('ide-sidebar-sash'),
+              grip: sidebarVisible,
+              canMoveBack: sidebarVisible,
+              canMoveForward: columns.canGrowSidebar(room),
+              onStart: () => _dragStart = (columns: columns, room: room),
+              onDrag: (dx) =>
+                  _dragTo((start, room) => start.dragSidebar(room, dx)),
+              onReset: () => setState(() {
+                _sidebarShown = true;
+                _sidebarWidth = IdeColumns.defaultSidebar;
+              }),
+            ),
           ),
           Expanded(
-            key: const ValueKey('ide-editor'),
-            child: _editorArea(commands),
+            key: const ValueKey('ide-editor-column'),
+            child: LayoutBuilder(
+              builder: (context, constraints) =>
+                  _editorColumn(constraints.maxHeight, commands),
+            ),
           ),
-          _Sash(
-            key: const ValueKey('ide-chat-sash'),
-            grip: chatVisible,
-            canMoveLeft: columns.canGrowChat(room),
-            canMoveRight: chatVisible,
-            onStart: () => _dragStart = (columns: columns, room: room),
-            onDrag: (dx) => _dragTo((start, room) => start.dragChat(room, dx)),
-            onReset: () => setState(() {
-              _chatShown = true;
-              _chatWidth = IdeColumns.defaultChat;
-            }),
+          above(
+            _Sash(
+              key: const ValueKey('ide-chat-sash'),
+              grip: chatVisible,
+              canMoveBack: columns.canGrowChat(room),
+              canMoveForward: chatVisible,
+              onStart: () => _dragStart = (columns: columns, room: room),
+              onDrag: (dx) =>
+                  _dragTo((start, room) => start.dragChat(room, dx)),
+              onReset: () => setState(() {
+                _chatShown = true;
+                _chatWidth = IdeColumns.defaultChat;
+              }),
+            ),
           ),
-          _chatSlot(columns.chat),
+          above(_chatSlot(columns.chat)),
         ],
+      ),
+    );
+  }
+
+  /// The editor, and below it the panel (the terminal), as VS Code's panel
+  /// at the bottom, centered: under the editor only. Hidden, the panel
+  /// leaves its sash as the gap above the status bar.
+  Widget _editorColumn(double height, List<IdeCommand> commands) {
+    final shown = _panel != null;
+    final room = height - _sashWidth - (shown ? IdeModernUI.gap : 0);
+    final rows = IdeRows.fit(
+      room,
+      panel: shown ? _panelHeight ?? IdeRows.defaultPanel(room) : null,
+    );
+    final panelVisible = rows.panel > 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          key: const ValueKey('ide-editor'),
+          child: _editorArea(commands),
+        ),
+        _Sash(
+          key: const ValueKey('ide-panel-sash'),
+          axis: Axis.vertical,
+          grip: panelVisible,
+          canMoveBack: rows.canGrowPanel(room),
+          canMoveForward: panelVisible,
+          onStart: () => _panelDragStart = (rows: rows, room: room),
+          onDrag: _dragPanel,
+          onReset: () => setState(() {
+            _panel ??= _lastPanel;
+            _panelHeight = null;
+          }),
+        ),
+        _panelSlot(rows.panel),
+        if (shown) const SizedBox(height: IdeModernUI.gap),
+      ],
+    );
+  }
+
+  /// The panel's sash, [dy] from where its drag began. Snapped shut, the
+  /// panel opens again (⌃`) as high as it was.
+  void _dragPanel(double dy) {
+    final start = _panelDragStart;
+    if (start == null) return;
+    final next = start.rows.drag(start.room, dy);
+    setState(() {
+      if (next.panel > 0) {
+        _panel ??= _lastPanel;
+        _panelHeight = next.panel;
+      } else if (start.rows.panel > 0) {
+        _panel = null;
+        _panelHeight = start.rows.panel;
+      }
+    });
+  }
+
+  /// The panel, kept mounted (and its terminals running) while hidden.
+  Widget _panelSlot(double height) {
+    final shown = height > 0;
+    final laidOut = shown ? height : _panelHeight ?? IdeRows.minPanel;
+    return SizedBox(
+      key: const ValueKey('ide-panel'),
+      height: height,
+      child: OverflowBox(
+        alignment: Alignment.topLeft,
+        minHeight: laidOut,
+        maxHeight: laidOut,
+        child: Offstage(
+          offstage: !shown,
+          child: TickerMode(
+            enabled: shown,
+            child: ExcludeFocus(
+              excluding: !shown,
+              child: Focus(
+                focusNode: _panelFocus,
+                child: IdeCard(
+                  child: IdeBottomPanel(
+                    tab: _panel ?? _lastPanel,
+                    root: widget.workspace.root,
+                    languages: _languages,
+                    references: _references,
+                    // TERMINAL, clicked, gives its terminal the keyboard.
+                    onTab: (tab) => tab == IdePanelTab.terminal
+                        ? _showTerminal()
+                        : _selectPanel(tab),
+                    onClose: () => setState(() => _panel = null),
+                    onOpen: (location, {select = false}) =>
+                        unawaited(_openLocation(location, select: select)),
+                    textOf: _textOf,
+                    terminal: switch (_terminals) {
+                      final terminals? => TerminalPanel(
+                        terminals: terminals,
+                        onNew: _newTerminal,
+                      ),
+                      null => null,
+                    },
+                    terminalActions: switch (_terminals) {
+                      final terminals? => TerminalTitleActions(
+                        terminals: terminals,
+                        onNew: _newTerminal,
+                      ),
+                      null => null,
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1794,6 +2096,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 : Codicons.layoutSidebarLeftOff,
             'Toggle Primary Side Bar (${const IdeKeybinding(LogicalKeyboardKey.keyB, primary: true).label()})',
             _toggleSidebar,
+          ),
+          toggle(
+            _panel != null ? Codicons.layoutPanel : Codicons.layoutPanelOff,
+            'Toggle Panel (${const IdeKeybinding(LogicalKeyboardKey.backquote, control: true).label()})',
+            _togglePanelVisibility,
           ),
           toggle(
             _chatShown
@@ -2033,28 +2340,37 @@ class _Sash extends StatefulWidget {
     required this.onStart,
     required this.onDrag,
     required this.onReset,
+    this.axis = Axis.horizontal,
     this.grip = true,
-    this.canMoveLeft = true,
-    this.canMoveRight = true,
+    this.canMoveBack = true,
+    this.canMoveForward = true,
   });
 
   final VoidCallback onStart;
 
-  /// How far the pointer is from where the drag began.
+  /// How far the pointer is from where the drag began, along [axis].
   final ValueChanged<double> onDrag;
   final VoidCallback onReset;
+
+  /// Which way it moves: between columns, or (vertical) between rows.
+  final Axis axis;
 
   /// The Modern UI's grip dots at rest: not for a sash that stands for a
   /// hidden part.
   final bool grip;
-  final bool canMoveLeft;
-  final bool canMoveRight;
 
-  MouseCursor get cursor => switch ((canMoveLeft, canMoveRight)) {
-    (true, true) => SystemMouseCursors.resizeColumn,
-    (true, false) => SystemMouseCursors.resizeLeft,
-    (false, true) => SystemMouseCursors.resizeRight,
-    (false, false) => SystemMouseCursors.basic,
+  /// Whether it can go left (or up), and right (or down).
+  final bool canMoveBack;
+  final bool canMoveForward;
+
+  MouseCursor get cursor => switch ((axis, canMoveBack, canMoveForward)) {
+    (_, false, false) => SystemMouseCursors.basic,
+    (Axis.horizontal, true, true) => SystemMouseCursors.resizeColumn,
+    (Axis.horizontal, true, false) => SystemMouseCursors.resizeLeft,
+    (Axis.horizontal, false, true) => SystemMouseCursors.resizeRight,
+    (Axis.vertical, true, true) => SystemMouseCursors.resizeRow,
+    (Axis.vertical, true, false) => SystemMouseCursors.resizeUp,
+    (Axis.vertical, false, true) => SystemMouseCursors.resizeDown,
   };
 
   @override
@@ -2064,7 +2380,7 @@ class _Sash extends StatefulWidget {
 class _SashState extends State<_Sash> {
   bool _hover = false;
   bool _dragging = false;
-  double _startX = 0;
+  double _start = 0;
 
   /// Over the window while dragging, with the sash's cursor: the pointer
   /// leaves the sash where it stops, and the cursor goes with it rather
@@ -2088,8 +2404,11 @@ class _SashState extends State<_Sash> {
     super.dispose();
   }
 
-  void _start(DragStartDetails details) {
-    _startX = details.globalPosition.dx;
+  double _along(Offset position) =>
+      widget.axis == Axis.horizontal ? position.dx : position.dy;
+
+  void _begin(DragStartDetails details) {
+    _start = _along(details.globalPosition);
     widget.onStart();
     setState(() => _dragging = true);
     if (Overlay.maybeOf(context) case final overlay?) {
@@ -2115,6 +2434,9 @@ class _SashState extends State<_Sash> {
   @override
   Widget build(BuildContext context) {
     final active = _hover || _dragging;
+    final horizontal = widget.axis == Axis.horizontal;
+    void update(DragUpdateDetails details) =>
+        widget.onDrag(_along(details.globalPosition) - _start);
     return MouseRegion(
       cursor: widget.cursor,
       onEnter: (_) => setState(() => _hover = true),
@@ -2122,21 +2444,25 @@ class _SashState extends State<_Sash> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         dragStartBehavior: DragStartBehavior.down,
-        onHorizontalDragStart: _start,
-        onHorizontalDragUpdate: (details) =>
-            widget.onDrag(details.globalPosition.dx - _startX),
-        onHorizontalDragEnd: (_) => _end(),
-        onHorizontalDragCancel: _end,
+        onHorizontalDragStart: horizontal ? _begin : null,
+        onHorizontalDragUpdate: horizontal ? update : null,
+        onHorizontalDragEnd: horizontal ? (_) => _end() : null,
+        onHorizontalDragCancel: horizontal ? _end : null,
+        onVerticalDragStart: horizontal ? null : _begin,
+        onVerticalDragUpdate: horizontal ? null : update,
+        onVerticalDragEnd: horizontal ? null : (_) => _end(),
+        onVerticalDragCancel: horizontal ? null : _end,
         onDoubleTap: widget.onReset,
         // At rest, the Modern UI's three grip dots; hovered or dragged,
         // the `sash.hoverBorder` filling the gap.
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
-          width: IdeWorkbenchState._sashWidth,
+          width: horizontal ? IdeWorkbenchState._sashWidth : null,
+          height: horizontal ? null : IdeWorkbenchState._sashWidth,
           color: active ? IdeModernUI.sashHover : Colors.transparent,
           child: active || !widget.grip
               ? null
-              : const CustomPaint(painter: _SashGripPainter()),
+              : CustomPaint(painter: _SashGripPainter(widget.axis)),
         ),
       ),
     );
@@ -2146,19 +2472,27 @@ class _SashState extends State<_Sash> {
 /// `.modern-ui .monaco-sash.vertical::after`: a 2px dot at the middle and
 /// one 5px above and below it.
 class _SashGripPainter extends CustomPainter {
-  const _SashGripPainter();
+  const _SashGripPainter(this.axis);
+
+  final Axis axis;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = IdeModernUI.sashGrip;
     final center = size.center(Offset.zero);
-    for (final dy in const [-5.0, 0.0, 5.0]) {
-      canvas.drawCircle(center.translate(0, dy), 1, paint);
+    for (final d in const [-5.0, 0.0, 5.0]) {
+      canvas.drawCircle(
+        axis == Axis.horizontal
+            ? center.translate(0, d)
+            : center.translate(d, 0),
+        1,
+        paint,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(_SashGripPainter oldDelegate) => false;
+  bool shouldRepaint(_SashGripPainter oldDelegate) => oldDelegate.axis != axis;
 }
 
 /// An activity bar item: a 24px codicon in a 36px square; the active and

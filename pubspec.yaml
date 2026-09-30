@@ -28,12 +28,15 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  code_assets: ^1.2.1
   flutter:
     sdk: flutter
   flutter_math_fork: ^0.7.4
   flutter_quill: ^11.6.0
   flutter_svg: ^2.3.0
+  hooks: ^2.0.2
   markdown: ^7.3.1
+  native_toolchain_c: ^0.19.2
   path: ^1.9.1
   super_sliver_list: ^0.4.1
 

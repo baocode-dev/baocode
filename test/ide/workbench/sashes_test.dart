@@ -1,9 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/ide/ide_columns.dart';
 import 'package:monad/ide/ide_modern_ui.dart';
+import 'package:monad/ide/ide_rows.dart';
 import 'package:monad/theme/codicons.dart';
 
 import 'fake_files.dart';
@@ -135,6 +137,68 @@ void main() {
     await mouse.moveTo(tester.getCenter(_part('ide-sidebar-sash')));
     await tester.pump();
     expect(_cursor, SystemMouseCursors.resizeLeft);
+    await tester.pump(kDoubleTapTimeout);
+  });
+
+  testWidgets('the panel opens under the editor only, at a third of its '
+      'column; its sash snaps it shut and a double click resets it', (
+    tester,
+  ) async {
+    await pumpWorkbench(tester, {'a.txt': 'a'});
+    expect(tester.getSize(_part('ide-panel')).height, 0);
+    final column = tester.getRect(_part('ide-editor-column'));
+    // Hidden, its sash is the gap above the status bar.
+    expect(tester.getRect(_part('ide-panel-sash')).bottom, column.bottom);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.backquote);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    final editor = tester.getRect(_part('ide-editor'));
+    final panel = tester.getRect(_part('ide-panel'));
+    final room = column.height - IdeModernUI.gap * 2;
+    expect(panel.height, closeTo(room / 3, 0.01));
+    expect(panel.top, editor.bottom + IdeModernUI.gap);
+    expect(panel.left, editor.left);
+    expect(panel.right, editor.right);
+    expect(column.bottom - panel.bottom, IdeModernUI.gap);
+    // The side bar and the chat keep the whole height.
+    expect(tester.getRect(_part('ide-chat')).bottom, panel.bottom);
+    expect(tester.getRect(_part('ide-sidebar')).bottom, panel.bottom);
+
+    final drag = await tester.startGesture(
+      tester.getCenter(_part('ide-panel-sash')),
+    );
+    await drag.moveBy(const Offset(0, -20));
+    await drag.moveBy(const Offset(0, -80));
+    await tester.pump();
+    expect(
+      tester.getSize(_part('ide-panel')).height,
+      closeTo(room / 3 + 100, 0.01),
+    );
+    // Below half its minimum, it snaps shut; back, it opens again.
+    await drag.moveBy(Offset(0, 100 + room / 3 - 38));
+    await tester.pump();
+    expect(tester.getSize(_part('ide-panel')).height, 0);
+    await drag.moveBy(const Offset(0, -2));
+    await tester.pump();
+    expect(tester.getSize(_part('ide-panel')).height, IdeRows.minPanel);
+    await drag.up();
+    await tester.pump();
+
+    await tester.tap(_part('ide-panel-sash'));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(_part('ide-panel-sash'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(_part('ide-panel')).height, closeTo(room / 3, 0.01));
+
+    // The title bar's layout control hides it, and shows it again.
+    await tester.tap(find.byIcon(Codicons.layoutPanel));
+    await tester.pump();
+    expect(tester.getSize(_part('ide-panel')).height, 0);
+    await tester.tap(find.byIcon(Codicons.layoutPanelOff));
+    await tester.pump();
+    expect(tester.getSize(_part('ide-panel')).height, closeTo(room / 3, 0.01));
     await tester.pump(kDoubleTapTimeout);
   });
 

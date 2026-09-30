@@ -13,7 +13,7 @@ import '../lsp/lsp_protocol.dart';
 import 'diagnostics.dart';
 import 'lsp_convert.dart';
 
-enum IdePanelTab { problems, references }
+enum IdePanelTab { problems, references, terminal }
 
 /// Locations Find References (or several definitions) produced.
 class IdeReferences {
@@ -24,7 +24,8 @@ class IdeReferences {
 }
 
 /// The bottom panel: Problems (every document's diagnostics, grouped by
-/// file) and References (the last Find References), like VS Code's panel.
+/// file), References (the last Find References) and the Terminal, like VS
+/// Code's panel. Its card and height are the workbench's.
 class IdeBottomPanel extends StatelessWidget {
   const IdeBottomPanel({
     super.key,
@@ -36,6 +37,8 @@ class IdeBottomPanel extends StatelessWidget {
     required this.onClose,
     required this.onOpen,
     required this.textOf,
+    this.terminal,
+    this.terminalActions,
   });
 
   final IdePanelTab tab;
@@ -52,64 +55,71 @@ class IdeBottomPanel extends StatelessWidget {
   /// A file's text for previews (open documents first, then disk).
   final Future<String?> Function(String path) textOf;
 
-  static const height = 220.0;
+  /// The integrated terminal; none where there are no terminals (the web).
+  final Widget? terminal;
+
+  /// The terminal's title actions, before Close Panel while TERMINAL shows.
+  final Widget? terminalActions;
 
   @override
   Widget build(BuildContext context) {
     final languages = this.languages;
-    return Container(
-      height: height,
-      decoration: const BoxDecoration(
-        color: CursorColors.background,
-        border: Border(top: BorderSide(color: CursorColors.border)),
-      ),
-      child: ListenableBuilder(
-        listenable: languages ?? _never,
-        builder: (context, _) {
-          final all = languages?.allDiagnostics ?? const {};
-          final counts = ideDiagnosticCounts(all);
-          final total = counts.errors + counts.warnings + counts.infos;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                height: 30,
-                child: Row(
-                  children: [
-                    const SizedBox(width: 8),
+    return ListenableBuilder(
+      listenable: languages ?? _never,
+      builder: (context, _) {
+        final all = languages?.allDiagnostics ?? const {};
+        final counts = ideDiagnosticCounts(all);
+        final total = counts.errors + counts.warnings + counts.infos;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: 30,
+              child: Row(
+                children: [
+                  const SizedBox(width: 8),
+                  _Tab(
+                    label: 'PROBLEMS',
+                    badge: total == 0 ? null : '$total',
+                    selected: tab == IdePanelTab.problems,
+                    onTap: () => onTab(IdePanelTab.problems),
+                  ),
+                  _Tab(
+                    label: 'REFERENCES',
+                    badge: references == null
+                        ? null
+                        : '${references!.locations.length}',
+                    selected: tab == IdePanelTab.references,
+                    onTap: () => onTab(IdePanelTab.references),
+                  ),
+                  if (terminal != null)
                     _Tab(
-                      label: 'PROBLEMS',
-                      badge: total == 0 ? null : '$total',
-                      selected: tab == IdePanelTab.problems,
-                      onTap: () => onTab(IdePanelTab.problems),
+                      label: 'TERMINAL',
+                      selected: tab == IdePanelTab.terminal,
+                      onTap: () => onTab(IdePanelTab.terminal),
                     ),
-                    _Tab(
-                      label: 'REFERENCES',
-                      badge: references == null
-                          ? null
-                          : '${references!.locations.length}',
-                      selected: tab == IdePanelTab.references,
-                      onTap: () => onTab(IdePanelTab.references),
-                    ),
-                    const Spacer(),
-                    IdeActionButton(
-                      icon: Codicons.close,
-                      tooltip: 'Close Panel',
-                      onPressed: onClose,
-                    ),
-                    const SizedBox(width: 4),
-                  ],
-                ),
+                  const Spacer(),
+                  if (tab == IdePanelTab.terminal) ?terminalActions,
+                  IdeActionButton(
+                    icon: Codicons.close,
+                    tooltip: 'Close Panel',
+                    onPressed: onClose,
+                  ),
+                  const SizedBox(width: 4),
+                ],
               ),
-              Expanded(
-                child: tab == IdePanelTab.problems
-                    ? _problems(all)
-                    : _references(),
-              ),
-            ],
-          );
-        },
-      ),
+            ),
+            Expanded(
+              child: switch (tab) {
+                IdePanelTab.problems => _problems(all),
+                IdePanelTab.references => _references(),
+                IdePanelTab.terminal =>
+                  terminal ?? _message('The terminal is not available.'),
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
