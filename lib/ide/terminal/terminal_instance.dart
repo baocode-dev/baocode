@@ -321,11 +321,35 @@ class TerminalInstance extends ChangeNotifier {
     }
   }
 
-  /// What the process printed, into the emulator.
+  /// What the process printed, into the emulator. The process is paused
+  /// while much of it waits to be parsed, as VS Code's flow control does.
   void _printed(Uint8List data) {
-    terminal.write(data);
+    final count = data.length;
+    _unparsed += count;
+    terminal.write(data, () => _parsed(count));
+    if (!_paused && _unparsed > _highWatermark) {
+      _paused = true;
+      _pty?.pause();
+    }
     _output.add(data);
   }
+
+  void _parsed(int count) {
+    _unparsed -= count;
+    if (_paused && _unparsed < _lowWatermark) {
+      _paused = false;
+      if (!_disposed) _pty?.resume();
+    }
+  }
+
+  /// VS Code's `FlowControlConstants.HighWatermarkChars` and
+  /// `LowWatermarkChars`, in bytes here.
+  static const _highWatermark = 100000;
+  static const _lowWatermark = 5000;
+
+  /// Printed and not yet parsed; whether the process is paused for it.
+  int _unparsed = 0;
+  bool _paused = false;
 
   void _processExited(int code) {
     if (_disposed) return;

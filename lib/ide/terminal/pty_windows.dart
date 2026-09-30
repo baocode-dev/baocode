@@ -223,6 +223,14 @@ final class WindowsPty extends Pty {
   final _exitCode = Completer<int>();
   SendPort? _writer;
 
+  /// Set while [pause]d, for the output isolate to see: native memory, which
+  /// both isolates reach. Freed once the output isolate has ended.
+  Pointer<Int32>? _paused = _heapAlloc(
+    _getProcessHeap(),
+    _heapZeroMemory,
+    sizeOf<Int32>(),
+  ).cast<Int32>();
+
   int? _code;
   Timer? _flush;
   bool _consoleClosing = false;
@@ -241,6 +249,7 @@ final class WindowsPty extends Pty {
     await Isolate.spawn(_readConsole, (
       _outputPort.sendPort,
       _outputHandle,
+      _paused!.address,
     ), debugName: 'conpty output');
     final writer = ReceivePort();
     await Isolate.spawn(_writeConsole, (
@@ -263,12 +272,17 @@ final class WindowsPty extends Pty {
       if (_code != null) _closeWhenQuiet();
     } else {
       _outputDone = true;
+      final paused = _paused;
+      _paused = null;
+      if (paused != null) _heapFree(_getProcessHeap(), 0, paused.cast());
       _finish();
     }
   }
 
   void _exited(int code) {
     _code = code;
+    // What is left is read before the console closes.
+    resume();
     _closeWhenQuiet();
     _finish();
   }
@@ -285,6 +299,7 @@ final class WindowsPty extends Pty {
   void _close({bool terminate = false}) {
     if (_consoleClosing) return;
     _consoleClosing = true;
+    resume();
     _flush?.cancel();
     unawaited(
       _closeConsoleOf(_console, terminate ? _process : 0).then((_) {
@@ -337,6 +352,14 @@ final class WindowsPty extends Pty {
     if (_code != null) return;
     _close(terminate: true);
   }
+
+  @override
+  void pause() {
+    if (_code == null && !_consoleClosing) _paused?.value = 1;
+  }
+
+  @override
+  void resume() => _paused?.value = 0;
 }
 
 /// The command line for [executable] and [arguments], quoted for the C
@@ -397,15 +420,22 @@ String? _lookUp(Map<String, String> environment, String name) {
 }
 
 const _chunk = 64 * 1024;
+const _pausedPoll = Duration(milliseconds: 10);
 
-/// The output isolate: reads until the console closes its end of the pipe.
-void _readConsole((SendPort, int) setup) {
-  final (port, handle) = setup;
+/// The output isolate: reads until the console closes its end of the pipe;
+/// while paused, looks again every [_pausedPoll] instead of reading.
+void _readConsole((SendPort, int, int) setup) {
+  final (port, handle, pausedAddress) = setup;
+  final paused = Pointer<Int32>.fromAddress(pausedAddress);
   final heap = _Heap();
   try {
     final buffer = heap<Uint8>(_chunk);
     final read = heap<Uint32>(sizeOf<Uint32>());
-    while (_readFile(handle, buffer, _chunk, read, nullptr) != 0) {
+    while (true) {
+      while (paused.value != 0) {
+        sleep(_pausedPoll);
+      }
+      if (_readFile(handle, buffer, _chunk, read, nullptr) == 0) break;
       if (read.value == 0) continue;
       port.send(
         TransferableTypedData.fromList([buffer.asTypedList(read.value)]),

@@ -27,6 +27,10 @@ class FakePty extends Pty {
   final List<({int columns, int rows})> resizes = [];
   final List<PtySignal> kills = [];
 
+  /// Whether the terminal has paused it (flow control), and how often.
+  bool paused = false;
+  int pauses = 0;
+
   final _output = StreamController<Uint8List>();
   final _exitCode = Completer<int>();
 
@@ -54,6 +58,15 @@ class FakePty extends Pty {
 
   @override
   void kill([PtySignal signal = PtySignal.hangup]) => kills.add(signal);
+
+  @override
+  void pause() {
+    paused = true;
+    pauses++;
+  }
+
+  @override
+  void resume() => paused = false;
 
   /// Prints [bytes] as the process would.
   void emit(List<int> bytes) => _output.add(Uint8List.fromList(bytes));

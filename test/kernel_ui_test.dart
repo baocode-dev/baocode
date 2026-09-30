@@ -15,7 +15,6 @@ import 'package:monad/chat/panels/context_usage_panel.dart';
 import 'package:monad/chat/panels/mcp_servers_panel.dart';
 import 'package:monad/chat/widgets/image_thumbnails.dart';
 import 'package:monad/chat/widgets/activity_row.dart';
-import 'package:monad/chat/widgets/shimmer_text.dart';
 import 'package:monad/chat/widgets/thinking_spark.dart';
 import 'package:monad/chat/widgets/command_step.dart';
 import 'package:monad/chat/widgets/orbit_indicator.dart';
@@ -435,6 +434,13 @@ void main() {
     expect(find.text('Planning next move'), findsOneWidget);
     expect(find.textContaining('…'), findsNothing);
     expect(find.byType(ThinkingSpark), findsOneWidget);
+    // Its dots count up; it stays itself.
+    await tester.pump(const Duration(milliseconds: 1200));
+    expect(find.text('Planning next move...'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 10));
+    expect(find.textContaining('Planning next move'), findsOneWidget);
+    expect(find.byKey(const ValueKey('cursor')), findsNothing);
+    await tester.pumpWidget(const SizedBox());
   });
 
   test('the spark blooms from a dot and folds back', () {
@@ -449,8 +455,8 @@ void main() {
     expect(ThinkingSpark.shapeAt(ThinkingSpark.turn), 0);
   });
 
-  testWidgets('a whimsical status row muses: two sweeps, then a cursor types '
-      'the next phrase over it', (tester) async {
+  testWidgets('a whimsical status row muses: dots count up twice, then a '
+      'cursor types the next phrase over it', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -468,8 +474,15 @@ void main() {
     expect(ActivityRow.musings, contains(first));
     expect(find.text('Planning next move'), findsNothing);
 
-    await tester.pump(ShimmerText.period * 2 - const Duration(milliseconds: 1));
+    const dot = Duration(milliseconds: 400);
+    await tester.pump(dot);
+    expect(shown(), '$first.');
+    await tester.pump(dot * 2);
+    expect(shown(), '$first...');
+    await tester.pump(dot);
     expect(shown(), first);
+    await tester.pump(dot * 4 - const Duration(milliseconds: 1));
+    expect(shown(), '$first...');
     expect(cursor, findsNothing);
 
     await tester.pump(const Duration(milliseconds: 100));
@@ -477,7 +490,7 @@ void main() {
 
     await tester.pump(const Duration(seconds: 2));
     expect(cursor, findsNothing);
-    final second = shown();
+    final second = shown().replaceAll('.', '');
     expect(ActivityRow.musings, contains(second));
     expect(second, isNot(first));
     await tester.pumpWidget(const SizedBox());

@@ -144,6 +144,24 @@ void main() {
     expect(lines.last, 'line2999');
   });
 
+  test('paused, it stops reading and the process waits; resumed, all of '
+      'the output comes', () async {
+    final (pty, printed) = await sh(
+      "head -c 3000000 /dev/zero | tr '\\0' x; echo; echo done",
+    );
+    pty.pause();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    final whilePaused = printed.length;
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(printed.length, whilePaused);
+    expect(whilePaused, lessThan(3000000));
+
+    pty.resume();
+    expect(await pty.exitCode.timeout(timeout), 0);
+    expect('x'.allMatches(printed.toString()).length, 3000000);
+    expect(printed.toString(), endsWith('done\r\n'));
+  });
+
   test('kill hangs up a running process promptly', () async {
     final (pty, _) = await sh('sleep 10');
     await Future<void>.delayed(const Duration(milliseconds: 100));

@@ -157,6 +157,9 @@ final class _PosixPty extends Pty {
 
   static const _chunk = 64 * 1024;
 
+  /// How often a paused helper looks whether it may read again, in ms.
+  static const _pausedPoll = 10;
+
   static Future<Pty> start(
     PtyLaunch launch,
     Map<String, String> environment,
@@ -261,6 +264,10 @@ final class _PosixPty extends Pty {
   final _output = StreamController<Uint8List>();
   final _exitCode = Completer<int>();
 
+  /// Set while [pause]d, for the helper to see: native memory, which both
+  /// isolates reach. Freed once the helper has ended.
+  Pointer<Int32>? _paused = ptyAlloc(sizeOf<Int32>()).cast<Int32>();
+
   /// What the terminal has not taken yet, and how far into the first.
   final _pending = Queue<Uint8List>();
   int _pendingOffset = 0;
@@ -285,10 +292,12 @@ final class _PosixPty extends Pty {
         _exitFd,
         _wakeRead,
         pid,
+        _paused!.address,
       ), debugName: 'pty $pid');
     } on Object catch (error) {
       ptyKill(pid, _master, PtySignal.kill.number);
       _close();
+      _freePaused();
       throw PtyException('The terminal could not be set up', detail: '$error');
     }
   }
@@ -299,9 +308,12 @@ final class _PosixPty extends Pty {
         _output.add(data.materialize().asUint8List());
       case int code:
         _code = code;
+        // What is left is read before the flush wakes the helper.
+        resume();
         _flush = Timer(_flushTimeout, () => ptyWake(_wakeWrite));
       case null:
         _close();
+        _freePaused();
         // Nothing else ends the helper before the process: 0 is for a
         // failure of the wait itself.
         final code = _code ?? 0;
@@ -364,27 +376,48 @@ final class _PosixPty extends Pty {
   }
 
   @override
+  void pause() {
+    if (!_closed && _code == null) _paused?.value = 1;
+  }
+
+  @override
+  void resume() => _paused?.value = 0;
+
+  void _freePaused() {
+    final paused = _paused;
+    _paused = null;
+    if (paused != null) ptyFree(paused.cast());
+  }
+
+  @override
   void kill([PtySignal signal = PtySignal.hangup]) {
     if (_closed || _code != null) return;
     ptyKill(pid, _master, signal.number);
   }
 
   /// The helper isolate: reads the terminal until its end, and waits for
-  /// the process to exit (or for a wake, which ends it at once).
-  static void _watch((SendPort, int, int, int, int) setup) {
-    final (port, master, exitFd, wake, pid) = setup;
+  /// the process to exit (or for a wake, which ends it at once). While
+  /// paused it looks again every [_pausedPoll] instead of reading.
+  static void _watch((SendPort, int, int, int, int, int) setup) {
+    final (port, master, exitFd, wake, pid, pausedAddress) = setup;
+    final paused = Pointer<Int32>.fromAddress(pausedAddress);
     final buffer = ptyAlloc(_chunk).cast<Uint8>();
     final status = ptyAlloc(sizeOf<Int32>()).cast<Int32>();
     var reading = true;
     var exited = false;
     try {
       while (reading || !exited) {
+        final hold = reading && paused.value != 0;
         // Without a descriptor to wait on the exit, the exit is polled.
         final ready = ptyPoll(
-          reading ? master : -1,
+          reading && !hold ? master : -1,
           exited ? -1 : exitFd,
           wake,
-          !exited && exitFd < 0 ? 50 : -1,
+          hold
+              ? _pausedPoll
+              : !exited && exitFd < 0
+              ? 50
+              : -1,
         );
         if (ready < 0 || ready & ptyWoken != 0) break;
         if (ready & ptyOutput != 0) {

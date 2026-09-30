@@ -62,6 +62,14 @@ abstract class Pty {
   /// Resizes the terminal; the process is told (SIGWINCH).
   void resize(int columns, int rows);
 
+  /// Stops reading [output] until [resume]: the terminal's buffer fills and
+  /// the process waits to print more, as node-pty's `pause` (VS Code's flow
+  /// control). Nothing here by default.
+  void pause() {}
+
+  /// Reads [output] again after [pause].
+  void resume() {}
+
   /// Sends [signal] to the process, its process group and the job in the
   /// terminal's foreground: the hangup a closing terminal gives, by default.
   /// On Windows, closes the console and ends the process.
