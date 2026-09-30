@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
+import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
 import 'editor/monaco/flutter/document_snapshot.dart';
 import 'editor/monaco/flutter/language_assets.dart';
@@ -10,6 +11,7 @@ import 'ide_editor.dart';
 import 'ide_hover.dart';
 
 /// One status bar entry; [onTap] makes it a button with a hover highlight.
+/// Its [text] may name icons as VS Code's labels do: `$(error) 2`.
 class IdeStatusBarItem {
   const IdeStatusBarItem(
     this.text, {
@@ -102,8 +104,8 @@ class _StatusItemState extends State<_StatusItem> {
           ],
           if (item.text.isNotEmpty)
             Flexible(
-              child: Text(
-                item.text,
+              child: Text.rich(
+                _label(item.text, color),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -139,6 +141,37 @@ class _StatusItemState extends State<_StatusItem> {
     }
     return child;
   }
+}
+
+/// The icons a label can name (`$(name)`).
+const _labelIcons = {
+  'error': Codicons.error,
+  'warning': Codicons.warning,
+  'info': Codicons.info,
+};
+
+final _labelIcon = RegExp(r'\$\(([a-z-]+)\)');
+
+/// [text] with its `$(name)` icons as codicons (`renderLabelWithIcons`).
+TextSpan _label(String text, Color color) {
+  final spans = <InlineSpan>[];
+  var start = 0;
+  for (final match in _labelIcon.allMatches(text)) {
+    final icon = _labelIcons[match[1]];
+    if (icon == null) continue;
+    if (match.start > start) {
+      spans.add(TextSpan(text: text.substring(start, match.start)));
+    }
+    spans.add(
+      WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Icon(icon, size: 14, color: color),
+      ),
+    );
+    start = match.end;
+  }
+  if (start < text.length) spans.add(TextSpan(text: text.substring(start)));
+  return TextSpan(children: spans);
 }
 
 /// `UTF-8 with BOM` when [text] starts with U+FEFF, else `UTF-8`.

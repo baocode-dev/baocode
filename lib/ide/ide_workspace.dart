@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 
 import 'editor/monaco/flutter/editor_document_model.dart';
 import 'file_service.dart';
+import 'git/git_repository.dart';
 import 'lsp/language_features.dart';
 import 'lsp/lsp_protocol.dart';
 
@@ -17,6 +18,12 @@ class IdeDocument {
   /// Code's placeholder editor, and it has no text.
   IdeDocument.unopenable(this.path, Object this.openError)
     : model = EditorDocumentModel('');
+
+  /// [document] at [path], after its file moved: the same text, history
+  /// and unsaved changes.
+  IdeDocument._moved(this.path, IdeDocument document)
+    : model = document.model,
+      openError = document.openError;
 
   final String path;
   final EditorDocumentModel model;
@@ -38,7 +45,7 @@ class IdeDocument {
 
 /// Open files belong to the IDE pane, not to any one agent conversation.
 class IdeWorkspace extends ChangeNotifier {
-  IdeWorkspace(this.root, {IdeFileService? files, this.languages})
+  IdeWorkspace(this.root, {IdeFileService? files, this.languages, this.git})
     : files = files ?? IdeFileService(root);
 
   final String root;
@@ -50,6 +57,10 @@ class IdeWorkspace extends ChangeNotifier {
   /// workspace keeps it in sync: open, every change (incrementally), save
   /// and close; disposing the workspace shuts it down.
   final LanguageFeatures? languages;
+
+  /// The project's Git repository, for the explorer's decorations, Source
+  /// Control and the timeline; null for none. Disposed with the workspace.
+  final IdeGitRepository? git;
 
   LanguageDocumentSync? get _sync => switch (languages) {
     final LanguageDocumentSync sync => sync,
@@ -127,6 +138,72 @@ class IdeWorkspace extends ChangeNotifier {
     doc.dispose();
     _startSync(replacement);
     notifyListeners();
+  }
+
+  /// Reads the open, unmodified documents among [paths] again, after
+  /// something else changed their files (a discard, an undone commit), as
+  /// VS Code reloads an editor whose file changed on disk. Documents with
+  /// unsaved changes keep them.
+  Future<void> reload(Iterable<String> paths) async {
+    final wanted = {for (final path in paths) p.normalize(path)};
+    var changed = false;
+    for (final doc in _documents.toList()) {
+      if (!wanted.contains(doc.path) || doc.dirty || doc.openError != null) {
+        continue;
+      }
+      final String text;
+      try {
+        text = await files.read(doc.path);
+      } catch (_) {
+        continue;
+      }
+      if (_disposed || !_documents.contains(doc) || doc.dirty) continue;
+      if (text == doc.text) continue;
+      doc.text = text;
+      doc.savedText = text;
+      changed = true;
+    }
+    if (changed && !_disposed) notifyListeners();
+  }
+
+  /// Follows a file or folder the explorer moved from [from] to [to]: the
+  /// documents in it take their new paths, and stay open.
+  void moved(String from, String to) {
+    if (_disposed) return;
+    from = p.normalize(from);
+    to = p.normalize(to);
+    var changed = false;
+    for (final (index, doc) in _documents.indexed.toList()) {
+      if (doc.path != from && !p.isWithin(from, doc.path)) continue;
+      final path = doc.path == from
+          ? to
+          : p.join(to, p.relative(doc.path, from: from));
+      _stopSync(doc);
+      final moved = IdeDocument._moved(path, doc);
+      _documents[index] = moved;
+      _startSync(moved);
+      if (_activePath == doc.path) _activePath = path;
+      changed = true;
+    }
+    if (changed) notifyListeners();
+  }
+
+  /// The documents in [path] (a file or folder), for asking before it is
+  /// deleted with unsaved changes.
+  List<IdeDocument> documentsIn(String path) {
+    path = p.normalize(path);
+    return [
+      for (final doc in _documents)
+        if (doc.path == path || p.isWithin(path, doc.path)) doc,
+    ];
+  }
+
+  /// Closes the unmodified documents of a deleted file or folder; those
+  /// with unsaved changes stay open, as VS Code keeps them.
+  void deleted(String path) {
+    for (final doc in documentsIn(path)) {
+      if (!doc.dirty) close(doc);
+    }
   }
 
   void select(String path) {
@@ -214,6 +291,7 @@ class IdeWorkspace extends ChangeNotifier {
       if (_disposed || !_documents.contains(doc)) return;
       doc.savedText = text;
       if (_syncing.containsKey(doc)) _sync?.saveDocument(doc.path, text);
+      git?.scheduleRefresh();
       notifyListeners();
     });
     _saves = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
@@ -245,6 +323,7 @@ class IdeWorkspace extends ChangeNotifier {
     }
     _documents.clear();
     if (_sync case final sync?) unawaited(sync.shutdown());
+    git?.dispose();
     super.dispose();
   }
 }

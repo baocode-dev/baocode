@@ -9,6 +9,7 @@ import '../../theme/cursor_theme.dart';
 import '../editor/monaco/flutter/editor_surface.dart';
 import '../editor/monaco/vs/base/common/filters.dart';
 import '../ide_hover.dart';
+import '../ide_input.dart';
 import '../lsp/lsp_protocol.dart';
 import 'diagnostics.dart';
 import 'editor_language_session.dart';
@@ -1049,6 +1050,7 @@ class _IdeRenameInputState extends State<IdeRenameInput> {
               autofocus: true,
               style: _monoStyle,
               cursorColor: CursorColors.accent,
+              cursorHeight: ideCaretHeight(12.5),
               decoration: const InputDecoration(
                 isDense: true,
                 contentPadding: EdgeInsets.symmetric(

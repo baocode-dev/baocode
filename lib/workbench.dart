@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import 'chat/chat_screen.dart';
 import 'chat/panels/interaction_panel.dart';
+import 'ide/git/git_repository.dart';
 import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
 import 'ide/lsp/language_features.dart';
@@ -31,6 +32,7 @@ class Workbench extends StatefulWidget {
     required this.workspace,
     this.ideEditorBuilder,
     this.languagesFor,
+    this.gitFor,
   });
 
   final Workspace workspace;
@@ -38,6 +40,10 @@ class Workbench extends StatefulWidget {
   /// The language servers for the project at a root, when the IDE opens it;
   /// none when null.
   final LanguageFeatures Function(String root)? languagesFor;
+
+  /// The Git repository of the project at a root, when the IDE opens it;
+  /// none when null.
+  final IdeGitRepository Function(String root)? gitFor;
 
   @visibleForTesting
   final Widget Function(BuildContext, IdeWorkspace)? ideEditorBuilder;
@@ -208,6 +214,7 @@ class _WorkbenchState extends State<Workbench> {
         () => IdeWorkspace(
           project.path,
           languages: widget.languagesFor?.call(project.path),
+          git: widget.gitFor?.call(project.path),
         ),
       );
     }

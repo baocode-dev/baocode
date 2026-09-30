@@ -43,11 +43,15 @@ Future<StandardLsp> loadStandardLsp({AssetBundle? bundle}) =>
 
 Future<StandardLsp>? _standard;
 
+/// The standard catalog and provider every project shares, loaded once.
+Future<StandardLsp> standardLsp({AssetBundle? bundle}) =>
+    _standard ??= loadStandardLsp(bundle: bundle);
+
 /// The language servers of the project at [root], on the standard catalog
 /// and provider. Those load once, in the background, for every project;
 /// documents opened meanwhile are matched to servers when they have.
 LspManager standardLspManager(String root, {AssetBundle? bundle}) {
-  final loading = _standard ??= loadStandardLsp(bundle: bundle);
+  final loading = standardLsp(bundle: bundle);
   final catalog = _LoadingCatalog();
   final manager = LspManager(root, catalog, _LoadingProvider(loading));
   loading.then(

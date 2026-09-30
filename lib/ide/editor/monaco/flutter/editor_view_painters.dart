@@ -642,7 +642,12 @@ class EditorTextPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (contentRect.isEmpty) return;
-    layout.paintVisibleText(canvas, origin: contentRect.topLeft);
+    layout.paintVisibleText(
+      canvas,
+      origin: contentRect.topLeft,
+      overflowBackground: theme.overflowBackground,
+      overflowForeground: theme.overflowForeground,
+    );
     canvas.save();
     canvas.clipRect(contentRect);
     canvas.translate(contentRect.left, contentRect.top);

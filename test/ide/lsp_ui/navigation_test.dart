@@ -64,8 +64,9 @@ void main() {
       hasLength(1),
     );
 
-    expect(find.text('⊗ 1  ⚠ 1'), findsOneWidget);
-    await tester.tap(find.text('⊗ 1  ⚠ 1'));
+    // `$(error) 1 $(warning) 1`: each icon a placeholder in the text.
+    expect(find.text('\uFFFC 1 \uFFFC 1'), findsOneWidget);
+    await tester.tap(find.text('\uFFFC 1 \uFFFC 1'));
     await settle(tester);
     expect(find.byType(IdeBottomPanel), findsOneWidget);
     expect(find.textContaining("Undefined name 'foo'"), findsOneWidget);
@@ -84,7 +85,7 @@ void main() {
     // New diagnostics update the count.
     languages.setDiagnostics(inRoot(_b), const []);
     await settle(tester);
-    expect(find.text('⊗ 1  ⚠ 0'), findsOneWidget);
+    expect(find.text('\uFFFC 1 \uFFFC 0'), findsOneWidget);
   });
 
   testWidgets('F8 walks problems across files and shows them in a hover', (

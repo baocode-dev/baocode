@@ -15,6 +15,22 @@ class LocalIdeFileService implements IdeFileService {
   @override
   Future<void> write(String path, String text, {String? expectedText}) =>
       Future.error(UnsupportedError('Local editing requires the desktop app'));
+
+  @override
+  Future<void> create(String path, {bool directory = false}) =>
+      Future.error(UnsupportedError('Local editing requires the desktop app'));
+
+  @override
+  Future<void> rename(String from, String to) =>
+      Future.error(UnsupportedError('Local editing requires the desktop app'));
+
+  @override
+  Future<void> copy(String from, String to) =>
+      Future.error(UnsupportedError('Local editing requires the desktop app'));
+
+  @override
+  Future<void> delete(String path) =>
+      Future.error(UnsupportedError('Local editing requires the desktop app'));
 }
 
 Future<IdeFileListing> walkProjectFiles(

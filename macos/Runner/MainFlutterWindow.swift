@@ -84,6 +84,26 @@ class MainFlutterWindow: NSWindow {
         let pasteboard = NSPasteboard.general
         result(pasteboard.canReadObject(
           forClasses: [NSString.self, NSURL.self, NSImage.self], options: nil))
+      case "trashItem":
+        // The IDE's Move to Trash (Finder's Put Back works on it).
+        guard let path = call.arguments as? String else {
+          result(false)
+          return
+        }
+        do {
+          try FileManager.default.trashItem(
+            at: URL(fileURLWithPath: path), resultingItemURL: nil)
+          result(true)
+        } catch {
+          result(FlutterError(
+            code: "trash", message: error.localizedDescription, details: nil))
+        }
+      case "revealInFinder":
+        // The IDE's Reveal in Finder: a Finder window with the item selected.
+        if let path = call.arguments as? String {
+          NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+        }
+        result(nil)
       case "showContextMenu":
         // A context menu of the system's own, where the user clicked;
         // answers the chosen item's id (nil for none) once it closes.

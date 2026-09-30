@@ -71,6 +71,32 @@ abstract interface class IdeFileService {
   /// Save a previously read file, rejecting changes to its on-disk baseline.
   /// [expectedText] also protects against another editor using this service.
   Future<void> write(String path, String text, {String? expectedText});
+
+  /// Creates an empty file, or a folder with [directory]; throws
+  /// [IdeFileExistsException] when [path] exists.
+  Future<void> create(String path, {bool directory = false});
+
+  /// Moves [from] to [to] (a rename); throws [IdeFileExistsException] when
+  /// [to] exists.
+  Future<void> rename(String from, String to);
+
+  /// Copies [from] (a folder with its contents) to [to]; throws
+  /// [IdeFileExistsException] when [to] exists.
+  Future<void> copy(String from, String to);
+
+  /// Deletes [path] (a folder with its contents) for good.
+  Future<void> delete(String path);
+}
+
+/// A file operation's target is taken.
+class IdeFileExistsException implements Exception {
+  const IdeFileExistsException(this.path);
+
+  final String path;
+
+  @override
+  String toString() =>
+      'A file or folder ${p.basename(path)} already exists at this location.';
 }
 
 /// Directory names never indexed for Quick Open: VCS metadata, dependency

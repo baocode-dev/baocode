@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/codicons.dart';
+import 'ide_hover.dart';
 
 /// Dark 2026 `menu.*` colors.
 abstract final class IdeMenuColors {
@@ -108,7 +109,24 @@ Future<void> showIdeMenu(
       to: navigator.context,
     ),
   );
-  final chosen = await navigator.push(route);
+  // What opened it stays as it is while it shows (a toolbar's buttons, the
+  // pressed button), as VS Code keeps them.
+  final scopes = <IdeMenuAnchorScope>[];
+  context.visitAncestorElements((element) {
+    if (element.widget case final IdeMenuAnchorScope scope) scopes.add(scope);
+    return true;
+  });
+  for (final scope in scopes) {
+    scope.onMenu(true);
+  }
+  final VoidCallback? chosen;
+  try {
+    chosen = await navigator.push(route);
+  } finally {
+    for (final scope in scopes) {
+      scope.onMenu(false);
+    }
+  }
   if (chosen == null) return;
   // As VS Code runs a menu's action once the menu has hidden: after the
   // route has gone and given the focus back, so an action that takes the
@@ -116,6 +134,73 @@ Future<void> showIdeMenu(
   await route.completed;
   await WidgetsBinding.instance.endOfFrame;
   chosen();
+}
+
+/// Told when a menu opened from inside it shows ([onMenu] true) and hides.
+class IdeMenuAnchorScope extends InheritedWidget {
+  const IdeMenuAnchorScope({
+    super.key,
+    required this.onMenu,
+    required super.child,
+  });
+
+  final ValueChanged<bool> onMenu;
+
+  @override
+  bool updateShouldNotify(IdeMenuAnchorScope oldWidget) => false;
+}
+
+/// A toolbar button that opens a menu below it (a dropdown's, as
+/// `DropdownMenuActionViewItem`): its left edge on the button's, or its
+/// right edge on the button's where it would not fit; the button shows
+/// pressed while the menu is open.
+class IdeMenuButton extends StatefulWidget {
+  const IdeMenuButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.entries,
+    this.size = 22,
+  });
+
+  final IconData icon;
+  final String tooltip;
+
+  /// The menu, built when it opens.
+  final List<IdeMenuEntry> Function() entries;
+  final double size;
+
+  @override
+  State<IdeMenuButton> createState() => _IdeMenuButtonState();
+}
+
+class _IdeMenuButtonState extends State<IdeMenuButton> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) => IdeMenuAnchorScope(
+    onMenu: (open) {
+      if (mounted) setState(() => _open = open);
+    },
+    child: Builder(
+      builder: (context) => IdeActionButton(
+        icon: widget.icon,
+        tooltip: widget.tooltip,
+        size: widget.size,
+        checked: _open,
+        onPressed: () {
+          final box = context.findRenderObject()! as RenderBox;
+          unawaited(
+            showIdeMenu(
+              context,
+              anchor: box.localToGlobal(Offset.zero) & box.size,
+              entries: widget.entries(),
+            ),
+          );
+        },
+      ),
+    ),
+  );
 }
 
 class _IdeMenuRoute extends PopupRoute<VoidCallback> {

@@ -85,10 +85,10 @@ class IdeKeybinding {
   }
 
   static String _keyLabel(LogicalKeyboardKey key, bool mac) {
-    if (key == LogicalKeyboardKey.tab) return mac ? '⇥' : 'Tab';
-    if (key == LogicalKeyboardKey.enter) return mac ? '↩' : 'Enter';
-    if (key == LogicalKeyboardKey.escape) return mac ? '⎋' : 'Escape';
-    if (key == LogicalKeyboardKey.backspace) return mac ? '⌫' : 'Backspace';
+    if (key == LogicalKeyboardKey.tab) return 'Tab';
+    if (key == LogicalKeyboardKey.enter) return 'Enter';
+    if (key == LogicalKeyboardKey.escape) return 'Escape';
+    if (key == LogicalKeyboardKey.backspace) return 'Backspace';
     if (key == LogicalKeyboardKey.arrowUp) return mac ? '↑' : 'UpArrow';
     if (key == LogicalKeyboardKey.arrowDown) return mac ? '↓' : 'DownArrow';
     if (key == LogicalKeyboardKey.arrowLeft) return mac ? '←' : 'LeftArrow';

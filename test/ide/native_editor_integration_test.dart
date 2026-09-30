@@ -13,7 +13,9 @@ import 'package:monad/ide/ide_workspace.dart';
 import 'package:monad/theme/cursor_theme.dart';
 import 'package:path/path.dart' as p;
 
-class _MemoryFiles implements IdeFileService {
+import 'workbench/fake_files.dart';
+
+class _MemoryFiles with ReadWriteOnlyFiles implements IdeFileService {
   _MemoryFiles(this.contents);
 
   final Map<String, String> contents;
@@ -23,7 +25,8 @@ class _MemoryFiles implements IdeFileService {
   Future<List<IdeFile>> list(String directory) async => [];
 
   @override
-  Future<String> read(String path, {bool force = false}) async => contents[path]!;
+  Future<String> read(String path, {bool force = false}) async =>
+      contents[path]!;
 
   @override
   Future<void> write(String path, String text, {String? expectedText}) async {

@@ -13,19 +13,26 @@ import '../workspace/workspace.dart';
 import 'editor/monaco/flutter/document_snapshot.dart';
 import 'editor/monaco/vs/editor/common/core/position.dart';
 import 'editor/monaco/vs/editor/contrib/gotoError/browser/marker_navigation.dart';
+import 'extensions/ide_extensions.dart';
+import 'extensions/ide_extensions_view.dart';
+import 'git/commit_message.dart';
+import 'git/git_repository.dart';
+import 'git/ide_scm_view.dart';
+import 'git/ide_timeline_view.dart';
 import 'ide_breadcrumbs.dart';
 import 'ide_commands.dart';
+import 'ide_dialog.dart';
 import 'ide_editor.dart';
 import 'ide_editor_placeholder.dart';
 import 'ide_explorer.dart';
 import 'ide_hover.dart';
 import 'ide_modern_ui.dart';
 import 'ide_notifications.dart';
+import 'ide_panes.dart';
 import 'ide_quick_input.dart';
 import 'ide_quick_open.dart';
 import 'ide_status_bar.dart';
 import 'ide_tab_bar.dart';
-import 'ide_tools_panel.dart';
 import 'ide_welcome.dart';
 import 'ide_workspace.dart';
 import 'lsp/language_features.dart';
@@ -37,6 +44,8 @@ import 'lsp_ui/lsp_convert.dart';
 import 'lsp_ui/problems_panel.dart';
 import 'lsp_ui/workspace_edit.dart';
 import 'project_tools.dart';
+import 'search/ide_search_view.dart';
+import 'search/text_search.dart';
 
 /// The IDE shell is kept mounted when the user returns to the conversation.
 class IdeWorkbench extends StatefulWidget {
@@ -55,6 +64,9 @@ class IdeWorkbench extends StatefulWidget {
     this.commands = const [],
     this.ignoredRecommendations = const {},
     this.onIgnoreRecommendation,
+    this.textSearch = ideSearchText,
+    this.extensions,
+    this.commitMessage = ideClaudeCommitMessage,
   });
 
   final IdeWorkspace workspace;
@@ -77,12 +89,24 @@ class IdeWorkbench extends StatefulWidget {
   final Set<String> ignoredRecommendations;
   final ValueChanged<String>? onIgnoreRecommendation;
 
+  /// The Search view's engine (a fake in widget tests).
+  final IdeTextSearch textSearch;
+
+  /// What the Extensions view lists; the standard catalog's language
+  /// servers when null.
+  final IdeExtensions? extensions;
+
+  /// Writes the Source Control view's commit messages (Claude Haiku; a
+  /// fake in widget tests).
+  final IdeCommitMessageModel commitMessage;
+
   @override
   State<IdeWorkbench> createState() => IdeWorkbenchState();
 }
 
-/// The side views of the activity bar.
-enum IdeSideView { explorer, search, sourceControl, outline, run, extensions }
+/// The side views of the activity bar. The outline is a pane of the
+/// explorer, as in VS Code; there is no Run and Debug view.
+enum IdeSideView { explorer, search, sourceControl, extensions }
 
 /// A navigation history entry (Go Back / Go Forward).
 typedef _NavigationEntry = ({String path, LspPosition position});
@@ -99,6 +123,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   double _chatWidth = 420;
   double _sidebarWidth = 240;
+
+  /// The dragged width when the drag began: a sash follows the pointer from
+  /// there, so past a limit it waits until the pointer comes back to it.
+  double _dragFrom = 0;
   bool _sidebarShown = true;
   bool _chatShown = true;
   IdeSideView _view = IdeSideView.explorer;
@@ -113,6 +141,29 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   bool _busy = false;
   String? _branch;
   String? _activePath;
+
+  /// The Source Control view's message and state, while other views show.
+  IdeScmSession _scm = IdeScmSession();
+
+  /// The explorer's open panes (Folders first, then Outline and Timeline,
+  /// collapsed as VS Code starts them), and what the timeline follows.
+  final Set<String> _explorerPanes = {'folder'};
+  final IdeTimelineController _timeline = IdeTimelineController();
+  final _explorerTree = GlobalKey<IdeExplorerState>();
+
+  /// The Search view's inputs and results, while other views show.
+  late final IdeSearchSession _search = IdeSearchSession(
+    engine: widget.textSearch,
+  );
+  IdeGitRepository? _git;
+
+  /// The Extensions view's list and search, made when it first shows.
+  IdeExtensionsSession? _extensions;
+
+  /// What the activity bar and the status bar show of [_git], rebuilt
+  /// only when these change.
+  int _gitCount = 0;
+  String? _gitBranch;
 
   /// The quick input's text while it is open (its prefix picks the mode).
   String? _quickInput;
@@ -172,10 +223,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     workspace.addListener(_workspaceChanged);
     _activePath = null;
     _workspaceChanged();
+    _git = workspace.git?..addListener(_gitChanged);
+    _gitChanged();
   }
 
   void _detach(IdeWorkspace workspace) {
     workspace.removeListener(_workspaceChanged);
+    _git?.removeListener(_gitChanged);
+    _git = null;
+    _scm.dispose();
+    _scm = IdeScmSession();
     _explorer.dispose();
     _fileIndex.dispose();
     _languages?.removeListener(_languagesChanged);
@@ -195,6 +252,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final symbols = _symbols;
     if (symbols != null && !symbols.loaded) symbols.refresh();
     setState(() {});
+  }
+
+  void _gitChanged() {
+    final state = _git?.state;
+    final count = state?.count ?? 0;
+    final branch = state?.head.branch;
+    if (count == _gitCount && branch == _gitBranch) return;
+    _gitCount = count;
+    _gitBranch = branch;
+    if (mounted) setState(() {});
   }
 
   /// The status bar's bell follows them.
@@ -239,7 +306,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _detach(widget.workspace);
     _workbenchFocus.dispose();
     _explorerFocus.dispose();
+    _timeline.dispose();
+    _search.dispose();
+    _extensions?.dispose();
     _notifications.dispose();
+    _scm.dispose();
     super.dispose();
   }
 
@@ -348,33 +419,20 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
   }
 
-  Future<String?> _confirmClose(IdeDocument doc) => showDialog<String>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(
-        'Do you want to save the changes you made to ${doc.name}?',
-        style: const TextStyle(fontSize: 15),
-      ),
-      content: const Text(
-        "Your changes will be lost if you don't save them.",
-        style: TextStyle(fontSize: 13),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, 'discard'),
-          child: const Text("Don't Save"),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, 'save'),
-          child: const Text('Save'),
-        ),
-      ],
-    ),
-  );
+  /// VS Code's save confirmation: Save, Don't Save or Cancel.
+  Future<String?> _confirmClose(IdeDocument doc) async {
+    final choice = await showIdeDialog(
+      context,
+      message: 'Do you want to save the changes you made to ${doc.name}?',
+      detail: "Your changes will be lost if you don't save them.",
+      buttons: const ['Save', "Don't Save"],
+    );
+    return switch (choice) {
+      0 => 'save',
+      1 => 'discard',
+      _ => null,
+    };
+  }
 
   /// Closes [docs] in order, asking about each unsaved one; Cancel stops.
   Future<void> _closeDocs(List<IdeDocument> docs) async {
@@ -492,6 +550,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     setState(() {
       _view = IdeSideView.explorer;
       _sidebarShown = true;
+      _explorerPanes.add('folder');
     });
     unawaited(
       _explorer.reveal(path).then((_) {
@@ -1007,6 +1066,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         run: () => _showView(IdeSideView.sourceControl),
       ),
       IdeCommand(
+        id: 'workbench.view.extensions',
+        category: 'View',
+        label: 'Show Extensions',
+        keybindings: const [
+          IdeKeybinding(LogicalKeyboardKey.keyX, primary: true, shift: true),
+        ],
+        run: () => _showView(IdeSideView.extensions),
+      ),
+      IdeCommand(
         id: 'workbench.files.action.showActiveFileInExplorer',
         category: 'File',
         label: 'Reveal Active File in Explorer View',
@@ -1084,7 +1152,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'outline.focus',
         category: 'View',
         label: 'Show Outline',
-        run: () => _showView(IdeSideView.outline),
+        run: () {
+          _explorerPanes.add('outline');
+          _showView(IdeSideView.explorer);
+        },
       ),
       IdeCommand(
         id: 'editor.action.marker.nextInFiles',
@@ -1183,11 +1254,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The activity bar's card, [joined] to the side bar beside it when that
   /// is showing (their seam is this card's border).
   Widget _activityBar({required bool joined}) {
-    Widget item(IdeSideView view, IconData icon, String label) {
+    Widget item(IdeSideView view, IconData icon, String label, {int? badge}) {
       final selected = _view == view && _sidebarShown;
       return _ActivityItem(
         icon: icon,
         label: label,
+        badge: badge,
         selected: selected,
         onTap: () => setState(() {
           if (_view == view) {
@@ -1224,12 +1296,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       item(
         IdeSideView.sourceControl,
         Codicons.sourceControl,
-        'Source control${shortcut(LogicalKeyboardKey.keyG, control: true)}',
+        'Source Control${shortcut(LogicalKeyboardKey.keyG, control: true)}'
+        '${_gitCount > 0 ? ' - $_gitCount pending changes' : ''}',
+        badge: _gitCount,
       ),
-      if (_languages != null)
-        item(IdeSideView.outline, Codicons.symbolClass, 'Outline'),
-      item(IdeSideView.run, Codicons.debugAlt, 'Run and debug'),
-      item(IdeSideView.extensions, Codicons.extensions, 'Extensions'),
+      item(
+        IdeSideView.extensions,
+        Codicons.extensions,
+        'Extensions${shortcut(LogicalKeyboardKey.keyX)}',
+      ),
     ];
     return SizedBox(
       width: IdeModernUI.activityBarWidth,
@@ -1276,40 +1351,188 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   );
 
   Widget _sidePanel() => switch (_view) {
-    IdeSideView.explorer => IdeExplorer(
-      controller: _explorer,
-      title: widget.project.name,
-      focusNode: _explorerFocus,
-      onOpen: (path, focusEditor) =>
-          unawaited(_open(path, focusEditor: focusEditor)),
+    IdeSideView.explorer => _explorerView(),
+    IdeSideView.search => IdeSearchView(
+      session: _search,
+      workspace: widget.workspace,
+      onOpen: (path, range, {required focusEditor}) =>
+          _open(path, range: range, select: true, focusEditor: focusEditor),
+      onError: _report,
     ),
-    IdeSideView.search || IdeSideView.sourceControl => IdeToolsPanel(
-      key: ValueKey((widget.workspace.root, _view)),
-      root: widget.workspace.root,
-      mode: _view == IdeSideView.search
-          ? IdeToolMode.search
-          : IdeToolMode.sourceControl,
-      onOpen: (path, line) =>
-          unawaited(_open(path, line: line, focusEditor: true)),
+    IdeSideView.sourceControl => IdeScmView(
+      workspace: widget.workspace,
+      session: _scm,
+      notifications: _notifications,
+      onOpen: (path, {focusEditor = false}) =>
+          _open(path, focusEditor: focusEditor),
+      onRevealInExplorer: _revealInExplorer,
+      trash: WindowControls.canMoveToTrash ? WindowControls.moveToTrash : null,
+      commitMessage: widget.commitMessage,
     ),
-    IdeSideView.outline => IdeOutlineView(
-      symbols: _symbols,
-      caret: widget.workspace.active == null ? null : _caretLsp,
-      onReveal: _revealSymbol,
-    ),
-    _ => ColoredBox(
-      color: CursorColors.sidebarSurface,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(
-          _view == IdeSideView.run
-              ? 'Run and debug\n\nDebugger integration is not available yet.'
-              : 'Extensions\n\nNative Fast Ide does not load VS Code extensions.',
-          style: const TextStyle(fontSize: 12, color: CursorColors.textMuted),
-        ),
+    IdeSideView.extensions => IdeExtensionsView(
+      session: _extensions ??= IdeExtensionsSession(
+        widget.extensions ?? IdeLanguageServerExtensions(),
       ),
+      recommended: _recommendedServers(),
+      onInstalled: _startServer,
+      onError: _report,
     ),
   };
+
+  /// Starts the open files' servers named [id], and those limited to some
+  /// of its features (`ruff#only=format`), now that it is installed.
+  void _startServer(String id) {
+    final languages = _languages;
+    if (languages == null) return;
+    final ids = {
+      id,
+      for (final doc in widget.workspace.documents)
+        for (final status in languages.statusFor(doc.path))
+          if (status.serverId.split('#').first == id) status.serverId,
+    };
+    ids.forEach(languages.retry);
+  }
+
+  /// The servers the open files want and could install, less those not to
+  /// recommend: the Extensions view's Recommended pane.
+  Set<String> _recommendedServers() {
+    final languages = _languages;
+    if (languages == null) return const {};
+    return {
+      for (final doc in widget.workspace.documents)
+        for (final status in languages.statusFor(doc.path))
+          if (status.state == LanguageServerState.missing &&
+              status.installable &&
+              !widget.ignoredRecommendations.contains(status.serverId))
+            status.serverId.split('#').first,
+    };
+  }
+
+  /// The Explorer view: the folder's tree, the active editor's outline and
+  /// its file's timeline, as panes.
+  Widget _explorerView() {
+    final workspace = widget.workspace;
+    final activePath = workspace.active?.path;
+    final timelinePath = IdeTimelineView.pathOf(_timeline, activePath);
+    return ColoredBox(
+      color: CursorColors.sidebarSurface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const IdeViewTitle('Explorer'),
+          Expanded(
+            child: IdePaneContainer(
+              expanded: _explorerPanes,
+              onToggle: (id) => setState(() {
+                if (!_explorerPanes.remove(id)) _explorerPanes.add(id);
+              }),
+              panes: [
+                IdePane(
+                  id: 'folder',
+                  title: widget.project.name,
+                  weight: 3,
+                  actions: [
+                    IdePaneAction(
+                      icon: Codicons.newFile,
+                      tooltip: 'New File...',
+                      onPressed: () => unawaited(
+                        _explorerTree.currentState?.startCreate(
+                          directory: false,
+                        ),
+                      ),
+                    ),
+                    IdePaneAction(
+                      icon: Codicons.newFolder,
+                      tooltip: 'New Folder...',
+                      onPressed: () => unawaited(
+                        _explorerTree.currentState?.startCreate(
+                          directory: true,
+                        ),
+                      ),
+                    ),
+                    IdePaneAction(
+                      icon: Codicons.refresh,
+                      tooltip: 'Refresh Explorer',
+                      onPressed: () => unawaited(_explorer.refresh()),
+                    ),
+                    IdePaneAction(
+                      icon: Codicons.collapseAll,
+                      tooltip: 'Collapse Folders in Explorer',
+                      onPressed: _explorer.collapseAll,
+                    ),
+                  ],
+                  body: IdeExplorer(
+                    key: _explorerTree,
+                    controller: _explorer,
+                    focusNode: _explorerFocus,
+                    git: workspace.git,
+                    onOpen: (path, focusEditor) =>
+                        unawaited(_open(path, focusEditor: focusEditor)),
+                    onMoved: workspace.moved,
+                    onDeleted: workspace.deleted,
+                    unsavedIn: (path) => workspace
+                        .documentsIn(path)
+                        .where((d) => d.dirty)
+                        .length,
+                    trash: WindowControls.canMoveToTrash
+                        ? WindowControls.moveToTrash
+                        : null,
+                    onError: _report,
+                    onFindInFolder: (folder) {
+                      _search.findInFolder(
+                        _relative(folder) == '.' ? '' : _relative(folder),
+                        workspace.root,
+                      );
+                      _showView(IdeSideView.search);
+                    },
+                  ),
+                ),
+                IdePane(
+                  id: 'outline',
+                  title: 'Outline',
+                  body: IdeOutlineView(
+                    symbols: _symbols,
+                    caret: workspace.active == null ? null : _caretLsp,
+                    onReveal: _revealSymbol,
+                    showHeader: false,
+                  ),
+                ),
+                IdePane(
+                  id: 'timeline',
+                  title: 'Timeline',
+                  description: timelinePath == null
+                      ? null
+                      : p.basename(timelinePath),
+                  actions: [
+                    IdePaneAction(
+                      icon: _timeline.pinned == null
+                          ? Codicons.pin
+                          : Codicons.pinned,
+                      tooltip: _timeline.pinned == null
+                          ? 'Pin the Current Timeline'
+                          : 'Unpin the Current Timeline',
+                      onPressed: () =>
+                          setState(() => _timeline.togglePin(activePath)),
+                    ),
+                    IdePaneAction(
+                      icon: Codicons.refresh,
+                      tooltip: 'Refresh',
+                      onPressed: _timeline.refresh,
+                    ),
+                  ],
+                  body: IdeTimelineView(
+                    controller: _timeline,
+                    git: workspace.git,
+                    activePath: activePath,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _editorArea(List<IdeCommand> commands) {
     final active = widget.workspace.active;
@@ -1510,8 +1733,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             ),
             _Sash(
               key: const ValueKey('ide-sidebar-sash'),
+              onStart: () => _dragFrom = sidebarWidth,
               onDrag: (dx) => setState(() {
-                _sidebarWidth = (sidebarWidth + dx).clamp(
+                _sidebarWidth = (_dragFrom + dx).clamp(
                   _minSidebarWidth,
                   math.max(_minSidebarWidth, math.min(_maxSidebarWidth, room)),
                 );
@@ -1526,8 +1750,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           if (_chatShown)
             _Sash(
               key: const ValueKey('ide-chat-sash'),
+              onStart: () => _dragFrom = chatWidth,
               onDrag: (dx) => setState(() {
-                _chatWidth = (chatWidth - dx).clamp(
+                _chatWidth = (_dragFrom - dx).clamp(
                   minChat,
                   math.max(minChat, width * .48),
                 );
@@ -1597,7 +1822,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   IdeStatusBar _statusBar() {
     final active = widget.workspace.active;
     final left = [
-      if (_branch case final branch?)
+      if (_gitBranch ?? _branch case final branch?)
         IdeStatusBarItem(
           branch,
           icon: Codicons.gitBranch,
@@ -1613,8 +1838,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         () {
           final counts = ideDiagnosticCounts(languages.allDiagnostics);
           return IdeStatusBarItem(
-            '⊗ ${counts.errors}  ⚠ ${counts.warnings}'
-            '${counts.infos > 0 ? '  ⓘ ${counts.infos}' : ''}',
+            '\$(error) ${counts.errors} \$(warning) ${counts.warnings}'
+            '${counts.infos > 0 ? ' \$(info) ${counts.infos}' : ''}',
             tooltip: counts.errors + counts.warnings + counts.infos == 0
                 ? 'No Problems'
                 : 'Errors: ${counts.errors}, Warnings: ${counts.warnings}'
@@ -1808,8 +2033,11 @@ class _CommandCenterState extends State<_CommandCenter> {
 
 /// A draggable border between two panes, highlighted while hovered/dragged.
 class _Sash extends StatefulWidget {
-  const _Sash({super.key, required this.onDrag});
+  const _Sash({super.key, required this.onStart, required this.onDrag});
 
+  final VoidCallback onStart;
+
+  /// How far the pointer is from where the drag began.
   final ValueChanged<double> onDrag;
 
   @override
@@ -1819,6 +2047,7 @@ class _Sash extends StatefulWidget {
 class _SashState extends State<_Sash> {
   bool _hover = false;
   bool _dragging = false;
+  double _startX = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -1830,8 +2059,13 @@ class _SashState extends State<_Sash> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         dragStartBehavior: DragStartBehavior.down,
-        onHorizontalDragStart: (_) => setState(() => _dragging = true),
-        onHorizontalDragUpdate: (details) => widget.onDrag(details.delta.dx),
+        onHorizontalDragStart: (details) {
+          _startX = details.globalPosition.dx;
+          widget.onStart();
+          setState(() => _dragging = true);
+        },
+        onHorizontalDragUpdate: (details) =>
+            widget.onDrag(details.globalPosition.dx - _startX),
         onHorizontalDragEnd: (_) => setState(() => _dragging = false),
         onHorizontalDragCancel: () => setState(() => _dragging = false),
         // At rest, the Modern UI's three grip dots; hovered or dragged,
@@ -1873,12 +2107,16 @@ class _ActivityItem extends StatefulWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.badge,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
+
+  /// A count shown on the icon (`NumberBadge`); none when null or 0.
+  final int? badge;
 
   @override
   State<_ActivityItem> createState() => _ActivityItemState();
@@ -1904,35 +2142,61 @@ class _ActivityItemState extends State<_ActivityItem> {
           onTap: widget.onTap,
           child: SizedBox.square(
             dimension: IdeModernUI.activityItemSize,
-            child: Center(
-              child: Container(
-                width: IdeModernUI.activityItemSize - 4,
-                height: IdeModernUI.activityItemSize - 4,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: widget.selected
-                      ? IdeModernUI.activityActiveBackground
-                      : _hover
-                      ? IdeModernUI.activityHoverBackground
-                      : null,
-                  borderRadius: BorderRadius.circular(
-                    IdeModernUI.activityItemRadius,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Center(child: _icon()),
+                if (widget.badge case final count? when count > 0)
+                  Positioned(
+                    top: 18,
+                    right: 3,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 16),
+                      height: 16,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: IdeModernUI.activityBadgeBackground,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        ideBadgeLabel(count),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          height: 1,
+                          color: IdeModernUI.activityBadgeForeground,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                child: Icon(
-                  widget.icon,
-                  size: IdeModernUI.activityIconSize,
-                  color: widget.selected
-                      ? IdeModernUI.activityActiveForeground
-                      : _hover
-                      ? IdeModernUI.activityHoverForeground
-                      : IdeModernUI.activityForeground,
-                ),
-              ),
+              ],
             ),
           ),
         ),
       ),
+    ),
+  );
+
+  Widget _icon() => Container(
+    width: IdeModernUI.activityItemSize - 4,
+    height: IdeModernUI.activityItemSize - 4,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: widget.selected
+          ? IdeModernUI.activityActiveBackground
+          : _hover
+          ? IdeModernUI.activityHoverBackground
+          : null,
+      borderRadius: BorderRadius.circular(IdeModernUI.activityItemRadius),
+    ),
+    child: Icon(
+      widget.icon,
+      size: IdeModernUI.activityIconSize,
+      color: widget.selected
+          ? IdeModernUI.activityActiveForeground
+          : _hover
+          ? IdeModernUI.activityHoverForeground
+          : IdeModernUI.activityForeground,
     ),
   );
 }

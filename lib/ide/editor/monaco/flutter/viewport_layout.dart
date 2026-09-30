@@ -211,6 +211,7 @@ class ViewportLayout {
     this.textScaler = TextScaler.noScaling,
     this.styledLines,
     this.tabSize,
+    this.stopRenderingLineAfter = defaultStopRenderingLineAfter,
     HiddenLineRanges? hiddenLines,
     ViewportLayout? previousLayout,
     double horizontalScrollOffset = 0,
@@ -229,6 +230,7 @@ class ViewportLayout {
     final previous = previousLayout;
     if (previous != null &&
         !previous._disposed &&
+        previous.stopRenderingLineAfter == stopRenderingLineAfter &&
         previous._cache.isCompatible(
           style,
           wrapWidth,
@@ -282,6 +284,26 @@ class ViewportLayout {
   /// two columns). Each tab becomes a one-code-unit placeholder, so UTF-16
   /// offsets are unchanged. When null, tabs use Flutter paragraph shaping.
   final int? tabSize;
+
+  /// Monaco's `editor.stopRenderingLineAfter`: a line longer than this many
+  /// UTF-16 units is shaped only that far, then ends in a "Show more (…)"
+  /// pill; the rest is neither shaped nor painted, and offsets past it map
+  /// to the pill's end. -1 renders every line in full.
+  final int stopRenderingLineAfter;
+
+  /// Monaco's default for [stopRenderingLineAfter].
+  static const defaultStopRenderingLineAfter = 10000;
+
+  /// `renderOverflowingCharCount`: "Show more (N chars)" under 1024, then
+  /// KB and MB to one place.
+  static String overflowLabel(int overflow) {
+    final size = overflow < 1024
+        ? '$overflow chars'
+        : overflow < 1024 * 1024
+        ? '${(overflow / 1024).toStringAsFixed(1)} KB'
+        : '${(overflow / 1024 / 1024).toStringAsFixed(1)} MB';
+    return 'Show more ($size)';
+  }
 
   /// Optional one-based line runs. A run whose text differs from the line's
   /// exact raw text (for example stale tokens during an edit) is ignored and
@@ -340,6 +362,9 @@ class ViewportLayout {
       for (var i = 0; i < starts.length; i++) {
         final length = ends[i] - starts[i];
         if (length > longest!) longest = length;
+      }
+      if (stopRenderingLineAfter >= 0) {
+        longest = math.min(longest!, stopRenderingLineAfter);
       }
       _longestLineLength = longest;
     }
@@ -413,13 +438,19 @@ class ViewportLayout {
     if (existing != null) return existing;
     final start = snapshot.lineStarts[line];
     final end = snapshot.contentEnds[line];
-    final content = snapshot.text.substring(start, end);
+    final length = end - start;
+    final rendered = renderedLength(line + 1);
+    final content = snapshot.text.substring(start, start + rendered);
     var spans = styledLines?[line + 1];
-    if (spans != null && !_spansMatch(spans, content)) spans = null;
-    var shape = _cache.lookup(content, spans);
+    if (spans != null && !_spansMatch(spans, start, end)) spans = null;
+    if (spans != null && rendered < length) spans = _truncate(spans, rendered);
+    // Monaco counts the characters past the limit, not past the cut.
+    final overflow = rendered < length ? length - stopRenderingLineAfter : 0;
+    var shape = _cache.lookup(content, spans, overflow);
     if (shape == null) {
       shape = _LineShape(
         content: content,
+        overflow: overflow,
         spans: spans == null ? null : List<TextSpan>.of(spans),
         style: style,
         wrapWidth: _cache.wrapWidth,
@@ -442,13 +473,51 @@ class ViewportLayout {
     return shape;
   }
 
-  static bool _spansMatch(List<TextSpan> spans, String content) {
-    final buffer = StringBuffer();
+  bool _spansMatch(List<TextSpan> spans, int start, int end) {
+    final text = snapshot.text;
+    var at = start;
     for (final span in spans) {
-      buffer.write(span.toPlainText(includeSemanticsLabels: false));
-      if (buffer.length > content.length) return false;
+      final part = span.toPlainText(includeSemanticsLabels: false);
+      if (at + part.length > end || !text.startsWith(part, at)) return false;
+      at += part.length;
     }
-    return buffer.toString() == content;
+    return at == end;
+  }
+
+  /// The UTF-16 length of one-based [lineNumber] that is shaped and
+  /// painted: all of it, or [stopRenderingLineAfter] units (one fewer
+  /// rather than split a surrogate pair).
+  int renderedLength(int lineNumber) {
+    final line = lineNumber - 1;
+    final start = snapshot.lineStarts[line];
+    final length = snapshot.contentEnds[line] - start;
+    final limit = stopRenderingLineAfter;
+    if (limit < 0 || length <= limit) return length;
+    if (limit > 0) {
+      final last = snapshot.text.codeUnitAt(start + limit - 1);
+      if (last >= 0xD800 && last <= 0xDBFF) return limit - 1;
+    }
+    return limit;
+  }
+
+  /// [spans] cut after [length] UTF-16 units of text.
+  static List<TextSpan> _truncate(List<TextSpan> spans, int length) {
+    final result = <TextSpan>[];
+    var remaining = length;
+    for (final span in spans) {
+      if (remaining <= 0) break;
+      final text = span.toPlainText(includeSemanticsLabels: false);
+      if (text.length <= remaining) {
+        result.add(span);
+        remaining -= text.length;
+      } else {
+        result.add(
+          TextSpan(text: text.substring(0, remaining), style: span.style),
+        );
+        remaining = 0;
+      }
+    }
+    return result;
   }
 
   void _releaseLineShapes() {
@@ -572,10 +641,10 @@ class ViewportLayout {
     final local = shape.painter.getPositionForOffset(
       Offset(point.dx + horizontalScrollOffset, localY),
     );
-    return (snapshot.lineStarts[line] + local.offset).clamp(
-      snapshot.lineStarts[line],
-      snapshot.contentEnds[line],
-    );
+    // Not past the rendered text: the pill has no offsets of its own.
+    final lineStart = snapshot.lineStarts[line];
+    final column = math.min(local.offset, shape.content.length);
+    return (lineStart + column).clamp(lineStart, snapshot.contentEnds[line]);
   }
 
   /// The un-clipped insertion caret, including offsets in CRLF (which map to
@@ -597,10 +666,15 @@ class ViewportLayout {
         lineHeight,
       );
     }
-    final localOffset =
+    var localOffset =
         snapshot.offsetAtPosition(position) - snapshot.lineStarts[line];
     final shape = _shapeForLine(line);
     final painter = shape.painter;
+    // Past the rendered text, the caret is after the pill (Monaco's range
+    // at the line's width).
+    if (localOffset > shape.content.length) {
+      localOffset = shape.content.length + (shape.overflow > 0 ? 1 : 0);
+    }
     final textPosition = TextPosition(offset: localOffset, affinity: affinity);
     final origin = painter.getOffsetForCaret(textPosition, Rect.zero);
     final lineTopValue = wrap
@@ -645,8 +719,9 @@ class ViewportLayout {
       final lineStart = snapshot.lineStarts[line];
       final contentEnd = snapshot.contentEnds[line];
       if (end <= lineStart || start > contentEnd) continue;
-      final from = math.max(start, lineStart) - lineStart;
-      final to = math.min(end, contentEnd) - lineStart;
+      final rendered = renderedLength(lineNumber);
+      final from = math.min(math.max(start, lineStart) - lineStart, rendered);
+      final to = math.min(math.min(end, contentEnd) - lineStart, rendered);
       final top = lineTop(lineNumber);
       if (from < to) {
         final shape = _shapeForLine(line);
@@ -686,21 +761,48 @@ class ViewportLayout {
 
   /// Paints only visible logical lines and clips both axes to the viewport.
   /// The caller can paint [selectionRects] and [caretRect] independently.
-  void paintVisibleText(Canvas canvas, {Offset origin = Offset.zero}) {
+  /// Lines cut at [stopRenderingLineAfter] end in a pill of
+  /// [overflowBackground] saying "Show more (…)" in [overflowForeground]
+  /// (`.mtkoverflow`: the button colors).
+  void paintVisibleText(
+    Canvas canvas, {
+    Offset origin = Offset.zero,
+    Color overflowBackground = const Color(0xFF297AA0),
+    Color overflowForeground = const Color(0xFFFFFFFF),
+  }) {
     canvas.save();
     canvas.clipRect(origin & viewportSize);
     for (final lineNumber in visibleLineNumbers) {
       final shape = _shapeForLine(lineNumber - 1);
-      shape.painter.paint(
-        canvas,
-        origin +
-            Offset(
-              -horizontalScrollOffset,
-              lineTop(lineNumber) - verticalScrollOffset,
-            ),
-      );
+      final at =
+          origin +
+          Offset(
+            -horizontalScrollOffset,
+            lineTop(lineNumber) - verticalScrollOffset,
+          );
+      shape.painter.paint(canvas, at);
+      if (shape.overflow > 0) {
+        shape.paintOverflow(
+          canvas,
+          at,
+          background: overflowBackground,
+          foreground: overflowForeground,
+        );
+      }
     }
     canvas.restore();
+  }
+
+  /// The "Show more (…)" pill of one-based [lineNumber], unscrolled in
+  /// content coordinates; null when the line is rendered in full.
+  Rect? overflowRect(int lineNumber) {
+    final line = lineNumber.clamp(1, snapshot.lineCount) - 1;
+    if (renderedLength(line + 1) ==
+        snapshot.contentEnds[line] - snapshot.lineStarts[line]) {
+      return null;
+    }
+    final box = _shapeForLine(line).overflowBox;
+    return box?.shift(Offset(0, lineTop(line + 1)));
   }
 
   void dispose() {
@@ -810,12 +912,15 @@ class _ShapeCache {
       this.textDirection == textDirection &&
       this.textScaler == textScaler;
 
-  _LineShape? lookup(String content, List<TextSpan>? spans) {
+  _LineShape? lookup(String content, List<TextSpan>? spans, int overflow) {
     final candidates = _entries.remove(content);
     if (candidates == null) return null;
     _entries[content] = candidates; // most recently used
     for (final candidate in candidates) {
-      if (listEquals(candidate.spans, spans)) return candidate;
+      if (candidate.overflow == overflow &&
+          listEquals(candidate.spans, spans)) {
+        return candidate;
+      }
     }
     return null;
   }
@@ -853,6 +958,7 @@ class _ShapeCache {
 class _LineShape {
   _LineShape({
     required this.content,
+    required this.overflow,
     required this.spans,
     required TextStyle style,
     required double wrapWidth,
@@ -863,17 +969,39 @@ class _LineShape {
     required int? tabSize,
     required double spaceWidth,
   }) : painter = TextPainter(
-         text: _buildText(content, spans, style, tabSize),
+         text: _withOverflow(
+           _buildText(content, spans, style, tabSize),
+           overflow,
+         ),
          textDirection: textDirection,
          textScaler: textScaler,
          strutStyle: strut,
        ) {
     try {
-      if (tabSize != null && content.contains('\t')) {
+      final tabs = tabSize != null && content.contains('\t');
+      if (overflow > 0) {
+        _label = TextPainter(
+          text: TextSpan(
+            text: ViewportLayout.overflowLabel(overflow),
+            style: style,
+          ),
+          textDirection: TextDirection.ltr,
+          textScaler: textScaler,
+        )..layout();
+      }
+      if (tabs || overflow > 0) {
         painter.setPlaceholderDimensions([
-          for (final columns in _tabColumns(content, tabSize))
+          if (tabs)
+            for (final columns in _tabColumns(content, tabSize))
+              PlaceholderDimensions(
+                size: Size(columns * spaceWidth, 0),
+                alignment: ui.PlaceholderAlignment.baseline,
+                baseline: TextBaseline.alphabetic,
+                baselineOffset: 0,
+              ),
+          if (overflow > 0)
             PlaceholderDimensions(
-              size: Size(columns * spaceWidth, 0),
+              size: Size(_label!.width + 2 * _pillInset, 0),
               alignment: ui.PlaceholderAlignment.baseline,
               baseline: TextBaseline.alphabetic,
               baselineOffset: 0,
@@ -894,8 +1022,27 @@ class _LineShape {
       }
     } catch (_) {
       painter.dispose();
+      _label?.dispose();
       rethrow;
     }
+  }
+
+  /// `.mtkoverflow`'s padding and border: 4px and 1px.
+  static const _pillInset = 5.0;
+
+  /// [text] followed by the pill's placeholder when the line overflows.
+  static InlineSpan _withOverflow(InlineSpan text, int overflow) {
+    if (overflow == 0) return text;
+    return TextSpan(
+      children: [
+        text,
+        const WidgetSpan(
+          alignment: ui.PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: SizedBox.shrink(),
+        ),
+      ],
+    );
   }
 
   static InlineSpan _buildText(
@@ -975,9 +1122,59 @@ class _LineShape {
   }
 
   final String content;
+
+  /// Characters past the render limit; 0 when rendered in full.
+  final int overflow;
   final List<TextSpan>? spans;
   final TextPainter painter;
+  TextPainter? _label;
+  Color? _labelColor;
   late final double height;
+
+  /// The pill's box in the paragraph (a row high), when [overflow].
+  Rect? get overflowBox {
+    if (overflow == 0) return null;
+    final boxes = painter.inlinePlaceholderBoxes;
+    if (boxes == null || boxes.isEmpty) return null;
+    final box = boxes.last;
+    final metrics = _metrics;
+    final row = metrics.isEmpty ? null : metrics.last;
+    final top = row == null ? 0.0 : row.baseline - row.ascent;
+    final bottom = row == null ? height : row.baseline + row.descent;
+    return Rect.fromLTRB(box.left, top, box.right, math.max(bottom, top + 1));
+  }
+
+  void paintOverflow(
+    Canvas canvas,
+    Offset at, {
+    required Color background,
+    required Color foreground,
+  }) {
+    final box = overflowBox;
+    var label = _label;
+    if (box == null || label == null) return;
+    if (_labelColor != foreground) {
+      final text = label.text! as TextSpan;
+      label.text = TextSpan(
+        text: text.text,
+        style: text.style!.copyWith(color: foreground),
+      );
+      label.layout();
+      _labelColor = foreground;
+    }
+    final rect = box.shift(at);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(2)),
+      Paint()..color = background,
+    );
+    label.paint(
+      canvas,
+      Offset(
+        rect.left + _pillInset,
+        rect.top + (rect.height - label.height) / 2,
+      ),
+    );
+  }
 
   /// First row's metrics (the only row when unwrapped).
   late final double left;
@@ -986,7 +1183,9 @@ class _LineShape {
   int references = 0;
 
   void release() {
-    if (--references == 0) painter.dispose();
+    if (--references > 0) return;
+    painter.dispose();
+    _label?.dispose();
   }
 
   late final List<ViewportRow> rows = content.isEmpty || _metrics.isEmpty

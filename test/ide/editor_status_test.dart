@@ -10,7 +10,9 @@ import 'package:monad/ide/ide_workspace.dart';
 import 'package:monad/workspace/workspace.dart';
 import 'package:path/path.dart' as p;
 
-class _MemoryFiles implements IdeFileService {
+import 'workbench/fake_files.dart';
+
+class _MemoryFiles with ReadWriteOnlyFiles implements IdeFileService {
   _MemoryFiles(this.contents);
 
   final Map<String, String> contents;

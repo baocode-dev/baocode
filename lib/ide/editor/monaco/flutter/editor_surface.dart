@@ -72,6 +72,7 @@ class EditorSurface extends StatefulWidget {
     this.showMinimap = true,
     this.minimapWidth = 80,
     this.scrollBeyondLastLine = true,
+    this.stopRenderingLineAfter = ViewportLayout.defaultStopRenderingLineAfter,
     this.onKeyEvent,
     this.onHover,
     this.onContentPointerDown,
@@ -131,6 +132,10 @@ class EditorSurface extends StatefulWidget {
 
   /// Minimap on the right; hidden automatically in narrow editors.
   final bool showMinimap;
+
+  /// `editor.stopRenderingLineAfter`: longer lines are shaped and painted
+  /// only this far, then end in a "Show more (…)" pill (-1 for never).
+  final int stopRenderingLineAfter;
   final double minimapWidth;
 
   /// Allows scrolling until the last line is at the top of the viewport.
@@ -1510,7 +1515,8 @@ class _EditorSurfaceState extends State<EditorSurface>
         _layoutWrap == wrap &&
         identical(_layoutStyledLines, widget.styledLines) &&
         _layoutHidden == hidden &&
-        _layoutTabSize == widget.controller.tabSize) {
+        _layoutTabSize == widget.controller.tabSize &&
+        current.stopRenderingLineAfter == widget.stopRenderingLineAfter) {
       return current;
     }
     final layout = ViewportLayout(
@@ -1522,6 +1528,7 @@ class _EditorSurfaceState extends State<EditorSurface>
       textScaler: scaler,
       styledLines: widget.styledLines,
       tabSize: widget.controller.tabSize,
+      stopRenderingLineAfter: widget.stopRenderingLineAfter,
       hiddenLines: hidden,
       previousLayout: current,
       horizontalScrollOffset: _scrollLeft,

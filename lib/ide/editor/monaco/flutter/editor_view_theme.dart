@@ -43,6 +43,8 @@ class EditorViewTheme {
     this.minimapSliderActiveBackground = const Color(0x33bfbfbf),
     this.minimapSelectionHighlight = const Color(0xff264f78),
     this.minimapFindMatchHighlight = const Color(0xffd18616),
+    this.overflowBackground = const Color(0xff297aa0),
+    this.overflowForeground = const Color(0xffffffff),
   });
 
   /// Defaults to the editor background.
@@ -99,6 +101,11 @@ class EditorViewTheme {
   final Color minimapSelectionHighlight;
   final Color minimapFindMatchHighlight;
 
+  /// The "Show more (…)" pill of a line cut at `stopRenderingLineAfter`
+  /// (`.mtkoverflow`: `button.background`, `button.foreground`).
+  final Color overflowBackground;
+  final Color overflowForeground;
+
   @override
   bool operator ==(Object other) =>
       other is EditorViewTheme &&
@@ -139,7 +146,9 @@ class EditorViewTheme {
       other.minimapSliderHoverBackground == minimapSliderHoverBackground &&
       other.minimapSliderActiveBackground == minimapSliderActiveBackground &&
       other.minimapSelectionHighlight == minimapSelectionHighlight &&
-      other.minimapFindMatchHighlight == minimapFindMatchHighlight;
+      other.minimapFindMatchHighlight == minimapFindMatchHighlight &&
+      other.overflowBackground == overflowBackground &&
+      other.overflowForeground == overflowForeground;
 
   @override
   int get hashCode => Object.hashAll([
@@ -178,5 +187,7 @@ class EditorViewTheme {
     minimapSliderActiveBackground,
     minimapSelectionHighlight,
     minimapFindMatchHighlight,
+    overflowBackground,
+    overflowForeground,
   ]);
 }

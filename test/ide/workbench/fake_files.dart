@@ -1,29 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monad/ide/extensions/ide_extensions.dart';
 import 'package:monad/ide/file_service.dart';
+import 'package:monad/ide/git/commit_message.dart';
+import 'package:monad/ide/git/git_repository.dart';
 import 'package:monad/ide/ide_workbench.dart';
 import 'package:monad/ide/ide_workspace.dart';
 import 'package:monad/ide/lsp/language_features.dart';
+import 'package:monad/ide/search/text_search.dart';
 import 'package:monad/workspace/workspace.dart';
 import 'package:path/path.dart' as p;
 
-/// An in-memory project: files by absolute path; folders are implied.
+/// An in-memory project: files by absolute path; folders are implied, or
+/// [folders] when empty.
 class TreeFiles implements IdeFileService {
   TreeFiles(this.contents);
 
   final Map<String, String> contents;
+  final Set<String> folders = {};
   int listCalls = 0;
+
+  bool _exists(String path) =>
+      contents.containsKey(path) ||
+      folders.contains(path) ||
+      contents.keys.any((file) => p.isWithin(path, file));
 
   @override
   Future<List<IdeFile>> list(String directory) async {
     listCalls++;
     final children = <String, bool>{};
-    for (final path in contents.keys) {
+    for (final path in [...contents.keys, ...folders]) {
       if (!p.isWithin(directory, path)) continue;
       final first = p.split(p.relative(path, from: directory)).first;
       final child = p.join(directory, first);
-      children[child] = child != path;
+      children[child] = child != path || folders.contains(path);
     }
     final entries = [
       for (final MapEntry(key: path, value: isDirectory) in children.entries)
@@ -50,6 +61,76 @@ class TreeFiles implements IdeFileService {
     if (contents[path] != expectedText) throw IdeFileConflictException(path);
     contents[path] = text;
   }
+
+  @override
+  Future<void> create(String path, {bool directory = false}) async {
+    if (_exists(path)) throw IdeFileExistsException(path);
+    if (directory) {
+      folders.add(path);
+    } else {
+      contents[path] = '';
+    }
+  }
+
+  /// [path] and everything under it, moved by [move] (null drops it).
+  void _moveTree(
+    String path,
+    String? Function(String) move, {
+    bool keep = false,
+  }) {
+    for (final file in [...contents.keys]) {
+      if (file == path || p.isWithin(path, file)) {
+        final text = keep ? contents[file]! : contents.remove(file)!;
+        if (move(file) case final target?) contents[target] = text;
+      }
+    }
+    for (final folder in [...folders]) {
+      if (folder == path || p.isWithin(path, folder)) {
+        if (!keep) folders.remove(folder);
+        if (move(folder) case final target?) folders.add(target);
+      }
+    }
+  }
+
+  String _under(String from, String to, String path) =>
+      path == from ? to : p.join(to, p.relative(path, from: from));
+
+  @override
+  Future<void> rename(String from, String to) async {
+    if (!_exists(from)) throw IdeFileNotFoundException(from);
+    if (_exists(to)) throw IdeFileExistsException(to);
+    _moveTree(from, (path) => _under(from, to, path));
+  }
+
+  @override
+  Future<void> copy(String from, String to) async {
+    if (!_exists(from)) throw IdeFileNotFoundException(from);
+    if (_exists(to)) throw IdeFileExistsException(to);
+    _moveTree(from, (path) => _under(from, to, path), keep: true);
+  }
+
+  @override
+  Future<void> delete(String path) async {
+    if (!_exists(path)) throw IdeFileNotFoundException(path);
+    _moveTree(path, (_) => null);
+  }
+}
+
+/// File operations for fakes that only read and write.
+mixin ReadWriteOnlyFiles implements IdeFileService {
+  @override
+  Future<void> create(String path, {bool directory = false}) =>
+      throw UnsupportedError('create');
+
+  @override
+  Future<void> rename(String from, String to) =>
+      throw UnsupportedError('rename');
+
+  @override
+  Future<void> copy(String from, String to) => throw UnsupportedError('copy');
+
+  @override
+  Future<void> delete(String path) => throw UnsupportedError('delete');
 }
 
 final testRoot = p.join(p.separator, 'project');
@@ -67,6 +148,10 @@ Future<IdeWorkspace> pumpWorkbench(
   LanguageFeatures? languages,
   Set<String> ignoredRecommendations = const {},
   ValueChanged<String>? onIgnoreRecommendation,
+  IdeGitRepository? git,
+  IdeTextSearch? textSearch,
+  IdeExtensions? extensions,
+  IdeCommitMessageModel? commitMessage,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -76,6 +161,7 @@ Future<IdeWorkspace> pumpWorkbench(
       for (final MapEntry(:key, :value) in files.entries) inRoot(key): value,
     }),
     languages: languages,
+    git: git,
   );
   addTearDown(() {
     workspace.dispose();
@@ -96,6 +182,10 @@ Future<IdeWorkspace> pumpWorkbench(
         onBack: () {},
         ignoredRecommendations: ignoredRecommendations,
         onIgnoreRecommendation: onIgnoreRecommendation,
+        textSearch: textSearch ?? ideSearchText,
+        extensions: extensions,
+        // Never the real Claude Code under test.
+        commitMessage: commitMessage ?? _noModel,
       ),
     ),
   );
@@ -122,3 +212,8 @@ Future<void> chord(
   await tester.pump();
   await tester.pump();
 }
+
+Future<String> _noModel(
+  IdeCommitMessagePrompt prompt, {
+  Future<void>? cancel,
+}) async => throw StateError('No commit message model in this test');

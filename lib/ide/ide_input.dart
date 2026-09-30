@@ -1,0 +1,391 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+// The side bar's text inputs, as VS Code draws its InputBox: the input
+// colors, a focus outline, toggles inside on the right, and a validation
+// message attached below.
+//
+// Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
+// src/vs/base/browser/ui/inputbox/inputBox.css, toggle/toggle.css, and the
+// SCM input's validation (contrib/scm/browser/media/scm.css), with the
+// `input*`, `inputOption.*` and `inputValidation.*` colors of Dark 2026.
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+import 'ide_hover.dart';
+
+/// Dark 2026 `input.*`, `inputOption.*`, `inputValidation.*`, `focusBorder`.
+abstract final class IdeInputColors {
+  static const background = Color(0xFF191A1B);
+  static const border = Color(0xFF333536);
+  static const foreground = Color(0xFFBFBFBF);
+  static const placeholder = Color(0xFF555555);
+  static const focusBorder = Color(0xB33994BC);
+  static const optionActiveBackground = Color(0xFF313233);
+  static const optionActiveBorder = Color(0xFF3994BC);
+
+  static const infoBackground = Color(0xFF1E3A47);
+  static const infoBorder = Color(0xFF3994BC);
+  static const warningBackground = Color(0xFF352A05);
+  static const warningBorder = Color(0xFFB89500);
+  static const errorBackground = Color(0xFF3A1D1D);
+  static const errorBorder = Color(0xFFBE1100);
+}
+
+enum IdeValidationSeverity { info, warning, error }
+
+/// A message shown under an input.
+class IdeInputValidation {
+  const IdeInputValidation(
+    this.message, [
+    this.severity = IdeValidationSeverity.error,
+  ]);
+
+  final String message;
+  final IdeValidationSeverity severity;
+
+  (Color background, Color border) get _colors => switch (severity) {
+    IdeValidationSeverity.info => (
+      IdeInputColors.infoBackground,
+      IdeInputColors.infoBorder,
+    ),
+    IdeValidationSeverity.warning => (
+      IdeInputColors.warningBackground,
+      IdeInputColors.warningBorder,
+    ),
+    IdeValidationSeverity.error => (
+      IdeInputColors.errorBackground,
+      IdeInputColors.errorBorder,
+    ),
+  };
+}
+
+/// An input box: [minLines] to [maxLines] lines (it grows, then scrolls),
+/// [toggles] on the right, and [validation] below.
+class IdeInputBox extends StatefulWidget {
+  const IdeInputBox({
+    super.key,
+    required this.controller,
+    this.focusNode,
+    this.placeholder,
+    this.minLines = 1,
+    this.maxLines = 1,
+    this.fontSize = 13,
+    this.lineHeight = 18,
+    this.padding = const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+    this.toggles = const [],
+    this.validation,
+    this.onChanged,
+    this.onSubmitted,
+    this.shortcuts = const {},
+    this.autofocus = false,
+    this.semanticsLabel,
+    this.floatingValidation = false,
+  });
+
+  final TextEditingController controller;
+  final FocusNode? focusNode;
+  final String? placeholder;
+  final int minLines;
+  final int maxLines;
+  final double fontSize;
+  final double lineHeight;
+  final EdgeInsets padding;
+  final List<Widget> toggles;
+  final IdeInputValidation? validation;
+  final ValueChanged<String>? onChanged;
+
+  /// Enter, in a one-line input.
+  final ValueChanged<String>? onSubmitted;
+
+  /// Keys handled while the input has focus (⌘Enter to commit).
+  final Map<ShortcutActivator, VoidCallback> shortcuts;
+  final bool autofocus;
+  final String? semanticsLabel;
+
+  /// Shows [validation] over what is below instead of pushing it down, as
+  /// the explorer's inline inputs do.
+  final bool floatingValidation;
+
+  @override
+  State<IdeInputBox> createState() => _IdeInputBoxState();
+}
+
+class _IdeInputBoxState extends State<IdeInputBox> {
+  FocusNode? _ownFocus;
+  FocusNode get _focus => widget.focusNode ?? (_ownFocus ??= FocusNode());
+  final LayerLink _link = LayerLink();
+  final OverlayPortalController _portal = OverlayPortalController();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_focusChanged);
+    if (widget.floatingValidation) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _portal.show();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(IdeInputBox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final old = oldWidget.focusNode ?? _ownFocus;
+    if (old != _focus) {
+      old?.removeListener(_focusChanged);
+      _focus.addListener(_focusChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focus.removeListener(_focusChanged);
+    _ownFocus?.dispose();
+    super.dispose();
+  }
+
+  void _focusChanged() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final validation = widget.validation;
+    final floating = widget.floatingValidation;
+    final focused = _focus.hasFocus;
+    final outline = validation != null
+        ? validation._colors.$2
+        : focused
+        ? IdeInputColors.focusBorder
+        : IdeInputColors.border;
+    final style = TextStyle(
+      fontSize: widget.fontSize,
+      height: widget.lineHeight / widget.fontSize,
+      // CSS's half-leading: the glyphs centered in the line, as the caret
+      // is (by default the extra height goes mostly above them).
+      leadingDistribution: TextLeadingDistribution.even,
+      color: IdeInputColors.foreground,
+    );
+    final multiline = widget.maxLines > 1;
+    Widget field = TextField(
+      controller: widget.controller,
+      focusNode: _focus,
+      autofocus: widget.autofocus,
+      minLines: widget.minLines,
+      maxLines: widget.maxLines,
+      keyboardType: multiline ? TextInputType.multiline : TextInputType.text,
+      textInputAction: multiline
+          ? TextInputAction.newline
+          : TextInputAction.done,
+      autocorrect: false,
+      enableSuggestions: false,
+      cursorColor: IdeInputColors.foreground,
+      cursorWidth: 1,
+      cursorHeight: ideCaretHeight(widget.fontSize),
+      style: style,
+      onChanged: widget.onChanged,
+      onSubmitted: widget.onSubmitted,
+      decoration: InputDecoration(
+        hintText: widget.placeholder,
+        hintStyle: style.copyWith(color: IdeInputColors.placeholder),
+        hintMaxLines: 1,
+        isDense: true,
+        isCollapsed: true,
+        contentPadding: widget.padding,
+        border: InputBorder.none,
+        // The desktop's compact density would take the padding away.
+        visualDensity: VisualDensity.standard,
+      ),
+    );
+    // Scrolls past its lines without a scrollbar, as VS Code's inputs.
+    field = ScrollConfiguration(
+      behavior: const _WithoutScrollbars(),
+      child: field,
+    );
+    if (widget.shortcuts.isNotEmpty) {
+      field = CallbackShortcuts(bindings: widget.shortcuts, child: field);
+    }
+    if (widget.semanticsLabel case final label?) {
+      field = Semantics(label: label, textField: true, child: field);
+    }
+    final box = Container(
+      decoration: BoxDecoration(
+        color: IdeInputColors.background,
+        border: Border.all(color: outline),
+        borderRadius: validation == null || floating
+            ? BorderRadius.circular(4)
+            : const BorderRadius.vertical(top: Radius.circular(4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: field),
+          if (widget.toggles.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(0, 1, 2, 1),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: widget.toggles,
+              ),
+            ),
+        ],
+      ),
+    );
+    if (floating) {
+      return LayoutBuilder(
+        builder: (context, constraints) => CompositedTransformTarget(
+          link: _link,
+          child: OverlayPortal(
+            controller: _portal,
+            overlayChildBuilder: (context) => validation == null
+                ? const SizedBox.shrink()
+                : CompositedTransformFollower(
+                    link: _link,
+                    targetAnchor: Alignment.bottomLeft,
+                    showWhenUnlinked: false,
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: SizedBox(
+                        width: constraints.maxWidth,
+                        child: _message(validation),
+                      ),
+                    ),
+                  ),
+            child: box,
+          ),
+        ),
+      );
+    }
+    if (validation == null) return box;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [box, _message(validation)],
+    );
+  }
+
+  Widget _message(IdeInputValidation validation) {
+    final (background, border) = validation._colors;
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: background,
+        border: Border(
+          left: BorderSide(color: border),
+          right: BorderSide(color: border),
+          bottom: BorderSide(color: border),
+        ),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(2)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+        child: Text(
+          validation.message,
+          style: TextStyle(
+            fontSize: widget.fontSize * .9,
+            color: IdeInputColors.foreground,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// An input's toggle (`.monaco-custom-toggle`): a 16px codicon in a 20px
+/// square, bordered and filled while [checked].
+class IdeInputToggle extends StatefulWidget {
+  const IdeInputToggle({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.checked,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final bool checked;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  State<IdeInputToggle> createState() => _IdeInputToggleState();
+}
+
+class _IdeInputToggleState extends State<IdeInputToggle> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final checked = widget.checked;
+    return IdeHover(
+      message: widget.tooltip,
+      child: Semantics(
+        button: true,
+        toggled: checked,
+        label: widget.tooltip,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => widget.onChanged(!checked),
+            child: Container(
+              width: 20,
+              height: 20,
+              margin: const EdgeInsets.only(left: 2),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: checked
+                    ? IdeInputColors.optionActiveBackground
+                    : _hover
+                    ? IdeActionButton.hoverBackground
+                    : null,
+                border: Border.all(
+                  color: checked
+                      ? IdeInputColors.optionActiveBorder
+                      : const Color(0x00000000),
+                ),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Icon(
+                widget.icon,
+                size: 16,
+                color: checked
+                    ? IdeInputColors.foreground
+                    : IdeActionButton.foreground,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Draws no scrollbar: a multi-line text field asks for one whatever
+/// the inherited behavior says (`copyWith(scrollbars: true)`), then builds
+/// it with this.
+class _WithoutScrollbars extends MaterialScrollBehavior {
+  const _WithoutScrollbars();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => child;
+}
+
+/// A caret as tall as the font, ascent to descent (about 1.2 times its
+/// size), as the browser draws one in VS Code's inputs; Flutter's is the
+/// whole line, and 2px more on macOS.
+double ideCaretHeight(double fontSize) {
+  final height = (fontSize * 1.2).roundToDouble();
+  return switch (defaultTargetPlatform) {
+    TargetPlatform.iOS || TargetPlatform.macOS => height - 2,
+    _ => height,
+  };
+}

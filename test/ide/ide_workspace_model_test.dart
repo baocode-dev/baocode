@@ -7,7 +7,9 @@ import 'package:monad/ide/file_service.dart';
 import 'package:monad/ide/ide_workspace.dart';
 import 'package:path/path.dart' as p;
 
-class _FakeIdeFileService implements IdeFileService {
+import 'workbench/fake_files.dart';
+
+class _FakeIdeFileService with ReadWriteOnlyFiles implements IdeFileService {
   _FakeIdeFileService(this.contents);
 
   final Map<String, String> contents;

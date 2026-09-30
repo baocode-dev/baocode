@@ -614,4 +614,108 @@ void main() {
       isTrue,
     );
   });
+
+  group('stopRenderingLineAfter', () {
+    // A 10-unit limit stands in for Monaco's 10000.
+    ViewportLayout limited(
+      String text, {
+      int limit = 10,
+      bool wrap = false,
+      Map<int, List<TextSpan>>? styledLines,
+    }) => ViewportLayout(
+      snapshot: DocumentSnapshot(text),
+      style: style,
+      viewportSize: const Size(2000, 100),
+      wrap: wrap,
+      styledLines: styledLines,
+      stopRenderingLineAfter: limit,
+    );
+
+    test('the label counts what is past the limit, as Monaco does', () {
+      expect(ViewportLayout.overflowLabel(2), 'Show more (2 chars)');
+      expect(ViewportLayout.overflowLabel(1023), 'Show more (1023 chars)');
+      expect(ViewportLayout.overflowLabel(133734), 'Show more (130.6 KB)');
+      expect(
+        ViewportLayout.overflowLabel(3 * 1024 * 1024),
+        'Show more (3.0 MB)',
+      );
+    });
+
+    test('a long line is shaped to the limit, then the pill', () {
+      final text = '${'a' * 25}\nshort';
+      final cut = limited(text);
+      final full = limited(text, limit: -1);
+      addTearDown(cut.dispose);
+      addTearDown(full.dispose);
+      expect(cut.renderedLength(1), 10);
+      expect(cut.renderedLength(2), 5);
+      expect(full.renderedLength(1), 25);
+      expect(cut.overflowRect(2), isNull);
+
+      final pill = cut.overflowRect(1)!;
+      final tenth = cut.caretRect(10);
+      expect(pill.left, closeTo(tenth.left, 0.5));
+      expect(pill.height, greaterThan(0));
+      // The pill is as wide as its label (the 20px test font) plus insets.
+      expect(pill.width, greaterThan(0));
+      // The scroll width ends at the pill, not at the line's length.
+      expect(cut.contentWidth, closeTo(pill.right, 0.5));
+
+      // Offsets past the cut sit after the pill; clicks on it go to the cut.
+      expect(cut.caretRect(20).left, closeTo(pill.right, 0.5));
+      expect(cut.caretRect(25).left, closeTo(pill.right, 0.5));
+      expect(cut.hitTest(Offset(pill.center.dx, pill.center.dy)), 10);
+      expect(cut.hitTest(Offset(pill.right + 500, pill.center.dy)), 10);
+
+      // Selections stop at the cut.
+      final rects = cut.offsetRangeRects(5, 20, markNewlines: false);
+      expect(rects, hasLength(1));
+      expect(rects.single.right, closeTo(tenth.left, 0.5));
+      expect(cut.offsetRangeRects(15, 20, markNewlines: false), isEmpty);
+    });
+
+    test('never splits a surrogate pair, and truncates styled runs', () {
+      final emoji = '${'a' * 9}😀${'b' * 5}';
+      final cut = limited(emoji);
+      addTearDown(cut.dispose);
+      expect(cut.renderedLength(1), 9);
+
+      const red = TextStyle(color: Color(0xffff0000));
+      final styled = limited(
+        'abcdefghijklmnop',
+        styledLines: {
+          1: const [
+            TextSpan(text: 'abcdef', style: red),
+            TextSpan(text: 'ghijklmnop'),
+          ],
+        },
+      );
+      addTearDown(styled.dispose);
+      // Still styled: the runs matched the whole line before the cut.
+      expect(styled.shapedLineCount, 1);
+      expect(styled.caretRect(10).left, greaterThan(0));
+      expect(styled.overflowRect(1), isNotNull);
+    });
+
+    test('wrapped lines wrap only the rendered part', () {
+      final cut = ViewportLayout(
+        snapshot: DocumentSnapshot('a ' * 200),
+        style: style,
+        viewportSize: const Size(100, 100),
+        wrap: true,
+        stopRenderingLineAfter: 20,
+      );
+      final full = ViewportLayout(
+        snapshot: DocumentSnapshot('a ' * 200),
+        style: style,
+        viewportSize: const Size(100, 100),
+        wrap: true,
+        stopRenderingLineAfter: -1,
+      );
+      addTearDown(cut.dispose);
+      addTearDown(full.dispose);
+      expect(cut.rows.length, lessThan(full.rows.length));
+      expect(cut.overflowRect(1), isNotNull);
+    });
+  });
 }

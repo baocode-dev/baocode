@@ -20,14 +20,11 @@ class LocalIdeFileService implements IdeFileService {
 
   /// The limit for files opened anyway.
   static const _forcedMaximumFileBytes = 64 * 1024 * 1024;
-  static const _hiddenDirectories = {
-    '.git',
-    '.dart_tool',
-    '.idea',
-    '.vscode',
-    'build',
-    'node_modules',
-  };
+
+  /// VS Code's default `files.exclude`; everything else is listed (ignored
+  /// paths dimmed by the Git decorations).
+  static const _hiddenDirectories = {'.git', '.svn', '.hg', 'CVS'};
+  static const _hiddenFiles = {'.DS_Store', 'Thumbs.db'};
 
   // Reads and writes share a queue so an old read cannot replace a newer save's
   // baseline. Failed operations must not poison the queue.
@@ -65,8 +62,8 @@ class LocalIdeFileService implements IdeFileService {
     final files = <IdeFile>[
       for (final entry in entries)
         if (entry is Directory || entry is File)
-          if (entry is! Directory ||
-              !_hiddenDirectories.contains(p.basename(entry.path)))
+          if (!(entry is Directory ? _hiddenDirectories : _hiddenFiles)
+              .contains(p.basename(entry.path)))
             IdeFile(
               entry.path,
               p.basename(entry.path),
@@ -177,6 +174,93 @@ class LocalIdeFileService implements IdeFileService {
           }
         }
       });
+
+  /// [path] resolved in its (existing) parent, which must be inside the
+  /// project; [path] itself need not exist.
+  Future<String> _newInside(String path) async {
+    final parent = await _inside(p.dirname(path));
+    return p.join(parent, p.basename(path));
+  }
+
+  static Future<bool> _exists(String path) async =>
+      await FileSystemEntity.type(path, followLinks: false) !=
+      FileSystemEntityType.notFound;
+
+  @override
+  Future<void> create(String path, {bool directory = false}) =>
+      _serialize(() async {
+        final target = await _newInside(path);
+        if (await _exists(target)) throw IdeFileExistsException(path);
+        if (directory) {
+          await Directory(target).create();
+        } else {
+          await File(target).create(exclusive: true);
+        }
+      });
+
+  @override
+  Future<void> rename(String from, String to) => _serialize(() async {
+    final source = await _newInside(from);
+    final target = await _newInside(to);
+    if (!await _exists(source)) throw IdeFileNotFoundException(from);
+    // A change of case only is the same file on case-insensitive disks.
+    final sameFile = source.toLowerCase() == target.toLowerCase();
+    if (!sameFile && await _exists(target)) {
+      throw IdeFileExistsException(to);
+    }
+    final type = await FileSystemEntity.type(source, followLinks: false);
+    if (type == FileSystemEntityType.directory) {
+      await Directory(source).rename(target);
+    } else if (type == FileSystemEntityType.link) {
+      await Link(source).rename(target);
+    } else {
+      await File(source).rename(target);
+    }
+    _snapshots.remove(_key(from));
+  });
+
+  @override
+  Future<void> copy(String from, String to) => _serialize(() async {
+    final source = await _newInside(from);
+    final target = await _newInside(to);
+    if (await _exists(target)) throw IdeFileExistsException(to);
+    Future<void> copyEntity(String from, String to) async {
+      switch (await FileSystemEntity.type(from, followLinks: false)) {
+        case FileSystemEntityType.directory:
+          await Directory(to).create();
+          await for (final entry in Directory(from).list(followLinks: false)) {
+            await copyEntity(entry.path, p.join(to, p.basename(entry.path)));
+          }
+        case FileSystemEntityType.link:
+          await Link(to).create(await Link(from).target());
+        case FileSystemEntityType.file:
+          await File(from).copy(to);
+        default:
+          throw IdeFileNotFoundException(from);
+      }
+    }
+
+    await copyEntity(source, target);
+  });
+
+  @override
+  Future<void> delete(String path) => _serialize(() async {
+    final target = await _newInside(path);
+    if (p.equals(target, p.normalize(await _canonicalRoot))) {
+      throw FileSystemException('The project folder cannot be deleted', path);
+    }
+    final type = await FileSystemEntity.type(target, followLinks: false);
+    if (type == FileSystemEntityType.notFound) {
+      throw IdeFileNotFoundException(path);
+    }
+    await (type == FileSystemEntityType.directory
+            ? Directory(target)
+            : type == FileSystemEntityType.link
+            ? Link(target)
+            : File(target))
+        .delete(recursive: type == FileSystemEntityType.directory);
+    _snapshots.remove(_key(path));
+  });
 
   static String _key(String path) => p.normalize(p.absolute(path));
 

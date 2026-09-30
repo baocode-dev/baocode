@@ -179,6 +179,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(_explorerRow('deep.dart'), findsNothing);
 
+    // The folder pane's actions show while it is hovered.
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer();
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(tester.getCenter(find.byType(IdeExplorer)));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Collapse Folders in Explorer'));
     await tester.pumpAndSettle();
     expect(_explorerRow('util.dart'), findsNothing);

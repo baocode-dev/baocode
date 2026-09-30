@@ -213,9 +213,13 @@ class IdeOutlineView extends StatefulWidget {
     required this.symbols,
     required this.caret,
     required this.onReveal,
+    this.showHeader = true,
   });
 
   final IdeDocumentSymbols? symbols;
+
+  /// Its own OUTLINE header; false inside a pane, whose header it has.
+  final bool showHeader;
 
   /// Where the caret is (zero-based), to highlight its symbol.
   final LspPosition? caret;
@@ -259,7 +263,7 @@ class _IdeOutlineViewState extends State<IdeOutlineView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          header,
+          if (widget.showHeader) header,
           Expanded(
             child: ListenableBuilder(
               listenable: model ?? const _NoListenable(),

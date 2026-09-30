@@ -54,6 +54,8 @@ void main() {
 
     runCommand(tester, 'outline.focus');
     await settle(tester);
+    // Past the pane's opening (0.15s from the frame after).
+    await settle(tester, const Duration(milliseconds: 200));
     expect(find.byType(IdeOutlineView), findsOneWidget);
     final outline = find.byType(IdeOutlineView);
     expect(

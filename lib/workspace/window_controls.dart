@@ -159,6 +159,33 @@ abstract final class WindowControls {
     }
   }
 
+  /// Whether [moveToTrash] can move files to a Trash.
+  static bool get canMoveToTrash => AppPlatform.isMacOS;
+
+  /// Moves [path] to the system's Trash (macOS); false where there is no
+  /// Trash to move to. Throws a [PlatformException] when moving fails.
+  static Future<bool> moveToTrash(String path) async {
+    if (!canMoveToTrash) return false;
+    try {
+      return await _channel.invokeMethod<bool>('trashItem', path) ?? false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  /// Whether [revealInFileManager] can show a file (Finder).
+  static bool get canRevealInFileManager => AppPlatform.isMacOS;
+
+  /// Opens a Finder window with [path] selected.
+  static Future<void> revealInFileManager(String path) async {
+    if (!canRevealInFileManager) return;
+    try {
+      await _channel.invokeMethod<void>('revealInFinder', path);
+    } on MissingPluginException {
+      // A host without the channel (e.g. tests).
+    }
+  }
+
   /// Carries out the Edit menu's commands (undo, cut, copy, paste, select
   /// all…) where the focus is: the composer, or the conversation's
   /// selection. The menu is the system's own on macOS only; on Windows the

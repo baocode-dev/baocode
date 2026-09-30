@@ -76,6 +76,10 @@ abstract final class IdeModernUI {
   /// `cornerRadius.small`: the active and hovered items' box.
   static const activityItemRadius = 4.0;
 
+  /// `activityBarBadge.*`.
+  static const activityBadgeBackground = Color(0xFF307E9F);
+  static const activityBadgeForeground = Color(0xFFFFFFFF);
+
   /// `modernSash.gripForeground`: `foreground` at 40%.
   static const sashGrip = Color(0x66BFBFBF);
 
@@ -126,4 +130,12 @@ class IdeCard extends StatelessWidget {
   static Radius _inner(Radius outer) => outer == Radius.zero
       ? Radius.zero
       : Radius.elliptical(outer.x - 1, outer.y - 1);
+}
+
+/// `NumberBadge`'s label: over 999 in thousands (`1K`, `1K+`).
+String ideBadgeLabel(int count) {
+  if (count <= 999) return '$count';
+  final thousands = count / 1000;
+  final floor = thousands.floor();
+  return thousands > floor ? '${floor}K+' : '${floor}K';
 }

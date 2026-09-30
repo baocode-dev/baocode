@@ -5,6 +5,7 @@ import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
 import 'ide_commands.dart';
 import 'ide_hover.dart';
+import 'ide_input.dart';
 
 /// Monaco's find/replace widget, drawn in the app's palette: a chevron that
 /// toggles the replace row, a find input with inline Aa / ab / .* toggles,
@@ -399,6 +400,7 @@ class _FindInput extends StatelessWidget {
               enableSuggestions: false,
               cursorColor: CursorColors.accent,
               cursorWidth: 1.5,
+              cursorHeight: ideCaretHeight(12.5),
               style: const TextStyle(
                 fontSize: 12.5,
                 color: CursorColors.textPrimary,

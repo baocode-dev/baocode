@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../theme/cursor_theme.dart';
 import 'ide_fuzzy.dart';
+import 'ide_input.dart';
 
 /// One row of the quick input list (files, commands or a message).
 class IdeQuickPickItem {
@@ -250,6 +251,7 @@ class IdeQuickInputState extends State<IdeQuickInput> {
                           enableSuggestions: false,
                           cursorColor: CursorColors.accent,
                           cursorWidth: 1.5,
+                          cursorHeight: ideCaretHeight(13),
                           style: const TextStyle(
                             color: CursorColors.textPrimary,
                             fontSize: 13,

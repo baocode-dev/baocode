@@ -127,3 +127,79 @@
   - 不支持：状态栏动作行（View Problem / Quick Fix）；表格和 HTML 按纯文本显示。
 - **配色**：悬浮框、编辑器小部件、动作按钮（`icon.foreground` #8C8C8C）都改为 Dark 2026。编辑器 token 配色仍用 `vs-dark`。
 - **图标粗细**：用 headless Chrome（VS Code 所用的 Chromium）和 Flutter 以同样条件渲染 codicon（24px、#8C8C8C、2x），着色覆盖量几乎相同（如 803 与 805）。显得粗是颜色和经典样式造成的，不是光栅化问题，所以仍用字体渲染。
+
+## 侧边栏、超长行与编辑器外围（2026-09-30）
+
+对照 VS Code 1.140（`6a598d4a`，Modern UI + Dark 2026）完成的内容，每个文件的头注释都写明了出处和偏差：
+
+- **超长行**：移植 `editor.stopRenderingLineAfter`（默认 10000）。超出部分不参与排版和绘制，行尾显示 "Show more (…)" 胶囊（`viewport_layout.dart`、`editor_surface.dart`）。
+- **无法打开的文件**：二进制、过大或读取失败的文件以标签页形式打开，内容区是 VS Code 的占位编辑器（`ide_editor_placeholder.dart`），不再显示顶部错误条。
+- **语言服务器推荐**：改为右下角通知（`ide_notifications.dart`），不再放在状态栏。
+- **右键菜单**：`ide_menu.dart` 自绘，分组、快捷键标注、子菜单与 VS Code 原生菜单一致。
+  - 已覆盖：标签页、编辑器、资源管理器、源代码管理（资源、分组、标题的 `…`）、图表、时间线、搜索结果。
+- **资源管理器**：视图标题为 "Explorer"，下分 Folders、Outline、Timeline 三个 pane（`ide_panes.dart`）。
+  - 大纲移入 pane；活动栏去掉了 Outline 和 Run and Debug（不实现调试）。
+  - 文件树（`ide_explorer.dart`）：
+    - Git 装饰：颜色、删除线、字母，文件夹用圆点。
+    - 内联新建/重命名，名称校验文案与 VS Code 相同；支持 `a/b/c` 这样的嵌套路径。
+    - 删除确认：有废纸篓（macOS）时移到废纸篓，否则永久删除；有未保存修改时另行提醒；废纸篓失败时询问是否永久删除。
+    - 剪切/复制/粘贴：同名时按 `incrementFileName` 的 simple 规则命名。
+    - Reveal in Finder、Copy Path / Copy Relative Path、Find in Folder...
+    - 快捷键：mac 下 Enter 重命名、⌘Backspace 删除；其他平台 F2、Delete。
+  - 重命名或移动的文件，已打开的编辑器会跟随到新路径（`IdeWorkspace.moved`）；删除时关闭没有未保存修改的编辑器。
+- **源代码管理**：`lib/ide/git/`，只通过 `git` 进程访问（`IdeGitService`）。
+  - Changes：提交输入框与提交分割按钮、Merge/Staged/Changes 分组、行内动作和菜单。
+  - 默认树视图（`scm_tree.dart`）：
+    - 单子文件夹链压缩成一行（`scm.compactFolders`），文件夹在前，按 `compareFileNames` 排序。
+    - `···` → View & Sort 可切换为列表视图；列表视图下可按 Name / Path / Status 排序。
+    - 文件夹行也有 Stage / Unstage / Discard 动作；分组的右键菜单有 Collapse All。
+  - Generate Commit Message（输入框右侧的 ✦，`commit_message.dart`）：
+    - 通过 `claude -p --model haiku` 调用 Claude Haiku：不带工具、MCP 和斜杠命令，不保存会话，在临时目录运行（不读项目的 CLAUDE.md）。
+    - 输入：有暂存时取暂存的 diff，否则取全部改动（包括未跟踪文件）；附带最近 10 条提交的标题，用来沿用仓库的提交风格；再附上改动文件列表。
+    - diff 最多 40k 字符：lock 文件和生成文件只保留头部；其余文件从小到大能完整放下的就完整放，剩余额度由大文件均分，在行尾截断并注明省略了多少行。
+    - 生成过程中再点一次即取消，输入框保留原内容。
+  - 智能提交、Undo Last Commit、Discard（未跟踪文件进废纸篓）、Add to .gitignore。
+  - Graph：泳道绘制移植 `scmHistory.ts`；引用徽标、提交展开后显示改动文件、自动加载更多。
+  - 动画（`ide_animated_list.dart` 的 `IdeAnimatedList`，Graph 和 Changes 共用）：
+    - 按 key 比较前后两次的行：新行从 0 高度展开，删除的行在原位置收起，其余行随之移动，保留状态。
+    - 首次构建、大部分行同时变化（如切换视图模式）或系统要求减少动效时，直接显示，不做动画。
+    - 刷新和加载更多时保留旧的 Graph 直到新数据到达（`IdeGitRepository` 的 `_graphStale`），不再清空后重建。
+  - 活动栏显示待处理数量徽标。
+- **时间线**：`git/ide_timeline_view.dart`，数据来自 Git provider。
+  - 内容：提交、作者、相对时间（相同时间显示为细线）；文件已暂存时首项为 "Staged Changes"。
+  - 操作：Pin、Refresh。
+- **搜索**：`lib/ide/search/`。
+  - 输入：Match Case、Whole Word、Regex；替换支持 Preserve Case 和 Replace All（带确认）；可设置 files to include / exclude，并可关闭 "Use Exclude Settings and Ignore Files"。
+  - 结果：按文件分组，显示计数，匹配有预览；支持单项替换和 Dismiss；消息文案与 VS Code 相同。
+  - 引擎（`text_search_io.dart`）在后台 isolate 中运行：仓库内用 `git ls-files --cached --others --exclude-standard` 获取文件列表，因此遵循 `.gitignore`；仓库外遍历目录，并应用默认排除项。跳过二进制文件；最多返回 20000 个结果。
+  - 旧的 `ide_tools_panel.dart` 已删除。
+- **扩展**：`lib/ide/extensions/`，把语言服务器套进 VS Code 的扩展视图。
+  - 顶部是搜索框 "Search Extensions in Marketplace"，下面是 Installed 和 Recommended 两个 pane，带计数徽标。
+  - 搜索时合并成一个列表，标题为 "Extensions: Marketplace"；支持 `@installed` 和 `@recommended` 过滤。
+  - 每行 72px：图标、名称、描述、发布者，以及 Install 按钮或 Manage 齿轮菜单（Uninstall、Copy、Copy Extension ID）。
+  - 数据来自标准 LSP 目录和 mason：在 PATH 上找到的算已安装，但不能卸载；装在应用目录里的可以卸载；有 mason 包的可以安装；都没有的会说明原因。
+  - Recommended 列出打开文件缺少的服务器；安装后会重启对应的服务器。
+  - 快捷键 ⇧⌘X。
+- **Pane**（`ide_panes.dart`）：
+  - 展开和折叠有 0.15s 过渡；body 始终保持同一棵 widget 树，动画结束时不会丢失状态。
+  - 标题先占位，描述用剩余空间，右侧的动作按钮贴边对齐（之前 Graph 的动作按钮没有贴右边）。
+  - 打开 pane 里的菜单时，头部按钮保持显示。
+  - 菜单与按钮左对齐，放不下时改为右对齐。
+- **拖动分隔条**：按按下时的位置计算，与主窗口相同。拖过最小/最大值后往回拖，不必等指针回到分隔线上才跟随。
+- **输入框**（`ide_input.dart`）：
+  - 光标高度按字号计算（约 1.2 倍，与浏览器一致），不再占满整行（`ideCaretHeight`）。
+  - 文字按 CSS 的 half-leading 在行内垂直居中（`TextLeadingDistribution.even`），与光标对齐。
+  - 固定 `VisualDensity.standard`：macOS 默认的 compact 密度会吃掉内边距，使输入框变矮、文字和光标偏移。
+  - 多行输入超出时滚动，但不显示滚动条（与 VS Code 一致）。
+- **快捷键标注与状态栏**：mac 下写 Enter、Tab、Escape、Backspace，不用 ↩ ⇥ ⎋ ⌫，这些符号会被渲染成 emoji。问题计数改用 codicon（`$(error) 1 $(warning) 0`）。
+- **偏差**：
+  - 没有 diff 编辑器：资源、时间线、提交的文件都打开当前文件。
+  - 没有 push、pull、sync、stash、分支命令。
+  - 智能提交的 Always/Never 只在当前会话内有效。
+  - 不支持多选。
+  - 搜索不跨行匹配，没有搜索编辑器和历史。
+  - 扩展视图没有扩展详情编辑器，点击只会选中；列表中的版本号显示在安装数的位置。
+- **测试**：
+  - 单元测试：`test/ide/git/`（`FakeGit` 不启动进程；`git_service_test` 在临时仓库中运行真实 git）、`test/ide/search/`（引擎在临时目录上测试）、`test/ide/extensions/`（mason 在临时目录中运行，PATH 是假的）。
+  - 提交信息生成只用假模型测试：`pumpWorkbench` 默认注入一个会抛异常的模型，测试中不会调用真实的 Claude Code。
+  - 组件测试：`test/ide/workbench/explorer_ops_test.dart`。
