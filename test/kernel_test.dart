@@ -1248,14 +1248,14 @@ void main() {
       expect(last(), isA<LiveStatusItem>());
       await Future<void>.delayed(const Duration(milliseconds: 20));
       final blockAt = DateTime.now();
-      // Its thought shows above it, timed from the message's start.
+      // Its thought shows instead, saying so itself while under way; timed
+      // from the message's start.
       await stream({
         'type': 'content_block_start',
         'index': 0,
         'content_block': {'type': 'thinking', 'thinking': ''},
       });
-      expect(last(), isA<LiveStatusItem>());
-      final started = (beforeLast() as ThinkingItem).startedAt!;
+      final started = (last() as ThinkingItem).startedAt!;
       expect(started.isBefore(begun), isFalse);
       expect(started.isBefore(blockAt), isTrue);
       await stream({'type': 'content_block_stop', 'index': 0});

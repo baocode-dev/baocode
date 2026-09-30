@@ -369,9 +369,16 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     };
   }
 
-  /// Waiting on its model unless its kernel says otherwise.
+  /// Waiting on its model unless its kernel says otherwise. Not after a
+  /// thought under way, which says so itself.
   KernelActivityKind? get _activity {
     if (!isStreaming || pendingInteraction != null) return null;
+    final last = _transcript.length - 1;
+    if (last >= 0 &&
+        _transcript.itemAt(last) is ThinkingItem &&
+        _transcript.isStreamingAt(last)) {
+      return null;
+    }
     return _transcript.activity?.kind ?? KernelActivityKind.waiting;
   }
 

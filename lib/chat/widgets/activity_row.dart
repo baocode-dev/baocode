@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
 import 'markdown_view.dart';
+import 'step_header.dart';
 import 'thinking_spark.dart';
 
 /// What the agent is busy with out of sight, after Claude's spark: typed
@@ -75,7 +76,7 @@ class ActivityRow extends StatelessWidget {
       alignment: Alignment.centerLeft,
       // Lined up with the steps around it.
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
+        padding: const EdgeInsets.only(top: 9, bottom: 3),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -119,9 +120,9 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
   static const _fadeIn = 70;
   static const _glide = 40;
 
-  /// The caret at the end of the phrase, before it has faded.
-  static const _rest = 320;
-  static const _caretFade = 160;
+  /// The caret at the end of the phrase: it blinks twice, and is gone.
+  static const _blink = 500;
+  static const _rest = _blink * 3 ~/ 2;
 
   /// A dot every step, three to a round, faded out at its end.
   static const _dotStep = 400;
@@ -134,10 +135,10 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
 
   static const _dots = '...';
 
-  /// As the agent's prose reads.
+  /// The agent's prose's color, at the size of the steps (e.g. Thinking).
   static final _style = TextStyle(
     color: MarkdownView.baseStyle.color,
-    fontSize: MarkdownView.baseStyle.fontSize,
+    fontSize: StepHeader.fontSize,
   );
 
   late final math.Random _random = widget.random ?? math.Random();
@@ -227,8 +228,8 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
   // only when the phrase, its style or its room change.
   (String, TextStyle, TextScaler, double)? _laidOutFor;
   List<double> _carets = const [];
-  double _lineTop = 0;
-  double _lineHeight = 0;
+  double _baseline = 0;
+  double _fontSize = 0;
 
   void _layOut(String text, TextStyle style, TextScaler scaler, double width) {
     final key = (text, style, scaler, width);
@@ -244,9 +245,10 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
       for (var i = 0; i <= _phrase.length; i++)
         painter.getOffsetForCaret(TextPosition(offset: i), Rect.zero).dx,
     ];
-    const start = TextPosition(offset: 0);
-    _lineTop = painter.getOffsetForCaret(start, Rect.zero).dy;
-    _lineHeight = painter.getFullHeightForCaret(start, Rect.zero);
+    _baseline = painter.computeDistanceToActualBaseline(
+      TextBaseline.alphabetic,
+    );
+    _fontSize = scaler.scale(style.fontSize ?? StepHeader.fontSize);
     painter.dispose();
   }
 
@@ -324,7 +326,10 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
   }
 
   /// The caret after the last letter typed, gliding on from the one before;
-  /// fading in at the start and out at its rest.
+  /// fading in at the start, then steady while it types, then blinking at
+  /// its rest. As tall as the letters and centered on them, from the
+  /// baseline: the line's box has room below them (and more, falling back
+  /// on a font for Han).
   Widget _caret(double t) {
     final last = _typed.lastIndexWhere((at) => at <= t);
     final x = last < 0
@@ -334,16 +339,26 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
                   Curves.easeOutCubic.transform(
                     _unit((t - _typed[last]) / _glide),
                   );
-    final opacity = _unit(t / 80) * _unit((_dotsAt - t) / _caretFade);
+    // On for half of each blink, its edges soft.
+    final resting = t - (_dotsAt - _rest);
+    final blink = resting % _blink;
+    final opacity =
+        _unit(t / 80) *
+        (resting < 0
+            ? 1
+            : blink < _blink / 2
+            ? _unit((_blink / 2 - blink) / 60)
+            : _unit((blink - (_blink - 60)) / 60));
+    final height = _fontSize;
     return Positioned(
       key: const ValueKey('cursor'),
-      left: x + 1.5,
-      top: _lineTop + _lineHeight * 0.12,
+      left: x + 3,
+      top: _baseline - _fontSize * 0.35 - height / 2,
       child: Opacity(
         opacity: opacity,
         child: Container(
           width: 2,
-          height: _lineHeight * 0.76,
+          height: height,
           decoration: BoxDecoration(
             color: _style.color,
             borderRadius: BorderRadius.circular(1),

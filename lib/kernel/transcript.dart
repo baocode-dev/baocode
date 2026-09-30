@@ -68,6 +68,9 @@ class Transcript {
 
   bool get hasStreamingItem => _streaming.isNotEmpty;
 
+  /// Whether the item at [index] is still coming in.
+  bool isStreamingAt(int index) => _streaming.contains(idAt(index));
+
   InteractionRequest? get pendingInteraction =>
       _pending.isEmpty ? null : _pending.values.first;
 

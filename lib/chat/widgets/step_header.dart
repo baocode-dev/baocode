@@ -43,7 +43,8 @@ class StepHeader extends StatelessWidget {
   /// A button after it all, apart from the click that opens it.
   final Widget? action;
 
-  static const _size = 13.0;
+  /// Its text's size, as steps read.
+  static const fontSize = 13.0;
 
   /// The line as text, e.g. for copying.
   static String text(String verb, String object, [String? detail]) =>
@@ -79,7 +80,7 @@ class StepHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: CursorColors.textMuted,
-              fontSize: _size,
+              fontSize: fontSize,
             ),
           );
     final header = HoverBuilder(

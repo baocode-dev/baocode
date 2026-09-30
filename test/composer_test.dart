@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monad/chat/widgets/activity_row.dart';
 import 'package:monad/sidebar/sidebar.dart';
 import 'package:monad/workspace/workspace.dart';
 import 'package:monad/chat/widgets/markdown_view.dart';
@@ -1160,8 +1161,26 @@ void main() {
       await pressKey(tester, LogicalKeyboardKey.enter);
       expect(editorInHistory(), findsNothing);
       expect((session.itemAt(index) as UserMessageItem).text, original);
-      expect(session.itemCount, index + 2); // The message and a status row.
+      // The message, and its answer begun: a thought, which says the agent
+      // is at work itself.
+      expect(session.itemCount, index + 2);
+      expect(session.itemAt(index + 1), isA<ThinkingItem>());
       expect(session.isStreaming, isTrue);
+      // Once the thought is done, the status row: as the answer grows it
+      // moves down, and goes on where it was.
+      bool rowLast() => session.itemAt(session.itemCount - 1) is LiveStatusItem;
+      Future<void> until(bool Function() done) async {
+        for (var i = 0; i < 600 && !done(); i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(done(), isTrue);
+      }
+
+      await until(rowLast);
+      final row = tester.element(find.byType(ActivityRow));
+      final count = session.itemCount;
+      await until(() => session.itemCount > count && rowLast());
+      expect(tester.element(find.byType(ActivityRow)), same(row));
       session.stop();
       await tester.pump(const Duration(seconds: 1));
     });
