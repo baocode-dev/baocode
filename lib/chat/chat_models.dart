@@ -289,13 +289,21 @@ class CodeDiffItem extends ChatItem {
 /// Transient row at the tail of a live turn while the agent works out of
 /// sight, e.g. "Planning next move" while its model has yet to answer.
 class LiveStatusItem extends ChatItem {
-  const LiveStatusItem(this.label, {this.whimsical = false});
+  const LiveStatusItem(
+    this.label, {
+    this.whimsical = false,
+    this.delay = Duration.zero,
+  });
 
   final String label;
 
   /// Whether the wait has nothing to name (the model yet to answer, not a
   /// chore like compacting): the row may muse rather than say [label].
   final bool whimsical;
+
+  /// How long the row holds off before it shows, where what comes next
+  /// most often follows at once: it would only flash.
+  final Duration delay;
 }
 
 /// A file an agent changed, with its line counts.

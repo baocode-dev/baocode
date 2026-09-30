@@ -78,27 +78,37 @@ class IdeBottomPanel extends StatelessWidget {
               child: Row(
                 children: [
                   const SizedBox(width: 8),
-                  _Tab(
-                    label: 'PROBLEMS',
-                    badge: total == 0 ? null : '$total',
-                    selected: tab == IdePanelTab.problems,
-                    onTap: () => onTab(IdePanelTab.problems),
-                  ),
-                  _Tab(
-                    label: 'REFERENCES',
-                    badge: references == null
-                        ? null
-                        : '${references!.locations.length}',
-                    selected: tab == IdePanelTab.references,
-                    onTap: () => onTab(IdePanelTab.references),
-                  ),
-                  if (terminal != null)
-                    _Tab(
-                      label: 'TERMINAL',
-                      selected: tab == IdePanelTab.terminal,
-                      onTap: () => onTab(IdePanelTab.terminal),
+                  // Narrow, the tabs scroll and the actions stay whole.
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _Tab(
+                            label: 'PROBLEMS',
+                            badge: total == 0 ? null : '$total',
+                            selected: tab == IdePanelTab.problems,
+                            onTap: () => onTab(IdePanelTab.problems),
+                          ),
+                          _Tab(
+                            label: 'REFERENCES',
+                            badge: references == null
+                                ? null
+                                : '${references!.locations.length}',
+                            selected: tab == IdePanelTab.references,
+                            onTap: () => onTab(IdePanelTab.references),
+                          ),
+                          if (terminal != null)
+                            _Tab(
+                              label: 'TERMINAL',
+                              selected: tab == IdePanelTab.terminal,
+                              onTap: () => onTab(IdePanelTab.terminal),
+                            ),
+                        ],
+                      ),
                     ),
-                  const Spacer(),
+                  ),
                   if (tab == IdePanelTab.terminal) ?terminalActions,
                   IdeActionButton(
                     icon: Codicons.close,

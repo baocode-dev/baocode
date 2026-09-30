@@ -272,7 +272,9 @@ class _LiveSelectable with Selectable, ChangeNotifier, SelectionRegistrant {
         for (final box in _painter.getBoxesForSelection(selection))
           box.toRect(),
       ],
-      status: collapsed ? SelectionStatus.collapsed : SelectionStatus.uncollapsed,
+      status: collapsed
+          ? SelectionStatus.collapsed
+          : SelectionStatus.uncollapsed,
       hasContent: true,
     );
   }
@@ -309,7 +311,11 @@ class _LiveSelectable with Selectable, ChangeNotifier, SelectionRegistrant {
     final result = switch (event) {
       SelectionEdgeUpdateEvent() => _updateEdge(event),
       ClearSelectionEvent() => _select(null, null, SelectionResult.none),
-      SelectAllSelectionEvent() => _select(0, _text.length, SelectionResult.none),
+      SelectAllSelectionEvent() => _select(
+        0,
+        _text.length,
+        SelectionResult.none,
+      ),
       SelectWordSelectionEvent() => _selectAround(
         event.globalPosition,
         _wordAt,
@@ -340,7 +346,8 @@ class _LiveSelectable with Selectable, ChangeNotifier, SelectionRegistrant {
     return result;
   }
 
-  Offset _toLocal(Offset globalPosition) => _render.globalToLocal(globalPosition);
+  Offset _toLocal(Offset globalPosition) =>
+      _render.globalToLocal(globalPosition);
 
   int _positionAt(Offset local) => _painter
       .getPositionForOffset(
@@ -366,7 +373,8 @@ class _LiveSelectable with Selectable, ChangeNotifier, SelectionRegistrant {
     };
     if (unit != null) {
       final range = unit(offset);
-      final forward = other == null || (isEnd ? offset >= other : offset > other);
+      final forward =
+          other == null || (isEnd ? offset >= other : offset > other);
       offset = forward == isEnd ? range.end : range.start;
     }
     if (isEnd) {

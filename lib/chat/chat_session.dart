@@ -356,13 +356,23 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   @override
   int get itemCount => _transcript.length + (_activity == null ? 0 : 1);
 
+  /// How long the status row holds off after the agent's text.
+  static const afterTextDelay = Duration(milliseconds: 1500);
+
   @override
   ChatItem itemAt(int index) {
     if (index < _transcript.length) return _transcript.itemAt(index);
     return switch (_activity!) {
-      KernelActivityKind.waiting => const LiveStatusItem(
+      KernelActivityKind.waiting => LiveStatusItem(
         'Planning next move',
         whimsical: true,
+        // The agent's text is most often followed at once, by a tool or the
+        // turn's end.
+        delay:
+            _transcript.length > 0 &&
+                _transcript.itemAt(_transcript.length - 1) is AssistantTextItem
+            ? afterTextDelay
+            : Duration.zero,
       ),
       KernelActivityKind.compacting => const LiveStatusItem(
         'Compacting conversation',

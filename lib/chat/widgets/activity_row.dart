@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -16,11 +17,15 @@ class ActivityRow extends StatelessWidget {
     super.key,
     required this.label,
     this.whimsical = false,
+    this.delay = Duration.zero,
     this.random,
   });
 
   final String label;
   final bool whimsical;
+
+  /// Nothing shows until it has passed.
+  final Duration delay;
 
   /// Picks the phrases; tests seed it.
   final math.Random? random;
@@ -71,7 +76,7 @@ class ActivityRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
+    final row = Align(
       alignment: Alignment.centerLeft,
       // Lined up with the steps around it.
       child: Padding(
@@ -88,7 +93,40 @@ class ActivityRow extends StatelessWidget {
         ),
       ),
     );
+    return delay == Duration.zero ? row : _HoldOff(delay, child: row);
   }
+}
+
+/// Nothing until [delay] has passed, then [child], begun from there.
+class _HoldOff extends StatefulWidget {
+  const _HoldOff(this.delay, {required this.child});
+
+  final Duration delay;
+  final Widget child;
+
+  @override
+  State<_HoldOff> createState() => _HoldOffState();
+}
+
+class _HoldOffState extends State<_HoldOff> {
+  late final Timer _timer;
+  bool _shown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(widget.delay, () => setState(() => _shown = true));
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _shown ? widget.child : const SizedBox.shrink();
 }
 
 /// [phrases], one at a time from any: a caret types each out from the
@@ -113,15 +151,15 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
   // Times in milliseconds.
 
   /// The caret alone at the start, before the first letter.
-  static const _lead = 140;
+  static const _lead = 60;
 
   /// A letter's time to fade in, and the caret's to glide past it.
-  static const _fadeIn = 110;
-  static const _glide = 70;
+  static const _fadeIn = 70;
+  static const _glide = 40;
 
   /// The caret at the end of the phrase, before it has faded.
-  static const _rest = 520;
-  static const _caretFade = 220;
+  static const _rest = 320;
+  static const _caretFade = 160;
 
   /// A dot every step, three to a round, faded out at its end.
   static const _dotStep = 400;
@@ -174,7 +212,7 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
     if (_controller.isAnimating) _start();
   }
 
-  /// Shows [index] next, typed out: a letter every 30 to 70ms, a beat longer
+  /// Shows [index] next, typed out: a letter every 12 to 28ms, a beat longer
   /// after a space.
   void _pick(int index) {
     _shown = index;
@@ -182,7 +220,7 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
     var at = _lead;
     for (var i = 0; i < _phrase.length; i++) {
       typed.add(at);
-      at += 30 + _random.nextInt(40) + (_phrase[i] == ' ' ? 50 : 0);
+      at += 12 + _random.nextInt(16) + (_phrase[i] == ' ' ? 25 : 0);
     }
     _typed = typed;
   }

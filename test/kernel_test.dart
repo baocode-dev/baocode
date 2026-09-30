@@ -1260,7 +1260,9 @@ void main() {
       // Between its blocks, nothing streaming: it is at work still.
       expect(
         last(),
-        isA<LiveStatusItem>().having((i) => i.whimsical, 'whimsical', isTrue),
+        isA<LiveStatusItem>()
+            .having((i) => i.whimsical, 'whimsical', isTrue)
+            .having((i) => i.delay, 'delay', Duration.zero),
       );
 
       await push(status('compacting'));
@@ -1279,6 +1281,29 @@ void main() {
           (i) => i.label,
           'label',
           'Planning next move',
+        ),
+      );
+
+      // After its text, the row holds off: a tool or the turn's end most
+      // often follows at once.
+      await stream({
+        'type': 'content_block_start',
+        'index': 1,
+        'content_block': {'type': 'text', 'text': ''},
+      });
+      await stream({
+        'type': 'content_block_delta',
+        'index': 1,
+        'delta': {'type': 'text_delta', 'text': 'Looking.'},
+      });
+      expect(last(), isA<AssistantTextItem>());
+      await stream({'type': 'content_block_stop', 'index': 1});
+      expect(
+        last(),
+        isA<LiveStatusItem>().having(
+          (i) => i.delay,
+          'delay',
+          ChatSession.afterTextDelay,
         ),
       );
 

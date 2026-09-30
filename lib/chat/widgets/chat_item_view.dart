@@ -124,10 +124,8 @@ class ChatItemView extends StatelessWidget {
         expanded: expanded,
         onToggle: onToggle,
       ),
-      LiveStatusItem(:final label, :final whimsical) => ActivityRow(
-        label: label,
-        whimsical: whimsical,
-      ),
+      LiveStatusItem(:final label, :final whimsical, :final delay) =>
+        ActivityRow(label: label, whimsical: whimsical, delay: delay),
     };
   }
 }
