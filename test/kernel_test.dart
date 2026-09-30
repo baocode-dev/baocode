@@ -1191,7 +1191,7 @@ void main() {
       kernel.dispose();
     });
 
-    test('a status row shows while the agent works out of sight', () async {
+    test('a status row stays at the end all through a turn', () async {
       final cli = FakeCli();
       final descriptor = KernelDescriptor(
         id: 'claude-code',
@@ -1210,6 +1210,7 @@ void main() {
         historyCount: 0,
       );
       ChatItem last() => session.itemAt(session.itemCount - 1);
+      ChatItem beforeLast() => session.itemAt(session.itemCount - 2);
       Future<void> push(Map<String, Object?> message) async {
         cli.push(message);
         await pumpEventQueue();
@@ -1247,22 +1248,21 @@ void main() {
       expect(last(), isA<LiveStatusItem>());
       await Future<void>.delayed(const Duration(milliseconds: 20));
       final blockAt = DateTime.now();
-      // Its thought shows instead, timed from the message's start.
+      // Its thought shows above it, timed from the message's start.
       await stream({
         'type': 'content_block_start',
         'index': 0,
         'content_block': {'type': 'thinking', 'thinking': ''},
       });
-      final started = (last() as ThinkingItem).startedAt!;
+      expect(last(), isA<LiveStatusItem>());
+      final started = (beforeLast() as ThinkingItem).startedAt!;
       expect(started.isBefore(begun), isFalse);
       expect(started.isBefore(blockAt), isTrue);
       await stream({'type': 'content_block_stop', 'index': 0});
-      // Between its blocks, nothing streaming: it is at work still.
+      // Between its blocks it is at work still.
       expect(
         last(),
-        isA<LiveStatusItem>()
-            .having((i) => i.whimsical, 'whimsical', isTrue)
-            .having((i) => i.delay, 'delay', Duration.zero),
+        isA<LiveStatusItem>().having((i) => i.whimsical, 'whimsical', isTrue),
       );
 
       await push(status('compacting'));
@@ -1284,8 +1284,7 @@ void main() {
         ),
       );
 
-      // After its text, the row holds off: a tool or the turn's end most
-      // often follows at once.
+      // Its text too shows above it.
       await stream({
         'type': 'content_block_start',
         'index': 1,
@@ -1296,18 +1295,12 @@ void main() {
         'index': 1,
         'delta': {'type': 'text_delta', 'text': 'Looking.'},
       });
-      expect(last(), isA<AssistantTextItem>());
+      expect(last(), isA<LiveStatusItem>());
+      expect(beforeLast(), isA<AssistantTextItem>());
       await stream({'type': 'content_block_stop', 'index': 1});
-      expect(
-        last(),
-        isA<LiveStatusItem>().having(
-          (i) => i.delay,
-          'delay',
-          ChatSession.afterTextDelay,
-        ),
-      );
+      expect(last(), isA<LiveStatusItem>());
 
-      // A tool at work shows itself; once it is done, the row is back.
+      // And a tool at work, and done.
       await push({
         'type': 'assistant',
         'parent_tool_use_id': null,
@@ -1324,8 +1317,9 @@ void main() {
           ],
         },
       });
+      expect(last(), isA<LiveStatusItem>());
       expect(
-        last(),
+        beforeLast(),
         isA<ToolCallItem>().having(
           (i) => i.status,
           'status',
@@ -1343,6 +1337,14 @@ void main() {
         },
       });
       expect(last(), isA<LiveStatusItem>());
+      expect(
+        beforeLast(),
+        isA<ToolCallItem>().having(
+          (i) => i.status,
+          'status',
+          ToolStatus.succeeded,
+        ),
+      );
 
       await push(status('requesting'));
       await push({'type': 'result', 'subtype': 'success', 'is_error': false});

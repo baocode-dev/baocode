@@ -540,29 +540,6 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('a status row with a delay shows nothing until it has passed', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: ActivityRow(
-            label: 'Planning next move',
-            delay: Duration(milliseconds: 1500),
-          ),
-        ),
-      ),
-    );
-    expect(find.byType(ThinkingSpark), findsNothing);
-    await tester.pump(const Duration(milliseconds: 1499));
-    expect(find.byType(ThinkingSpark), findsNothing);
-    await tester.pump(const Duration(milliseconds: 1));
-    expect(find.byType(ThinkingSpark), findsOneWidget);
-    // Begun from there: the caret at the start.
-    expect(caret, findsOneWidget);
-    await tester.pumpWidget(const SizedBox());
-  });
-
   testWidgets('the status row is still, and whole, where motion is turned '
       'down', (tester) async {
     await tester.pumpWidget(
