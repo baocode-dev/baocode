@@ -82,6 +82,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     int historyCount = MockConversation.itemCount,
     List<FileChange> changes = const [],
     ContextUsage? usage,
+    this.quietAfterText = const Duration(seconds: 5),
   }) : kernels = kernels ?? KernelRegistry.all {
     _transcript = Transcript(
       historyCount: historyCount,
@@ -97,6 +98,11 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   /// Where its kernel works, and the session it continues.
   final KernelContext kernelContext;
+
+  /// How long the status row keeps hidden after the agent's text, with
+  /// nothing new: the text is most often followed at once, by a tool or the
+  /// turn's end, and the row would only flash.
+  final Duration quietAfterText;
 
   /// What is typed in its composer and not sent, while another
   /// conversation shows.
@@ -124,9 +130,28 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   void _apply(KernelEvent event) {
     if (event is KernelInfoChanged || _transcript.apply(event)) {
       _cache.clear();
+      _timeQuiet();
       notifyListeners();
     }
   }
+
+  Timer? _quietTimer;
+  bool _quiet = false;
+
+  /// Times the quiet after the agent's text, anew on every change.
+  void _timeQuiet() {
+    _quietTimer?.cancel();
+    _quiet = false;
+    if (!isStreaming || _last is! AssistantTextItem) return;
+    _quietTimer = Timer(quietAfterText, () {
+      _quiet = true;
+      notifyListeners();
+    });
+  }
+
+  ChatItem? get _last => _transcript.length == 0
+      ? null
+      : _transcript.itemAt(_transcript.length - 1);
 
   // --- The kernel -------------------------------------------------------------
 
@@ -351,35 +376,38 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   int get lastTurnEndSeq => _transcript.lastTurnEndSeq;
 
   /// The history, and a status row at its end while a turn runs: the agent
-  /// is live, whatever it shows. Not while it waits on the user.
+  /// is live. Hidden (but there, to come and go smoothly) where something
+  /// else says so, or it would only flash.
   @override
-  int get itemCount => _transcript.length + (_activity == null ? 0 : 1);
+  int get itemCount => _transcript.length + (isStreaming ? 1 : 0);
 
   @override
   ChatItem itemAt(int index) {
     if (index < _transcript.length) return _transcript.itemAt(index);
-    return switch (_activity!) {
-      KernelActivityKind.waiting => const LiveStatusItem(
+    // Waiting on its model unless its kernel says otherwise.
+    return switch (_transcript.activity?.kind) {
+      KernelActivityKind.compacting => LiveStatusItem(
+        'Compacting conversation',
+        visible: _statusVisible,
+      ),
+      _ => LiveStatusItem(
         'Planning next move',
         whimsical: true,
-      ),
-      KernelActivityKind.compacting => const LiveStatusItem(
-        'Compacting conversation',
+        visible: _statusVisible,
       ),
     };
   }
 
-  /// Waiting on its model unless its kernel says otherwise. Not after a
-  /// thought under way, which says so itself.
-  KernelActivityKind? get _activity {
-    if (!isStreaming || pendingInteraction != null) return null;
-    final last = _transcript.length - 1;
-    if (last >= 0 &&
-        _transcript.itemAt(last) is ThinkingItem &&
-        _transcript.isStreamingAt(last)) {
-      return null;
-    }
-    return _transcript.activity?.kind ?? KernelActivityKind.waiting;
+  /// Not while the agent waits on the user; nor after a thought under way,
+  /// which says so itself; nor after its text, unless all has been quiet
+  /// for [quietAfterText].
+  bool get _statusVisible {
+    if (pendingInteraction != null) return false;
+    return switch (_last) {
+      ThinkingItem() => !_transcript.isStreamingAt(_transcript.length - 1),
+      AssistantTextItem() => _quiet,
+      _ => true,
+    };
   }
 
   /// Tasks running beside the conversation, gone once they end (their
@@ -575,6 +603,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   @override
   void dispose() {
     _disposed = true;
+    _quietTimer?.cancel();
     unawaited(_subscription?.cancel());
     _kernel.dispose();
     super.dispose();

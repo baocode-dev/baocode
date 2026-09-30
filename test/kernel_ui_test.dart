@@ -540,6 +540,52 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('the status row opens and fades in, and folds and fades out', (
+    tester,
+  ) async {
+    Future<void> show(bool visible) => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              ActivityRow(label: 'Planning next move', visible: visible),
+            ],
+          ),
+        ),
+      ),
+    );
+    final row = find.byType(ActivityRow);
+    double height() => tester.getSize(row).height;
+    double opacity() => tester
+        .widget<FadeTransition>(
+          find.descendant(of: row, matching: find.byType(FadeTransition)),
+        )
+        .opacity
+        .value;
+
+    await show(false);
+    expect(find.byType(ThinkingSpark), findsNothing);
+    expect(height(), 0);
+
+    await show(true);
+    await tester.pump(const Duration(milliseconds: 100));
+    final opening = height();
+    expect(opening, greaterThan(0));
+    expect(opacity(), inExclusiveRange(0, 1));
+    await tester.pump(const Duration(milliseconds: 200));
+    final open = height();
+    expect(open, greaterThan(opening));
+    expect(opacity(), 1);
+
+    await show(false);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(height(), inExclusiveRange(0, open));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byType(ThinkingSpark), findsNothing);
+    expect(height(), 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('the status row is still, and whole, where motion is turned '
       'down', (tester) async {
     await tester.pumpWidget(

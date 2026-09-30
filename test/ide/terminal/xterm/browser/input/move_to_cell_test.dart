@@ -22,16 +22,10 @@ void main() {
 
     group('normal buffer', () {
       test('should use the right directional escape sequences', () {
-        expect(
-          moveToCellSequence(1, 3, bufferService, false),
-          '\x1b[D\x1b[D',
-        );
+        expect(moveToCellSequence(1, 3, bufferService, false), '\x1b[D\x1b[D');
         expect(moveToCellSequence(2, 3, bufferService, false), '\x1b[D');
         expect(moveToCellSequence(4, 3, bufferService, false), '\x1b[C');
-        expect(
-          moveToCellSequence(5, 3, bufferService, false),
-          '\x1b[C\x1b[C',
-        );
+        expect(moveToCellSequence(5, 3, bufferService, false), '\x1b[C\x1b[C');
       });
       test(
         'should wrap around entire row instead of doing up and down when the '
@@ -56,18 +50,9 @@ void main() {
           expect(moveToCellSequence(5, 4, bufferService, false), _times(r, 7));
           expect(moveToCellSequence(1, 5, bufferService, false), _times(r, 8));
           expect(moveToCellSequence(2, 5, bufferService, false), _times(r, 9));
-          expect(
-            moveToCellSequence(3, 5, bufferService, false),
-            _times(r, 10),
-          );
-          expect(
-            moveToCellSequence(4, 5, bufferService, false),
-            _times(r, 11),
-          );
-          expect(
-            moveToCellSequence(5, 5, bufferService, false),
-            _times(r, 12),
-          );
+          expect(moveToCellSequence(3, 5, bufferService, false), _times(r, 10));
+          expect(moveToCellSequence(4, 5, bufferService, false), _times(r, 11));
+          expect(moveToCellSequence(5, 5, bufferService, false), _times(r, 12));
         },
       );
       test('should use the correct character for application cursor', () {
@@ -90,10 +75,7 @@ void main() {
       });
 
       test('should move the cursor across rows', () {
-        expect(
-          moveToCellSequence(4, 4, bufferService, false),
-          '\x1b[B\x1b[C',
-        );
+        expect(moveToCellSequence(4, 4, bufferService, false), '\x1b[B\x1b[C');
       });
     });
   });

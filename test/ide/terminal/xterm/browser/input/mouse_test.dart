@@ -75,7 +75,8 @@ void main() {
       expect(
         coords,
         equals([10, 10]),
-        reason: 'coordinates should never come back as larger than the '
+        reason:
+            'coordinates should never come back as larger than the '
             'terminal',
       );
     });

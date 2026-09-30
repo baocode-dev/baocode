@@ -129,45 +129,33 @@ void main() {
         model.selectionEnd = [2, 1];
         expect(model.finalSelectionEnd, equals([4, 2]));
       });
-      test(
-        'should return selection start + length if selection end is inside '
-        'the start selection',
-        () {
-          model.selectionStart = [2, 2];
-          model.selectionStartLength = 2;
-          model.selectionEnd = [3, 2];
-          expect(model.finalSelectionEnd, equals([4, 2]));
-        },
-      );
-      test(
-        'should return the end on a different row when start + length '
-        'overflows onto a following row',
-        () {
-          model.selectionStart = [78, 2];
-          model.selectionStartLength = 4;
-          expect(model.finalSelectionEnd, equals([2, 3]));
-        },
-      );
-      test(
-        'should return the end on a different row when start + length '
-        'overflows onto a following row with selectionEnd inbetween',
-        () {
-          model.selectionStart = [78, 2];
-          model.selectionEnd = [79, 2];
-          model.selectionStartLength = 4;
-          expect(model.finalSelectionEnd, equals([2, 3]));
-        },
-      );
-      test(
-        'should return selection end if selection end is after selection '
-        'start + length',
-        () {
-          model.selectionStart = [2, 2];
-          model.selectionStartLength = 2;
-          model.selectionEnd = [5, 2];
-          expect(model.finalSelectionEnd, equals([5, 2]));
-        },
-      );
+      test('should return selection start + length if selection end is inside '
+          'the start selection', () {
+        model.selectionStart = [2, 2];
+        model.selectionStartLength = 2;
+        model.selectionEnd = [3, 2];
+        expect(model.finalSelectionEnd, equals([4, 2]));
+      });
+      test('should return the end on a different row when start + length '
+          'overflows onto a following row', () {
+        model.selectionStart = [78, 2];
+        model.selectionStartLength = 4;
+        expect(model.finalSelectionEnd, equals([2, 3]));
+      });
+      test('should return the end on a different row when start + length '
+          'overflows onto a following row with selectionEnd inbetween', () {
+        model.selectionStart = [78, 2];
+        model.selectionEnd = [79, 2];
+        model.selectionStartLength = 4;
+        expect(model.finalSelectionEnd, equals([2, 3]));
+      });
+      test('should return selection end if selection end is after selection '
+          'start + length', () {
+        model.selectionStart = [2, 2];
+        model.selectionStartLength = 2;
+        model.selectionEnd = [5, 2];
+        expect(model.finalSelectionEnd, equals([5, 2]));
+      });
       test(
         'should not include a trailing EOL when the selection ends at the end '
         'of a line',

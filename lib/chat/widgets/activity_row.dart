@@ -17,11 +17,15 @@ class ActivityRow extends StatelessWidget {
     super.key,
     required this.label,
     this.whimsical = false,
+    this.visible = true,
     this.random,
   });
 
   final String label;
   final bool whimsical;
+
+  /// Whether it shows: it opens and fades in, or folds and fades out.
+  final bool visible;
 
   /// Picks the phrases; tests seed it.
   final math.Random? random;
@@ -72,6 +76,10 @@ class ActivityRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _Reveal(visible: visible, child: _row());
+  }
+
+  Widget _row() {
     return Align(
       alignment: Alignment.centerLeft,
       // Lined up with the steps around it.
@@ -88,6 +96,74 @@ class ActivityRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// [child] opening and fading in while [visible], folding and fading out
+/// while not; not built at all once folded, so it begins anew each time it
+/// shows. At once where motion is turned down.
+class _Reveal extends StatefulWidget {
+  const _Reveal({required this.visible, required this.child});
+
+  final bool visible;
+  final Widget child;
+
+  @override
+  State<_Reveal> createState() => _RevealState();
+}
+
+class _RevealState extends State<_Reveal> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
+  late final Animation<double> _eased = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _follow();
+  }
+
+  @override
+  void didUpdateWidget(_Reveal old) {
+    super.didUpdateWidget(old);
+    if (old.visible != widget.visible) _follow();
+  }
+
+  void _follow() {
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.value = widget.visible ? 1 : 0;
+    } else if (widget.visible) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) => _controller.isDismissed
+          ? const SizedBox(width: double.infinity)
+          : SizeTransition(
+              sizeFactor: _eased,
+              alignment: Alignment.topLeft,
+              child: FadeTransition(opacity: _eased, child: child),
+            ),
+      child: widget.child,
     );
   }
 }

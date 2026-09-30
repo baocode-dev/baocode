@@ -26,28 +26,22 @@ void main() {
       expect(bracketedText, '\x1b[200~foo bar\x1b[201~');
     });
 
-    test(
-      'should escape embedded escape sequences in pasted text only when '
-      'bracketed',
-      () {
-        const escSymbol = '␛';
-        const pastedText = '\x1b[201~foo\x1b[200~bar';
-        final unbracketedText = clipboard.bracketTextForPaste(
-          pastedText,
-          false,
-        );
-        final bracketedText = clipboard.bracketTextForPaste(pastedText, true);
+    test('should escape embedded escape sequences in pasted text only when '
+        'bracketed', () {
+      const escSymbol = '␛';
+      const pastedText = '\x1b[201~foo\x1b[200~bar';
+      final unbracketedText = clipboard.bracketTextForPaste(pastedText, false);
+      final bracketedText = clipboard.bracketTextForPaste(pastedText, true);
 
-        expect(
-          unbracketedText,
-          pastedText,
-          reason: 'non bracketed paste should remain unchanged',
-        );
-        expect(
-          bracketedText,
-          '\x1b[200~$escSymbol[201~foo$escSymbol[200~bar\x1b[201~',
-        );
-      },
-    );
+      expect(
+        unbracketedText,
+        pastedText,
+        reason: 'non bracketed paste should remain unchanged',
+      );
+      expect(
+        bracketedText,
+        '\x1b[200~$escSymbol[201~foo$escSymbol[200~bar\x1b[201~',
+      );
+    });
   });
 }

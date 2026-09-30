@@ -1191,7 +1191,8 @@ void main() {
       kernel.dispose();
     });
 
-    test('a status row stays at the end all through a turn', () async {
+    test('a status row stays at the end all through a turn, hidden where '
+        'something else says so', () async {
       final cli = FakeCli();
       final descriptor = KernelDescriptor(
         id: 'claude-code',
@@ -1208,9 +1209,12 @@ void main() {
         kernel: descriptor,
         kernels: [descriptor],
         historyCount: 0,
+        quietAfterText: const Duration(milliseconds: 200),
       );
       ChatItem last() => session.itemAt(session.itemCount - 1);
       ChatItem beforeLast() => session.itemAt(session.itemCount - 2);
+      Matcher row({required bool visible}) =>
+          isA<LiveStatusItem>().having((i) => i.visible, 'visible', visible);
       Future<void> push(Map<String, Object?> message) async {
         cli.push(message);
         await pumpEventQueue();
@@ -1255,11 +1259,13 @@ void main() {
         'index': 0,
         'content_block': {'type': 'thinking', 'thinking': ''},
       });
-      final started = (last() as ThinkingItem).startedAt!;
+      expect(last(), row(visible: false));
+      final started = (beforeLast() as ThinkingItem).startedAt!;
       expect(started.isBefore(begun), isFalse);
       expect(started.isBefore(blockAt), isTrue);
       await stream({'type': 'content_block_stop', 'index': 0});
       // Between its blocks it is at work still.
+      expect(last(), row(visible: true));
       expect(
         last(),
         isA<LiveStatusItem>().having((i) => i.whimsical, 'whimsical', isTrue),
@@ -1284,7 +1290,8 @@ void main() {
         ),
       );
 
-      // Its text too shows above it.
+      // Its text shows above it, hidden: most often something follows at
+      // once. Unless all is quiet for a while.
       await stream({
         'type': 'content_block_start',
         'index': 1,
@@ -1295,10 +1302,17 @@ void main() {
         'index': 1,
         'delta': {'type': 'text_delta', 'text': 'Looking.'},
       });
-      expect(last(), isA<LiveStatusItem>());
+      expect(last(), row(visible: false));
       expect(beforeLast(), isA<AssistantTextItem>());
       await stream({'type': 'content_block_stop', 'index': 1});
-      expect(last(), isA<LiveStatusItem>());
+      expect(last(), row(visible: false));
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      // More of anything times it anew.
+      await push(status('requesting'));
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(last(), row(visible: false));
+      await Future<void>.delayed(const Duration(milliseconds: 160));
+      expect(last(), row(visible: true));
 
       // And a tool at work, and done.
       await push({
@@ -1317,7 +1331,7 @@ void main() {
           ],
         },
       });
-      expect(last(), isA<LiveStatusItem>());
+      expect(last(), row(visible: true));
       expect(
         beforeLast(),
         isA<ToolCallItem>().having(
@@ -1336,7 +1350,7 @@ void main() {
           ],
         },
       });
-      expect(last(), isA<LiveStatusItem>());
+      expect(last(), row(visible: true));
       expect(
         beforeLast(),
         isA<ToolCallItem>().having(

@@ -317,10 +317,7 @@ void main() {
     await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
     await tester.pump();
     final list = find.byType(SuperListView);
-    final position = tester
-        .widget<SuperListView>(list)
-        .controller!
-        .position;
+    final position = tester.widget<SuperListView>(list).controller!.position;
     // A quick two-finger swipe (a pan gesture on macOS, no wheel signal),
     // then its fling.
     Future<void> swipe(double dy) async {
@@ -355,12 +352,14 @@ void main() {
     await swipe(-60);
     expect(position.pixels, position.maxScrollExtent);
     expect(
-      tester.widget<AnimatedOpacity>(
-        find.ancestor(
-          of: find.byIcon(Icons.arrow_downward_rounded),
-          matching: find.byType(AnimatedOpacity),
-        ),
-      ).opacity,
+      tester
+          .widget<AnimatedOpacity>(
+            find.ancestor(
+              of: find.byIcon(Icons.arrow_downward_rounded),
+              matching: find.byType(AnimatedOpacity),
+            ),
+          )
+          .opacity,
       0,
     );
   });

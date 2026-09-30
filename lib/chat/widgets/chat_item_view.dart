@@ -124,10 +124,8 @@ class ChatItemView extends StatelessWidget {
         expanded: expanded,
         onToggle: onToggle,
       ),
-      LiveStatusItem(:final label, :final whimsical) => ActivityRow(
-        label: label,
-        whimsical: whimsical,
-      ),
+      LiveStatusItem(:final label, :final whimsical, :final visible) =>
+        ActivityRow(label: label, whimsical: whimsical, visible: visible),
     };
   }
 }
@@ -216,7 +214,7 @@ String chatItemPlainText(ChatItem item, {bool expanded = false}) {
             DiffLineType.context => ' ',
           }} ${line.text}',
     ].join('\n'),
-    LiveStatusItem(:final label) => label,
+    LiveStatusItem(:final label, :final visible) => visible ? label : '',
   };
 }
 

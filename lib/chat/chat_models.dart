@@ -287,15 +287,22 @@ class CodeDiffItem extends ChatItem {
 }
 
 /// Row at the end of a live turn, all through it: the agent at work, e.g.
-/// "Planning next move", or "Compacting conversation".
+/// "Planning next move", or "Compacting conversation". Hidden at times.
 class LiveStatusItem extends ChatItem {
-  const LiveStatusItem(this.label, {this.whimsical = false});
+  const LiveStatusItem(
+    this.label, {
+    this.whimsical = false,
+    this.visible = true,
+  });
 
   final String label;
 
   /// Whether the wait has nothing to name (the model yet to answer, not a
   /// chore like compacting): the row may muse rather than say [label].
   final bool whimsical;
+
+  /// Whether it shows now: it stays through the turn, and comes and goes.
+  final bool visible;
 }
 
 /// A file an agent changed, with its line counts.
