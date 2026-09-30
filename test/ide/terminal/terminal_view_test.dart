@@ -105,6 +105,103 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pump();
 }
 
+/// The Windows engine's text input (text_input_plugin.cc and the common
+/// text_input_model.cc) as far as input methods go: it keeps the input's
+/// text, reports each change, and what the view sets arrives when
+/// [receive]d, after the messages the system sent meanwhile.
+class _WindowsInput {
+  _WindowsInput(this.tester) : _received = tester.testTextInput.log.length;
+
+  final WidgetTester tester;
+  int _received;
+  var _text = '';
+  var _selection = 0;
+  var _composing = false;
+  var _start = 0;
+  var _end = 0;
+
+  /// WM_IME_STARTCOMPOSITION.
+  void begin() {
+    _composing = true;
+    _start = _end = _selection;
+    _send();
+  }
+
+  /// WM_IME_COMPOSITION with the composition string, the cursor at its end.
+  void change(String text) {
+    _add(text);
+    // UpdateComposingText: with no composing range, it replaces the
+    // selection.
+    if (text.isNotEmpty || _start != _end) {
+      _text = _start == _end
+          ? _text.replaceRange(_selection, _selection, text)
+          : _text.replaceRange(_start, _end, text);
+      _end = _start + text.length;
+      _selection = _end;
+    }
+    _send();
+  }
+
+  /// WM_IME_COMPOSITION with a result string: committed, still composing,
+  /// and not reported.
+  void commit() {
+    if (_start == _end) return;
+    _start = _end;
+    _selection = _end;
+  }
+
+  /// WM_IME_ENDCOMPOSITION.
+  void end() {
+    commit();
+    _composing = false;
+    _start = _end = 0;
+    _send();
+  }
+
+  /// WM_CHAR, typed without an input method.
+  void type(String text) {
+    _add(text);
+    _send();
+  }
+
+  /// What the view set arrives: SetText ends composing, so the composing
+  /// range it sets (read from its base alone) is not taken.
+  void receive() {
+    final log = tester.testTextInput.log;
+    for (final call in log.skip(_received)) {
+      if (call.method != 'TextInput.setEditingState') continue;
+      final state = call.arguments as Map;
+      final base = state['selectionBase'] as int;
+      _text = state['text'] as String;
+      _selection = base == -1 ? 0 : base;
+      _composing = false;
+      _start = _end = 0;
+    }
+    _received = log.length;
+  }
+
+  /// AddText.
+  void _add(String text) {
+    if (_composing) {
+      _text = _text.replaceRange(_start, _end, '');
+      _selection = _start;
+      _end = _start + text.length;
+    }
+    _text = _text.replaceRange(_selection, _selection, text);
+    _selection += text.length;
+  }
+
+  void _send() => tester.testTextInput.updateEditingValue(
+    TextEditingValue(
+      text: _text,
+      selection: TextSelection.collapsed(offset: _selection),
+      composing: _composing
+          ? TextRange(start: _start, end: _end)
+          : TextRange.empty,
+    ),
+  );
+}
+
 /// The system clipboard: what was copied, and what a paste reads.
 ({List<String> copied, void Function(String) set}) _clipboard(
   WidgetTester tester,
@@ -254,6 +351,83 @@ void main() {
     );
     await tester.pump();
     expect(pty.written, '\r\x03ls你');
+  });
+
+  testWidgets('on Windows, what an input method composes goes to the '
+      'process once, as it commits it', (tester) async {
+    final (:terminal, :pty) = await _show(tester);
+    await _focus(tester, terminal);
+    final input = _WindowsInput(tester);
+
+    // Microsoft Pinyin: each key's messages come before what the view sets
+    // in answer. The composition begins with an empty range.
+    input
+      ..begin()
+      ..change('c');
+    await tester.pump();
+    input
+      ..receive()
+      ..change("c'd");
+    await tester.pump();
+    input.receive();
+    expect(pty.written, '');
+    expect(find.text("c'd"), findsOneWidget);
+
+    // A candidate is chosen.
+    input
+      ..change('菜单')
+      ..commit()
+      ..end();
+    await tester.pump();
+    input.receive();
+    expect(pty.written, '菜单');
+    expect(find.text('菜单'), findsNothing);
+
+    input.type('l');
+    input.type('s');
+    await tester.pump();
+    input.receive();
+    expect(pty.written, '菜单ls');
+
+    // Korean commits a syllable as the next begins.
+    input
+      ..begin()
+      ..change('한')
+      ..commit()
+      ..change('ㄱ');
+    await tester.pump();
+    input.receive();
+    expect(pty.written, '菜单ls한');
+    expect(find.text('ㄱ'), findsOneWidget);
+    input
+      ..change('글')
+      ..end();
+    await tester.pump();
+    input.receive();
+    expect(pty.written, '菜单ls한글');
+  });
+
+  testWidgets('the input is emptied once long, and what it reports before '
+      'the emptying arrives goes to the process once', (tester) async {
+    final (:terminal, :pty) = await _show(tester);
+    await _focus(tester, terminal);
+    final input = _WindowsInput(tester);
+    List<MethodCall> emptied() => tester.testTextInput.log
+        .where((call) => call.method == 'TextInput.setEditingState')
+        .toList();
+    final before = emptied().length;
+
+    final long = 'x' * 10000;
+    input.type(long);
+    await tester.pump();
+    expect(emptied(), hasLength(before + 1));
+    input.type('y');
+    await tester.pump();
+    input
+      ..receive()
+      ..type('z');
+    await tester.pump();
+    expect(pty.written, '${long}yz');
   });
 
   testWidgets('the workbench\'s keys skip the shell', (tester) async {

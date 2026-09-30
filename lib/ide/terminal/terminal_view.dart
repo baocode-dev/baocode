@@ -88,6 +88,11 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   final _findFocus = FocusNode(debugLabel: 'terminal find');
   TextInputConnection? _input;
   TextEditingValue _value = TextEditingValue.empty;
+
+  // How much of the input's text has gone to the process, and the text
+  // the input had when it was last emptied, until it reports it emptied.
+  int _taken = 0;
+  String? _emptied;
   MouseCursor _cursor = SystemMouseCursors.text;
 
   // The key being handled, for the skip-shell check.
@@ -287,6 +292,8 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
       );
     }
     _value = TextEditingValue.empty;
+    _taken = 0;
+    _emptied = null;
     _input!.setEditingState(_value);
     _input!.show();
     _instance.keyboard.textInputAttached = true;
@@ -322,25 +329,49 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   @override
   AutofillScope? get currentAutofillScope => null;
 
+  /// How long the input's text grows before the terminal empties it.
+  static const _inputLimit = 4096;
+
   @override
   void updateEditingValue(TextEditingValue value) {
     if (_input?.attached != true) return;
     final keyboard = _instance.keyboard;
+    final text = value.text;
     final composing = value.composing;
-    if (composing.isValid && !composing.isCollapsed) {
-      // Composing: shown over the cursor until the input method commits.
-      _value = value;
-      keyboard.isComposing = true;
-      _render.composition = composing.textInside(value.text);
-      _updateInputGeometry();
-      return;
+    final emptied = _emptied;
+    if (emptied != null && !text.startsWith(emptied)) {
+      _emptied = null;
+      _taken = 0;
     }
-    keyboard.isComposing = false;
-    _render.composition = null;
-    if (value.text.isNotEmpty) keyboard.handleTextInput(value.text);
-    // Nothing stays in the input: the terminal has it.
-    _value = TextEditingValue.empty;
-    _input!.setEditingState(_value);
+    // What the input method committed goes to the process: the text before
+    // what it composes (Korean commits a syllable and composes on), or all.
+    final committed = composing.isValid
+        ? composing.start.clamp(0, text.length)
+        : text.length;
+    if (committed > _taken) {
+      keyboard.handleTextInput(text.substring(_taken, committed));
+    }
+    _taken = committed;
+    _value = value;
+    // Composing: shown over the cursor until the input method commits.
+    // Windows reports a composition as it begins, its range still empty.
+    final composition = composing.isValid && !composing.isCollapsed
+        ? composing.textInside(text)
+        : null;
+    keyboard.isComposing = composition != null;
+    _render.composition = composition;
+    if (composition != null) {
+      _updateInputGeometry();
+    } else if (!composing.isValid &&
+        _emptied == null &&
+        text.length >= _inputLimit) {
+      // Emptied only when long: setting the input ends the composition an
+      // input method may have begun meanwhile (the Windows engine's does),
+      // and what it reports before the emptying arrives still has the text.
+      _emptied = text;
+      _value = TextEditingValue.empty;
+      _input!.setEditingState(_value);
+    }
   }
 
   @override

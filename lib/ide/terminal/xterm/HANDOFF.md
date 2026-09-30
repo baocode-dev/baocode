@@ -34,7 +34,7 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 - ⌘J 仍是聊天区的开关；VS Code 的“切换面板”命令保留但不绑快捷键，终端用 ⌃\` 开关。
 - 标签列表照 VS Code 默认的 `terminal.integrated.tabs.focusMode`（`doubleClick`）：单击选中，双击把键盘交给终端；重命名用 F2（macOS 上是 Enter）或右键菜单。
 - 每个 `TerminalInstance` 自己持有内核 `Terminal`、装饰服务、渲染数据源和键盘、鼠标、选择、剪贴板四个控制器；视图只在显示时接上它们。这样切到别的标签，后台终端照样解析输出，选区也保留。
-- 输入法沿用编辑器的做法（`TextInput.attach`，把光标位置报给系统），没有复用编辑器的类：编辑器的输入法逻辑写在 `EditorSurface` 的 State 里，拆不出来。组字时按键全部交给输入法，组好的字通过 `handleTextInput` 发给进程。
+- 输入法沿用编辑器的做法（`TextInput.attach`，把光标位置报给系统），没有复用编辑器的类：编辑器的输入法逻辑写在 `EditorSurface` 的 State 里，拆不出来。组字时按键全部交给输入法，组好的字通过 `handleTextInput` 发给进程。输入连接里的文字不在每次提交后清空：视图记着已经发给进程的长度，每次只发组字区之前新提交的部分（韩文每个音节提交后接着组下一个），文字超过 4096 个 UTF-16 单元、且没在组字时才清空一次，清空前引擎发出的更新靠开头仍是旧文字认出来。
 - VS Code 的 `commandsToSkipShell` 只取了这里有的命令（`terminalCommandsToSkipShell`，在 `terminal_panel.dart`）：快速打开、命令面板、切换编辑器、终端的新建、关闭、切换、聚焦，以及 ⌘J（这里是聊天区）。macOS 上所有 ⌘ 组合键本来就交给 IDE。
 - 进程退出的说明按 VS Code 的 `formatMessageForTerminal` 写进终端屏幕，不再是单独的文字控件。
 - shell 集成脚本打包成 Dart 常量（`tool/generate_shell_integration_scripts.dart` 从 VS Code 源码原样生成），启动时写到临时目录：shell 本来就要一个真实路径，用常量省掉资源注册和异步的 `rootBundle`，纯单元测试也能用。有测试核对文件名、字节数和许可头。
@@ -76,6 +76,7 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 
 - Windows 的 ConPTY 只在实机上手动用过，`test/ide/terminal/pty_windows_test.dart` 里真实进程的测试还没在 Windows 上跑过。
 - Dart VM 的采样分析器在 Windows 上会让应用闪退（Flutter 3.47.5 引擎，调试模式；桌面端的 `flutter run` 总是带 `enable-dart-profiling=true`）。分析器定时挂起每个 isolate 线程，用 `RBP` 当帧指针回溯（`ProfilerNativeStackWalker::walk`，`runtime/vm/profiler.cc:275` 的 `fp = CallerFP(fp)`）。Windows x64 在系统调用里不保证 `RBP` 是帧指针，而检查只看指针是否落在 `GetCurrentThreadStackLimits` 给出的整段保留栈里、是否 8 字节对齐；读到还没提交的页就是 `0xc0000005`。原来每个 Windows 终端有两个 isolate 一直停在 `ReadFile`、`WaitForSingleObject` 里，`ClosePseudoConsole` 也在 isolate 里等，终端一多很快就崩。本地绕开：输出和退出改由 `ConsolePoll` 在 UI isolate 上轮询（`PeekNamedPipe` 后只读已有的字节，`WaitForSingleObject(process, 0)`），有输出或刚输入时 1 ms 后再看，安静时逐次加倍到 32 ms；`ClosePseudoConsole` 作为线程入口交给 `CreateThread` 起的系统线程，Dart VM 不认识这个线程，分析器不会碰它。写输入的 isolate 保留：空闲时不占线程，只在一次写入等管道时停在 `WriteFile` 里。没有向上游报告。
+- Flutter 3.47.5 的 Windows 引擎（`text_input_plugin.cc`）：框架每次 `setEditingState` 都会结束引擎这边的组字（`SetText` 把组字标记清掉，组字区的 extent 也误读成 base），之后输入法再更新组字串，引擎会把它插两遍、并且不带组字区上报。输入法开始组字时引擎先报一个空的组字区，终端原先把它当成提交并清空输入，结果微软拼音打 “cd” 时 `c'dc'd` 直接进了 shell。本地绕开，没有向上游报告：终端不在组字期间碰输入（见“决策”里输入法一条），`test/ide/terminal/terminal_view_test.dart` 里的 `_WindowsInput` 照引擎的逻辑模拟。剩下一个很窄的时间窗：文字满 4096 后清空的那一刻，如果输入法恰好在清空消息到达引擎之前开始组字，这次组字仍会坏。
 - Linux 上如果 Dart 自己的子进程回收抢先，退出码可能读成 0。
 - fork 到 exec 之间会短暂阻塞 UI isolate。
 - Flutter 3.47 的 `OverlayPortal` 把浮层的语义节点嫁接到锚点下（traversal parent），但锚点离开语义树再回来时（侧栏收起再展开、锚点滚出视野），浮层节点不会重发；桌面端引擎公共的 `AccessibilityBridge` 用 ui::AXTree，删锚点时连浮层节点一起删了，之后每次更新都报 “Failed to update ui::AXTree … Nodes left pending”，树从此对不上。Windows 上只要有 UI Automation 客户端（输入法、讲述人等）就会开无障碍，出现在闪退之前。本地绕开，没有向上游报告：`FloatingLayer`（聊天的浮层、侧栏菜单、标题栏菜单）只在打开和关闭动画期间显示浮层入口，打开时换一个事先 `show()` 过的控制器，同一帧就能显示；锚点被裁掉时，这一帧浮层保持原样（透明度设为 0，语义不变），帧后隐藏，锚点回来再显示。`test/flutter_test_config.dart` 让每个组件测试都按桌面引擎的规则应用语义更新（`test/semantics_tree.dart`），引擎会拒绝的更新会让测试失败。
@@ -85,7 +86,7 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 
 ## 下一步
 
-- 在 Windows 实机上跑 `test/ide/terminal/pty_windows_test.dart`（`cmd.exe` 的真实进程测试，含暂停和恢复），以及 shell 集成的 pwsh 脚本。
+- 在 Windows 实机上跑 `test/ide/terminal/pty_windows_test.dart`（`cmd.exe` 的真实进程测试，含暂停和恢复），以及 shell 集成的 pwsh 脚本；用微软拼音和微软韩文输入法在终端里实际打一遍字。
 - sticky scroll 和终端补全（suggest）没做，见 PARITY 的“暂不做”。
 - 终端选项（光标样式、回滚行数、`macOptionIsMeta` 等）固定用 VS Code 的默认值（`vscodeTerminalOptions`），IDE 还没有设置入口。
 - 待决事项里的几项定下来后改相应默认值。
