@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -17,15 +16,11 @@ class ActivityRow extends StatelessWidget {
     super.key,
     required this.label,
     this.whimsical = false,
-    this.delay = Duration.zero,
     this.random,
   });
 
   final String label;
   final bool whimsical;
-
-  /// Nothing shows until it has passed.
-  final Duration delay;
 
   /// Picks the phrases; tests seed it.
   final math.Random? random;
@@ -76,7 +71,7 @@ class ActivityRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final row = Align(
+    return Align(
       alignment: Alignment.centerLeft,
       // Lined up with the steps around it.
       child: Padding(
@@ -93,40 +88,7 @@ class ActivityRow extends StatelessWidget {
         ),
       ),
     );
-    return delay == Duration.zero ? row : _HoldOff(delay, child: row);
   }
-}
-
-/// Nothing until [delay] has passed, then [child], begun from there.
-class _HoldOff extends StatefulWidget {
-  const _HoldOff(this.delay, {required this.child});
-
-  final Duration delay;
-  final Widget child;
-
-  @override
-  State<_HoldOff> createState() => _HoldOffState();
-}
-
-class _HoldOffState extends State<_HoldOff> {
-  late final Timer _timer;
-  bool _shown = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer(widget.delay, () => setState(() => _shown = true));
-  }
-
-  @override
-  void dispose() {
-    _timer.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) =>
-      _shown ? widget.child : const SizedBox.shrink();
 }
 
 /// [phrases], one at a time from any: a caret types each out from the

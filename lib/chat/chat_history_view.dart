@@ -105,6 +105,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   String _editingText = '';
   List<ImageAttachment> _editingImages = const [];
   final GlobalKey _editorPlaceholderKey = GlobalKey();
+
+  /// The status row's, kept as the items before it grow in number: it
+  /// goes on where it was rather than start over.
+  final GlobalKey _statusKey = GlobalKey();
   double _editorHeight = 0;
   final Object _editorTapRegion = Object();
   GlobalKey<ChatComposerState> _editComposerKey = GlobalKey();
@@ -904,7 +908,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       index: index,
       delegate: _selectionDelegate,
       child: ChatItemView(
-        key: ValueKey(index),
+        key: item is LiveStatusItem ? _statusKey : ValueKey(index),
         item: item,
         expanded: _isExpanded(index),
         onToggle: () => _toggle(index),

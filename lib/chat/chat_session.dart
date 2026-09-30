@@ -350,29 +350,18 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// Sequence of the last turn to end, to tell whether it was seen.
   int get lastTurnEndSeq => _transcript.lastTurnEndSeq;
 
-  /// The history, and a status row after it while the agent works out of
-  /// sight: nothing it does shows (no thought or text streaming, no step
-  /// running), and it is not waiting on the user.
+  /// The history, and a status row at its end while a turn runs: the agent
+  /// is live, whatever it shows. Not while it waits on the user.
   @override
   int get itemCount => _transcript.length + (_activity == null ? 0 : 1);
-
-  /// How long the status row holds off after the agent's text.
-  static const afterTextDelay = Duration(milliseconds: 1500);
 
   @override
   ChatItem itemAt(int index) {
     if (index < _transcript.length) return _transcript.itemAt(index);
     return switch (_activity!) {
-      KernelActivityKind.waiting => LiveStatusItem(
+      KernelActivityKind.waiting => const LiveStatusItem(
         'Planning next move',
         whimsical: true,
-        // The agent's text is most often followed at once, by a tool or the
-        // turn's end.
-        delay:
-            _transcript.length > 0 &&
-                _transcript.itemAt(_transcript.length - 1) is AssistantTextItem
-            ? afterTextDelay
-            : Duration.zero,
       ),
       KernelActivityKind.compacting => const LiveStatusItem(
         'Compacting conversation',
@@ -380,34 +369,11 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     };
   }
 
-  /// Between its steps the agent waits on its model, whether or not its
-  /// kernel says so (Claude Code does only before a request's answer).
+  /// Waiting on its model unless its kernel says otherwise.
   KernelActivityKind? get _activity {
-    if (!isStreaming ||
-        pendingInteraction != null ||
-        _transcript.hasStreamingItem ||
-        _stepRunning) {
-      return null;
-    }
+    if (!isStreaming || pendingInteraction != null) return null;
     return _transcript.activity?.kind ?? KernelActivityKind.waiting;
   }
-
-  /// Whether a step of the live turn runs in sight (a tool, a command, a
-  /// subagent in the foreground): its own row shows the agent at work.
-  bool get _stepRunning => _cached(#stepRunning, () {
-    for (var i = _transcript.length - 1; i >= 0; i--) {
-      switch (_transcript.itemAt(i)) {
-        case UserMessageItem(queued: false):
-          return false;
-        case ToolCallItem(status: ToolStatus.running) ||
-            TerminalItem(status: CommandStatus.running, background: false) ||
-            AgentItem(status: CommandStatus.running, background: false):
-          return true;
-        default:
-      }
-    }
-    return false;
-  });
 
   /// Tasks running beside the conversation, gone once they end (their
   /// outcome stays on their step); null when the kernel runs none.
