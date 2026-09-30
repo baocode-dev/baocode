@@ -582,11 +582,17 @@ class _WorkbenchState extends State<Workbench> {
       );
     }
     final windowTools = !header && !embedded && place.topRight;
+    // The window's, in whichever pane is top right: they are the focused
+    // agent's (Fast Ide opens it), and a click on them leaves the focus
+    // where it is. So does closing another pane.
     final tools = [
       if (windowTools) ...[
         PinWindowButton(pinned: _pinned, onChanged: _setPinned),
         const SizedBox(width: 6),
-        OpenInEditorButton(workspace: _workspace, project: thread.project),
+        OpenInEditorButton(
+          workspace: _workspace,
+          project: (_workspace.current ?? thread).project,
+        ),
       ],
       if (!place.alone) ...[
         if (windowTools) const SizedBox(width: 6),
@@ -611,7 +617,9 @@ class _WorkbenchState extends State<Workbench> {
       leading: leading,
       trailing: tools.isEmpty
           ? null
-          : Row(mainAxisSize: MainAxisSize.min, children: tools),
+          : KeepPaneFocus(
+              child: Row(mainAxisSize: MainAxisSize.min, children: tools),
+            ),
       windowTitleBar: place.top,
       focused: place.alone || identical(thread, _workspace.current),
     );

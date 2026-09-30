@@ -248,7 +248,11 @@ class _ChatGridViewState extends State<ChatGridView> {
           LayoutId(
             id: thread,
             child: Listener(
-              onPointerDown: (_) => widget.onFocus(thread),
+              onPointerDown: (event) {
+                if (event.pointer != KeepPaneFocus._pointer) {
+                  widget.onFocus(thread);
+                }
+              },
               child: widget.paneBuilder(context, thread, _place(grid, thread)),
             ),
           ),
@@ -271,6 +275,25 @@ class _ChatGridViewState extends State<ChatGridView> {
       ],
     );
   }
+}
+
+/// Where a press does not focus the pane it is in: the window's own tools
+/// in the top right pane's title bar (which act on the focused agent, not
+/// that pane's), and a pane's close button.
+class KeepPaneFocus extends StatelessWidget {
+  const KeepPaneFocus({super.key, required this.child});
+
+  final Widget child;
+
+  /// The last press on one: the pane's own listener, an ancestor, hears it
+  /// after (and each press has a pointer of its own).
+  static int? _pointer;
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: (event) => _pointer = event.pointer,
+    child: child,
+  );
 }
 
 enum _GridPart { columnLine, rowLine, preview }

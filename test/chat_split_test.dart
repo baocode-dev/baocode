@@ -6,11 +6,13 @@ import 'package:monad/chat/chat_screen.dart';
 import 'package:monad/chat/composer/composer.dart';
 import 'package:monad/chat/widgets/markdown_view.dart';
 import 'package:monad/ide/ide_modern_ui.dart';
+import 'package:monad/ide/ide_workbench.dart';
 import 'package:monad/main.dart';
 import 'package:monad/theme/cursor_theme.dart';
 import 'package:monad/sidebar/sidebar.dart';
 import 'package:monad/workspace/chat_grid.dart';
 import 'package:monad/workspace/chat_grid_view.dart';
+import 'package:monad/workspace/editor_launcher.dart';
 import 'package:monad/workspace/open_in_editor_button.dart';
 import 'package:monad/workspace/title_bar_double_click.dart';
 import 'package:monad/workspace/workspace.dart';
@@ -317,6 +319,61 @@ void main() {
     expect(tester.getRect(pane(first)), gridRect(tester));
     expect(workspace.current!.title, first);
     expect(find.bySemanticsLabel('Close pane'), findsNothing);
+  });
+
+  testWidgets('the window\'s tools, in the top right pane, are the focused '
+      'agent\'s: a click on them, or on another pane\'s close, leaves the '
+      'focus; Fast Ide opens the focused agent', (tester) async {
+    final opened = <String>[];
+    OpenInEditorButton.launch = (editor, path) async {
+      opened.add(path);
+      return true;
+    };
+    addTearDown(() => OpenInEditorButton.launch = openInEditor);
+    final workspace = await pumpApp(tester);
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    await dropAgent(
+      tester,
+      third,
+      near(tester.getRect(pane(second)), PaneSide.bottom),
+    );
+    await tester.tapAt(tester.getRect(pane(first)).center);
+    await tester.pump();
+    final focused = workspace.current!;
+    expect(focused.title, first);
+    Finder tool(String label) => find.descendant(
+      of: pane(second),
+      matching: find.bySemanticsLabel(label),
+    );
+
+    await tester.tap(tool('Open in VS Code'));
+    await tester.pump();
+    expect(opened, [focused.project.path]);
+    expect(workspace.current, same(focused));
+
+    await tester.tap(
+      find.descendant(
+        of: pane(third),
+        matching: find.bySemanticsLabel('Close pane'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(paneTitles(tester), unorderedEquals([first, second]));
+    expect(workspace.current, same(focused));
+
+    workspace.preferredEditor = Editor.fastIde;
+    await tester.pump();
+    await tester.tap(tool('Open in Fast Ide'));
+    await tester.pump();
+    await tester.pump();
+    expect(workspace.layout, WorkspaceLayout.ide);
+    expect(workspace.current, same(focused));
+    final ide = find.byType(IdeWorkbench);
+    expect(tester.widget<IdeWorkbench>(ide).project.path, focused.project.path);
+    expect(find.descendant(of: ide, matching: pane(first)), findsOneWidget);
+    expect(opened, hasLength(1));
+    workspace.layout = WorkspaceLayout.chat;
+    await tester.pump();
   });
 
   testWidgets('the lines drag, each shared by the panes either side of it', (
