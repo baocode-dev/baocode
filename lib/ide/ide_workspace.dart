@@ -67,6 +67,11 @@ class IdeWorkspace extends ChangeNotifier {
     _ => null,
   };
 
+  /// Whether the primary side bar shows: the workbench toggles it, and on
+  /// Windows the window's header does too, the workbench having no title
+  /// bar of its own there.
+  final ValueNotifier<bool> sidebarShown = ValueNotifier(true);
+
   final Map<IdeDocument, StreamSubscription<EditorContentChangeEvent>>
   _syncing = {};
   final List<IdeDocument> _documents = [];
@@ -324,6 +329,7 @@ class IdeWorkspace extends ChangeNotifier {
     _documents.clear();
     if (_sync case final sync?) unawaited(sync.shutdown());
     git?.dispose();
+    sidebarShown.dispose();
     super.dispose();
   }
 }

@@ -1,9 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
+import '../../ide/ide_commands.dart';
 import '../../ide/ide_modern_ui.dart';
 import '../../sidebar/sidebar.dart';
+import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
 import '../back_to_chat_button.dart';
 import '../open_in_editor_button.dart';
@@ -15,10 +18,10 @@ import 'header_menu.dart';
 import 'header_menu_bar.dart';
 import 'window_buttons.dart';
 
-/// The bar the Windows app draws itself, over everything: the sidebar toggle,
-/// the menu bar, the session's tools and the window buttons (see
-/// [WindowControls.drawsHeader]); over the IDE, the way back to the chat in
-/// place of the sidebar toggle.
+/// The bar the Windows app draws itself, over everything: the menu bar, the
+/// sidebar toggle, the session's tools and the window buttons (see
+/// [WindowControls.drawsHeader]); over the IDE, the toggle is the IDE's side
+/// bar's, and the way back to the chat is on the right.
 ///
 /// It tells the window where its controls are; the window leaves those pixels
 /// to Flutter, drags itself by the rest of the strip, and runs the three
@@ -34,6 +37,7 @@ class WindowHeader extends StatefulWidget {
     required this.onOpenFolder,
     required this.onToggleContextPanel,
     this.project,
+    this.ideSidebarShown,
   });
 
   final Workspace workspace;
@@ -46,6 +50,10 @@ class WindowHeader extends StatefulWidget {
   final bool sidebarShown;
 
   final VoidCallback onToggleSidebar;
+
+  /// Over the IDE, whether its side bar shows, which the toggle flips
+  /// instead of the sidebar (the IDE workspace's `sidebarShown`).
+  final ValueNotifier<bool>? ideSidebarShown;
 
   /// The window is kept above other apps' windows.
   final bool pinned;
@@ -116,23 +124,31 @@ class _WindowHeaderState extends State<WindowHeader> {
           child: Row(
             children: [
               const SizedBox(width: 6),
-              if (!ide) ...[
-                KeyedSubtree(
-                  key: _toggle,
-                  child: SidebarIconButton(
-                    icon: Icons.view_sidebar_outlined,
-                    flip: true,
+              KeyedSubtree(
+                key: _menus,
+                child: HeaderMenuBar(items: _items),
+              ),
+              const SizedBox(width: 4),
+              KeyedSubtree(
+                key: _toggle,
+                child: switch (widget.ideSidebarShown) {
+                  final shown? when ide => ValueListenableBuilder(
+                    valueListenable: shown,
+                    builder: (context, value, _) => _sidebarToggle(
+                      shown: value,
+                      tooltip:
+                          'Toggle Primary Side Bar (${const IdeKeybinding(LogicalKeyboardKey.keyB, primary: true).label()})',
+                      onTap: () => shown.value = !value,
+                    ),
+                  ),
+                  _ => _sidebarToggle(
+                    shown: widget.sidebarShown,
                     tooltip: widget.sidebarShown
                         ? 'Hide sidebar'
                         : 'Show sidebar',
                     onTap: widget.onToggleSidebar,
                   ),
-                ),
-                const SizedBox(width: 2),
-              ],
-              KeyedSubtree(
-                key: _menus,
-                child: HeaderMenuBar(items: _items),
+                },
               ),
               const Spacer(),
               KeyedSubtree(
@@ -174,6 +190,18 @@ class _WindowHeaderState extends State<WindowHeader> {
       ),
     );
   }
+
+  /// The left side bar's toggle, in the IDE's layout icons: the icon shows
+  /// whether it is open.
+  Widget _sidebarToggle({
+    required bool shown,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) => SidebarIconButton(
+    icon: shown ? Codicons.layoutSidebarLeft : Codicons.layoutSidebarLeftOff,
+    tooltip: tooltip,
+    onTap: onTap,
+  );
 
   /// Tells the window where the header's controls are: the rest of the strip
   /// drags it, and its three buttons are the system's own to run.

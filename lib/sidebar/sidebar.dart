@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../chat/widgets/inline_rename_field.dart';
+import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
@@ -278,8 +279,7 @@ class _SidebarState extends State<Sidebar> {
         children: [
           const Spacer(),
           SidebarIconButton(
-            icon: Icons.view_sidebar_outlined,
-            flip: true,
+            icon: Codicons.layoutSidebarLeft,
             tooltip: 'Hide sidebar',
             onTap: widget.onCollapse,
           ),
@@ -918,16 +918,12 @@ class SidebarIconButton extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     this.size = 24,
-    this.flip = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
   final double size;
-
-  /// Mirrors the icon, e.g. a right-hand panel icon for a left one.
-  final bool flip;
 
   @override
   Widget build(BuildContext context) {
@@ -945,13 +941,10 @@ class SidebarIconButton extends StatelessWidget {
               color: hovered ? const Color(0x1AFFFFFF) : Colors.transparent,
               borderRadius: BorderRadius.circular(5),
             ),
-            child: Transform.flip(
-              flipX: flip,
-              child: Icon(
-                icon,
-                size: size * 0.65,
-                color: hovered ? CursorColors.text : CursorColors.textMuted,
-              ),
+            child: Icon(
+              icon,
+              size: size * 0.65,
+              color: hovered ? CursorColors.text : CursorColors.textMuted,
             ),
           ),
         ),

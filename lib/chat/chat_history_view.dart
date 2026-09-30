@@ -565,6 +565,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// scrolling beneath it.
   static const _stickyFade = 16.0;
 
+  /// How far the list scrolls while the stuck message comes in (and goes
+  /// as the next pushes it away): as far as the list's top fade reaches.
+  static const _stickyEase = 32.0;
+
   /// Which copies are built is settled after layout, with the items where
   /// the scroll put them: a frame late, but ready before any scroll brings
   /// their message to the top (the one at the top now is built in layout,
@@ -645,6 +649,29 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     return 0;
   }
 
+  /// How far in the stuck message [index] has come, 0 to 1; null while it is
+  /// not stuck. It takes over from its message in the list faded at the top
+  /// as that one was, by the list's top fade, and loses that fade as the
+  /// list scrolls on, the fade below it coming in; pushed away by the next
+  /// message, it fades at the top as the list does again.
+  double? _stickyIn(int index) {
+    final top = _stickyTop(index);
+    if (top == null) return null;
+    final list = _listKey.currentContext?.findRenderObject() as RenderBox?;
+    final message = list == null ? null : _messageTop(index, list);
+    // Not laid out: scrolled past long ago.
+    final past = message == null ? _stickyEase : _stickyInset - message;
+    return (math.min(past, _stickyEase + top) / _stickyEase).clamp(0.0, 1.0);
+  }
+
+  /// How much of the list's top fade there is: under the stuck message,
+  /// the fade below it comes in with it; the list's own is always there.
+  double _listTopFade() {
+    final cover = _stickyCover();
+    if (cover == null || cover <= 0) return 1;
+    return _stickyIn(_topTurnMessage()!) ?? 1;
+  }
+
   /// How far down the stuck message covers the list, above its fade; null
   /// while none is. Read as the list is painted, the stuck one being where
   /// [_stickyTop] puts it.
@@ -660,55 +687,63 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   Widget _buildSticky(int index) {
     final item = _feed.itemAt(index) as UserMessageItem;
+    final repaint = Listenable.merge([_scrollController, _editorMoved]);
     // A copy of the message in the list: not read out twice.
     return ExcludeSemantics(
       child: ClipRect(
-        child: _StickyFollower(
-          top: (_) => _stickyTop(index),
-          repaint: Listenable.merge([_scrollController, _editorMoved]),
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: Listener(
-              // Not in the list: pass scrolling on.
-              onPointerSignal: _forwardWheel,
-              onPointerPanZoomStart: _startEditorPan,
-              onPointerPanZoomUpdate: _updateEditorPan,
-              onPointerPanZoomEnd: _endEditorPan,
-              child: Column(
-                key: _stickyKeys.putIfAbsent(index, GlobalKey.new),
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Nothing under it: the transcript is hidden there (see
-                  // _stickyCover), not painted over, as over the window's
-                  // material no color would match the page around it.
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      _gutter,
-                      _stickyInset,
-                      _gutter,
-                      0,
-                    ),
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: widget.maxContentWidth,
-                        ),
-                        child: UserMessageBubble(
-                          key: ValueKey(('sticky', index)),
-                          text: item.text,
-                          images: item.images,
-                          onEdit: _feed.canEditMessages
-                              ? () => _startEditing(index)
-                              : null,
+        // Faded at the top as the list is, while it comes in and goes.
+        child: EdgeFadeMask(
+          top: true,
+          bottom: false,
+          topFadeAmount: () => 1 - (_stickyIn(index) ?? 1),
+          repaint: repaint,
+          child: _StickyFollower(
+            top: (_) => _stickyTop(index),
+            repaint: repaint,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Listener(
+                // Not in the list: pass scrolling on.
+                onPointerSignal: _forwardWheel,
+                onPointerPanZoomStart: _startEditorPan,
+                onPointerPanZoomUpdate: _updateEditorPan,
+                onPointerPanZoomEnd: _endEditorPan,
+                child: Column(
+                  key: _stickyKeys.putIfAbsent(index, GlobalKey.new),
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Nothing under it: the transcript is hidden there (see
+                    // _stickyCover), not painted over, as over the window's
+                    // material no color would match the page around it.
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        _gutter,
+                        _stickyInset,
+                        _gutter,
+                        0,
+                      ),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: widget.maxContentWidth,
+                          ),
+                          child: UserMessageBubble(
+                            key: ValueKey(('sticky', index)),
+                            text: item.text,
+                            images: item.images,
+                            onEdit: _feed.canEditMessages
+                                ? () => _startEditing(index)
+                                : null,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  // Where the transcript fades back in.
-                  const SizedBox(height: _stickyFade),
-                ],
+                    // Where the transcript fades back in.
+                    const SizedBox(height: _stickyFade),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1021,6 +1056,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                             // below it.
                             topCover: _stickyCover,
                             coverFade: _stickyFade,
+                            topFadeAmount: _listTopFade,
                             repaint: Listenable.merge([
                               _scrollController,
                               _editorMoved,

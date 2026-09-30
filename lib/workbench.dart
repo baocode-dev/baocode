@@ -13,6 +13,7 @@ import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
 import 'ide/lsp/language_features.dart';
 import 'sidebar/sidebar.dart';
+import 'theme/codicons.dart';
 import 'theme/cursor_theme.dart';
 import 'workspace/open_in_editor_button.dart';
 import 'workspace/pin_window_button.dart';
@@ -208,16 +209,7 @@ class _WorkbenchState extends State<Workbench> {
   Widget _buildContent(bool narrow) {
     final project = _workspace.current?.project;
     final ide = _workspace.layout == WorkspaceLayout.ide && project != null;
-    if (ide) {
-      _ideSpaces.putIfAbsent(
-        project.path,
-        () => IdeWorkspace(
-          project.path,
-          languages: widget.languagesFor?.call(project.path),
-          git: widget.gitFor?.call(project.path),
-        ),
-      );
-    }
+    if (ide) _ideSpace(project);
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -386,12 +378,28 @@ class _WorkbenchState extends State<Workbench> {
   /// window_header/): the sidebar toggle, the menus, the pin, the editor
   /// button and the window buttons, all of which are in the columns
   /// themselves elsewhere.
+  /// The IDE's workspace for [project], made the first time it is shown
+  /// (the header, built first, may be the first to ask).
+  IdeWorkspace _ideSpace(Project project) => _ideSpaces.putIfAbsent(
+    project.path,
+    () => IdeWorkspace(
+      project.path,
+      languages: widget.languagesFor?.call(project.path),
+      git: widget.gitFor?.call(project.path),
+    ),
+  );
+
   Widget _buildHeader() {
+    final project = _workspace.current?.project;
     return WindowHeader(
       workspace: _workspace,
-      project: _workspace.current?.project,
+      project: project,
       sidebarShown: _narrow ? _drawerOpen : _docked,
       onToggleSidebar: _toggle,
+      ideSidebarShown:
+          _workspace.layout == WorkspaceLayout.ide && project != null
+          ? _ideSpace(project).sidebarShown
+          : null,
       pinned: _pinned,
       onTogglePin: _setPinned,
       onOpenFolder: _openFolder,
@@ -467,8 +475,7 @@ class _WorkbenchState extends State<Workbench> {
     final header = WindowControls.drawsHeader;
     final leading = !header && showToggle
         ? SidebarIconButton(
-            icon: Icons.view_sidebar_outlined,
-            flip: true,
+            icon: Codicons.layoutSidebarLeftOff,
             tooltip: 'Show sidebar',
             onTap: _toggle,
           )

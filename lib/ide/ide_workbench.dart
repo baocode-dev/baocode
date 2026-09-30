@@ -154,7 +154,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// shut comes back as it returns. (The room is the start's: the chat
   /// snapped shut takes the window's gap beside it along.)
   ({IdeColumns columns, double room})? _dragStart;
-  bool _sidebarShown = true;
+
+  /// The workspace's, for the window's header to toggle as well (see
+  /// [IdeWorkspace.sidebarShown]).
+  bool get _sidebarShown => widget.workspace.sidebarShown.value;
+  set _sidebarShown(bool value) => widget.workspace.sidebarShown.value = value;
   bool _chatShown = true;
 
   /// The panel's height below the editor; null is a third of the column
@@ -283,6 +287,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _forwardStack.clear();
     _references = null;
     workspace.addListener(_workspaceChanged);
+    workspace.sidebarShown.addListener(_sidebarChanged);
     _activePath = null;
     _workspaceChanged();
     _git = workspace.git?..addListener(_gitChanged);
@@ -293,6 +298,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _detach(IdeWorkspace workspace) {
     workspace.removeListener(_workspaceChanged);
+    workspace.sidebarShown.removeListener(_sidebarChanged);
     _git?.removeListener(_gitChanged);
     _git = null;
     _scm.dispose();
@@ -896,6 +902,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   void _toggleSidebar() => setState(() => _sidebarShown = !_sidebarShown);
+
+  /// Toggled from the window's header, too.
+  void _sidebarChanged() {
+    if (mounted) setState(() {});
+  }
 
   void _toggleChat() => setState(() => _chatShown = !_chatShown);
 
@@ -1523,13 +1534,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   const SizedBox(height: IdeModernUI.activityItemGap),
                 item,
               ],
-              const Spacer(),
-              _ActivityItem(
-                icon: Codicons.commentDiscussion,
-                label: 'Back to chat',
-                selected: false,
-                onTap: () => unawaited(_back()),
-              ),
             ],
           ),
         ),
@@ -2112,10 +2116,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       height: CursorMetrics.titleBarHeight,
       child: Row(
         children: [
-          SizedBox(width: CursorMetrics.trafficLightsWidth + 8),
-          const Text(
-            'Fast Ide',
-            style: TextStyle(fontSize: 12, color: CursorColors.textMuted),
+          SizedBox(width: CursorMetrics.trafficLightsWidth + 6),
+          // VS Code's layout controls: the icon shows whether it is open.
+          // The side bar's is on its side, after the traffic lights.
+          toggle(
+            _sidebarShown
+                ? Codicons.layoutSidebarLeft
+                : Codicons.layoutSidebarLeftOff,
+            'Toggle Primary Side Bar (${const IdeKeybinding(LogicalKeyboardKey.keyB, primary: true).label()})',
+            _toggleSidebar,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2126,14 +2135,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 onTap: () => _showQuickInput(''),
               ),
             ),
-          ),
-          // VS Code's layout controls: the icon shows whether it is open.
-          toggle(
-            _sidebarShown
-                ? Codicons.layoutSidebarLeft
-                : Codicons.layoutSidebarLeftOff,
-            'Toggle Primary Side Bar (${const IdeKeybinding(LogicalKeyboardKey.keyB, primary: true).label()})',
-            _toggleSidebar,
           ),
           toggle(
             _panel != null ? Codicons.layoutPanel : Codicons.layoutPanelOff,

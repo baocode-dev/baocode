@@ -8,6 +8,7 @@ import 'package:monad/kernel/kernel_types.dart';
 import 'package:monad/main.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
 import 'package:monad/sidebar/sidebar.dart';
+import 'package:monad/theme/codicons.dart';
 import 'package:monad/workspace/editor_launcher.dart';
 import 'package:monad/workspace/open_in_editor_button.dart';
 import 'package:monad/workspace/pin_window_button.dart';
@@ -266,6 +267,16 @@ void main() {
     await pumpApp(tester);
     expect(tester.getSize(find.byType(Sidebar)).width, 260);
     final chatLeft = tester.getTopLeft(find.byType(ChatScreen)).dx;
+    // Its toggles have the IDE's layout icons, open or not.
+    IconData icon(String tooltip) => tester
+        .widget<SidebarIconButton>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is SidebarIconButton && widget.tooltip == tooltip,
+          ),
+        )
+        .icon;
+    expect(icon('Hide sidebar'), Codicons.layoutSidebarLeft);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyB);
@@ -273,6 +284,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.byType(ChatScreen)).dx, lessThan(chatLeft));
     expect(find.bySemanticsLabel('Show sidebar'), findsOneWidget);
+    expect(icon('Show sidebar'), Codicons.layoutSidebarLeftOff);
 
     await tester.tap(find.bySemanticsLabel('Show sidebar'));
     await tester.pumpAndSettle();

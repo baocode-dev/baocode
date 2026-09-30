@@ -230,7 +230,7 @@ void main() {
 
       // Same at the top edge: content above is faded out entirely. Not
       // while the next message pushes the stuck one up and away: that one
-      // slides out over the edge as it is.
+      // takes on the edge's fade only as it goes.
       final pushed = find.byWidgetPredicate(
         (widget) => switch (widget.key) {
           ValueKey<(String, int)>(value: ('sticky', _)) => true,

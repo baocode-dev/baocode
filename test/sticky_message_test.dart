@@ -1,0 +1,171 @@
+// Tests of the user message stuck to the top of the chat history: it takes
+// over from its message in the list looking as that one did, under the
+// list's top fade, and comes in as the list scrolls on; pushed away by the
+// next message, it goes the same way.
+
+import 'dart:ui' show ImageByteFormat;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:monad/chat/chat_feed.dart';
+import 'package:monad/chat/chat_history_view.dart';
+import 'package:monad/chat/chat_models.dart';
+import 'package:monad/chat/chat_session.dart';
+import 'package:monad/chat/composer/composer_draft.dart';
+import 'package:monad/chat/widgets/edge_fade_mask.dart';
+import 'package:monad/chat/widgets/user_message_bubble.dart';
+import 'package:monad/theme/cursor_theme.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
+
+/// Two turns, the second's message near enough to the start to be laid out
+/// there.
+class _TwoTurnFeed extends ChangeNotifier implements ChatFeed {
+  static const second = 12;
+
+  @override
+  int get itemCount => 60;
+
+  @override
+  ChatItem itemAt(int index) => switch (index) {
+    0 => const UserMessageItem(text: 'First question'),
+    second => const UserMessageItem(text: 'Second question'),
+    _ => AssistantTextItem('Line $index of the answer, long enough to wrap.'),
+  };
+
+  @override
+  bool get isStreaming => false;
+
+  @override
+  bool get canEditMessages => false;
+
+  @override
+  ({int index, ComposerDraft draft})? editing;
+
+  @override
+  void editMessage(int index, ComposerMessage message) {}
+
+  @override
+  void cancelQueued(int index) {}
+
+  @override
+  VoidCallback? moveToBackgroundAt(int index) => null;
+
+  @override
+  VoidCallback? stopAt(int index) => null;
+}
+
+void main() {
+  testWidgets('a message stuck to the top comes in and goes as the list '
+      'scrolls', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(800, 600);
+    addTearDown(tester.view.reset);
+    final feed = _TwoTurnFeed();
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildCursorTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pump();
+    final listView = find.byType(SuperListView);
+    final list = tester.getRect(listView);
+    final position = tester
+        .state<ScrollableState>(
+          find
+              .descendant(of: listView, matching: find.byType(Scrollable))
+              .first,
+        )
+        .position;
+    position.jumpTo(0);
+    await tester.pump();
+    await tester.pump();
+    final second = find.descendant(
+      of: listView,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is UserMessageBubble && widget.text == 'Second question',
+      ),
+      skipOffstage: false,
+    );
+
+    /// Scrolls the second message in the list to [y] below the top.
+    Future<void> put(double y) async {
+      await Scrollable.ensureVisible(tester.element(second), alignment: 0.5);
+      await tester.pump();
+      position.jumpTo(position.pixels + tester.getRect(second).top - y);
+      await tester.pump();
+      await tester.pump();
+    }
+
+    /// How bright the top of the history is, beside the scrollbar.
+    final layer = tester.binding.renderViews.first.debugLayer! as OffsetLayer;
+    Future<double> brightness() async {
+      final band = Rect.fromLTRB(
+        list.left + 60,
+        list.top,
+        list.right - 60,
+        list.top + 40,
+      );
+      final image = (await tester.runAsync(() => layer.toImage(band)))!;
+      final bytes = (await tester.runAsync(
+        () => image.toByteData(format: ImageByteFormat.rawRgba),
+      ))!;
+      var sum = 0;
+      for (var i = 0; i < image.width * image.height; i++) {
+        sum += bytes.getUint8(i * 4 + 1);
+      }
+      return sum / (image.width * image.height);
+    }
+
+    /// The top fades of the list, and of the copy of message [index].
+    double listFade() => tester
+        .widget<EdgeFadeMask>(
+          find.ancestor(of: listView, matching: find.byType(EdgeFadeMask)),
+        )
+        .topFadeAmount!();
+    double copyFade(int index) => tester
+        .widget<EdgeFadeMask>(
+          find
+              .ancestor(
+                of: find.byWidgetPredicate(
+                  (widget) =>
+                      widget is UserMessageBubble &&
+                      widget.key == ValueKey(('sticky', index)),
+                ),
+                matching: find.byType(EdgeFadeMask),
+              )
+              .first,
+        )
+        .topFadeAmount!();
+
+    // Stuck once it is less than 8 from the top: the copy takes over under
+    // the list's top fade, as its message was, the list shown below it.
+    await put(9);
+    final inList = await brightness();
+    await put(7);
+    expect(await brightness(), closeTo(inList, 1.5));
+    expect(copyFade(_TwoTurnFeed.second), closeTo(31 / 32, 0.001));
+    expect(listFade(), closeTo(1 / 32, 0.001));
+
+    // Whole, and the list faded out below it, 32 on.
+    await put(-25);
+    expect(await brightness(), greaterThan(inList + 4));
+    expect(copyFade(_TwoTurnFeed.second), 0);
+    expect(listFade(), 1);
+
+    // The first message's copy, pushed away by the second: with the room
+    // above a stuck message and the fade below it, it is as tall as its
+    // bubble and 24 more.
+    final height = tester.getSize(second).height + 24;
+    await put(height);
+    expect(copyFade(0), 0);
+    await put(height - 16);
+    expect(copyFade(0), closeTo(0.5, 0.001));
+    await put(height - 32);
+    expect(copyFade(0), 1);
+  });
+}

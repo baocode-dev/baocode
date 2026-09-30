@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/ide/ide_editor.dart';
 import 'package:monad/ide/ide_find_widget.dart';
 import 'package:monad/ide/ide_status_bar.dart';
+import 'package:monad/theme/codicons.dart';
+import 'package:monad/theme/cursor_theme.dart';
 import 'package:monad/workspace/back_to_chat_button.dart';
 import 'package:monad/workspace/pin_window_button.dart';
 
@@ -156,5 +158,41 @@ void main() {
       lessThan(tester.getRect(find.byType(BackToChatButton)).left),
     );
     expect(tester.widget<PinWindowButton>(pin).onChanged, pins.add);
+  });
+
+  testWidgets('title bar: the side bar\'s toggle right after the traffic '
+      'lights, no name there; the activity bar has no way back to the chat', (
+    tester,
+  ) async {
+    final workspace = await pumpWorkbench(tester, const {'a.dart': 'a'});
+    expect(find.text('Fast Ide'), findsNothing);
+    final toggle = find.byTooltip('Toggle Primary Side Bar (Ctrl+B)');
+    expect(tester.getRect(toggle).left, CursorMetrics.trafficLightsWidth + 8);
+    IconData icon() => tester
+        .widget<Icon>(find.descendant(of: toggle, matching: find.byType(Icon)))
+        .icon!;
+    expect(icon(), Codicons.layoutSidebarLeft);
+    expect(find.text('Explorer'), findsOneWidget);
+
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(workspace.sidebarShown.value, isFalse);
+    expect(icon(), Codicons.layoutSidebarLeftOff);
+    expect(find.text('Explorer'), findsNothing);
+
+    // Shown from elsewhere (the header Windows draws).
+    workspace.sidebarShown.value = true;
+    await tester.pump();
+    expect(icon(), Codicons.layoutSidebarLeft);
+    expect(find.text('Explorer'), findsOneWidget);
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget.runtimeType.toString() == '_ActivityItem' &&
+            (widget as dynamic).label == 'Back to chat',
+      ),
+      findsNothing,
+    );
   });
 }
