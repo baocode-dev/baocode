@@ -27,6 +27,33 @@ namespace {
 #define DWMWCP_ROUND 2
 #endif
 
+/// The window's border and caption colors, and "no color". Windows 11.
+///
+/// Redefined in case the SDK is older than 10.0.22000.0.
+#ifndef DWMWA_BORDER_COLOR
+#define DWMWA_BORDER_COLOR 34
+#endif
+#ifndef DWMWA_CAPTION_COLOR
+#define DWMWA_CAPTION_COLOR 35
+#endif
+#ifndef DWMWA_COLOR_NONE
+#define DWMWA_COLOR_NONE 0xFFFFFFFE
+#endif
+
+/// Which system backdrop DWM draws in the frame extended into the client.
+/// Windows 11 build 22523. Acrylic blurs what is behind the window, which
+/// is the material the sidebar tints (see CursorColors.sidebarSurface).
+#ifndef DWMWA_SYSTEMBACKDROP_TYPE
+#define DWMWA_SYSTEMBACKDROP_TYPE 38
+#endif
+#ifndef DWMSBT_TRANSIENTWINDOW
+#define DWMSBT_TRANSIENTWINDOW 3
+#endif
+
+/// First Windows 11 build, and the first that takes the backdrop attribute.
+constexpr DWORD kWindows11Build = 22000;
+constexpr DWORD kSystemBackdropBuild = 22523;
+
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
 /// Registry key for app theme preference.
@@ -64,14 +91,74 @@ void EnableFullDpiSupportIfAvailable(HWND hwnd) {
   FreeLibrary(user32_module);
 }
 
+// The OS build, from ntdll. GetVersionEx lies once the manifest names
+// Windows 10, and Windows 11 still reports itself as 10.0.
+DWORD WindowsBuild() {
+  using RtlGetVersionPtr = LONG(WINAPI*)(PRTL_OSVERSIONINFOW);
+  const HMODULE ntdll = ::GetModuleHandleW(L"ntdll.dll");
+  if (ntdll == nullptr) {
+    return 0;
+  }
+  const auto rtl_get_version = reinterpret_cast<RtlGetVersionPtr>(
+      ::GetProcAddress(ntdll, "RtlGetVersion"));
+  if (rtl_get_version == nullptr) {
+    return 0;
+  }
+  RTL_OSVERSIONINFOW info = {};
+  info.dwOSVersionInfoSize = sizeof(info);
+  if (rtl_get_version(&info) != 0) {
+    return 0;
+  }
+  return info.dwBuildNumber;
+}
+
+// Acrylic, on the Windows 11 builds that have no backdrop attribute yet:
+// the undocumented composition policy. The tint is the app's own dark, in
+// the policy's AABBGGRR.
+void AskForAccentAcrylic(HWND window) {
+  using SetWindowCompositionAttributePtr =
+      BOOL(WINAPI*)(HWND, void*);
+  struct AccentPolicy {
+    int state;
+    DWORD flags;
+    DWORD color;
+    DWORD animation;
+  };
+  struct CompositionAttribute {
+    int attribute;
+    void* data;
+    SIZE_T size;
+  };
+  const HMODULE user32 = ::GetModuleHandleW(L"user32.dll");
+  if (user32 == nullptr) {
+    return;
+  }
+  const auto set_attribute = reinterpret_cast<SetWindowCompositionAttributePtr>(
+      ::GetProcAddress(user32, "SetWindowCompositionAttribute"));
+  if (set_attribute == nullptr) {
+    return;
+  }
+  // ACCENT_ENABLE_ACRYLICBLURBEHIND, and the flag that tints it.
+  AccentPolicy policy = {4, 2, 0xCC181818, 0};
+  CompositionAttribute data = {19, &policy, sizeof(policy)};
+  set_attribute(window, &data);
+}
+
 // Asks DWM for the frame a window of this system has around it: its shadow,
 // its rounded corners and the line along its edge. The window's non-client
 // area is empty (see WM_NCCALCSIZE) — the app draws the header itself — and
 // that is what takes all of those with it: what DWM has to draw around is
-// named here instead, one pixel of each side, which is the window's own edge
-// and nothing the app paints under.
+// named here instead.
+//
+// On Windows 11 the frame is the whole client, a sheet of glass, and the
+// backdrop behind it is acrylic: what the sidebar and the conversation tint
+// (see CursorColors). Elsewhere it is one pixel of each side, the window's
+// own edge and nothing the app paints under.
 void AskForSystemFrame(HWND window) {
-  const MARGINS margins = {1, 1, 1, 1};
+  const DWORD build = WindowsBuild();
+  const bool acrylic = build >= kWindows11Build;
+  const MARGINS margins = acrylic ? MARGINS{-1, -1, -1, -1}
+                                  : MARGINS{1, 1, 1, 1};
   ::DwmExtendFrameIntoClientArea(window, &margins);
   // Windows rounds the corners of a window whose frame it draws, of its own
   // accord only while the frame is the whole of the window's edge (see
@@ -79,6 +166,24 @@ void AskForSystemFrame(HWND window) {
   const int corners = DWMWCP_ROUND;
   ::DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, &corners,
                           sizeof(corners));
+  if (!acrylic) {
+    return;
+  }
+  // No caption bar of its own over the glass: the app draws the header.
+  // The border stays the system's dark one, named so a light line is not
+  // what the glass draws along the edge.
+  const COLORREF caption = DWMWA_COLOR_NONE;
+  ::DwmSetWindowAttribute(window, DWMWA_CAPTION_COLOR, &caption,
+                          sizeof(caption));
+  const COLORREF border = 0x002C2C2C;
+  ::DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &border, sizeof(border));
+  if (build >= kSystemBackdropBuild) {
+    const int backdrop = DWMSBT_TRANSIENTWINDOW;
+    ::DwmSetWindowAttribute(window, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
+                            sizeof(backdrop));
+  } else {
+    AskForAccentAcrylic(window);
+  }
 }
 
 }  // namespace
@@ -265,6 +370,7 @@ Win32Window::MessageHandler(HWND hwnd,
 
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
+      AskForSystemFrame(hwnd);
       return 0;
   }
 
@@ -295,6 +401,11 @@ void Win32Window::SetChildContent(HWND content) {
 
   MoveWindow(content, frame.left, frame.top, frame.right - frame.left,
              frame.bottom - frame.top, true);
+
+  // The view covers the client. The backdrop is asked for again once it
+  // does: parenting the view is what would otherwise paint over the glass
+  // before the first frame.
+  AskForSystemFrame(window_handle_);
 
   SetFocus(child_content_);
 }

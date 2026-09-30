@@ -21,25 +21,39 @@ abstract final class CursorColors {
   /// `sideBar.background`.
   static Color get background => _colors['sideBar.background'];
 
-  /// Whether the window has the system's sidebar material under it (the
-  /// macOS app; see MainFlutterWindow.swift), to show through the sidebar.
-  static bool get usesMacOSMaterial => AppPlatform.isMacOS;
+  /// Whether the window has the system's material under it, to show
+  /// through the sidebar and the conversation: macOS (see
+  /// MainFlutterWindow.swift) and Windows 11 (see win32_window.cpp).
+  static bool get usesSystemMaterial =>
+      AppPlatform.isMacOS || AppPlatform.isWindows11;
 
   /// Under everything: the material itself where there is one. All but the
   /// sidebar cover it (see Workbench).
   static Color get windowCanvas =>
-      usesMacOSMaterial ? Colors.transparent : background;
+      usesSystemMaterial ? Colors.transparent : background;
+
+  /// How much of the theme color covers the material. macOS's sidebar
+  /// material is already a heavy frost (80%). Windows 11 acrylic is a
+  /// thinner blur, so the sidebar — and the IDE shell, which uses this
+  /// same tint — covers 96% of it.
+  static double get _sidebarTint => AppPlatform.isWindows11 ? 0.96 : 0.8;
+
+  /// Denser than [_sidebarTint]: the conversation covers more of the material
+  /// than the sidebar does. 90% on macOS, 98% over Windows acrylic.
+  static double get _conversationTint => AppPlatform.isWindows11 ? 0.98 : 0.9;
 
   /// The sidebar's: [background] as a tint over the material, or opaque.
-  static Color get sidebarSurface => usesMacOSMaterial
-      ? background.withValues(alpha: background.a * 0.8)
+  static Color get sidebarSurface => usesSystemMaterial
+      ? background.withValues(alpha: background.a * _sidebarTint)
       : background;
 
   /// The conversation's: `editor.background`, as VS Code's agent sessions
   /// window has it; over the material a denser tint than the sidebar's.
   static Color get conversationSurface {
     final color = _colors['editor.background'];
-    return usesMacOSMaterial ? color.withValues(alpha: color.a * 0.9) : color;
+    return usesSystemMaterial
+        ? color.withValues(alpha: color.a * _conversationTint)
+        : color;
   }
 
   /// `editorWidget.background`: cards and panels.

@@ -115,11 +115,13 @@ class _WindowHeaderState extends State<WindowHeader> {
     // Over the chat, the line under it is what tells it apart from what it
     // sits over — Flutter's own pixels are the whole of the window's top on
     // Windows (see WindowControls.drawsHeader), so the system draws none.
+    // The same tint as the sidebar, so the material shows through the strip
+    // too (on Windows 10, where there is none, that tint is opaque).
     // Over the IDE it is the IDE's title bar: its color, no line, and the
     // way back to the chat on the right, as on macOS.
     final colors = themeColors;
     return Material(
-      color: ide ? IdeModernUI.shell : colors['titleBar.activeBackground'],
+      color: ide ? IdeModernUI.shell : CursorColors.sidebarSurface,
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: ide

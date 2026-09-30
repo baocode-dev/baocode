@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,8 +13,8 @@ import 'package:monad/workspace/workspace.dart';
 
 import 'first_frame_test.dart' show LongTurnFeed;
 
-/// The app, as on macOS (see the tests' variant) where the window has the
-/// system's sidebar material under it.
+/// The app. The test's variant picks the platform; macOS and Windows 11
+/// have the system's material under the window.
 Future<void> pumpMacApp(WidgetTester tester, {double width = 1400}) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -119,7 +121,7 @@ void main() {
     await pumpMacApp(tester);
     // The window itself paints nothing over the material.
     expect(colorsUnder(tester, find.byType(Sidebar)), [Colors.transparent]);
-    expect(sidebarColor(tester).a, lessThan(1));
+    expect(sidebarColor(tester).a, lessThan(0.85));
     expect(colorsUnder(tester, find.byType(ChatScreen)), [
       CursorColors.conversationSurface,
       Colors.transparent,
@@ -135,6 +137,38 @@ void main() {
     expect(colorsUnder(tester, find.byType(Sidebar)).first.a, 1);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
+  testWidgets(
+    'on Windows 11 the sidebar and the conversation both show the '
+    'material through',
+    (tester) async {
+      await pumpMacApp(tester);
+      expect(colorsUnder(tester, find.byType(Sidebar)), [Colors.transparent]);
+      // Acrylic is a thinner blur than macOS's sidebar material: 96% over
+      // the sidebar, 98% over the conversation (see CursorColors).
+      expect(sidebarColor(tester).a, closeTo(0.96, 0.001));
+      expect(colorsUnder(tester, find.byType(ChatScreen)), [
+        CursorColors.conversationSurface,
+        Colors.transparent,
+      ]);
+      expect(CursorColors.conversationSurface.a, closeTo(0.98, 0.001));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    skip: _hostIsWindows10,
+  );
+
+  testWidgets(
+    'on Windows 11 the sidebar as a drawer is opaque: over the '
+    'chat, not the material',
+    (tester) async {
+      await pumpMacApp(tester, width: 700);
+      await tester.tap(find.bySemanticsLabel('Show sidebar'));
+      await tester.pumpAndSettle();
+      expect(colorsUnder(tester, find.byType(Sidebar)).first.a, 1);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    skip: _hostIsWindows10,
+  );
+
   testWidgets('elsewhere the window is opaque throughout', (tester) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
@@ -143,7 +177,17 @@ void main() {
     await tester.pump();
     expect(colorsUnder(tester, find.byType(Sidebar)).first.a, 1);
     expect(sidebarColor(tester).a, 1);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+}
+
+/// This machine is Windows 10: the Windows target stays opaque there, so
+/// the Windows 11 material tests do not apply.
+bool get _hostIsWindows10 {
+  if (!Platform.isWindows) return false;
+  final match = RegExp(r'Build (\d+)')
+      .firstMatch(Platform.operatingSystemVersion);
+  final build = int.tryParse(match?.group(1) ?? '') ?? 0;
+  return build != 0 && build < 22000;
 }
 
 final _app = GlobalKey();

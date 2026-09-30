@@ -30,8 +30,8 @@ abstract final class IdeModernUI {
   static WorkbenchColors get _colors => WorkbenchThemeService.instance.colors;
 
   /// Around the cards: the agent sidebar's color
-  /// ([CursorColors.sidebarSurface]), so the macOS material shows through
-  /// as it does beside the chat.
+  /// ([CursorColors.sidebarSurface]), so the system material shows through
+  /// as it does beside the chat. On Windows 11 that tint is 96%.
   static Color get shell => CursorColors.sidebarSurface;
 
   /// `surface.background`: the side bars' cards.
