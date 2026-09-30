@@ -109,6 +109,7 @@ class TerminalInstance extends ChangeNotifier {
       selection: selection,
       clipboard: clipboard,
     );
+    keyboard.onKey((_) => showCursor());
     // What the keyboard, the mouse and the app's replies send.
     terminal.onData(writeText);
     terminal.onBinary((data) => write(latin1.encode(data)));
@@ -285,6 +286,17 @@ class TerminalInstance extends ChangeNotifier {
 
   /// Gives it the keyboard, now or once its view is built.
   void focus() => focusNode.requestFocus();
+
+  /// Draws the cursor from now on (xterm.js' `_showCursor`, on focus and on
+  /// each key sent): a terminal shows none before, as VS Code does not set
+  /// `showCursorImmediately`.
+  void showCursor() {
+    final coreService = terminal.coreService;
+    if (coreService.isCursorInitialized) return;
+    coreService.isCursorInitialized = true;
+    final y = terminal.buffer.y;
+    terminal.onRenderEmitter.fire((start: y, end: y));
+  }
 
   Future<void> _start() async {
     try {

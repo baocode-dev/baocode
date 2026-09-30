@@ -1191,7 +1191,7 @@ void main() {
       kernel.dispose();
     });
 
-    test('a status row shows only while the model is waited on', () async {
+    test('a status row shows while the agent works out of sight', () async {
       final cli = FakeCli();
       final descriptor = KernelDescriptor(
         id: 'claude-code',
@@ -1257,7 +1257,11 @@ void main() {
       expect(started.isBefore(begun), isFalse);
       expect(started.isBefore(blockAt), isTrue);
       await stream({'type': 'content_block_stop', 'index': 0});
-      expect(last(), isA<ThinkingItem>());
+      // Between its blocks, nothing streaming: it is at work still.
+      expect(
+        last(),
+        isA<LiveStatusItem>().having((i) => i.whimsical, 'whimsical', isTrue),
+      );
 
       await push(status('compacting'));
       expect(
@@ -1269,11 +1273,55 @@ void main() {
         ),
       );
       await push(status(null));
-      expect(last(), isA<ThinkingItem>());
+      expect(
+        last(),
+        isA<LiveStatusItem>().having(
+          (i) => i.label,
+          'label',
+          'Planning next move',
+        ),
+      );
+
+      // A tool at work shows itself; once it is done, the row is back.
+      await push({
+        'type': 'assistant',
+        'parent_tool_use_id': null,
+        'message': {
+          'id': 'm2',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': 't1',
+              'name': 'Read',
+              'input': {'file_path': '/p/a.txt'},
+            },
+          ],
+        },
+      });
+      expect(
+        last(),
+        isA<ToolCallItem>().having(
+          (i) => i.status,
+          'status',
+          ToolStatus.running,
+        ),
+      );
+      await push({
+        'type': 'user',
+        'parent_tool_use_id': null,
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'tool_result', 'tool_use_id': 't1', 'content': 'a'},
+          ],
+        },
+      });
+      expect(last(), isA<LiveStatusItem>());
 
       await push(status('requesting'));
       await push({'type': 'result', 'subtype': 'success', 'is_error': false});
-      expect(last(), isA<ThinkingItem>(), reason: 'the turn is over');
+      expect(last(), isA<ToolCallItem>(), reason: 'the turn is over');
       session.dispose();
     });
 

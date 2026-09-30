@@ -351,16 +351,15 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   int get lastTurnEndSeq => _transcript.lastTurnEndSeq;
 
   /// The history, and a status row after it while the agent works out of
-  /// sight: nothing it does shows (no thought, text or tool under way),
-  /// and it is not waiting on the user.
+  /// sight: nothing it does shows (no thought or text streaming, no step
+  /// running), and it is not waiting on the user.
   @override
   int get itemCount => _transcript.length + (_activity == null ? 0 : 1);
 
   @override
   ChatItem itemAt(int index) {
     if (index < _transcript.length) return _transcript.itemAt(index);
-    final activity = _activity!;
-    return switch (activity.kind) {
+    return switch (_activity!) {
       KernelActivityKind.waiting => const LiveStatusItem(
         'Planning next move',
         whimsical: true,
@@ -371,14 +370,34 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     };
   }
 
-  KernelActivity? get _activity {
+  /// Between its steps the agent waits on its model, whether or not its
+  /// kernel says so (Claude Code does only before a request's answer).
+  KernelActivityKind? get _activity {
     if (!isStreaming ||
         pendingInteraction != null ||
-        _transcript.hasStreamingItem) {
+        _transcript.hasStreamingItem ||
+        _stepRunning) {
       return null;
     }
-    return _transcript.activity;
+    return _transcript.activity?.kind ?? KernelActivityKind.waiting;
   }
+
+  /// Whether a step of the live turn runs in sight (a tool, a command, a
+  /// subagent in the foreground): its own row shows the agent at work.
+  bool get _stepRunning => _cached(#stepRunning, () {
+    for (var i = _transcript.length - 1; i >= 0; i--) {
+      switch (_transcript.itemAt(i)) {
+        case UserMessageItem(queued: false):
+          return false;
+        case ToolCallItem(status: ToolStatus.running) ||
+            TerminalItem(status: CommandStatus.running, background: false) ||
+            AgentItem(status: CommandStatus.running, background: false):
+          return true;
+        default:
+      }
+    }
+    return false;
+  });
 
   /// Tasks running beside the conversation, gone once they end (their
   /// outcome stays on their step); null when the kernel runs none.

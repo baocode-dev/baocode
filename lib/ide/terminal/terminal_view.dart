@@ -262,6 +262,7 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
       );
     }
     if (focused) {
+      instance.showCursor();
       _openInput();
     } else {
       _closeInput(instance);

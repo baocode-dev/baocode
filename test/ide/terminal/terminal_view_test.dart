@@ -4,8 +4,11 @@
 // reporting, the context menu, the multi-line paste warning, find, links
 // and the shell integration's command marks.
 
+import 'dart:ui' as ui;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/ide/ide_find_widget.dart';
@@ -25,6 +28,7 @@ Future<({TerminalInstance terminal, FakePty pty})> _show(
   VoidCallback? onKill,
   ValueChanged<TerminalLink>? onOpenLink,
   Map<String, bool> files = const {},
+  GlobalKey? boundary,
 }) async {
   final started = <FakePty>[];
   final terminal = TerminalInstance(
@@ -35,14 +39,17 @@ Future<({TerminalInstance terminal, FakePty pty})> _show(
   await tester.pumpWidget(
     MaterialApp(
       home: Center(
-        child: SizedBox(
-          width: 600,
-          height: 300,
-          child: TerminalView(
-            terminal,
-            skipShell: skipShell,
-            onKill: onKill,
-            onOpenLink: onOpenLink,
+        child: RepaintBoundary(
+          key: boundary,
+          child: SizedBox(
+            width: 600,
+            height: 300,
+            child: TerminalView(
+              terminal,
+              skipShell: skipShell,
+              onKill: onKill,
+              onOpenLink: onOpenLink,
+            ),
           ),
         ),
       ),
@@ -142,6 +149,69 @@ void main() {
       (size.columns, size.rows),
     );
     expect((terminal.columns, terminal.rows), (size.columns, size.rows));
+  });
+
+  testWidgets('there is no cursor until the terminal is first focused; '
+      'then there is, a block, and an outline once it is not', (tester) async {
+    final boundary = GlobalKey();
+    await _show(tester, boundary: boundary);
+    final terminal = tester.widget<TerminalView>(find.byType(TerminalView));
+    final render = tester
+        .widget<TerminalWidget>(find.byType(TerminalWidget))
+        .controller!;
+    final cell = render.cellSize;
+    final origin =
+        tester.getTopLeft(find.byType(TerminalWidget)) -
+        tester.getTopLeft(find.byKey(boundary)) +
+        render.gridOrigin;
+    // The cursor's cell (the first): its middle and its left edge; and a
+    // cell far from it.
+    Future<(Color, Color, Color)> pixels() async {
+      final boundaryObject =
+          boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final data = (await tester.runAsync(() async {
+        final image = await boundaryObject.toImage();
+        final bytes = await image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
+        image.dispose();
+        return bytes!;
+      }))!;
+      final width = boundaryObject.size.width.toInt();
+      Color at(Offset offset) {
+        final i = (offset.dy.toInt() * width + offset.dx.toInt()) * 4;
+        return Color.fromARGB(
+          data.getUint8(i + 3),
+          data.getUint8(i),
+          data.getUint8(i + 1),
+          data.getUint8(i + 2),
+        );
+      }
+
+      return (
+        at(origin + cell.center(Offset.zero)),
+        at(origin + Offset(0.5, cell.height / 2)),
+        at(origin + cell.center(Offset(cell.width * 10, cell.height * 5))),
+      );
+    }
+
+    final (middle, edge, blank) = await pixels();
+    expect(middle, blank);
+    expect(edge, blank);
+
+    await _focus(tester, terminal.instance);
+    final (focusedMiddle, focusedEdge, _) = await pixels();
+    expect(focusedMiddle, isNot(blank));
+    expect(focusedEdge, focusedMiddle);
+
+    // The focus changes in a microtask, and the repaint it asks for is in
+    // the next frame.
+    FocusManager.instance.primaryFocus!.unfocus();
+    await tester.pump();
+    await tester.pump();
+    final (blurredMiddle, blurredEdge, _) = await pixels();
+    expect(blurredMiddle, blank);
+    expect(blurredEdge, focusedMiddle);
   });
 
   testWidgets('keys go to the process; typed text comes through the text '

@@ -190,6 +190,7 @@ Every ported file follows these, so the parts ported separately fit.
 | `src/browser/services/ThemeService.ts`, `src/browser/ColorContrastCache.ts`, `CoreBrowserTerminal.ts` (color requests) | `lib/ide/terminal/terminal_render_theme.dart` | adapted; VS Code's option and theme defaults as `vscodeTerminalOptions` / `vscodeTerminalTheme` |
 | `src/browser/services/CharSizeService.ts`, `src/browser/renderer/dom/WidthCache.ts`, `WebglRenderer._updateDimensions` | `lib/ide/terminal/terminal_render_metrics.dart` | adapted: measured with `dart:ui` paragraphs |
 | `addons/addon-webgl/src/CursorBlinkStateManager.ts`, `src/browser/renderer/shared/TextBlinkStateManager.ts` | `lib/ide/terminal/terminal_render_blink.dart` | |
+| `CoreBrowserTerminal.ts` (`_showCursor`) | `lib/ide/terminal/terminal_instance.dart` (`showCursor`) | called on the view's focus and on each key the keyboard sends (its `onKey`), where upstream calls it |
 | `src/browser/public/Terminal.ts` (selection, `registerDecoration`) | `lib/ide/terminal/terminal_xterm.dart` | the headless public `Terminal` plus the browser terminal's selection and decorations, as the search addon's `ISearchTerminal`; VS Code's `XtermTerminal` |
 | `addons/addon-search/typings/addon-search.d.ts` | `addons/addon_search/typings/addon_search.dart` | adds `ISearchTerminal`, the browser `Terminal`'s selection and decorations |
 | `addons/addon-search/src/SearchAddon.ts` | `addons/addon_search/search_addon.dart` | `activate` takes a `covariant ISearchTerminal` |

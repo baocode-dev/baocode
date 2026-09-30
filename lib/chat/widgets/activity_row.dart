@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
+import 'markdown_view.dart';
 import 'thinking_spark.dart';
 
 /// What the agent is busy with out of sight, after Claude's spark: typed
@@ -78,7 +79,7 @@ class ActivityRow extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SelectionContainer.disabled(child: ThinkingSpark()),
+            const SelectionContainer.disabled(child: ThinkingSpark(size: 15)),
             const SizedBox(width: 6),
             Flexible(
               child: _Musing(whimsical ? musings : [label], random: random),
@@ -120,7 +121,11 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
   /// Times the dots count up behind each phrase.
   static const _rounds = 2;
 
-  static const _style = TextStyle(fontSize: 13, color: CursorColors.textMuted);
+  /// As the agent's prose reads.
+  static final _style = TextStyle(
+    color: MarkdownView.baseStyle.color,
+    fontSize: MarkdownView.baseStyle.fontSize,
+  );
 
   late final math.Random _random = widget.random ?? math.Random();
   late int _shown;
@@ -216,9 +221,9 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
                 alignment: PlaceholderAlignment.middle,
                 child: SizedBox(
                   key: ValueKey('cursor'),
-                  width: 7,
-                  height: 14,
-                  child: ColoredBox(color: CursorColors.textMuted),
+                  width: 7.5,
+                  height: 15,
+                  child: ColoredBox(color: CursorColors.text),
                 ),
               ),
             ],

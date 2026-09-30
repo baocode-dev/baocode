@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/ide/terminal/pty.dart';
 import 'package:monad/ide/terminal/terminal_instance.dart';
+import 'package:monad/ide/terminal/terminal_keyboard.dart';
 
 import 'fake_pty.dart';
 import 'fake_terminal.dart';
@@ -202,6 +203,29 @@ void main() {
     await pumpEventQueue();
     expect(pty.kills, [PtySignal.hangup]);
     expect(terminal.pty, isNull);
+  });
+
+  test('a key it sends shows the cursor, as focus does (xterm.js\' '
+      '_showCursor)', () async {
+    final (:terminal, :started, exits: _) = _start();
+    await pumpEventQueue();
+    final core = terminal.terminal.coreService;
+    expect(core.isCursorInitialized, isFalse);
+
+    terminal.keyboard.keyDown(
+      TerminalKeyboardEvent(
+        altKey: false,
+        ctrlKey: false,
+        shiftKey: false,
+        metaKey: false,
+        keyCode: 13,
+        key: 'Enter',
+        type: 'keydown',
+        code: 'Enter',
+      ),
+    );
+    expect(started.single.written, '\r');
+    expect(core.isCursorInitialized, isTrue);
   });
 
   test('printing faster than the emulator parses pauses the process until '
