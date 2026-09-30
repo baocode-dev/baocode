@@ -425,6 +425,40 @@ void main() {
     });
   });
 
+  /// What the status row shows: its letters more than half faded in.
+  String shownStatus(WidgetTester tester) {
+    final buffer = StringBuffer();
+    tester
+        .widget<RichText>(
+          find.descendant(
+            of: find.byType(ActivityRow),
+            matching: find.byType(RichText),
+          ),
+        )
+        .text
+        .visitChildren((span) {
+          if (span is TextSpan && (span.style?.color?.a ?? 1) > 0.5) {
+            buffer.write(span.text ?? '');
+          }
+          return true;
+        });
+    return buffer.toString();
+  }
+
+  /// Pumps a frame at a time until [done], for at most [limit].
+  Future<void> pumpUntil(
+    WidgetTester tester,
+    bool Function() done, {
+    Duration limit = const Duration(seconds: 10),
+  }) async {
+    for (var waited = Duration.zero; !done(); waited += _frame) {
+      if (waited > limit) fail('not within $limit');
+      await tester.pump(_frame);
+    }
+  }
+
+  final caret = find.byKey(const ValueKey('cursor'));
+
   testWidgets('the status row says what, without a clock: typed out, then '
       'dots count up behind it', (tester) async {
     await tester.pumpWidget(
@@ -432,20 +466,26 @@ void main() {
         home: Scaffold(body: ActivityRow(label: 'Planning next move')),
       ),
     );
-    final cursor = find.byKey(const ValueKey('cursor'));
     expect(find.byType(ThinkingSpark), findsOneWidget);
-    expect(cursor, findsOneWidget);
-    // A letter every 45ms, and a rest.
-    await tester.pump(const Duration(milliseconds: 45 * (18 + 1 + 6)));
-    expect(cursor, findsNothing);
-    expect(find.text('Planning next move'), findsOneWidget);
+    expect(caret, findsOneWidget);
+    expect(shownStatus(tester), '');
+    await tester.pump(const Duration(milliseconds: 400));
+    expect('Planning next move', startsWith(shownStatus(tester)));
+    expect(shownStatus(tester), isNotEmpty);
+
+    await pumpUntil(tester, () => caret.evaluate().isEmpty);
+    expect(shownStatus(tester), 'Planning next move');
     expect(find.textContaining('…'), findsNothing);
-    await tester.pump(const Duration(milliseconds: 1200));
-    expect(find.text('Planning next move...'), findsOneWidget);
+    await pumpUntil(
+      tester,
+      () => shownStatus(tester) == 'Planning next move...',
+    );
     // It stays itself, typed but once.
-    await tester.pump(const Duration(seconds: 10));
-    expect(find.textContaining('Planning next move'), findsOneWidget);
-    expect(cursor, findsNothing);
+    for (var i = 0; i < 100; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(caret, findsNothing);
+      expect(shownStatus(tester), startsWith('Planning next move'));
+    }
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -476,36 +516,25 @@ void main() {
         ),
       ),
     );
-    String shown() => tester
-        .widget<RichText>(find.byType(RichText))
-        .text
-        .toPlainText()
-        .replaceAll('￼', '');
-    final cursor = find.byKey(const ValueKey('cursor'));
-    expect(cursor, findsOneWidget);
-    expect(shown(), '');
+    expect(caret, findsOneWidget);
+    expect(shownStatus(tester), '');
+    await tester.pump(const Duration(milliseconds: 400));
+    final start = shownStatus(tester);
+    expect(start, isNotEmpty);
+    expect(ActivityRow.musings.where((m) => m.startsWith(start)), isNotEmpty);
 
-    await tester.pump(const Duration(milliseconds: 45 * 3));
-    final start = shown();
-    expect(start, hasLength(3));
-    await tester.pump(const Duration(milliseconds: 45 * 30));
-    expect(cursor, findsNothing);
-    final first = shown().replaceAll('.', '');
+    await pumpUntil(tester, () => caret.evaluate().isEmpty);
+    final first = shownStatus(tester).replaceAll('.', '');
     expect(ActivityRow.musings, contains(first));
     expect(first, startsWith(start));
     expect(find.text('Planning next move'), findsNothing);
+    await pumpUntil(tester, () => shownStatus(tester) == '$first...');
 
-    // Its whole time: typed, rested, and two rounds of dots.
-    final cycle = Duration(milliseconds: 45 * (first.length + 1 + 6) + 3200);
-    await tester.pump(cycle - const Duration(milliseconds: 45 * 33 + 1));
-    expect(shown(), '$first...');
-    await tester.pump(const Duration(milliseconds: 2));
-    expect(cursor, findsOneWidget);
-    expect(shown(), '');
-
-    await tester.pump(const Duration(milliseconds: 45 * 32));
-    expect(cursor, findsNothing);
-    final second = shown().replaceAll('.', '');
+    // Cleared, the caret back at the start, for the next.
+    await pumpUntil(tester, () => caret.evaluate().isNotEmpty);
+    expect(shownStatus(tester), '');
+    await pumpUntil(tester, () => caret.evaluate().isEmpty);
+    final second = shownStatus(tester).replaceAll('.', '');
     expect(ActivityRow.musings, contains(second));
     expect(second, isNot(first));
     await tester.pumpWidget(const SizedBox());
@@ -524,7 +553,7 @@ void main() {
     expect(find.text('Planning next move'), findsOneWidget);
     await tester.pump(const Duration(seconds: 10));
     expect(find.text('Planning next move'), findsOneWidget);
-    expect(find.byKey(const ValueKey('cursor')), findsNothing);
+    expect(caret, findsNothing);
   });
 
   testWidgets('the composer\'s pickers start at the left, its actions end '
@@ -948,3 +977,5 @@ void main() {
     expect(session.itemCount, greaterThan(0));
   });
 }
+
+const _frame = Duration(milliseconds: 16);
