@@ -25,6 +25,8 @@ ViewportLayout layout(
   ViewportLayout? previous,
   Map<int, List<TextSpan>>? styledLines,
   TextDirection direction = TextDirection.ltr,
+  HiddenLineRanges? hidden,
+  List<ViewportZone> zones = const [],
 }) => ViewportLayout(
   snapshot: DocumentSnapshot(text),
   style: style,
@@ -36,6 +38,8 @@ ViewportLayout layout(
   previousLayout: previous,
   horizontalScrollOffset: horizontal,
   verticalScrollOffset: vertical,
+  hiddenLines: hidden,
+  zones: zones,
 );
 
 void main() {
@@ -716,6 +720,88 @@ void main() {
       addTearDown(full.dispose);
       expect(cut.rows.length, lessThan(full.rows.length));
       expect(cut.overflowRect(1), isNotNull);
+    });
+  });
+
+  group('zones', () {
+    test('push the lines below them down, and hit-testing skips them', () {
+      final plain = layout('a\nb\nc\nd');
+      addTearDown(plain.dispose);
+      final h = plain.lineHeight;
+      // Given out of order: above the first line, and after the second.
+      final zoned = layout(
+        'a\nb\nc\nd',
+        zones: [ViewportZone(2, 2.5 * h), ViewportZone(0, h)],
+      );
+      addTearDown(zoned.dispose);
+      expect(zoned.lineTop(1), h);
+      expect(zoned.lineTop(2), 2 * h);
+      expect(zoned.lineTop(3), 5.5 * h);
+      expect(zoned.lineTop(4), 6.5 * h);
+      expect(zoned.contentHeight, 7.5 * h);
+      expect(zoned.zoneTop(0), 3 * h);
+      expect(zoned.zoneTop(1), 0);
+      expect(zoned.zoneAt(3.5 * h), 0);
+      expect(zoned.zoneAt(2.5 * h), isNull);
+      expect(zoned.rows[2].top, 5.5 * h);
+      expect(zoned.rowTop(3), 6.5 * h);
+      expect(zoned.caretRect(4).top, 5.5 * h);
+      // In the zone after line 2: the line below it.
+      expect(zoned.hitTest(Offset(0, 4 * h)), 4);
+      expect(zoned.hitTest(Offset(0, 5.6 * h)), 4);
+      expect(zoned.hitTest(Offset(0, 1.5 * h)), 0);
+    });
+
+    test('scrolled, the rows on screen are those between them', () {
+      final text = List.generate(20, (i) => 'line $i').join('\n');
+      final probe = layout(text);
+      addTearDown(probe.dispose);
+      final h = probe.lineHeight;
+      final zoned = layout(
+        text,
+        viewport: Size(200, 3 * h),
+        vertical: 4 * h,
+        zones: [ViewportZone(3, 4 * h)],
+      );
+      addTearDown(zoned.dispose);
+      // Lines 1-3, then the zone (3h to 7h): the viewport (4h to 7h) shows
+      // only the zone, and the line below it starts at its bottom.
+      expect(zoned.visibleRowRange.isEmpty, isTrue);
+      zoned.setScrollOffset(horizontal: 0, vertical: 5.5 * h);
+      expect(zoned.visibleLineNumbers.toList(), [4, 5]);
+    });
+
+    test('wrapped, a zone sits between the rows of two lines', () {
+      final probe = layout('x');
+      addTearDown(probe.dispose);
+      final h = probe.lineHeight;
+      final zoned = layout(
+        'one two three four five six\nb',
+        viewport: const Size(60, 400),
+        wrap: true,
+        zones: [ViewportZone(1, 10), ViewportZone(2, 5)],
+      );
+      addTearDown(zoned.dispose);
+      final first = zoned.rows.where((row) => row.lineNumber == 1).length;
+      expect(first, greaterThan(1));
+      expect(zoned.lineTop(2), first * h + 10);
+      expect(zoned.zoneTop(0), first * h);
+      expect(zoned.zoneTop(1), first * h + 10 + h);
+      expect(zoned.contentHeight, (first + 1) * h + 15);
+    });
+
+    test('one after a folded line shows below its header', () {
+      final probe = layout('x');
+      addTearDown(probe.dispose);
+      final h = probe.lineHeight;
+      final zoned = layout(
+        'a\nb\nc\nd',
+        hidden: HiddenLineRanges([(2, 3)]),
+        zones: [ViewportZone(3, h)],
+      );
+      addTearDown(zoned.dispose);
+      expect(zoned.zoneTop(0), h);
+      expect(zoned.lineTop(4), 2 * h);
     });
   });
 }

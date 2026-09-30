@@ -278,7 +278,10 @@ Catalog and installer:
 - Deviation: VS Code's window is wide enough for all its parts; here a
   window too narrow for the side bar and the chat both hides the side bar
   (`IdeLayout.sidebarVisible`), and either opened by the user
-  (`IdeLayout.showSidebar`/`showChat`) closes the other. With the chat
+  (`IdeLayout.showSidebar`/`showChat`) hides the editor instead
+  (`IdeLayout.editorHidden`: the two side by side, the panel below both),
+  or, with too little room even for the two, closes the other. Hiding
+  either or opening an editor brings the editor back. With the chat
   hidden, the side bar shares too little room with the editor by their
   minimums, as the chat does.
 - `lib/workspace/title_bar_double_click.dart`: on macOS a double click on a
@@ -287,6 +290,73 @@ Catalog and installer:
   `.titlebar-drag-region`; controls, `TitleBarControls` groups included,
   are `no-drag`. Deviations: any hit widget (a `Text`) is not empty; the
   clicks are timed by `kDoubleTapTimeout`, not the system's setting.
+
+## Source Control action button (2026-10-01)
+
+- `lib/ide/git/ide_scm_view.dart` picks the button below the commit
+  message as the Git extension's `actionButton.ts` does: Commit while
+  `repositoryHasChangesToCommit` (staged changes, or others where the
+  smart commit would stage them or offer to), else Publish Branch (a
+  branch without an upstream), else Sync Changes (ahead of the upstream
+  or behind it, `Sync Changes 1↓ 2↑`), else Commit, disabled; the icon
+  spins (`sync~spin`, 1.5s in 30 steps) while it syncs.
+- Sync Changes asks first (`git.confirmSync`), then pulls
+  (`git pull --tags remote branch`) and pushes (`git push remote
+  branch:upstream`) if the branch was ahead, as `Repository._sync` does;
+  Publish Branch pushes with `-u` to the only remote.
+- Deviations: Don't Show Again lasts for the session; no remote providers,
+  so with no remotes Publish Branch only warns (upstream offers Publish to
+  GitHub); with more, a menu at the button picks the remote, where upstream
+  has a quick pick with Add Remote; no fetch before pulling, rebase,
+  auto-stash, tag conflict handling, read-only remotes or status bar sync
+  item; and without VS Code's askpass, a remote that asks for credentials
+  fails (`GIT_TERMINAL_PROMPT=0`) and is reported.
+
+## Diff editor (2026-10-01)
+
+- `flutter/diff_editor_model.dart`: `DiffEditorModel` computes the diff
+  with `DefaultLinesDiffComputer` (`ignoreTrimWhitespace`, 5000ms), again
+  200ms after either side changes (`diffEditorViewModel.ts`), on another
+  isolate past 10000 lines. `computeDiffAlignments` is
+  `computeRangeAlignment` (inner hunk alignment side by side);
+  `computeDiffZones` is `DiffEditorViewZones` (side by side, a diagonal
+  fill on the side with fewer lines; inline, the deleted code above the
+  change in the modified editor and `gutter-delete` room in the
+  original's); `computeDiffDecorations` is `DiffEditorDecorations`
+  (`line-insert`/`line-delete` with their margin and `+`/`-` signs,
+  `char-insert`/`char-delete` filling the line break and marking empty
+  ranges, the whole line where the other side has none).
+- `flutter/diff_editor.dart`: side by side wider than 900px
+  (`renderSideBySideInlineBreakpoint`), else inline, where the original
+  shows only its line numbers; the sash keeps each editor 100px wide and a
+  double click puts it back in the middle; the 30px overview ruler has a
+  lane per side and the viewport slider; the two editors share one scroll
+  position.
+- `flutter/viewport_layout.dart` and `editor_surface.dart` have view zones
+  (`LinesLayout` whitespaces, `EditorViewZone`): rows lay out around them,
+  arrow keys step over them, and a press in one does not move the caret;
+  the gutter paints margin decorations and line decoration icons.
+- `lib/ide/ide_workspace.dart`: diff tabs (`openDiff`) and read-only
+  revision tabs (`openRevision`), keyed by path and label; a working tree
+  diff tab shares its file's model with the file's tab (edits, undo, dirty
+  state, saving, language server sync); revisions are read again on each
+  Git status, as `git:` documents follow the repository.
+- `lib/ide/git/git_change_editor.dart` ports `ResourceCommandResolver`'s
+  `getLeftResource`, `getRightResource` and `getTitle` and
+  `sanitizeRef`; `IdeGitService.show` runs `git show --textconv
+  ref:path`. A click on a change, and Open Changes, open its diff
+  (`a.dart (Working Tree)`, `(Index)`), or its one side
+  (`(Deleted)`); Open File (HEAD) opens the left side or warns that it is
+  not available.
+- Deviations: no moved code, hidden unchanged regions, gutter menu or
+  revert arrows, change navigation, accessible diff viewer or word wrap;
+  an edit does not move the diff until it is computed again; deleted code
+  is not selectable; no preview editors, so a click opens a lasting tab;
+  a change with only its file (untracked, both modified) opens the file's
+  own tab without the label; one with neither side (added by us or them),
+  where upstream's command fails, opens its file; a revision Git cannot
+  read shows as empty, where upstream reports the file not found; the
+  Graph's and the Timeline's files still open the file.
 
 ## Modern UI and editor hover markdown (2026-09-30)
 

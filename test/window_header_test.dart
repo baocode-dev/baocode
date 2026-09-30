@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/chat/chat_screen.dart';
+import 'package:monad/chat/composer/composer.dart';
 import 'package:monad/chat/panels/context_usage_panel.dart';
 import 'package:monad/ide/ide_layout.dart';
 import 'package:monad/ide/ide_workbench.dart';
@@ -313,22 +314,21 @@ void main() {
     );
   }, variant: _windows);
 
-  testWidgets('on macOS the chat\'s own buttons keep to its right edge', (
-    tester,
-  ) async {
+  testWidgets('on macOS the chat\'s own buttons keep to its column\'s right '
+      'edge', (tester) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
     await tester.pump();
-    final chat = tester.getRect(find.byType(ChatScreen));
     final button = tester.getRect(
       find.descendant(
         of: find.byType(ChatScreen),
         matching: find.byType(OpenInEditorButton),
       ),
     );
-    expect(button.right, chat.right - 8);
+    // Level with the composer's, as the title is with its left.
+    expect(button.right, tester.getRect(find.byType(ChatComposer)).right);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   test('About shows the version pubspec.yaml gives the build', () {

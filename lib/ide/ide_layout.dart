@@ -13,17 +13,18 @@ import 'lsp_ui/problems_panel.dart';
 ///
 /// Where the side bar and the chat do not both fit beside the editor, the
 /// side bar gives way ([sidebarVisible]); one opened as the user asks
-/// ([showSidebar], [showChat]) closes the other instead (a deviation: VS
-/// Code's grid has a window wide enough for all its parts).
+/// ([showSidebar], [showChat]) has the editor give way instead
+/// ([editorHidden]), or, with too little room even for the two, closes the
+/// other (a deviation: VS Code's grid has a window wide enough for all its
+/// parts).
 class IdeLayout extends ChangeNotifier {
   bool _sidebar = true;
   bool get sidebar => _sidebar;
   set sidebar(bool value) {
     if (value == _sidebar) return;
     _sidebar = value;
-    // Upstream's `setSideBarHidden(false)`: the maximized chat gives the
-    // editor back first.
-    if (value) _chatMaximized = false;
+    // What the editor gave way to is gone.
+    if (!value) _editorHidden = false;
     notifyListeners();
   }
 
@@ -32,56 +33,99 @@ class IdeLayout extends ChangeNotifier {
   set chat(bool value) {
     if (value == _chat) return;
     _chat = value;
-    if (!value) _chatMaximized = false;
+    if (!value) _editorHidden = false;
     notifyListeners();
   }
 
-  /// Whether the chat has the editor's place (and the side bar's): VS
-  /// Code's maximized secondary side bar, which the chat's sash dragged
-  /// past the editor's minimum makes. Showing the side bar, hiding the chat
-  /// or opening an editor ends it; the panel stays, below the chat.
-  bool get chatMaximized => _chatMaximized;
-  bool _chatMaximized = false;
-  set chatMaximized(bool value) {
-    if (value == _chatMaximized) return;
-    _chatMaximized = value;
-    if (value) {
-      _chat = true;
-      _sidebar = false;
+  /// Whether the editor gives way to the chat (and the side bar, if that
+  /// shows): the chat's sash dragged past the editor's minimum, which
+  /// maximizes the chat (VS Code's maximized secondary side bar,
+  /// `setAuxiliaryBarMaximized`), or a side opened where the three do not
+  /// fit. Hiding either side or opening an editor ([showEditor]) ends it;
+  /// the panel stays, below. See [editorVisible].
+  bool get editorHidden => _editorHidden;
+  bool _editorHidden = false;
+
+  /// Whether the editor shows: hidden, the chat has its place, and the side
+  /// bar beside it, where there is room for the two but not the three.
+  bool get editorVisible =>
+      !(_editorHidden &&
+          _chat &&
+          (!_sidebar || (!_roomForBoth && _roomForSides)));
+
+  /// The chat alone in the editor's place.
+  bool get chatMaximized => !editorVisible && !_sidebar;
+
+  /// Upstream's `showEditorIfHidden`: an editor opened.
+  void showEditor() {
+    if (!_editorHidden) return;
+    _editorHidden = false;
+    notifyListeners();
+  }
+
+  /// The parts as a sash's drag leaves them.
+  void resize({
+    required bool sidebar,
+    required bool chat,
+    required bool editorHidden,
+  }) {
+    editorHidden = editorHidden && chat;
+    if (sidebar == _sidebar && chat == _chat && editorHidden == _editorHidden) {
+      return;
     }
+    _sidebar = sidebar;
+    _chat = chat;
+    _editorHidden = editorHidden;
     notifyListeners();
   }
 
-  /// Whether the side bar and the chat both fit beside the editor, as the
-  /// workbench last laid them out.
+  /// Whether the side bar and the chat both fit beside the editor, and
+  /// whether they do without it, as the workbench last laid them out.
   bool get roomForBoth => _roomForBoth;
   bool _roomForBoth = true;
-  set roomForBoth(bool value) {
-    if (value == _roomForBoth) return;
-    _roomForBoth = value;
+  bool get roomForSides => _roomForSides;
+  bool _roomForSides = true;
+
+  void setRoom({required bool both, required bool sides}) {
+    if (both == _roomForBoth && sides == _roomForSides) return;
+    _roomForBoth = both;
+    _roomForSides = sides;
     notifyListeners();
   }
 
   /// Whether the side bar shows: [sidebar], and not given way to the chat.
   bool get sidebarVisible =>
-      _sidebar && !_chatMaximized && (_roomForBoth || !_chat);
+      _sidebar && (!editorVisible || _roomForBoth || !_chat);
 
-  /// Shows the side bar, as the user asked: the chat closes where the two
-  /// do not both fit.
+  /// Shows the side bar, as the user asked: where it and the chat do not
+  /// both fit beside the editor, the editor gives way, or, with too little
+  /// room for the two even so, the chat closes.
   void showSidebar() {
     if (sidebarVisible) return;
     _sidebar = true;
-    _chatMaximized = false;
-    if (!_roomForBoth) _chat = false;
+    if (!_chat || _roomForBoth) {
+      _editorHidden = false;
+    } else if (_roomForSides) {
+      _editorHidden = true;
+    } else {
+      _chat = false;
+      _editorHidden = false;
+    }
     notifyListeners();
   }
 
-  /// Shows the chat, as the user asked: the side bar closes where the two
-  /// do not both fit.
+  /// Shows the chat, as the user asked: as [showSidebar], the editor or
+  /// else the side bar gives way.
   void showChat() {
     if (_chat) return;
     _chat = true;
-    if (!_roomForBoth) _sidebar = false;
+    if (_sidebar && !_roomForBoth) {
+      if (_roomForSides) {
+        _editorHidden = true;
+      } else {
+        _sidebar = false;
+      }
+    }
     notifyListeners();
   }
 

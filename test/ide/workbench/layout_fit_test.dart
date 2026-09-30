@@ -17,11 +17,12 @@ double _width(WidgetTester tester, String key) =>
     tester.getSize(_part(key)).width;
 
 void main() {
-  testWidgets('with no room for both, the side bar opened closes the chat, '
-      'and the chat opened closes the side bar', (tester) async {
+  testWidgets('with no room for the three, the side bar opened has the '
+      'editor give way, the panel below the two; the side bar hidden or an '
+      'editor opened, it is back', (tester) async {
     final workspace = await pumpWorkbench(
       tester,
-      {'a.txt': 'a'},
+      {'a.txt': 'a', 'b.txt': 'b'},
       open: ['a.txt'],
       size: const Size(740, 800),
     );
@@ -31,32 +32,125 @@ void main() {
     expect(workspace.layout.sidebar, isTrue);
     expect(workspace.layout.sidebarVisible, isFalse);
     expect(find.byIcon(Codicons.layoutSidebarLeftOff), findsOneWidget);
+    final chat = tester.element(find.byKey(chatKey));
 
     // Its view's icon opens it, rather than hide what does not show.
     await tester.tap(find.byIcon(Codicons.files));
     await tester.pump();
-    expect(_part('ide-sidebar'), findsOneWidget);
-    expect(find.byKey(chatKey), findsNothing);
-    expect(workspace.layout.chat, isFalse);
+    expect(_part('ide-editor'), findsNothing);
+    expect(workspace.layout.editorVisible, isFalse);
+    final sidebar = tester.getRect(_part('ide-sidebar'));
+    final beside = tester.getRect(_part('ide-chat'));
+    expect(sidebar.left, IdeModernUI.gap + IdeModernUI.activityBarWidth);
+    expect(beside.left, sidebar.right + IdeModernUI.gap);
+    expect(beside.right, 740 - IdeModernUI.gap);
+    expect(tester.element(find.byKey(chatKey)), same(chat));
     expect(find.byIcon(Codicons.layoutSidebarLeft), findsOneWidget);
-    // Again, it hides.
+
+    // The panel below the two.
+    await tester.tap(find.byIcon(Codicons.layoutPanelOff));
+    await tester.pump();
+    final top = tester.getRect(_part('ide-sidebar'));
+    final panel = tester.getRect(_part('ide-panel'));
+    expect(tester.getRect(_part('ide-chat')).bottom, top.bottom);
+    expect(panel.top, top.bottom + IdeModernUI.gap);
+    expect(panel.left, top.left + IdeModernUI.gap);
+    expect(panel.right, beside.right);
+
+    // Hidden again, the editor is back.
     await tester.tap(find.byIcon(Codicons.files));
     await tester.pump();
     expect(_part('ide-sidebar'), findsNothing);
+    expect(_part('ide-editor'), findsOneWidget);
+    expect(tester.element(find.byKey(chatKey)), same(chat));
+
+    // An editor opened has the side bar give way instead.
     await tester.tap(find.byIcon(Codicons.files));
     await tester.pump();
+    expect(_part('ide-editor'), findsNothing);
+    await workspace.open(inRoot('b.txt'));
+    await tester.pump();
+    expect(_part('ide-editor'), findsOneWidget);
+    expect(_part('ide-sidebar'), findsNothing);
+    expect(find.byKey(chatKey), findsOneWidget);
+  });
+
+  testWidgets('beside the chat in the editor\'s place, the side bar dragged '
+      'shut gives the editor back, and back again, takes it', (tester) async {
+    final workspace = await pumpWorkbench(
+      tester,
+      {'a.txt': 'a'},
+      open: ['a.txt'],
+      size: const Size(740, 800),
+    );
+    await tester.pump();
+    await tester.tap(find.byIcon(Codicons.files));
+    await tester.pump();
+    expect(_width(tester, 'ide-sidebar'), IdeColumns.defaultSidebar);
+
+    final drag = await tester.startGesture(
+      tester.getCenter(_part('ide-sidebar-sash')),
+    );
+    // At its minimum, short of snapping shut.
+    await drag.moveBy(const Offset(-20, 0));
+    await drag.moveBy(const Offset(-70, 0));
+    await tester.pump();
+    expect(_width(tester, 'ide-sidebar'), IdeColumns.minSidebar);
+    await drag.moveBy(const Offset(-10, 0));
+    await tester.pump();
+    expect(_part('ide-sidebar'), findsNothing);
+    expect(_part('ide-editor'), findsOneWidget);
+    expect(workspace.layout.editorVisible, isTrue);
+    await drag.moveBy(const Offset(100, 0));
+    await tester.pump();
+    expect(_width(tester, 'ide-sidebar'), IdeColumns.defaultSidebar);
+    expect(_part('ide-editor'), findsNothing);
+    await drag.up();
+    await tester.pump(kDoubleTapTimeout);
+  });
+
+  testWidgets('so does the chat opened beside the side bar', (tester) async {
+    final workspace = await pumpWorkbench(
+      tester,
+      {'a.txt': 'a'},
+      open: ['a.txt'],
+      size: const Size(740, 800),
+    );
+    await tester.pump();
+    await tester.tap(find.byIcon(Codicons.layoutSidebarRight));
+    await tester.pump();
+    expect(_part('ide-sidebar'), findsOneWidget);
+    expect(_part('ide-editor'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Codicons.layoutSidebarRightOff));
+    await tester.pump();
+    expect(_part('ide-sidebar'), findsOneWidget);
+    expect(find.byKey(chatKey), findsOneWidget);
+    expect(_part('ide-editor'), findsNothing);
+    expect(workspace.layout.editorHidden, isTrue);
+  });
+
+  testWidgets('with too little room even for the two, one opened closes the '
+      'other', (tester) async {
+    final workspace = await pumpWorkbench(
+      tester,
+      {'a.txt': 'a'},
+      open: ['a.txt'],
+      size: const Size(560, 800),
+    );
+    await tester.pump();
+    await tester.tap(find.byIcon(Codicons.files));
+    await tester.pump();
+    expect(_part('ide-sidebar'), findsOneWidget);
+    expect(_part('ide-editor'), findsOneWidget);
+    expect(find.byKey(chatKey), findsNothing);
+    expect(workspace.layout.chat, isFalse);
 
     await tester.tap(find.byIcon(Codicons.layoutSidebarRightOff));
     await tester.pump();
     expect(find.byKey(chatKey), findsOneWidget);
     expect(_part('ide-sidebar'), findsNothing);
     expect(workspace.layout.sidebar, isFalse);
-
-    // The title bar's toggle as well.
-    await tester.tap(find.byIcon(Codicons.layoutSidebarLeftOff));
-    await tester.pump();
-    expect(_part('ide-sidebar'), findsOneWidget);
-    expect(find.byKey(chatKey), findsNothing);
   });
 
   testWidgets('with room for both, one opened leaves the other', (

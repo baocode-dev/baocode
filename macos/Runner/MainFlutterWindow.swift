@@ -70,6 +70,27 @@ class MainFlutterWindow: NSWindow {
         // Floating: above other apps' windows, as a pinned window should be.
         self?.level = (call.arguments as? Bool ?? false) ? .floating : .normal
         result(nil)
+      case "windowRoom":
+        // How much wider and taller the window can get on its screen (see
+        // growWindow): none in full screen.
+        guard let window = self, !window.styleMask.contains(.fullScreen),
+              let visible = (window.screen ?? NSScreen.main)?.visibleFrame
+        else {
+          result(["width": 0.0, "height": 0.0])
+          return
+        }
+        result([
+          "width": max(0, visible.width - window.frame.width),
+          "height": max(0, visible.height - window.frame.height),
+        ])
+      case "growWindow":
+        // Room for conversations side by side (see chat_grid_view.dart).
+        let arguments = call.arguments as? [String: Any]
+        self?.grow(by: NSSize(
+          width: arguments?["width"] as? Double ?? 0,
+          height: arguments?["height"] as? Double ?? 0
+        ))
+        result(nil)
       case "handleTitleDoubleClick":
         // A double click on the empty part of the title bar Flutter draws
         // (see title_bar_double_click.dart): AppKit only handles its own.
@@ -145,6 +166,27 @@ class MainFlutterWindow: NSWindow {
   /// Whether the last color theme was dark; dark the first time.
   private static var keptDarkAppearance: Bool {
     UserDefaults.standard.object(forKey: darkAppearanceKey) as? Bool ?? true
+  }
+
+  /// Makes the window as much wider and taller, as far as its screen goes:
+  /// its top left stays, unless the window would go past the screen's
+  /// right or bottom edge, where it moves back onto it.
+  private func grow(by extra: NSSize) {
+    guard !styleMask.contains(.fullScreen) else { return }
+    var frame = self.frame
+    let visible = (screen ?? NSScreen.main)?.visibleFrame ?? frame
+    let top = frame.maxY
+    frame.size.width = min(frame.width + extra.width, max(frame.width, visible.width))
+    frame.size.height = min(frame.height + extra.height, max(frame.height, visible.height))
+    // AppKit's origin is the bottom left.
+    frame.origin.y = top - frame.height
+    if frame.maxX > visible.maxX {
+      frame.origin.x = max(visible.minX, visible.maxX - frame.width)
+    }
+    if frame.minY < visible.minY {
+      frame.origin.y = visible.minY
+    }
+    setFrame(frame, display: true, animate: true)
   }
 
   /// What System Settings' "Double-click a window's title bar to" says:

@@ -18,7 +18,8 @@ class FakeGit {
   /// `git log` output ([ideGitLogFormat] records).
   String log = '';
 
-  /// `git show --name-status -z` output, by commit.
+  /// `git show` output: by commit for `--name-status -z`, by `ref:path`
+  /// for a file's text (which, not there, fails as a missing path does).
   final Map<String, String> show = {};
 
   /// `git diff` output (of the index, or with `--cached` of HEAD).
@@ -26,6 +27,9 @@ class FakeGit {
 
   /// `git diff --no-index -- /dev/null <path>` output, by relative path.
   final Map<String, String> newFileDiffs = {};
+
+  /// `git remote` output.
+  String remotes = 'origin\n';
 
   /// Resolved refs (`rev-parse --verify -q <ref>`).
   final Map<String, String> refs = {};
@@ -37,6 +41,12 @@ class FakeGit {
   /// would have.
   void Function(List<String> arguments)? onCommand;
 
+  /// Answers by command, over the canned ones: e.g. a push that fails.
+  final Map<String, IdeGitOutput> answers = {};
+
+  /// What a command waits for before it answers, e.g. a push under way.
+  Future<void>? Function(List<String> arguments)? hold;
+
   List<List<String>> callsTo(String command) => [
     for (final call in calls)
       if (call.first == command) call,
@@ -47,7 +57,9 @@ class FakeGit {
     required String workingDirectory,
   }) async {
     calls.add(arguments);
+    await hold?.call(arguments);
     onCommand?.call(arguments);
+    if (answers[arguments.first] case final answer?) return answer;
     switch (arguments) {
       case ['rev-parse', '--show-toplevel']:
         return isRepository
@@ -67,8 +79,16 @@ class FakeGit {
         return IdeGitOutput(added == null ? 0 : 1, added ?? '');
       case ['diff', ...]:
         return IdeGitOutput(0, diff);
+      case ['show', ..., final object] when object.contains(':'):
+        final text = show[object];
+        if (text == null) {
+          return IdeGitOutput(128, '', "fatal: path '$object' does not exist");
+        }
+        return IdeGitOutput(0, text);
       case ['show', ..., final commit]:
         return IdeGitOutput(0, show[commit] ?? '');
+      case ['remote']:
+        return IdeGitOutput(0, remotes);
       case ['init']:
         isRepository = true;
         return const IdeGitOutput(0, '');

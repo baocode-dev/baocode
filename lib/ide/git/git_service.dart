@@ -6,10 +6,13 @@
 // The Git commands the workbench runs, as VS Code's Git extension runs
 // them (extensions/git/src/git.ts at 6a598d4a13031703d483d103c1d934a36ad27971):
 // status with the branch and ignored paths, add, restore, checkout, clean,
-// commit, and log for the graph and the timeline.
+// commit, log for the graph and the timeline, show for the texts a diff
+// editor compares (`buffer`), and pull and push for Sync Changes and
+// Publish Branch.
 //
-// Deviations: no fetch, pull, push or sync, no stash or branch commands,
-// and no credential prompts (`GIT_TERMINAL_PROMPT=0`).
+// Deviations: no fetch, no stash or branch commands, and no credential
+// prompts (`GIT_TERMINAL_PROMPT=0`: a remote that asks for a password
+// fails).
 
 import 'package:path/path.dart' as p;
 
@@ -257,6 +260,47 @@ class IdeGitService {
         'Cannot unstage the changes.',
       );
     }
+  }
+
+  /// [path]'s text at [ref] (`git show --textconv <ref>:<path>`): `HEAD`,
+  /// `''` for the index, or `:1` to `:3` for a merge's stages.
+  Future<String> show(String ref, String path) async {
+    final top = await _requireRoot();
+    final relative = _relative(top, [path]).single;
+    return _check(
+      await _git(['show', '--textconv', '$ref:$relative']),
+      'Could not show object.',
+    ).stdout;
+  }
+
+  /// The remotes' names (`git remote`).
+  Future<List<String>> remotes() async {
+    await _requireRoot();
+    final output = _check(await _git(['remote']), 'Cannot read the remotes.');
+    return [
+      for (final line in output.stdout.split('\n'))
+        if (line.trim().isNotEmpty) line.trim(),
+    ];
+  }
+
+  /// `git pull --tags remote branch` (`pull` with `git.pullTags`, without
+  /// rebasing: `git.rebaseWhenSync` is off by default).
+  Future<void> pull(String remote, String branch) async {
+    await _requireRoot();
+    _check(await _git(['pull', '--tags', remote, branch]), 'Cannot pull.');
+  }
+
+  /// `git push [-u] remote name` (`push`; [setUpstream] to publish).
+  Future<void> push(
+    String remote,
+    String name, {
+    bool setUpstream = false,
+  }) async {
+    await _requireRoot();
+    _check(
+      await _git(['push', if (setUpstream) '-u', remote, name]),
+      'Cannot push.',
+    );
   }
 
   /// The resolved commit of [ref], or null.

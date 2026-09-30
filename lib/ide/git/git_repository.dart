@@ -13,6 +13,7 @@
 // current branch, its upstream, and their merge base).
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
@@ -64,6 +65,10 @@ class IdeGitRepository extends ChangeNotifier {
 
   /// Whether an operation or refresh is running (the view's progress).
   bool get busy => _operations > 0;
+
+  /// Whether a sync or a publish is running (upstream `isSyncInProgress`).
+  bool get syncing => _syncing > 0;
+  int _syncing = 0;
 
   IdeGitDecorations? get decorations => _state?.decorations;
 
@@ -193,6 +198,59 @@ class IdeGitRepository extends ChangeNotifier {
     if (untracked.isNotEmpty) await service.stage(untracked);
     await service.commit(message, all: true);
   });
+
+  /// The remotes' names.
+  Future<List<String>> remotes() => service.remotes();
+
+  /// Runs [operation] as [_operate] does, [syncing] from its asking until
+  /// the refresh after it.
+  Future<void> _whileSyncing(Future<void> Function() operation) async {
+    _syncing++;
+    _notify();
+    try {
+      await _operate(operation);
+    } finally {
+      _syncing--;
+      _notify();
+    }
+  }
+
+  /// Sync Changes (`Repository.sync`): pulls the branch's upstream, then
+  /// pushes to it, if the branch was ahead of it.
+  Future<void> sync() => _whileSyncing(() async {
+    final head = _state?.head;
+    final branch = head?.branch;
+    final upstream = head?.upstream;
+    if (head == null || branch == null || upstream == null) return;
+    final (remote, name) = splitUpstream(upstream, await service.remotes());
+    await service.pull(remote, name);
+    if (head.ahead > 0) await service.push(remote, '$branch:$name');
+  });
+
+  /// Publish Branch to [remote] (`Repository.pushTo`, setting the
+  /// upstream).
+  Future<void> publish(String remote) => _whileSyncing(() async {
+    final branch = _state?.head.branch;
+    if (branch == null) return;
+    await service.push(remote, branch, setUpstream: true);
+  });
+
+  /// [upstream] (`origin/feature/x`) as its remote and the remote's branch:
+  /// the longest of [remotes] it begins with, else up to its first slash.
+  static (String, String) splitUpstream(String upstream, List<String> remotes) {
+    String? remote;
+    for (final name in remotes) {
+      if (upstream.startsWith('$name/') &&
+          name.length > (remote?.length ?? -1)) {
+        remote = name;
+      }
+    }
+    remote ??= upstream.split('/').first;
+    return (
+      remote,
+      upstream.substring(math.min(upstream.length, remote.length + 1)),
+    );
+  }
 
   /// The graph's rows, loaded on first use; null while first loading.
   /// After a refresh, the last rows until the new ones have loaded.

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart'
     show ValueListenable, immutable, listEquals, setEquals;
 import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart' show IconData;
 
 import '../vs/editor/contrib/folding/browser/indent_range_provider.dart'
     show computeIndentLevel;
@@ -429,6 +430,29 @@ class EditorOverlayPainter extends CustomPainter {
           canvas.drawRect(rect, paint..color = background);
         }
         if (border != null) _strokeRect(canvas, rect, border);
+      }
+      if (background == null) continue;
+      if (decoration.fillsLineOnLineBreak) {
+        final first = snapshot.positionAtOffset(decoration.start).lineNumber;
+        final last = snapshot.positionAtOffset(decoration.end).lineNumber;
+        for (final line in visible) {
+          if (line < first || line >= last) continue;
+          final end = snapshot.contentEnds[line - 1];
+          if (decoration.start > end) continue;
+          final band = lineBand(line);
+          final x = layout.caretRect(end, affinity: TextAffinity.upstream).left;
+          canvas.drawRect(
+            Rect.fromLTRB(math.max(0, x), band.top, width, band.bottom),
+            paint..color = background,
+          );
+        }
+      }
+      if (decoration.marksEmpty && decoration.start == decoration.end) {
+        final caret = layout.caretRect(decoration.start);
+        canvas.drawRect(
+          Rect.fromLTWH(caret.left - 1, caret.top, 3, caret.height),
+          paint..color = background,
+        );
       }
     }
 
@@ -897,6 +921,7 @@ class EditorGutterPainter extends CustomPainter {
     required this.foldingVersion,
     required this.showFoldingControls,
     required this.foldingEnabled,
+    required this.decorations,
   });
 
   final ViewportLayout layout;
@@ -912,6 +937,9 @@ class EditorGutterPainter extends CustomPainter {
   final bool showFoldingControls;
   final bool foldingEnabled;
 
+  /// Their [EditorDecoration.marginColor]s and line decoration icons.
+  final SortedDecorations decorations;
+
   @override
   void paint(Canvas canvas, Size size) {
     final rect = geometry.gutterRect;
@@ -922,6 +950,7 @@ class EditorGutterPainter extends CustomPainter {
       rect,
       Paint()..color = theme.gutterBackground ?? background,
     );
+    _paintMarginDecorations(canvas, rect);
     final chevron = Paint()
       ..color = theme.foldingControlForeground
       ..style = PaintingStyle.stroke
@@ -967,6 +996,67 @@ class EditorGutterPainter extends CustomPainter {
     canvas.restore();
   }
 
+  void _paintMarginDecorations(Canvas canvas, Rect rect) {
+    if (decorations.isEmpty) return;
+    final visible = layout.visibleLineNumbers.toList();
+    if (visible.isEmpty) return;
+    final snapshot = layout.snapshot;
+    final paint = Paint();
+    final icons = <(IconData, Color), TextPainter>{};
+    for (final decoration in decorations.intersecting(
+      snapshot.lineStarts[visible.first - 1],
+      snapshot.contentEnds[visible.last - 1],
+    )) {
+      final margin = decoration.marginColor;
+      final icon = decoration.lineDecorationIcon;
+      if (margin == null && icon == null) continue;
+      final first = snapshot.positionAtOffset(decoration.start).lineNumber;
+      final last = snapshot.positionAtOffset(decoration.end).lineNumber;
+      for (final line in visible) {
+        if (line < first || line > last) continue;
+        final top = layout.lineTop(line) - scrollTop;
+        final height = layout.lineRowsHeight(line);
+        if (margin != null) {
+          canvas.drawRect(
+            Rect.fromLTWH(0, top, rect.width, height),
+            paint..color = margin,
+          );
+        }
+        if (icon == null) continue;
+        // `.insert-sign`: 11px, flex-centered vertically, 0.7 opaque.
+        final color =
+            (decoration.lineDecorationColor ?? theme.lineNumberForeground)
+                .withValues(alpha: 0.7);
+        final glyph = icons.putIfAbsent(
+          (icon, color),
+          () => TextPainter(
+            text: TextSpan(
+              text: String.fromCharCode(icon.codePoint),
+              style: TextStyle(
+                fontFamily: icon.fontFamily,
+                package: icon.fontPackage,
+                fontSize: 11,
+                height: 1,
+                color: color,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout(),
+        );
+        glyph.paint(
+          canvas,
+          Offset(
+            geometry.decorationsLeft,
+            top + (layout.lineHeight - glyph.height) / 2,
+          ),
+        );
+      }
+    }
+    for (final glyph in icons.values) {
+      glyph.dispose();
+    }
+  }
+
   @override
   bool shouldRepaint(covariant EditorGutterPainter old) =>
       old.layout != layout ||
@@ -979,5 +1069,6 @@ class EditorGutterPainter extends CustomPainter {
       !setEquals(old.activeLines, activeLines) ||
       old.foldingVersion != foldingVersion ||
       old.showFoldingControls != showFoldingControls ||
-      old.foldingEnabled != foldingEnabled;
+      old.foldingEnabled != foldingEnabled ||
+      old.decorations != decorations;
 }

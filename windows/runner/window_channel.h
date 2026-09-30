@@ -28,6 +28,9 @@
 //   setHitTestAreas (…)           where the header Flutter draws is, so the
 //                                 window can drag it and run its buttons
 //   windowCommand (name)          minimize, maximize or close the window
+//   windowRoom                    how much larger the window can get on its
+//                                 monitor, in Flutter's pixels
+//   growWindow (width, height)    makes it that much larger, on the monitor
 //
 // The Edit menu's commands are not here: Windows draws no menu bar for the
 // app (see hasEditMenu), so Flutter handles those shortcuts itself.
@@ -67,6 +70,10 @@ class WindowChannel {
   void Open(const flutter::EncodableMap& arguments,
             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
                 result);
+
+  // The `growWindow` method: |width| and |height| more, in Flutter's pixels,
+  // as far as the monitor's work area goes.
+  void Grow(double width, double height);
 
   // The window's dpi over 96: its physical pixels to one of Flutter's.
   double Scale() const;

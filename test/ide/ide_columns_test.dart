@@ -45,15 +45,80 @@ void main() {
       expect(IdeColumns.roomForBoth(850), isTrue);
     });
 
-    test('maximized, the chat has all the room', () {
-      expect(
-        IdeColumns.fit(1000, sidebar: 240, chat: 420, chatMaximized: true),
-        const IdeColumns(sidebar: 0, chat: 1000, chatMaximized: true),
+    test('the editor hidden, the chat has the room the side bar leaves', () {
+      final maximized = IdeColumns.fit(
+        1000,
+        sidebar: null,
+        chat: 420,
+        editorHidden: true,
       );
-      // Hidden, it is not.
       expect(
-        IdeColumns.fit(1000, sidebar: 240, chat: null, chatMaximized: true),
+        maximized,
+        const IdeColumns(sidebar: 0, chat: 1000, editorHidden: true),
+      );
+      expect(maximized.chatMaximized, isTrue);
+      final beside = IdeColumns.fit(
+        1000,
+        sidebar: 240,
+        chat: 420,
+        editorHidden: true,
+      );
+      expect(
+        beside,
+        const IdeColumns(sidebar: 240, chat: 760, editorHidden: true),
+      );
+      expect(beside.chatMaximized, isFalse);
+      expect(beside.editor(1000), 0);
+      // The chat keeps its minimum; with too little room even so, the two
+      // share it by their minimums.
+      expect(
+        IdeColumns.fit(600, sidebar: 300, chat: 420, editorHidden: true),
+        const IdeColumns(sidebar: 240, chat: 360, editorHidden: true),
+      );
+      final tight = IdeColumns.fit(
+        500,
+        sidebar: 240,
+        chat: 420,
+        editorHidden: true,
+      );
+      expect(tight.sidebar, closeTo(500 * 170 / 530, 0.01));
+      expect(IdeColumns.roomForSides(529), isFalse);
+      expect(IdeColumns.roomForSides(530), isTrue);
+      // The chat hidden, the editor is not.
+      expect(
+        IdeColumns.fit(1000, sidebar: 240, chat: null, editorHidden: true),
         const IdeColumns(sidebar: 240, chat: 0),
+      );
+    });
+  });
+
+  group('the side bar\'s sash, the editor hidden', () {
+    // Of 600.
+    const beside = IdeColumns(sidebar: 240, chat: 360, editorHidden: true);
+
+    test('the chat has the rest, down to its minimum', () {
+      expect(
+        beside.dragSidebar(600, -40),
+        const IdeColumns(sidebar: 200, chat: 400, editorHidden: true),
+      );
+      expect(beside.dragSidebar(600, 10), beside);
+      expect(beside.canGrowSidebar(600), isFalse);
+      expect(beside.dragSidebar(600, -40).canGrowSidebar(600), isTrue);
+    });
+
+    test('either snapped shut, the editor is back', () {
+      expect(
+        beside.dragSidebar(600, -98),
+        const IdeColumns(sidebar: 170, chat: 430, editorHidden: true),
+      );
+      final shut = beside.dragSidebar(600, -99);
+      expect(shut.sidebar, 0);
+      expect(shut.editorHidden, isFalse);
+      // A sixth of the chat's minimum past it.
+      expect(beside.dragSidebar(600, 59), beside);
+      expect(
+        beside.dragSidebar(600, 60),
+        const IdeColumns(sidebar: 280, chat: 0),
       );
     });
   });
@@ -165,7 +230,7 @@ void main() {
         const maximized = IdeColumns(
           sidebar: 0,
           chat: 1000,
-          chatMaximized: true,
+          editorHidden: true,
         );
         // 266⅔ left of the editor.
         expect(both.dragChat(1000, -314), maximized);

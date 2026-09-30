@@ -48,7 +48,7 @@ class ChatHistoryView extends StatefulWidget {
 }
 
 class _ChatHistoryViewState extends State<ChatHistoryView>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _BottomAnchoredScrollController _scrollController =
       _BottomAnchoredScrollController();
   final FocusNode _selectionFocusNode = FocusNode(
@@ -110,6 +110,86 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// The status row's, kept as the items before it grow in number: it
   /// goes on where it was rather than start over.
   final GlobalKey _statusKey = GlobalKey();
+
+  // --- Items coming in -----------------------------------------------------
+  //
+  // In a live turn, an item comes in fading (see [_Appear]); where it takes
+  // the place of the status row showing, the row fades out there, over it,
+  // rather than drop below it and fold: the one gives way to the other.
+
+  /// The items but the status row, and whether that showed, as last seen.
+  int _seenItems = 0;
+  bool _statusShown = false;
+
+  /// Items come in a live turn, until they have faded in.
+  final Set<int> _appearing = {};
+
+  /// The item the showing status row gave way to, while the row fades out
+  /// over it.
+  int? _handoffIndex;
+  late final AnimationController _handoff =
+      AnimationController(vsync: this, duration: _motionDuration)
+        ..addStatusListener((status) {
+          if (status == AnimationStatus.completed && _handoffIndex != null) {
+            setState(() => _handoffIndex = null);
+          }
+        });
+
+  int get _contentCount {
+    final count = _feed.itemCount;
+    return count > 0 && _feed.itemAt(count - 1) is LiveStatusItem
+        ? count - 1
+        : count;
+  }
+
+  bool get _statusShowing {
+    final count = _feed.itemCount;
+    return count > 0 &&
+        switch (_feed.itemAt(count - 1)) {
+          LiveStatusItem(:final visible) => visible,
+          _ => false,
+        };
+  }
+
+  void _seeItems() {
+    _seenItems = _contentCount;
+    _statusShown = _statusShowing;
+    _appearing.clear();
+    _endHandoff();
+  }
+
+  void _endHandoff() {
+    _handoff.stop();
+    _handoffIndex = null;
+  }
+
+  /// Marks the items come since last seen, in a live turn, to fade in, and
+  /// hands the status row over to the first of them.
+  void _itemsCame() {
+    final count = _contentCount;
+    final statusShown = _statusShowing;
+    _appearing.removeWhere((index) => index >= count);
+    if (count > _seenItems &&
+        _feed.isStreaming &&
+        !MediaQuery.disableAnimationsOf(context)) {
+      for (var index = _seenItems; index < count; index++) {
+        // The user's own messages are in place as they are sent.
+        if (_feed.itemAt(index) is! UserMessageItem) _appearing.add(index);
+      }
+      if (_statusShown && !statusShown && _appearing.contains(_seenItems)) {
+        _handoffIndex = _seenItems;
+        _handoff.forward(from: 0);
+      }
+    }
+    // Showing again, or gone, it is in its place.
+    if (_handoffIndex case final index?
+        when statusShown || index >= count || !_feed.isStreaming) {
+      _endHandoff();
+    }
+    _seenItems = count;
+    _statusShown = statusShown;
+  }
+
   double _editorHeight = 0;
   final Object _editorTapRegion = Object();
   GlobalKey<ChatComposerState> _editComposerKey = GlobalKey();
@@ -164,6 +244,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     super.initState();
     _scrollController.addListener(_handleScroll);
     _feed.addListener(_handleSessionChanged);
+    _seeItems();
     _resumeEditing();
   }
 
@@ -192,6 +273,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _stickyKeys.clear();
       _stickyIndices = const {};
       _editingIndex = null;
+      _seeItems();
       _resumeEditing();
     }
   }
@@ -215,6 +297,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _autoScroller?.stopAutoScroll();
     _editorMoved.dispose();
     _editorReveal.dispose();
+    _handoff.dispose();
     _selectionDelegate.dispose();
     _scrollController.dispose();
     _selectionFocusNode.dispose();
@@ -480,6 +563,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _feed.editing = null;
     }
     if (startedStreaming) _jumpToBottom();
+    _itemsCame();
     _scheduleStickyUpdate();
     setState(() {});
   }
@@ -941,26 +1025,52 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
             SizedBox(key: _editorPlaceholderKey, height: _editorShownHeight),
       );
     }
+    final view = ChatItemView(
+      key: item is LiveStatusItem ? _statusKey : ValueKey(index),
+      item: item,
+      expanded: _isExpanded(index),
+      onToggle: () => _toggle(index),
+      onEdit: item is UserMessageItem && _feed.canEditMessages
+          ? () => _startEditing(index)
+          : null,
+      onCancelQueued: () => _feed.cancelQueued(index),
+      onMoveToBackground: _feed.moveToBackgroundAt(index),
+      onStop: _feed.stopAt(index),
+      onOpen: switch ((item, widget.onOpenAgent)) {
+        (final AgentItem agent, final open?) when agent.id != null =>
+          () => open(agent),
+        _ => null,
+      },
+    );
     return _ItemSelectionScope(
       index: index,
       delegate: _selectionDelegate,
-      child: ChatItemView(
-        key: item is LiveStatusItem ? _statusKey : ValueKey(index),
-        item: item,
-        expanded: _isExpanded(index),
-        onToggle: () => _toggle(index),
-        onEdit: item is UserMessageItem && _feed.canEditMessages
-            ? () => _startEditing(index)
-            : null,
-        onCancelQueued: () => _feed.cancelQueued(index),
-        onMoveToBackground: _feed.moveToBackgroundAt(index),
-        onStop: _feed.stopAt(index),
-        onOpen: switch ((item, widget.onOpenAgent)) {
-          (final AgentItem agent, final open?) when agent.id != null =>
-            () => open(agent),
-          _ => null,
-        },
-      ),
+      child: switch (item) {
+        // Meanwhile over the item it gave way to.
+        LiveStatusItem() when _handoffIndex != null => const SizedBox(
+          width: double.infinity,
+        ),
+        LiveStatusItem() => view,
+        _ => _Appear(
+          key: ValueKey(('appear', index)),
+          appear: _appearing.contains(index),
+          onShown: () => _appearing.remove(index),
+          ghost: index == _handoffIndex ? _statusGhost(index) : null,
+          child: view,
+        ),
+      },
+    );
+  }
+
+  /// The status row, fading out over [index], where it was: as much above
+  /// the item's top as its gap was less than the item's.
+  ({Widget row, double top})? _statusGhost(int index) {
+    final status = _feed.itemAt(_feed.itemCount - 1);
+    if (status is! LiveStatusItem) return null;
+    final previous = index == 0 ? null : _feed.itemAt(index - 1);
+    return (
+      row: ChatItemView(key: _statusKey, item: status),
+      top: _gapBetween(previous, status) - _gapBefore(index),
     );
   }
 
@@ -977,10 +1087,13 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   }
 
   /// Vertical gap above [index]: roomy between turns, none between steps.
-  double _gapBefore(int index) {
-    if (index == 0) return 0;
-    final item = _feed.itemAt(index);
-    final previous = _feed.itemAt(index - 1);
+  double _gapBefore(int index) => _gapBetween(
+    index == 0 ? null : _feed.itemAt(index - 1),
+    _feed.itemAt(index),
+  );
+
+  double _gapBetween(ChatItem? previous, ChatItem item) {
+    if (previous == null) return 0;
     if (item is UserMessageItem) return 32;
     if (previous is UserMessageItem) return 14;
     // Steps follow one another as a list.
@@ -991,13 +1104,25 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// The side margin for the width the history has; see [chatGutter].
   double _gutter = 24;
 
+  /// The history as built for [_gutter], until this builds again: a new
+  /// width with the same margin (a pane being resized) only lays it out
+  /// anew, rather than build (and parse) every message shown each frame.
+  Widget? _built;
+
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      _gutter = chatGutter(constraints.maxWidth);
-      return _buildHistory(context);
-    },
-  );
+  Widget build(BuildContext context) {
+    _built = null;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final gutter = chatGutter(constraints.maxWidth);
+        if (_built == null || gutter != _gutter) {
+          _gutter = gutter;
+          _built = _buildHistory(context);
+        }
+        return _built!;
+      },
+    );
+  }
 
   Widget _buildHistory(BuildContext context) {
     return Shortcuts(
@@ -1808,6 +1933,92 @@ class _RevealClipper extends CustomClipper<Rect> {
 
   @override
   bool shouldReclip(_RevealClipper old) => old.height != height;
+}
+
+/// An item come in a live turn: it fades in, rising a little, where it is
+/// (its height at once, as streamed text's is, so the list keeps its hold
+/// on its bottom). [ghost], the status row whose place it took, fades out
+/// over it meanwhile, where the row was. At once where motion is turned
+/// down.
+class _Appear extends StatefulWidget {
+  const _Appear({
+    super.key,
+    required this.appear,
+    required this.onShown,
+    required this.child,
+    this.ghost,
+  });
+
+  final bool appear;
+
+  /// Once it has faded in.
+  final VoidCallback onShown;
+  final ({Widget row, double top})? ghost;
+  final Widget child;
+
+  static const duration = Duration(milliseconds: 260);
+
+  /// How far below its place it begins.
+  static const rise = 6.0;
+
+  @override
+  State<_Appear> createState() => _AppearState();
+}
+
+class _AppearState extends State<_Appear> with SingleTickerProviderStateMixin {
+  /// Only for one come in: what was there already stays as it is.
+  AnimationController? _controller;
+  late final Animation<double> _eased = CurvedAnimation(
+    parent: _controller!,
+    curve: Curves.easeOutCubic,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.appear) return;
+    _controller = AnimationController(vsync: this, duration: _Appear.duration)
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) widget.onShown();
+      })
+      ..forward();
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller == null) return widget.child;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        FadeTransition(
+          opacity: _eased,
+          child: AnimatedBuilder(
+            animation: _eased,
+            builder: (context, child) => Transform.translate(
+              offset: Offset(0, _Appear.rise * (1 - _eased.value)),
+              child: child,
+            ),
+            child: widget.child,
+          ),
+        ),
+        if (widget.ghost case (:final row, :final top))
+          Positioned(
+            top: top,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: SelectionContainer.disabled(child: row),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 /// Its child, and when [motion] changes, the child's next change of height

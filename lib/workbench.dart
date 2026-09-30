@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'chat/chat_screen.dart';
 import 'chat/panels/interaction_panel.dart';
 import 'ide/git/git_repository.dart';
+import 'ide/ide_modern_ui.dart';
 import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
 import 'ide/lsp/language_features.dart';
@@ -16,6 +17,8 @@ import 'sidebar/sidebar.dart';
 import 'theme/codicons.dart';
 import 'theme/cursor_theme.dart';
 import 'theme/workbench_theme.dart' show WorkbenchThemeService, themeColors;
+import 'workspace/chat_drag.dart';
+import 'workspace/chat_grid_view.dart';
 import 'workspace/open_in_editor_button.dart';
 import 'workspace/pin_window_button.dart';
 import 'workspace/title_bar_double_click.dart';
@@ -24,7 +27,8 @@ import 'workspace/window_header/window_header.dart';
 import 'workspace/workspace.dart';
 
 /// The window: the agents sidebar on the left, the selected agent's chat
-/// on the right.
+/// on the right, and up to three more beside it, dragged there from the
+/// sidebar (see [ChatGridView]).
 ///
 /// The sidebar can be dragged wider or narrower and hidden (⌘B or its
 /// button). In a narrow window it is hidden by default and opens over the
@@ -71,8 +75,10 @@ class _WorkbenchState extends State<Workbench> {
   static const _handleWidth = 5.0;
 
   /// The width set by dragging. Shown as [_shownWidth], which a narrow
-  /// window may cap below it for now.
-  double _width = 260;
+  /// window may cap below it for now. A drag sets it without building the
+  /// window again: only the columns are laid out anew, the sidebar and the
+  /// chat as they were (built again each move, they would lag the pointer).
+  final ValueNotifier<double> _width = ValueNotifier(260);
 
   /// Of the window, from the last layout.
   double _windowWidth = double.infinity;
@@ -84,8 +90,10 @@ class _WorkbenchState extends State<Workbench> {
     _windowWidth - Workbench.sidebarWindowMargin,
   );
 
-  double get _shownWidth =>
-      _width.clamp(math.min(Workbench.minSidebarWidth, _maxWidth), _maxWidth);
+  double get _shownWidth => _width.value.clamp(
+    math.min(Workbench.minSidebarWidth, _maxWidth),
+    _maxWidth,
+  );
   bool _dragging = false;
 
   /// Pointer and sidebar width when the resize drag began.
@@ -105,6 +113,9 @@ class _WorkbenchState extends State<Workbench> {
 
   /// The window is kept above other apps' windows.
   bool _pinned = false;
+
+  /// An agent dragged from the sidebar onto the conversations.
+  late final ChatDrag _drag = ChatDrag(onDrop: _drop, onStart: _closeDrawer);
 
   void _setPinned(bool pinned) {
     setState(() => _pinned = pinned);
@@ -128,6 +139,8 @@ class _WorkbenchState extends State<Workbench> {
 
   @override
   void dispose() {
+    _drag.dispose();
+    _width.dispose();
     _lifecycle.dispose();
     HardwareKeyboard.instance.removeHandler(_handleKey);
     for (final ide in _ideSpaces.values) {
@@ -190,18 +203,24 @@ class _WorkbenchState extends State<Workbench> {
         }
         return ColoredBox(
           color: CursorColors.windowCanvas,
-          // The header too: it opens the current session's project.
-          child: ListenableBuilder(
-            listenable: _workspace,
-            builder: (context, _) => Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Windows draws its own header over both columns (see
-                // window_header/); elsewhere the system's is above them.
-                if (WindowControls.drawsHeader) _buildHeader(),
-                Expanded(child: _buildContent(narrow)),
-              ],
-            ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // The header too: it opens the current session's project.
+              ListenableBuilder(
+                listenable: _workspace,
+                builder: (context, _) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Windows draws its own header over both columns (see
+                    // window_header/); elsewhere the system's is above them.
+                    if (WindowControls.drawsHeader) _buildHeader(),
+                    Expanded(child: _buildContent(narrow)),
+                  ],
+                ),
+              ),
+              ChatDragLayer(drag: _drag),
+            ],
           ),
         );
       },
@@ -250,37 +269,43 @@ class _WorkbenchState extends State<Workbench> {
   }
 
   Widget _buildWide() {
-    final row = Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AnimatedContainer(
-          duration: _dragging ? Duration.zero : _duration,
-          curve: Curves.easeOutCubic,
-          width: _docked ? _shownWidth : 0,
-          child: ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.centerRight,
-              minWidth: _shownWidth,
-              maxWidth: _shownWidth,
-              child: _buildSidebar(),
+    // Built once for the widths a drag goes through (see [_width]).
+    final sidebar = _buildSidebar();
+    final panes = _buildPanes(showToggle: !_docked);
+    final row = ValueListenableBuilder(
+      valueListenable: _width,
+      builder: (context, _, _) => Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AnimatedContainer(
+            duration: _dragging ? Duration.zero : _duration,
+            curve: Curves.easeOutCubic,
+            width: _docked ? _shownWidth : 0,
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.centerRight,
+                minWidth: _shownWidth,
+                maxWidth: _shownWidth,
+                child: sidebar,
+              ),
             ),
           ),
-        ),
-        // One backdrop for both: two, meeting at a fractional x (a dragged
-        // width), would each half cover the pixel there, and the material
-        // would show through the seam.
-        Expanded(
-          child: _conversation(
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_docked) _buildResizeHandle(),
-                Expanded(child: _buildChat(showToggle: !_docked)),
-              ],
+          // One backdrop for both: two, meeting at a fractional x (a dragged
+          // width), would each half cover the pixel there, and the material
+          // would show through the seam.
+          Expanded(
+            child: _conversation(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_docked) _buildResizeHandle(),
+                  Expanded(child: panes),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
     return Stack(
       fit: StackFit.expand,
@@ -294,7 +319,7 @@ class _WorkbenchState extends State<Workbench> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Positioned.fill(child: _conversation(_buildChat(showToggle: true))),
+        Positioned.fill(child: _conversation(_buildPanes(showToggle: true))),
         // Scrim: a click outside closes the drawer.
         Positioned.fill(
           child: IgnorePointer(
@@ -313,44 +338,48 @@ class _WorkbenchState extends State<Workbench> {
         // Only the slide animates; the width follows the drag or the window
         // at once (animating it too would leave the sidebar overflowing its
         // box while the window grows).
-        TweenAnimationBuilder<double>(
-          tween: Tween(end: _drawerOpen ? 1 : 0),
-          duration: _duration,
-          curve: Curves.easeOutCubic,
-          onEnd: () {
-            if (_drawerClosing) setState(() => _drawerClosing = false);
-          },
-          builder: (context, shown, child) => Positioned(
-            top: 0,
-            bottom: 0,
-            left: -(_shownWidth + handleWidth + 24) * (1 - shown),
-            width: _shownWidth + handleWidth,
-            child: child!,
+        ValueListenableBuilder(
+          valueListenable: _width,
+          builder: (context, _, sidebar) => TweenAnimationBuilder<double>(
+            tween: Tween(end: _drawerOpen ? 1 : 0),
+            duration: _duration,
+            curve: Curves.easeOutCubic,
+            onEnd: () {
+              if (_drawerClosing) setState(() => _drawerClosing = false);
+            },
+            builder: (context, shown, child) => Positioned(
+              top: 0,
+              bottom: 0,
+              left: -(_shownWidth + handleWidth + 24) * (1 - shown),
+              width: _shownWidth + handleWidth,
+              child: child!,
+            ),
+            child: sidebar == null
+                ? const SizedBox.shrink()
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(width: _shownWidth, child: sidebar),
+                      _buildResizeHandle(),
+                    ],
+                  ),
           ),
+          // Built once for the widths a drag goes through (see [_width]).
           child: _drawerOpen || _drawerClosing
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      width: _shownWidth,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          boxShadow: [
-                            BoxShadow(
-                              color: themeColors['widget.shadow'],
-                              blurRadius: 24,
-                            ),
-                          ],
-                        ),
-                        // Over the chat, not the material: the tint alone
-                        // would show the chat through.
-                        child: _opaque(_buildSidebar(onOpened: _closeDrawer)),
+              ? DecoratedBox(
+                  decoration: BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: themeColors['widget.shadow'],
+                        blurRadius: 24,
                       ),
-                    ),
-                    _buildResizeHandle(),
-                  ],
+                    ],
+                  ),
+                  // Over the chat, not the material: the tint alone would
+                  // show the chat through.
+                  child: _opaque(_buildSidebar(onOpened: _closeDrawer)),
                 )
-              : const SizedBox.shrink(),
+              : null,
         ),
         if (_dragging) _resizeCursorLayer,
       ],
@@ -378,6 +407,7 @@ class _WorkbenchState extends State<Workbench> {
       onCollapse: _toggle,
       onOpened: onOpened,
       onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
+      drag: _drag,
     );
   }
 
@@ -445,21 +475,22 @@ class _WorkbenchState extends State<Workbench> {
         // Where the pointer is relative to where it was pressed, not the
         // sum of the moves: past the min or max the border waits there, and
         // follows again only once the pointer is back at it.
-        onHorizontalDragUpdate: (details) => setState(() {
+        onHorizontalDragUpdate: (details) {
           final origin = _dragOrigin!;
-          _width = (origin.width + details.globalPosition.dx - origin.x).clamp(
-            math.min(Workbench.minSidebarWidth, _maxWidth),
-            _maxWidth,
-          );
-        }),
+          _width.value = (origin.width + details.globalPosition.dx - origin.x)
+              .clamp(math.min(Workbench.minSidebarWidth, _maxWidth), _maxWidth);
+        },
         onHorizontalDragEnd: (_) => _endDrag(),
         onHorizontalDragCancel: _endDrag,
+        // At rest the border line; dragged, as thick as the IDE's sashes,
+        // in their `sash.hoverBorder`.
         child: Container(
           width: _handleWidth,
           alignment: Alignment.centerLeft,
-          child: Container(
-            width: 1,
-            color: _dragging ? CursorColors.accent : CursorColors.border,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 100),
+            width: _dragging ? IdeModernUI.gap : 1,
+            color: _dragging ? IdeModernUI.sashHover : CursorColors.border,
           ),
         ),
       ),
@@ -473,12 +504,63 @@ class _WorkbenchState extends State<Workbench> {
     _closeDrawer();
   }
 
-  Widget _buildChat({required bool showToggle, bool embedded = false}) {
-    final thread = _workspace.current;
+  /// The open agents side by side (see [ChatGridView]).
+  Widget _buildPanes({required bool showToggle}) {
+    final grid = _workspace.grid;
+    if (grid.isEmpty) return _buildChat(showToggle: showToggle);
+    return ChatGridView(
+      grid: grid,
+      drag: _drag,
+      onFocus: (thread) {
+        if (!identical(thread, _workspace.current)) _workspace.select(thread);
+      },
+      paneBuilder: (context, thread, place) =>
+          _buildChat(showToggle: showToggle, pane: thread, place: place),
+    );
+  }
+
+  /// An agent dragged from the sidebar, released over the conversations.
+  void _drop(ChatDrop drop) {
+    final growth = drop.growth;
+    if (growth != Size.zero) {
+      // Wide enough, the window would dock the sidebar, which would take
+      // the room made: it stays out of the way, as it was.
+      if (_narrow && _windowWidth + growth.width >= Workbench.narrowWidth) {
+        setState(() => _docked = false);
+      }
+      unawaited(WindowControls.grow(growth));
+    }
+    if (drop.side case final side?) {
+      _workspace.openBeside(drop.thread, drop.target, side);
+    } else {
+      _workspace.openInPlaceOf(drop.target, drop.thread);
+    }
+  }
+
+  /// A pane that is the whole of the conversations.
+  static const ChatPanePlace _whole = (
+    topLeft: true,
+    topRight: true,
+    top: true,
+    alone: true,
+  );
+
+  /// The chat of [pane] (by default the current agent), at [place] among
+  /// the others.
+  Widget _buildChat({
+    required bool showToggle,
+    bool embedded = false,
+    AgentThread? pane,
+    ChatPanePlace place = _whole,
+  }) {
+    final thread = pane ?? _workspace.current;
     // Windows keeps the toggle, the pin and the editor button in its header
     // (see window_header/): all that is left for this row is the session's
-    // title, which then sits in the middle of it.
+    // title, which then sits in the middle of it. Elsewhere the toggle is
+    // in the top left pane, by the traffic lights, and the pin and the
+    // editor button in the top right one.
     final header = WindowControls.drawsHeader;
+    showToggle = showToggle && place.topLeft;
     final leading = !header && showToggle
         ? SidebarIconButton(
             icon: Codicons.layoutSidebarLeftOff,
@@ -499,6 +581,22 @@ class _WorkbenchState extends State<Workbench> {
         onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
       );
     }
+    final windowTools = !header && !embedded && place.topRight;
+    final tools = [
+      if (windowTools) ...[
+        PinWindowButton(pinned: _pinned, onChanged: _setPinned),
+        const SizedBox(width: 6),
+        OpenInEditorButton(workspace: _workspace, project: thread.project),
+      ],
+      if (!place.alone) ...[
+        if (windowTools) const SizedBox(width: 6),
+        SidebarIconButton(
+          icon: Codicons.close,
+          tooltip: 'Close pane',
+          onTap: () => _workspace.closePane(thread),
+        ),
+      ],
+    ];
     return ChatScreen(
       key: _chatKey(thread),
       embedded: embedded,
@@ -511,19 +609,11 @@ class _WorkbenchState extends State<Workbench> {
       // Beside the sidebar, the traffic lights are over it, not here.
       titleBarInset: titleBarInset,
       leading: leading,
-      trailing: header || embedded
+      trailing: tools.isEmpty
           ? null
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                PinWindowButton(pinned: _pinned, onChanged: _setPinned),
-                const SizedBox(width: 6),
-                OpenInEditorButton(
-                  workspace: _workspace,
-                  project: thread.project,
-                ),
-              ],
-            ),
+          : Row(mainAxisSize: MainAxisSize.min, children: tools),
+      windowTitleBar: place.top,
+      focused: place.alone || identical(thread, _workspace.current),
     );
   }
 }

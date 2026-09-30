@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../kernel/kernel_types.dart';
@@ -34,6 +37,8 @@ class ChatScreen extends StatefulWidget {
     this.onRename,
     this.autofocus = false,
     this.embedded = false,
+    this.windowTitleBar = true,
+    this.focused = true,
     this.mentions = ComposerMockData.mentions,
   });
 
@@ -46,8 +51,9 @@ class ChatScreen extends StatefulWidget {
   /// At the right of the title bar, e.g. a button to open the project.
   final Widget? trailing;
 
-  /// Left of the title bar's content: by default clear of the native
-  /// traffic lights, as when this is the whole window.
+  /// Left of the title bar's [leading]: by default clear of the native
+  /// traffic lights, as when this is the whole window. The title and
+  /// [trailing] keep to the conversation's column, clear of both.
   final double? titleBarInset;
 
   /// Given, a double click on the title edits it.
@@ -58,6 +64,15 @@ class ChatScreen extends StatefulWidget {
 
   /// When true, omit the window title row so this screen can live in a pane.
   final bool embedded;
+
+  /// Whether its title bar is in the window's own (at the top, under the
+  /// macOS traffic lights' row): a double click on it does what one on the
+  /// system's does. Not so for a pane below another.
+  final bool windowTitleBar;
+
+  /// Whether it is the conversation focused, of several side by side: the
+  /// others' titles are dimmer.
+  final bool focused;
 
   /// What `@` offers: the project's files and other context.
   final List<Suggestion> mentions;
@@ -195,7 +210,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   Widget _buildTitleBar() {
     final style = TextStyle(
-      color: CursorColors.textMuted,
+      color: widget.focused ? CursorColors.textMuted : CursorColors.textFaint,
       fontSize: 12.5,
       fontWeight: FontWeight.w500,
     );
@@ -227,34 +242,36 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         ),
       );
     }
-    // Beside the title (a double click renames it) and the buttons, a
-    // double click does what one on the system's title bar does.
-    return TitleBarDoubleClick(
-      child: SizedBox(
-        height: CursorMetrics.titleBarHeight,
-        child: Padding(
-          padding: EdgeInsets.only(left: inset, right: 8),
-          child: Row(
-            children: [
-              if (widget.leading case final leading?) ...[
-                leading,
-                const SizedBox(width: 6),
+    final bar = SizedBox(
+      height: CursorMetrics.titleBarHeight,
+      child: CustomMultiChildLayout(
+        delegate: _TitleBarLayout(inset: inset),
+        children: [
+          if (widget.leading case final leading?)
+            LayoutId(id: _TitleBarSlot.leading, child: leading),
+          LayoutId(
+            id: _TitleBarSlot.title,
+            child: Row(
+              children: [
+                Expanded(
+                  // The title, where the conversation begins: at its start,
+                  // as the row macOS draws has it (Windows draws none of
+                  // it: see window_header/).
+                  child: Align(alignment: Alignment.centerLeft, child: title),
+                ),
+                if (widget.trailing case final trailing?) ...[
+                  const SizedBox(width: 8),
+                  TitleBarControls(child: trailing),
+                ],
               ],
-              Expanded(
-                // The title, where the conversation begins: at its start, as
-                // the row macOS draws has it (Windows draws none of it: see
-                // window_header/).
-                child: Align(alignment: Alignment.centerLeft, child: title),
-              ),
-              if (widget.trailing case final trailing?) ...[
-                const SizedBox(width: 8),
-                TitleBarControls(child: trailing),
-              ],
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
+    // Beside the title (a double click renames it) and the buttons, a
+    // double click does what one on the system's title bar does.
+    return widget.windowTitleBar ? TitleBarDoubleClick(child: bar) : bar;
   }
 
   Widget? _buildActivityStrip() {
@@ -363,60 +380,42 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           ),
           ListenableBuilder(
             listenable: _session,
-            builder: (context, _) => LayoutBuilder(
-              builder: (context, constraints) {
-                final gutter = chatGutter(constraints.maxWidth);
-                return Align(
-                  alignment: Alignment.topCenter,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: _maxContentWidth + gutter * 2,
-                    ),
-                    child: Padding(
-                      // Level with the history's text; a little less below in a
-                      // narrow pane.
-                      padding: EdgeInsets.fromLTRB(
-                        gutter,
-                        0,
-                        gutter,
-                        gutter < 24 ? 12 : 16,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _PanelSlot(
-                            child: HealthBanner.shows(_session.health)
-                                ? HealthBanner(
-                                    health: _session.health,
-                                    kernelName: _session.kernel.label,
-                                    onRetry: _session.restart,
-                                  )
-                                : null,
-                          ),
-                          _PanelSlot(
-                            child: switch (_session.pendingInteraction) {
-                              final request? => InteractionPanel(
-                                key: ObjectKey(request),
-                                request: request,
-                                onAnswer: _answer,
-                              ),
-                              null => null,
-                            },
-                          ),
-                          // A subagent's conversation takes no messages: how it
-                          // is doing ends it instead (see _buildAgentPage).
-                          _BottomSwitcher(
-                            child: _agentShown == null
-                                ? _buildDock()
-                                : const SizedBox.shrink(key: ValueKey('none')),
-                          ),
-                        ],
-                      ),
-                    ),
+            // Level with the history's text, laid out (not built) for the
+            // width: a pane being resized does not build the composer anew.
+            builder: (context, _) => _ConversationColumn(
+              maxWidth: _maxContentWidth,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _PanelSlot(
+                    child: HealthBanner.shows(_session.health)
+                        ? HealthBanner(
+                            health: _session.health,
+                            kernelName: _session.kernel.label,
+                            onRetry: _session.restart,
+                          )
+                        : null,
                   ),
-                );
-              },
+                  _PanelSlot(
+                    child: switch (_session.pendingInteraction) {
+                      final request? => InteractionPanel(
+                        key: ObjectKey(request),
+                        request: request,
+                        onAnswer: _answer,
+                      ),
+                      null => null,
+                    },
+                  ),
+                  // A subagent's conversation takes no messages: how it
+                  // is doing ends it instead (see _buildAgentPage).
+                  _BottomSwitcher(
+                    child: _agentShown == null
+                        ? _buildDock()
+                        : const SizedBox.shrink(key: ValueKey('none')),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -494,6 +493,144 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         ),
       ],
     );
+  }
+}
+
+enum _TitleBarSlot { leading, title }
+
+/// The width of the conversation's column (the history's text, the
+/// composer) in a screen [width] wide: [chatGutter] in from either side, and
+/// no wider than [maxWidth], in the middle.
+double _columnWidth(double width, double maxWidth) =>
+    math.max(0, math.min(width - 2 * chatGutter(width), maxWidth));
+
+/// The title bar's [_TitleBarSlot.leading] at [inset], clear of the traffic
+/// lights; the title and the buttons after it across the conversation's
+/// column, clear of the leading.
+class _TitleBarLayout extends MultiChildLayoutDelegate {
+  _TitleBarLayout({required this.inset});
+
+  final double inset;
+
+  /// Between the leading and the title.
+  static const _gap = 6.0;
+
+  /// The least from the right side, where the column reaches it.
+  static const _endInset = 8.0;
+
+  @override
+  void performLayout(Size size) {
+    var start = inset;
+    if (hasChild(_TitleBarSlot.leading)) {
+      final leading = layoutChild(
+        _TitleBarSlot.leading,
+        BoxConstraints.loose(size),
+      );
+      positionChild(
+        _TitleBarSlot.leading,
+        Offset(inset, (size.height - leading.height) / 2),
+      );
+      start += leading.width + _gap;
+    }
+    final column =
+        (size.width -
+            _columnWidth(size.width, _ChatScreenState._maxContentWidth)) /
+        2;
+    final left = math.max(start, column);
+    final width = math.max(
+      0.0,
+      size.width - left - math.max(_endInset, column),
+    );
+    layoutChild(
+      _TitleBarSlot.title,
+      BoxConstraints.tightFor(width: width, height: size.height),
+    );
+    positionChild(_TitleBarSlot.title, Offset(left, 0));
+  }
+
+  @override
+  bool shouldRelayout(_TitleBarLayout oldDelegate) =>
+      oldDelegate.inset != inset;
+}
+
+/// [child] across the conversation's column (see [_columnWidth]), with a
+/// margin under it: 16, or 12 in a narrow pane. Worked out as it is laid out,
+/// so a new width only lays [child] out again.
+class _ConversationColumn extends SingleChildRenderObjectWidget {
+  const _ConversationColumn({required this.maxWidth, required super.child});
+
+  final double maxWidth;
+
+  @override
+  _RenderConversationColumn createRenderObject(BuildContext context) =>
+      _RenderConversationColumn(maxWidth);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderConversationColumn renderObject,
+  ) {
+    renderObject.maxWidth = maxWidth;
+  }
+}
+
+class _RenderConversationColumn extends RenderShiftedBox {
+  _RenderConversationColumn(this._maxWidth) : super(null);
+
+  double get maxWidth => _maxWidth;
+  double _maxWidth;
+  set maxWidth(double value) {
+    if (value == _maxWidth) return;
+    _maxWidth = value;
+    markNeedsLayout();
+  }
+
+  static double _bottom(double width) => chatGutter(width) < 24 ? 12 : 16;
+
+  BoxConstraints _childConstraints(BoxConstraints constraints) {
+    final width = _columnWidth(constraints.maxWidth, _maxWidth);
+    return BoxConstraints.tightFor(width: width).copyWith(
+      maxHeight: math.max(
+        0.0,
+        constraints.maxHeight - _bottom(constraints.maxWidth),
+      ),
+    );
+  }
+
+  @override
+  Size computeDryLayout(covariant BoxConstraints constraints) {
+    final height =
+        child?.getDryLayout(_childConstraints(constraints)).height ?? 0;
+    return constraints.constrain(
+      Size(constraints.maxWidth, height + _bottom(constraints.maxWidth)),
+    );
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      (child?.getMinIntrinsicHeight(_columnWidth(width, _maxWidth)) ?? 0) +
+      _bottom(width);
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      (child?.getMaxIntrinsicHeight(_columnWidth(width, _maxWidth)) ?? 0) +
+      _bottom(width);
+
+  @override
+  void performLayout() {
+    final width = constraints.maxWidth;
+    final child = this.child;
+    var height = 0.0;
+    if (child != null) {
+      final childConstraints = _childConstraints(constraints);
+      child.layout(childConstraints, parentUsesSize: true);
+      (child.parentData! as BoxParentData).offset = Offset(
+        (width - childConstraints.maxWidth) / 2,
+        0,
+      );
+      height = child.size.height;
+    }
+    size = constraints.constrain(Size(width, height + _bottom(width)));
   }
 }
 

@@ -11,6 +11,7 @@ import '../ide/ide_hover.dart';
 import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import '../workspace/chat_drag.dart';
 import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
@@ -63,10 +64,14 @@ class Sidebar extends StatefulWidget {
     required this.onCollapse,
     this.onOpened,
     this.onOpenFolder,
+    this.drag,
   });
 
   final Workspace workspace;
   final VoidCallback onCollapse;
+
+  /// Where rows are dragged to show beside the open agent; none when null.
+  final ChatDrag? drag;
 
   /// Asks for a folder to open as a project; null where there is none to
   /// ask (the web).
@@ -402,6 +407,8 @@ class _SidebarState extends State<Sidebar> {
                   thread: thread,
                   height: _rowHeight,
                   selected: identical(thread, selected),
+                  shown: _workspace.grid.contains(thread),
+                  drag: widget.drag,
                   showProject: group.project == null && _projectsShown,
                   renaming: identical(thread, _renaming),
                   onTap: () => _handleRowTap(thread),
@@ -699,6 +706,8 @@ class _ThreadRow extends StatelessWidget {
     required this.thread,
     required this.height,
     required this.selected,
+    required this.shown,
+    required this.drag,
     required this.showProject,
     required this.renaming,
     required this.onTap,
@@ -712,6 +721,10 @@ class _ThreadRow extends StatelessWidget {
   final AgentThread thread;
   final double height;
   final bool selected;
+
+  /// Open in a pane beside the selected one.
+  final bool shown;
+  final ChatDrag? drag;
   final bool showProject;
   final bool renaming;
   final VoidCallback onTap;
@@ -746,7 +759,7 @@ class _ThreadRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SidebarMenu(
+    final row = SidebarMenu(
       items: _items,
       placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
       builder: (context, menu) => HoverBuilder(
@@ -765,6 +778,8 @@ class _ThreadRow extends StatelessWidget {
                     ? themeColors['list.activeSelectionBackground']
                     : active
                     ? CursorColors.hover
+                    : shown
+                    ? themeColors['list.inactiveSelectionBackground']
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(5),
               ),
@@ -802,6 +817,12 @@ class _ThreadRow extends StatelessWidget {
           );
         },
       ),
+    );
+    // Dragged out onto the conversations, it shows beside them.
+    return ChatDragSource(
+      drag: renaming ? null : drag,
+      thread: thread,
+      child: row,
     );
   }
 

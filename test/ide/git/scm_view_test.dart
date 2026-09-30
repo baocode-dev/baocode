@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/ide/git/git_model.dart';
+import 'package:monad/ide/git/git_service.dart';
+import 'package:monad/ide/ide_hover.dart';
 import 'package:monad/ide/ide_explorer.dart';
 import 'package:monad/ide/ide_list.dart';
 import 'package:monad/ide/ide_modern_ui.dart';
@@ -236,7 +240,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Never'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Commit Changes'));
+    // Nothing to commit now: the branch's own action takes the button.
+    expect(find.byTooltip('Commit Changes'), findsNothing);
+    expect(find.text('Publish Branch'), findsOneWidget);
+    await tester.tap(find.byType(TextField).first);
+    await chord(tester, LogicalKeyboardKey.enter, control: true);
     await tester.pumpAndSettle();
     expect(find.textContaining('no staged changes'), findsNothing);
     expect(git.callsTo('commit'), isEmpty);
@@ -312,9 +320,8 @@ void main() {
     ]);
   });
 
-  testWidgets('a resource opens its file; Reveal in Explorer View selects it', (
-    tester,
-  ) async {
+  testWidgets('a resource opens its change; Reveal in Explorer View selects '
+      'it', (tester) async {
     final workspace = await pumpWorkbench(tester, const {
       'lib/a.dart': 'a',
       'lib/staged.dart': 's',
@@ -325,6 +332,7 @@ void main() {
     await tester.tap(rowOf('a.dart'));
     await tester.pumpAndSettle();
     expect(workspace.active?.path, inRoot('lib/a.dart'));
+    expect(workspace.active?.title, 'a.dart (Working Tree)');
 
     await rightClick(tester, rowOf('notes.md'));
     await tester.tap(find.text('Reveal in Explorer View'));
@@ -419,5 +427,189 @@ void main() {
     expect(git.callsTo('reset').single, ['reset', '--soft', 'HEAD~']);
     final input = tester.widget<TextField>(find.byType(TextField).first);
     expect(input.controller!.text, 'Oops\n\nDetails');
+  });
+
+  group('the action button, with nothing to commit', () {
+    Finder button(String label) => find.ancestor(
+      of: find.text(label),
+      matching: find.byWidgetPredicate((widget) => widget is IdeHover),
+    );
+
+    testWidgets('Sync Changes pulls, then pushes, once confirmed', (
+      tester,
+    ) async {
+      git.status = '## main...origin/main [ahead 2, behind 1]\x00';
+      await pumpScm(tester);
+      expect(find.text('Sync Changes'), findsOneWidget);
+      expect(find.text(' 1'), findsOneWidget);
+      expect(find.text(' 2'), findsOneWidget);
+      expect(
+        find.byTooltip('Pull 1 and push 2 commits between origin/main'),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Commit Changes'), findsNothing);
+
+      await tester.tap(find.text('Sync Changes'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'This action will pull and push commits from and to '
+          '"origin/main".',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(git.callsTo('pull'), isEmpty);
+
+      git.onCommand = (arguments) {
+        if (arguments.first == 'push') git.status = '## main...origin/main\x00';
+      };
+      await tester.tap(find.text('Sync Changes'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(git.callsTo('pull').single, ['pull', '--tags', 'origin', 'main']);
+      expect(git.callsTo('push').single, ['push', 'origin', 'main:main']);
+      // In sync: Commit, with nothing to commit.
+      expect(find.text('Sync Changes'), findsNothing);
+      expect(find.byTooltip('Commit Changes'), findsOneWidget);
+    });
+
+    testWidgets('behind alone, it pulls and does not push; Don\'t Show Again '
+        'syncs straight away after', (tester) async {
+      git.status = '## main...origin/main [behind 3]\x00';
+      await pumpScm(tester);
+      expect(find.byTooltip('Pull 3 commits from origin/main'), findsOneWidget);
+      await tester.tap(find.text('Sync Changes'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text("OK, Don't Show Again"));
+      await tester.pumpAndSettle();
+      expect(git.callsTo('pull'), hasLength(1));
+      expect(git.callsTo('push'), isEmpty);
+
+      await tester.tap(find.text('Sync Changes'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('This action will pull'), findsNothing);
+      expect(git.callsTo('pull'), hasLength(2));
+    });
+
+    testWidgets('a remote with a slash in its name is told from the branch', (
+      tester,
+    ) async {
+      git
+        ..remotes = 'origin\nteam/fork\n'
+        ..status = '## topic...team/fork/feature/x [ahead 1]\x00';
+      await pumpScm(tester);
+      expect(find.byTooltip('Push 1 commits to team/fork/feature/x'), findsOne);
+      await tester.tap(find.text('Sync Changes'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(git.callsTo('pull').single, [
+        'pull',
+        '--tags',
+        'team/fork',
+        'feature/x',
+      ]);
+      expect(git.callsTo('push').single, [
+        'push',
+        'team/fork',
+        'topic:feature/x',
+      ]);
+    });
+
+    testWidgets('while it syncs, the icon spins and the button waits', (
+      tester,
+    ) async {
+      git.status = '## main...origin/main [ahead 1]\x00';
+      await pumpScm(tester);
+      await tester.tap(find.text('Sync Changes'));
+      await tester.pumpAndSettle();
+      final pushed = Completer<void>();
+      git.hold = (arguments) =>
+          arguments.first == 'push' ? pushed.future : null;
+      await tester.tap(find.text('OK'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byTooltip('Synchronizing Changes...'), findsOneWidget);
+      final spinning = find.descendant(
+        of: button('Sync Changes'),
+        matching: find.byType(RotationTransition),
+      );
+      expect(spinning, findsOneWidget);
+      final turned = tester.widget<RotationTransition>(spinning).turns.value;
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        tester.widget<RotationTransition>(spinning).turns.value,
+        isNot(turned),
+      );
+      // Disabled: another tap asks nothing.
+      await tester.tap(find.text('Sync Changes'));
+      await tester.pump();
+      expect(find.textContaining('This action will pull'), findsNothing);
+
+      pushed.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(RotationTransition), findsNothing);
+      expect(git.callsTo('push'), hasLength(1));
+    });
+
+    testWidgets('Publish Branch pushes the branch to the only remote and '
+        'sets its upstream', (tester) async {
+      git.status = '## feature/x\x00';
+      await pumpScm(tester);
+      expect(find.byTooltip('Publish Branch "feature/x"'), findsOneWidget);
+      await tester.tap(find.text('Publish Branch'));
+      await tester.pumpAndSettle();
+      expect(git.callsTo('push').single, ['push', '-u', 'origin', 'feature/x']);
+    });
+
+    testWidgets('with more remotes, Publish Branch asks which', (tester) async {
+      git
+        ..remotes = 'origin\nupstream\n'
+        ..status = '## feature/x\x00';
+      await pumpScm(tester);
+      await tester.tap(find.text('Publish Branch'));
+      await tester.pumpAndSettle();
+      expect(git.callsTo('push'), isEmpty);
+      await tester.tap(find.text('upstream'));
+      await tester.pumpAndSettle();
+      expect(git.callsTo('push').single, [
+        'push',
+        '-u',
+        'upstream',
+        'feature/x',
+      ]);
+    });
+
+    testWidgets('without remotes, Publish Branch says so', (tester) async {
+      git
+        ..remotes = ''
+        ..status = '## feature/x\x00';
+      await pumpScm(tester);
+      await tester.tap(find.text('Publish Branch'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Your repository has no remotes configured to publish to.'),
+        findsOneWidget,
+      );
+      expect(git.callsTo('push'), isEmpty);
+    });
+
+    testWidgets('a failed push is reported', (tester) async {
+      git
+        ..status = '## feature/x\x00'
+        ..answers['push'] = const IdeGitOutput(
+          128,
+          '',
+          "fatal: could not read Username for 'https://example.com'",
+        );
+      await pumpScm(tester);
+      await tester.tap(find.text('Publish Branch'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Cannot push.'), findsOneWidget);
+      expect(find.text('Publish Branch'), findsOneWidget);
+    });
   });
 }

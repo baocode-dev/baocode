@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/chat/chat_screen.dart';
+import 'package:monad/chat/composer/composer.dart';
 import 'package:monad/chat/chat_session.dart';
 import 'package:monad/kernel/kernel_types.dart';
 import 'package:monad/ide/ide_hover.dart';
@@ -398,14 +399,14 @@ void main() {
     await tester.pump();
     expect(thread.title, 'Quota');
 
-    // The title bar, left-aligned by the chat's edge.
+    // The title bar, left-aligned with the conversation's column.
     final title = find.descendant(
       of: find.byType(ChatScreen),
       matching: find.text('Quota'),
     );
     expect(
       tester.getTopLeft(title).dx,
-      lessThan(tester.getTopLeft(find.byType(ChatScreen)).dx + 20),
+      tester.getTopLeft(find.byType(ChatComposer)).dx,
     );
     await tester.tap(title);
     await tester.pump(const Duration(milliseconds: 50));

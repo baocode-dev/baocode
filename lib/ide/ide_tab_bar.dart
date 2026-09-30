@@ -26,7 +26,12 @@ enum IdeTabAction {
 /// For each of [paths], the parent folders that tell it apart from other open
 /// files of the same name (null when its name is unique), as VS Code labels
 /// duplicate editor tabs. Paths under [root] are described relative to it.
-List<String?> ideTabDescriptions(List<String> paths, String root) {
+/// The tabs' titles are [names] where given, else the paths' names.
+List<String?> ideTabDescriptions(
+  List<String> paths,
+  String root, {
+  List<String>? names,
+}) {
   List<String> parents(String path) {
     final directory = p.dirname(path);
     if (p.equals(directory, root)) return [p.basename(root)];
@@ -38,7 +43,7 @@ List<String?> ideTabDescriptions(List<String> paths, String root) {
 
   final byName = <String, List<int>>{};
   for (var i = 0; i < paths.length; i++) {
-    byName.putIfAbsent(p.basename(paths[i]), () => []).add(i);
+    byName.putIfAbsent(names?[i] ?? p.basename(paths[i]), () => []).add(i);
   }
   final descriptions = List<String?>.filled(paths.length, null);
   for (final group in byName.values) {
@@ -250,9 +255,11 @@ class _IdeTabBarState extends State<IdeTabBar> {
   @override
   Widget build(BuildContext context) {
     final docs = widget.documents;
-    final descriptions = ideTabDescriptions([
-      for (final doc in docs) doc.path,
-    ], widget.root);
+    final descriptions = ideTabDescriptions(
+      [for (final doc in docs) doc.path],
+      widget.root,
+      names: [for (final doc in docs) doc.title],
+    );
     return Container(
       height: IdeTabBar.height,
       color: themeColors['editorGroupHeader.tabsBackground'],
@@ -413,7 +420,7 @@ class _TabState extends State<_Tab> {
                 Flexible(
                   child: Text.rich(
                     TextSpan(
-                      text: doc.name,
+                      text: doc.title,
                       children: [
                         if (widget.description case final description?)
                           TextSpan(
@@ -443,7 +450,7 @@ class _TabState extends State<_Tab> {
                           onEnter: (_) => setState(() => _closeHover = true),
                           onExit: (_) => setState(() => _closeHover = false),
                           child: IdeHover(
-                            message: 'Close ${doc.name}',
+                            message: 'Close ${doc.title}',
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
                               onTap: widget.onClose,

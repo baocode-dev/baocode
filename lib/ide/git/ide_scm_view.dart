@@ -14,10 +14,14 @@
 // and media/scm.css; the Git extension's commands, menus and messages
 // (extensions/git/src/commands.ts, actionButton.ts and package.json).
 //
-// Deviations: a resource opens its file, not a diff editor; no push, pull,
-// fetch or sync, stash, branch or tag commands; the smart commit's Always
-// and Never last for the session; Generate Commit Message asks Claude
-// Haiku (see commit_message.dart), where VS Code asks Copilot.
+// Deviations: a commit's file in the graph opens the file, not a diff
+// editor; of push, pull
+// and fetch only the action button's Sync Changes and Publish Branch, with
+// no remote providers (Publish to GitHub) and a menu at the button for the
+// remote to publish to, where upstream has a quick pick; no stash, branch
+// or tag commands; the smart commit's Always and Never, and the sync's
+// Don't Show Again, last for the session; Generate Commit Message asks
+// Claude Haiku (see commit_message.dart), where VS Code asks Copilot.
 
 import 'dart:async';
 
@@ -73,6 +77,9 @@ class IdeScmSession {
   /// `git.suggestSmartCommit`: ask before doing so.
   bool suggestSmartCommit = true;
 
+  /// `git.confirmSync`: ask before Sync Changes.
+  bool confirmSync = true;
+
   /// Completes to cancel the commit message being generated; null when
   /// none is. Kept here, so that the message still arrives when the view
   /// has closed meanwhile.
@@ -91,6 +98,7 @@ class IdeScmView extends StatefulWidget {
     required this.session,
     required this.notifications,
     required this.onOpen,
+    required this.onOpenChange,
     required this.onRevealInExplorer,
     this.trash,
     this.commitMessage,
@@ -102,6 +110,16 @@ class IdeScmView extends StatefulWidget {
 
   /// Opens a file in the editor.
   final Future<void> Function(String path, {bool focusEditor}) onOpen;
+
+  /// Opens a change's editor, as a click and Open Changes do (the Git
+  /// extension's `openChange`): the diff of its sides, or its one side;
+  /// [head], its original (Open File (HEAD)).
+  final Future<void> Function(
+    IdeGitResource resource, {
+    bool head,
+    bool focusEditor,
+  })
+  onOpenChange;
   final ValueChanged<String> onRevealInExplorer;
 
   /// Moves a file to the Trash (true once it did); null where there is no
@@ -122,6 +140,9 @@ class _IdeScmViewState extends State<IdeScmView> {
   final FocusNode _graphFocus = FocusNode(debugLabel: 'scm graph');
   final ScrollController _changesScroll = ScrollController();
   final ScrollController _graphScroll = ScrollController();
+
+  /// Publish Branch, where the menu of remotes opens.
+  final GlobalKey _publishKey = GlobalKey();
   IdeInputValidation? _validation;
 
   /// The selected resource (`group:path`) or group (`group`).
@@ -307,7 +328,7 @@ class _IdeScmViewState extends State<IdeScmView> {
   // --- Changes -------------------------------------------------------------
 
   Widget _changesList(IdeGitRepository git, IdeGitState state) {
-    final items = <Widget>[_inputRow(state), _commitButtonRow(git, state)];
+    final items = <Widget>[_inputRow(state), _actionButtonRow(git, state)];
     for (final group in IdeGitGroup.values) {
       final resources = state.group(group);
       // Merge and Staged Changes hide when empty; Changes does not.
@@ -651,16 +672,153 @@ class _IdeScmViewState extends State<IdeScmView> {
     }
   }
 
-  Widget _commitButtonRow(IdeGitRepository git, IdeGitState state) {
-    final enabled = state.resources.isNotEmpty && !git.busy;
+  /// Whether Commit has something to commit (actionButton.ts'
+  /// `repositoryHasChangesToCommit`, with `git.smartCommitChanges: all`):
+  /// staged changes, or others where the smart commit would stage them or
+  /// offer to.
+  bool _hasChangesToCommit(IdeGitState state) =>
+      state.group(IdeGitGroup.staged).isNotEmpty ||
+      ((_session.enableSmartCommit || _session.suggestSmartCommit) &&
+          state.group(IdeGitGroup.workingTree).isNotEmpty);
+
+  /// The action button (actionButton.ts' `button`): Commit, enabled, while
+  /// there is something to commit, else Publish Branch, Sync Changes, or
+  /// Commit, disabled.
+  Widget _actionButtonRow(IdeGitRepository git, IdeGitState state) {
+    final changes = _hasChangesToCommit(state);
     return Padding(
       key: const ValueKey('commit-button'),
       padding: const EdgeInsets.fromLTRB(19, 4, 12, 4),
-      child: _SplitButton(
+      child: changes
+          ? _commitButton(git, enabled: true)
+          : _publishButton(git, state.head) ??
+                _syncButton(git, state.head) ??
+                _commitButton(git, enabled: false),
+    );
+  }
+
+  /// `getPublishBranchActionButton`: on a branch without an upstream.
+  Widget? _publishButton(IdeGitRepository git, IdeGitHead head) {
+    final branch = head.branch;
+    if (branch == null || head.upstream != null) return null;
+    final syncing = git.syncing;
+    return _SplitButton(
+      key: _publishKey,
+      icon: syncing ? null : Codicons.cloudUpload,
+      spinning: syncing,
+      label: 'Publish Branch',
+      tooltip: syncing
+          ? 'Publishing Branch "$branch"...'
+          : 'Publish Branch "$branch"',
+      enabled: !git.busy,
+      onPressed: () => unawaited(_publish(branch)),
+    );
+  }
+
+  /// `getSyncChangesActionButton`: on a branch ahead of its upstream or
+  /// behind it.
+  Widget? _syncButton(IdeGitRepository git, IdeGitHead head) {
+    final upstream = head.upstream;
+    if (upstream == null || (head.ahead == 0 && head.behind == 0)) {
+      return null;
+    }
+    final syncing = git.syncing;
+    return _SplitButton(
+      icon: syncing ? null : Codicons.sync,
+      spinning: syncing,
+      label: 'Sync Changes',
+      counts: [
+        if (head.behind > 0) (head.behind, Codicons.arrowDown),
+        if (head.ahead > 0) (head.ahead, Codicons.arrowUp),
+      ],
+      tooltip: syncing ? 'Synchronizing Changes...' : _syncTooltip(head),
+      enabled: !git.busy,
+      onPressed: () => unawaited(_sync(head)),
+    );
+  }
+
+  /// `Repository.syncTooltip`.
+  static String _syncTooltip(IdeGitHead head) {
+    final upstream = head.upstream;
+    if (head.branch == null ||
+        head.unborn ||
+        upstream == null ||
+        (head.ahead == 0 && head.behind == 0)) {
+      return 'Synchronize Changes';
+    }
+    if (head.ahead == 0) {
+      return 'Pull ${head.behind} commits from $upstream';
+    }
+    if (head.behind == 0) return 'Push ${head.ahead} commits to $upstream';
+    return 'Pull ${head.behind} and push ${head.ahead} commits between '
+        '$upstream';
+  }
+
+  /// `git.sync`: confirms (`git.confirmSync`), then pulls and pushes.
+  Future<void> _sync(IdeGitHead head) async {
+    final git = _git;
+    final upstream = head.upstream;
+    if (git == null || upstream == null) return;
+    if (_session.confirmSync) {
+      final pick = await showIdeDialog(
+        context,
+        message:
+            'This action will pull and push commits from and to '
+            '"$upstream".',
+        buttons: const ['OK', "OK, Don't Show Again"],
+      );
+      if (pick == 1) {
+        _session.confirmSync = false;
+      } else if (pick != 0) {
+        return;
+      }
+    }
+    await _run(git.sync);
+  }
+
+  /// `git.publish`: to the only remote, or to the one picked.
+  Future<void> _publish(String branch) async {
+    final git = _git;
+    if (git == null) return;
+    try {
+      final remotes = await git.remotes();
+      if (!mounted) return;
+      if (remotes.isEmpty) {
+        widget.notifications.notify(
+          IdeSeverity.warning,
+          'Your repository has no remotes configured to publish to.',
+        );
+        return;
+      }
+      var remote = remotes.first;
+      if (remotes.length > 1) {
+        String? picked;
+        final box = _publishKey.currentContext?.findRenderObject();
+        await showIdeMenu(
+          context,
+          anchor: box is RenderBox
+              ? box.localToGlobal(Offset.zero) & box.size
+              : null,
+          entries: [
+            for (final name in remotes)
+              IdeMenuAction(name, onSelected: () => picked = name),
+          ],
+        );
+        if (picked == null) return;
+        remote = picked!;
+      }
+      await git.publish(remote);
+    } catch (error) {
+      _report(error);
+    }
+  }
+
+  Widget _commitButton(IdeGitRepository git, {required bool enabled}) =>
+      _SplitButton(
         icon: Codicons.check,
         label: 'Commit',
         tooltip: 'Commit Changes',
-        enabled: enabled,
+        enabled: enabled && !git.busy,
         onPressed: () => unawaited(_commit()),
         dropdownTooltip: 'More Actions...',
         onDropdown: (anchor) => unawaited(
@@ -679,9 +837,7 @@ class _IdeScmViewState extends State<IdeScmView> {
             ]),
           ),
         ),
-      ),
-    );
-  }
+      );
 
   Widget _groupRow(
     IdeGitRepository git,
@@ -868,10 +1024,8 @@ class _IdeScmViewState extends State<IdeScmView> {
     final relative = p.relative(resource.path, from: state.root);
     final folder = p.dirname(relative);
     final actions = _resourceActions(git, resource);
-    void open({bool focus = false}) {
-      if (_deleted(resource)) return;
-      unawaited(widget.onOpen(resource.path, focusEditor: focus));
-    }
+    void open({bool focus = false}) =>
+        unawaited(widget.onOpenChange(resource, focusEditor: focus));
 
     return IdeListRow(
       key: ValueKey(key),
@@ -928,16 +1082,31 @@ class _IdeScmViewState extends State<IdeScmView> {
     IdeGitResource resource,
   ) {
     final working = resource.group == IdeGitGroup.workingTree;
+    // The merge group's has Open File alone.
+    final merge = resource.group == IdeGitGroup.merge;
     return showIdeMenu(
       context,
       position: position,
       entries: ideMenuGroups([
         [
+          if (!merge)
+            IdeMenuAction(
+              'Open Changes',
+              onSelected: () =>
+                  unawaited(widget.onOpenChange(resource, focusEditor: true)),
+            ),
           if (!_deleted(resource))
             IdeMenuAction(
               'Open File',
               onSelected: () =>
                   unawaited(widget.onOpen(resource.path, focusEditor: true)),
+            ),
+          if (!merge)
+            IdeMenuAction(
+              'Open File (HEAD)',
+              onSelected: () => unawaited(
+                widget.onOpenChange(resource, head: true, focusEditor: true),
+              ),
             ),
         ],
         [
@@ -1637,8 +1806,11 @@ class _Welcome extends StatelessWidget {
 /// [onDropdown] is set, a separator and a chevron that opens a menu.
 class _SplitButton extends StatefulWidget {
   const _SplitButton({
+    super.key,
     this.icon,
+    this.spinning = false,
     required this.label,
+    this.counts = const [],
     required this.tooltip,
     required this.enabled,
     required this.onPressed,
@@ -1647,7 +1819,13 @@ class _SplitButton extends StatefulWidget {
   });
 
   final IconData? icon;
+
+  /// `$(sync~spin)` in the icon's place.
+  final bool spinning;
   final String label;
+
+  /// After the label, each count and its icon (` 2$(arrow-up)`).
+  final List<(int, IconData)> counts;
   final String tooltip;
   final bool enabled;
   final VoidCallback onPressed;
@@ -1717,7 +1895,10 @@ class _SplitButtonState extends State<_SplitButton> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (widget.icon case final icon?) ...[
+                if (widget.spinning) ...[
+                  _Spinning(Icon(Codicons.sync, size: 16, color: foreground)),
+                  const SizedBox(width: 4),
+                ] else if (widget.icon case final icon?) ...[
                   Icon(icon, size: 16, color: foreground),
                   const SizedBox(width: 4),
                 ],
@@ -1733,6 +1914,21 @@ class _SplitButtonState extends State<_SplitButton> {
                     ),
                   ),
                 ),
+                for (final (count, icon) in widget.counts) ...[
+                  Text(
+                    ' $count',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 18 / 13,
+                      color: foreground,
+                    ),
+                  ),
+                  // `.monaco-text-button .codicon { margin: 0 0.2em }`.
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2.6),
+                    child: Icon(icon, size: 16, color: foreground),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1791,6 +1987,57 @@ class _SplitButtonState extends State<_SplitButton> {
       ),
     );
   }
+}
+
+/// A codicon turning as `codicon-modifier-spin` turns one: once in 1.5s, in
+/// 30 steps; still where motion is turned down.
+class _Spinning extends StatefulWidget {
+  const _Spinning(this.child);
+
+  final Widget child;
+
+  @override
+  State<_Spinning> createState() => _SpinningState();
+}
+
+class _SpinningState extends State<_Spinning>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _turns = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1500),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _turns.stop();
+    } else if (!_turns.isAnimating) {
+      unawaited(_turns.repeat());
+    }
+  }
+
+  @override
+  void dispose() {
+    _turns.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => RotationTransition(
+    turns: _turns.drive(CurveTween(curve: const _Steps(30))),
+    child: widget.child,
+  );
+}
+
+/// CSS `steps(n)`: jumps at the end of each of [steps] intervals.
+class _Steps extends Curve {
+  const _Steps(this.steps);
+
+  final int steps;
+
+  @override
+  double transformInternal(double t) => (t * steps).floor() / steps;
 }
 
 /// A reference badge: 18px high and round, in the reference's color, with

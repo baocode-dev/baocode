@@ -51,6 +51,42 @@ abstract final class WindowControls {
     }
   }
 
+  /// Whether the window can be made larger for what it shows: the desktop
+  /// app.
+  static bool get canGrow => isDesktop;
+
+  /// How much wider and taller the window can get on its screen: none while
+  /// it fills it (full screen, maximized); null where there is no window to
+  /// ask (the web, a host without the channel).
+  static Future<Size?> growRoom() async {
+    if (!canGrow) return null;
+    try {
+      final room = await _channel.invokeMapMethod<String, Object?>(
+        'windowRoom',
+      );
+      if (room == null) return null;
+      double size(String key) => (room[key] as num?)?.toDouble() ?? 0;
+      return Size(size('width'), size('height'));
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  /// Makes the window [by] wider and taller, as far as its screen goes: its
+  /// top left stays, unless that would take it past the screen's edge,
+  /// where it moves back onto it.
+  static Future<void> grow(Size by) async {
+    if (!canGrow) return;
+    try {
+      await _channel.invokeMethod<void>('growWindow', {
+        'width': by.width,
+        'height': by.height,
+      });
+    } on MissingPluginException {
+      // A host without the channel (e.g. tests).
+    }
+  }
+
   /// Whether a double click on the title bar is the app's to handle: macOS,
   /// where Flutter draws the title bar and so gets its clicks. On Windows
   /// the system handles its caption's own (HTCAPTION, see

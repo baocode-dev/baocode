@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show immutable, listEquals;
 import 'package:flutter/painting.dart';
 import 'package:flutter/widgets.dart' show SizedBox, WidgetSpan;
 
@@ -33,6 +33,27 @@ class ViewportRow {
   final double height;
   final double left;
   final double width;
+}
+
+/// Space between lines that belongs to no line: a Monaco view zone (a
+/// whitespace of `LinesLayout`), [height] tall after model line
+/// [afterLineNumber] (0: above the first line). One after a hidden line is
+/// shown after the visible line above it.
+@immutable
+class ViewportZone {
+  const ViewportZone(this.afterLineNumber, this.height);
+
+  final int afterLineNumber;
+  final double height;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ViewportZone &&
+      other.afterLineNumber == afterLineNumber &&
+      other.height == height;
+
+  @override
+  int get hashCode => Object.hash(afterLineNumber, height);
 }
 
 /// Inclusive start and exclusive end indices into [ViewportLayout.rows].
@@ -213,6 +234,7 @@ class ViewportLayout {
     this.tabSize,
     this.stopRenderingLineAfter = defaultStopRenderingLineAfter,
     HiddenLineRanges? hiddenLines,
+    this.zones = const [],
     ViewportLayout? previousLayout,
     double horizontalScrollOffset = 0,
     double verticalScrollOffset = 0,
@@ -250,12 +272,18 @@ class ViewportLayout {
     }
     _cache.layouts++;
     viewLineCount = this.hiddenLines.viewLineCount(snapshot.lineCount);
+    _placeZones();
     try {
       if (wrap) {
         _layoutWrapped();
       } else {
         rows = _LazyRows(this);
-        contentHeight = viewLineCount * lineHeight;
+        contentHeight =
+            viewLineCount * lineHeight + _zoneSums[_zoneSums.length - 1];
+        for (var i = 0; i < _zoneOrder.length; i++) {
+          final zone = _zoneOrder[i];
+          _zoneTops[zone] = _zoneViews[i] * lineHeight + _zoneSums[i];
+        }
         // Shape what the first frame paints, so construction reports the
         // paragraphs a viewport needs (and scrolling reuses them).
         final range = visibleRowRange;
@@ -278,6 +306,74 @@ class ViewportLayout {
 
   /// Model lines hidden from the view, clamped to [snapshot].
   final HiddenLineRanges hiddenLines;
+
+  /// Space between lines (view zones), in no particular order.
+  final List<ViewportZone> zones;
+
+  // The zones by position: each one's index into [zones], the zero-based
+  // view line it is above, and the heights of those before it.
+  late final Int32List _zoneOrder;
+  late final Int32List _zoneViews;
+  late final Float64List _zoneSums;
+
+  // Unscrolled tops, by index into [zones].
+  late final Float64List _zoneTops = Float64List(zones.length);
+
+  void _placeZones() {
+    final count = zones.length;
+    final order = List<int>.generate(count, (i) => i);
+    int viewOf(int i) {
+      final after = zones[i].afterLineNumber;
+      if (after <= 0) return 0;
+      return _viewLineOfModel(math.min(after, snapshot.lineCount) - 1) + 1;
+    }
+
+    final views = [for (var i = 0; i < count; i++) viewOf(i)];
+    order.sort((a, b) {
+      final byView = views[a].compareTo(views[b]);
+      return byView != 0 ? byView : a.compareTo(b);
+    });
+    _zoneOrder = Int32List.fromList(order);
+    _zoneViews = Int32List.fromList([for (final i in order) views[i]]);
+    _zoneSums = Float64List(count + 1);
+    for (var i = 0; i < count; i++) {
+      _zoneSums[i + 1] = _zoneSums[i] + math.max(0.0, zones[order[i]].height);
+    }
+  }
+
+  /// The heights of the zones above zero-based view line [view].
+  double _zonesAbove(int view) {
+    if (_zoneViews.isEmpty) return 0;
+    var low = 0;
+    var high = _zoneViews.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (_zoneViews[mid] <= view) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return _zoneSums[low];
+  }
+
+  /// Unscrolled top of zero-based view line [view] (unwrapped layouts).
+  double _viewTop(int view) => view * lineHeight + _zonesAbove(view);
+
+  /// Unscrolled top of [zones]`[index]`.
+  double zoneTop(int index) => _zoneTops[index];
+
+  /// The index into [zones] of the zone at unscrolled [y], if any.
+  int? zoneAt(double y) {
+    for (var i = 0; i < zones.length; i++) {
+      final top = _zoneTops[i];
+      if (y >= top && y < top + zones[i].height) return i;
+    }
+    return null;
+  }
+
+  /// Unscrolled top of [rows]`[index]`.
+  double rowTop(int index) => wrap ? rows[index].top : _viewTop(index);
 
   /// When set, tabs advance to the next multiple of [tabSize] visible columns
   /// (Monaco renders a tab as that many spaces; full-width characters count
@@ -376,7 +472,16 @@ class ViewportLayout {
     final tops = <double>[];
     final built = <ViewportRow>[];
     var top = 0.0;
+    var zone = 0;
+    void placeZonesAbove(int view) {
+      for (; zone < _zoneOrder.length && _zoneViews[zone] <= view; zone++) {
+        _zoneTops[_zoneOrder[zone]] = top;
+        top += _zoneSums[zone + 1] - _zoneSums[zone];
+      }
+    }
+
     for (var view = 0; view < viewLineCount; view++) {
+      placeZonesAbove(view);
       final line = _modelLineOfView(view);
       final shape = _shapeForLine(line, retain: true);
       shapes.add(shape);
@@ -398,6 +503,7 @@ class ViewportLayout {
       }
       top += shape.height;
     }
+    placeZonesAbove(viewLineCount);
     _viewShapes = shapes;
     _viewTops = tops;
     contentHeight = top;
@@ -423,7 +529,7 @@ class ViewportLayout {
   /// Unscrolled top of the (first row of the) one-based model [lineNumber].
   double lineTop(int lineNumber) {
     final view = _viewLineOfModel(lineNumber.clamp(1, snapshot.lineCount) - 1);
-    return wrap ? _viewTops[view] : view * lineHeight;
+    return wrap ? _viewTops[view] : _viewTop(view);
   }
 
   /// Unscrolled height of all rows of the one-based model [lineNumber].
@@ -540,8 +646,25 @@ class ViewportLayout {
     verticalScrollOffset = vertical;
   }
 
+  /// Index of the first row whose bottom is strictly below unscrolled [y]
+  /// ([rows].length past the last).
+  int rowIndexAt(double y) => _rowIndexAt(y);
+
   /// Index of the first row whose bottom is strictly below document [y].
   int _rowIndexAt(double y) {
+    if (!wrap && _zoneViews.isNotEmpty) {
+      var low = 0;
+      var high = viewLineCount;
+      while (low < high) {
+        final mid = (low + high) >> 1;
+        if (_viewTop(mid) + lineHeight <= y) {
+          low = mid + 1;
+        } else {
+          high = mid;
+        }
+      }
+      return low;
+    }
     if (!wrap) {
       final h = lineHeight;
       var index = (y / h).floor();
@@ -575,6 +698,19 @@ class ViewportLayout {
     final count = wrap ? rows.length : viewLineCount;
     final first = math.min(_rowIndexAt(verticalScrollOffset), count);
     final bottom = verticalScrollOffset + viewportSize.height;
+    if (!wrap && _zoneViews.isNotEmpty) {
+      var low = first;
+      var high = count;
+      while (low < high) {
+        final mid = (low + high) >> 1;
+        if (_viewTop(mid) < bottom) {
+          low = mid + 1;
+        } else {
+          high = mid;
+        }
+      }
+      return VisibleRowRange(first, low);
+    }
     if (!wrap) {
       final h = lineHeight;
       var end = (bottom / h).ceil();
@@ -633,7 +769,7 @@ class ViewportLayout {
     final count = wrap ? rows.length : viewLineCount;
     final index = math.min(_rowIndexAt(documentY), count - 1);
     final line = wrap ? rows[index].lineNumber - 1 : _modelLineOfView(index);
-    final top = wrap ? _viewTops[_viewLineOfModel(line)] : index * lineHeight;
+    final top = wrap ? _viewTops[_viewLineOfModel(line)] : _viewTop(index);
     final shape = _shapeForLine(line);
     final localY = wrap
         ? documentY - top
@@ -658,7 +794,7 @@ class ViewportLayout {
     final line = position.lineNumber - 1;
     if (!hiddenLines.isEmpty && hiddenLines.isHidden(line + 1)) {
       final view = _viewLineOfModel(line);
-      final top = wrap ? _viewTops[view] : view * lineHeight;
+      final top = wrap ? _viewTops[view] : _viewTop(view);
       return Rect.fromLTWH(
         -horizontalScrollOffset,
         top - verticalScrollOffset,
@@ -679,7 +815,7 @@ class ViewportLayout {
     final origin = painter.getOffsetForCaret(textPosition, Rect.zero);
     final lineTopValue = wrap
         ? _viewTops[_viewLineOfModel(line)]
-        : _viewLineOfModel(line) * lineHeight;
+        : _viewTop(_viewLineOfModel(line));
     final height = wrap
         ? painter.getFullHeightForCaret(textPosition, Rect.zero)
         : lineHeight;
@@ -835,7 +971,7 @@ class _LazyRows extends ListBase<ViewportRow> {
       visualLineIndex: 0,
       startOffset: layout.snapshot.lineStarts[line],
       endOffset: layout.snapshot.contentEnds[line],
-      top: index * layout.lineHeight,
+      top: layout._viewTop(index),
       height: layout.lineHeight,
       left: shape.left,
       width: shape.width,

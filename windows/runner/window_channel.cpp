@@ -8,6 +8,8 @@
 #include <shobjidl.h>
 #include <wrl/client.h>
 
+#include <algorithm>
+#include <cmath>
 #include <optional>
 #include <string>
 #include <utility>
@@ -165,6 +167,18 @@ std::wstring Quoted(const std::string& argument) {
   return quoted + L"\"";
 }
 
+// The work area of the monitor |window| is on: the screen less the taskbar.
+// Empty when it cannot be told.
+RECT WorkArea(HWND window) {
+  MONITORINFO info = {};
+  info.cbSize = sizeof(info);
+  if (!::GetMonitorInfoW(::MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST),
+                         &info)) {
+    return RECT{};
+  }
+  return info.rcWork;
+}
+
 // The project folder the user picked through the system's own panel; null
 // when they cancel, or it cannot be shown.
 std::optional<std::string> PickDirectory(HWND window) {
@@ -313,6 +327,36 @@ void WindowChannel::HandleMethodCall(
     return;
   }
 
+  if (method == "windowRoom") {
+    // How much wider and taller the window can get on its monitor's work
+    // area (see growWindow), in Flutter's pixels: none while maximized.
+    double width = 0.0;
+    double height = 0.0;
+    RECT frame;
+    if (!::IsZoomed(window_) && ::GetWindowRect(window_, &frame)) {
+      const RECT work = WorkArea(window_);
+      const double scale = Scale();
+      width = (std::max)(0L, (work.right - work.left) -
+                                 (frame.right - frame.left)) /
+              scale;
+      height = (std::max)(0L, (work.bottom - work.top) -
+                                  (frame.bottom - frame.top)) /
+               scale;
+    }
+    flutter::EncodableMap room;
+    room[flutter::EncodableValue("width")] = flutter::EncodableValue(width);
+    room[flutter::EncodableValue("height")] = flutter::EncodableValue(height);
+    result->Success(flutter::EncodableValue(std::move(room)));
+    return;
+  }
+
+  if (method == "growWindow") {
+    // Room for conversations side by side (see chat_grid_view.dart).
+    Grow(Number(arguments, "width"), Number(arguments, "height"));
+    result->Success();
+    return;
+  }
+
   if (method == "windowCommand") {
     const auto* name = call.arguments() == nullptr
                            ? nullptr
@@ -332,6 +376,40 @@ void WindowChannel::HandleMethodCall(
   }
 
   result->NotImplemented();
+}
+
+void WindowChannel::Grow(double width, double height) {
+  RECT frame;
+  if (::IsZoomed(window_) || ::IsIconic(window_) ||
+      !::GetWindowRect(window_, &frame)) {
+    return;
+  }
+  const RECT work = WorkArea(window_);
+  const double scale = Scale();
+  const LONG frame_width = frame.right - frame.left;
+  const LONG frame_height = frame.bottom - frame.top;
+  // As much larger as asked, but no larger than the work area (unless it
+  // was already).
+  const LONG new_width = (std::max)(
+      frame_width,
+      (std::min)(frame_width + static_cast<LONG>(std::ceil(width * scale)),
+                 work.right - work.left));
+  const LONG new_height = (std::max)(
+      frame_height,
+      (std::min)(frame_height + static_cast<LONG>(std::ceil(height * scale)),
+                 work.bottom - work.top));
+  // The top left stays, unless the window would go past the work area's
+  // right or bottom edge, where it moves back onto it.
+  LONG left = frame.left;
+  LONG top = frame.top;
+  if (left + new_width > work.right) {
+    left = (std::max)(work.left, work.right - new_width);
+  }
+  if (top + new_height > work.bottom) {
+    top = (std::max)(work.top, work.bottom - new_height);
+  }
+  ::SetWindowPos(window_, nullptr, left, top, new_width, new_height,
+                 SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 double WindowChannel::Scale() const {

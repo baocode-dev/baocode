@@ -10,6 +10,7 @@ import '../kernel/agent_kernel.dart';
 import '../kernel/kernel_registry.dart';
 import '../kernel/kernel_types.dart';
 import '../theme/workbench_theme.dart' show ColorThemeStorage;
+import 'chat_grid.dart';
 import 'editor_launcher.dart';
 import 'preference_store.dart';
 
@@ -172,10 +173,17 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   List<AgentThread> get threads => List.unmodifiable(_threads);
   final List<AgentThread> _threads = [];
 
-  /// The open agent; null only while there is no project yet.
+  /// The open agent, the one focused where several show; null only while
+  /// there is no project yet.
   AgentThread? get current => _selected;
   AgentThread get selected => _selected!;
   AgentThread? _selected;
+
+  /// The agents shown side by side, [current] one of them. It changes
+  /// through [select], [openBeside], [openInPlaceOf] and [closePane]; only
+  /// its lines are the view's to move.
+  ChatGrid<AgentThread> get grid => _grid;
+  final ChatGrid<AgentThread> _grid = ChatGrid();
 
   bool _loading = false;
   bool get loading => _loading;
@@ -421,7 +429,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       kernel: codex,
     );
     add(gateway, 'Flaky integration test on CI', const Duration(days: 9));
-    workspace._selected = workspace.threads.first;
+    workspace._focus(workspace.threads.first);
     return workspace;
   }
 
@@ -628,8 +636,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         thread._title = text.trim().split('\n').first;
       }
     }
-    // What ends in view is seen.
-    if (identical(thread, _selected)) thread._markSeen();
+    // What ends in view is seen, in any pane.
+    if (_grid.contains(thread)) thread._markSeen();
     final before = _snapshots[thread];
     final snapshot = thread._snapshot;
     if (snapshot == before) return;
@@ -663,14 +671,52 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     notifyListeners();
   }
 
+  /// Shows [thread] and focuses it: in its pane if it has one, else in
+  /// place of the focused one.
   void select(AgentThread thread) {
+    _focus(thread);
+    notifyListeners();
+  }
+
+  void _focus(AgentThread thread) {
     thread._markSeen();
     _snapshots[thread] = thread._snapshot;
-    if (identical(thread, _selected)) {
-      notifyListeners();
-      return;
+    if (!_grid.contains(thread)) {
+      final focused = _selected;
+      if (focused != null && _grid.contains(focused)) {
+        _grid.replace(focused, thread);
+      } else {
+        _grid.show(thread);
+      }
     }
     _selected = thread;
+  }
+
+  /// Shows [thread] in the half of [target]'s pane on its [side], and
+  /// focuses it; where it shows already, only focuses it. Nothing where
+  /// [target]'s pane cannot be split that way (see [ChatGrid.canSplit]).
+  void openBeside(AgentThread thread, AgentThread target, PaneSide side) {
+    if (!_grid.contains(thread)) {
+      if (!_grid.canSplit(target, side)) return;
+      _grid.split(target, side, thread);
+    }
+    select(thread);
+  }
+
+  /// Shows [thread] in [target]'s pane, and focuses it; where it shows
+  /// already, only focuses it.
+  void openInPlaceOf(AgentThread target, AgentThread thread) {
+    if (!_grid.contains(target)) return;
+    if (!_grid.contains(thread)) _grid.replace(target, thread);
+    select(thread);
+  }
+
+  /// Closes [thread]'s pane, the one beside it taking its place; the last
+  /// one stays. The agent goes on, in the sidebar.
+  void closePane(AgentThread thread) {
+    if (_grid.length < 2 || !_grid.contains(thread)) return;
+    final heir = _grid.remove(thread)!;
+    if (identical(thread, _selected)) _focus(heir);
     notifyListeners();
   }
 
@@ -729,7 +775,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   void setArchived(AgentThread thread, bool archived) {
     thread.archived = archived;
     if (archived) thread.pinned = false;
-    if (archived && identical(thread, _selected)) _selectNext(thread);
+    if (archived) _leave(thread);
     notifyListeners();
   }
 
@@ -744,7 +790,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (listener != null) thread.session.removeListener(listener);
     _snapshots.remove(thread);
     _threads.remove(thread);
-    if (identical(thread, _selected)) _selectNext(thread);
+    _leave(thread);
     var stopped = Future<void>.value();
     if (thread.isOpen) {
       thread.session
@@ -758,18 +804,26 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     notifyListeners();
   }
 
-  /// After [gone] is archived or deleted: the most recent remaining agent,
-  /// or a new one.
-  void _selectNext(AgentThread gone) {
+  /// After [gone] is archived or deleted: its pane closes, the one beside
+  /// it taking its place; the last one shows the most recent remaining
+  /// agent instead, or a new one.
+  void _leave(AgentThread gone) {
+    if (!_grid.contains(gone)) return;
+    if (_grid.length > 1) {
+      final heir = _grid.remove(gone)!;
+      if (identical(gone, _selected)) _focus(heir);
+      return;
+    }
     final candidates = [
       for (final thread in _threads)
         if (!thread.archived && !identical(thread, gone)) thread,
     ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    _grid.clear();
+    _selected = null;
     if (candidates.isEmpty) {
-      _selected = null;
       create(project: gone.project);
     } else {
-      _selected = candidates.first.._markSeen();
+      _focus(candidates.first);
     }
   }
 

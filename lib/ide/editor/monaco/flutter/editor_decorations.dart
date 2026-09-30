@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter/painting.dart';
+import 'package:flutter/widgets.dart' show IconData;
 
 import 'editor_view_theme.dart';
 
@@ -57,6 +58,11 @@ class EditorDecoration {
     this.minimapColor,
     this.underlineStyle,
     this.overlayColor,
+    this.marginColor,
+    this.lineDecorationIcon,
+    this.lineDecorationColor,
+    this.fillsLineOnLineBreak = false,
+    this.marksEmpty = false,
   });
 
   const EditorDecoration.findMatch(this.start, this.end)
@@ -68,7 +74,12 @@ class EditorDecoration {
       overviewRulerColor = null,
       minimapColor = null,
       underlineStyle = null,
-      overlayColor = null;
+      overlayColor = null,
+      marginColor = null,
+      lineDecorationIcon = null,
+      lineDecorationColor = null,
+      fillsLineOnLineBreak = false,
+      marksEmpty = false;
 
   const EditorDecoration.currentFindMatch(this.start, this.end)
     : kind = EditorDecorationKind.currentFindMatch,
@@ -79,7 +90,12 @@ class EditorDecoration {
       overviewRulerColor = null,
       minimapColor = null,
       underlineStyle = null,
-      overlayColor = null;
+      overlayColor = null,
+      marginColor = null,
+      lineDecorationIcon = null,
+      lineDecorationColor = null,
+      fillsLineOnLineBreak = false,
+      marksEmpty = false;
 
   final int start;
   final int end;
@@ -105,6 +121,24 @@ class EditorDecoration {
   /// Painted over the text, e.g. the editor background at partial opacity to
   /// fade unnecessary code (Monaco `editorUnnecessaryCode.opacity`).
   final Color? overlayColor;
+
+  /// The gutter's background on each line (`marginClassName`, e.g. a diff's
+  /// `gutter-insert`).
+  final Color? marginColor;
+
+  /// An icon on each line between the line numbers and the text
+  /// (`linesDecorationsClassName`, e.g. a diff's `insert-sign`), in
+  /// [lineDecorationColor].
+  final IconData? lineDecorationIcon;
+  final Color? lineDecorationColor;
+
+  /// Where the range takes in a line break, the background goes on to the
+  /// line's end (`shouldFillLineOnLineBreak`).
+  final bool fillsLineOnLineBreak;
+
+  /// An empty range shows as a 3px bar of the background (a diff's
+  /// `diff-range-empty`).
+  final bool marksEmpty;
 
   EditorUnderlineStyle get resolvedUnderlineStyle =>
       underlineStyle ??
@@ -166,7 +200,12 @@ class EditorDecoration {
       other.overviewRulerColor == overviewRulerColor &&
       other.minimapColor == minimapColor &&
       other.underlineStyle == underlineStyle &&
-      other.overlayColor == overlayColor;
+      other.overlayColor == overlayColor &&
+      other.marginColor == marginColor &&
+      other.lineDecorationIcon == lineDecorationIcon &&
+      other.lineDecorationColor == lineDecorationColor &&
+      other.fillsLineOnLineBreak == fillsLineOnLineBreak &&
+      other.marksEmpty == marksEmpty;
 
   @override
   int get hashCode => Object.hash(
@@ -181,6 +220,11 @@ class EditorDecoration {
     minimapColor,
     underlineStyle,
     overlayColor,
+    marginColor,
+    lineDecorationIcon,
+    lineDecorationColor,
+    fillsLineOnLineBreak,
+    marksEmpty,
   );
 }
 

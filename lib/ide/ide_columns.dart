@@ -9,21 +9,24 @@ import 'dart:math' as math;
 /// by [snap] of it snaps that shut; one dragged below its own minimum by
 /// [snap] of it snaps it shut. Either opens again as the pointer comes
 /// back. The chat's, past the side bar's snapping, snaps the editor shut
-/// in turn: the chat is then [chatMaximized].
+/// in turn: the chat is then maximized, [editorHidden].
 class IdeColumns {
   const IdeColumns({
     required this.sidebar,
     required this.chat,
-    this.chatMaximized = false,
+    this.editorHidden = false,
   });
 
   final double sidebar;
   final double chat;
 
-  /// Whether the chat has the editor's place, the side bar hidden: VS
-  /// Code's maximized secondary side bar (`setAuxiliaryBarMaximized`).
-  /// [chat] is then all the room.
-  final bool chatMaximized;
+  /// Whether the chat has the editor's place: [chat] is then all the room
+  /// the side bar leaves (see `IdeLayout.editorHidden`).
+  final bool editorHidden;
+
+  /// The chat alone in the editor's place: VS Code's maximized secondary
+  /// side bar (`setAuxiliaryBarMaximized`).
+  bool get chatMaximized => editorHidden && sidebar == 0;
 
   static const minSidebar = 170.0;
   static const minEditor = 320.0;
@@ -43,23 +46,29 @@ class IdeColumns {
   static bool roomForBoth(double room) =>
       minSidebar + minChat + minEditor <= room;
 
+  /// Whether [room] has the two with the editor hidden.
+  static bool roomForSides(double room) => minSidebar + minChat <= room;
+
   /// The widths asked for ([sidebar], [chat]; null when hidden) in [room],
   /// all the three have: the editor keeps its minimum, taken first from the
   /// chat down to its minimum, then from the side bar down to its minimum,
   /// then the side bar hides beside the chat. With too little room even
   /// so, the editor and the one left share it by their minimums.
+  /// [editorHidden], the chat has the room the side bar leaves it.
   static IdeColumns fit(
     double room, {
     required double? sidebar,
     required double? chat,
-    bool chatMaximized = false,
+    bool editorHidden = false,
   }) {
-    if (chatMaximized && chat != null) {
-      return IdeColumns(
-        sidebar: 0,
-        chat: math.max(0, room),
-        chatMaximized: true,
-      );
+    room = math.max(0, room);
+    if (editorHidden && chat != null) {
+      final side = sidebar == null
+          ? 0.0
+          : room - minChat >= minSidebar
+          ? math.min(math.max(sidebar, minSidebar), room - minChat)
+          : room * minSidebar / (minSidebar + minChat);
+      return IdeColumns(sidebar: side, chat: room - side, editorHidden: true);
     }
     var side = sidebar == null ? 0.0 : math.max(sidebar, minSidebar);
     var talk = chat == null ? 0.0 : math.max(chat, minChat);
@@ -68,22 +77,25 @@ class IdeColumns {
     if (over() > 0 && side > 0) side -= math.min(over(), side - minSidebar);
     if (over() > 0 && talk > 0) side = 0;
     if (over() > 0 && talk > 0) {
-      talk = math.max(0, room) * minChat / (minChat + minEditor);
+      talk = room * minChat / (minChat + minEditor);
     }
     if (over() > 0 && side > 0) {
-      side = math.max(0, room) * minSidebar / (minSidebar + minEditor);
+      side = room * minSidebar / (minSidebar + minEditor);
     }
     return IdeColumns(sidebar: side, chat: talk);
   }
 
-  double editor(double room) => room - sidebar - chat;
+  double editor(double room) => editorHidden ? 0 : room - sidebar - chat;
+
+  /// The editor's least: none where it is hidden.
+  double get _minEditor => editorHidden ? 0 : minEditor;
 
   /// The widest the side bar may be in [room]: the others at their minimums.
   double mostSidebar(double room) =>
-      room - minEditor - (chat > 0 ? minChat : 0);
+      room - _minEditor - (chat > 0 ? minChat : 0);
 
   double mostChat(double room) =>
-      room - minEditor - (sidebar > 0 ? minSidebar : 0);
+      room - _minEditor - (sidebar > 0 ? minSidebar : 0);
 
   /// Whether the side bar's sash can go right: the side bar is not as wide
   /// as it may be, or, hidden, has room to open.
@@ -92,7 +104,7 @@ class IdeColumns {
       : mostSidebar(room) >= minSidebar;
 
   bool canGrowChat(double room) =>
-      !chatMaximized &&
+      !editorHidden &&
       (chat > 0 ? mostChat(room) > chat + _slack : mostChat(room) >= minChat);
 
   /// Less than a pixel is at the limit.
@@ -106,7 +118,9 @@ class IdeColumns {
 
   /// These widths, from when a drag began, with the side bar's sash [dx]
   /// further right: the editor gives way first, then the chat, then the
-  /// chat snaps shut and the side bar follows the pointer.
+  /// chat snaps shut and the side bar follows the pointer. The editor
+  /// hidden, the chat has the rest; either snapped shut, the editor is
+  /// back ([chat] is then the room's, not the chat's own).
   IdeColumns dragSidebar(double room, double dx) {
     final target = sidebar + dx;
     if (target < _shutBelow(sidebar, minSidebar)) {
@@ -124,6 +138,9 @@ class IdeColumns {
     final most = mostSidebar(room);
     if (most < minSidebar) return this;
     final side = target.clamp(minSidebar, most).toDouble();
+    if (editorHidden) {
+      return IdeColumns(sidebar: side, chat: room - side, editorHidden: true);
+    }
     return IdeColumns(
       sidebar: side,
       chat: chat > 0 ? math.min(chat, room - minEditor - side) : 0,
@@ -140,11 +157,11 @@ class IdeColumns {
       return IdeColumns(sidebar: sidebar, chat: 0);
     }
     // The editor as it would be, the side bar snapped shut first.
-    final editorShutBelow = chatMaximized
+    final editorShutBelow = editorHidden
         ? minEditor - snap(minEditor)
         : _shutBelow(editor(room), minEditor);
     if (room - target < editorShutBelow) {
-      return IdeColumns(sidebar: 0, chat: room, chatMaximized: true);
+      return IdeColumns(sidebar: 0, chat: room, editorHidden: true);
     }
     final alone = room - minEditor;
     if (sidebar > 0 &&
@@ -155,7 +172,8 @@ class IdeColumns {
         chat: target.clamp(minChat, alone).toDouble(),
       );
     }
-    final most = mostChat(room);
+    // The editor out again (maximized, it was not), with its minimum.
+    final most = room - minEditor - (sidebar > 0 ? minSidebar : 0);
     if (most < minChat) return this;
     final talk = target.clamp(minChat, most).toDouble();
     return IdeColumns(
@@ -169,13 +187,13 @@ class IdeColumns {
       other is IdeColumns &&
       other.sidebar == sidebar &&
       other.chat == chat &&
-      other.chatMaximized == chatMaximized;
+      other.editorHidden == editorHidden;
 
   @override
-  int get hashCode => Object.hash(sidebar, chat, chatMaximized);
+  int get hashCode => Object.hash(sidebar, chat, editorHidden);
 
   @override
-  String toString() => chatMaximized
-      ? 'IdeColumns(chat maximized: $chat)'
-      : 'IdeColumns(sidebar: $sidebar, chat: $chat)';
+  String toString() =>
+      'IdeColumns(sidebar: $sidebar, chat: $chat'
+      '${editorHidden ? ', editor hidden' : ''})';
 }

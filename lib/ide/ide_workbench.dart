@@ -21,6 +21,8 @@ import 'editor/monaco/vs/editor/contrib/gotoError/browser/marker_navigation.dart
 import 'extensions/ide_extensions.dart';
 import 'extensions/ide_extensions_view.dart';
 import 'git/commit_message.dart';
+import 'git/git_change_editor.dart';
+import 'git/git_model.dart';
 import 'git/git_repository.dart';
 import 'git/ide_scm_view.dart';
 import 'git/ide_timeline_view.dart';
@@ -178,7 +180,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   bool get _sidebarShown => _layout.sidebar;
   set _sidebarShown(bool value) => _layout.sidebar = value;
   bool get _chatShown => _layout.chat;
-  set _chatShown(bool value) => _layout.chat = value;
 
   /// The panel's height below the editor; null is a third of the column
   /// (see [IdeRows]). Whether it shows, and what, is [_panel].
@@ -197,7 +198,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   int _selectionLength = 0;
   bool _busy = false;
   String? _branch;
-  String? _activePath;
+  String? _activeKey;
 
   /// The Source Control view's message and state, while other views show.
   IdeScmSession _scm = IdeScmSession();
@@ -221,6 +222,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// only when these change.
   int _gitCount = 0;
   String? _gitBranch;
+
+  /// The status the open revisions were last read against.
+  IdeGitState? _gitState;
 
   /// The quick input's text while it is open (its prefix picks the mode).
   String? _quickInput;
@@ -317,7 +321,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     workspace.addListener(_workspaceChanged);
     workspace.layout.addListener(_layoutChanged);
     _shownPanel = workspace.layout.panel;
-    _activePath = null;
+    _activeKey = null;
     _workspaceChanged();
     _git = workspace.git?..addListener(_gitChanged);
     _gitChanged();
@@ -330,6 +334,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     workspace.layout.removeListener(_layoutChanged);
     _git?.removeListener(_gitChanged);
     _git = null;
+    _gitState = null;
     _scm.dispose();
     _scm = IdeScmSession();
     _explorer.dispose();
@@ -355,6 +360,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _gitChanged() {
     final state = _git?.state;
+    // The texts at revisions follow the repository, as `git:` documents do.
+    if (!identical(state, _gitState)) {
+      _gitState = state;
+      if (state != null) unawaited(widget.workspace.reloadRevisions());
+    }
     final count = state?.count ?? 0;
     final branch = state?.head.branch;
     if (count == _gitCount && branch == _gitBranch) return;
@@ -452,13 +462,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// in the explorer, as VS Code's `explorer.autoReveal` does.
   void _workspaceChanged() {
     _symbols?.update(widget.workspace.active);
-    final path = widget.workspace.active?.path;
-    if (path == _activePath) return;
-    _activePath = path;
-    if (path == null) return;
+    final active = widget.workspace.active;
+    if (active?.key == _activeKey) return;
+    _activeKey = active?.key;
+    if (active == null) return;
+    final path = active.path;
     // Upstream's `showEditorIfHidden`: an editor opened ends the chat's
-    // maximizing.
-    _layout.chatMaximized = false;
+    // maximizing, and has the side bar give way to it rather than it to
+    // the side bar.
+    _layout.showEditor();
     _recommendServers();
     _recentFiles.add(path);
     unawaited(_explorer.reveal(path));
@@ -532,12 +544,83 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
   }
 
+  /// Opens [resource]'s change as the Git extension does (see
+  /// git_change_editor.dart): a diff editor of its two sides, or its one
+  /// side; [head], its original (Open File (HEAD)).
+  Future<void> _openChange(
+    IdeGitResource resource, {
+    bool head = false,
+    bool focusEditor = false,
+  }) async {
+    final git = _git;
+    final state = git?.state;
+    if (git == null || state == null || _busy) return;
+    final change = IdeGitChangeEditor.of(
+      resource,
+      staged: state.group(IdeGitGroup.staged),
+    );
+    Future<String> Function() read(IdeGitSide side) =>
+        () => git.service.show(side.ref!, side.path);
+    final workspace = widget.workspace;
+    final left = change.left;
+    final right = change.right;
+    final Future<void> Function() open;
+    if (head) {
+      if (left == null) {
+        _notifications.notify(
+          IdeSeverity.warning,
+          'HEAD version of "${p.basename(resource.path)}" is not available.',
+        );
+        return;
+      }
+      open = () => workspace.openRevision(
+        resource.path,
+        label: 'HEAD',
+        read: read(left),
+      );
+    } else if (right == null) {
+      // Upstream's command fails without a side: the file, where it is.
+      if (resource.status == IdeGitStatus.bothDeleted) return;
+      open = () => workspace.open(resource.path);
+    } else if (left == null) {
+      // The one side: the file's own tab, or its text at a revision.
+      open = right.isFile
+          ? () => workspace.open(right.path)
+          : () => workspace.openRevision(
+              right.path,
+              label: change.label,
+              read: read(right),
+            );
+    } else {
+      open = () => workspace.openDiff(
+        right.path,
+        label: change.label,
+        original: read(left),
+        modified: right.isFile ? null : read(right),
+      );
+    }
+    setState(() => _busy = true);
+    try {
+      await _editor?.flush();
+      await open();
+      if (mounted && focusEditor) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _editor?.focus();
+        });
+      }
+    } catch (error) {
+      _report(error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _select(IdeDocument doc) async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
       await _editor?.flush();
-      widget.workspace.select(doc.path);
+      widget.workspace.select(doc.key);
     } catch (error) {
       _report(error);
     } finally {
@@ -575,8 +658,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           if (choice == 'save') await widget.workspace.save(doc);
         }
         await _editor?.closeDocument(doc);
-        _closedEditors.remove(doc.path);
-        _closedEditors.add(doc.path);
+        if (doc.label == null) {
+          _closedEditors.remove(doc.path);
+          _closedEditors.add(doc.path);
+        }
         widget.workspace.close(doc);
       }
     } catch (error) {
@@ -1795,6 +1880,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       notifications: _notifications,
       onOpen: (path, {focusEditor = false}) =>
           _open(path, focusEditor: focusEditor),
+      onOpenChange: _openChange,
       onRevealInExplorer: _revealInExplorer,
       trash: WindowControls.canMoveToTrash ? WindowControls.moveToTrash : null,
       commitMessage: widget.commitMessage,
@@ -2076,28 +2162,38 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   Widget _chatCard() => IdeCard(key: _chatKey, child: widget.chat);
   final _chatKey = GlobalKey(debugLabel: 'ide chat');
 
-  /// What [IdeLayout.roomForBoth] is to be, from the last layout: the
-  /// layout's listeners build, so it is told after the frame.
-  bool _roomForBoth = true;
-  bool _roomForBothPending = false;
+  /// What [IdeLayout.roomForBoth] and [IdeLayout.roomForSides] are to be,
+  /// from the last layout: the layout's listeners build, so it is told
+  /// after the frame.
+  ({bool both, bool sides}) _room = (both: true, sides: true);
+  bool _roomPending = false;
 
-  void _noteRoomForBoth(bool value) {
-    _roomForBoth = value;
-    if (value == _layout.roomForBoth || _roomForBothPending) return;
-    _roomForBothPending = true;
+  void _noteRoom(({bool both, bool sides}) room) {
+    _room = room;
+    if ((room.both == _layout.roomForBoth &&
+            room.sides == _layout.roomForSides) ||
+        _roomPending) {
+      return;
+    }
+    _roomPending = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _roomForBothPending = false;
-      if (mounted) _layout.roomForBoth = _roomForBoth;
+      _roomPending = false;
+      if (mounted) _layout.setRoom(both: _room.both, sides: _room.sides);
     });
   }
 
+  /// The side bar and its sash, which keep their state (and a drag) as they
+  /// move beside the chat in the editor's place, and back.
+  final _sidebarKey = GlobalKey(debugLabel: 'ide side bar');
+  final _sidebarSashKey = GlobalKey(debugLabel: 'ide side bar sash');
+
   /// The Modern UI's cards on the shell: 4px apart, and 4px from the
   /// window's sides and the status bar. The chat stays on the right however
-  /// narrow the window (see [IdeColumns.fit]), or, maximized, has the
-  /// editor's place and the side bar's.
+  /// narrow the window (see [IdeColumns.fit]). With the editor hidden
+  /// ([IdeLayout.editorHidden]), the chat has its place, beside the side bar
+  /// if that shows, the panel below the two.
   Widget _split(Size size, List<IdeCommand> commands) {
     const gap = IdeModernUI.gap;
-    final maximized = _layout.chatMaximized;
     // Hidden, the chat leaves its sash as the gap at the window's side. The
     // gap above the status bar is each column's: the panel's sash, hidden.
     final outside = EdgeInsets.fromLTRB(gap, 0, _chatShown ? gap : 0, 0);
@@ -2107,22 +2203,50 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       padding: const EdgeInsets.only(bottom: gap),
       child: column,
     );
-    // Maximized, the chat has one sash less, but is sized as though both
-    // were there: dragged back, the editor comes out where the pointer is.
+    // The editor hidden, there is a sash less, but the chat is sized as
+    // though both were there: dragged back, the editor comes out where the
+    // pointer is.
     final room =
         size.width -
         outside.horizontal -
         IdeModernUI.activityBarWidth -
         2 * _sashWidth;
-    _noteRoomForBoth(IdeColumns.roomForBoth(room - (_chatShown ? 0 : gap)));
+    final withChat = room - (_chatShown ? 0 : gap);
+    _noteRoom((
+      both: IdeColumns.roomForBoth(withChat),
+      sides: IdeColumns.roomForSides(withChat),
+    ));
+    final editorHidden = !_layout.editorVisible;
     final columns = IdeColumns.fit(
       room,
       sidebar: _sidebarShown ? _sidebarWidth : null,
       chat: _chatShown ? _chatWidth : null,
-      chatMaximized: maximized,
+      editorHidden: editorHidden,
     );
     final sidebarVisible = columns.sidebar > 0;
     final chatVisible = columns.chat > 0;
+    final sidebar = SizedBox(
+      key: const ValueKey('ide-sidebar'),
+      width: columns.sidebar,
+      child: KeyedSubtree(key: _sidebarKey, child: _sidebarCard()),
+    );
+    // With the side bar hidden, the gap by the activity bar: dragged out, it
+    // opens the side bar.
+    final sidebarSash = KeyedSubtree(
+      key: _sidebarSashKey,
+      child: _Sash(
+        key: const ValueKey('ide-sidebar-sash'),
+        grip: sidebarVisible,
+        canMoveBack: sidebarVisible,
+        canMoveForward: columns.canGrowSidebar(room),
+        onStart: () => _dragStart = (columns: columns, room: room),
+        onDrag: (dx) => _dragTo((start, room) => start.dragSidebar(room, dx)),
+        onReset: () => setState(() {
+          _layout.showSidebar();
+          _sidebarWidth = IdeColumns.defaultSidebar;
+        }),
+      ),
+    );
     final chatSash = above(
       _Sash(
         key: const ValueKey('ide-chat-sash'),
@@ -2134,11 +2258,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         onReset: () => setState(() {
           _layout
             ..showChat()
-            ..chatMaximized = false;
+            ..showEditor();
           _chatWidth = IdeColumns.defaultChat;
         }),
       ),
       'chat-sash',
+    );
+    final chat = KeyedSubtree(
+      key: const ValueKey('ide-chat'),
+      child: _chatCard(),
     );
     return Padding(
       padding: outside,
@@ -2146,43 +2274,36 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           above(_activityBar(joined: sidebarVisible), 'activity-bar'),
-          if (sidebarVisible)
-            above(
-              SizedBox(
-                key: const ValueKey('ide-sidebar'),
-                width: columns.sidebar,
-                child: _sidebarCard(),
-              ),
-              'sidebar',
-            ),
-          // Maximized, the chat's sash is by the activity bar: dragged
-          // back, the editor comes out.
-          if (maximized)
-            chatSash
-          else
-            // With the side bar hidden, the gap by the activity bar: dragged
-            // out, it opens the side bar.
-            above(
-              _Sash(
-                key: const ValueKey('ide-sidebar-sash'),
-                grip: sidebarVisible,
-                canMoveBack: sidebarVisible,
-                canMoveForward: columns.canGrowSidebar(room),
-                onStart: () => _dragStart = (columns: columns, room: room),
-                onDrag: (dx) =>
-                    _dragTo((start, room) => start.dragSidebar(room, dx)),
-                onReset: () => setState(() {
-                  _layout.showSidebar();
-                  _sidebarWidth = IdeColumns.defaultSidebar;
-                }),
-              ),
-              'sidebar-sash',
-            ),
+          if (!editorHidden) ...[
+            if (sidebarVisible) above(sidebar, 'sidebar'),
+            above(sidebarSash, 'sidebar-sash'),
+          ] else if (!sidebarVisible)
+            // The chat maximized: its sash is by the activity bar, and
+            // dragged back, the editor comes out.
+            chatSash,
           Expanded(
             key: const ValueKey('ide-editor-column'),
-            child: _editorColumn(size.height, commands, maximized: maximized),
+            child: _editorColumn(
+              size.height,
+              commands,
+              inPlace: !editorHidden
+                  ? null
+                  : sidebarVisible
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        sidebar,
+                        sidebarSash,
+                        Expanded(child: chat),
+                      ],
+                    )
+                  : chat,
+            ),
           ),
-          if (!maximized) ...[chatSash, above(_chatSlot(columns.chat), 'chat')],
+          if (!editorHidden) ...[
+            chatSash,
+            above(_chatSlot(columns.chat), 'chat'),
+          ],
         ],
       ),
     );
@@ -2190,20 +2311,21 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The editor, and below it the panel (the terminal), as VS Code's panel
   /// at the bottom, centered: under the editor only. Hidden, the panel
-  /// leaves its sash as the gap above the status bar. [maximized], the chat
-  /// has the editor's place, above the panel; the editor is kept, as the
-  /// chat hidden is.
+  /// leaves its sash as the gap above the status bar. [inPlace] has the
+  /// editor's place where it is hidden (the chat, and the side bar beside
+  /// it), above the panel; the editor is kept, as the chat hidden is.
   Widget _editorColumn(
     double height,
     List<IdeCommand> commands, {
-    required bool maximized,
+    Widget? inPlace,
   }) {
+    final hidden = inPlace != null;
     final shown = _panel != null;
     final room = height - _sashWidth - (shown ? IdeModernUI.gap : 0);
     final rows = IdeRows.fit(
       room,
       panel: shown ? _panelHeight ?? IdeRows.defaultPanel(room) : null,
-      minAbove: maximized ? IdeRows.minChat : IdeRows.minEditor,
+      minAbove: hidden ? IdeRows.minChat : IdeRows.minEditor,
     );
     final panelVisible = rows.panel > 0;
     return Column(
@@ -2214,11 +2336,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             fit: StackFit.expand,
             children: [
               Offstage(
-                offstage: maximized,
+                offstage: hidden,
                 child: TickerMode(
-                  enabled: !maximized,
+                  enabled: !hidden,
                   child: ExcludeFocus(
-                    excluding: maximized,
+                    excluding: hidden,
                     child: KeyedSubtree(
                       key: const ValueKey('ide-editor'),
                       child: _editorArea(commands),
@@ -2226,29 +2348,38 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   ),
                 ),
               ),
-              if (maximized)
-                KeyedSubtree(
-                  key: const ValueKey('ide-chat'),
-                  child: _chatCard(),
-                ),
+              ?inPlace,
             ],
           ),
         ),
-        _Sash(
-          key: const ValueKey('ide-panel-sash'),
-          axis: Axis.vertical,
-          grip: panelVisible,
-          canMoveBack: rows.canGrowPanel(room),
-          canMoveForward: panelVisible,
-          onStart: () => _panelDragStart = (rows: rows, room: room),
-          onDrag: _dragPanel,
-          onReset: () => setState(() {
-            _panel ??= _lastPanel;
-            _panelHeight = null;
-          }),
+        // Under the side bar too, it keeps clear of the activity bar the
+        // side bar is joined to.
+        Padding(
+          padding: EdgeInsets.only(
+            left: hidden && _layout.sidebarVisible ? IdeModernUI.gap : 0,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Sash(
+                key: const ValueKey('ide-panel-sash'),
+                axis: Axis.vertical,
+                grip: panelVisible,
+                canMoveBack: rows.canGrowPanel(room),
+                canMoveForward: panelVisible,
+                onStart: () => _panelDragStart = (rows: rows, room: room),
+                onDrag: _dragPanel,
+                onReset: () => setState(() {
+                  _panel ??= _lastPanel;
+                  _panelHeight = null;
+                }),
+              ),
+              _panelSlot(rows.panel, commands),
+              if (shown) const SizedBox(height: IdeModernUI.gap),
+            ],
+          ),
         ),
-        _panelSlot(rows.panel, commands),
-        if (shown) const SizedBox(height: IdeModernUI.gap),
       ],
     );
   }
@@ -2375,25 +2506,32 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final columns = start.columns;
     final next = drag(columns, start.room);
     setState(() {
-      _layout.chatMaximized = next.chatMaximized;
       if (next.sidebar > 0) {
-        _sidebarShown = true;
         _sidebarWidth = next.sidebar;
       } else if (columns.sidebar > 0) {
-        _sidebarShown = false;
         _sidebarWidth = columns.sidebar;
       }
-      // Maximized, the chat is all the room: it comes back from there as
+      // With the editor hidden, the chat's width is the room's, not its
+      // own: from there it comes back as wide as it was, and maximized, as
       // wide as when the drag began.
-      if (next.chatMaximized) {
-        if (!columns.chatMaximized) _chatWidth = columns.chat;
+      if (next.editorHidden) {
+        if (!columns.editorHidden && columns.chat > 0) {
+          _chatWidth = columns.chat;
+        }
       } else if (next.chat > 0) {
-        _chatShown = true;
-        _chatWidth = next.chat;
-      } else if (columns.chat > 0) {
-        _chatShown = false;
-        if (!columns.chatMaximized) _chatWidth = columns.chat;
+        if (!columns.editorHidden || columns.sidebar == 0) {
+          _chatWidth = next.chat;
+        }
+      } else if (columns.chat > 0 && !columns.editorHidden) {
+        _chatWidth = columns.chat;
       }
+      _layout.resize(
+        sidebar:
+            !next.chatMaximized &&
+            (next.sidebar > 0 || (columns.sidebar == 0 && _layout.sidebar)),
+        chat: next.chat > 0 || (columns.chat == 0 && _layout.chat),
+        editorHidden: next.editorHidden,
+      );
     });
   }
 

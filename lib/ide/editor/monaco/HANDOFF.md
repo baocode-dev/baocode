@@ -40,7 +40,7 @@
 1. 先读 `PARITY.md` 的功能矩阵及 `PORTING.md` 的源路径和偏差。新增源码移植时写明上游 commit/path、保留许可声明、以对应上游用例与随机边界测试验证；不要为了覆盖率制造空实现。
 2. 优先建立**原始文件模型与 source-derived `TextModel` 的明确映射**：BOM、混合 EOL、UTF-16/selection、保存基线、版本/事件、decorations 与撤销组都不能丢。当前自绘控制器的 undo 在部分路径只 clamp 当前选择，未完整恢复 Monaco 的方向选择；不能直接把 `TextModel` 绑定进工作区。
 3. 查找/替换尚缺完整 FindController、语言级词边界与 JS RegExp 等价、批量替换的大文件策略；自绘视图缺多光标、viewport 真正按需增量化、markers/decorations、行号与 minimap。
-4. Monaco 公共独立 API、语言 providers/workers、diff editor UI、completion/hover/diagnostics、原生 IME/菜单、屏幕阅读器与跨平台验收仍是主要工程量。**绿色测试并不意味着 100% 移植**。
+4. Monaco 公共独立 API、语言 providers/workers、diff editor 的其余部分（moved code、隐藏未改动区域、revert、导航）、completion/hover/diagnostics、原生 IME/菜单、屏幕阅读器与跨平台验收仍是主要工程量。**绿色测试并不意味着 100% 移植**。
 5. 尊重用户已有工作：任何大改之前查看 `git status`，尤其不要覆盖本分支未跟踪的 IDE 目录；用户并未授权提交/推送。项目工作应该留在此仓库，不另建独立项目。
 
 ## 2026-09-29 进展
@@ -122,13 +122,13 @@
 - **列宽与分隔条**：`lib/ide/ide_columns.dart` 按 VS Code grid（`splitview.ts`）分配侧边栏、编辑器、聊天三列的宽度。
   - 各列最小宽度：侧边栏 170、编辑器 320、聊天 360。各列没有最大宽度。
   - 窗口变窄时，先缩聊天到最小宽度，再缩侧边栏到最小宽度，然后隐藏侧边栏（`IdeLayout.sidebarVisible` 为假，活动栏图标和标题栏开关都显示为关闭）。聊天始终在右侧，不再有窄窗口下把聊天放到底部的布局。聊天隐藏时，侧边栏不再被挤掉：空间不够时它和编辑器按最小宽度的比例分。
-  - 主动打开一侧（活动栏图标、⌘B/⌘J、标题栏开关、在资源管理器中显示、双击分隔条）时，如果侧边栏和聊天放不下（`IdeColumns.roomForBoth`，由 IDE 在布局后写入 `IdeLayout.roomForBoth`），就收起另一侧，保证点的那一侧能打开（`IdeLayout.showSidebar`/`showChat`）。
+  - 主动打开一侧（活动栏图标、⌘B/⌘J、标题栏开关、在资源管理器中显示、双击分隔条）时，如果三列放不下（`IdeColumns.roomForBoth`），就把中间的编辑器挤走（`IdeLayout.editorHidden`）：侧边栏和聊天并排，面板开着时在两者下方（上面两个、下面一个）。连两侧都放不下（`IdeColumns.roomForSides`）才收起另一侧。房间大小由 IDE 在布局后写入 `IdeLayout.setRoom`。隐藏任一侧或打开文件时编辑器回来；打开文件时放不下就由侧边栏让位。
   - 分隔条拖过编辑器的最小宽度后，会继续挤压另一侧的列。拖回原处时，被挤压的列恢复原宽度（按拖动开始时的宽度计算）。
   - 另一侧的列被挤到最小宽度后，再往前拖超过它最小宽度的 1/6（VS Code 是一半，拖得太远，按用户要求改为原来的 1/3），它会吸附隐藏，被拖的列跟随指针变宽。拖回来时它重新显示（VS Code `splitview.ts` 的 `snapAfter`/`snapBefore`）。拖动过程中始终用拖动开始时的可用宽度计算，因为聊天隐藏后会连带去掉窗口边上的 4px 间隙。
   - 拖到比本列最小宽度少 1/6 以下会吸附隐藏，再拖出超过这个位置时显示。面板（终端）的上下吸附仍是 VS Code 的一半。拖动隐藏后，⌘B/⌘J 按隐藏前的宽度重新打开。列隐藏时，它的分隔条就是窗口边缘那 4px 间隙，可以从这里拖出来。
   - 光标表示分隔条能移动的方向：两边都能动时为 `resizeColumn`，只能向左时为 `resizeLeft`，只能向右时为 `resizeRight`（对应 VS Code 的 `.minimum`/`.maximum`）。拖动时在 Overlay 上盖一层遮罩，所以指针越过分隔条后光标保持不变。
   - 双击分隔条会显示对应的列，并恢复默认宽度（侧边栏 240，聊天 420）。
-  - 聊天最大化（`IdeLayout.chatMaximized`，对应 VS Code 的 `setAuxiliaryBarMaximized`）：聊天分隔条往左拖，侧边栏先吸附隐藏，编辑器到最小宽度后再拖过它最小宽度的 1/6，编辑器也吸附隐藏，聊天占据中间一列；面板开着时是上下布局，聊天在上、面板在下（聊天最小高度 160）。编辑器没有卸载，只是 Offstage；聊天用 GlobalKey 挪位置，状态保留。聊天的分隔条移到活动栏旁边，往右拖回，编辑器按指针重新出现。显示侧边栏、隐藏聊天、打开文件（上游的 `showEditorIfHidden`）或双击分隔条都会结束最大化；隐藏侧边栏或打开面板不会（上游最大化时会隐藏面板，这里按用户要求保留在聊天下方）。
+  - 聊天最大化（`IdeLayout.chatMaximized`，即编辑器隐藏且侧边栏关闭，对应 VS Code 的 `setAuxiliaryBarMaximized`）：聊天分隔条往左拖，侧边栏先吸附隐藏，编辑器到最小宽度后再拖过它最小宽度的 1/6，编辑器也吸附隐藏，聊天占据中间一列；面板开着时是上下布局，聊天在上、面板在下（聊天最小高度 160）。编辑器没有卸载，只是 Offstage；聊天用 GlobalKey 挪位置，状态保留。聊天的分隔条移到活动栏旁边，往右拖回，编辑器按指针重新出现。显示侧边栏（窗口够宽时编辑器回来，不够宽时侧边栏并排在聊天左边）、隐藏聊天、打开文件（上游的 `showEditorIfHidden`）或双击分隔条都会结束最大化；隐藏侧边栏或打开面板不会（上游最大化时会隐藏面板，这里按用户要求保留在聊天下方）。
 - **标题栏双击**：macOS 上 IDE、侧边栏、聊天和空工作区的标题栏空白处双击，按系统设置「连按窗口标题栏以」缩放、填充、最小化或不处理（`lib/workspace/title_bar_double_click.dart`，原生端 `MainFlutterWindow.swift` 的 `handleTitleDoubleClick`，照 Electron/Chromium `NativeWidgetMacNSWindow sendEvent:` 的逻辑）。按钮、输入框以及 `TitleBarControls` 包住的一组按钮（含按钮之间的缝）不算空白。Windows 由系统按 HTCAPTION 处理。
 - **悬浮框**：`lib/ide/lsp_ui/hover_markdown.dart` 按 VS Code 编辑器悬浮框渲染 Markdown，参考 `hoverWidget.css`、`hover.css`、`hoverContribution.ts` 和 `editorMarkdownCodeBlockRenderer.ts`。
   - 代码块用编辑器的 Monarch 语法和主题上色：语言取代码块标注（按 id 或别名，大小写不敏感，见 `MonacoLanguageAssets.languageIdForName`），没有标注时用当前编辑器的语言。
@@ -209,8 +209,8 @@
   - 搜索和替换输入框的上下内边距为 3px，比其他输入框矮 2px（26px）；Toggle Search Details 为 25×16，图标 16px，没有背景。
 - **快捷键标注与状态栏**：mac 下写 Enter、Tab、Escape、Backspace，不用 ↩ ⇥ ⎋ ⌫，这些符号会被渲染成 emoji。问题计数改用 codicon（`$(error) 1 $(warning) 0`）。
 - **偏差**：
-  - 没有 diff 编辑器：资源、时间线、提交的文件都打开当前文件。
-  - 没有 push、pull、sync、stash、分支命令。
+  - 时间线和 Graph 中提交的文件仍打开当前文件，没有接 diff 编辑器（SCM 的改动已接，见下）。
+  - push/pull 只有 SCM 操作按钮上的 Sync Changes 和 Publish Branch（见下）；没有 fetch、stash、分支命令。
   - 智能提交的 Always/Never 只在当前会话内有效。
   - 不支持多选。
   - 搜索不跨行匹配，没有搜索编辑器和历史。
@@ -219,3 +219,13 @@
   - 单元测试：`test/ide/git/`（`FakeGit` 不启动进程；`git_service_test` 在临时仓库中运行真实 git）、`test/ide/search/`（引擎在临时目录上测试）、`test/ide/extensions/`（mason 在临时目录中运行，PATH 是假的）。
   - 提交信息生成只用假模型测试：`pumpWorkbench` 默认注入一个会抛异常的模型，测试中不会调用真实的 Claude Code。
   - 组件测试：`test/ide/workbench/explorer_ops_test.dart`。
+- **SCM 操作按钮（2026-10-01）**：按 Git 扩展 `actionButton.ts` 的顺序选按钮——有可提交的改动（暂存区，或智能提交会纳入的工作区改动）时是 Commit；否则分支没有上游时是 Publish Branch；有上游且领先/落后时是 Sync Changes（`Sync Changes 1↓ 2↑`，tooltip 与上游 `syncTooltip` 一致）；都不是时是禁用的 Commit。同步中图标旋转、按钮禁用。
+  - Sync：先确认（`git.confirmSync`，“OK, Don't Show Again” 只在会话内有效），然后 `git pull --tags <remote> <branch>`，原先领先时再 `git push <remote> <branch>:<upstream>`；远端名含 `/` 时按最长匹配的远端拆分上游。
+  - Publish：`git push -u <remote> <branch>`；没有远端时警告，多个远端时在按钮下弹菜单选择（上游是 quick pick + Add Remote）。
+  - 偏差：没有 fetch-on-pull、rebase、autostash、只读远端、状态栏同步项；没有 askpass，需要输入凭据的远端会失败并以通知报告。
+- **SCM 改动的 diff 编辑器（2026-10-01）**：点击 Source Control 里的改动、或右键 Open Changes，按 Git 扩展 `ResourceCommandResolver`（`git_change_editor.dart`）打开 diff：工作区改动是 HEAD（已暂存时是暂存区）对比文件，标题 `a.dart (Working Tree)`；暂存的改动是 HEAD 对比暂存区（只读，`(Index)`）；删除的文件只打开 HEAD 的内容（`(Deleted)`）；未跟踪文件打开文件本身。右键新增 Open File (HEAD)，没有 HEAD 版本时按上游警告。旧版本内容用 `git show --textconv ref:path` 读取，每次 Git 状态刷新都重新读取。
+  - 编辑器（`flutter/diff_editor.dart`、`diff_editor_model.dart`）：宽度大于 900px 时左右对比，否则 inline（原文件只显示行号，删除的行作为 view zone 显示在修改处上方）；中间 sash 两侧最小 100px、双击回到一半；右侧 30px overview（两条 lane + 视口滑块）；两侧共享滚动。diff 用移植的 `DefaultLinesDiffComputer`，编辑后 200ms 重算。
+  - 工作区 diff tab 与文件 tab 共享同一个文档模型（编辑、撤销、脏状态、保存、LSP 同步都是同一份）；关闭 diff tab 不影响文件 tab。
+  - 偏差：没有 moved code、隐藏未改动区域、gutter 菜单/revert 箭头、改动导航、无障碍 diff 查看器、自动换行；编辑后到重算前 diff 不随编辑移动；删除的代码不能选中；没有预览编辑器，单击打开的是常驻 tab；未跟踪等只有文件一侧的改动打开文件自己的 tab，标题不带 `(Untracked)`；Git 读不到的版本显示为空（上游报 file not found）；时间线和 Graph 仍打开当前文件。
+  - 测试：`test/ide/git/scm_diff_test.dart`（FakeGit + 原生编辑器）、`git_change_editor_test.dart`、`test/ide/editor/monaco/flutter/diff_editor_model_test.dart`。
+  - 测试只用 `FakeGit`（新增 `remotes`、`answers`、`hold`），不访问网络。

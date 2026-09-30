@@ -8,6 +8,8 @@ import 'package:path/path.dart' as p;
 
 import '../theme/cursor_theme.dart';
 import '../theme/workbench_theme.dart' hide ColorScheme;
+import 'editor/monaco/flutter/diff_editor.dart';
+import 'editor/monaco/flutter/diff_editor_model.dart';
 import 'editor/monaco/flutter/document_snapshot.dart';
 import 'editor/monaco/flutter/editor_surface.dart';
 import 'editor/monaco/flutter/editor_surface_controller.dart';
@@ -136,6 +138,9 @@ class IdeEditorState extends State<IdeEditor> {
   String? _syntaxText;
   int _syntaxRequest = 0;
   EditorLanguageSession? _language;
+
+  /// Each open diff tab's diff and original side.
+  final Map<IdeDocument, _DiffOriginal> _diffs = {};
   EditorKeyChord? _pendingChord;
   bool _languageRebuildScheduled = false;
 
@@ -215,7 +220,8 @@ class IdeEditorState extends State<IdeEditor> {
     final doc = widget.active;
     if (languages == null ||
         controller == null ||
-        !widget.nativeEditorEnabled) {
+        !widget.nativeEditorEnabled ||
+        doc.readOnly) {
       _disposeLanguageSession();
       return;
     }
@@ -385,6 +391,7 @@ class IdeEditorState extends State<IdeEditor> {
     if (document == null || view is! EditorSurfaceView) return;
     if ((view as EditorSurfaceView).visibleLineRange case final range?) {
       document.setViewport(range.first, range.last);
+      _diffs[widget.active]?.textMate?.setViewport(range.first, range.last);
     }
   }
 
@@ -579,6 +586,7 @@ class IdeEditorState extends State<IdeEditor> {
     });
     _tokenizedDocuments.remove(doc);
     _syntaxText = snapshot.text;
+    _diffs[doc]?.highlight(_textMate, languageId);
     setState(() {
       _styledDocument = doc;
       _styledSnapshot = null;
@@ -599,6 +607,7 @@ class IdeEditorState extends State<IdeEditor> {
         final controller = entry.value;
         if (!open.contains(entry.key)) {
           _nativeControllers.remove(entry.key);
+          _diffs.remove(entry.key)?.dispose();
           _tokenizedDocuments.remove(entry.key);
           _textMateDocuments.remove(entry.key)?.$2.dispose();
           if (identical(_language?.controller, controller)) {
@@ -644,6 +653,23 @@ class IdeEditorState extends State<IdeEditor> {
       controller.dispose();
     }
     _nativeControllers.clear();
+    for (final diff in _diffs.values) {
+      diff.dispose();
+    }
+    _diffs.clear();
+  }
+
+  /// [doc]'s diff and original side, where it is a diff tab.
+  _DiffOriginal? _diffOf(IdeDocument doc) {
+    final original = doc.diff;
+    if (original == null) return null;
+    return _diffs.putIfAbsent(doc, () {
+      final diff = _DiffOriginal(original, doc.model, onChanged: _rebuildSoon);
+      if (_textMateDocuments[doc]?.$2.languageId case final language?) {
+        diff.highlight(_textMate, language);
+      }
+      return diff;
+    });
   }
 
   void _scheduleFindRefresh() {
@@ -1199,6 +1225,90 @@ class IdeEditorState extends State<IdeEditor> {
     onReplaceAll: _replaceAll,
   );
 
+  TextStyle _editorStyle(WorkbenchColors colors) => TextStyle(
+    color: colors['editor.foreground'],
+    fontFamily: CursorFonts.mono,
+    fontSize: 13,
+    height: 1.45,
+  );
+
+  /// The active document's editor; in a diff, the modified side, with
+  /// what the diff gives it ([side]).
+  Widget _surface(WorkbenchColors colors, {DiffEditorSide? side}) =>
+      EditorSurface(
+        key: _surfaceKey,
+        controller: _nativeController!,
+        focusNode: _focusNode,
+        readOnly: widget.active.readOnly,
+        backgroundColor: colors['editor.background'],
+        selectionColor: colors['editor.selectionBackground'],
+        caretColor: colors['editorCursor.foreground'],
+        theme: EditorViewTheme.fromColors(colors.get),
+        styledLines: _language?.styledLines(_styledLines) ?? _styledLines,
+        decorations: [
+          ...?side?.decorations,
+          ...?_language?.decorations,
+          ..._snippetDecorations(_nativeController!, colors),
+          ..._findDecorations,
+        ],
+        // A diff editor's editors fold nothing and have no minimap.
+        viewZones: side?.zones ?? const [],
+        scrollPosition: side?.scrollPosition,
+        folding: side == null,
+        showMinimap: side == null,
+        onKeyEvent: _onEditorKey,
+        onHover: _language == null
+            ? null
+            : (offset, _) => _language?.onPointerHover(offset),
+        onContentPointerDown: _language?.onPointerDown,
+        onContextMenu: _showContextMenu,
+        onViewChanged: _viewChanged,
+        contentCursor: _language?.link == null
+            ? null
+            : SystemMouseCursors.click,
+        style: _editorStyle(colors),
+      );
+
+  /// A diff tab's editors: the original, read-only, and the document.
+  Widget _diffEditor(WorkbenchColors colors, _DiffOriginal diff) {
+    final theme = EditorViewTheme.fromColors(colors.get);
+    final type = getThemeTypeSelector(_themes.colorTheme.type);
+    return DiffEditor(
+      key: ObjectKey(diff),
+      model: diff.model,
+      style: _editorStyle(colors),
+      theme: theme,
+      colors: DiffEditorColors.from(colors.get),
+      dark:
+          type == ThemeTypeSelector.vsDark || type == ThemeTypeSelector.hcBlack,
+      originalStyledLines: diff.textMate?.styledLines,
+      border: colors.get('diffEditor.border'),
+      sashHover: colors.get('sash.hoverBorder'),
+      original: (context, side) {
+        final controller = diff.controller;
+        if (controller == null) return const SizedBox.expand();
+        return EditorSurface(
+          key: ObjectKey(controller),
+          controller: controller,
+          readOnly: true,
+          backgroundColor: colors['editor.background'],
+          selectionColor: colors['editor.selectionBackground'],
+          caretColor: colors['editorCursor.foreground'],
+          theme: theme,
+          styledLines: diff.textMate?.styledLines,
+          decorations: side.decorations,
+          viewZones: side.zones,
+          scrollPosition: side.scrollPosition,
+          glyphMargin: side.sideBySide,
+          folding: false,
+          showMinimap: false,
+          style: _editorStyle(colors),
+        );
+      },
+      modified: (context, side) => _surface(colors, side: side),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final language = p.extension(widget.active.path).toLowerCase();
@@ -1229,44 +1339,9 @@ class IdeEditorState extends State<IdeEditor> {
               child: widget.nativeEditorEnabled
                   ? _nativeController == null
                         ? const SizedBox.expand()
-                        : EditorSurface(
-                            key: _surfaceKey,
-                            controller: _nativeController!,
-                            focusNode: _focusNode,
-                            backgroundColor: colors['editor.background'],
-                            selectionColor:
-                                colors['editor.selectionBackground'],
-                            caretColor: colors['editorCursor.foreground'],
-                            theme: EditorViewTheme.fromColors(colors.get),
-                            styledLines:
-                                _language?.styledLines(_styledLines) ??
-                                _styledLines,
-                            decorations: [
-                              ...?_language?.decorations,
-                              ..._snippetDecorations(
-                                _nativeController!,
-                                colors,
-                              ),
-                              ..._findDecorations,
-                            ],
-                            onKeyEvent: _onEditorKey,
-                            onHover: _language == null
-                                ? null
-                                : (offset, _) =>
-                                      _language?.onPointerHover(offset),
-                            onContentPointerDown: _language?.onPointerDown,
-                            onContextMenu: _showContextMenu,
-                            onViewChanged: _viewChanged,
-                            contentCursor: _language?.link == null
-                                ? null
-                                : SystemMouseCursors.click,
-                            style: TextStyle(
-                              color: colors['editor.foreground'],
-                              fontFamily: CursorFonts.mono,
-                              fontSize: 13,
-                              height: 1.45,
-                            ),
-                          )
+                        : _diffOf(widget.active) == null
+                        ? _surface(colors)
+                        : _diffEditor(colors, _diffOf(widget.active)!)
                   : TextField(
                       controller: _controller,
                       focusNode: _focusNode,
@@ -1362,3 +1437,53 @@ String languageNameForFile(String path) =>
       '.sh' || '.bash' => 'Shell',
       _ => 'Plain Text',
     };
+
+/// A diff tab's original side in the editor: its text as a read-only
+/// document, highlighted as the modified is, and the diff between them.
+class _DiffOriginal {
+  _DiffOriginal(
+    this.original,
+    EditorDocumentModel modified, {
+    required this.onChanged,
+  }) : model = DiffEditorModel(original: original.text, modified: modified) {
+    original.text.addListener(_textChanged);
+    _textChanged();
+  }
+
+  final IdeDiffOriginal original;
+  final DiffEditorModel model;
+  final VoidCallback onChanged;
+
+  EditorDocumentModel? _document;
+  EditorSurfaceController? controller;
+  TextMateDocument? textMate;
+
+  void _textChanged() {
+    final text = original.text.value;
+    if (text == null || text == _document?.text) return;
+    controller?.dispose();
+    _document?.dispose();
+    final document = _document = EditorDocumentModel(text);
+    controller = EditorSurfaceController(document: document);
+    textMate?.update(document.snapshot);
+    onChanged();
+  }
+
+  /// Highlights the original as [languageId], as the modified is.
+  void highlight(TextMateSyntax syntax, String languageId) {
+    final document = _document;
+    if (document == null || textMate?.languageId == languageId) return;
+    textMate?.dispose();
+    textMate = syntax.open(languageId, document.snapshot)
+      ?..addListener(onChanged);
+    onChanged();
+  }
+
+  void dispose() {
+    original.text.removeListener(_textChanged);
+    model.dispose();
+    textMate?.dispose();
+    controller?.dispose();
+    _document?.dispose();
+  }
+}
