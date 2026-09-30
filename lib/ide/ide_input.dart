@@ -15,6 +15,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../chat/widgets/wheel_latch.dart';
 import 'ide_hover.dart';
 
 /// Dark 2026 `input.*`, `inputOption.*`, `inputValidation.*`, `focusBorder`.
@@ -64,7 +65,8 @@ class IdeInputValidation {
 }
 
 /// An input box: [minLines] to [maxLines] lines (it grows, then scrolls),
-/// [toggles] on the right, and [validation] below.
+/// [toggles] on the right, centered on the first line, and [validation]
+/// below.
 class IdeInputBox extends StatefulWidget {
   const IdeInputBox({
     super.key,
@@ -77,6 +79,7 @@ class IdeInputBox extends StatefulWidget {
     this.lineHeight = 18,
     this.padding = const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
     this.toggles = const [],
+    this.togglesInset = 1,
     this.validation,
     this.onChanged,
     this.onSubmitted,
@@ -95,6 +98,10 @@ class IdeInputBox extends StatefulWidget {
   final double lineHeight;
   final EdgeInsets padding;
   final List<Widget> toggles;
+
+  /// Between [toggles] and the border: `.controls { right: 2px }` is 1px
+  /// inside it.
+  final double togglesInset;
   final IdeInputValidation? validation;
   final ValueChanged<String>? onChanged;
 
@@ -174,7 +181,8 @@ class _IdeInputBoxState extends State<IdeInputBox> {
       focusNode: _focus,
       autofocus: widget.autofocus,
       minLines: widget.minLines,
-      maxLines: widget.maxLines,
+      // Several lines: as many as it has, scrolled around it (below).
+      maxLines: multiline ? null : widget.maxLines,
       keyboardType: multiline ? TextInputType.multiline : TextInputType.text,
       textInputAction: multiline
           ? TextInputAction.newline
@@ -199,6 +207,18 @@ class _IdeInputBoxState extends State<IdeInputBox> {
         visualDensity: VisualDensity.standard,
       ),
     );
+    if (multiline) {
+      // Past [maxLines], it scrolls in a view of its own, not the field's,
+      // so that a wheel gesture begun over it keeps to it (`WheelLatch`):
+      // the side bar's list does not scroll on from its ends.
+      field = ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight:
+              widget.lineHeight * widget.maxLines + widget.padding.vertical,
+        ),
+        child: SingleChildScrollView(child: WheelLatch(child: field)),
+      );
+    }
     // Scrolls past its lines without a scrollbar, as VS Code's inputs.
     field = ScrollConfiguration(
       behavior: const _WithoutScrollbars(),
@@ -224,10 +244,14 @@ class _IdeInputBoxState extends State<IdeInputBox> {
           Expanded(child: field),
           if (widget.toggles.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(0, 1, 2, 1),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: widget.toggles,
+              padding: EdgeInsets.only(right: widget.togglesInset),
+              // Centered on the first line, as its text is.
+              child: SizedBox(
+                height: widget.padding.top * 2 + widget.lineHeight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: widget.toggles,
+                ),
               ),
             ),
         ],

@@ -191,6 +191,9 @@
   - 文字按 CSS 的 half-leading 在行内垂直居中（`TextLeadingDistribution.even`），与光标对齐。
   - 固定 `VisualDensity.standard`：macOS 默认的 compact 密度会吃掉内边距，使输入框变矮、文字和光标偏移。
   - 多行输入超出时滚动，但不显示滚动条（与 VS Code 一致）。
+  - 多行输入放在自己的滚动视图里并套上 `WheelLatch`（与 chat 相同的规则）：在输入框内开始的滚轮手势只滚动输入框，到头也不会带动外面的列表；从外面开始的手势经过输入框时继续滚动外面。
+  - 右侧开关按钮与第一行文字垂直居中；与右边框的间距按 VS Code（`.controls` 为 1px，SCM 工具栏为 3px）。
+  - 搜索和替换输入框的上下内边距为 3px，比其他输入框矮 2px（26px）；Toggle Search Details 为 25×16，图标 16px，没有背景。
 - **快捷键标注与状态栏**：mac 下写 Enter、Tab、Escape、Backspace，不用 ↩ ⇥ ⎋ ⌫，这些符号会被渲染成 emoji。问题计数改用 codicon（`$(error) 1 $(warning) 0`）。
 - **偏差**：
   - 没有 diff 编辑器：资源、时间线、提交的文件都打开当前文件。

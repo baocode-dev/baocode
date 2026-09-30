@@ -565,6 +565,8 @@ class _IdeScmViewState extends State<IdeScmView> {
         lineHeight: 20,
         padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
         validation: _validation,
+        // `.scm-editor-toolbar { padding: 1px 3px 1px 1px }`.
+        togglesInset: 3,
         toggles: [
           if (widget.commitMessage != null)
             IdeActionButton(

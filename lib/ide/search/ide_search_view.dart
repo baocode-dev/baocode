@@ -513,6 +513,10 @@ class _IdeSearchViewState extends State<IdeSearchView> {
     );
   }
 
+  /// The search and replace inputs' (`textarea.input`), 2px shorter than
+  /// the others.
+  static const _widgetPadding = EdgeInsets.fromLTRB(6, 3, 0, 3);
+
   /// `.search-widgets-container`: the replace toggle, and the search and
   /// replace inputs.
   Widget _widgets() {
@@ -542,6 +546,7 @@ class _IdeSearchViewState extends State<IdeSearchView> {
                     autofocus: true,
                     placeholder: 'Search',
                     semanticsLabel: 'Search',
+                    padding: _widgetPadding,
                     validation: regExpError == null
                         ? null
                         : IdeInputValidation(regExpError),
@@ -581,6 +586,7 @@ class _IdeSearchViewState extends State<IdeSearchView> {
                             controller: session.replace,
                             placeholder: 'Replace',
                             semanticsLabel: 'Replace',
+                            padding: _widgetPadding,
                             onChanged: (_) => session.notify(),
                             toggles: [
                               IdeInputToggle(
@@ -631,16 +637,16 @@ class _IdeSearchViewState extends State<IdeSearchView> {
         children: [
           Align(
             alignment: Alignment.centerRight,
-            child: IdeActionButton(
-              icon: Codicons.ellipsis,
-              tooltip: 'Toggle Search Details',
-              size: 16,
-              iconSize: 14,
-              checked: session.detailsShown,
-              onPressed: () {
-                session.detailsShown = !session.detailsShown;
-                session.notify();
-              },
+            // `right: -2px`.
+            child: Transform.translate(
+              offset: const Offset(2, 0),
+              child: _ToggleDetails(
+                expanded: session.detailsShown,
+                onPressed: () {
+                  session.detailsShown = !session.detailsShown;
+                  session.notify();
+                },
+              ),
             ),
           ),
           if (session.detailsShown) ...[
@@ -954,6 +960,40 @@ class _ToggleReplaceState extends State<_ToggleReplace> {
             ),
             child: Icon(
               widget.expanded ? Codicons.chevronDown : Codicons.chevronRight,
+              size: 16,
+              color: IdeListColors.foreground,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// `.query-details .more`: a bare 16px codicon in a 25 by 16 box.
+class _ToggleDetails extends StatelessWidget {
+  const _ToggleDetails({required this.expanded, required this.onPressed});
+
+  final bool expanded;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IdeHover(
+    message: 'Toggle Search Details',
+    child: Semantics(
+      button: true,
+      expanded: expanded,
+      label: 'Toggle Search Details',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onPressed,
+          child: const SizedBox(
+            width: 25,
+            height: 16,
+            child: Icon(
+              Codicons.ellipsis,
               size: 16,
               color: IdeListColors.foreground,
             ),

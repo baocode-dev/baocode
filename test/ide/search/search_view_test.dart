@@ -175,6 +175,30 @@ void main() {
     expect(find.text('2 results in 1 file'), findsOneWidget);
   });
 
+  testWidgets('sized as VS Code: the inputs, their toggles, and the details '
+      'toggle', (tester) async {
+    await pumpSearch(tester);
+    Rect box(String label) => tester.getRect(
+      find.byWidgetPredicate(
+        (widget) => widget is IdeInputBox && widget.semanticsLabel == label,
+      ),
+    );
+    // The search widget's inputs are 2px shorter than the others.
+    expect(box('Search').height, 26);
+    final details = find.byTooltip('Toggle Search Details');
+    expect(tester.getSize(details), const Size(25, 16));
+
+    await tester.tap(details);
+    await tester.pumpAndSettle();
+    final exclude = box('files to exclude');
+    expect(exclude.height, 28);
+    final toggle = tester.getRect(
+      find.byTooltip('Use Exclude Settings and Ignore Files'),
+    );
+    expect(toggle.center.dy, exclude.center.dy);
+    expect(toggle.right, exclude.right - 2);
+  });
+
   testWidgets('Find in Folder... searches in the folder', (tester) async {
     await pumpSearch(tester);
     await search(tester, 'foo');

@@ -137,7 +137,14 @@ void main() {
   });
 
   testWidgets('groups by date and filters by search', (tester) async {
-    await pumpApp(tester);
+    final workspace = await pumpApp(tester);
+    // The mock's times are ages back from now, so their calendar days depend
+    // on the time of day: its only unpinned thread of a day ago (a day and
+    // six hours) is two days ago before 6 am. One today, one yesterday.
+    final now = DateTime.now();
+    threadNamed(workspace, 'Rate limit per API key').updatedAt = now;
+    threadNamed(workspace, 'Migrate auth middleware to JWT').updatedAt =
+        DateTime(now.year, now.month, now.day - 1, 12);
     await tester.tap(inSidebar(find.text('By project')));
     await tester.pump();
     await tester.tap(find.text('Date'));
