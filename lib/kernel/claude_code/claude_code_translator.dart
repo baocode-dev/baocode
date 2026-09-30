@@ -32,7 +32,14 @@ class ClaudeTranslator {
   }
 
   /// A turn was sent: the agent is at work from now, before the CLI says so.
-  void begin() => _report(_waiting());
+  void begin() {
+    _interruptShown = null;
+    _report(_waiting());
+  }
+
+  /// The "Interrupted" notice, while nothing has come after it: a stop
+  /// that cut several requests short shows once.
+  String? _interruptShown;
 
   KernelActivity _waiting() =>
       KernelActivity(KernelActivityKind.waiting, DateTime.now());
@@ -43,6 +50,10 @@ class ClaudeTranslator {
   // Streamed blocks of the current message.
   String? _messageId;
   final Map<int, String> _streamed = {};
+
+  /// Since when the model has been at the next block: its message's start,
+  /// else the last block's end.
+  DateTime? _blockSince;
 
   /// Streamed text and thought blocks, per message and kind, in order,
   /// until the whole message claims them.
@@ -92,6 +103,8 @@ class ClaudeTranslator {
 
   // --- Items -------------------------------------------------------------------
 
+  static const _interrupted = NoticeItem(NoticeKind.info, 'Interrupted');
+
   /// Adds or replaces [id], at the top level or in the subagent [parent].
   void _put(
     String id,
@@ -106,6 +119,7 @@ class ClaudeTranslator {
       _putAgent(parent);
       return;
     }
+    _interruptShown = item == _interrupted ? id : null;
     emit(ItemUpserted(nextSeq(), id, item, streaming: streaming));
   }
 
@@ -122,8 +136,7 @@ class ClaudeTranslator {
       case 'message_start':
         _messageId = _map(event['message'])['id'] as String?;
         _streamed.clear();
-        // The model answers: what it does shows from here.
-        _report(null);
+        _blockSince = DateTime.now();
       case 'content_block_start':
         final index = event['index'] as int;
         final block = _map(event['content_block']);
@@ -133,7 +146,8 @@ class ClaudeTranslator {
             _streamed[index] = id;
             (_unclaimed['$_messageId:thinking'] ??= []).add(id);
             _thoughts[id] = StringBuffer();
-            _thinkingStarted[id] = DateTime.now();
+            // A proxy may hold a whole thought back until it is done.
+            _thinkingStarted[id] = _blockSince ?? DateTime.now();
             _put(
               id,
               ThinkingItem(
@@ -154,7 +168,13 @@ class ClaudeTranslator {
             if (!_tools.containsKey(toolId)) {
               _toolUse(toolId, name, const {}, null);
             }
+          default:
+            return;
         }
+        // The model answers: what it does shows from here. Not from its
+        // message's start, which a proxy may send minutes before the first
+        // block (holding back a thought until it is done).
+        _report(null);
       case 'content_block_delta':
         final id = _streamed[event['index']];
         if (id == null) return;
@@ -183,6 +203,7 @@ class ClaudeTranslator {
             emit(TextDelta(nextSeq(), id, offset, text));
         }
       case 'content_block_stop':
+        _blockSince = DateTime.now();
         final id = _streamed.remove(event['index']);
         if (id == null) return;
         if (_thoughts.containsKey(id)) {
@@ -352,7 +373,8 @@ class ClaudeTranslator {
       return;
     }
     if (trimmed.startsWith('[Request interrupted by user')) {
-      _put(id, const NoticeItem(NoticeKind.info, 'Interrupted'));
+      final shown = _interruptShown;
+      if (shown == null || shown == id) _put(id, _interrupted);
       return;
     }
     _put(id, UserMessageItem(text: trimmed, images: images));

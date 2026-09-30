@@ -102,6 +102,10 @@ class ClaudeCodeKernel
   String? _turn;
   final Map<String, KernelTurn> _sent = {};
   final Set<String> _queued = {};
+
+  /// Turns stopped here: the CLI's word that it took one up (sent just
+  /// before, it may not have yet) does not start it again.
+  final Set<String> _stoppedTurns = {};
   final Map<String, _Permission> _permissions = {};
   String? _pendingTitle;
 
@@ -422,7 +426,9 @@ class ClaudeCodeKernel
 
   @override
   void cancel() {
-    if (_turn == null) return;
+    final turn = _turn;
+    if (turn == null) return;
+    _stoppedTurns.add(turn);
     _tell('interrupt');
     _endTurn(interrupted: true);
   }
@@ -982,7 +988,11 @@ class ClaudeCodeKernel
             ),
           );
         }
-        if (_turn != id && _sent.containsKey(id)) _beginTurn(id);
+        if (_turn != id &&
+            _sent.containsKey(id) &&
+            !_stoppedTurns.contains(id)) {
+          _beginTurn(id);
+        }
       case 'cancelled':
         if (_queued.remove(id)) emit(ItemRemoved(nextSeq, id));
     }

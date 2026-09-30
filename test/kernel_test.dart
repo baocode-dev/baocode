@@ -590,6 +590,57 @@ void main() {
       kernel.dispose();
     });
 
+    test('a turn stopped as soon as sent stays stopped, its interruption '
+        'shown once', () async {
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(cli);
+      Map<String, Object?> interruption(String uuid) => {
+        'type': 'user',
+        'uuid': uuid,
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': '[Request interrupted by user]'},
+          ],
+        },
+      };
+      int interruptions() => [
+        for (var i = 0; i < transcript.length; i++)
+          if (transcript.itemAt(i) case NoticeItem(text: 'Interrupted')) i,
+      ].length;
+
+      kernel.send(const KernelTurn(id: 'u1', text: 'look at my code'));
+      await pumpEventQueue();
+      kernel.cancel();
+      expect(transcript.activeTurn, isNull);
+      // The CLI takes it up after all (the interrupt came first).
+      cli.push({
+        'type': 'command_lifecycle',
+        'command_uuid': 'u1',
+        'state': 'started',
+      });
+      await pumpEventQueue();
+      expect(transcript.activeTurn, isNull);
+      kernel.cancel();
+      await pumpEventQueue();
+      expect(cli.requests('interrupt'), hasLength(1));
+
+      // However many requests the stop cut short, one notice.
+      cli
+        ..push(interruption('i1'))
+        ..push(interruption('i2'));
+      await pumpEventQueue();
+      expect(interruptions(), 1);
+      // The next turn's shows too.
+      kernel.send(const KernelTurn(id: 'u2', text: 'again'));
+      await pumpEventQueue();
+      kernel.cancel();
+      cli.push(interruption('i3'));
+      await pumpEventQueue();
+      expect(interruptions(), 2);
+      kernel.dispose();
+    });
+
     test('undo rewinds the files since the turn; a rewind lands before '
         'the next message', () async {
       final cli = FakeCli(
@@ -1195,15 +1246,29 @@ void main() {
       // Its word that it did changes nothing.
       await push(status('requesting'));
       expect(last(), isA<LiveStatusItem>());
-      // The model answers: its thought or text shows instead.
-      await push({
-        'type': 'stream_event',
-        'event': {
-          'type': 'message_start',
-          'message': {'id': 'm1'},
-        },
+      Future<void> stream(Map<String, Object?> event) =>
+          push({'type': 'stream_event', 'event': event});
+      // Its message begun, nothing of it shown yet: a proxy may hold a
+      // thought back for minutes.
+      final begun = DateTime.now();
+      await stream({
+        'type': 'message_start',
+        'message': {'id': 'm1'},
       });
-      expect(last(), isA<UserMessageItem>());
+      expect(last(), isA<LiveStatusItem>());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      final blockAt = DateTime.now();
+      // Its thought shows instead, timed from the message's start.
+      await stream({
+        'type': 'content_block_start',
+        'index': 0,
+        'content_block': {'type': 'thinking', 'thinking': ''},
+      });
+      final started = (last() as ThinkingItem).startedAt!;
+      expect(started.isBefore(begun), isFalse);
+      expect(started.isBefore(blockAt), isTrue);
+      await stream({'type': 'content_block_stop', 'index': 0});
+      expect(last(), isA<ThinkingItem>());
 
       await push(status('compacting'));
       expect(
@@ -1215,11 +1280,11 @@ void main() {
         ),
       );
       await push(status(null));
-      expect(last(), isA<UserMessageItem>());
+      expect(last(), isA<ThinkingItem>());
 
       await push(status('requesting'));
       await push({'type': 'result', 'subtype': 'success', 'is_error': false});
-      expect(last(), isA<UserMessageItem>(), reason: 'the turn is over');
+      expect(last(), isA<ThinkingItem>(), reason: 'the turn is over');
       session.dispose();
     });
 
