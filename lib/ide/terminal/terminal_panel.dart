@@ -263,7 +263,7 @@ class _SingleTabState extends State<_SingleTab> {
           final label = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Codicons.terminal,
                 size: 16,
                 color: IdeActionButton.foreground,
@@ -276,7 +276,7 @@ class _SingleTabState extends State<_SingleTab> {
                   maxLines: 1,
                   softWrap: false,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: IdeActionButton.foreground,
                   ),
@@ -285,7 +285,7 @@ class _SingleTabState extends State<_SingleTab> {
               if (instance.exitMessage != null) ...[
                 const SizedBox(width: 4),
                 // `color: inherit` in the title.
-                const TerminalExitedIcon(color: IdeActionButton.foreground),
+                TerminalExitedIcon(color: IdeActionButton.foreground),
               ],
             ],
           );

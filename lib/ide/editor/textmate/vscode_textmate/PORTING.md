@@ -58,8 +58,23 @@ Every test that needs a regex engine gets its `IOnigLib` from
 `testOnigLib()` in `support/onig.dart`: native Oniguruma
 (`lib/ide/editor/textmate/oniguruma/`), as upstream's tests run on
 vscode-oniguruma. End-to-end parity with VS Code (grammar factory, theme
-loader and this port together, token by token over every bundled theme) is
+loader and this port together, token by token over every colorize sample of
+every built-in language in every bundled theme) is
 `test/ide/editor/textmate/textmate_parity_test.dart`.
+
+## Use in the editor
+
+The IDE editor runs this port only in its TextMate worker
+(`lib/ide/editor/textmate/textmate_worker.dart`), a background isolate. The
+UI isolate gets binary tokens and never calls into it. One `Registry` holds
+every bundled grammar and the editor's theme. Lines go through
+`grammar.tokenizeLine2(line, state, 500)`, as VS Code's
+`TextMateTokenizationSupport` calls it, with VS Code's line-length limit in
+front. The Monaco port's PORTING.md ("TextMate highlighting in the editor")
+maps that loop to its upstream files and lists how it deviates; none
+changes tokens. `test/ide/editor/textmate/textmate_syntax_test.dart` checks
+that the worker gives every colorize sample VS Code's tokens in the
+editor's theme.
 
 ## Dart API adaptations
 

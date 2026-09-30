@@ -10,6 +10,7 @@ import '../../ide/terminal/xterm/common/buffer/types.dart';
 import '../../ide/terminal/xterm/common/types.dart';
 import '../../ide/terminal/xterm/headless/terminal.dart' as xterm;
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
 
 /// What a command printed, as a terminal shows it: in color, and with what
 /// it wrote over (a `\r` progress line, a line erased and printed again) as
@@ -19,12 +20,21 @@ import '../../theme/cursor_theme.dart';
 /// comes back as it is, trimmed at the end. The rest goes through a headless
 /// terminal wide and long enough to hold it, read back from its buffer.
 /// Results are cached by output, which never changes for an item: a new
-/// output comes as a new string.
+/// output comes as a new string. They have the theme's colors in them: a
+/// new color theme renders them again.
 TerminalOutput terminalOutput(String output) {
   if (!output.contains('\x1b') &&
       !output.contains('\r') &&
       !output.contains('\b')) {
     return TerminalOutput._plain(output.trimRight());
+  }
+  final colors = themeColors;
+  final terminal = terminalColorTheme.value;
+  if (!identical(colors, _cacheColors) ||
+      !identical(terminal, _cacheTerminal)) {
+    _cache.clear();
+    _cacheColors = colors;
+    _cacheTerminal = terminal;
   }
   final result = _cache.remove(output) ?? _render(output);
   _cache[output] = result;
@@ -36,6 +46,10 @@ TerminalOutput terminalOutput(String output) {
 /// open steps of a conversation and the growing output of a running one.
 final _cache = <String, TerminalOutput>{};
 const _cacheSize = 64;
+
+/// The themes [_cache] was rendered in.
+WorkbenchColors? _cacheColors;
+TerminalColorTheme? _cacheTerminal;
 
 /// The widest a line gets before it wraps (and is joined back).
 const _maxColumns = 500;
@@ -57,11 +71,11 @@ const _maxCells = 1 << 20;
 
 /// The step's own colors stand for the terminal's default ones: its text on
 /// its box.
-const _foreground = CursorColors.textMuted;
-const _background = CursorColors.code;
+Color get _foreground => CursorColors.textMuted;
+Color get _background => CursorColors.code;
 
-/// VS Code's terminal palette.
-final _palette = terminalAnsiColors();
+/// The terminal's palette, the color theme's ([terminalColorTheme]).
+List<Color> get _palette => terminalColorTheme.value.palette;
 
 /// [output] written to a headless terminal and read back.
 TerminalOutput _render(String output) {

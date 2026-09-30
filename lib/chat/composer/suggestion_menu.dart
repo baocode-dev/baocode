@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
 import '../../theme/material_file_icons.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import 'composer_mock_data.dart';
 
 /// A ranked suggestion with the indexes of the query characters it matched.
@@ -80,19 +81,21 @@ class _SuggestionMenuState extends State<SuggestionMenu> {
   @override
   Widget build(BuildContext context) {
     final rows = widget.matches.length.clamp(1, SuggestionMenu._maxVisibleRows);
+    final colors = themeColors;
+    // The editor's suggest widget, as the chat input's completions upstream.
     return Material(
       type: MaterialType.transparency,
       child: Container(
         width: SuggestionMenu.width,
         decoration: BoxDecoration(
-          color: CursorColors.surfaceRaised,
+          color: colors['editorSuggestWidget.background'],
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: CursorColors.borderStrong),
-          boxShadow: const [
+          border: Border.all(color: colors['editorSuggestWidget.border']),
+          boxShadow: [
             BoxShadow(
-              color: Color(0x66000000),
+              color: colors['widget.shadow'],
               blurRadius: 24,
-              offset: Offset(0, 8),
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -105,7 +108,7 @@ class _SuggestionMenuState extends State<SuggestionMenu> {
               padding: const EdgeInsets.fromLTRB(10, 7, 10, 3),
               child: Text(
                 widget.title,
-                style: const TextStyle(
+                style: TextStyle(
                   color: CursorColors.textFaint,
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
@@ -120,7 +123,7 @@ class _SuggestionMenuState extends State<SuggestionMenu> {
                   maxHeight: rows * SuggestionMenu._rowHeight + 8,
                 ),
                 child: widget.matches.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
                           'No results',
                           style: TextStyle(
@@ -167,6 +170,10 @@ class _SuggestionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final suggestion = match.suggestion;
     final isCommand = suggestion.kind == SuggestionKind.command;
+    final colors = themeColors;
+    final outline = highlighted
+        ? colors.get('editorSuggestWidget.focusOutline')
+        : null;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onHover: (_) {
@@ -178,9 +185,17 @@ class _SuggestionRow extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6),
           decoration: BoxDecoration(
-            color: highlighted ? const Color(0x1AFFFFFF) : Colors.transparent,
+            color: highlighted
+                ? colors['editorSuggestWidget.selectedBackground']
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
           ),
+          foregroundDecoration: outline == null
+              ? null
+              : BoxDecoration(
+                  border: Border.all(color: outline),
+                  borderRadius: BorderRadius.circular(5),
+                ),
           child: Row(
             children: [
               SizedBox(
@@ -194,7 +209,9 @@ class _SuggestionRow extends StatelessWidget {
                   _ => Icon(
                     suggestion.icon,
                     size: 14,
-                    color: CursorColors.textMuted,
+                    color: highlighted
+                        ? colors['editorSuggestWidget.selectedIconForeground']
+                        : CursorColors.textMuted,
                   ),
                 },
               ),
@@ -212,7 +229,7 @@ class _SuggestionRow extends StatelessWidget {
                   suggestion.detail,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: CursorColors.textFaint,
                     fontSize: 11.5,
                   ),
@@ -221,7 +238,7 @@ class _SuggestionRow extends StatelessWidget {
               // An icon rather than '↵': no bundled font has that glyph,
               // and on the web the fallback font is fetched on first use.
               if (highlighted)
-                const Icon(
+                Icon(
                   Icons.keyboard_return_rounded,
                   size: 12,
                   color: CursorColors.textFaint,
@@ -235,9 +252,13 @@ class _SuggestionRow extends StatelessWidget {
 
   TextSpan _highlightedLabel(String label, int offset) {
     final hits = {for (final index in match.matched) index + offset};
+    final colors = themeColors;
     return TextSpan(
       style: TextStyle(
-        color: highlighted ? CursorColors.textPrimary : CursorColors.text,
+        color:
+            colors[highlighted
+                ? 'editorSuggestWidget.selectedForeground'
+                : 'editorSuggestWidget.foreground'],
         fontSize: 12.5,
       ),
       children: [
@@ -245,8 +266,11 @@ class _SuggestionRow extends StatelessWidget {
           TextSpan(
             text: label[i],
             style: hits.contains(i)
-                ? const TextStyle(
-                    color: CursorColors.accent,
+                ? TextStyle(
+                    color:
+                        colors[highlighted
+                            ? 'editorSuggestWidget.focusHighlightForeground'
+                            : 'editorSuggestWidget.highlightForeground'],
                     fontWeight: FontWeight.w600,
                   )
                 : null,

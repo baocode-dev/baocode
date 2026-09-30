@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/cursor_theme.dart';
 import '../chat_models.dart';
 import 'hover_builder.dart';
+import '../../ide/ide_hover.dart';
 
 /// Pictures attached to a message, small; a click shows one whole. With
 /// [onRemove], each has a button to take it off (as in the composer).
@@ -60,9 +61,8 @@ class _Thumbnail extends StatelessWidget {
         children: [
           GestureDetector(
             onTap: () => _preview(context),
-            child: Tooltip(
+            child: IdeHover(
               message: image.name ?? '',
-              waitDuration: const Duration(milliseconds: 600),
               child: Container(
                 width: size,
                 height: size,
@@ -86,7 +86,7 @@ class _Thumbnail extends StatelessWidget {
                   fit: BoxFit.cover,
                   cacheWidth: (size * 3).round(),
                   gaplessPlayback: true,
-                  errorBuilder: (context, error, stack) => const Icon(
+                  errorBuilder: (context, error, stack) => Icon(
                     Icons.broken_image_outlined,
                     size: 16,
                     color: CursorColors.textFaint,
@@ -109,7 +109,7 @@ class _Thumbnail extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: CursorColors.borderStrong),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.close_rounded,
                     size: 11,
                     color: CursorColors.text,
@@ -125,6 +125,7 @@ class _Thumbnail extends StatelessWidget {
   void _preview(BuildContext context) {
     showDialog<void>(
       context: context,
+      // Black, not the theme's: as upstream's modal backdrops.
       barrierColor: Colors.black87,
       builder: (context) => GestureDetector(
         onTap: () => Navigator.of(context).pop(),

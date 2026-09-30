@@ -11,7 +11,8 @@
 // src/vs/base/browser/ui/menu/menu.ts (`getMenuWidgetCSS`, keyboard
 // navigation, the 250 ms submenu delay and submenu placement) and
 // src/vs/base/browser/ui/contextview/contextview.ts (flipping at the
-// window's edges), with the `menu.*` colors of Dark 2026.
+// window's edges), with the color theme's colors of context menus
+// (platform/theme/browser/defaultStyles.ts `defaultMenuStyles`).
 //
 // Deviations: no mnemonics, and no scrolling in menus taller than the
 // window (they are clamped to it).
@@ -23,19 +24,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/codicons.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_hover.dart';
 
-/// Dark 2026 `menu.*` colors.
+/// A context menu's colors in the color theme (`defaultMenuStyles`).
 abstract final class IdeMenuColors {
-  static const background = Color(0xFF202122);
-  static const foreground = Color(0xFFBFBFBF);
-  static const selectionBackground = Color(0x263994BC);
-  static const selectionForeground = Color(0xFFBFBFBF);
-  static const separator = Color(0xFF2A2B2C);
-  static const border = Color(0xFF2A2B2C);
+  static Color get background => themeColors['menu.background'];
+  static Color get foreground => themeColors['menu.foreground'];
 
-  /// `disabledForeground`.
-  static const disabled = Color(0x80CCCCCC);
+  /// The focused item's: the list's hover colors.
+  static Color get selectionBackground => themeColors['list.hoverBackground'];
+  static Color get selectionForeground => themeColors['list.hoverForeground'];
+
+  /// Around the focused item, where the theme has one.
+  static Color? get selectionBorder => themeColors.get('menu.selectionBorder');
+  static Color get separator => themeColors['menu.separatorBackground'];
+
+  /// `menu.border`, else `editorWidget.border`.
+  static Color get border =>
+      themeColors.get('menu.border') ?? themeColors['editorWidget.border'];
+  static Color get disabled => themeColors['disabledForeground'];
 }
 
 /// An entry of a menu: an [IdeMenuAction] or an [IdeMenuSeparator].
@@ -260,6 +268,9 @@ class _OpenMenu {
   final Rect origin;
   final bool submenu;
   int focused = -1;
+
+  /// Whether the keyboard moved [focused] last (`:focus-visible`).
+  bool keyboard = false;
   final itemKeys = <int, GlobalKey>{};
 }
 
@@ -333,7 +344,11 @@ class _MenuHostState extends State<_MenuHost> {
     setState(() {
       _menus.removeRange(level + 1, _menus.length);
       final submenu = _OpenMenu(entry.submenu!, rect, submenu: true);
-      if (focusFirst) submenu.focused = _next(submenu, -1, 1);
+      if (focusFirst) {
+        submenu
+          ..focused = _next(submenu, -1, 1)
+          ..keyboard = true;
+      }
       _menus.add(submenu);
     });
   }
@@ -341,7 +356,11 @@ class _MenuHostState extends State<_MenuHost> {
   void _hover(int level, int index) {
     final menu = _menus[level];
     if (menu.focused == index && _menus.length > level + 1) return;
-    setState(() => menu.focused = index);
+    setState(() {
+      menu
+        ..focused = index
+        ..keyboard = false;
+    });
     _submenuTimer?.cancel();
     final entry = menu.entries[index];
     final opens =
@@ -376,8 +395,11 @@ class _MenuHostState extends State<_MenuHost> {
     final level = _menus.length - 1;
     final menu = _menus[level];
     final key = event.logicalKey;
-    void move(int from, int step) =>
-        setState(() => menu.focused = _next(menu, from, step));
+    void move(int from, int step) => setState(() {
+      menu
+        ..focused = _next(menu, from, step)
+        ..keyboard = true;
+    });
     if (key == LogicalKeyboardKey.arrowDown) {
       move(menu.focused, 1);
     } else if (key == LogicalKeyboardKey.arrowUp) {
@@ -504,7 +526,8 @@ class _MenuLayout extends SingleChildLayoutDelegate {
 }
 
 /// `.monaco-menu`: 13px, 1px border, 8px corners, at least 160px wide,
-/// `padding: 4px 0`, with `--vscode-shadow-lg`.
+/// `padding: 4px 0`, with `--vscode-shadow-lg` (none in high contrast
+/// themes).
 class _MenuPanel extends StatelessWidget {
   const _MenuPanel({
     required this.menu,
@@ -523,12 +546,12 @@ class _MenuPanel extends StatelessWidget {
       color: IdeMenuColors.background,
       border: Border.all(color: IdeMenuColors.border),
       borderRadius: BorderRadius.circular(8),
-      boxShadow: const [BoxShadow(color: Color(0x24000000), blurRadius: 12)],
+      boxShadow: themeColors.highContrast ? null : IdeHoverColors.shadow,
     ),
     child: ClipRRect(
       borderRadius: BorderRadius.circular(7),
       child: DefaultTextStyle(
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 13,
           color: IdeMenuColors.foreground,
           decoration: TextDecoration.none,
@@ -551,6 +574,7 @@ class _MenuPanel extends StatelessWidget {
                       key: menu.itemKeys.putIfAbsent(index, GlobalKey.new),
                       action: entry,
                       focused: menu.focused == index,
+                      keyboard: menu.keyboard,
                       onHover: () => onHover(index),
                       onTap: () => onTap(index),
                     ),
@@ -571,12 +595,16 @@ class _MenuItem extends StatelessWidget {
     super.key,
     required this.action,
     required this.focused,
+    required this.keyboard,
     required this.onHover,
     required this.onTap,
   });
 
   final IdeMenuAction action;
   final bool focused;
+
+  /// [focused] by the keyboard: it shows the selection border.
+  final bool keyboard;
   final VoidCallback onHover;
   final VoidCallback onTap;
 
@@ -586,6 +614,10 @@ class _MenuItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = action.enabled;
     final selected = focused && enabled;
+    // Only for keyboard navigation, but always in high contrast themes.
+    final outline = selected && (keyboard || themeColors.highContrast)
+        ? IdeMenuColors.selectionBorder
+        : null;
     final color = !enabled
         ? IdeMenuColors.disabled
         : selected
@@ -628,6 +660,13 @@ class _MenuItem extends StatelessWidget {
               color: selected ? IdeMenuColors.selectionBackground : null,
               borderRadius: BorderRadius.circular(6),
             ),
+            // `outline-offset: -1px`: over the item.
+            foregroundDecoration: outline == null
+                ? null
+                : BoxDecoration(
+                    border: Border.all(color: outline),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
             child: Row(
               children: [
                 SizedBox(

@@ -771,7 +771,7 @@ void main() {
         .map((c) => (c.decoration as BoxDecoration?)?.color)
         .whereType<Color>()
         .first;
-    expect(highlighted, const Color(0x1AFFFFFF));
+    expect(highlighted, CursorColors.hover);
   });
 
   testWidgets('Ask only discusses; approvals are picked apart from the mode', (

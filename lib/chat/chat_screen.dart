@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../kernel/kernel_types.dart';
 import '../theme/cursor_theme.dart';
+import '../workspace/title_bar_double_click.dart';
 import 'agent_view.dart';
 import 'chat_feed.dart';
 import 'chat_history_view.dart';
@@ -193,7 +194,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildTitleBar() {
-    const style = TextStyle(
+    final style = TextStyle(
       color: CursorColors.textMuted,
       fontSize: 12.5,
       fontWeight: FontWeight.w500,
@@ -226,27 +227,31 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         ),
       );
     }
-    return SizedBox(
-      height: CursorMetrics.titleBarHeight,
-      child: Padding(
-        padding: EdgeInsets.only(left: inset, right: 8),
-        child: Row(
-          children: [
-            if (widget.leading case final leading?) ...[
-              leading,
-              const SizedBox(width: 6),
+    // Beside the title (a double click renames it) and the buttons, a
+    // double click does what one on the system's title bar does.
+    return TitleBarDoubleClick(
+      child: SizedBox(
+        height: CursorMetrics.titleBarHeight,
+        child: Padding(
+          padding: EdgeInsets.only(left: inset, right: 8),
+          child: Row(
+            children: [
+              if (widget.leading case final leading?) ...[
+                leading,
+                const SizedBox(width: 6),
+              ],
+              Expanded(
+                // The title, where the conversation begins: at its start, as
+                // the row macOS draws has it (Windows draws none of it: see
+                // window_header/).
+                child: Align(alignment: Alignment.centerLeft, child: title),
+              ),
+              if (widget.trailing case final trailing?) ...[
+                const SizedBox(width: 8),
+                TitleBarControls(child: trailing),
+              ],
             ],
-            Expanded(
-              // The title, where the conversation begins: at its start, as
-              // the row macOS draws has it (Windows draws none of it: see
-              // window_header/).
-              child: Align(alignment: Alignment.centerLeft, child: title),
-            ),
-            if (widget.trailing case final trailing?) ...[
-              const SizedBox(width: 8),
-              trailing,
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -595,7 +600,7 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const IgnorePointer(
+    return IgnorePointer(
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,

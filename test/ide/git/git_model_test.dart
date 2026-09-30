@@ -1,5 +1,9 @@
+import 'dart:ui' show Color;
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
 import 'package:monad/ide/git/git_model.dart';
+import 'package:monad/theme/workbench_theme.dart';
 import 'package:path/path.dart' as p;
 
 final _root = p.join(p.separator, 'repo');
@@ -77,7 +81,14 @@ void main() {
 
     test('letters, colors and strike-through follow the Git extension', () {
       expect(IdeGitStatus.untracked.letter, 'U');
-      expect(IdeGitStatus.untracked.color, IdeGitColors.untracked);
+      expect(
+        IdeGitStatus.untracked.colorId,
+        'gitDecoration.untrackedResourceForeground',
+      );
+      expect(
+        IdeGitStatus.untracked.color,
+        themeColors['gitDecoration.untrackedResourceForeground'],
+      );
       expect(IdeGitStatus.indexAdded.letter, 'A');
       expect(IdeGitStatus.bothModified.letter, '!');
       expect(IdeGitStatus.deleted.strikeThrough, isTrue);
@@ -99,26 +110,45 @@ void main() {
       ).decorations;
       final both = decorations.file(_in('lib/both.dart'))!;
       expect(both.letter, 'M');
-      expect(both.color, IdeGitColors.modified);
+      expect(both.colorId, 'gitDecoration.modifiedResourceForeground');
       expect(decorations.file(_in('lib/src/new.dart'))!.letter, 'U');
       expect(decorations.file(_in('lib/old/gone.dart'))!.strikeThrough, isTrue);
       expect(decorations.file(_in('lib/clean.dart')), isNull);
 
       final src = decorations.folder(_in('lib/src'))!;
       expect(src.letter, '•');
-      expect(src.color, IdeGitColors.conflicting);
-      expect(decorations.folder(_in('lib'))!.color, IdeGitColors.conflicting);
+      expect(src.colorId, 'gitDecoration.conflictingResourceForeground');
+      expect(
+        decorations.folder(_in('lib'))!.colorId,
+        'gitDecoration.conflictingResourceForeground',
+      );
       // Deletions do not propagate.
       expect(decorations.folder(_in('lib/old')), isNull);
 
       // Ignored folders dim themselves and everything in them, unlettered.
       final build = decorations.folder(_in('build'))!;
-      expect(build.color, IdeGitColors.ignored);
+      expect(build.colorId, 'gitDecoration.ignoredResourceForeground');
       expect(build.letter, isNull);
       expect(
-        decorations.file(_in('build/app/out.js'))!.color,
-        IdeGitColors.ignored,
+        decorations.file(_in('build/app/out.js'))!.colorId,
+        'gitDecoration.ignoredResourceForeground',
       );
+    });
+
+    test('a decoration takes its color from the current color theme', () {
+      final decorations = parseGitStatus(_root, '?? new.dart\x00').decorations;
+      final decoration = decorations.file(_in('new.dart'))!;
+      expect(
+        decoration.color,
+        themeColors['gitDecoration.untrackedResourceForeground'],
+      );
+      WorkbenchThemeService.instance = WorkbenchThemeService(
+        initial: ColorThemeData.createUnloadedThemeForThemeType(
+          ColorScheme.light,
+          {'gitDecoration.untrackedResourceForeground': '#007100'},
+        ),
+      );
+      expect(decoration.color, const Color(0xFF007100));
     });
   });
 

@@ -52,7 +52,7 @@ class ToolCallRow extends StatelessWidget {
       expanded: expanded,
       onToggle: _opens ? onToggle : null,
       icon: kind == ToolKind.message
-          ? const Icon(
+          ? Icon(
               Icons.swap_horiz_rounded,
               size: 15,
               color: CursorColors.syntaxCommand,
@@ -91,10 +91,7 @@ class ToolCallRow extends StatelessWidget {
         if (lines != null)
           Text(
             lines,
-            style: const TextStyle(
-              color: CursorColors.textMuted,
-              fontSize: 11.5,
-            ),
+            style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
           ),
       ],
     );

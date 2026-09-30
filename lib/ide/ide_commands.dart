@@ -23,6 +23,7 @@ class IdeKeybinding {
     this.alt = false,
     this.control = false,
     this.mac,
+    this.second,
   }) : character = null;
 
   /// Matches the produced character instead of the key, for chords like
@@ -34,7 +35,21 @@ class IdeKeybinding {
     this.control = false,
     this.mac,
   }) : key = null,
-       shift = false;
+       shift = false,
+       second = null;
+
+  /// The chord [event] presses, with the modifiers held now (for labels).
+  factory IdeKeybinding.pressed(KeyEvent event, {bool? mac}) {
+    final isMac = mac ?? ideUsesMacKeys;
+    final keyboard = HardwareKeyboard.instance;
+    return IdeKeybinding(
+      event.logicalKey,
+      primary: isMac ? keyboard.isMetaPressed : keyboard.isControlPressed,
+      shift: keyboard.isShiftPressed,
+      alt: keyboard.isAltPressed,
+      control: isMac && keyboard.isControlPressed,
+    );
+  }
 
   final LogicalKeyboardKey? key;
   final String? character;
@@ -44,8 +59,13 @@ class IdeKeybinding {
   final bool control;
   final bool? mac;
 
+  /// The chord after this one in a two-chord keybinding such as ⌘K ⌘T
+  /// (upstream `KeyChord`), which the workbench's chord mode dispatches.
+  final IdeKeybinding? second;
+
   bool appliesTo({required bool mac}) => this.mac == null || this.mac == mac;
 
+  /// For a two-chord keybinding, its first chord's.
   ShortcutActivator activator({bool? mac}) {
     final isMac = mac ?? ideUsesMacKeys;
     final meta = primary && isMac;
@@ -62,9 +82,17 @@ class IdeKeybinding {
     );
   }
 
-  /// `⇧⌘P` on macOS, `Ctrl+Shift+P` elsewhere (VS Code's label order).
+  /// `⇧⌘P` on macOS, `Ctrl+Shift+P` elsewhere (VS Code's label order); a
+  /// space between two chords (`⌘K ⌘T`).
   String label({bool? mac}) {
     final isMac = mac ?? ideUsesMacKeys;
+    if (second case final second?) {
+      return '${_chordLabel(isMac)} ${second.label(mac: isMac)}';
+    }
+    return _chordLabel(isMac);
+  }
+
+  String _chordLabel(bool isMac) {
     final keyLabel = character ?? _keyLabel(key!, isMac);
     final ctrl = control || (primary && !isMac);
     if (isMac) {
@@ -165,7 +193,8 @@ class IdeRecentList {
   int indexOf(String id) => _items.indexOf(id);
 }
 
-/// Builds the shortcut map for [commands] on the current platform.
+/// Builds the shortcut map for [commands] on the current platform, but for
+/// two-chord keybindings (see [ideChordBindings]).
 Map<ShortcutActivator, VoidCallback> ideShortcutBindings(
   Iterable<IdeCommand> commands,
 ) {
@@ -174,7 +203,22 @@ Map<ShortcutActivator, VoidCallback> ideShortcutBindings(
     for (final command in commands)
       if (command.enabled)
         for (final binding in command.keybindings)
-          if (binding.appliesTo(mac: mac))
+          if (binding.second == null && binding.appliesTo(mac: mac))
             binding.activator(mac: mac): command.run,
   };
+}
+
+/// The two-chord keybindings (⌘K ⌘T) of [commands] on the current platform,
+/// for the workbench's chord mode.
+List<({IdeKeybinding binding, VoidCallback run})> ideChordBindings(
+  Iterable<IdeCommand> commands,
+) {
+  final mac = ideUsesMacKeys;
+  return [
+    for (final command in commands)
+      if (command.enabled)
+        for (final binding in command.keybindings)
+          if (binding.second != null && binding.appliesTo(mac: mac))
+            (binding: binding, run: command.run),
+  ];
 }

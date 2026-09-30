@@ -1,4 +1,3 @@
-
 import '../../theme/codicons.dart';
 import '../ide_status_bar.dart';
 import '../lsp/language_features.dart';
@@ -7,6 +6,10 @@ import 'diagnostics.dart';
 /// Status bar entries for the language servers of [path]: progress while
 /// starting or indexing, a retry for failed ones, an install prompt for
 /// missing ones.
+///
+/// Deviation: upstream shows warning and error entries in the status bar's
+/// `statusBarItem.warning*` and `error*` kinds; an item here has only a
+/// foreground, the severity icon's color.
 List<IdeStatusBarItem> ideLanguageStatusItems(
   LanguageFeatures languages,
   String path, {

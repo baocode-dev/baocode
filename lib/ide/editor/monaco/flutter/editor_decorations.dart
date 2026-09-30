@@ -126,7 +126,7 @@ class EditorDecoration {
         EditorDecorationKind.error => theme.errorForeground,
         EditorDecorationKind.warning => theme.warningForeground,
         EditorDecorationKind.info => theme.infoForeground,
-        EditorDecorationKind.hint => const Color(0xb3eeeeee),
+        EditorDecorationKind.hint => theme.hintForeground,
         _ => null,
       };
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 
 /// Shared chrome for the panels stacked above the composer.
 class PanelCard extends StatelessWidget {
@@ -26,7 +27,7 @@ class PanelCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: highlighted
-              ? const Color(0x664C9DFF)
+              ? themeColors['focusBorder']
               : CursorColors.borderStrong,
         ),
       ),

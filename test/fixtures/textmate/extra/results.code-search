@@ -1,0 +1,16 @@
+# Query: tokenize\n
+# Flags: RegExp CaseSensitive
+# Including: src/**/*.ts
+# Excluding: **/*.test.ts
+# ContextLines: 1
+
+4 results - 2 files
+
+src/model.ts:
+  10  	private tokenize(line: string) {
+  11: 		return this.grammar.tokenizeLine(line);
+  12  	}
+
+src/worker.py:
+  3  def tokenize(lines):
+  4:     return [tokenize_line(l) for l in lines]

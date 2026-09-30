@@ -2,6 +2,9 @@
 // contributions of the VS Code extensions bundled in assets/textmate/, as
 // tool/generate_textmate_assets.mjs copies them from each extension's
 // package.json (with `%label%` placeholders localized from package.nls.json).
+// The bundled extensions are those VS Code's product build ships; grammars
+// and languages are in VS Code's registration order (extensions by folder
+// name, then package.json order), with core's `plaintext` first.
 // Paths in the manifest are relative to assets/textmate/; see
 // [TextMateThemeContribution] for the model's theme paths.
 
@@ -18,6 +21,7 @@ class TextMateManifest {
     required this.revision,
     required this.grammars,
     required this.languages,
+    this.configurationDefaults = const {},
     required this.themes,
   });
 
@@ -44,6 +48,11 @@ class TextMateManifest {
         for (final entry in entries('languages'))
           TextMateLanguageRegistration.fromJson(entry),
       ],
+      configurationDefaults: {
+        for (final MapEntry(:key, :value)
+            in ((json['configurationDefaults'] ?? const {}) as Map).entries)
+          key as String: (value as Map).cast<String, Object?>(),
+      },
       themes: [
         for (final entry in entries('themes'))
           TextMateThemeContribution.fromJson(entry),
@@ -62,9 +71,26 @@ class TextMateManifest {
 
   /// The VS Code revision the files come from.
   final String revision;
+
+  /// In registration order.
   final List<TextMateGrammarContribution> grammars;
+
+  /// In registration order; a language id can be registered more than once
+  /// (VS Code merges the registrations).
   final List<TextMateLanguageRegistration> languages;
+
+  /// The extensions' language-specific `contributes.configurationDefaults`
+  /// (`[language]` keys) that tokenization reads:
+  /// `editor.maxTokenizationLineLength`.
+  final Map<String, Map<String, Object?>> configurationDefaults;
   final List<TextMateThemeContribution> themes;
+
+  /// `editor.maxTokenizationLineLength` for [languageId] when an extension's
+  /// configuration defaults set it; null means the editor default.
+  int? maxTokenizationLineLengthOf(String languageId) =>
+      (configurationDefaults['[$languageId]']?['editor.maxTokenizationLineLength']
+              as num?)
+          ?.toInt();
 
   TextMateThemeContribution? themeById(String id) {
     for (final theme in themes) {
@@ -73,26 +99,38 @@ class TextMateManifest {
     return null;
   }
 
+  /// The last grammar registered for [languageId] (TMGrammarFactory's
+  /// `_languageToScope`); VS Code loads what [grammarForScope] gives for its
+  /// scope name.
   TextMateGrammarContribution? grammarForLanguage(String languageId) {
-    for (final grammar in grammars) {
+    for (final grammar in grammars.reversed) {
       if (grammar.language == languageId) return grammar;
     }
     return null;
   }
 
+  /// The grammar registered for [scopeName]; the last one registered when
+  /// several share it (TMScopeRegistry keeps the last).
   TextMateGrammarContribution? grammarForScope(String scopeName) {
-    for (final grammar in grammars) {
+    for (final grammar in grammars.reversed) {
       if (grammar.scopeName == scopeName) return grammar;
     }
     return null;
   }
 
+  /// The first registration of [id].
   TextMateLanguageRegistration? languageById(String id) {
     for (final language in languages) {
       if (language.id == id) return language;
     }
     return null;
   }
+
+  /// Every registered language id once, in the order VS Code's
+  /// `LanguageIdCodec` numbers them from 1 (`plaintext` first).
+  List<String> get languageIds => [
+    ...{for (final language in languages) language.id},
+  ];
 }
 
 /// A `contributes.grammars` entry; [path] is relative to the asset root.
@@ -129,12 +167,13 @@ class TextMateGrammarContribution extends ITMSyntaxExtensionPoint {
 }
 
 /// A `contributes.languages` entry; [configuration] is relative to the asset
-/// root.
+/// root. Absent lists read as empty.
 class TextMateLanguageRegistration {
   const TextMateLanguageRegistration({
-    required this.extension,
+    this.extension,
     required this.id,
     this.aliases = const [],
+    this.hasAliases = false,
     this.extensions = const [],
     this.filenames = const [],
     this.filenamePatterns = const [],
@@ -143,22 +182,35 @@ class TextMateLanguageRegistration {
     this.configuration,
   });
 
-  factory TextMateLanguageRegistration.fromJson(Map<String, Object?> json) =>
-      TextMateLanguageRegistration(
-        extension: _string(json, 'extension'),
-        id: _string(json, 'id'),
-        aliases: _strings(json['aliases']),
-        extensions: _strings(json['extensions']),
-        filenames: _strings(json['filenames']),
-        filenamePatterns: _strings(json['filenamePatterns']),
-        firstLine: json['firstLine'] as String?,
-        mimetypes: _strings(json['mimetypes']),
-        configuration: json['configuration'] as String?,
-      );
+  factory TextMateLanguageRegistration.fromJson(Map<String, Object?> json) {
+    final extension = json['extension'];
+    if (extension != null && extension is! String) {
+      throw FormatException('TextMate manifest: extension is not a string');
+    }
+    return TextMateLanguageRegistration(
+      extension: extension as String?,
+      id: _string(json, 'id'),
+      aliases: _strings(json['aliases']),
+      hasAliases: json['aliases'] != null,
+      extensions: _strings(json['extensions']),
+      filenames: _strings(json['filenames']),
+      filenamePatterns: _strings(json['filenamePatterns']),
+      firstLine: json['firstLine'] as String?,
+      mimetypes: _strings(json['mimetypes']),
+      configuration: json['configuration'] as String?,
+    );
+  }
 
-  final String extension;
+  /// The contributing extension; null for a language VS Code's core
+  /// registers (`plaintext`, modesRegistry.ts).
+  final String? extension;
   final String id;
   final List<String> aliases;
+
+  /// Whether the registration declares `aliases`: an empty list gives the
+  /// language no name, while no list names it by its id
+  /// (languagesRegistry.ts `_mergeLanguage`).
+  final bool hasAliases;
 
   /// File extensions with their dot (`.ts`).
   final List<String> extensions;

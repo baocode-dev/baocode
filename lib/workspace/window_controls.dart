@@ -29,11 +29,41 @@ abstract final class WindowControls {
   /// Whether the window can be kept on top.
   static bool get canKeepOnTop => isDesktop;
 
+  /// Makes the window's own parts light or dark as the color theme is: on
+  /// macOS the material under the sidebar, the traffic lights and the
+  /// system's menus (MainFlutterWindow.swift keeps it for the next start).
+  static Future<void> setDarkAppearance(bool dark) async {
+    if (!AppPlatform.isMacOS) return;
+    try {
+      await _channel.invokeMethod<void>('setAppearance', dark);
+    } on MissingPluginException {
+      // A host without the channel (e.g. tests).
+    }
+  }
+
   /// Keeps the window above other apps' windows, or not.
   static Future<void> setAlwaysOnTop(bool onTop) async {
     if (!canKeepOnTop) return;
     try {
       await _channel.invokeMethod<void>('setAlwaysOnTop', onTop);
+    } on MissingPluginException {
+      // A host without the channel (e.g. tests).
+    }
+  }
+
+  /// Whether a double click on the title bar is the app's to handle: macOS,
+  /// where Flutter draws the title bar and so gets its clicks. On Windows
+  /// the system handles its caption's own (HTCAPTION, see
+  /// windows/runner/flutter_window.cpp).
+  static bool get handlesTitleDoubleClick => AppPlatform.isMacOS;
+
+  /// Does what the system's settings say a double click on the title bar
+  /// does: zoom (by default), fill, minimize or nothing (see
+  /// MainFlutterWindow.swift).
+  static Future<void> handleTitleDoubleClick() async {
+    if (!handlesTitleDoubleClick) return;
+    try {
+      await _channel.invokeMethod<void>('handleTitleDoubleClick');
     } on MissingPluginException {
       // A host without the channel (e.g. tests).
     }

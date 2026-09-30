@@ -6,6 +6,7 @@ import '../../chat/floating/floating_placement.dart';
 import '../../chat/floating/floating_registry.dart';
 import '../../chat/widgets/hover_builder.dart';
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import 'header_menu.dart';
 
 /// The header's menu bar: a label for each menu, opening its commands under
@@ -58,6 +59,7 @@ class _HeaderMenuBarState extends State<HeaderMenuBar> {
 
   Widget _buildLabel(HeaderMenu menu) {
     final open = _open == menu;
+    final colors = themeColors;
     return FloatingLayer(
       visible: open,
       placement: (side: FloatingSide.bottom, align: FloatingAlign.start),
@@ -75,28 +77,44 @@ class _HeaderMenuBarState extends State<HeaderMenuBar> {
           },
           child: HoverBuilder(
             cursor: SystemMouseCursors.basic,
-            builder: (context, hovered) => GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => open ? _close() : _openMenu(menu),
-              child: Container(
-                height: 22,
-                padding: const EdgeInsets.symmetric(horizontal: 9),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: hovered || open
-                      ? const Color(0x1AFFFFFF)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: Text(
-                  menu.label,
-                  style: const TextStyle(
-                    color: CursorColors.text,
-                    fontSize: 12.5,
+            // As upstream's menubar in the title bar.
+            builder: (context, hovered) {
+              final selected = hovered || open;
+              final outline = selected
+                  ? colors.get('menubar.selectionBorder')
+                  : null;
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => open ? _close() : _openMenu(menu),
+                child: Container(
+                  height: 22,
+                  padding: const EdgeInsets.symmetric(horizontal: 9),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? colors['menubar.selectionBackground']
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  foregroundDecoration: outline == null
+                      ? null
+                      : BoxDecoration(
+                          border: Border.all(color: outline),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                  child: Text(
+                    menu.label,
+                    style: TextStyle(
+                      color:
+                          colors[selected
+                              ? 'menubar.selectionForeground'
+                              : 'titleBar.activeForeground'],
+                      fontSize: 12.5,
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -106,18 +124,19 @@ class _HeaderMenuBarState extends State<HeaderMenuBar> {
   /// The menu's commands, in a panel of the same make as the app's other
   /// menus (see SidebarMenu).
   Widget _buildCommands(HeaderMenu menu) {
+    final colors = themeColors;
     return Container(
       width: 224,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: CursorColors.surfaceRaised,
+        color: colors['menu.background'],
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: CursorColors.borderStrong),
-        boxShadow: const [
+        border: Border.all(color: colors['menu.border']),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x66000000),
+            color: colors['widget.shadow'],
             blurRadius: 24,
-            offset: Offset(0, 8),
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -127,11 +146,11 @@ class _HeaderMenuBarState extends State<HeaderMenuBar> {
         children: [
           for (final item in widget.items(menu))
             if (item.rule)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 4, horizontal: 6),
                 child: SizedBox(
                   height: 1,
-                  child: ColoredBox(color: CursorColors.border),
+                  child: ColoredBox(color: colors['menu.separatorBackground']),
                 ),
               )
             else
@@ -156,55 +175,63 @@ class _MenuRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = themeColors;
     return HoverBuilder(
       cursor: SystemMouseCursors.basic,
-      builder: (context, hovered) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => onSelected(item),
-        child: Container(
-          height: 28,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: hovered ? const Color(0x1AFFFFFF) : Colors.transparent,
-            borderRadius: BorderRadius.circular(5),
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 16,
-                child: item.checked
-                    ? const Icon(
-                        Icons.check_rounded,
-                        size: 14,
-                        color: CursorColors.text,
-                      )
-                    : null,
-              ),
-              Expanded(
-                child: Text(
-                  item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: CursorColors.text,
-                    fontSize: 12.5,
+      builder: (context, hovered) {
+        // As upstream's menus: the hovered item selected.
+        final foreground =
+            colors[hovered ? 'menu.selectionForeground' : 'menu.foreground'];
+        final outline = hovered ? colors.get('menu.selectionBorder') : null;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onSelected(item),
+          child: Container(
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: hovered
+                  ? colors['menu.selectionBackground']
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(5),
+            ),
+            foregroundDecoration: outline == null
+                ? null
+                : BoxDecoration(
+                    border: Border.all(color: outline),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  child: item.checked
+                      ? Icon(Icons.check_rounded, size: 14, color: foreground)
+                      : null,
+                ),
+                Expanded(
+                  child: Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: foreground, fontSize: 12.5),
                   ),
                 ),
-              ),
-              if (item.shortcut case final shortcut?) ...[
-                const SizedBox(width: 16),
-                Text(
-                  shortcut,
-                  style: const TextStyle(
-                    color: CursorColors.textFaint,
-                    fontSize: 11.5,
+                if (item.shortcut case final shortcut?) ...[
+                  const SizedBox(width: 16),
+                  Text(
+                    shortcut,
+                    style: TextStyle(
+                      color: CursorColors.textFaint,
+                      fontSize: 11.5,
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

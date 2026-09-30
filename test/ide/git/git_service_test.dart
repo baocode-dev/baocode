@@ -69,8 +69,8 @@ void main() {
       [('a.dart', IdeGitStatus.modified), ('new.dart', IdeGitStatus.untracked)],
     );
     expect(
-      state.decorations.folder(p.join(root, 'build'))!.color,
-      IdeGitColors.ignored,
+      state.decorations.folder(p.join(root, 'build'))!.colorId,
+      'gitDecoration.ignoredResourceForeground',
     );
 
     await service.stage([p.join(root, 'lib/new.dart')]);

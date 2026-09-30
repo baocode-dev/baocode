@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 
 /// Muted label with a highlight sweeping across it, e.g. "Generating…".
 class ShimmerText extends StatefulWidget {
@@ -47,14 +48,14 @@ class _ShimmerTextState extends State<ShimmerText>
         animation: _controller,
         builder: (context, child) {
           final t = _controller.value * 3 - 1;
+          // As upstream's: the description's color, `chat.thinkingShimmer`
+          // sweeping across.
+          final base = CursorColors.textMuted;
+          final shimmer = themeColors['chat.thinkingShimmer'];
           return ShaderMask(
             blendMode: BlendMode.srcIn,
             shaderCallback: (bounds) => LinearGradient(
-              colors: const [
-                CursorColors.textFaint,
-                CursorColors.textPrimary,
-                CursorColors.textFaint,
-              ],
+              colors: [base, shimmer, base],
               stops: [t - 0.3, t, t + 0.3],
             ).createShader(bounds),
             child: child,
@@ -62,6 +63,7 @@ class _ShimmerTextState extends State<ShimmerText>
         },
         child: Text(
           widget.ellipsis ? '${widget.text}…' : widget.text,
+          // Opaque, for the mask: the shader gives the color.
           style: const TextStyle(fontSize: 13)
               .merge(widget.style)
               .copyWith(color: Colors.white),

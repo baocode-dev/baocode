@@ -21,6 +21,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../../theme/codicons.dart';
+import '../../theme/workbench_theme.dart';
 import '../ide_dates.dart';
 import '../ide_hover.dart';
 import '../ide_list.dart';
@@ -233,7 +234,10 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
       padding: const EdgeInsets.fromLTRB(20, 4, 12, 4),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 13, color: IdeListColors.foreground),
+        style: TextStyle(
+          fontSize: 13,
+          color: themeColors['sideBar.foreground'],
+        ),
       ),
     ),
   );
@@ -281,13 +285,16 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
       rows.add(
         IdeListRow(
           onTap: _loadMore,
-          builder: (context, _) => const Padding(
-            padding: EdgeInsets.only(left: 16),
+          builder: (context, _) => Padding(
+            padding: const EdgeInsets.only(left: 16),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'Load more',
-                style: TextStyle(fontSize: 13, color: IdeListColors.foreground),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: themeColors['sideBar.foreground'],
+                ),
               ),
             ),
           ),
@@ -301,6 +308,8 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
     final commit = item.commit;
     final id = commit?.id ?? '~';
     final selected = _selected == id;
+    final colors = themeColors;
+    final foreground = colors['sideBar.foreground'];
     final row = IdeListRow(
       key: ValueKey('timeline:$id'),
       selected: selected,
@@ -312,13 +321,9 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
         padding: const EdgeInsets.only(left: 16),
         child: Row(
           children: [
-            const Padding(
-              padding: EdgeInsets.only(right: 6),
-              child: Icon(
-                Codicons.gitCommit,
-                size: 16,
-                color: IdeListColors.foreground,
-              ),
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Icon(Codicons.gitCommit, size: 16, color: foreground),
             ),
             Expanded(
               child: Text.rich(
@@ -328,9 +333,9 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
                     if (commit != null)
                       TextSpan(
                         text: '  ${commit.author}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13 * .9,
-                          color: IdeListColors.description,
+                          color: colors['descriptionForeground'],
                         ),
                       ),
                   ],
@@ -340,8 +345,9 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
                 style: TextStyle(
                   fontSize: 13,
                   color: selected
-                      ? IdeListColors.activeSelectionForeground
-                      : IdeListColors.foreground,
+                      ? colors.get('list.activeSelectionForeground') ??
+                            foreground
+                      : foreground,
                 ),
               ),
             ),
@@ -352,7 +358,7 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
               child: Opacity(
                 opacity: .5,
                 child: duplicate
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 10,
                         height: IdeListColors.rowHeight,
                         child: Align(
@@ -362,19 +368,14 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
                             child: SizedBox(
                               width: 1,
                               height: IdeListColors.rowHeight,
-                              child: ColoredBox(
-                                color: IdeListColors.foreground,
-                              ),
+                              child: ColoredBox(color: foreground),
                             ),
                           ),
                         ),
                       )
                     : Text(
                         relative,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: IdeListColors.foreground,
-                        ),
+                        style: TextStyle(fontSize: 13, color: foreground),
                       ),
               ),
             ),

@@ -26,7 +26,7 @@ import 'package:flutter/services.dart';
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/material_file_icons.dart';
-import '../ide_button.dart';
+import '../../theme/workbench_theme.dart';
 import '../ide_hover.dart';
 import '../ide_input.dart';
 import '../ide_list.dart';
@@ -295,10 +295,10 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
           SizedBox(
             height: 2,
             child: session.loading || session.busy.isNotEmpty
-                ? const LinearProgressIndicator(
+                ? LinearProgressIndicator(
                     minHeight: 2,
                     backgroundColor: Colors.transparent,
-                    color: Color(0xFF878889),
+                    color: themeColors['progressBar.background'],
                   )
                 : null,
           ),
@@ -390,7 +390,7 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
     padding: const EdgeInsets.fromLTRB(20, 5, 9, 5),
     child: Text(
       text,
-      style: const TextStyle(fontSize: 13, color: IdeListColors.foreground),
+      style: TextStyle(fontSize: 13, color: themeColors['sideBar.foreground']),
     ),
   );
 
@@ -435,12 +435,6 @@ class IdeExtensionRow extends StatelessWidget {
   /// `EXTENSION_LIST_ELEMENT_HEIGHT`.
   static const height = 72.0;
 
-  /// `descriptionForeground`.
-  static const _description = Color(0xFF8C8C8C);
-
-  /// `editorWarning.foreground`.
-  static const _warning = Color(0xFFCCA700);
-
   final IdeExtension extension;
   final List<IdeMenuEntry> Function() menu;
 
@@ -457,6 +451,22 @@ class IdeExtensionRow extends StatelessWidget {
     final fileType = extension.fileType;
     final status = extension.status;
     final version = extension.version;
+    // extension.css: the row's text, and `descriptionForeground` for the
+    // description and publisher unless selected or in a high contrast
+    // theme (`color: unset`).
+    final colors = themeColors;
+    final foreground =
+        (selected
+            ? colors.get(
+                focused
+                    ? 'list.activeSelectionForeground'
+                    : 'list.inactiveSelectionForeground',
+              )
+            : null) ??
+        colors['sideBar.foreground'];
+    final description = selected || colors.highContrast
+        ? foreground
+        : colors['descriptionForeground'];
     return IdeListRow(
       height: height,
       selected: selected,
@@ -474,11 +484,7 @@ class IdeExtensionRow extends StatelessWidget {
               child: SizedBox.square(
                 dimension: 36,
                 child: fileType == null
-                    ? const Icon(
-                        Codicons.extensions,
-                        size: 36,
-                        color: IdeListColors.foreground,
-                      )
+                    ? Icon(Codicons.extensions, size: 36, color: foreground)
                     : FileIcon('language.$fileType', size: 36),
               ),
             ),
@@ -502,11 +508,11 @@ class IdeExtensionRow extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: IdeListColors.foreground,
+                                color: foreground,
                                 decoration: extension.deprecated
                                     ? TextDecoration.lineThrough
                                     : null,
-                                decorationColor: IdeListColors.foreground,
+                                decorationColor: foreground,
                               ),
                             ),
                           ),
@@ -515,9 +521,9 @@ class IdeExtensionRow extends StatelessWidget {
                               padding: const EdgeInsets.only(right: 6),
                               child: Text(
                                 version,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 11,
-                                  color: _description,
+                                  color: colors['descriptionForeground'],
                                 ),
                               ),
                             ),
@@ -532,12 +538,7 @@ class IdeExtensionRow extends StatelessWidget {
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: selected
-                            ? IdeListColors.foreground
-                            : _description,
-                      ),
+                      style: TextStyle(fontSize: 13, color: description),
                     ),
                   ),
                   Container(
@@ -555,20 +556,23 @@ class IdeExtensionRow extends StatelessWidget {
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                               color: selected
-                                  ? IdeListColors.foreground
-                                  : _description,
+                                  ? foreground
+                                  : colors['descriptionForeground'],
                             ),
                           ),
                         ),
                         if (status != null)
                           IdeHover(
                             message: status,
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 3),
+                            // `.extension-status-warning`.
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 3,
+                              ),
                               child: Icon(
                                 Codicons.warning,
                                 size: 16,
-                                color: _warning,
+                                color: colors['editorWarning.foreground'],
                               ),
                             ),
                           ),
@@ -601,7 +605,7 @@ class IdeExtensionRow extends StatelessWidget {
 }
 
 /// `.extension-action.label.prominent`: 11px, padded 0 5px, 14px high
-/// within a 1px border.
+/// within a 1px border, in `extensionButton.prominent*`.
 class _ExtensionButton extends StatefulWidget {
   const _ExtensionButton({required this.label, this.onPressed});
 
@@ -618,6 +622,7 @@ class _ExtensionButtonState extends State<_ExtensionButton> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null;
+    final colors = themeColors;
     return Semantics(
       button: true,
       enabled: enabled,
@@ -635,20 +640,21 @@ class _ExtensionButtonState extends State<_ExtensionButton> {
             margin: const EdgeInsets.only(left: 4),
             padding: const EdgeInsets.symmetric(horizontal: 5),
             decoration: BoxDecoration(
-              color: enabled && _hover
-                  ? IdeButtonColors.hoverBackground
-                  : IdeButtonColors.background,
-              border: Border.all(color: IdeButtonColors.border),
+              color:
+                  colors[enabled && _hover
+                      ? 'extensionButton.prominentHoverBackground'
+                      : 'extensionButton.prominentBackground'],
+              border: Border.all(color: colors['extensionButton.border']),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               widget.label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 height: 14 / 11,
-                color: IdeButtonColors.foreground,
+                color: colors['extensionButton.prominentForeground'],
               ),
             ),
           ),

@@ -20,10 +20,12 @@
 // searches are asynchronous (the addon is imported lazily); here they run at
 // once, which ends in the same state. The widget's toggles run VS Code's
 // toggle commands (`findFirst`); a click on VS Code's toggle buttons also
-// searches again incrementally, which moves one match up. VS Code searches
-// again when the theme changes, which also moves one match up and recolors
-// only the current match; new [TerminalFind.decorations] apply from the next
-// search on instead.
+// searches again incrementally, which moves one match up. VS Code reads the
+// match colors from the theme at each search (`_updateFindColors`); here the
+// terminal keeps [TerminalFind.decorations] up to date, and
+// [TerminalFind.handleColorThemeChange] searches again as the widget does
+// when the theme changes (which also moves one match up and recolors only
+// the current match).
 
 import 'xterm/addons/addon_search/search_addon.dart';
 import 'xterm/addons/addon_search/typings/addon_search.dart' hide SearchAddon;
@@ -127,8 +129,17 @@ class TerminalFind extends Disposable {
   String? get regexError => _regexError;
 
   /// The colors of the matches (VS Code's `_updateFindColors`); new ones
-  /// (the theme changed) apply from the next search on.
+  /// apply from the next search on.
   ISearchDecorationOptions decorations;
+
+  /// The color theme changed, and [decorations] with it (TerminalFindWidget's
+  /// `onDidColorThemeChange` listener): while the widget shows, finds again
+  /// upwards, incrementally.
+  void handleColorThemeChange() {
+    if (_isVisible) {
+      find(true, true);
+    }
+  }
 
   /// ⌘F / Ctrl+F (`workbench.action.terminal.focusFind`): shows the widget.
   /// A one-line selection becomes the query, and a query highlights its

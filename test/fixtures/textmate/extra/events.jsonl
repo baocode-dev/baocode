@@ -1,0 +1,3 @@
+{"id": 1, "type": "open", "path": "/a/b.ts", "ok": true}
+{"id": 2, "type": "edit", "range": [1, 4, 1, 9], "text": "const\n", "ok": false}
+{"id": 3, "type": "close", "meta": null, "tags": ["x", "y\u0041"], "n": -1.5e3}

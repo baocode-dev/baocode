@@ -38,17 +38,17 @@ void main() {
     expect(_width(tester, 'ide-editor'), IdeColumns.minEditor);
     expect(_width(tester, 'ide-chat'), IdeColumns.minChat);
 
-    // Half the chat's minimum further, the chat snaps shut.
-    await drag.moveBy(const Offset(179, 0));
+    // A sixth of the chat's minimum further, the chat snaps shut.
+    await drag.moveBy(const Offset(59, 0));
     await tester.pump();
     expect(_width(tester, 'ide-chat'), IdeColumns.minChat);
     await drag.moveBy(const Offset(1, 0));
     await tester.pump();
     expect(_width(tester, 'ide-chat'), 0);
     expect(find.byKey(chatKey), findsNothing);
-    expect(_width(tester, 'ide-sidebar'), 840);
+    expect(_width(tester, 'ide-sidebar'), 720);
 
-    await drag.moveBy(const Offset(-600, 0));
+    await drag.moveBy(const Offset(-480, 0));
     await tester.pump();
     expect(_width(tester, 'ide-sidebar'), IdeColumns.defaultSidebar);
     expect(_width(tester, 'ide-chat'), IdeColumns.defaultChat);
@@ -72,7 +72,7 @@ void main() {
     await tester.pump(kDoubleTapTimeout);
   });
 
-  testWidgets('dragged below half its minimum a part snaps shut, opens '
+  testWidgets('dragged a sixth below its minimum a part snaps shut, opens '
       'again as wide as it was, and a double click resets it', (tester) async {
     await pumpWorkbench(tester, {'a.txt': 'a'});
     await tester.drag(_part('ide-sidebar-sash'), const Offset(60, 0));
@@ -120,12 +120,12 @@ void main() {
 
     await mouse.down(sash);
     // Past as far as the side bar goes, short of snapping the chat shut.
-    await mouse.moveBy(const Offset(500, 0));
+    await mouse.moveBy(const Offset(440, 0));
     await tester.pump();
     await tester.pump();
     expect(_width(tester, 'ide-editor'), IdeColumns.minEditor);
     expect(
-      tester.getRect(_part('ide-editor')).contains(sash + const Offset(500, 0)),
+      tester.getRect(_part('ide-editor')).contains(sash + const Offset(440, 0)),
       isTrue,
     );
     expect(_cursor, SystemMouseCursors.resizeLeft);

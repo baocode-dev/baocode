@@ -56,12 +56,12 @@ void main() {
     test('inverse swaps the colors, the default ones for the step\'s', () {
       final shown = terminalOutput('\x1b[7mA\x1b[31mB\x1b[0m');
       expect(shown.runs, [
-        const TerminalRun(
+        TerminalRun(
           'A',
           foreground: CursorColors.code,
           background: CursorColors.textMuted,
         ),
-        const TerminalRun('B', foreground: CursorColors.code, background: _red),
+        TerminalRun('B', foreground: CursorColors.code, background: _red),
       ]);
     });
 

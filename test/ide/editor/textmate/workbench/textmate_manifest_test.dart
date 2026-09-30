@@ -2,7 +2,6 @@
 // definitions VS Code's tokenization feature derives from it, checked against
 // the language ids tool/generate_textmate_fixtures.mjs recorded.
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -12,14 +11,16 @@ import 'package:monad/ide/editor/monaco/vs/workbench/services/text_mate/browser/
 import 'package:monad/ide/editor/monaco/vs/workbench/services/text_mate/common/tm_grammars.dart';
 import 'package:monad/ide/editor/monaco/vs/workbench/services/text_mate/common/tm_scope_registry.dart';
 import 'package:monad/ide/editor/textmate/textmate_manifest.dart';
+import 'package:monad/ide/editor/textmate/vscode_textmate/main.dart'
+    show parseRawGrammar;
+
+import '../textmate_fixture.dart';
 
 void main() {
   final manifest = TextMateManifest.parse(
     File('$textMateAssetRoot/manifest.json').readAsStringSync(),
   );
-  final fixture = jsonDecode(
-    File('test/fixtures/textmate/typescript_tokens.json').readAsStringSync(),
-  ) as Map<String, Object?>;
+  final fixture = loadTextMateFixture();
   final languageIds = (fixture['languageIds'] as Map<String, Object?>)
       .cast<String, int>();
 
@@ -34,13 +35,17 @@ void main() {
     test('matches the fixtures', () {
       expect(manifest.revision, fixture['revision']);
       expect(manifest.revision, '6a598d4a13031703d483d103c1d934a36ad27971');
-      expect(fixture['maxTokenizationLineLength'], maxTokenizationLineLength);
+      expect(
+        fixture['defaultMaxTokenizationLineLength'],
+        maxTokenizationLineLength,
+      );
       expect(fixture['timeLimitMs'], tokenizationTimeLimitMs);
-      // Every registered language but plaintext, in registration order.
-      expect(manifest.languages.map((l) => l.id), [
-        for (final MapEntry(:key, :value) in languageIds.entries)
-          if (value > 1) key,
+      // LanguageIdCodec: each id numbered from 1 at its first registration.
+      expect(manifest.languageIds, languageIds.keys);
+      expect(languageIds.values, [
+        for (var i = 1; i <= languageIds.length; i++) i,
       ]);
+      expect(languageIds['plaintext'], 1);
     });
 
     test('every file it names is bundled', () {
@@ -69,6 +74,38 @@ void main() {
     });
 
     test('languages', () {
+      final plaintext = manifest.languages.first;
+      expect(plaintext.id, 'plaintext');
+      expect(plaintext.extension, isNull);
+      expect(plaintext.extensions, ['.txt']);
+      expect(plaintext.aliases, ['Plain Text', 'text']);
+      expect(plaintext.mimetypes, ['text/plain']);
+      // Built-in extensions by folder name, then package.json order.
+      expect(manifest.languages.skip(1).take(6).map((l) => l.id), [
+        'bat',
+        'clojure',
+        'coffeescript',
+        'jsonc',
+        'json',
+        'ignore',
+      ]);
+      final extensions = [
+        for (final language in manifest.languages.skip(1)) language.extension!,
+      ];
+      for (var i = 1; i < extensions.length; i++) {
+        expect(
+          extensions[i - 1].compareTo(extensions[i]),
+          lessThanOrEqualTo(0),
+          reason: extensions[i],
+        );
+      }
+      expect(extensions, isNot(contains('vscode-colorize-tests')));
+      expect(extensions, contains('copilot'));
+      expect(
+        manifest.languages.where((l) => l.id == 'json').map((l) => l.extension),
+        ['configuration-editing', 'json', 'typescript-basics'],
+      );
+
       final typescript = manifest.languageById('typescript')!;
       expect(typescript.extension, 'typescript-basics');
       expect(typescript.extensions, ['.ts', '.cts', '.mts']);
@@ -77,9 +114,20 @@ void main() {
         typescript.configuration,
         'grammars/typescript-basics/language-configuration.json',
       );
+      expect(typescript.hasAliases, isTrue);
       expect(manifest.languageById('typescriptreact')!.extensions, ['.tsx']);
-      expect(manifest.languageById('jsx-tags')!.extension, 'javascript');
-      expect(manifest.languageById('javascript'), isNull);
+      final jsxTags = manifest.languageById('jsx-tags')!;
+      expect(jsxTags.extension, 'javascript');
+      expect(jsxTags.hasAliases, isTrue);
+      expect(jsxTags.aliases, isEmpty);
+      expect(manifest.languageById('javascript')!.firstLine, isNotNull);
+      final gitRebase = manifest.languageById('git-rebase')!;
+      expect(gitRebase.hasAliases, isTrue);
+      expect(gitRebase.filenamePatterns, ['**/rebase-merge/done']);
+      expect(manifest.languageById('dockerfile')!.filenames, isNotEmpty);
+      expect(manifest.maxTokenizationLineLengthOf('javascript'), 2500);
+      expect(manifest.maxTokenizationLineLengthOf('csharp'), 2500);
+      expect(manifest.maxTokenizationLineLengthOf('typescript'), isNull);
     });
 
     test('grammars', () {
@@ -92,16 +140,28 @@ void main() {
         'source.ts',
         'source.tsx',
       ]);
+      // Several grammars share a scope name; VS Code keeps the last.
+      expect(manifest.grammarForScope('source.ini')!.language, 'properties');
+      expect(manifest.grammarForLanguage('ini')!.scopeName, 'source.ini');
+      expect(
+        manifest.grammarForScope('text.html.derivative')!.language,
+        'html',
+      );
       for (final grammar in manifest.grammars) {
-        final raw = jsonDecode(
+        final raw = parseRawGrammar(
           File('$textMateAssetRoot/${grammar.path}').readAsStringSync(),
-        ) as Map<String, Object?>;
-        expect(raw['scopeName'], grammar.scopeName, reason: grammar.path);
+          grammar.path,
+        );
+        expect(raw.scopeName, grammar.scopeName, reason: grammar.path);
       }
     });
 
     test('themes', () {
-      expect(manifest.themes, hasLength(19));
+      // VS Code's 19 but Light (Visual Studio) and Light+, which the assets
+      // leave out.
+      expect(manifest.themes, hasLength(17));
+      expect(manifest.themeById('Visual Studio Light'), isNull);
+      expect(manifest.themeById('Light+'), isNull);
       final darkPlus = manifest.themeById('Dark+')!;
       expect(darkPlus.extension, 'theme-defaults');
       expect(darkPlus.extensionId, 'vscode.theme-defaults');
@@ -174,10 +234,10 @@ void main() {
     test('TypeScript React', () {
       final def = validate(manifest.grammarForLanguage('typescriptreact')!)!;
       expect(def.embeddedLanguages, {
-        'meta.tag.tsx': 4,
-        'meta.tag.without-attributes.tsx': 4,
-        'meta.tag.attributes.tsx': 3,
-        'meta.embedded.expression.tsx': 3,
+        'meta.tag.tsx': languageIds['jsx-tags'],
+        'meta.tag.without-attributes.tsx': languageIds['jsx-tags'],
+        'meta.tag.attributes.tsx': languageIds['typescriptreact'],
+        'meta.embedded.expression.tsx': languageIds['typescriptreact'],
       });
       expect(def.tokenTypes, tokenTypes);
       expect(def.balancedBracketSelectors, ['*']);
@@ -206,7 +266,7 @@ void main() {
       expect(
         validate(
           const ITMSyntaxExtensionPoint(
-            language: 'javascript',
+            language: 'no-such-language',
             scopeName: 'source.js',
             path: 'x',
           ),
@@ -217,7 +277,7 @@ void main() {
         ITMSyntaxExtensionPoint.fromJson({
           'scopeName': 'source.x',
           'path': 'x',
-          'embeddedLanguages': {'a': 'typescript', 'b': 'css', 'c': 1},
+          'embeddedLanguages': {'a': 'typescript', 'b': 'no-such', 'c': 1},
           'tokenTypes': {
             'a': 'string',
             'b': 'comment',
@@ -229,7 +289,7 @@ void main() {
           'unbalancedBracketScopes': 'y',
         }),
       )!;
-      expect(def.embeddedLanguages, {'a': 2});
+      expect(def.embeddedLanguages, {'a': languageIds['typescript']});
       expect(def.tokenTypes, {
         'a': StandardTokenType.string,
         'b': StandardTokenType.comment,

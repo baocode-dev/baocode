@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
 import '../theme/codicons.dart';
-import '../theme/cursor_theme.dart';
 import '../theme/material_file_icons.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'lsp/lsp_protocol.dart';
 import 'lsp_ui/language_icons.dart';
 
 /// The path of the active file under the tabs, one segment per folder with
 /// chevrons between them, then the symbols around the caret. Tapping a
-/// segment reveals it in the explorer; tapping a symbol reveals it.
+/// segment reveals it in the explorer; tapping a symbol reveals it. In the
+/// color theme's `breadcrumb.*` colors (platform/theme/browser/
+/// defaultStyles.ts `defaultBreadcrumbsWidgetStyles`).
 class IdeBreadcrumbs extends StatelessWidget {
   const IdeBreadcrumbs({
     super.key,
@@ -42,9 +44,11 @@ class IdeBreadcrumbs extends StatelessWidget {
       base = base.isEmpty ? part : p.join(base, part);
       segments.add((part, base, i == parts.length - 1));
     }
+    // The separators are their item's color (`inherit`).
+    final separator = themeColors['breadcrumb.foreground'];
     return Container(
       height: height,
-      color: CursorColors.background,
+      color: themeColors['breadcrumb.background'],
       padding: const EdgeInsets.symmetric(horizontal: 8),
       alignment: Alignment.centerLeft,
       child: SingleChildScrollView(
@@ -54,19 +58,11 @@ class IdeBreadcrumbs extends StatelessWidget {
           children: [
             for (final (i, (name, target, isFile)) in segments.indexed) ...[
               if (i > 0)
-                const Icon(
-                  Codicons.chevronRight,
-                  size: 14,
-                  color: CursorColors.textFaint,
-                ),
+                Icon(Codicons.chevronRight, size: 14, color: separator),
               _Crumb(name: name, isFile: isFile, onTap: () => onReveal(target)),
             ],
             for (final symbol in symbols) ...[
-              const Icon(
-                Codicons.chevronRight,
-                size: 14,
-                color: CursorColors.textFaint,
-              ),
+              Icon(Codicons.chevronRight, size: 14, color: separator),
               _Crumb(
                 name: symbol.name,
                 isFile: false,
@@ -129,11 +125,13 @@ class _CrumbState extends State<_Crumb> {
               ],
               Text(
                 widget.name,
+                // Hovered, `breadcrumb.focusForeground`; the file stands out
+                // in it too.
                 style: TextStyle(
                   fontSize: 11.5,
                   color: _hover || widget.isFile
-                      ? CursorColors.text
-                      : CursorColors.textMuted,
+                      ? themeColors['breadcrumb.focusForeground']
+                      : themeColors['breadcrumb.foreground'],
                 ),
               ),
             ],

@@ -15,8 +15,10 @@ import 'ide/lsp/language_features.dart';
 import 'sidebar/sidebar.dart';
 import 'theme/codicons.dart';
 import 'theme/cursor_theme.dart';
+import 'theme/workbench_theme.dart' show WorkbenchThemeService, themeColors;
 import 'workspace/open_in_editor_button.dart';
 import 'workspace/pin_window_button.dart';
+import 'workspace/title_bar_double_click.dart';
 import 'workspace/window_controls.dart';
 import 'workspace/window_header/window_header.dart';
 import 'workspace/workspace.dart';
@@ -232,6 +234,7 @@ class _WorkbenchState extends State<Workbench> {
                   ignoredRecommendations:
                       _workspace.ignoredServerRecommendations,
                   onIgnoreRecommendation: _workspace.ignoreServerRecommendation,
+                  colorThemes: WorkbenchThemeService.instance,
                   chat: ide && project.path == entry.key
                       ? _conversation(
                           _buildChat(showToggle: false, embedded: true),
@@ -301,6 +304,7 @@ class _WorkbenchState extends State<Workbench> {
               child: AnimatedOpacity(
                 opacity: _drawerOpen ? 1 : 0,
                 duration: _duration,
+                // Black, not the theme's: as upstream's modal backdrops.
                 child: const ColoredBox(color: Color(0x66000000)),
               ),
             ),
@@ -330,9 +334,12 @@ class _WorkbenchState extends State<Workbench> {
                     SizedBox(
                       width: _shownWidth,
                       child: DecoratedBox(
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           boxShadow: [
-                            BoxShadow(color: Color(0x80000000), blurRadius: 24),
+                            BoxShadow(
+                              color: themeColors['widget.shadow'],
+                              blurRadius: 24,
+                            ),
                           ],
                         ),
                         // Over the chat, not the material: the tint alone
@@ -555,11 +562,13 @@ class _EmptyWorkspace extends StatelessWidget {
         // Nothing to put in it (Windows keeps the toggle in its header):
         // the empty state starts at the top instead of under an empty row.
         if (leading case final leading?)
-          SizedBox(
-            height: CursorMetrics.titleBarHeight,
-            child: Padding(
-              padding: EdgeInsets.only(left: titleBarInset),
-              child: Row(children: [leading]),
+          TitleBarDoubleClick(
+            child: SizedBox(
+              height: CursorMetrics.titleBarHeight,
+              child: Padding(
+                padding: EdgeInsets.only(left: titleBarInset),
+                child: Row(children: [leading]),
+              ),
             ),
           ),
         Expanded(
@@ -567,7 +576,7 @@ class _EmptyWorkspace extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
+                Icon(
                   Icons.folder_open_outlined,
                   size: 26,
                   color: CursorColors.textFaint,
@@ -575,17 +584,14 @@ class _EmptyWorkspace extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: CursorColors.textMuted,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: CursorColors.textMuted, fontSize: 14),
                 ),
                 if (detail.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     detail,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: CursorColors.textFaint,
                       fontSize: 12,
                     ),

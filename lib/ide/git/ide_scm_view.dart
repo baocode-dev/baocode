@@ -28,6 +28,7 @@ import 'package:path/path.dart' as p;
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/material_file_icons.dart';
+import '../../theme/workbench_theme.dart';
 import '../../workspace/window_controls.dart';
 import '../ide_animated_list.dart';
 import '../ide_commands.dart';
@@ -37,7 +38,6 @@ import '../ide_hover.dart';
 import '../ide_input.dart';
 import '../ide_list.dart';
 import '../ide_menu.dart';
-import '../ide_modern_ui.dart';
 import '../ide_notifications.dart';
 import '../ide_panes.dart';
 import '../ide_workspace.dart';
@@ -289,15 +289,15 @@ class _IdeScmViewState extends State<IdeScmView> {
       children: [
         Positioned.fill(child: content),
         if (git.busy || _session.generating != null)
-          const Positioned(
+          Positioned(
             left: 0,
             right: 0,
             top: 0,
             height: 2,
             child: LinearProgressIndicator(
               minHeight: 2,
-              backgroundColor: Color(0x00000000),
-              color: Color(0xFF878889),
+              backgroundColor: Colors.transparent,
+              color: themeColors['progressBar.background'],
             ),
           ),
       ],
@@ -472,7 +472,7 @@ class _IdeScmViewState extends State<IdeScmView> {
                 child: Icon(
                   collapsed ? Codicons.chevronRight : Codicons.chevronDown,
                   size: 16,
-                  color: IdeListColors.foreground,
+                  color: themeColors['sideBar.foreground'],
                 ),
               ),
             ),
@@ -745,7 +745,7 @@ class _IdeScmViewState extends State<IdeScmView> {
                 child: Icon(
                   collapsed ? Codicons.chevronRight : Codicons.chevronDown,
                   size: 16,
-                  color: IdeListColors.foreground,
+                  color: themeColors['sideBar.foreground'],
                 ),
               ),
             ),
@@ -754,9 +754,9 @@ class _IdeScmViewState extends State<IdeScmView> {
                 group.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: IdeListColors.foreground,
+                  color: themeColors['sideBar.foreground'],
                 ),
               ),
             ),
@@ -1405,15 +1405,18 @@ class _IdeScmViewState extends State<IdeScmView> {
                 );
               },
         builder: (context, hovered) {
+          // What is behind the circles: the row's list color over the side
+          // bar (media/scm.css).
+          final colors = themeColors;
           final background = Color.alphaBlend(
             selected
-                ? (_graphFocus.hasFocus
-                      ? IdeListColors.activeSelection
-                      : IdeListColors.inactiveSelection)
+                ? colors[_graphFocus.hasFocus
+                      ? 'list.activeSelectionBackground'
+                      : 'list.inactiveSelectionBackground']
                 : hovered
-                ? IdeListColors.hover
-                : const Color(0x00000000),
-            IdeModernUI.surface,
+                ? colors['list.hoverBackground']
+                : Colors.transparent,
+            colors['sideBar.background'],
           );
           return Padding(
             padding: const EdgeInsets.only(left: 4, right: 12),
@@ -1443,7 +1446,7 @@ class _IdeScmViewState extends State<IdeScmView> {
                             text: '  ${commit.author}',
                             style: TextStyle(
                               fontSize: 13 * .9,
-                              color: IdeListColors.description,
+                              color: colors['descriptionForeground'],
                               fontWeight: current ? FontWeight.w600 : null,
                             ),
                           ),
@@ -1451,9 +1454,9 @@ class _IdeScmViewState extends State<IdeScmView> {
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: IdeListColors.foreground,
+                      color: colors['sideBar.foreground'],
                     ),
                   ),
                 ),
@@ -1473,12 +1476,12 @@ class _IdeScmViewState extends State<IdeScmView> {
   List<Widget> _badges(IdeGraphRow row) {
     final refs = [...row.commit.references];
     final badges = <Widget>[];
-    Color? color(IdeGitRef ref) => row.referenceColors[ref.id];
+    String? color(IdeGitRef ref) => row.referenceColors[ref.id];
     if (refs.isNotEmpty && color(refs.first) != null) {
-      badges.add(_RefBadge([refs.first], color(refs.first)!, named: true));
+      badges.add(_RefBadge([refs.first], color(refs.first), named: true));
       refs.removeAt(0);
     }
-    final byColor = <Color, List<IdeGitRef>>{};
+    final byColor = <String, List<IdeGitRef>>{};
     for (final ref in refs) {
       if (color(ref) case final c?) (byColor[c] ??= []).add(ref);
     }
@@ -1604,10 +1607,10 @@ class _Welcome extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 6.5),
           child: Text(
             text,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               height: 1.4,
-              color: IdeListColors.foreground,
+              color: themeColors['sideBar.foreground'],
             ),
           ),
         ),
@@ -1660,13 +1663,13 @@ class _SplitButtonState extends State<_SplitButton> {
   bool _hoverDropdown = false;
   final GlobalKey _dropdownKey = GlobalKey();
 
-  static const _background = Color(0xFF297AA0);
-  static const _hoverBackground = Color(0xFF2B7DA3);
-  static const _foreground = Color(0xFFFFFFFF);
-  static const _separator = Color(0x66FFFFFF);
-
   @override
   Widget build(BuildContext context) {
+    // `defaultButtonStyles`.
+    final colors = themeColors;
+    final background = colors['button.background'];
+    final foreground = colors['button.foreground'];
+    final border = colors['button.border'];
     final enabled = widget.enabled;
     Widget part({
       required bool hover,
@@ -1686,7 +1689,9 @@ class _SplitButtonState extends State<_SplitButton> {
         child: Container(
           height: 26,
           decoration: BoxDecoration(
-            color: hover && onTap != null ? _hoverBackground : _background,
+            color: hover && onTap != null
+                ? colors['button.hoverBackground']
+                : background,
             borderRadius: radius,
           ),
           child: child,
@@ -1713,7 +1718,7 @@ class _SplitButtonState extends State<_SplitButton> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (widget.icon case final icon?) ...[
-                  Icon(icon, size: 16, color: _foreground),
+                  Icon(icon, size: 16, color: foreground),
                   const SizedBox(width: 4),
                 ],
                 Flexible(
@@ -1721,10 +1726,10 @@ class _SplitButtonState extends State<_SplitButton> {
                     widget.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       height: 18 / 13,
-                      color: _foreground,
+                      color: foreground,
                     ),
                   ),
                 ),
@@ -1739,7 +1744,7 @@ class _SplitButtonState extends State<_SplitButton> {
       opacity: enabled ? 1 : .4,
       child: Container(
         decoration: BoxDecoration(
-          border: Border.all(color: _background),
+          border: Border.all(color: border),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Row(
@@ -1749,9 +1754,9 @@ class _SplitButtonState extends State<_SplitButton> {
               Container(
                 width: 1,
                 height: 26,
-                color: _background,
+                color: background,
                 padding: const EdgeInsets.symmetric(vertical: 4),
-                child: const ColoredBox(color: _separator),
+                child: ColoredBox(color: colors['button.separator']),
               ),
               IdeHover(
                 message: widget.dropdownTooltip ?? '',
@@ -1770,12 +1775,12 @@ class _SplitButtonState extends State<_SplitButton> {
                   radius: const BorderRadius.horizontal(
                     right: Radius.circular(4),
                   ),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Icon(
                       Codicons.chevronDown,
                       size: 16,
-                      color: _foreground,
+                      color: foreground,
                     ),
                   ),
                 ),
@@ -1795,11 +1800,10 @@ class _RefBadge extends StatelessWidget {
   const _RefBadge(this.refs, this.color, {this.named = false});
 
   final List<IdeGitRef> refs;
-  final Color color;
-  final bool named;
 
-  /// `scmGraph.historyItemHoverLabelForeground` (the panel's background).
-  static const _foreground = Color(0xFF191A1B);
+  /// The reference's color id; none for the hover's default label.
+  final String? color;
+  final bool named;
 
   static IconData icon(IdeGitRefKind kind) => switch (kind) {
     IdeGitRefKind.head => Codicons.target,
@@ -1812,12 +1816,20 @@ class _RefBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final kind = refs.first.kind;
     final branch = kind == IdeGitRefKind.branch;
+    final colors = themeColors;
+    final color = this.color;
+    final foreground =
+        colors[color == null
+            ? 'scmGraph.historyItemHoverDefaultLabelForeground'
+            : 'scmGraph.historyItemHoverLabelForeground'];
     return IdeHover(
       message: refs.map((r) => r.name).join(', '),
       child: Container(
         height: 18,
         decoration: BoxDecoration(
-          color: color,
+          color:
+              colors[color ??
+                  'scmGraph.historyItemHoverDefaultLabelBackground'],
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
@@ -1828,7 +1840,7 @@ class _RefBadge extends StatelessWidget {
                 padding: const EdgeInsets.only(left: 4),
                 child: Text(
                   '${refs.length}',
-                  style: const TextStyle(fontSize: 12, color: _foreground),
+                  style: TextStyle(fontSize: 12, color: foreground),
                 ),
               ),
             Padding(
@@ -1836,7 +1848,7 @@ class _RefBadge extends StatelessWidget {
               child: Icon(
                 icon(kind),
                 size: branch ? 12 : 16,
-                color: _foreground,
+                color: foreground,
               ),
             ),
             if (named)
@@ -1848,7 +1860,7 @@ class _RefBadge extends StatelessWidget {
                     refs.first.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: _foreground),
+                    style: TextStyle(fontSize: 12, color: foreground),
                   ),
                 ),
               ),
@@ -1871,14 +1883,17 @@ class IdeCommitHover extends StatelessWidget {
 
   final IdeGitCommit commit;
 
-  /// The graph's colors of [commit]'s references, by id; references
-  /// without one are not shown.
-  final Map<String, Color> referenceColors;
+  /// The graph's color ids of [commit]'s references, by id; without any,
+  /// the references are not shown.
+  final Map<String, String> referenceColors;
 
   @override
   Widget build(BuildContext context) {
     final commit = this.commit;
-    const text = TextStyle(fontSize: 13, color: IdeListColors.foreground);
+    final colors = themeColors;
+    final foreground = colors['editorHoverWidget.foreground'];
+    final border = colors['editorHoverWidget.border'];
+    final text = TextStyle(fontSize: 13, color: foreground);
     if (commit.id == ideIncomingChangesId ||
         commit.id == ideOutgoingChangesId) {
       return Text(commit.subject, style: text);
@@ -1892,9 +1907,9 @@ class IdeCommitHover extends StatelessWidget {
           Text.rich(
             TextSpan(
               children: [
-                const WidgetSpan(
+                WidgetSpan(
                   alignment: PlaceholderAlignment.middle,
-                  child: Icon(Codicons.account, size: 14),
+                  child: Icon(Codicons.account, size: 14, color: foreground),
                 ),
                 TextSpan(
                   text: ' ${commit.author}',
@@ -1903,9 +1918,9 @@ class IdeCommitHover extends StatelessWidget {
                 if (commit.authorEmail.isNotEmpty)
                   TextSpan(text: ' <${commit.authorEmail}>'),
                 const TextSpan(text: ', '),
-                const WidgetSpan(
+                WidgetSpan(
                   alignment: PlaceholderAlignment.middle,
-                  child: Icon(Codicons.history, size: 14),
+                  child: Icon(Codicons.history, size: 14, color: foreground),
                 ),
                 TextSpan(
                   text:
@@ -1925,26 +1940,31 @@ class IdeCommitHover extends StatelessWidget {
               runSpacing: 4,
               children: [
                 for (final ref in commit.references)
-                  _RefBadge(
-                    [ref],
-                    referenceColors[ref.id] ?? IdeListColors.badgeBackground,
-                    named: true,
-                  ),
+                  _RefBadge([ref], referenceColors[ref.id], named: true),
               ],
             ),
           ],
-          const Divider(height: 17, thickness: 1, color: Color(0xFF2A2B2C)),
+          // `.workbench-hover hr`: the border at half strength.
+          Divider(
+            height: 17,
+            thickness: 1,
+            color: border.withValues(alpha: border.a / 2),
+          ),
           Text.rich(
             TextSpan(
               children: [
-                const WidgetSpan(
+                WidgetSpan(
                   alignment: PlaceholderAlignment.middle,
-                  child: Icon(Codicons.gitCommit, size: 14),
+                  child: Icon(
+                    Codicons.gitCommit,
+                    size: 14,
+                    color: colors['textLink.foreground'],
+                  ),
                 ),
                 TextSpan(text: ' ${commit.shortId}'),
               ],
             ),
-            style: text.copyWith(color: IdeListColors.highlight),
+            style: text.copyWith(color: colors['textLink.foreground']),
           ),
         ],
       ),

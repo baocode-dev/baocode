@@ -1,0 +1,18 @@
+# A Docker Compose file.
+services:
+  web:
+    image: "nginx:1.27"
+    ports:
+      - "8080:80"
+    environment:
+      - DEBUG=true
+    depends_on: [db]
+  db:
+    image: postgres:16
+    volumes:
+      - data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready"]
+      interval: 10s
+volumes:
+  data: {}

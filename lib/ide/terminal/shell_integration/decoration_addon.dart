@@ -19,10 +19,15 @@
 // accessibility signals and settings changes are the view's or not ported;
 // `terminal.integrated.shellIntegration.decorationsEnabled` is the
 // constructor's `showGutterDecorations` and `showOverviewRulerDecorations`.
+// The theme service is the constructor's `colorTheme` (the workbench's
+// [terminalColorTheme] by default); a change of it, which recolors
+// upstream's elements through CSS variables, fires
+// [DecorationAddon.onDidChangeDecorations] for the view to paint.
 
 import 'dart:convert';
 import 'dart:ui' show Color;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart' show IconData;
 
 import '../terminal_colors.dart';
@@ -38,6 +43,8 @@ import '../xterm/typings/xterm.dart'
         IMarker;
 import 'capabilities/capabilities.dart';
 import 'decoration_styles.dart';
+
+export '../terminal_colors.dart' show cssColor;
 
 /// A gutter decoration (upstream `IDisposableDecoration` with the classes
 /// `_updateClasses` gives its element).
@@ -92,7 +99,8 @@ class TerminalCommandDecoration {
   IconData get icon =>
       markProperties != null ? terminalDecorationMark : state!.icon;
 
-  Color get color => decorationColorOf(classNames);
+  /// Its color in the current theme; none when the theme has none.
+  Color? get color => decorationColorOf(classNames, _addon._colorTheme.value);
 
   /// Whether it is drawn in the gutter (`hide` is `visibility: hidden`).
   bool get isVisible => !classNames.contains(DecorationSelector.hide);
@@ -121,8 +129,13 @@ class DecorationAddon extends Disposable {
     this._decorationService, {
     this._showGutterDecorations = true,
     this._showOverviewRulerDecorations = true,
-  }) {
+    ValueListenable<TerminalColorTheme>? colorTheme,
+  }) : _colorTheme = colorTheme ?? terminalColorTheme {
     register(toDisposable(_dispose));
+    _colorTheme.addListener(_handleColorThemeChange);
+    register(
+      toDisposable(() => _colorTheme.removeListener(_handleColorThemeChange)),
+    );
     _updateDecorationVisibility();
     register(
       _capabilities.onDidAddCapability(
@@ -138,6 +151,7 @@ class DecorationAddon extends Disposable {
 
   final ITerminalCapabilityStore _capabilities;
   final IDecorationService _decorationService;
+  final ValueListenable<TerminalColorTheme> _colorTheme;
   Terminal? _terminal;
   final Map<TerminalCapability, DisposableStore> _capabilityDisposables = {};
 
@@ -166,6 +180,31 @@ class DecorationAddon extends Disposable {
     _showGutterDecorations = gutter;
     _showOverviewRulerDecorations = overviewRuler;
     _updateDecorationVisibility();
+  }
+
+  /// Upstream's `onDidColorThemeChange` listener.
+  void _handleColorThemeChange() {
+    _refreshStyles(true);
+    _onDidChangeDecorations.fire(null);
+  }
+
+  void _refreshStyles([bool refreshOverviewRulerColors = false]) {
+    if (refreshOverviewRulerColors) {
+      for (final decoration in _decorations.values) {
+        final color = _getDecorationCssColor(decoration.command) ?? '';
+        final options = decoration.decoration.options;
+        if (options.overviewRulerOptions case final overviewRulerOptions?) {
+          overviewRulerOptions.color = color;
+        } else {
+          // As upstream, one registered without a mark gets one.
+          options.overviewRulerOptions = IDecorationOverviewRulerOptions(
+            color: color,
+          );
+        }
+      }
+    }
+    // Upstream's `_updateClasses` of each element: the classes here are
+    // [TerminalCommandDecoration.classNames], computed when read.
   }
 
   void _createCapabilityDisposables(TerminalCapability c) {
@@ -355,7 +394,7 @@ class DecorationAddon extends Disposable {
       );
     }
     _clearPlaceholder();
-    final color = _getDecorationCssColor(command);
+    final color = _getDecorationCssColor(command) ?? '';
     final decoration = _decorationService.registerDecoration(
       IDecorationOptions(
         marker: marker,
@@ -403,35 +442,18 @@ class DecorationAddon extends Disposable {
     return decoration;
   }
 
-  /// Upstream's `_getDecorationCssColor`: the theme's color as CSS.
-  String _getDecorationCssColor(ITerminalCommand? command) {
-    final Color color;
+  /// Upstream's `_getDecorationCssColor`: the theme's color as CSS; none
+  /// when the theme has none.
+  String? _getDecorationCssColor(ITerminalCommand? command) {
+    final theme = _colorTheme.value;
+    final Color? color;
     if (command?.exitCode == null) {
-      color = TerminalColors.commandDecorationDefaultBackground;
+      color = theme.commandDecorationDefaultBackground;
     } else {
       color = command!.exitCode != 0
-          ? TerminalColors.commandDecorationErrorBackground
-          : TerminalColors.commandDecorationSuccessBackground;
+          ? theme.commandDecorationErrorBackground
+          : theme.commandDecorationSuccessBackground;
     }
-    return cssColor(color);
+    return color == null ? null : cssColor(color);
   }
-}
-
-/// [color] as VS Code's `Color.toString()` gives it: `#rrggbb` when opaque,
-/// else `rgba(r, g, b, a)` with the alpha to two decimals.
-String cssColor(Color color) {
-  final argb = color.toARGB32();
-  final r = (argb >> 16) & 0xff;
-  final g = (argb >> 8) & 0xff;
-  final b = argb & 0xff;
-  final a = (argb >> 24) & 0xff;
-  if (a == 0xff) {
-    String hex(int v) => v.toRadixString(16).padLeft(2, '0');
-    return '#${hex(r)}${hex(g)}${hex(b)}';
-  }
-  final alpha = double.parse((a / 255).toStringAsFixed(2));
-  final alphaText = alpha == alpha.truncateToDouble()
-      ? '${alpha.toInt()}'
-      : '$alpha';
-  return 'rgba($r, $g, $b, $alphaText)';
 }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../kernel/kernel_types.dart';
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import '../widgets/hover_builder.dart';
 import '../widgets/markdown_view.dart';
@@ -240,7 +241,11 @@ class _InteractionPanelState extends State<InteractionPanel> {
 
   (IconData, Color) get _icon => switch (widget.request) {
     QuestionRequest() => (Icons.help_outline_rounded, CursorColors.accent),
-    ApprovalRequest() => (Icons.shield_outlined, const Color(0xFFE2C08D)),
+    // Waiting on the user, as the agent sessions list shows it.
+    ApprovalRequest() => (
+      Icons.shield_outlined,
+      themeColors['list.warningForeground'],
+    ),
     PlanReviewRequest() => (Icons.checklist_rounded, CursorColors.accent),
   };
 
@@ -270,7 +275,7 @@ class _InteractionPanelState extends State<InteractionPanel> {
                         widget.request.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: CursorColors.text,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -300,10 +305,7 @@ class _InteractionPanelState extends State<InteractionPanel> {
                 const SizedBox(width: 8),
                 Text(
                   '${_step + 1} / $total',
-                  style: const TextStyle(
-                    color: CursorColors.textFaint,
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
                 ),
               ],
             ],
@@ -342,7 +344,7 @@ class _InteractionPanelState extends State<InteractionPanel> {
                                 ),
                               ],
                             ),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: CursorColors.textPrimary,
                               fontSize: 13.5,
                               height: 1.45,
@@ -372,7 +374,7 @@ class _InteractionPanelState extends State<InteractionPanel> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         '1-9 选择 · ↵ 继续 · esc 跳过',
                         maxLines: 1,
@@ -420,13 +422,13 @@ class _HeaderChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
-        color: const Color(0x1A4C9DFF),
+        color: themeColors['badge.background'],
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: CursorColors.accent,
+        style: TextStyle(
+          color: themeColors['badge.foreground'],
           fontSize: 11,
           fontWeight: FontWeight.w500,
         ),
@@ -465,6 +467,9 @@ class _OptionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hint = row.textHint;
+    final colors = themeColors;
+    // As upstream's question list: hover, then the selection; high contrast
+    // themes outline the selection.
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => onHover(),
@@ -476,13 +481,15 @@ class _OptionRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           decoration: BoxDecoration(
             color: selected
-                ? const Color(0x1A4C9DFF)
+                ? colors['list.activeSelectionBackground']
                 : highlighted
                 ? CursorColors.hover
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
-              color: selected ? const Color(0x554C9DFF) : Colors.transparent,
+              color: selected
+                  ? colors['contrastActiveBorder']
+                  : Colors.transparent,
             ),
           ),
           child: Column(
@@ -500,7 +507,9 @@ class _OptionRow extends StatelessWidget {
                         Text(
                           row.label,
                           style: TextStyle(
-                            color: selected || highlighted
+                            color: selected
+                                ? colors['list.activeSelectionForeground']
+                                : highlighted
                                 ? CursorColors.textPrimary
                                 : CursorColors.text,
                             fontSize: 13,
@@ -510,7 +519,7 @@ class _OptionRow extends StatelessWidget {
                             row.description != row.label)
                           Text(
                             row.description,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: CursorColors.textMuted,
                               fontSize: 12,
                               height: 1.4,
@@ -536,15 +545,15 @@ class _OptionRow extends StatelessWidget {
                       minLines: 1,
                       maxLines: 4,
                       onSubmitted: (_) => onTextSubmitted(),
-                      style: const TextStyle(
-                        color: CursorColors.textPrimary,
+                      style: TextStyle(
+                        color: colors['input.foreground'],
                         fontSize: 13,
                       ),
                       decoration: InputDecoration(
                         isDense: true,
                         hintText: hint,
-                        hintStyle: const TextStyle(
-                          color: CursorColors.textFaint,
+                        hintStyle: TextStyle(
+                          color: colors['input.placeholderForeground'],
                           fontSize: 13,
                         ),
                         contentPadding: const EdgeInsets.symmetric(
@@ -552,24 +561,22 @@ class _OptionRow extends StatelessWidget {
                           vertical: 7,
                         ),
                         filled: true,
-                        fillColor: CursorColors.background,
+                        fillColor: colors['input.background'],
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
-                          borderSide: const BorderSide(
+                          borderSide: BorderSide(
                             color: CursorColors.borderStrong,
                           ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
-                          borderSide: const BorderSide(
+                          borderSide: BorderSide(
                             color: CursorColors.borderStrong,
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
-                          borderSide: const BorderSide(
-                            color: Color(0x884C9DFF),
-                          ),
+                          borderSide: BorderSide(color: colors['focusBorder']),
                         ),
                       ),
                     ),
@@ -601,29 +608,29 @@ class _Marker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = themeColors;
+    // A checkbox; picked, the primary button's colors.
+    final foreground =
+        colors[selected ? 'button.foreground' : 'checkbox.foreground'];
     return Container(
       width: 18,
       height: 18,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: selected ? CursorColors.accent : CursorColors.surface,
+        color: colors[selected ? 'button.background' : 'checkbox.background'],
         borderRadius: BorderRadius.circular(multiple ? 4 : 9),
         border: Border.all(
-          color: selected ? CursorColors.accent : CursorColors.borderStrong,
+          color: selected
+              ? colors.get('button.border') ?? colors['button.background']
+              : colors['checkbox.border'],
         ),
       ),
       child: selected && multiple
-          ? const Icon(
-              Icons.check_rounded,
-              size: 12,
-              color: CursorColors.background,
-            )
+          ? Icon(Icons.check_rounded, size: 12, color: foreground)
           : Text(
               '${index + 1}',
               style: TextStyle(
-                color: selected
-                    ? CursorColors.background
-                    : CursorColors.textMuted,
+                color: foreground,
                 fontSize: 10.5,
                 fontWeight: FontWeight.w600,
               ),
@@ -656,10 +663,7 @@ class _ApprovalPreview extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 6),
               child: Text(
                 description,
-                style: const TextStyle(
-                  color: CursorColors.textMuted,
-                  fontSize: 12.5,
-                ),
+                style: TextStyle(color: CursorColors.textMuted, fontSize: 12.5),
               ),
             ),
           _Box(
@@ -667,13 +671,13 @@ class _ApprovalPreview extends StatelessWidget {
               TextSpan(
                 style: _mono,
                 children: [
-                  const TextSpan(
+                  TextSpan(
                     text: '\$ ',
                     style: TextStyle(color: CursorColors.textFaint),
                   ),
                   TextSpan(
                     text: command,
-                    style: const TextStyle(color: CursorColors.textPrimary),
+                    style: TextStyle(color: CursorColors.textPrimary),
                   ),
                 ],
               ),
@@ -755,20 +759,22 @@ class _Box extends StatelessWidget {
     required this.child,
     this.maxHeight = 160,
     this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-    this.color = CursorColors.code,
+    this.color,
   });
 
   final Widget child;
   final double maxHeight;
   final EdgeInsets padding;
-  final Color color;
+
+  /// [CursorColors.code] when null.
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       constraints: BoxConstraints(maxHeight: maxHeight),
       decoration: BoxDecoration(
-        color: color,
+        color: color ?? CursorColors.code,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: CursorColors.border),
       ),
@@ -793,38 +799,43 @@ class PanelButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
+    final colors = themeColors;
+    // A button as upstream's: primary or secondary; dimmed when disabled.
+    final border = primary
+        ? colors.get('button.border')
+        : colors.get('button.secondaryBorder');
     return HoverBuilder(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      builder: (context, hovered) => GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          height: 24,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: primary
-                ? (enabled
-                      ? (hovered
-                            ? const Color(0xFFFFFFFF)
-                            : CursorColors.textPrimary)
-                      : const Color(0xFF3A3A3A))
-                : (hovered && enabled
-                      ? const Color(0x1AFFFFFF)
-                      : Colors.transparent),
-            borderRadius: BorderRadius.circular(5),
-            border: primary
-                ? null
-                : Border.all(color: CursorColors.borderStrong),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: primary
-                  ? (enabled ? CursorColors.background : CursorColors.textFaint)
-                  : CursorColors.text,
-              fontSize: 12,
-              fontWeight: primary ? FontWeight.w600 : FontWeight.w400,
+      builder: (context, hovered) => Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            height: 24,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color:
+                  colors[switch ((primary, hovered && enabled)) {
+                    (true, true) => 'button.hoverBackground',
+                    (true, false) => 'button.background',
+                    (false, true) => 'button.secondaryHoverBackground',
+                    (false, false) => 'button.secondaryBackground',
+                  }],
+              borderRadius: BorderRadius.circular(5),
+              border: border == null ? null : Border.all(color: border),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                color:
+                    colors[primary
+                        ? 'button.foreground'
+                        : 'button.secondaryForeground'],
+                fontSize: 12,
+                fontWeight: primary ? FontWeight.w600 : FontWeight.w400,
+              ),
             ),
           ),
         ),

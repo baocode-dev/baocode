@@ -10,24 +10,37 @@
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/base/browser/ui/list/list.css, iconLabel/iconlabel.css,
 // countBadge/countBadge.css with Modern UI's (contrib/modernUI), and the
-// `list.*`, `badge.*` and `descriptionForeground` colors of Dark 2026.
+// color theme's `list.*`, `badge.*` and `descriptionForeground` colors
+// (platform/theme/browser/defaultStyles.ts `defaultListStyles`,
+// `defaultCountBadgeStyles`).
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-/// Dark 2026 `list.*`, `badge.*` and the side bar's text colors.
+import '../theme/workbench_theme.dart' show themeColors;
+import 'ide_hover.dart';
+
+/// The color theme's `list.*` and `badge.*` colors, the side bar's text
+/// colors, and the lists' sizes.
 abstract final class IdeListColors {
-  static const foreground = Color(0xFFBFBFBF);
-  static const description = Color(0xFF8C8C8C);
-  static const hover = Color(0x14FFFFFF);
-  static const activeSelection = Color(0x22FFFFFF);
-  static const activeSelectionForeground = Color(0xFFEDEDED);
-  static const inactiveSelection = Color(0xFF2C2D2E);
-  static const focusOutline = Color(0xB33994BC);
-  static const highlight = Color(0xFF48A0C7);
-  static const badgeBackground = Color(0xFF307E9F);
-  static const badgeForeground = Color(0xFFFFFFFF);
-  static const errorForeground = Color(0xFFF48771);
+  /// The side bar's, which its lists are in.
+  static Color get foreground => themeColors['sideBar.foreground'];
+  static Color get description => themeColors['descriptionForeground'];
+  static Color get hover => themeColors['list.hoverBackground'];
+  static Color get hoverForeground => themeColors['list.hoverForeground'];
+  static Color get activeSelection =>
+      themeColors['list.activeSelectionBackground'];
+  static Color get activeSelectionForeground =>
+      themeColors['list.activeSelectionForeground'];
+  static Color get inactiveSelection =>
+      themeColors['list.inactiveSelectionBackground'];
+  static Color get inactiveSelectionForeground =>
+      themeColors['list.inactiveSelectionForeground'];
+  static Color get focusOutline => themeColors['list.focusOutline'];
+  static Color get highlight => themeColors['list.highlightForeground'];
+  static Color get badgeBackground => themeColors['badge.background'];
+  static Color get badgeForeground => themeColors['badge.foreground'];
+  static Color get errorForeground => themeColors['list.errorForeground'];
 
   /// `workbench.tree.indent`.
   static const indent = 8.0;
@@ -45,28 +58,33 @@ class IdeCountBadge extends StatelessWidget {
   final int count;
 
   @override
-  Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(minWidth: 19, minHeight: 19),
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-    decoration: BoxDecoration(
-      color: IdeListColors.badgeBackground,
-      borderRadius: BorderRadius.circular(10),
-    ),
-    // Its own size wherever it is (not the row's height), centered in
-    // the minimum.
-    child: Center(
-      widthFactor: 1,
-      heightFactor: 1,
-      child: Text(
-        '$count',
-        style: const TextStyle(
-          fontSize: 10,
-          height: 1.1,
-          color: IdeListColors.badgeForeground,
+  Widget build(BuildContext context) {
+    // `contrastBorder`: high contrast themes only.
+    final border = themeColors.get('contrastBorder');
+    return Container(
+      constraints: const BoxConstraints(minWidth: 19, minHeight: 19),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: IdeListColors.badgeBackground,
+        border: border == null ? null : Border.all(color: border),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      // Its own size wherever it is (not the row's height), centered in
+      // the minimum.
+      child: Center(
+        widthFactor: 1,
+        heightFactor: 1,
+        child: Text(
+          '$count',
+          style: TextStyle(
+            fontSize: 10,
+            height: 1.1,
+            color: IdeListColors.badgeForeground,
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// A 22px row, inset and rounded as Modern UI's: hover and selection
@@ -126,9 +144,27 @@ class _IdeListRowState extends State<IdeListRow> {
     }
   }
 
+  /// The row's outline (`listWidget.ts` `DefaultStyleController`): the
+  /// focus outline on the focused selection, else high contrast themes'
+  /// `contrastActiveBorder` (dotted on the selection, dashed on hover
+  /// upstream).
+  Color? get _outline {
+    final colors = themeColors;
+    final contrast = colors.get('contrastActiveBorder');
+    if (widget.selected) {
+      return widget.focused
+          ? colors.get('list.focusAndSelectionOutline') ??
+                contrast ??
+                colors.get('list.focusOutline')
+          : contrast ?? colors.get('list.inactiveFocusOutline');
+    }
+    return _hover ? contrast : null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final selected = widget.selected;
+    final outline = _outline;
     final row = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -159,25 +195,22 @@ class _IdeListRowState extends State<IdeListRow> {
             ),
             // `outline: 1px solid; outline-offset: -1px`: drawn over the
             // row, so selecting it moves nothing.
-            foregroundDecoration: selected && widget.focused
-                ? BoxDecoration(
+            foregroundDecoration: outline == null
+                ? null
+                : BoxDecoration(
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: IdeListColors.focusOutline),
-                  )
-                : null,
+                    border: Border.all(color: outline),
+                  ),
             child: widget.builder(context, _hover),
           ),
         ),
       ),
     );
     final tooltip = widget.tooltip;
+    // A list row's title: the workbench hover at the pointer.
     return tooltip == null
         ? row
-        : Tooltip(
-            message: tooltip,
-            waitDuration: const Duration(milliseconds: 500),
-            child: row,
-          );
+        : IdeHover(message: tooltip, followMouse: true, child: row);
   }
 }
 

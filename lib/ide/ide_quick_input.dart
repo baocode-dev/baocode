@@ -1,14 +1,37 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+// VS Code's quick input. [IdeQuickPick] is adapted from VS Code
+// 6a598d4a13031703d483d103c1d934a36ad27971:
+// src/vs/platform/quickinput/browser/quickInput.ts (`QuickPick`: its active
+// items, `onDidChangeActive`, `onDidAccept`, `onDidHide`) and
+// quickInputList.ts (`filter`, `compareEntries`, separators drawn with their
+// items), with the filters and comparers ported at the end of this file.
+//
+// Deviations: hiding has no reason; no `alwaysShow`, `matchOnDetail`,
+// `matchOnLabelMode`, `$(icon)` labels, buttons or multiple selection;
+// accepting always hides the pick; and a filter reports its first match
+// once, where upstream's list reports no active item and then the match.
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../theme/cursor_theme.dart';
+import '../theme/workbench_theme.dart'
+    show ThemeTypeSelector, getThemeTypeSelector, themeColors;
 import 'ide_fuzzy.dart';
 import 'ide_input.dart';
 
+/// An entry of an [IdeQuickPick]'s list: an item or a separator (upstream
+/// `QuickPickInput`).
+sealed class IdeQuickPickEntry {
+  const IdeQuickPickEntry();
+}
+
 /// One row of the quick input list (files, commands or a message).
-class IdeQuickPickItem {
+class IdeQuickPickItem extends IdeQuickPickEntry {
   const IdeQuickPickItem({
     required this.label,
     this.labelMatches = const [],
@@ -34,28 +57,94 @@ class IdeQuickPickItem {
   /// Shown at the right of the first row of a group, e.g. `recently used`.
   final String? group;
 
-  /// Null makes the row an informational message that cannot be picked.
+  /// Null makes the row an informational message that cannot be picked
+  /// (in an [IdeQuickPick], every item can be picked).
   final VoidCallback? onAccept;
+}
+
+/// A separator before the next item of an [IdeQuickPick] (upstream
+/// `IQuickPickSeparator` without buttons), drawn with that item as upstream
+/// does: its [label] at the right, a line above (none on the first row).
+class IdeQuickPickSeparator extends IdeQuickPickEntry {
+  const IdeQuickPickSeparator([this.label]);
+
+  final String? label;
+}
+
+/// A quick pick of given items (upstream `IQuickPick` created with
+/// `useSeparators`) rather than a prefix mode's rows. The input filters them
+/// as upstream's list does: [ideMatchesFuzzy] on labels, and on descriptions
+/// with [matchOnDescription]; while there is a filter, the matches are
+/// sorted by label ([sortByLabel]) and the separators hidden.
+class IdeQuickPick {
+  const IdeQuickPick({
+    required this.items,
+    this.placeholder,
+    this.activeItems,
+    this.matchOnDescription = false,
+    this.sortByLabel = true,
+    this.onDidChangeActive,
+    this.onDidAccept,
+    this.onDidHide,
+  });
+
+  final List<IdeQuickPickEntry> items;
+  final String? placeholder;
+
+  /// The active item as it shows: the first of these that is listed, else
+  /// none (upstream `activeItems`). Null activates the first item.
+  final List<IdeQuickPickItem>? activeItems;
+
+  final bool matchOnDescription;
+  final bool sortByLabel;
+
+  /// The active item (null: none) as it shows, then whenever the arrow or
+  /// page keys, the filter or a click change it (upstream
+  /// `onDidChangeActive`).
+  final ValueChanged<IdeQuickPickItem?>? onDidChangeActive;
+
+  /// Enter or a click accepted the active item (null: none was active).
+  /// The pick hides right after, as upstream's theme pickers hide it.
+  final ValueChanged<IdeQuickPickItem?>? onDidAccept;
+
+  /// It hid: after [onDidAccept], on Escape or a click outside, or when
+  /// another quick input replaced it (upstream `onDidHide`).
+  final VoidCallback? onDidHide;
 }
 
 /// VS Code's quick input: a filter box at the top center of the window with a
 /// list under it, shared by Quick Open, the command palette and Go to Line.
-/// The owner computes rows from the text (whose prefix picks the mode).
+/// The owner computes rows from the text (whose prefix picks the mode), or
+/// gives an [IdeQuickPick] ([IdeQuickInput.pick]).
 class IdeQuickInput extends StatefulWidget {
   const IdeQuickInput({
     super.key,
     required this.initialText,
-    required this.itemsFor,
+    required List<IdeQuickPickItem> Function(String text) this.itemsFor,
     required this.onClose,
     this.placeholderFor,
     this.refresh,
-  });
+  }) : pick = null;
+
+  /// Lists [pick]'s items, filtered by the input.
+  const IdeQuickInput.pick({
+    super.key,
+    required IdeQuickPick this.pick,
+    required this.onClose,
+  }) : initialText = '',
+       itemsFor = null,
+       placeholderFor = null,
+       refresh = null;
 
   final String initialText;
-  final List<IdeQuickPickItem> Function(String text) itemsFor;
+  final List<IdeQuickPickItem> Function(String text)? itemsFor;
   final String Function(String text)? placeholderFor;
 
-  /// Closes the input; called before an accepted item runs.
+  /// The quick pick listed instead of [itemsFor]'s rows.
+  final IdeQuickPick? pick;
+
+  /// Closes the input; called before an accepted item runs (after an
+  /// [IdeQuickPick]'s `onDidAccept`).
   final VoidCallback onClose;
 
   /// Recomputes the rows when it notifies, e.g. when a file index loads.
@@ -68,16 +157,31 @@ class IdeQuickInput extends StatefulWidget {
   State<IdeQuickInput> createState() => IdeQuickInputState();
 }
 
+/// A listed row: the item, its highlights and, in an [IdeQuickPick], the
+/// separator drawn with it.
+typedef _Row = ({
+  IdeQuickPickItem item,
+  List<int> label,
+  List<int> description,
+  IdeQuickPickSeparator? separator,
+});
+
 class IdeQuickInputState extends State<IdeQuickInput> {
   late final TextEditingController _controller = TextEditingController(
     text: widget.initialText,
   );
   final FocusNode _focusNode = FocusNode(debugLabel: 'ide quick input');
   final ScrollController _scroll = ScrollController();
-  List<IdeQuickPickItem> _items = const [];
+  List<_Row> _rows = const [];
+
+  /// The selected (active) row; -1 when an [IdeQuickPick] has none.
   int _selected = 0;
 
   String get text => _controller.text;
+
+  /// The active item of an [IdeQuickPick], for tests.
+  @visibleForTesting
+  IdeQuickPickItem? get activeItem => widget.pick == null ? null : _active;
 
   /// Replaces the text (e.g. switching mode while open) and selects it.
   void setText(String value, {bool selectAll = false}) {
@@ -98,8 +202,21 @@ class IdeQuickInputState extends State<IdeQuickInput> {
     );
     _controller.addListener(_recompute);
     widget.refresh?.addListener(_recompute);
-    _items = widget.itemsFor(_controller.text);
-    _selected = _firstSelectable();
+    if (widget.pick case final pick?) {
+      _lastText = _controller.text;
+      _rows = _filter(pick, _controller.text);
+      _selected = _initialActive(pick);
+      // Upstream's list reveals the active item, which it reports as the
+      // pick shows.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _reveal();
+        pick.onDidChangeActive?.call(_active);
+      });
+    } else {
+      _rows = _rowsFor(_controller.text);
+      _selected = _firstSelectable();
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focusNode.requestFocus();
     });
@@ -125,41 +242,92 @@ class IdeQuickInputState extends State<IdeQuickInput> {
 
   String? _lastText;
 
+  List<_Row> _rowsFor(String text) => [
+    for (final item in widget.itemsFor!(text))
+      (
+        item: item,
+        label: item.labelMatches,
+        description: item.descriptionMatches,
+        separator: null,
+      ),
+  ];
+
+  IdeQuickPickItem? get _active =>
+      _selected >= 0 && _selected < _rows.length ? _rows[_selected].item : null;
+
   void _recompute() {
     if (!mounted) return;
     final textChanged = _lastText != _controller.text;
     _lastText = _controller.text;
+    if (widget.pick case final pick?) {
+      if (!textChanged) return;
+      final previous = _active;
+      setState(() {
+        _rows = _filter(pick, _controller.text);
+        // Upstream focuses the first match (`trySelectFirst`).
+        _selected = _rows.isEmpty ? -1 : 0;
+        if (_scroll.hasClients) _scroll.jumpTo(0);
+      });
+      // Its list drops the focus as it filters, then focuses the first
+      // match: the active item changes unless none was and none is.
+      if (previous != null || _active != null) {
+        pick.onDidChangeActive?.call(_active);
+      }
+      return;
+    }
     setState(() {
-      _items = widget.itemsFor(_controller.text);
-      if (textChanged || _selected >= _items.length) {
+      _rows = _rowsFor(_controller.text);
+      if (textChanged || _selected >= _rows.length) {
         _selected = _firstSelectable();
         if (_scroll.hasClients) _scroll.jumpTo(0);
       }
     });
   }
 
+  bool _selectable(_Row row) =>
+      widget.pick != null || row.item.onAccept != null;
+
   int _firstSelectable() {
-    final index = _items.indexWhere((item) => item.onAccept != null);
+    final index = _rows.indexWhere(_selectable);
     return index < 0 ? 0 : index;
+  }
+
+  /// Upstream `setFocusedElements(activeItems)` as the pick shows.
+  int _initialActive(IdeQuickPick pick) {
+    if (_rows.isEmpty) return -1;
+    final active = pick.activeItems;
+    if (active == null) return 0;
+    for (final item in active) {
+      final index = _rows.indexWhere((row) => identical(row.item, item));
+      if (index >= 0) return index;
+    }
+    return -1;
   }
 
   void _move(int delta) {
     final selectable = [
-      for (var i = 0; i < _items.length; i++)
-        if (_items[i].onAccept != null) i,
+      for (var i = 0; i < _rows.length; i++)
+        if (_selectable(_rows[i])) i,
     ];
     if (selectable.isEmpty) return;
+    final previous = _selected;
     var at = selectable.indexOf(_selected);
-    if (at < 0) at = 0;
-    at = delta.abs() == 1
-        ? (at + delta) % selectable.length
-        : (at + delta).clamp(0, selectable.length - 1);
+    if (at < 0 && widget.pick != null) {
+      // Upstream's list focuses the first item when none is focused.
+      at = 0;
+    } else {
+      if (at < 0) at = 0;
+      at = delta.abs() == 1
+          ? (at + delta) % selectable.length
+          : (at + delta).clamp(0, selectable.length - 1);
+    }
     setState(() => _selected = selectable[at]);
     _reveal();
+    if (_selected != previous) widget.pick?.onDidChangeActive?.call(_active);
   }
 
   void _reveal() {
-    if (!_scroll.hasClients) return;
+    if (!_scroll.hasClients || _selected < 0) return;
     const row = IdeQuickInput.rowHeight;
     final top = _selected * row;
     final position = _scroll.position;
@@ -171,9 +339,20 @@ class IdeQuickInputState extends State<IdeQuickInput> {
   }
 
   void _accept([int? index]) {
+    if (widget.pick case final pick?) {
+      if (index != null && index != _selected) {
+        // A click focuses its row before it selects it.
+        setState(() => _selected = index);
+        pick.onDidChangeActive?.call(_active);
+      }
+      // Upstream accepts on Enter even when nothing is active.
+      pick.onDidAccept?.call(_active);
+      widget.onClose();
+      return;
+    }
     final i = index ?? _selected;
-    if (i < 0 || i >= _items.length) return;
-    final action = _items[i].onAccept;
+    if (i < 0 || i >= _rows.length) return;
+    final action = _rows[i].item.onAccept;
     if (action == null) return;
     widget.onClose();
     action();
@@ -207,8 +386,11 @@ class IdeQuickInputState extends State<IdeQuickInput> {
 
   @override
   Widget build(BuildContext context) {
-    final placeholder = widget.placeholderFor?.call(_controller.text);
-    final visibleRows = math.min(_items.length, IdeQuickInput.maxVisibleRows);
+    final colors = themeColors;
+    final placeholder =
+        widget.pick?.placeholder ??
+        widget.placeholderFor?.call(_controller.text);
+    final visibleRows = math.min(_rows.length, IdeQuickInput.maxVisibleRows);
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = math.min(600.0, constraints.maxWidth - 32);
@@ -225,13 +407,18 @@ class IdeQuickInputState extends State<IdeQuickInput> {
               top: 6,
               left: (constraints.maxWidth - width) / 2,
               width: width,
+              // `.quick-input-widget`: `quickInput.*`, `widget.border`
+              // and `widget.shadow` (quickInputService.ts).
               child: Material(
-                color: CursorColors.surfaceRaised,
+                color: colors['quickInput.background'],
                 elevation: 12,
-                shadowColor: Colors.black,
+                shadowColor: colors['widget.shadow'],
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
-                  side: const BorderSide(color: CursorColors.borderStrong),
+                  side: switch (colors.get('widget.border')) {
+                    final border? => BorderSide(color: border),
+                    null => BorderSide.none,
+                  },
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: Column(
@@ -249,55 +436,64 @@ class IdeQuickInputState extends State<IdeQuickInput> {
                           focusNode: _focusNode,
                           autocorrect: false,
                           enableSuggestions: false,
-                          cursorColor: CursorColors.accent,
+                          cursorColor: IdeInputColors.foreground,
                           cursorWidth: 1.5,
                           cursorHeight: ideCaretHeight(13),
-                          style: const TextStyle(
-                            color: CursorColors.textPrimary,
+                          style: TextStyle(
+                            color: IdeInputColors.foreground,
                             fontSize: 13,
                           ),
                           decoration: InputDecoration(
                             isDense: true,
                             hintText: placeholder,
-                            hintStyle: const TextStyle(
-                              color: CursorColors.textFaint,
+                            hintStyle: TextStyle(
+                              color: IdeInputColors.placeholder,
                               fontSize: 13,
                             ),
                             filled: true,
-                            fillColor: CursorColors.background,
+                            fillColor: IdeInputColors.background,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 8,
                               vertical: 7,
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(3),
-                              borderSide: const BorderSide(
-                                color: CursorColors.borderStrong,
+                              borderSide: BorderSide(
+                                color: IdeInputColors.border,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(3),
-                              borderSide: const BorderSide(
-                                color: CursorColors.accent,
+                              borderSide: BorderSide(
+                                color: IdeInputColors.focusBorder,
                               ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                    if (_items.isNotEmpty)
+                    if (_rows.isNotEmpty)
                       SizedBox(
                         height: visibleRows * IdeQuickInput.rowHeight,
                         child: ListView.builder(
                           controller: _scroll,
                           padding: EdgeInsets.zero,
                           itemExtent: IdeQuickInput.rowHeight,
-                          itemCount: _items.length,
-                          itemBuilder: (context, index) => _QuickPickRow(
-                            item: _items[index],
-                            selected: index == _selected,
-                            onTap: () => _accept(index),
-                          ),
+                          itemCount: _rows.length,
+                          itemBuilder: (context, index) {
+                            final row = _rows[index];
+                            return _QuickPickRow(
+                              item: row.item,
+                              labelMatches: row.label,
+                              descriptionMatches: row.description,
+                              group: row.separator?.label ?? row.item.group,
+                              // Upstream draws no line on the first row.
+                              separatorLine: row.separator != null && index > 0,
+                              message: !_selectable(row),
+                              selected: index == _selected,
+                              onTap: () => _accept(index),
+                            );
+                          },
                         ),
                       ),
                     const SizedBox(height: 4),
@@ -315,11 +511,25 @@ class IdeQuickInputState extends State<IdeQuickInput> {
 class _QuickPickRow extends StatefulWidget {
   const _QuickPickRow({
     required this.item,
+    required this.labelMatches,
+    required this.descriptionMatches,
+    required this.group,
+    required this.separatorLine,
+    required this.message,
     required this.selected,
     required this.onTap,
   });
 
   final IdeQuickPickItem item;
+  final List<int> labelMatches;
+  final List<int> descriptionMatches;
+  final String? group;
+
+  /// A separator's line above the row (`quick-input-list-separator-border`).
+  final bool separatorLine;
+
+  /// An informational row that cannot be picked.
+  final bool message;
   final bool selected;
   final VoidCallback onTap;
 
@@ -333,16 +543,112 @@ class _QuickPickRowState extends State<_QuickPickRow> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
-    final message = item.onAccept == null;
-    const highlight = TextStyle(
-      color: Color(0xFF6FB3FF),
+    final message = widget.message;
+    // The quick input's list styles (quickInputService.ts) and
+    // quickInput.css: matches in bold `list.highlightForeground`, or
+    // `quickInputList.focusHighlightForeground` on the focused row.
+    final colors = themeColors;
+    final focused = widget.selected && !message;
+    final highlight = TextStyle(
+      color:
+          colors[focused
+              ? 'quickInputList.focusHighlightForeground'
+              : 'list.highlightForeground'],
       fontWeight: FontWeight.w600,
     );
-    final background = widget.selected && !message
-        ? const Color(0x3D4C9DFF)
+    final background = focused
+        ? colors['quickInputList.focusBackground']
         : _hover && !message
-        ? CursorColors.hover
+        ? colors['list.hoverBackground']
         : Colors.transparent;
+    final foreground = focused
+        ? colors.get('quickInputList.focusForeground')
+        : _hover && !message
+        ? colors.get('list.hoverForeground')
+        : null;
+    final outline = focused ? colors.get('contrastActiveBorder') : null;
+    final color = foreground ?? colors['quickInput.foreground'];
+    // iconlabel.css: a description is the row's color at .7 opacity (.95
+    // in light themes), whole on the focused row.
+    final descriptionOpacity = focused
+        ? 1.0
+        : getThemeTypeSelector(colors.type) == ThemeTypeSelector.vs
+        ? .95
+        : .7;
+    Widget row = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(3),
+        border: outline == null ? null : Border.all(color: outline),
+      ),
+      child: Row(
+        children: [
+          if (item.icon case final icon?) ...[
+            SizedBox(width: 16, child: Center(child: icon)),
+            const SizedBox(width: 6),
+          ],
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  ...ideHighlightSpans(
+                    item.label,
+                    widget.labelMatches,
+                    highlight,
+                    style: TextStyle(
+                      color: message ? colors['descriptionForeground'] : color,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                  if (item.description case final description?
+                      when description.isNotEmpty) ...[
+                    const TextSpan(text: '  '),
+                    ...ideHighlightSpans(
+                      description,
+                      widget.descriptionMatches,
+                      highlight,
+                      style: TextStyle(
+                        color: color.withValues(
+                          alpha: color.a * descriptionOpacity,
+                        ),
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (widget.group case final group?)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text(
+                group,
+                style: TextStyle(
+                  color: colors['pickerGroup.foreground'],
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          if (item.keybinding case final keybinding?)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: IdeKeycap(keybinding),
+            ),
+        ],
+      ),
+    );
+    if (widget.separatorLine) {
+      row = DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: colors['pickerGroup.border'])),
+        ),
+        child: row,
+      );
+    }
     return MouseRegion(
       cursor: message ? MouseCursor.defer : SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -350,71 +656,9 @@ class _QuickPickRowState extends State<_QuickPickRow> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: message ? null : widget.onTap,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(3),
-          ),
-          child: Row(
-            children: [
-              if (item.icon case final icon?) ...[
-                SizedBox(width: 16, child: Center(child: icon)),
-                const SizedBox(width: 6),
-              ],
-              Expanded(
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      ...ideHighlightSpans(
-                        item.label,
-                        item.labelMatches,
-                        highlight,
-                        style: TextStyle(
-                          color: message
-                              ? CursorColors.textMuted
-                              : CursorColors.textPrimary,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                      if (item.description case final description?
-                          when description.isNotEmpty) ...[
-                        const TextSpan(text: '  '),
-                        ...ideHighlightSpans(
-                          description,
-                          item.descriptionMatches,
-                          highlight,
-                          style: const TextStyle(
-                            color: CursorColors.textMuted,
-                            fontSize: 11.5,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (item.group case final group?)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Text(
-                    group,
-                    style: const TextStyle(
-                      color: CursorColors.textMuted,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              if (item.keybinding case final keybinding?)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: IdeKeycap(keybinding),
-                ),
-            ],
-          ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: row,
         ),
       ),
     );
@@ -427,23 +671,366 @@ class IdeKeycap extends StatelessWidget {
 
   final String label;
 
+  /// `keybindingLabel.*` (keybindingLabel.css, `defaultKeybindingLabelStyles`).
+  /// A rounded box takes one border color: the bottom border's is a line
+  /// under it.
   @override
   Widget build(BuildContext context) {
+    final colors = themeColors;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
-        color: const Color(0x14FFFFFF),
+        color: colors['keybindingLabel.background'],
         borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: const Color(0x1FFFFFFF)),
+        border: Border.all(color: colors['keybindingLabel.border']),
+        boxShadow: [
+          BoxShadow(
+            color: colors['keybindingLabel.bottomBorder'],
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: CursorColors.text,
+        style: TextStyle(
+          color: colors['keybindingLabel.foreground'],
           fontSize: 11,
           height: 1.3,
         ),
       ),
     );
   }
+}
+
+// --- Quick pick filtering ----------------------------------------------------
+
+/// Upstream `QuickInputList.filter` and its tree's sorter, for [value]: all
+/// items with their separators when it is blank; else the items whose label
+/// (or description) matches, sorted by `compareEntries` with [sortByLabel]
+/// and then without separators. `alwaysShow`, `matchOnDetail`,
+/// `matchOnLabelMode` and `$(icon)` labels are not ported.
+List<_Row> _filter(IdeQuickPick pick, String value) {
+  final entries = pick.items;
+  IdeQuickPickSeparator? separatorBefore(int index) => index > 0
+      ? switch (entries[index - 1]) {
+          final IdeQuickPickSeparator separator => separator,
+          _ => null,
+        }
+      : null;
+  final query = value.trim();
+  final rows = <_Row>[];
+  if (query.isEmpty) {
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i] case final IdeQuickPickItem item) {
+        rows.add((
+          item: item,
+          label: const [],
+          description: const [],
+          separator: separatorBefore(i),
+        ));
+      }
+    }
+    return rows;
+  }
+  final matches = <({_Row row, bool label})>[];
+  IdeQuickPickSeparator? pending;
+  for (var i = 0; i < entries.length; i++) {
+    final item = entries[i];
+    if (item is! IdeQuickPickItem) continue;
+    final label = ideMatchesFuzzy(query, item.label);
+    final description = pick.matchOnDescription
+        ? ideMatchesFuzzy(query, item.description ?? '')
+        : null;
+    // Unsorted, a separator goes with the next item that is listed.
+    if (!pick.sortByLabel) pending = separatorBefore(i) ?? pending;
+    if (label == null && description == null) continue;
+    matches.add((
+      row: (
+        item: item,
+        label: _positions(label),
+        description: _positions(description),
+        separator: pick.sortByLabel ? null : pending,
+      ),
+      label: label != null && label.isNotEmpty,
+    ));
+    pending = null;
+  }
+  if (pick.sortByLabel) {
+    // `compareEntries`, with the value as typed, lowercased.
+    final lookFor = value.toLowerCase();
+    ideStableSort(matches, (a, b) {
+      if (a.label != b.label) return a.label ? -1 : 1;
+      if (!a.label) return 0;
+      return ideCompareAnything(
+        a.row.item.label.trim(),
+        b.row.item.label.trim(),
+        lookFor,
+      );
+    });
+  }
+  return [for (final match in matches) match.row];
+}
+
+List<int> _positions(List<IdeMatch>? matches) => [
+  for (final match in matches ?? const <IdeMatch>[])
+    for (var i = match.start; i < match.end; i++) i,
+];
+
+/// Sorts [list] keeping equal elements in order, as JavaScript's sort does.
+void ideStableSort<T>(List<T> list, int Function(T a, T b) compare) {
+  final indexed = [for (var i = 0; i < list.length; i++) (i, list[i])];
+  indexed.sort((a, b) {
+    final result = compare(a.$2, b.$2);
+    return result != 0 ? result : a.$1.compareTo(b.$1);
+  });
+  for (var i = 0; i < indexed.length; i++) {
+    list[i] = indexed[i].$2;
+  }
+}
+
+// Ported from VS Code src/vs/base/common/filters.ts at
+// 6a598d4a13031703d483d103c1d934a36ad27971: `matchesFuzzy` (without
+// separate substring matching), `or`, `matchesPrefix`, `matchesCamelCase`
+// and `matchesContiguousSubString`, with `convertSimple2RegExpPattern` from
+// strings.ts. Upstream's regular expression cache is an LRU; this one is
+// cleared when full.
+
+/// A matched range `[start, end)` (upstream `IMatch`).
+typedef IdeMatch = ({int start, int end});
+
+final Map<String, RegExp> _fuzzyRegExpCache = {};
+
+/// Upstream `matchesFuzzy`: [word] as a pattern whose `*` matches anything,
+/// else a prefix, camel case or contiguous match, ignoring case.
+List<IdeMatch>? ideMatchesFuzzy(String word, String wordToMatchAgainst) {
+  if (_fuzzyRegExpCache.length >= 10000) _fuzzyRegExpCache.clear();
+  final regexp = _fuzzyRegExpCache[word] ??= RegExp(
+    word
+        .replaceAllMapped(
+          RegExp(r'[\-\\\{\}\+\?\|\^\$\.\,\[\]\(\)\#\s]'),
+          (match) => '\\${match[0]}',
+        )
+        .replaceAll('*', '.*'),
+    caseSensitive: false,
+  );
+  final match = regexp.firstMatch(wordToMatchAgainst);
+  if (match != null) return [(start: match.start, end: match.end)];
+  return _matchesPrefix(word, wordToMatchAgainst) ??
+      _matchesCamelCase(word, wordToMatchAgainst) ??
+      _matchesContiguousSubString(word, wordToMatchAgainst);
+}
+
+List<IdeMatch>? _matchesPrefix(String word, String wordToMatchAgainst) {
+  if (wordToMatchAgainst.isEmpty ||
+      wordToMatchAgainst.length < word.length ||
+      !wordToMatchAgainst.toLowerCase().startsWith(word.toLowerCase())) {
+    return null;
+  }
+  return word.isNotEmpty ? [(start: 0, end: word.length)] : [];
+}
+
+List<IdeMatch>? _matchesContiguousSubString(
+  String word,
+  String wordToMatchAgainst,
+) {
+  if (word.length > wordToMatchAgainst.length) return null;
+  final index = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
+  if (index == -1) return null;
+  return [(start: index, end: index + word.length)];
+}
+
+bool _isLower(int code) => code >= 0x61 && code <= 0x7a;
+bool _isUpper(int code) => code >= 0x41 && code <= 0x5a;
+bool _isNumber(int code) => code >= 0x30 && code <= 0x39;
+bool _isWhitespace(int code) =>
+    code == 0x20 || code == 0x09 || code == 0x0a || code == 0x0d;
+bool _isAlphanumeric(int code) =>
+    _isLower(code) || _isUpper(code) || _isNumber(code);
+
+List<IdeMatch> _join(IdeMatch head, List<IdeMatch> tail) {
+  if (tail.isEmpty) return [head];
+  if (head.end == tail.first.start) {
+    tail[0] = (start: head.start, end: tail.first.end);
+    return tail;
+  }
+  return tail..insert(0, head);
+}
+
+int _nextAnchor(String camelCaseWord, int start) {
+  for (var i = start; i < camelCaseWord.length; i++) {
+    final c = camelCaseWord.codeUnitAt(i);
+    if (_isUpper(c) ||
+        _isNumber(c) ||
+        (i > 0 && !_isAlphanumeric(camelCaseWord.codeUnitAt(i - 1)))) {
+      return i;
+    }
+  }
+  return camelCaseWord.length;
+}
+
+List<IdeMatch>? _matchesCamelCaseAt(
+  String word,
+  String camelCaseWord,
+  int i,
+  int j,
+) {
+  if (i == word.length) return [];
+  if (j == camelCaseWord.length) return null;
+  if (word[i] != camelCaseWord[j].toLowerCase()) return null;
+  var result = _matchesCamelCaseAt(word, camelCaseWord, i + 1, j + 1);
+  var nextUpperIndex = j + 1;
+  while (result == null &&
+      (nextUpperIndex = _nextAnchor(camelCaseWord, nextUpperIndex)) <
+          camelCaseWord.length) {
+    result = _matchesCamelCaseAt(word, camelCaseWord, i + 1, nextUpperIndex);
+    nextUpperIndex++;
+  }
+  return result == null ? null : _join((start: j, end: j + 1), result);
+}
+
+/// Upstream `analyzeCamelCaseWord`: the share of upper, lower, alphanumeric
+/// and numeric characters.
+({double upper, double lower, double alpha, double numeric})
+_analyzeCamelCaseWord(String word) {
+  var upper = 0, lower = 0, alpha = 0, numeric = 0;
+  for (final code in word.codeUnits) {
+    if (_isUpper(code)) upper++;
+    if (_isLower(code)) lower++;
+    if (_isAlphanumeric(code)) alpha++;
+    if (_isNumber(code)) numeric++;
+  }
+  return (
+    upper: upper / word.length,
+    lower: lower / word.length,
+    alpha: alpha / word.length,
+    numeric: numeric / word.length,
+  );
+}
+
+bool _isCamelCasePattern(String word) {
+  var upper = 0, lower = 0, whitespace = 0;
+  for (final code in word.codeUnits) {
+    if (_isUpper(code)) upper++;
+    if (_isLower(code)) lower++;
+    if (_isWhitespace(code)) whitespace++;
+  }
+  if ((upper == 0 || lower == 0) && whitespace == 0) return word.length <= 30;
+  return upper <= 5;
+}
+
+List<IdeMatch>? _matchesCamelCase(String word, String camelCaseWord) {
+  if (camelCaseWord.isEmpty) return null;
+  camelCaseWord = camelCaseWord.trim();
+  if (camelCaseWord.isEmpty) return null;
+  if (!_isCamelCasePattern(word)) return null;
+  if (camelCaseWord.length > 60) camelCaseWord = camelCaseWord.substring(0, 60);
+  final analysis = _analyzeCamelCaseWord(camelCaseWord);
+  final camelCase =
+      analysis.lower > 0.2 &&
+      analysis.upper < 0.8 &&
+      analysis.alpha > 0.6 &&
+      analysis.numeric < 0.2;
+  if (!camelCase) {
+    if (!(analysis.lower == 0 && analysis.upper > 0.6)) return null;
+    camelCaseWord = camelCaseWord.toLowerCase();
+  }
+  List<IdeMatch>? result;
+  var i = 0;
+  word = word.toLowerCase();
+  while (i < camelCaseWord.length &&
+      (result = _matchesCamelCaseAt(word, camelCaseWord, 0, i)) == null) {
+    i = _nextAnchor(camelCaseWord, i + 1);
+  }
+  return result;
+}
+
+// Ported from VS Code src/vs/base/common/comparers.ts at
+// 6a598d4a13031703d483d103c1d934a36ad27971: `compareAnything`,
+// `compareByPrefix` and `compareFileNames`. `Intl.Collator` and
+// `String.prototype.localeCompare` are approximated by [ideLocaleCompare].
+
+/// Upstream `compareAnything`: prefix matches of [lookFor] first (shorter
+/// first), then suffix matches, then by name.
+int ideCompareAnything(String one, String other, String lookFor) {
+  final a = one.toLowerCase();
+  final b = other.toLowerCase();
+  // `compareByPrefix`.
+  final aPrefix = a.startsWith(lookFor);
+  final bPrefix = b.startsWith(lookFor);
+  if (aPrefix != bPrefix) return aPrefix ? -1 : 1;
+  if (aPrefix && a.length != b.length) return a.length < b.length ? -1 : 1;
+  final aSuffix = a.endsWith(lookFor);
+  final bSuffix = b.endsWith(lookFor);
+  if (aSuffix != bSuffix) return aSuffix ? -1 : 1;
+  // `compareFileNames`: a numeric, case-insensitive collator, then by code
+  // unit.
+  final byName = _collate(a, b, numeric: true, caseLevel: false);
+  if (byName != 0) return byName;
+  if (a != b) return a.compareTo(b) < 0 ? -1 : 1;
+  return ideLocaleCompare(a, b);
+}
+
+/// `a.localeCompare(b)` in the default locale, approximated: ICU's root
+/// order for ASCII (white space, punctuation, symbols, digits, then letters
+/// ignoring case), lowercase before uppercase where only case differs; other
+/// characters by code unit.
+int ideLocaleCompare(String a, String b) => _collate(a, b);
+
+/// ASCII characters other than letters in ICU's root collation order.
+const _collationOrder =
+    '\t\n\v\f\r _-,;:!?.\'"()[]{}@*/\\&#%`^+<=>|~\$0123456789';
+
+int _primaryWeight(int unit) {
+  if (_isUpper(unit)) unit += 0x20;
+  if (_isLower(unit)) return 0x100 + unit;
+  final at = unit < 0x80
+      ? _collationOrder.indexOf(String.fromCharCode(unit))
+      : -1;
+  return at >= 0 ? at : 0x200 + unit;
+}
+
+int _collate(
+  String a,
+  String b, {
+  bool numeric = false,
+  bool caseLevel = true,
+}) {
+  var i = 0;
+  var j = 0;
+  while (i < a.length && j < b.length) {
+    final ca = a.codeUnitAt(i);
+    final cb = b.codeUnitAt(j);
+    if (numeric && _isNumber(ca) && _isNumber(cb)) {
+      var endA = i;
+      while (endA < a.length && _isNumber(a.codeUnitAt(endA))) {
+        endA++;
+      }
+      var endB = j;
+      while (endB < b.length && _isNumber(b.codeUnitAt(endB))) {
+        endB++;
+      }
+      final na = a.substring(i, endA).replaceFirst(RegExp(r'^0+(?=\d)'), '');
+      final nb = b.substring(j, endB).replaceFirst(RegExp(r'^0+(?=\d)'), '');
+      if (na.length != nb.length) return na.length < nb.length ? -1 : 1;
+      final byValue = na.compareTo(nb);
+      if (byValue != 0) return byValue < 0 ? -1 : 1;
+      i = endA;
+      j = endB;
+      continue;
+    }
+    final wa = _primaryWeight(ca);
+    final wb = _primaryWeight(cb);
+    if (wa != wb) return wa < wb ? -1 : 1;
+    i++;
+    j++;
+  }
+  if (i < a.length) return 1;
+  if (j < b.length) return -1;
+  if (!caseLevel) return 0;
+  for (var k = 0; k < math.min(a.length, b.length); k++) {
+    final ca = a.codeUnitAt(k);
+    final cb = b.codeUnitAt(k);
+    if (ca != cb && _isLower(ca) != _isLower(cb)) return _isLower(ca) ? -1 : 1;
+  }
+  return a == b ? 0 : (a.compareTo(b) < 0 ? -1 : 1);
 }

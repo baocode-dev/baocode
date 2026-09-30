@@ -7,10 +7,12 @@ import 'package:monad/ide/ide_quick_input.dart';
 import 'package:monad/ide/lsp/language_features.dart';
 import 'package:monad/ide/lsp/lsp_protocol.dart';
 import 'package:monad/ide/lsp_ui/document_symbols.dart';
+import 'package:monad/ide/lsp_ui/semantic_tokens.dart';
 
 import '../workbench/fake_files.dart';
 import 'fake_language_features.dart';
 import 'lsp_test_helpers.dart';
+import 'semantic_token_fixture.dart';
 
 const _a = 'lib/a.dart';
 
@@ -127,7 +129,9 @@ void main() {
     );
   });
 
-  testWidgets('semantic tokens recolor the painted spans', (tester) async {
+  testWidgets('semantic tokens restyle the painted spans in the theme', (
+    tester,
+  ) async {
     final languages = FakeLanguageFeatures()
       ..onSemanticTokens = (path) => const [
         LspSemanticToken(0, 6, 7, 'class', {}),
@@ -136,24 +140,97 @@ void main() {
     await pumpLanguageWorkbench(tester, {_a: _source}, languages, open: [_a]);
     await settle(tester, const Duration(milliseconds: 350));
 
+    // In the workbench's theme (Dark 2026 under test); Dart has no
+    // language-specific rules, so it styles as plaintext.
+    final fixture = SemanticTokenFixture.instance;
+    final classStyle = fixture.style(
+      ideDefaultColorThemeId,
+      'class',
+      {},
+      'plaintext',
+    )!;
+    final methodStyle = fixture.style(ideDefaultColorThemeId, 'method', {
+      'declaration',
+    }, 'plaintext')!;
+    expect(classStyle.foreground, isNotNull);
+    expect(methodStyle.foreground, isNot(classStyle.foreground));
+
     final styled = tester
         .widget<EditorSurface>(find.byType(EditorSurface))
         .styledLines!;
     final line1 = styled[1]!;
     expect(line1.map((s) => s.text).join(), 'class Greeter {');
     final greeter = line1.firstWhere((s) => s.text == 'Greeter');
-    expect(greeter.style!.color, const Color(0xFF4EC9B0));
+    expect(greeter.style!.color, classStyle.foreground);
     final greet = styled[2]!.firstWhere((s) => s.text == 'greet');
-    expect(greet.style!.color, const Color(0xFFDCDCAA));
+    expect(greet.style!.color, methodStyle.foreground);
     // Lines without tokens keep the syntax spans.
+    final line3 = [const TextSpan(text: '    print(1);')];
+    expect(languageSession(tester).styledLines({3: line3})![3], same(line3));
+  });
+
+  testWidgets('the session restyles its tokens for a new theme or language', (
+    tester,
+  ) async {
+    final languages = FakeLanguageFeatures()
+      ..onSemanticTokens = (path) => const [
+        LspSemanticToken(0, 6, 7, 'property', {'readonly', 'defaultLibrary'}),
+      ];
+    await pumpLanguageWorkbench(tester, {_a: _source}, languages, open: [_a]);
+    await settle(tester, const Duration(milliseconds: 350));
+    // Null too when no span covers exactly 'Greeter'.
+    Color? greeterColor() {
+      final line = tester
+          .widget<EditorSurface>(find.byType(EditorSurface))
+          .styledLines?[1];
+      for (final span in line ?? const <TextSpan>[]) {
+        if (span.text == 'Greeter') return span.style?.color;
+      }
+      return null;
+    }
+
+    final fixture = SemanticTokenFixture.instance;
+    const modifiers = {'readonly', 'defaultLibrary'};
+    final session = languageSession(tester);
+    // The editor gives the session the document's TextMate language.
+    expect(session.languageId, 'dart');
     expect(
-      styled[3],
-      isNot(
-        contains(
-          predicate<TextSpan>((s) => s.style?.color == const Color(0xFFDCDCAA)),
-        ),
-      ),
+      greeterColor(),
+      fixture
+          .style(ideDefaultColorThemeId, 'property', modifiers, 'plaintext')!
+          .foreground,
     );
+
+    // Dark+ has TypeScript's own rule for this token.
+    final darkPlus = await tester.runAsync(() => fixture.loadTheme('Dark+'));
+    session.semanticTokenStyler = ideSemanticTokenStyler(darkPlus!);
+    await settle(tester);
+    final plain = fixture.style('Dark+', 'property', modifiers, 'plaintext')!;
+    expect(greeterColor(), plain.foreground);
+
+    session.languageId = 'typescript';
+    await settle(tester);
+    final typescript = fixture.style(
+      'Dark+',
+      'property',
+      modifiers,
+      'typescript',
+    )!;
+    expect(typescript.foreground, isNot(plain.foreground));
+    expect(greeterColor(), typescript.foreground);
+
+    // A theme without semantic highlighting leaves the syntax spans.
+    final noSemantic = await tester.runAsync(
+      () => fixture.loadTheme('Default High Contrast Light'),
+    );
+    expect(noSemantic!.semanticHighlighting, isFalse);
+    session.semanticTokenStyler = ideSemanticTokenStyler(noSemantic);
+    await settle(tester);
+    final syntax = {
+      1: const [TextSpan(text: 'class Greeter {')],
+    };
+    expect(session.styledLines(syntax), same(syntax));
+    expect(greeterColor(), isNot(typescript.foreground));
   });
 
   testWidgets('status bar: a missing server offers to install it, a failed '

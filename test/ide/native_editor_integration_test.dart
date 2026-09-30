@@ -10,7 +10,6 @@ import 'package:monad/ide/editor/monaco/vs/editor/common/core/range.dart';
 import 'package:monad/ide/file_service.dart';
 import 'package:monad/ide/ide_editor.dart';
 import 'package:monad/ide/ide_workspace.dart';
-import 'package:monad/theme/cursor_theme.dart';
 import 'package:path/path.dart' as p;
 
 import 'workbench/fake_files.dart';
@@ -136,7 +135,7 @@ void main() {
     expect(workspace.active!.dirty, isFalse);
   });
 
-  testWidgets('native editor paints pinned Monaco dark syntax for Dart', (
+  testWidgets('native editor paints Dart with TextMate in Dark 2026', (
     tester,
   ) async {
     final workspace = IdeWorkspace(
@@ -155,11 +154,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
     }
     final editor = tester.widget<EditorSurface>(surface);
-    expect(editor.backgroundColor, CursorColors.code);
+    // Dark 2026's `editor.background`, and its `keyword` color for `class`.
+    expect(editor.backgroundColor, const Color(0xFF121314));
     expect(editor.styledLines, isNotNull);
     expect(
       editor.styledLines![1]!.any(
-        (span) => span.style?.color == const Color(0xff569cd6),
+        (span) =>
+            span.text == 'class' &&
+            span.style?.color == const Color(0xFFFF7B72),
       ),
       isTrue,
     );

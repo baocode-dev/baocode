@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/codicons.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_commands.dart';
 import 'ide_hover.dart';
 import 'ide_input.dart';
 
-/// Monaco's find/replace widget, drawn in the app's palette: a chevron that
-/// toggles the replace row, a find input with inline Aa / ab / .* toggles,
-/// the "N of M" counter, previous/next/close, and replace / replace all.
+/// Monaco's find/replace widget, in the color theme's colors of VS Code's
+/// (editor/contrib/find/browser/findWidget.css): a chevron that toggles the
+/// replace row, a find input with inline Aa / ab / .* toggles, the "N of M"
+/// counter, previous/next/close, and replace / replace all.
 ///
 /// Stateless about search itself: the editor owns the controllers, options
 /// and results and passes callbacks in. Without [onToggleReplace] it is
@@ -142,7 +143,13 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
       builder: (context, constraints) {
         // Narrow editors drop the counter's fixed width (Monaco's 69px).
         final counterWidth = constraints.maxWidth < 360 ? 0.0 : 69.0;
-        return _build(noResults, count, mac, shortcut, counterWidth);
+        return DecoratedBox(
+          decoration: const BoxDecoration(
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(4)),
+            boxShadow: IdeHoverColors.shadow,
+          ),
+          child: _build(noResults, count, mac, shortcut, counterWidth),
+        );
       },
     );
   }
@@ -154,6 +161,9 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
     String Function(LogicalKeyboardKey) shortcut,
     double counterWidth,
   ) {
+    final colors = themeColors;
+    // High contrast themes' `contrastBorder` over `widget.border`.
+    final border = colors.get('contrastBorder') ?? colors.get('widget.border');
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): widget.onClose,
@@ -167,12 +177,10 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
         ..._toggleBindings,
       },
       child: Material(
-        color: CursorColors.surfaceRaised,
-        elevation: 8,
-        shadowColor: Colors.black,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(4)),
-          side: BorderSide(color: CursorColors.border),
+        color: colors['editorWidget.background'],
+        shape: RoundedRectangleBorder(
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(4)),
+          side: border == null ? BorderSide.none : BorderSide(color: border),
         ),
         child: SizedBox(
           height: _replaceShown
@@ -251,8 +259,8 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: noResults
-                                      ? CursorColors.removed
-                                      : CursorColors.text,
+                                      ? colors['errorForeground']
+                                      : colors['editorWidget.foreground'],
                                 ),
                               ),
                             ),
@@ -360,13 +368,15 @@ class _ReplaceToggleState extends State<_ReplaceToggle> {
             width: 18,
             margin: const EdgeInsets.fromLTRB(2, 4, 2, 4),
             decoration: BoxDecoration(
-              color: _hover ? const Color(0x1FFFFFFF) : Colors.transparent,
+              color: _hover
+                  ? themeColors['toolbar.hoverBackground']
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(3),
             ),
             child: Icon(
               widget.expanded ? Codicons.chevronDown : Codicons.chevronRight,
               size: 16,
-              color: CursorColors.text,
+              color: themeColors['icon.foreground'],
             ),
           ),
         ),
@@ -392,16 +402,17 @@ class _FindInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // `defaultInputBoxStyles`; no results mark it as an invalid input.
     final borderColor = error
-        ? CursorColors.removed
+        ? themeColors['inputValidation.errorBorder']
         : focusNode.hasFocus
-        ? CursorColors.accent
-        : CursorColors.borderStrong;
+        ? IdeInputColors.focusBorder
+        : IdeInputColors.border;
     return Container(
       height: 26,
       margin: const EdgeInsets.only(left: 2),
       decoration: BoxDecoration(
-        color: CursorColors.background,
+        color: IdeInputColors.background,
         borderRadius: BorderRadius.circular(3),
         border: Border.all(color: borderColor),
       ),
@@ -413,18 +424,18 @@ class _FindInput extends StatelessWidget {
               focusNode: focusNode,
               autocorrect: false,
               enableSuggestions: false,
-              cursorColor: CursorColors.accent,
+              cursorColor: IdeInputColors.foreground,
               cursorWidth: 1.5,
               cursorHeight: ideCaretHeight(12.5),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
-                color: CursorColors.textPrimary,
+                color: IdeInputColors.foreground,
               ),
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle: const TextStyle(
+                hintStyle: TextStyle(
                   fontSize: 12.5,
-                  color: CursorColors.textFaint,
+                  color: IdeInputColors.placeholder,
                 ),
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
@@ -468,6 +479,9 @@ class _InlineToggleState extends State<_InlineToggle> {
   @override
   Widget build(BuildContext context) {
     final active = widget.active;
+    // `defaultToggleStyles`; high contrast themes outline it on hover
+    // instead (dashed upstream).
+    final highContrast = themeColors.highContrast;
     return IdeHover(
       message: widget.tooltip,
       child: Semantics(
@@ -488,20 +502,25 @@ class _InlineToggleState extends State<_InlineToggle> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: active
-                    ? const Color(0x664C9DFF)
-                    : _hover
-                    ? const Color(0x1FFFFFFF)
+                    ? IdeInputColors.optionActiveBackground
+                    : _hover && !highContrast
+                    ? IdeInputColors.optionHoverBackground
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(3),
                 border: Border.all(
-                  color: active ? CursorColors.accent : Colors.transparent,
+                  color: _hover && highContrast
+                      ? themeColors['focusBorder']
+                      : active
+                      ? IdeInputColors.optionActiveBorder
+                      : Colors.transparent,
                 ),
               ),
               child: IconTheme.merge(
+                // Unchecked, the find widget's color (`inherit`).
                 data: IconThemeData(
                   color: active
-                      ? CursorColors.textPrimary
-                      : CursorColors.textMuted,
+                      ? IdeInputColors.optionActiveForeground
+                      : themeColors['editorWidget.foreground'],
                 ),
                 child: widget.child,
               ),
@@ -534,6 +553,10 @@ class _FindButtonState extends State<_FindButton> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null;
+    // High contrast themes outline it on hover (dashed upstream).
+    final outline = _hover && enabled
+        ? themeColors.get('toolbar.hoverOutline')
+        : null;
     return IdeHover(
       message: widget.tooltip,
       child: MouseRegion(
@@ -549,14 +572,22 @@ class _FindButtonState extends State<_FindButton> {
             margin: const EdgeInsets.only(left: 1),
             decoration: BoxDecoration(
               color: _hover && enabled
-                  ? const Color(0x1FFFFFFF)
+                  ? themeColors['toolbar.hoverBackground']
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(3),
             ),
+            foregroundDecoration: outline == null
+                ? null
+                : BoxDecoration(
+                    border: Border.all(color: outline),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
             child: Icon(
               widget.icon,
               size: 15,
-              color: enabled ? CursorColors.text : CursorColors.textFaint,
+              color: enabled
+                  ? themeColors['icon.foreground']
+                  : themeColors['disabledForeground'],
             ),
           ),
         ),

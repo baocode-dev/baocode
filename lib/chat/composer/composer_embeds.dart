@@ -7,6 +7,7 @@ import 'package:flutter_quill/quill_delta.dart';
 
 import '../../theme/cursor_theme.dart';
 import '../../theme/material_file_icons.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../widgets/file_label.dart';
 import '../../kernel/kernel_types.dart';
 import 'composer_mock_data.dart';
@@ -239,23 +240,25 @@ class ComposerTokenChip extends StatelessWidget {
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 1),
               padding: const EdgeInsets.fromLTRB(4, 1, 5, 1),
+              // A command as upstream's in the chat input; a mention as an
+              // attachment's pill.
               decoration: BoxDecoration(
                 color: isCommand
-                    ? const Color(0x264C9DFF)
+                    ? themeColors['chat.slashCommandBackground']
                     : CursorColors.surface,
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(
                   color: isCommand
-                      ? const Color(0x404C9DFF)
-                      : CursorColors.borderStrong,
+                      ? Colors.transparent
+                      : themeColors['chat.requestBorder'],
                 ),
               ),
               child: switch (token.kind) {
                 SuggestionKind.file => FileLabel(token.label, fontSize: 12),
                 SuggestionKind.command => Text(
                   '/${token.label}',
-                  style: const TextStyle(
-                    color: CursorColors.accent,
+                  style: TextStyle(
+                    color: themeColors['chat.slashCommandForeground'],
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -266,7 +269,7 @@ class ComposerTokenChip extends StatelessWidget {
                     if (token.kind == SuggestionKind.folder)
                       FolderIcon(token.label, size: 14)
                     else
-                      const Icon(
+                      Icon(
                         Icons.alternate_email_rounded,
                         size: 13,
                         color: CursorColors.textMuted,
@@ -274,10 +277,7 @@ class ComposerTokenChip extends StatelessWidget {
                     const SizedBox(width: 4),
                     Text(
                       token.label,
-                      style: const TextStyle(
-                        color: CursorColors.text,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: CursorColors.text, fontSize: 12),
                     ),
                   ],
                 ),
@@ -320,7 +320,7 @@ class _SelectableToken extends SingleChildRenderObjectWidget {
 
   static Color _selectionColor(BuildContext context) =>
       DefaultSelectionStyle.of(context).selectionColor ??
-      const Color(0x664C9DFF);
+      themeColors['editor.selectionBackground'];
 }
 
 class _RenderSelectableToken extends RenderProxyBox

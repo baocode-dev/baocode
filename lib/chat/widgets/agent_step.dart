@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import 'hover_builder.dart';
 import 'orbit_indicator.dart';
 import 'shimmer_text.dart';
+import '../../ide/ide_hover.dart';
 
 /// A subagent as a card: what it was given to do, and the tools it has
 /// used. A click, or Enter once focused, opens its own conversation
@@ -126,10 +128,7 @@ class _AgentStepState extends State<AgentStep> {
               padding: const EdgeInsets.only(left: 12),
               child: Text(
                 tools,
-                style: const TextStyle(
-                  color: CursorColors.textFaint,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: CursorColors.textFaint, fontSize: 12),
               ),
             ),
           // Its buttons take their own presses (see _down).
@@ -141,7 +140,7 @@ class _AgentStepState extends State<AgentStep> {
             ),
           ),
           if (open != null)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(left: 4),
               child: Icon(
                 Icons.chevron_right_rounded,
@@ -213,7 +212,7 @@ class _AgentStepState extends State<AgentStep> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: _focused
-                        ? CursorColors.accent
+                        ? themeColors['focusBorder']
                         : hovered && open != null
                         ? CursorColors.borderStrong
                         : CursorColors.border,
@@ -242,27 +241,27 @@ class AgentStatusIcon extends StatelessWidget {
     return SizedBox.square(
       dimension: 14,
       child: switch (status) {
-        CommandStatus.running when background => const Tooltip(
+        CommandStatus.running when background => const IdeHover(
           message: 'Running in the background',
-          waitDuration: Duration(milliseconds: 500),
           child: OrbitIndicator(),
         ),
-        CommandStatus.running => const Padding(
+        CommandStatus.running => Padding(
           padding: EdgeInsets.all(1.5),
           child: CircularProgressIndicator(
             strokeWidth: 1.6,
             color: CursorColors.textMuted,
           ),
         ),
-        CommandStatus.succeeded => const Icon(
+        // As upstream's session status.
+        CommandStatus.succeeded => Icon(
           Icons.check_circle_outline_rounded,
           size: 14,
-          color: CursorColors.added,
+          color: themeColors['testing.iconPassed'],
         ),
-        CommandStatus.failed => const Icon(
+        CommandStatus.failed => Icon(
           Icons.error_outline_rounded,
           size: 14,
-          color: CursorColors.removed,
+          color: themeColors['testing.iconFailed'],
         ),
       },
     );
@@ -304,9 +303,8 @@ class StopButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    return IdeHover(
       message: 'Stop',
-      waitDuration: const Duration(milliseconds: 500),
       child: Semantics(
         button: true,
         label: 'Stop',
@@ -335,9 +333,8 @@ class BackgroundButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    return IdeHover(
       message: 'Keep it running and let the agent go on',
-      waitDuration: const Duration(milliseconds: 500),
       child: HoverBuilder(
         cursor: SystemMouseCursors.click,
         builder: (context, hovered) => GestureDetector(

@@ -8,9 +8,11 @@ import 'package:path/path.dart' as p;
 
 import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/back_to_chat_button.dart';
 import '../workspace/editor_launcher.dart';
 import '../workspace/pin_window_button.dart';
+import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
 import 'editor/monaco/flutter/document_snapshot.dart';
@@ -23,6 +25,7 @@ import 'git/git_repository.dart';
 import 'git/ide_scm_view.dart';
 import 'git/ide_timeline_view.dart';
 import 'ide_breadcrumbs.dart';
+import 'ide_color_theme_picker.dart';
 import 'ide_columns.dart';
 import 'ide_rows.dart';
 import 'ide_commands.dart';
@@ -81,6 +84,7 @@ class IdeWorkbench extends StatefulWidget {
     this.pinned = false,
     this.onPinnedChanged,
     this.terminalBackend = const TerminalBackend(),
+    this.colorThemes,
   });
 
   final IdeWorkspace workspace;
@@ -124,6 +128,10 @@ class IdeWorkbench extends StatefulWidget {
   /// TERMINAL tab.
   final TerminalBackend terminalBackend;
 
+  /// The color themes Preferences: Color Theme (⌘K ⌘T) picks from; the
+  /// command is disabled without them.
+  final IdeColorThemeController? colorThemes;
+
   @override
   State<IdeWorkbench> createState() => IdeWorkbenchState();
 }
@@ -134,6 +142,14 @@ enum IdeSideView { explorer, search, sourceControl, extensions }
 
 /// A navigation history entry (Go Back / Go Forward).
 typedef _NavigationEntry = ({String path, LspPosition position});
+
+/// A chord being typed (see [IdeWorkbenchState._chord]).
+typedef _Chord = ({
+  String label,
+  List<({IdeKeybinding binding, VoidCallback run})> candidates,
+  String message,
+  bool editor,
+});
 
 class IdeWorkbenchState extends State<IdeWorkbench> {
   final _editorKey = GlobalKey<IdeEditorState>();
@@ -208,8 +224,22 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The quick input's text while it is open (its prefix picks the mode).
   String? _quickInput;
+
+  /// The quick pick the quick input shows instead (e.g. the color themes).
+  IdeQuickPick? _quickPick;
   GlobalKey<IdeQuickInputState> _quickInputKey = GlobalKey();
   FocusNode? _focusBeforeQuickInput;
+
+  /// The chord being typed (upstream `_currentChords`): its first key's
+  /// label, the keybindings it may complete, its status message, and
+  /// whether the editor, which started it, takes the next key.
+  _Chord? _chord;
+  Timer? _chordChecker;
+
+  /// The status bar's message (upstream `INotificationService.status`),
+  /// after the items on the left.
+  String? _statusMessage;
+  Timer? _statusMessageTimer;
 
   DocumentSnapshot? _eolSnapshot;
   String _eolLabel = 'LF';
@@ -251,6 +281,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   @override
   void initState() {
     super.initState();
+    FocusManager.instance.addEarlyKeyEventHandler(_onChordKey);
     _notifications.addListener(_notificationsChanged);
     if (widget.terminalBackend.supported) {
       _terminals = TerminalService(
@@ -385,6 +416,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   @override
   void dispose() {
+    FocusManager.instance.removeEarlyKeyEventHandler(_onChordKey);
+    _chordChecker?.cancel();
+    _statusMessageTimer?.cancel();
+    // A quick pick going with the workbench hides (the color themes one
+    // applies the theme it started with again).
+    _quickPick?.onDidHide?.call();
     _detach(widget.workspace);
     _workbenchFocus.dispose();
     _explorerFocus.dispose();
@@ -419,6 +456,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (path == _activePath) return;
     _activePath = path;
     if (path == null) return;
+    // Upstream's `showEditorIfHidden`: an editor opened ends the chat's
+    // maximizing.
+    _layout.chatMaximized = false;
     _recommendServers();
     _recentFiles.add(path);
     unawaited(_explorer.reveal(path));
@@ -635,7 +675,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _revealInExplorer(String path) {
     setState(() {
       _view = IdeSideView.explorer;
-      _sidebarShown = true;
+      _layout.showSidebar();
       _explorerPanes.add('folder');
     });
     unawaited(
@@ -890,7 +930,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _showView(IdeSideView view) {
     setState(() {
       _view = view;
-      _sidebarShown = true;
+      _layout.showSidebar();
     });
     if (view == IdeSideView.explorer) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -899,7 +939,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
   }
 
-  void _toggleSidebar() => setState(() => _sidebarShown = !_sidebarShown);
+  void _toggleSidebar() => _layout.toggleSidebar();
 
   /// A part shown or hidden, here or from the window's header.
   void _layoutChanged() {
@@ -914,7 +954,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (mounted) setState(() {});
   }
 
-  void _toggleChat() => setState(() => _chatShown = !_chatShown);
+  void _toggleChat() => _layout.toggleChat();
 
   /// VS Code's Toggle Panel: the panel as it was last, or hidden.
   void _togglePanelVisibility() =>
@@ -930,16 +970,35 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       _quickInputKey.currentState?.setText(prefix);
       return;
     }
-    _focusBeforeQuickInput = FocusManager.instance.primaryFocus;
+    _openQuickInput(() => _quickInput = prefix);
+  }
+
+  /// Opens [pick] in the quick input, in place of what it shows.
+  void _showQuickPick(IdeQuickPick pick) =>
+      _openQuickInput(() => _quickPick = pick);
+
+  void _openQuickInput(VoidCallback open) {
+    final replaced = _quickPick;
+    if (_quickInput == null && replaced == null) {
+      _focusBeforeQuickInput = FocusManager.instance.primaryFocus;
+    }
     setState(() {
       _quickInputKey = GlobalKey();
-      _quickInput = prefix;
+      _quickInput = null;
+      _quickPick = null;
+      open();
     });
+    // Upstream hides the quick input that another one replaces.
+    replaced?.onDidHide?.call();
   }
 
   void _closeQuickInput() {
-    if (_quickInput == null) return;
-    setState(() => _quickInput = null);
+    final pick = _quickPick;
+    if (_quickInput == null && pick == null) return;
+    setState(() {
+      _quickInput = null;
+      _quickPick = null;
+    });
     final previous = _focusBeforeQuickInput;
     _focusBeforeQuickInput = null;
     if (previous != null &&
@@ -948,6 +1007,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       previous.requestFocus();
     } else {
       _focusEditorOrWorkbench();
+    }
+    pick?.onDidHide?.call();
+  }
+
+  /// Preferences: Color Theme (see [ideColorThemePick]).
+  void _selectColorTheme() {
+    if (widget.colorThemes case final themes?) {
+      _showQuickPick(ideColorThemePick(themes, onError: _report));
     }
   }
 
@@ -1003,6 +1070,149 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (text.startsWith(':')) return '';
     if (text.startsWith('@')) return 'Type the name of a symbol to go to.';
     return 'Search files by name (append : to go to a line or > to run a command)';
+  }
+
+  // --- Chords --------------------------------------------------------------
+  // Two-chord keybindings (⌘K ⌘T), ported from VS Code
+  // src/vs/platform/keybinding/common/abstractKeybindingService.ts at
+  // 6a598d4a13031703d483d103c1d934a36ad27971 (`_doDispatch`,
+  // `_expectAnotherChord`, `_scheduleLeaveChordMode`, `_leaveChordMode`),
+  // with the status bar messages of notificationsStatus.ts. A first chord
+  // counts when the focus lets it bubble here (a terminal keeps its keys);
+  // the editor reports its own through [_onEditorChordKey].
+
+  static final _modifierKeys = {
+    LogicalKeyboardKey.meta,
+    LogicalKeyboardKey.metaLeft,
+    LogicalKeyboardKey.metaRight,
+    LogicalKeyboardKey.control,
+    LogicalKeyboardKey.controlLeft,
+    LogicalKeyboardKey.controlRight,
+    LogicalKeyboardKey.shift,
+    LogicalKeyboardKey.shiftLeft,
+    LogicalKeyboardKey.shiftRight,
+    LogicalKeyboardKey.alt,
+    LogicalKeyboardKey.altLeft,
+    LogicalKeyboardKey.altRight,
+  };
+
+  /// A key the focus let through: the first chord of a two-chord
+  /// keybinding starts chord mode (`ResultKind.MoreChordsNeeded`).
+  KeyEventResult _onWorkbenchKey(FocusNode node, KeyEvent event) {
+    if (_chord != null || event is KeyUpEvent) return KeyEventResult.ignored;
+    final candidates = _chordCandidates(event);
+    if (candidates.isEmpty) return KeyEventResult.ignored;
+    _expectAnotherChord(event, candidates, editor: false);
+    return KeyEventResult.handled;
+  }
+
+  /// A key of a chord the editor starts ([second] false) or does not bind.
+  void _onEditorChordKey(KeyEvent event, {required bool second}) {
+    if (!second) {
+      _leaveChordMode();
+      _expectAnotherChord(event, _chordCandidates(event), editor: true);
+    } else if (_chord case final chord? when chord.editor) {
+      _resolveChord(chord, event);
+    }
+  }
+
+  /// The key after a first chord, before the focus sees it: upstream's
+  /// keybinding service takes it wherever the focus is.
+  KeyEventResult _onChordKey(KeyEvent event) {
+    final chord = _chord;
+    if (chord == null ||
+        event is KeyUpEvent ||
+        _modifierKeys.contains(event.logicalKey)) {
+      return KeyEventResult.ignored;
+    }
+    if (chord.editor) {
+      // The editor takes it, handing it to [_onEditorChordKey] unless it
+      // binds it; the chord ends either way.
+      _setStatusMessage(null);
+      scheduleMicrotask(() {
+        if (identical(_chord, chord)) _leaveChordMode();
+      });
+      return KeyEventResult.ignored;
+    }
+    _resolveChord(chord, event);
+    return KeyEventResult.handled;
+  }
+
+  List<({IdeKeybinding binding, VoidCallback run})> _chordCandidates(
+    KeyEvent event,
+  ) {
+    final mac = ideUsesMacKeys;
+    return [
+      for (final chord in ideChordBindings(_allCommands()))
+        if (chord.binding
+            .activator(mac: mac)
+            .accepts(event, HardwareKeyboard.instance))
+          chord,
+    ];
+  }
+
+  void _expectAnotherChord(
+    KeyEvent event,
+    List<({IdeKeybinding binding, VoidCallback run})> candidates, {
+    required bool editor,
+  }) {
+    final label = IdeKeybinding.pressed(event).label();
+    final message = '($label) was pressed. Waiting for second key of chord...';
+    _chord = (
+      label: label,
+      candidates: candidates,
+      message: message,
+      editor: editor,
+    );
+    _setStatusMessage(message);
+    // `_scheduleLeaveChordMode`: out after 5 seconds, or once the window
+    // is not the active one.
+    _chordChecker?.cancel();
+    _chordChecker = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      final state = WidgetsBinding.instance.lifecycleState;
+      if ((state != null && state != AppLifecycleState.resumed) ||
+          timer.tick * 500 > 5000) {
+        _leaveChordMode();
+      }
+    });
+  }
+
+  /// Runs the keybinding [event] completes, or says there is none.
+  void _resolveChord(_Chord chord, KeyEvent event) {
+    _leaveChordMode();
+    final mac = ideUsesMacKeys;
+    for (final candidate in chord.candidates) {
+      if (candidate.binding.second!
+          .activator(mac: mac)
+          .accepts(event, HardwareKeyboard.instance)) {
+        candidate.run();
+        return;
+      }
+    }
+    final keypress = IdeKeybinding.pressed(event).label();
+    _setStatusMessage(
+      'The key combination (${chord.label}, $keypress) is not a command.',
+      hideAfter: const Duration(seconds: 10),
+    );
+  }
+
+  void _leaveChordMode() {
+    final chord = _chord;
+    if (chord == null) return;
+    _chord = null;
+    _chordChecker?.cancel();
+    _chordChecker = null;
+    if (identical(_statusMessage, chord.message)) _setStatusMessage(null);
+  }
+
+  /// Shows [message] in the status bar in place of the last one, for
+  /// [hideAfter] if given (`NotificationsStatus.doSetStatusMessage`).
+  void _setStatusMessage(String? message, {Duration? hideAfter}) {
+    _statusMessageTimer?.cancel();
+    _statusMessageTimer = message != null && hideAfter != null
+        ? Timer(hideAfter, () => _setStatusMessage(null))
+        : null;
+    if (mounted) setState(() => _statusMessage = message);
   }
 
   // --- Commands ------------------------------------------------------------
@@ -1417,6 +1627,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         run: () => _navigate(back: false),
       ),
       IdeCommand(
+        id: ideSelectColorThemeCommandId,
+        category: 'Preferences',
+        label: 'Color Theme',
+        keybindings: const [ideSelectColorThemeKeybinding],
+        enabled: widget.colorThemes != null,
+        run: _selectColorTheme,
+      ),
+      IdeCommand(
         id: 'monad.ide.toggleFormatOnSave',
         category: 'Preferences',
         label: _formatOnSave
@@ -1473,18 +1691,19 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// is showing (their seam is this card's border).
   Widget _activityBar({required bool joined}) {
     Widget item(IdeSideView view, IconData icon, String label, {int? badge}) {
-      final selected = _view == view && _sidebarShown;
+      // The side bar as it shows: one given way to the chat opens.
+      final selected = _view == view && joined;
       return _ActivityItem(
         icon: icon,
         label: label,
         badge: badge,
         selected: selected,
         onTap: () => setState(() {
-          if (_view == view) {
-            _sidebarShown = !_sidebarShown;
+          if (selected) {
+            _sidebarShown = false;
           } else {
             _view = view;
-            _sidebarShown = true;
+            _layout.showSidebar();
           }
         }),
       );
@@ -1553,7 +1772,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     radius: const BorderRadius.horizontal(
       right: Radius.circular(IdeModernUI.radius),
     ),
-    border: const Border(
+    border: Border(
       top: BorderSide(color: IdeModernUI.border),
       right: BorderSide(color: IdeModernUI.border),
       bottom: BorderSide(color: IdeModernUI.border),
@@ -1626,7 +1845,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final activePath = workspace.active?.path;
     final timelinePath = IdeTimelineView.pathOf(_timeline, activePath);
     return ColoredBox(
-      color: CursorColors.sidebarSurface,
+      color: themeColors['sideBar.background'],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1748,7 +1967,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   Widget _editorArea(List<IdeCommand> commands) {
     final active = widget.workspace.active;
     return IdeCard(
-      color: CursorColors.background,
+      color: themeColors['editor.background'],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1809,6 +2028,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         onShowReferences: _showReferences,
                         onShowCommands: () => _showQuickInput('>'),
                         formatOnSave: _formatOnSave,
+                        onChordKey: _onEditorChordKey,
                       ),
           ),
         ],
@@ -1844,46 +2064,88 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           offstage: !shown,
           child: TickerMode(
             enabled: shown,
-            child: ExcludeFocus(
-              excluding: !shown,
-              child: IdeCard(child: widget.chat),
-            ),
+            child: ExcludeFocus(excluding: !shown, child: _chatCard()),
           ),
         ),
       ),
     );
   }
 
+  /// The chat's card, which keeps its state as it moves to the editor's
+  /// place, maximized, and back.
+  Widget _chatCard() => IdeCard(key: _chatKey, child: widget.chat);
+  final _chatKey = GlobalKey(debugLabel: 'ide chat');
+
+  /// What [IdeLayout.roomForBoth] is to be, from the last layout: the
+  /// layout's listeners build, so it is told after the frame.
+  bool _roomForBoth = true;
+  bool _roomForBothPending = false;
+
+  void _noteRoomForBoth(bool value) {
+    _roomForBoth = value;
+    if (value == _layout.roomForBoth || _roomForBothPending) return;
+    _roomForBothPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _roomForBothPending = false;
+      if (mounted) _layout.roomForBoth = _roomForBoth;
+    });
+  }
+
   /// The Modern UI's cards on the shell: 4px apart, and 4px from the
   /// window's sides and the status bar. The chat stays on the right however
-  /// narrow the window (see [IdeColumns.fit]).
-  Widget _split(double width, List<IdeCommand> commands) {
+  /// narrow the window (see [IdeColumns.fit]), or, maximized, has the
+  /// editor's place and the side bar's.
+  Widget _split(Size size, List<IdeCommand> commands) {
     const gap = IdeModernUI.gap;
+    final maximized = _layout.chatMaximized;
     // Hidden, the chat leaves its sash as the gap at the window's side. The
     // gap above the status bar is each column's: the panel's sash, hidden.
     final outside = EdgeInsets.fromLTRB(gap, 0, _chatShown ? gap : 0, 0);
-    Widget above(Widget column) => Padding(
+    // Keyed, so a sash keeps its drag as the columns change about it.
+    Widget above(Widget column, String slot) => Padding(
+      key: ValueKey('ide-row-$slot'),
       padding: const EdgeInsets.only(bottom: gap),
       child: column,
     );
+    // Maximized, the chat has one sash less, but is sized as though both
+    // were there: dragged back, the editor comes out where the pointer is.
     final room =
-        width -
+        size.width -
         outside.horizontal -
         IdeModernUI.activityBarWidth -
         2 * _sashWidth;
+    _noteRoomForBoth(IdeColumns.roomForBoth(room - (_chatShown ? 0 : gap)));
     final columns = IdeColumns.fit(
       room,
       sidebar: _sidebarShown ? _sidebarWidth : null,
       chat: _chatShown ? _chatWidth : null,
+      chatMaximized: maximized,
     );
     final sidebarVisible = columns.sidebar > 0;
     final chatVisible = columns.chat > 0;
+    final chatSash = above(
+      _Sash(
+        key: const ValueKey('ide-chat-sash'),
+        grip: chatVisible,
+        canMoveBack: columns.canGrowChat(room),
+        canMoveForward: chatVisible,
+        onStart: () => _dragStart = (columns: columns, room: room),
+        onDrag: (dx) => _dragTo((start, room) => start.dragChat(room, dx)),
+        onReset: () => setState(() {
+          _layout
+            ..showChat()
+            ..chatMaximized = false;
+          _chatWidth = IdeColumns.defaultChat;
+        }),
+      ),
+      'chat-sash',
+    );
     return Padding(
       padding: outside,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          above(_activityBar(joined: sidebarVisible)),
+          above(_activityBar(joined: sidebarVisible), 'activity-bar'),
           if (sidebarVisible)
             above(
               SizedBox(
@@ -1891,47 +2153,36 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 width: columns.sidebar,
                 child: _sidebarCard(),
               ),
+              'sidebar',
             ),
-          // With the side bar hidden, the gap by the activity bar: dragged
-          // out, it opens the side bar.
-          above(
-            _Sash(
-              key: const ValueKey('ide-sidebar-sash'),
-              grip: sidebarVisible,
-              canMoveBack: sidebarVisible,
-              canMoveForward: columns.canGrowSidebar(room),
-              onStart: () => _dragStart = (columns: columns, room: room),
-              onDrag: (dx) =>
-                  _dragTo((start, room) => start.dragSidebar(room, dx)),
-              onReset: () => setState(() {
-                _sidebarShown = true;
-                _sidebarWidth = IdeColumns.defaultSidebar;
-              }),
+          // Maximized, the chat's sash is by the activity bar: dragged
+          // back, the editor comes out.
+          if (maximized)
+            chatSash
+          else
+            // With the side bar hidden, the gap by the activity bar: dragged
+            // out, it opens the side bar.
+            above(
+              _Sash(
+                key: const ValueKey('ide-sidebar-sash'),
+                grip: sidebarVisible,
+                canMoveBack: sidebarVisible,
+                canMoveForward: columns.canGrowSidebar(room),
+                onStart: () => _dragStart = (columns: columns, room: room),
+                onDrag: (dx) =>
+                    _dragTo((start, room) => start.dragSidebar(room, dx)),
+                onReset: () => setState(() {
+                  _layout.showSidebar();
+                  _sidebarWidth = IdeColumns.defaultSidebar;
+                }),
+              ),
+              'sidebar-sash',
             ),
-          ),
           Expanded(
             key: const ValueKey('ide-editor-column'),
-            child: LayoutBuilder(
-              builder: (context, constraints) =>
-                  _editorColumn(constraints.maxHeight, commands),
-            ),
+            child: _editorColumn(size.height, commands, maximized: maximized),
           ),
-          above(
-            _Sash(
-              key: const ValueKey('ide-chat-sash'),
-              grip: chatVisible,
-              canMoveBack: columns.canGrowChat(room),
-              canMoveForward: chatVisible,
-              onStart: () => _dragStart = (columns: columns, room: room),
-              onDrag: (dx) =>
-                  _dragTo((start, room) => start.dragChat(room, dx)),
-              onReset: () => setState(() {
-                _chatShown = true;
-                _chatWidth = IdeColumns.defaultChat;
-              }),
-            ),
-          ),
-          above(_chatSlot(columns.chat)),
+          if (!maximized) ...[chatSash, above(_chatSlot(columns.chat), 'chat')],
         ],
       ),
     );
@@ -1939,21 +2190,49 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The editor, and below it the panel (the terminal), as VS Code's panel
   /// at the bottom, centered: under the editor only. Hidden, the panel
-  /// leaves its sash as the gap above the status bar.
-  Widget _editorColumn(double height, List<IdeCommand> commands) {
+  /// leaves its sash as the gap above the status bar. [maximized], the chat
+  /// has the editor's place, above the panel; the editor is kept, as the
+  /// chat hidden is.
+  Widget _editorColumn(
+    double height,
+    List<IdeCommand> commands, {
+    required bool maximized,
+  }) {
     final shown = _panel != null;
     final room = height - _sashWidth - (shown ? IdeModernUI.gap : 0);
     final rows = IdeRows.fit(
       room,
       panel: shown ? _panelHeight ?? IdeRows.defaultPanel(room) : null,
+      minAbove: maximized ? IdeRows.minChat : IdeRows.minEditor,
     );
     final panelVisible = rows.panel > 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
-          key: const ValueKey('ide-editor'),
-          child: _editorArea(commands),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Offstage(
+                offstage: maximized,
+                child: TickerMode(
+                  enabled: !maximized,
+                  child: ExcludeFocus(
+                    excluding: maximized,
+                    child: KeyedSubtree(
+                      key: const ValueKey('ide-editor'),
+                      child: _editorArea(commands),
+                    ),
+                  ),
+                ),
+              ),
+              if (maximized)
+                KeyedSubtree(
+                  key: const ValueKey('ide-chat'),
+                  child: _chatCard(),
+                ),
+            ],
+          ),
         ),
         _Sash(
           key: const ValueKey('ide-panel-sash'),
@@ -2038,7 +2317,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               excluding: !shown,
               child: Focus(
                 focusNode: _panelFocus,
+                // panelPart.ts' `panel.background` (the editor's by
+                // default), not the shell's.
                 child: IdeCard(
+                  color: themeColors['panel.background'],
                   child: IdeBottomPanel(
                     tab: _panel ?? _lastPanel,
                     root: widget.workspace.root,
@@ -2085,13 +2367,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   /// Where a sash's drag has got to, [drag] from its start. A part pushed
-  /// or snapped shut opens again (⌘B, ⌘J) as wide as it was.
+  /// or snapped shut opens again (⌘B, ⌘J) as wide as it was, and the chat
+  /// maximized comes back as wide as it was.
   void _dragTo(IdeColumns Function(IdeColumns start, double room) drag) {
     final start = _dragStart;
     if (start == null) return;
     final columns = start.columns;
     final next = drag(columns, start.room);
     setState(() {
+      _layout.chatMaximized = next.chatMaximized;
       if (next.sidebar > 0) {
         _sidebarShown = true;
         _sidebarWidth = next.sidebar;
@@ -2099,12 +2383,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         _sidebarShown = false;
         _sidebarWidth = columns.sidebar;
       }
-      if (next.chat > 0) {
+      // Maximized, the chat is all the room: it comes back from there as
+      // wide as when the drag began.
+      if (next.chatMaximized) {
+        if (!columns.chatMaximized) _chatWidth = columns.chat;
+      } else if (next.chat > 0) {
         _chatShown = true;
         _chatWidth = next.chat;
       } else if (columns.chat > 0) {
         _chatShown = false;
-        _chatWidth = columns.chat;
+        if (!columns.chatMaximized) _chatWidth = columns.chat;
       }
     });
   }
@@ -2114,34 +2402,48 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       LogicalKeyboardKey.keyP,
       primary: true,
     ).label();
-    return SizedBox(
-      height: CursorMetrics.titleBarHeight,
-      child: Row(
-        children: [
-          SizedBox(width: CursorMetrics.trafficLightsWidth + 6),
-          // VS Code's layout controls; the side bar's on its side, after
-          // the traffic lights.
-          IdeLayoutToggle.sidebar(_layout),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Center(
-              child: _CommandCenter(
-                label: widget.project.name,
-                shortcut: quickOpen,
-                onTap: () => _showQuickInput(''),
+    // A double click on its empty part zooms the window, as the system's
+    // title bar does.
+    return TitleBarDoubleClick(
+      child: SizedBox(
+        height: CursorMetrics.titleBarHeight,
+        child: Row(
+          children: [
+            SizedBox(width: CursorMetrics.trafficLightsWidth + 6),
+            // VS Code's layout controls; the side bar's on its side, after
+            // the traffic lights.
+            IdeLayoutToggle.sidebar(_layout),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Center(
+                child: _CommandCenter(
+                  label: widget.project.name,
+                  shortcut: quickOpen,
+                  onTap: () => _showQuickInput(''),
+                ),
               ),
             ),
-          ),
-          IdeLayoutToggle.panel(_layout),
-          IdeLayoutToggle.chat(_layout),
-          if (widget.onPinnedChanged case final onPinnedChanged?) ...[
-            const SizedBox(width: 2),
-            PinWindowButton(pinned: widget.pinned, onChanged: onPinnedChanged),
+            TitleBarControls(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IdeLayoutToggle.panel(_layout),
+                  IdeLayoutToggle.chat(_layout),
+                  if (widget.onPinnedChanged case final onPinnedChanged?) ...[
+                    const SizedBox(width: 2),
+                    PinWindowButton(
+                      pinned: widget.pinned,
+                      onChanged: onPinnedChanged,
+                    ),
+                  ],
+                  const SizedBox(width: 8),
+                  BackToChatButton(onPressed: () => unawaited(_back())),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
           ],
-          const SizedBox(width: 8),
-          BackToChatButton(onPressed: () => unawaited(_back())),
-          const SizedBox(width: 8),
-        ],
+        ),
       ),
     );
   }
@@ -2181,6 +2483,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             onInstall: _installServer,
           ),
       ],
+      if (_statusMessage case final message?) IdeStatusBarItem(message),
     ];
     final bell = ideNotificationsStatusItem(_notifications);
     if (active == null || active.openError != null) {
@@ -2225,6 +2528,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           bindings: _shortcuts(commands),
           child: Focus(
             focusNode: _workbenchFocus,
+            onKeyEvent: _onWorkbenchKey,
             child: Material(
               color: IdeModernUI.shell,
               child: Stack(
@@ -2235,7 +2539,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                       Expanded(
                         child: LayoutBuilder(
                           builder: (context, constraints) =>
-                              _split(constraints.maxWidth, commands),
+                              _split(constraints.biggest, commands),
                         ),
                       ),
                       _statusBar(),
@@ -2266,19 +2570,26 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                       ),
                     ),
                   ),
-                  if (_quickInput case final text?)
+                  if (_quickPick != null || _quickInput != null)
                     Positioned.fill(
                       top: WindowControls.drawsHeader
                           ? 0
                           : CursorMetrics.titleBarHeight,
-                      child: IdeQuickInput(
-                        key: _quickInputKey,
-                        initialText: text,
-                        itemsFor: _quickItems,
-                        placeholderFor: _quickPlaceholder,
-                        onClose: _closeQuickInput,
-                        refresh: _quickRefresh,
-                      ),
+                      child: switch (_quickPick) {
+                        final pick? => IdeQuickInput.pick(
+                          key: _quickInputKey,
+                          pick: pick,
+                          onClose: _closeQuickInput,
+                        ),
+                        null => IdeQuickInput(
+                          key: _quickInputKey,
+                          initialText: _quickInput!,
+                          itemsFor: _quickItems,
+                          placeholderFor: _quickPlaceholder,
+                          onClose: _closeQuickInput,
+                          refresh: _quickRefresh,
+                        ),
+                      },
                     ),
                 ],
               ),
@@ -2311,6 +2622,11 @@ class _CommandCenterState extends State<_CommandCenter> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = themeColors;
+    final foreground =
+        colors[_hover
+            ? 'commandCenter.activeForeground'
+            : 'commandCenter.foreground'];
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -2322,29 +2638,31 @@ class _CommandCenterState extends State<_CommandCenter> {
           constraints: const BoxConstraints(maxWidth: 380, minWidth: 160),
           height: 22,
           padding: const EdgeInsets.symmetric(horizontal: 8),
+          // `.command-center-center` (titlebarpart.css).
           decoration: BoxDecoration(
-            color: _hover ? const Color(0x14FFFFFF) : const Color(0x0AFFFFFF),
+            color:
+                colors[_hover
+                    ? 'commandCenter.activeBackground'
+                    : 'commandCenter.background'],
             borderRadius: BorderRadius.circular(5),
-            border: Border.all(color: CursorColors.border),
+            border: Border.all(
+              color:
+                  colors[_hover
+                      ? 'commandCenter.activeBorder'
+                      : 'commandCenter.border'],
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Codicons.search,
-                size: 14,
-                color: CursorColors.textMuted,
-              ),
+              Icon(Codicons.search, size: 14, color: foreground),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   widget.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: CursorColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 12, color: foreground),
                 ),
               ),
             ],
@@ -2582,7 +2900,7 @@ class _ActivityItemState extends State<_ActivityItem> {
                       ),
                       child: Text(
                         ideBadgeLabel(count),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10,
                           height: 1,
                           color: IdeModernUI.activityBadgeForeground,

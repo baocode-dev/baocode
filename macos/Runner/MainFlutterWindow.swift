@@ -19,11 +19,12 @@ class MainFlutterWindow: NSWindow {
     titlebarAppearsTransparent = true
     styleMask.insert(.fullSizeContentView)
     isMovableByWindowBackground = true
-    // See-through, for the sidebar's material (see VibrantContent); dark,
-    // as the app is, whatever the system's appearance.
+    // See-through, for the sidebar's material (see VibrantContent); light
+    // or dark as the app's color theme is, whatever the system's appearance.
+    // The last theme's until Flutter says (setAppearance).
     isOpaque = false
     backgroundColor = .clear
-    appearance = NSAppearance(named: .darkAqua)
+    appearance = NSAppearance(named: Self.keptDarkAppearance ? .darkAqua : .aqua)
     flutterViewController.backgroundColor = .clear
 
     // Sized after the style: with the full-size content view, the content
@@ -58,9 +59,21 @@ class MainFlutterWindow: NSWindow {
     self.channel = channel
     channel.setMethodCallHandler { [weak self] call, result in
       switch call.method {
+      case "setAppearance":
+        // The color theme's type: the material under the sidebar, the
+        // traffic lights and system menus follow it. Kept for the next start.
+        let dark = call.arguments as? Bool ?? true
+        self?.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        UserDefaults.standard.set(dark, forKey: Self.darkAppearanceKey)
+        result(nil)
       case "setAlwaysOnTop":
         // Floating: above other apps' windows, as a pinned window should be.
         self?.level = (call.arguments as? Bool ?? false) ? .floating : .normal
+        result(nil)
+      case "handleTitleDoubleClick":
+        // A double click on the empty part of the title bar Flutter draws
+        // (see title_bar_double_click.dart): AppKit only handles its own.
+        self?.titleBarDoubleClicked()
         result(nil)
       case "pickDirectory":
         // A project folder to run agents in.
@@ -126,6 +139,36 @@ class MainFlutterWindow: NSWindow {
   }
 
   private var channel: FlutterMethodChannel?
+
+  private static let darkAppearanceKey = "MonadDarkAppearance"
+
+  /// Whether the last color theme was dark; dark the first time.
+  private static var keptDarkAppearance: Bool {
+    UserDefaults.standard.object(forKey: darkAppearanceKey) as? Bool ?? true
+  }
+
+  /// What System Settings' "Double-click a window's title bar to" says:
+  /// fill, zoom (also when never set), minimize or nothing.
+  ///
+  /// VS Code 6a598d4a13031703d483d103c1d934a36ad27971 leaves this to its
+  /// Electron (43, Chromium 150): -[NativeWidgetMacNSWindow sendEvent:] in
+  /// components/remote_cocoa/app_shim/native_widget_mac_nswindow.mm, on the
+  /// second click's mouse-up in a draggable region. As there, only
+  /// AppleActionOnDoubleClick is read (not the older
+  /// AppleMiniaturizeOnDoubleClick), and Fill is AppKit's private
+  /// _zoomFill: (macOS 15), when it is there.
+  private func titleBarDoubleClicked() {
+    let action = UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick")
+    let zoomFill = Selector(("_zoomFill:"))
+    if action == "Fill" && responds(to: zoomFill) {
+      _ = perform(zoomFill, with: nil)
+    } else if action == nil || action == "Maximize" {
+      performZoom(nil)
+    } else if action == "Minimize" {
+      performMiniaturize(nil)
+    }
+    // "None", or a value not known: nothing.
+  }
 
   // The Edit menu's commands (see MainMenu.xib), for what has focus in
   // Flutter. The system's own (undo:, copy:, selectAll:…) would stop at the

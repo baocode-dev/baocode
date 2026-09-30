@@ -8,45 +8,49 @@
 // `fromExtensionTheme`, `type`, `semanticHighlighting`, `getColor`,
 // `defines`, the `tokenColors` getter with its default rule and
 // `defaultThemeColors`, and `tokenColorMap` (`getTokenColorIndex`,
-// `TokenColorIndex`, `normalizeColor`). The default colors come from
-// platform/theme/common/colors/editorColors.ts (`editor.foreground`,
-// `editor.background`) and colors/baseColors.ts (`foreground`), resolved as
-// colorUtils.ts `resolveDefaultColor`/`resolveColorValue` do.
+// `TokenColorIndex`, `normalizeColor`). Default colors come from the full
+// color registry (platform/theme/common/color_utils.dart, generated from the
+// desktop workbench's registrations), resolved by `resolveDefaultColor`.
 //
 // Not ported: user customizations (`setCustomizations` and the custom token,
 // color and semantic rules; a theme reads as with default settings),
-// transient colors, storage, token style resolution (`resolveScopes`,
-// `getTokenStyle`, `findMetadata`), the font index and the rest of the color
-// registry: [ColorThemeData.getDefault] knows only the three colors above.
+// transient colors, token style resolution (`resolveScopes`,
+// `getTokenStyle`, `findMetadata`; see color_theme_token_styles.dart) and the
+// font index.
 //
 // Deviations: files are read through a [ThemeResourceReader] from path
 // strings (joined like `resources.joinPath`) instead of URIs; [colors] keeps
 // the theme's strings, where upstream stores `Color.fromHex` of them (the
 // conversion happens when a color is read); semantic token rules are kept as
 // their raw selector and value ([semanticTokenColors]) plus the foreground
-// the color index needs, not as parsed `SemanticTokenRule`s. Where upstream
+// the color index needs, not as parsed `SemanticTokenRule`s. [getColor] takes
+// `useDefault` as a named parameter ([IColorTheme]). Where upstream
 // throws a TypeError on a malformed value (a non-string, non-Color token
 // color; a rule that is not an object), the value is ignored. Load failures
 // are [FormatException]s with upstream's messages. JSON object keys keep
 // their order, where JavaScript's `for...in` visits integer-like keys first.
+// Storage is a JSON string rather than an `IStorageService` entry, and
+// `fromStorageData` rejects an `id` or `settingsId` that is not a string.
+
+import 'dart:convert';
 
 import 'package:path/path.dart' as p;
 
 import '../../../../base/common/color.dart';
 import '../../../../base/common/json.dart' as json;
 import '../../../../base/common/json_error_messages.dart';
+import '../../../../platform/theme/common/color_utils.dart';
 import '../../../../platform/theme/common/theme.dart';
 import 'plist_parser.dart' as plist;
 import 'theme_compatibility.dart';
 import 'workbench_theme_service.dart';
 
+export '../../../../platform/theme/common/color_utils.dart'
+    show DEFAULT_COLOR_CONFIG_VALUE;
+
 /// Reads a theme file (a path as [ColorThemeData.location] and the theme's
 /// `include`/`tokenColors` references resolve it).
 typedef ThemeResourceReader = Future<String> Function(String path);
-
-/// platform/theme/common/colorUtils.ts L89.
-// ignore: constant_identifier_names
-const String DEFAULT_COLOR_CONFIG_VALUE = 'default';
 
 /// platform/theme/common/colors/editorColors.ts.
 const String editorBackground = 'editor.background';
@@ -54,29 +58,6 @@ const String editorForeground = 'editor.foreground';
 
 /// platform/theme/common/colors/baseColors.ts.
 const String foreground = 'foreground';
-
-/// The registry defaults of the colors `tokenColors` reads, per color scheme:
-/// a hex string, a [Color], or another color's id.
-final Map<String, Map<ColorScheme, Object>> _colorDefaults = {
-  editorBackground: {
-    ColorScheme.light: '#ffffff',
-    ColorScheme.dark: '#1E1E1E',
-    ColorScheme.highContrastDark: Color.black,
-    ColorScheme.highContrastLight: Color.white,
-  },
-  editorForeground: {
-    ColorScheme.light: '#333333',
-    ColorScheme.dark: '#BBBBBB',
-    ColorScheme.highContrastDark: Color.white,
-    ColorScheme.highContrastLight: foreground,
-  },
-  foreground: {
-    ColorScheme.dark: '#CCCCCC',
-    ColorScheme.light: '#616161',
-    ColorScheme.highContrastDark: '#FFFFFF',
-    ColorScheme.highContrastLight: '#292929',
-  },
-};
 
 /// A semantic token rule of the theme: its selector and value as written,
 /// and the foreground upstream's `TokenStyle.fromSettings` parses from it.
@@ -88,7 +69,7 @@ class SemanticTokenColor {
   final Color? foreground;
 }
 
-class ColorThemeData {
+class ColorThemeData implements IColorTheme {
   ColorThemeData._(this.id, this.label, this.settingsId);
 
   final String id;
@@ -186,32 +167,23 @@ class ColorThemeData {
     return _textMateThemingRules = List.unmodifiable(result);
   }
 
-  Color? getColor(String colorId, [bool? useDefault]) {
+  @override
+  Color? getColor(String colorId, {bool useDefault = true}) {
     final color = _colorMap[colorId];
     if (color != null) {
       return Color.fromHex(color);
     }
-    if (useDefault != false) {
+    if (useDefault) {
       return getDefault(colorId);
     }
     return null;
   }
 
+  @override
   bool defines(String colorId) => _colorMap.containsKey(colorId);
 
-  /// The color registry's default: known only for `editor.foreground`,
-  /// `editor.background` and `foreground`.
-  Color? getDefault(String colorId) {
-    final colorValue = _colorDefaults[colorId]?[type];
-    if (colorValue == null) {
-      return null;
-    }
-    if (colorValue is Color) {
-      return colorValue;
-    }
-    final value = colorValue as String;
-    return value.startsWith('#') ? Color.fromHex(value) : getColor(value);
-  }
+  Color? getDefault(String colorId) =>
+      getColorRegistry().resolveDefaultColor(colorId, this);
 
   _TokenColorIndex _getTokenColorIndex() {
     // collect all colors that tokens can have
@@ -273,6 +245,7 @@ class ColorThemeData {
 
   List<String> get classNames => id.split(' ');
 
+  @override
   ColorScheme get type {
     switch (themeTypeSelector) {
       case ThemeTypeSelector.vs:
@@ -313,6 +286,120 @@ class ColorThemeData {
     themeData.location = colorThemeLocation;
     themeData.extensionId = extensionId;
     themeData.isLoaded = false;
+    return themeData;
+  }
+
+  // Quick restore (`toStorage`, `fromStorageData`, `createUnloadedTheme*`):
+  // the theme the workbench paints with until the theme file is read.
+
+  /// `toStorage`: the value upstream keeps under `colorThemeData`. Semantic
+  /// rules keep their selector and value as written (`_selector`, `_style`),
+  /// where upstream writes parsed `SemanticTokenRule`s.
+  String toStorage() => jsonEncode({
+    'id': id,
+    'label': label,
+    'settingsId': settingsId,
+    'themeTokenColors': [
+      for (final rule in _themeTokenColors)
+        if (rule is Map<String, Object?>)
+          {
+            if (rule.containsKey('settings')) 'settings': rule['settings'],
+            if (rule.containsKey('scope')) 'scope': rule['scope'],
+          },
+    ],
+    'semanticTokenRules': [
+      for (final rule in _semanticTokenRules)
+        {'_selector': rule.selector, '_style': rule.value},
+    ],
+    if (extensionId case final extensionId?)
+      'extensionData': {'_extensionId': extensionId},
+    'themeSemanticHighlighting': _themeSemanticHighlighting,
+    'colorMap': {
+      for (final MapEntry(:key, :value) in _colorMap.entries)
+        key: ColorFormatCSS.formatHexA(Color.fromHex(value), true),
+    },
+    'watch': false,
+  });
+
+  /// `fromStorageData`: the theme [toStorage] kept, loaded as far as it
+  /// was, without its [location]; null for anything else.
+  static ColorThemeData? fromStorageData(String? input) {
+    if (input == null || input.isEmpty) {
+      return null;
+    }
+    final Object? data;
+    try {
+      data = jsonDecode(input);
+    } on FormatException {
+      return null;
+    }
+    if (data is! Map<String, Object?>) {
+      return null;
+    }
+    final id = data['id'];
+    final label = data['label'];
+    final settingsId = data['settingsId'];
+    if (id is! String || id.isEmpty) {
+      return null;
+    }
+    if (settingsId is! String || settingsId.isEmpty) {
+      return null;
+    }
+    final theme = ColorThemeData._(
+      id,
+      label is String ? label : '',
+      settingsId,
+    );
+    if (data['colorMap'] case final Map<String, Object?> colorMap) {
+      for (final MapEntry(:key, :value) in colorMap.entries) {
+        if (value is String) theme._colorMap[key] = value;
+      }
+    }
+    if (data['themeTokenColors'] case final List<Object?> rules) {
+      theme._themeTokenColors = [...rules];
+    }
+    if (data['themeSemanticHighlighting'] case final bool highlighting) {
+      theme._themeSemanticHighlighting = highlighting;
+    }
+    if (data['semanticTokenRules'] case final List<Object?> rules) {
+      for (final rule in rules) {
+        if (rule case {'_selector': final String selector}) {
+          try {
+            if (_readSemanticTokenRule(selector, rule['_style'])
+                case final restored?) {
+              theme._semanticTokenRules.add(restored);
+            }
+          } on FormatException {
+            // Upstream's `fromJSONObject` drops a rule it cannot read.
+          }
+        }
+      }
+    }
+    if (data['extensionData'] case {'_extensionId': final String extension}) {
+      theme.extensionId = extension;
+    }
+    return theme;
+  }
+
+  /// `createUnloadedThemeForThemeType`: the registry's colors for [type],
+  /// with [colorMap] over them, until a theme loads.
+  static ColorThemeData createUnloadedThemeForThemeType(
+    ColorScheme type, [
+    Map<String, String>? colorMap,
+  ]) => createUnloadedTheme(switch (type) {
+    ColorScheme.light => ThemeTypeSelector.vs.value,
+    ColorScheme.dark => ThemeTypeSelector.vsDark.value,
+    ColorScheme.highContrastDark => ThemeTypeSelector.hcBlack.value,
+    ColorScheme.highContrastLight => ThemeTypeSelector.hcLight.value,
+  }, colorMap);
+
+  static ColorThemeData createUnloadedTheme(
+    String id, [
+    Map<String, String>? colorMap,
+  ]) {
+    final themeData = ColorThemeData._(id, '', '__$id');
+    themeData.isLoaded = false;
+    if (colorMap != null) themeData._colorMap = {...colorMap};
     return themeData;
   }
 }

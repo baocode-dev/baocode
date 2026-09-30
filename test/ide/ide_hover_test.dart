@@ -101,6 +101,37 @@ void main() {
     expect(hoverRect.center.dy, closeTo(target.center.dy, 1));
   });
 
+  testWidgets('a list row\'s title follows the pointer, as the `mouse` '
+      'placement does', (tester) async {
+    await pump(
+      tester,
+      const IdeHover(
+        message: '~/project/assets',
+        followMouse: true,
+        child: SizedBox(width: 300, height: 22, child: Text('assets')),
+      ),
+    );
+    final target = tester.getRect(find.byType(SizedBox).last);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    final at = Offset(target.left + 180, target.center.dy);
+    await mouse.moveTo(at);
+    await tester.pump();
+    await tester.pump(ideHoverDelay + const Duration(milliseconds: 150));
+    final hoverRect = tester.getRect(
+      find
+          .ancestor(
+            of: find.text('~/project/assets'),
+            matching: find.byType(IdeHoverBox),
+          )
+          .first,
+    );
+    // 10px right of the pointer, 2px over the row's bottom.
+    expect(hoverRect.left, closeTo(at.dx + 10, 0.01));
+    expect(hoverRect.top, closeTo(target.bottom - 2, 0.01));
+  });
+
   test('codicons are the pinned VS Code ones, and the font is bundled', () {
     // Spot checks against src/vs/base/common/codiconsLibrary.ts.
     expect(Codicons.files.codePoint, 0xeaf0);

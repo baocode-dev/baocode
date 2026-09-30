@@ -204,6 +204,31 @@ void main() {
       );
     });
 
+    test('a new theme redraws everything: no picture is kept, not even '
+        'one whose model is the same', () async {
+      // A negative glyph draws its shape in the background color, which
+      // its model (foreground, default background) does not hold.
+      const text = '\u{1FBBD}A \x1b[32mG';
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.write(text);
+      await h.paint();
+      final theme = vscodeTerminalTheme()..background = '#000080';
+      h.terminal.options.theme = theme;
+      final pixels = await h.paint();
+
+      final fresh = _Harness(configure: (o) => o.theme = theme);
+      addTearDown(fresh.dispose);
+      fresh.write(text);
+      final expected = await fresh.paint();
+      expect(pixels.at(15, 5), _fg);
+      expect(pixels.at(25, 5), const Color(0xFF000080));
+      expect(
+        pixels.data.buffer.asUint8List(),
+        expected.data.buffer.asUint8List(),
+      );
+    });
+
     test('meets the minimum contrast ratio, dim text half of it', () {
       final h = _Harness(configure: (o) => o.minimumContrastRatio = 4.5);
       addTearDown(h.dispose);

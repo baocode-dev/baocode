@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import 'markdown_view.dart';
 
@@ -20,9 +21,9 @@ class NoticeRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             children: [
-              const Expanded(child: Divider(color: CursorColors.border)),
+              Expanded(child: Divider(color: CursorColors.border)),
               const SizedBox(width: 10),
-              const Icon(
+              Icon(
                 Icons.compress_rounded,
                 size: 13,
                 color: CursorColors.textFaint,
@@ -31,14 +32,11 @@ class NoticeRow extends StatelessWidget {
               Flexible(
                 child: Text(
                   text,
-                  style: const TextStyle(
-                    color: CursorColors.textFaint,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: CursorColors.textFaint, fontSize: 12),
                 ),
               ),
               const SizedBox(width: 10),
-              const Expanded(child: Divider(color: CursorColors.border)),
+              Expanded(child: Divider(color: CursorColors.border)),
             ],
           ),
         );
@@ -59,14 +57,12 @@ class NoticeRow extends StatelessWidget {
           NoticeKind.error ||
           NoticeKind.info ||
           NoticeKind.warning:
+        final error = themeColors['errorForeground'];
         final (icon, color) = switch (item.kind) {
-          NoticeKind.error => (
-            Icons.error_outline_rounded,
-            CursorColors.removed,
-          ),
+          NoticeKind.error => (Icons.error_outline_rounded, error),
           NoticeKind.warning || NoticeKind.retry => (
             Icons.warning_amber_rounded,
-            const Color(0xFFE2C08D),
+            themeColors['notificationsWarningIcon.foreground'],
           ),
           _ => (Icons.info_outline_rounded, CursorColors.textMuted),
         };
@@ -85,7 +81,7 @@ class NoticeRow extends StatelessWidget {
                   text,
                   style: TextStyle(
                     color: item.kind == NoticeKind.error
-                        ? CursorColors.removed
+                        ? error
                         : CursorColors.textMuted,
                     fontSize: 12.5,
                     height: 1.45,

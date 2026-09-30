@@ -5,10 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/chat/chat_screen.dart';
 import 'package:monad/chat/chat_session.dart';
 import 'package:monad/kernel/kernel_types.dart';
+import 'package:monad/ide/ide_hover.dart';
 import 'package:monad/main.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
 import 'package:monad/sidebar/sidebar.dart';
 import 'package:monad/theme/codicons.dart';
+import 'package:monad/theme/workbench_theme.dart';
 import 'package:monad/workspace/editor_launcher.dart';
 import 'package:monad/workspace/open_in_editor_button.dart';
 import 'package:monad/workspace/pin_window_button.dart';
@@ -252,6 +254,64 @@ void main() {
     expect(thread.pinned, isFalse);
   });
 
+  testWidgets('high contrast themes outline the hovered row, as the IDE '
+      'lists do', (tester) async {
+    final themes = WorkbenchThemeService.instance;
+    final before = themes.colorTheme;
+    addTearDown(
+      () => themes.restore(
+        setting: before.settingsId,
+        data: before.isLoaded ? before.toStorage() : null,
+      ),
+    );
+    await tester.runAsync(
+      () => themes.setColorTheme('Default High Contrast', preview: true),
+    );
+    final outline = themes.colors.get('contrastActiveBorder');
+    expect(outline, isNotNull);
+    final workspace = await pumpApp(tester);
+    final thread = threadNamed(workspace, 'Rate limit per API key');
+    Color? rowOutline() {
+      final row = tester
+          .widgetList<Container>(
+            find.ancestor(
+              of: inSidebar(find.textContaining(thread.title)),
+              matching: find.byType(Container),
+            ),
+          )
+          .firstWhere((container) => container.decoration != null);
+      final decoration = row.foregroundDecoration as BoxDecoration?;
+      return (decoration?.border as Border?)?.top.color;
+    }
+
+    expect(rowOutline(), isNull);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(
+      location: tester.getCenter(inSidebar(find.textContaining(thread.title))),
+    );
+    await tester.pump();
+    expect(rowOutline(), outline);
+  });
+
+  testWidgets('its icon buttons have the workbench hover', (tester) async {
+    await pumpApp(tester);
+    final button = inSidebar(find.bySemanticsLabel('Hide sidebar'));
+    expect(button, findsOneWidget);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: tester.getCenter(button));
+    await tester.pump();
+    await tester.pump(ideHoverDelay + const Duration(milliseconds: 150));
+    expect(
+      find.ancestor(
+        of: find.text('Hide sidebar'),
+        matching: find.byType(IdeHoverBox),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('deleting the open agent opens the most recent one', (
     tester,
   ) async {
@@ -469,10 +529,12 @@ void main() {
     await mouse.removePointer();
     await tester.pump(const Duration(milliseconds: 300));
 
+    // The pin's calls, the window's appearance aside.
+    Iterable<MethodCall> onTop() =>
+        calls.where((call) => call.method == 'setAlwaysOnTop');
     await tester.tap(pin);
     await tester.pump();
-    expect(calls.single.method, 'setAlwaysOnTop');
-    expect(calls.single.arguments, isTrue);
+    expect(onTop().single.arguments, isTrue);
     expect(tester.widget<PinWindowButton>(pin).pinned, isTrue);
 
     // Stays pinned in another agent.
@@ -481,7 +543,7 @@ void main() {
     expect(tester.widget<PinWindowButton>(pin).pinned, isTrue);
     await tester.tap(pin);
     await tester.pump();
-    expect(calls.last.arguments, isFalse);
+    expect(onTop().last.arguments, isFalse);
     await tester.pump(const Duration(seconds: 1));
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 

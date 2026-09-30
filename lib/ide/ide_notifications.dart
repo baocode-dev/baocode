@@ -13,8 +13,8 @@
 // notificationsViewer,notificationsCenter,notificationsStatus,
 // notificationsActions}.ts with media/{notificationsToasts,notificationsList,
 // notificationsCenter}.css, the Modern UI's
-// contrib/modernUI/browser/media/notificationsDialogs.css, and the
-// `notifications*` colors of Dark 2026.
+// contrib/modernUI/browser/media/notificationsDialogs.css, and the color
+// theme's `notification*` colors (common/theme.ts).
 //
 // Deviations: no progress, no Do Not Disturb, no positions but the bottom
 // right, and toasts are not limited to 3 per 800 ms (only to 3 shown).
@@ -26,26 +26,43 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/codicons.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_button.dart';
 import 'ide_hover.dart';
 import 'ide_menu.dart';
 import 'ide_status_bar.dart';
 
-/// Dark 2026 `notifications*` colors.
+/// The color theme's `notification*` colors.
 abstract final class IdeNotificationColors {
-  static const background = Color(0xFF202122);
-  static const foreground = Color(0xFFBFBFBF);
-  static const border = Color(0xFF2A2B2C);
+  static Color get background => themeColors['notifications.background'];
+  static Color get foreground => themeColors['notifications.foreground'];
 
-  /// `notificationToast.border`, `notificationCenter.border`.
-  static const toastBorder = Color(0xFF2A2B2C);
-  static const link = Color(0xFF3A94BC);
-  static const infoIcon = Color(0xFF3A94BC);
-  static const warningIcon = Color(0xFFCCA700);
-  static const errorIcon = Color(0xFFF48771);
+  /// Between the center's notifications.
+  static Color get border => themeColors['notifications.border'];
 
-  /// `descriptionForeground`: the source.
-  static const description = Color(0xFF8C8C8C);
+  /// Around a toast, where the theme has one.
+  static Color? get toastBorder => themeColors.get('notificationToast.border');
+
+  /// Around the center: `editorWidget.border` where the theme has none.
+  static Color get centerBorder =>
+      themeColors.get('notificationCenter.border') ??
+      themeColors['editorWidget.border'];
+  static Color get centerHeaderBackground =>
+      themeColors['notificationCenterHeader.background'];
+
+  /// The workbench's `foreground` where the theme has none.
+  static Color get centerHeaderForeground =>
+      themeColors.get('notificationCenterHeader.foreground') ??
+      themeColors['foreground'];
+  static Color get link => themeColors['notificationLink.foreground'];
+  static Color get infoIcon => themeColors['notificationsInfoIcon.foreground'];
+  static Color get warningIcon =>
+      themeColors['notificationsWarningIcon.foreground'];
+  static Color get errorIcon =>
+      themeColors['notificationsErrorIcon.foreground'];
+
+  /// The source (Modern UI).
+  static Color get description => themeColors['descriptionForeground'];
 }
 
 enum IdeSeverity { info, warning, error }
@@ -332,25 +349,28 @@ class _Toast extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
-    tween: Tween(begin: 0, end: 1),
-    duration: const Duration(milliseconds: 300),
-    curve: Curves.easeOut,
-    builder: (context, t, child) => FractionalTranslation(
-      translation: Offset(0, 1 - t),
-      child: Opacity(opacity: t, child: child),
-    ),
-    child: Container(
-      width: width,
-      decoration: BoxDecoration(
-        color: IdeNotificationColors.background,
-        border: Border.all(color: IdeNotificationColors.toastBorder),
-        borderRadius: BorderRadius.circular(4),
-        boxShadow: IdeHoverColors.shadow,
+  Widget build(BuildContext context) {
+    final border = IdeNotificationColors.toastBorder;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      builder: (context, t, child) => FractionalTranslation(
+        translation: Offset(0, 1 - t),
+        child: Opacity(opacity: t, child: child),
       ),
-      child: child,
-    ),
-  );
+      child: Container(
+        width: width,
+        decoration: BoxDecoration(
+          color: IdeNotificationColors.background,
+          border: border == null ? null : Border.all(color: border),
+          borderRadius: BorderRadius.circular(4),
+          boxShadow: IdeHoverColors.shadow,
+        ),
+        child: child,
+      ),
+    );
+  }
 }
 
 /// The notification center: a 35px header and the notifications, newest
@@ -437,7 +457,7 @@ class _IdeNotificationsCenterState extends State<IdeNotificationsCenter> {
               ),
               decoration: BoxDecoration(
                 color: IdeNotificationColors.background,
-                border: Border.all(color: IdeNotificationColors.toastBorder),
+                border: Border.all(color: IdeNotificationColors.centerBorder),
                 borderRadius: BorderRadius.circular(4),
                 boxShadow: IdeHoverColors.shadow,
               ),
@@ -449,7 +469,7 @@ class _IdeNotificationsCenterState extends State<IdeNotificationsCenter> {
                   children: [
                     Container(
                       height: 35,
-                      color: const Color(0xFF242526),
+                      color: IdeNotificationColors.centerHeaderBackground,
                       padding: const EdgeInsets.only(left: 8, right: 5),
                       child: Row(
                         children: [
@@ -458,9 +478,10 @@ class _IdeNotificationsCenterState extends State<IdeNotificationsCenter> {
                               all.isEmpty
                                   ? 'NO NEW NOTIFICATIONS'
                                   : 'NOTIFICATIONS',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
-                                color: IdeNotificationColors.foreground,
+                                color: IdeNotificationColors
+                                    .centerHeaderForeground,
                               ),
                             ),
                           ),
@@ -490,7 +511,7 @@ class _IdeNotificationsCenterState extends State<IdeNotificationsCenter> {
                               decoration: BoxDecoration(
                                 border: index == all.length - 1
                                     ? null
-                                    : const Border(
+                                    : Border(
                                         bottom: BorderSide(
                                           color: IdeNotificationColors.border,
                                         ),
@@ -534,7 +555,7 @@ class _NotificationItem extends StatefulWidget {
 class _NotificationItemState extends State<_NotificationItem> {
   bool _hover = false;
 
-  static const _messageStyle = TextStyle(
+  static TextStyle get _messageStyle => TextStyle(
     fontSize: 13,
     height: 22 / 13,
     color: IdeNotificationColors.foreground,
@@ -568,8 +589,9 @@ class _NotificationItemState extends State<_NotificationItem> {
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final messageStyle = _messageStyle;
             final painter = TextPainter(
-              text: TextSpan(text: notification.message, style: _messageStyle),
+              text: TextSpan(text: notification.message, style: messageStyle),
               maxLines: 1,
               textDirection: TextDirection.ltr,
             )..layout(maxWidth: math.max(0, constraints.maxWidth - 30 - 66));
@@ -594,7 +616,7 @@ class _NotificationItemState extends State<_NotificationItem> {
                       child: SelectableText(
                         notification.message,
                         maxLines: expanded ? null : 1,
-                        style: _messageStyle,
+                        style: messageStyle,
                       ),
                     ),
                     Visibility.maintain(
@@ -649,7 +671,7 @@ class _NotificationItemState extends State<_NotificationItem> {
                                   : 'Source: ${notification.source}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 color: IdeNotificationColors.description,
                               ),
@@ -746,11 +768,7 @@ class _SplitButton extends StatelessWidget {
               ),
             ),
           ),
-          Container(
-            width: 1,
-            height: 16,
-            color: foreground.withValues(alpha: 0.4),
-          ),
+          Container(width: 1, height: 16, color: IdeButtonColors.separator),
           Builder(
             builder: (context) => _part(
               onTap: () {

@@ -14,8 +14,8 @@
 // src/vs/base/browser/ui/splitview/paneview.ts and paneview.css, and
 // contrib/modernUI/browser/media (paneHeaders.css, padding.css and
 // fontRamp.css: inset rounded headers tinted on hover, an inset separator,
-// 12px semibold titles as cased), with the `sideBarSectionHeader.*` colors
-// of Dark 2026.
+// 12px semibold titles as cased), with the color theme's
+// `sideBarSectionHeader.*` colors.
 //
 // Deviations: panes cannot be dragged to reorder, nor hidden from the
 // container's menu.
@@ -26,6 +26,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/codicons.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_hover.dart';
 import 'ide_menu.dart';
 
@@ -60,11 +61,22 @@ class IdePane {
   final double weight;
 }
 
-/// `sideBarSectionHeader.*` and the header size.
+/// The side bar's pane header colors in the color theme, and its size.
 abstract final class IdePaneColors {
-  static const headerForeground = Color(0xFFBFBFBF);
-  static const border = Color(0xFF2A2B2C);
-  static const hoverBackground = Color(0x14FFFFFF);
+  static Color get headerForeground =>
+      themeColors['sideBarSectionHeader.foreground'];
+
+  /// The inset separator: `sideBarSectionHeader.border`, else
+  /// `surface.border`.
+  static Color get border =>
+      themeColors.get('sideBarSectionHeader.border') ??
+      themeColors['surface.border'];
+
+  /// Modern UI tints a header on hover.
+  static Color get hoverBackground => themeColors['list.hoverBackground'];
+
+  /// The title's description (paneviewlet.css).
+  static Color get description => themeColors['panelTitle.inactiveForeground'];
 
   /// `MODERN_UI_PANE_HEADER_SIZE`.
   static const headerSize = 28.0;
@@ -297,7 +309,7 @@ class _PaneViewState extends State<_PaneView> {
                         ? Codicons.chevronDown
                         : Codicons.chevronRight,
                     size: 16,
-                    color: IdePaneColors.headerForeground,
+                    color: themeColors['icon.foreground'],
                   ),
                 ),
                 // All the space left of the actions, so they sit at the
@@ -316,7 +328,7 @@ class _PaneViewState extends State<_PaneView> {
                             maxLines: 1,
                             softWrap: false,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: IdePaneColors.headerForeground,
@@ -334,8 +346,7 @@ class _PaneViewState extends State<_PaneView> {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: IdePaneColors.headerForeground
-                                      .withValues(alpha: .6),
+                                  color: IdePaneColors.description,
                                 ),
                               ),
                             ),
@@ -381,7 +392,7 @@ class _PaneViewState extends State<_PaneView> {
               children: [
                 header,
                 // The separator: a line inset 4px within the header.
-                const Positioned(
+                Positioned(
                   left: 8,
                   right: 8,
                   top: 0,
@@ -450,7 +461,7 @@ class _PaneSashState extends State<_PaneSash> {
       onVerticalDragUpdate: (details) =>
           widget.onDrag(details.globalPosition.dy - _startY),
       child: ColoredBox(
-        color: _active ? const Color(0xB33994BC) : const Color(0x00000000),
+        color: _active ? themeColors['sash.hoverBorder'] : Colors.transparent,
       ),
     ),
   );
@@ -482,8 +493,7 @@ class IdeViewTitle extends StatelessWidget {
   final String title;
   final List<Widget> actions;
 
-  /// `sideBarTitle.foreground`.
-  static const foreground = Color(0xFFBFBFBF);
+  static Color get foreground => themeColors['sideBarTitle.foreground'];
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -497,7 +507,7 @@ class IdeViewTitle extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: foreground,

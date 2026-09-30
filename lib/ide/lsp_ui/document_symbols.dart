@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart';
 import '../ide_fuzzy.dart';
 import '../ide_quick_input.dart';
 import '../ide_workspace.dart';
@@ -241,21 +242,25 @@ class _IdeOutlineViewState extends State<IdeOutlineView> {
       height: 30,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       alignment: Alignment.centerLeft,
-      child: const Text(
+      child: Text(
         'OUTLINE',
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: CursorColors.textMuted,
+          color: themeColors['sideBarSectionHeader.foreground'],
           letterSpacing: 0.4,
         ),
       ),
     );
+    // `.outline-message`: the side bar's text.
     Widget message(String text) => Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 12, color: CursorColors.textMuted),
+        style: TextStyle(
+          fontSize: 12,
+          color: themeColors['sideBar.foreground'],
+        ),
       ),
     );
     return ColoredBox(
@@ -367,6 +372,9 @@ class _OutlineRowState extends State<_OutlineRow> {
   @override
   Widget build(BuildContext context) {
     final kind = ideSymbolKindIcon(widget.symbol.kind);
+    // The tree's row: the caret's symbol selected in the unfocused list.
+    final colors = themeColors;
+    final foreground = colors['sideBar.foreground'];
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -377,9 +385,9 @@ class _OutlineRowState extends State<_OutlineRow> {
         child: Container(
           height: 22,
           color: widget.selected
-              ? const Color(0x3304395E)
+              ? colors['list.inactiveSelectionBackground']
               : _hover
-              ? CursorColors.hover
+              ? colors['list.hoverBackground']
               : null,
           padding: EdgeInsets.only(left: 8.0 + widget.depth * 12),
           child: Row(
@@ -394,7 +402,7 @@ class _OutlineRowState extends State<_OutlineRow> {
                               ? Codicons.chevronRight
                               : Codicons.chevronDown,
                           size: 14,
-                          color: CursorColors.textMuted,
+                          color: foreground,
                         ),
                       )
                     : null,
@@ -409,8 +417,9 @@ class _OutlineRowState extends State<_OutlineRow> {
                   style: TextStyle(
                     fontSize: 12.5,
                     color: widget.selected
-                        ? CursorColors.textPrimary
-                        : CursorColors.text,
+                        ? colors.get('list.inactiveSelectionForeground') ??
+                              foreground
+                        : foreground,
                   ),
                 ),
               ),
@@ -422,9 +431,9 @@ class _OutlineRowState extends State<_OutlineRow> {
                     detail,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11.5,
-                      color: CursorColors.textFaint,
+                      color: colors['descriptionForeground'],
                     ),
                   ),
                 ),

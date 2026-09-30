@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import 'step_header.dart';
 
@@ -35,14 +36,18 @@ class EditStep extends StatelessWidget {
                 if (item.added > 0)
                   TextSpan(
                     text: '+${item.added}',
-                    style: const TextStyle(color: CursorColors.added),
+                    style: TextStyle(
+                      color: themeColors['chat.linesAddedForeground'],
+                    ),
                   ),
                 if (item.added > 0 && item.removed > 0)
                   const TextSpan(text: ' '),
                 if (item.removed > 0)
                   TextSpan(
                     text: '-${item.removed}',
-                    style: const TextStyle(color: CursorColors.removed),
+                    style: TextStyle(
+                      color: themeColors['chat.linesRemovedForeground'],
+                    ),
                   ),
               ],
             ),

@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/material_file_icons.dart';
+import '../../theme/workbench_theme.dart';
 import '../editor/monaco/flutter/document_snapshot.dart';
 import '../ide_hover.dart';
 import '../lsp/language_features.dart';
@@ -25,7 +26,8 @@ class IdeReferences {
 
 /// The bottom panel: Problems (every document's diagnostics, grouped by
 /// file), References (the last Find References) and the Terminal, like VS
-/// Code's panel. Its card and height are the workbench's.
+/// Code's panel. Its card and height are the workbench's; its colors the
+/// color theme's `panelTitle.*` and the markers view's (markers.css).
 class IdeBottomPanel extends StatelessWidget {
   const IdeBottomPanel({
     super.key,
@@ -70,11 +72,18 @@ class IdeBottomPanel extends StatelessWidget {
         final all = languages?.allDiagnostics ?? const {};
         final counts = ideDiagnosticCounts(all);
         final total = counts.errors + counts.warnings + counts.infos;
+        // `panelTitle.border`: under the title in high contrast themes.
+        final titleBorder = themeColors.get('panelTitle.border');
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(
+            Container(
               height: 30,
+              decoration: titleBorder == null
+                  ? null
+                  : BoxDecoration(
+                      border: Border(bottom: BorderSide(color: titleBorder)),
+                    ),
               child: Row(
                 children: [
                   const SizedBox(width: 8),
@@ -139,7 +148,7 @@ class IdeBottomPanel extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
     child: Text(
       text,
-      style: const TextStyle(fontSize: 12, color: CursorColors.textMuted),
+      style: TextStyle(fontSize: 12, color: themeColors['foreground']),
     ),
   );
 
@@ -181,13 +190,15 @@ class IdeBottomPanel extends StatelessWidget {
                     text:
                         '  ${d.source ?? ''}'
                         '${d.code == null ? '' : '(${d.code})'}',
-                    style: const TextStyle(color: CursorColors.textFaint),
+                    style: TextStyle(
+                      color: themeColors['descriptionForeground'],
+                    ),
                   ),
                 TextSpan(
                   text:
                       '  [Ln ${d.range.start.line + 1}, '
                       'Col ${d.range.start.character + 1}]',
-                  style: const TextStyle(color: CursorColors.textFaint),
+                  style: TextStyle(color: themeColors['descriptionForeground']),
                 ),
               ],
             ),
@@ -248,56 +259,62 @@ class _Tab extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => MouseRegion(
-    cursor: SystemMouseCursors.click,
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected ? CursorColors.accent : Colors.transparent,
+  Widget build(BuildContext context) {
+    final colors = themeColors;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: selected
+                    ? colors['panelTitle.activeBorder']
+                    : Colors.transparent,
+              ),
             ),
           ),
-        ),
-        alignment: Alignment.center,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                letterSpacing: 0.3,
-                color: selected
-                    ? CursorColors.textPrimary
-                    : CursorColors.textMuted,
-              ),
-            ),
-            if (badge != null) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                decoration: BoxDecoration(
-                  color: CursorColors.surfaceRaised,
-                  borderRadius: BorderRadius.circular(8),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  letterSpacing: 0.3,
+                  color:
+                      colors[selected
+                          ? 'panelTitle.activeForeground'
+                          : 'panelTitle.inactiveForeground'],
                 ),
-                child: Text(
-                  badge!,
-                  style: const TextStyle(
-                    fontSize: 10.5,
-                    color: CursorColors.text,
+              ),
+              if (badge != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  decoration: BoxDecoration(
+                    color: colors['panelTitleBadge.background'],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    badge!,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: colors['panelTitleBadge.foreground'],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _FileHeader extends StatelessWidget {
@@ -317,6 +334,8 @@ class _FileHeader extends StatelessWidget {
     final folder = p.isWithin(root, path)
         ? p.dirname(p.relative(path, from: root))
         : p.dirname(path);
+    final colors = themeColors;
+    final badgeBorder = colors.get('contrastBorder');
     return Container(
       height: 22,
       padding: const EdgeInsets.only(left: 12, right: 12),
@@ -326,7 +345,7 @@ class _FileHeader extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             name,
-            style: const TextStyle(fontSize: 12.5, color: CursorColors.text),
+            style: TextStyle(fontSize: 12.5, color: colors['foreground']),
           ),
           if (folder != '.') ...[
             const SizedBox(width: 6),
@@ -335,9 +354,9 @@ class _FileHeader extends StatelessWidget {
                 folder,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11.5,
-                  color: CursorColors.textFaint,
+                  color: colors['descriptionForeground'],
                 ),
               ),
             ),
@@ -345,13 +364,20 @@ class _FileHeader extends StatelessWidget {
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 5),
+            // `defaultCountBadgeStyles`.
             decoration: BoxDecoration(
-              color: CursorColors.surfaceRaised,
+              color: colors['badge.background'],
+              border: badgeBorder == null
+                  ? null
+                  : Border.all(color: badgeBorder),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               '$count',
-              style: const TextStyle(fontSize: 10.5, color: CursorColors.text),
+              style: TextStyle(
+                fontSize: 10.5,
+                color: colors['badge.foreground'],
+              ),
             ),
           ),
         ],
@@ -389,7 +415,7 @@ class _RowState extends State<_Row> {
       onTap: widget.onTap,
       child: Container(
         height: 22,
-        color: _hover ? CursorColors.hover : null,
+        color: _hover ? themeColors['list.hoverBackground'] : null,
         padding: const EdgeInsets.only(left: 32, right: 12),
         child: Row(
           children: [
@@ -400,9 +426,9 @@ class _RowState extends State<_Row> {
                 widget.text,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12.5,
-                  color: CursorColors.text,
+                  color: themeColors['foreground'],
                 ),
               ),
             ),
@@ -474,9 +500,9 @@ class _ReferenceRowState extends State<_ReferenceRow> {
         ..add(
           TextSpan(
             text: line.substring(start, end),
-            style: const TextStyle(
-              backgroundColor: Color(0x55EA5C00),
-              color: CursorColors.textPrimary,
+            style: TextStyle(
+              backgroundColor:
+                  themeColors['peekViewResult.matchHighlightBackground'],
             ),
           ),
         )
@@ -485,7 +511,7 @@ class _ReferenceRowState extends State<_ReferenceRow> {
     spans.add(
       TextSpan(
         text: '  Ln ${range.start.line + 1}, Col ${range.start.character + 1}',
-        style: const TextStyle(color: CursorColors.textFaint),
+        style: TextStyle(color: themeColors['descriptionForeground']),
       ),
     );
     return _Row(

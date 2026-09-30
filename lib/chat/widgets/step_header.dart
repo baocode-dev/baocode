@@ -66,22 +66,19 @@ class StepHeader extends StatelessWidget {
               children: [
                 TextSpan(
                   text: verb,
-                  style: const TextStyle(color: CursorColors.text),
+                  style: TextStyle(color: CursorColors.text),
                 ),
                 if (object.isNotEmpty) TextSpan(text: ' $object'),
                 if (detail case final detail? when detail.isNotEmpty)
                   TextSpan(
                     text: ' $detail',
-                    style: const TextStyle(color: CursorColors.textFaint),
+                    style: TextStyle(color: CursorColors.textFaint),
                   ),
               ],
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: CursorColors.textMuted,
-              fontSize: fontSize,
-            ),
+            style: TextStyle(color: CursorColors.textMuted, fontSize: fontSize),
           );
     final header = HoverBuilder(
       cursor: toggle == null ? MouseCursor.defer : SystemMouseCursors.click,
@@ -228,7 +225,7 @@ class StepBody extends StatelessWidget {
 }
 
 /// Monospaced text as steps show it: commands, output, matches.
-const stepMono = TextStyle(
+TextStyle get stepMono => TextStyle(
   fontFamily: CursorFonts.mono,
   fontSize: 12,
   height: 1.5,

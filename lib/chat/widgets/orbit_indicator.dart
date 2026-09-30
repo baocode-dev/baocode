@@ -7,14 +7,12 @@ import '../../theme/cursor_theme.dart';
 /// Something running in the background, as a dot circling a faint ring:
 /// out there, on its own. Still where motion is turned down.
 class OrbitIndicator extends StatefulWidget {
-  const OrbitIndicator({
-    super.key,
-    this.size = 14,
-    this.color = CursorColors.textMuted,
-  });
+  const OrbitIndicator({super.key, this.size = 14, this.color});
 
   final double size;
-  final Color color;
+
+  /// [CursorColors.textMuted] when null.
+  final Color? color;
 
   /// Once round.
   static const period = Duration(milliseconds: 2400);
@@ -50,7 +48,12 @@ class _OrbitIndicatorState extends State<OrbitIndicator>
   Widget build(BuildContext context) {
     return SizedBox.square(
       dimension: widget.size,
-      child: CustomPaint(painter: _OrbitPainter(_controller, widget.color)),
+      child: CustomPaint(
+        painter: _OrbitPainter(
+          _controller,
+          widget.color ?? CursorColors.textMuted,
+        ),
+      ),
     );
   }
 }

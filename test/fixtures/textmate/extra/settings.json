@@ -1,0 +1,12 @@
+// Settings, as VS Code's settings.json allows: comments and trailing commas.
+{
+	/* Editor */
+	"editor.fontSize": 14,
+	"editor.rulers": [80, 120],
+	"files.associations": {
+		"*.inc": "php", // trailing comment
+	},
+	"workbench.colorTheme": "Dark 2026",
+	"telemetry.telemetryLevel": null,
+	"debug.inlineValues": true,
+}

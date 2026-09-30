@@ -4,6 +4,7 @@ import '../chat/floating/floating_layer.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/floating/floating_registry.dart';
 import '../theme/cursor_theme.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 
 class SidebarMenuItem {
   const SidebarMenuItem(
@@ -111,18 +112,19 @@ class SidebarMenuState extends State<SidebarMenu> {
 
   Widget _buildMenu(BuildContext context) {
     final items = widget.items();
+    final colors = themeColors;
     return Container(
       width: widget.width,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: CursorColors.surfaceRaised,
+        color: colors['menu.background'],
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: CursorColors.borderStrong),
-        boxShadow: const [
+        border: Border.all(color: colors['menu.border']),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x66000000),
+            color: colors['widget.shadow'],
             blurRadius: 24,
-            offset: Offset(0, 8),
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -154,11 +156,12 @@ class _MenuRowState extends State<_MenuRow> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+    // As upstream's menus: the hovered item selected.
+    final colors = themeColors;
     final color = item.destructive
-        ? CursorColors.removed
-        : _hovered
-        ? CursorColors.textPrimary
-        : CursorColors.text;
+        ? colors['errorForeground']
+        : colors[_hovered ? 'menu.selectionForeground' : 'menu.foreground'];
+    final outline = _hovered ? colors.get('menu.selectionBorder') : null;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
@@ -170,9 +173,17 @@ class _MenuRowState extends State<_MenuRow> {
           height: 28,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color: _hovered ? const Color(0x1AFFFFFF) : Colors.transparent,
+            color: _hovered
+                ? colors['menu.selectionBackground']
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
           ),
+          foregroundDecoration: outline == null
+              ? null
+              : BoxDecoration(
+                  border: Border.all(color: outline),
+                  borderRadius: BorderRadius.circular(5),
+                ),
           child: Row(
             children: [
               if (item.icon case final icon?) ...[
@@ -192,11 +203,7 @@ class _MenuRowState extends State<_MenuRow> {
                 ),
               ),
               if (item.checked)
-                const Icon(
-                  Icons.check_rounded,
-                  size: 14,
-                  color: CursorColors.text,
-                ),
+                Icon(Icons.check_rounded, size: 14, color: color),
             ],
           ),
         ),

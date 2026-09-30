@@ -1,0 +1,7 @@
+Inline math $e^{i\pi} + 1 = 0$ in a sentence, and \(a^2 + b^2\).
+
+$$
+\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}
+$$
+
+$$\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}$$

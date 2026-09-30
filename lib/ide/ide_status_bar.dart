@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
 import '../theme/codicons.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'editor/monaco/flutter/document_snapshot.dart';
 import 'editor/monaco/flutter/language_assets.dart';
 import 'ide_editor.dart';
@@ -29,7 +29,10 @@ class IdeStatusBarItem {
 }
 
 /// The workbench's bottom bar: [left] items after the window edge, [right]
-/// items against the other.
+/// items against the other. In the color theme's `statusBar.*` and
+/// `statusBarItem.*` colors (workbench/browser/parts/statusbar/
+/// statusbarPart.ts, media/statusbarpart.css), but on the shell: no
+/// background or top border of its own.
 class IdeStatusBar extends StatelessWidget {
   const IdeStatusBar({super.key, required this.left, required this.right});
 
@@ -42,10 +45,6 @@ class IdeStatusBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: height,
-      decoration: const BoxDecoration(
-        color: CursorColors.surface,
-        border: Border(top: BorderSide(color: CursorColors.border)),
-      ),
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: LayoutBuilder(
         builder: (context, constraints) => Row(
@@ -93,13 +92,33 @@ class _StatusItemState extends State<_StatusItem> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
-    final color = item.color ?? CursorColors.textMuted;
+    final colors = themeColors;
+    final hovered = _hover && item.onTap != null;
+    // The bar is on the shell (the side bar's color): `statusBar.*` text
+    // where the theme's bar has that color too (or none), else the side
+    // bar's, as white on Quiet Light's purple bar would not read there.
+    final onSideBar = switch (colors.get('statusBar.background')) {
+      null => true,
+      final background => background == colors.get('sideBar.background'),
+    };
+    // Its icons too (`color: inherit`); its own color stays on hover.
+    final color =
+        item.color ??
+        (onSideBar
+            ? (hovered ? colors.get('statusBarItem.hoverForeground') : null) ??
+                  colors['statusBar.foreground']
+            : colors['sideBar.foreground']);
+    // High contrast themes outline a hovered item (dashed upstream).
+    final outline = hovered ? colors.get('contrastActiveBorder') : null;
     Widget child = Container(
       height: IdeStatusBar.height - 1,
       padding: const EdgeInsets.symmetric(horizontal: 6),
-      color: _hover && item.onTap != null
-          ? const Color(0x1FFFFFFF)
+      color: hovered
+          ? colors['statusBarItem.hoverBackground']
           : Colors.transparent,
+      foregroundDecoration: outline == null
+          ? null
+          : BoxDecoration(border: Border.all(color: outline)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -113,12 +132,7 @@ class _StatusItemState extends State<_StatusItem> {
                 _label(item.text, color),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: _hover && item.onTap != null
-                      ? CursorColors.textPrimary
-                      : color,
-                ),
+                style: TextStyle(fontSize: 11.5, color: color),
               ),
             ),
         ],

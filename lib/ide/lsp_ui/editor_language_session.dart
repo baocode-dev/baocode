@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
 import '../editor/monaco/flutter/document_snapshot.dart';
 import '../editor/monaco/flutter/editor_decorations.dart';
 import '../editor/monaco/flutter/editor_surface_controller.dart';
@@ -143,6 +144,8 @@ class EditorLanguageSession extends ChangeNotifier
     required this.onShowReferences,
     required this.onApplyWorkspaceEdit,
     required this.onFocusEditor,
+    this._semanticTokenStyler,
+    this._languageId = 'plaintext',
   }) {
     suggest = IdeSuggestSession(this);
     _version = document.model.version;
@@ -275,34 +278,38 @@ class EditorLanguageSession extends ChangeNotifier
   DocumentSnapshot? _decorationSnapshot;
   List<LspDiagnostic>? _decorationDiagnostics;
   (int, int)? _decorationLink;
+  WorkbenchColors? _decorationColors;
 
-  /// Diagnostics squiggles and the Cmd/Ctrl+hover link underline. The same
-  /// list instance comes back while nothing changed.
+  /// Diagnostics squiggles and the Cmd/Ctrl+hover link underline, in the
+  /// current color theme. The same list instance comes back while nothing
+  /// changed.
   List<EditorDecoration> get decorations {
     final snapshot = _snapshot;
     final diagnostics = languages.diagnosticsFor(path);
+    final colors = themeColors;
     if (identical(snapshot, _decorationSnapshot) &&
         _sameDiagnostics(diagnostics, _decorationDiagnostics) &&
-        _link == _decorationLink) {
+        _link == _decorationLink &&
+        identical(colors, _decorationColors)) {
       return _decorations;
     }
     _decorationSnapshot = snapshot;
     _decorationDiagnostics = diagnostics;
     _decorationLink = _link;
+    _decorationColors = colors;
     _decorations = [
       ...ideDiagnosticDecorations(snapshot, diagnostics),
       if (_link case (final start, final end))
         EditorDecoration(
           start: start,
           end: end,
-          underlineColor: _linkColor,
+          // `.goto-definition-link`.
+          underlineColor: colors['editorLink.activeForeground'],
           underlineStyle: EditorUnderlineStyle.solid,
         ),
     ];
     return _decorations;
   }
-
-  static const _linkColor = Color(0xFF4E94CE);
 
   static bool _sameDiagnostics(List<LspDiagnostic> a, List<LspDiagnostic>? b) {
     if (identical(a, b)) return true;
@@ -318,11 +325,34 @@ class EditorLanguageSession extends ChangeNotifier
   IdeSemanticTokens? _semantic;
   Timer? _semanticTimer;
   int _semanticRequest = 0;
+  int _semanticStyling = 0;
+  (DocumentSnapshot, List<LspSemanticToken>)? _semanticSource;
+  IdeSemanticTokenStyler? _semanticTokenStyler;
+  String _languageId;
   Map<int, List<TextSpan>>? _overlayBase;
   IdeSemanticTokens? _overlayTokens;
   Map<int, List<TextSpan>>? _overlay;
 
-  /// [base] syntax spans recolored with the latest semantic tokens.
+  /// Styles the semantic tokens: the editor's color theme, as
+  /// [ideSemanticTokenStyler] makes it. Null: [ideDefaultColorThemeId]'s,
+  /// loaded from the bundled assets. Setting it restyles the latest tokens.
+  IdeSemanticTokenStyler? get semanticTokenStyler => _semanticTokenStyler;
+  set semanticTokenStyler(IdeSemanticTokenStyler? styler) {
+    if (identical(styler, _semanticTokenStyler)) return;
+    _semanticTokenStyler = styler;
+    unawaited(_styleSemanticTokens());
+  }
+
+  /// The document's (VS Code's) language id, which semantic token rules
+  /// may select. Setting it restyles the latest tokens.
+  String get languageId => _languageId;
+  set languageId(String languageId) {
+    if (languageId == _languageId) return;
+    _languageId = languageId;
+    unawaited(_styleSemanticTokens());
+  }
+
+  /// [base] syntax spans restyled with the latest semantic tokens.
   Map<int, List<TextSpan>>? styledLines(Map<int, List<TextSpan>>? base) {
     final tokens = _semantic;
     if (tokens == null || tokens.isEmpty) return base;
@@ -351,7 +381,32 @@ class EditorLanguageSession extends ChangeNotifier
     }
     if (_disposed || request != _semanticRequest || tokens == null) return;
     // Tokens for an older text still apply to the lines it did not change.
-    _semantic = IdeSemanticTokens(snapshot, tokens);
+    _semanticSource = (snapshot, tokens);
+    await _styleSemanticTokens();
+  }
+
+  /// Styles the latest tokens with the styler and language id; the default
+  /// styler may still have to load.
+  Future<void> _styleSemanticTokens() async {
+    final source = _semanticSource;
+    if (_disposed || source == null) return;
+    final styling = ++_semanticStyling;
+    var styler = _semanticTokenStyler;
+    if (styler == null) {
+      try {
+        styler = await ideDefaultSemanticTokenStyler();
+      } catch (_) {
+        // Without the theme files, the syntax styles stay.
+        return;
+      }
+      if (_disposed || styling != _semanticStyling) return;
+    }
+    _semantic = IdeSemanticTokens(
+      source.$1,
+      source.$2,
+      styler: styler,
+      languageId: _languageId,
+    );
     notifyListeners();
   }
 

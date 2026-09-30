@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../window_controls.dart';
 
 /// The window's own buttons at the end of the header: minimize,
@@ -99,6 +100,12 @@ class _WindowButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = themeColors;
+    // Not the theme's, as upstream's window controls: a white or, on a light
+    // title bar (`isLighter`), black hover, and the system's red close.
+    final title = colors['titleBar.activeBackground'];
+    final lightTitle =
+        (title.r * 299 + title.g * 587 + title.b * 114) * 255 / 1000 >= 128;
     return Semantics(
       button: true,
       label: label,
@@ -117,6 +124,8 @@ class _WindowButton extends StatelessWidget {
                 ? Colors.transparent
                 : closes
                 ? const Color(0xFFC42B1C)
+                : lightTitle
+                ? const Color(0x1A000000)
                 : const Color(0x1AFFFFFF),
             child: Text(
               glyph,
@@ -125,7 +134,9 @@ class _WindowButton extends StatelessWidget {
                 fontFamilyFallback: CursorFonts.iconFallbacks,
                 fontSize: CursorMetrics.windowButtonGlyph,
                 height: 1,
-                color: hovered && closes ? Colors.white : CursorColors.text,
+                color: hovered && closes
+                    ? Colors.white
+                    : colors['titleBar.activeForeground'],
               ),
             ),
           ),

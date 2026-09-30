@@ -35,6 +35,27 @@ void main() {
       expect(columns.chat, closeTo(310 * 360 / 680, 0.01));
       expect(columns.editor(310), closeTo(310 * 320 / 680, 0.01));
     });
+
+    test('the chat hidden, the side bar asked for shows however narrow, '
+        'sharing the room with the editor', () {
+      final columns = IdeColumns.fit(400, sidebar: 240, chat: null);
+      expect(columns.chat, 0);
+      expect(columns.sidebar, closeTo(400 * 170 / 490, 0.01));
+      expect(IdeColumns.roomForBoth(849), isFalse);
+      expect(IdeColumns.roomForBoth(850), isTrue);
+    });
+
+    test('maximized, the chat has all the room', () {
+      expect(
+        IdeColumns.fit(1000, sidebar: 240, chat: 420, chatMaximized: true),
+        const IdeColumns(sidebar: 0, chat: 1000, chatMaximized: true),
+      );
+      // Hidden, it is not.
+      expect(
+        IdeColumns.fit(1000, sidebar: 240, chat: null, chatMaximized: true),
+        const IdeColumns(sidebar: 240, chat: 0),
+      );
+    });
   });
 
   group('the side bar\'s sash', () {
@@ -45,23 +66,23 @@ void main() {
         const IdeColumns(sidebar: 290, chat: 390),
       );
       expect(
-        both.dragSidebar(1000, 179),
+        both.dragSidebar(1000, 80),
         const IdeColumns(sidebar: 320, chat: 360),
       );
       // Back where it began, all are as they were.
       expect(both.dragSidebar(1000, 0), both);
     });
 
-    test('half the chat\'s minimum further, the chat snaps shut and the side '
-        'bar follows the pointer', () {
-      // As far as it goes is 320; half the chat's minimum is 180.
+    test('a sixth of the chat\'s minimum further, the chat snaps shut and '
+        'the side bar follows the pointer', () {
+      // As far as it goes is 320; a sixth of the chat's minimum is 60.
       expect(
-        both.dragSidebar(1000, 259),
+        both.dragSidebar(1000, 139),
         const IdeColumns(sidebar: 320, chat: 360),
       );
       expect(
-        both.dragSidebar(1000, 260),
-        const IdeColumns(sidebar: 500, chat: 0),
+        both.dragSidebar(1000, 140),
+        const IdeColumns(sidebar: 380, chat: 0),
       );
       expect(
         both.dragSidebar(1000, 1000),
@@ -69,32 +90,34 @@ void main() {
       );
     });
 
-    test('below half its minimum it snaps shut, and out again past it', () {
+    test('a sixth of its minimum below it, it snaps shut, and out again '
+        'past it', () {
+      // A sixth of the side bar's 170 is 28⅓.
       expect(
         both.dragSidebar(1000, -60),
         const IdeColumns(sidebar: 180, chat: 420),
       );
       expect(
-        both.dragSidebar(1000, -150),
+        both.dragSidebar(1000, -98),
         const IdeColumns(sidebar: 170, chat: 420),
       );
       expect(
-        both.dragSidebar(1000, -156),
+        both.dragSidebar(1000, -99),
         const IdeColumns(sidebar: 0, chat: 420),
       );
 
       const hidden = IdeColumns(sidebar: 0, chat: 420);
-      expect(hidden.dragSidebar(1000, 84), hidden);
+      expect(hidden.dragSidebar(1000, 141), hidden);
       expect(
-        hidden.dragSidebar(1000, 86),
+        hidden.dragSidebar(1000, 142),
         const IdeColumns(sidebar: 170, chat: 420),
       );
       // With no room to open, it stays shut, until it pushes the chat shut.
       const tight = IdeColumns(sidebar: 0, chat: 360);
-      expect(tight.dragSidebar(700, 199), tight);
+      expect(tight.dragSidebar(700, 141), tight);
       expect(
-        tight.dragSidebar(700, 200),
-        const IdeColumns(sidebar: 200, chat: 0),
+        tight.dragSidebar(700, 142),
+        const IdeColumns(sidebar: 170, chat: 0),
       );
     });
 
@@ -115,34 +138,86 @@ void main() {
   group('the chat\'s sash', () {
     test('growing, it pushes the side bar to its minimum', () {
       expect(
-        both.dragChat(1000, -174),
+        both.dragChat(1000, -118),
         const IdeColumns(sidebar: 170, chat: 510),
       );
-      // Half the side bar's minimum further, it snaps shut.
+      // A sixth of the side bar's minimum further, it snaps shut.
       expect(
-        both.dragChat(1000, -175),
-        const IdeColumns(sidebar: 0, chat: 595),
+        both.dragChat(1000, -119),
+        const IdeColumns(sidebar: 0, chat: 539),
       );
       expect(both.dragChat(1000, 0), both);
       expect(
-        both.dragChat(1000, 200),
+        both.dragChat(1000, 100),
         const IdeColumns(sidebar: 240, chat: 360),
       );
     });
 
-    test('below half its minimum it snaps shut, and out again past it', () {
+    test(
+      'a sixth of the editor\'s minimum past it, the editor snaps shut: '
+      'the chat is maximized, and the editor comes back with the pointer',
+      () {
+        // The editor at its minimum: 320 of 1000.
+        expect(
+          both.dragChat(1000, -313),
+          const IdeColumns(sidebar: 0, chat: 680),
+        );
+        const maximized = IdeColumns(
+          sidebar: 0,
+          chat: 1000,
+          chatMaximized: true,
+        );
+        // 266⅔ left of the editor.
+        expect(both.dragChat(1000, -314), maximized);
+
+        expect(maximized.dragChat(1000, 0), maximized);
+        expect(maximized.dragChat(1000, 266), maximized);
+        expect(
+          maximized.dragChat(1000, 267),
+          const IdeColumns(sidebar: 0, chat: 680),
+        );
+        expect(
+          maximized.dragChat(1000, 400),
+          const IdeColumns(sidebar: 0, chat: 600),
+        );
+        // On past the chat's minimum, the chat snaps shut.
+        expect(
+          maximized.dragChat(1000, 700),
+          const IdeColumns(sidebar: 0, chat: 360),
+        );
+        expect(
+          maximized.dragChat(1000, 701),
+          const IdeColumns(sidebar: 0, chat: 0),
+        );
+        expect(maximized.canGrowChat(1000), isFalse);
+      },
+    );
+
+    test('a sixth of its minimum below it, it snaps shut, and out again '
+        'past it', () {
       expect(
-        both.dragChat(1000, 239),
+        both.dragChat(1000, 120),
         const IdeColumns(sidebar: 240, chat: 360),
       );
-      expect(both.dragChat(1000, 241), const IdeColumns(sidebar: 240, chat: 0));
+      expect(both.dragChat(1000, 121), const IdeColumns(sidebar: 240, chat: 0));
       const hidden = IdeColumns(sidebar: 240, chat: 0);
-      expect(hidden.dragChat(1000, -179), hidden);
+      expect(hidden.dragChat(1000, -299), hidden);
       expect(
-        hidden.dragChat(1000, -181),
+        hidden.dragChat(1000, -300),
         const IdeColumns(sidebar: 240, chat: 360),
       );
     });
+
+    test(
+      'with too little room for the minimums, it snaps from where it is',
+      () {
+        final squeezed = IdeColumns.fit(500, sidebar: null, chat: 420);
+        expect(squeezed.dragChat(500, 10), squeezed);
+        expect(squeezed.dragChat(500, -10), squeezed);
+        expect(squeezed.dragChat(500, 61).chat, 0);
+        expect(squeezed.dragChat(500, -54).chatMaximized, isTrue);
+      },
+    );
 
     test('which ways it can go', () {
       expect(both.canGrowChat(1000), isTrue);

@@ -13,6 +13,9 @@
 // src/vs/editor/browser/widget/markdownRenderer/browser/
 // editorMarkdownCodeBlockRenderer.ts (fenced code is tokenized in the
 // editor's font and theme, in the fence's language or else the editor's).
+// The colors are the color theme's: `editorHoverWidget.*` (or the suggest
+// details' `editorSuggestWidget.foreground`), `textLink.foreground` and
+// `textCodeBlock.background`.
 //
 // Deviations: tables are shown as their text, HTML is shown as text, and
 // only web and mail links open (in the browser).
@@ -22,8 +25,8 @@ import 'package:flutter/material.dart';
 import 'package:markdown/markdown.dart' as md;
 
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart';
 import '../../workspace/editor_launcher.dart';
-import '../ide_hover.dart';
 
 /// Colors [code] in the language named [language] (an id or an alias, as
 /// code fences name them), one list of spans per line; null to leave it
@@ -51,6 +54,7 @@ class IdeHoverMarkdown extends StatelessWidget {
     this.language,
     this.codeStyle = ideHoverCodeStyle,
     this.padding = 8,
+    this.foreground = 'editorHoverWidget.foreground',
   });
 
   final String markdown;
@@ -65,6 +69,9 @@ class IdeHoverMarkdown extends StatelessWidget {
   /// `.hover-contents`' side padding, which rules reach across.
   final double padding;
 
+  /// The id of the text's color: the widget's foreground.
+  final String foreground;
+
   static final _document = md.Document(
     extensionSet: md.ExtensionSet.gitHubFlavored,
     encodeHtml: false,
@@ -72,8 +79,9 @@ class IdeHoverMarkdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = themeColors[foreground];
     final text = TextStyle(
-      color: IdeHoverColors.foreground,
+      color: color,
       fontSize: codeStyle.fontSize,
       height: codeStyle.height,
     );
@@ -84,7 +92,7 @@ class IdeHoverMarkdown extends StatelessWidget {
         context: _Context(
           colorize: colorize,
           language: language,
-          code: codeStyle.copyWith(color: IdeHoverColors.foreground),
+          code: codeStyle.copyWith(color: color),
           text: text,
         ),
         padding: padding,
@@ -206,12 +214,11 @@ Widget? _block(md.Node node, _Context context) {
       );
     case 'hr':
       // `border-top: 1px solid editorHoverWidget.border` at half opacity.
+      final border = themeColors['editorHoverWidget.border'];
       return Container(
         height: 1,
         margin: const EdgeInsets.only(top: 4),
-        color: IdeHoverColors.border.withValues(
-          alpha: IdeHoverColors.border.a / 2,
-        ),
+        color: border.withValues(alpha: border.a / 2),
       );
     case 'ul' || 'ol':
       return _List(node: node, context: context);
@@ -322,11 +329,16 @@ class _CodeBlock extends StatefulWidget {
 }
 
 class _CodeBlockState extends State<_CodeBlock> {
-  /// Recently colored blocks, so a hover shown again is colored at once.
-  static final _recent = <(IdeCodeColorizer, String, String), List<TextSpan>>{};
+  /// Recently colored blocks, by color theme, so a hover shown again is
+  /// colored at once.
+  static final _recent =
+      <(Object, IdeCodeColorizer, String, String), List<TextSpan>>{};
 
   List<TextSpan>? _spans;
   int _request = 0;
+
+  /// The color theme [_spans] are colored in.
+  Object? _theme;
 
   @override
   void initState() {
@@ -346,11 +358,12 @@ class _CodeBlockState extends State<_CodeBlock> {
   }
 
   void _color() {
+    final theme = _theme = WorkbenchThemeService.instance.colorTheme;
     final colorize = widget.context.colorize;
     final language = widget.language;
     final request = ++_request;
     if (colorize == null || language == null) return;
-    final key = (colorize, language, widget.code);
+    final key = (theme, colorize, language, widget.code);
     if (_recent[key] case final spans?) {
       _spans = spans;
       return;
@@ -377,10 +390,17 @@ class _CodeBlockState extends State<_CodeBlock> {
   }
 
   @override
-  Widget build(BuildContext context) => Text.rich(
-    TextSpan(text: _spans == null ? widget.code : null, children: _spans),
-    style: widget.context.code,
-  );
+  Widget build(BuildContext context) {
+    // A new color theme colors the code again.
+    if (!identical(_theme, WorkbenchThemeService.instance.colorTheme)) {
+      _spans = null;
+      _color();
+    }
+    return Text.rich(
+      TextSpan(text: _spans == null ? widget.code : null, children: _spans),
+      style: widget.context.code,
+    );
+  }
 }
 
 TextSpan _inlines(List<md.Node> nodes, _Context context) =>
@@ -414,14 +434,14 @@ InlineSpan _inline(md.Node node, _Context context) {
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: context.code.fontSize! * 0.4),
         decoration: BoxDecoration(
-          color: IdeHoverColors.codeBlock,
+          color: themeColors['textCodeBlock.background'],
           borderRadius: BorderRadius.circular(3),
         ),
         child: Text(_unescape(node.textContent), style: context.code),
       ),
     ),
     'a' => TextSpan(
-      style: const TextStyle(color: IdeHoverColors.link),
+      style: TextStyle(color: themeColors['textLink.foreground']),
       children: switch (_linkRecognizer(node.attributes['href'])) {
         final recognizer? => [
           for (final span in inner()) _linked(span, recognizer),

@@ -9,6 +9,7 @@ import '../chat/mock_conversation.dart';
 import '../kernel/agent_kernel.dart';
 import '../kernel/kernel_registry.dart';
 import '../kernel/kernel_types.dart';
+import '../theme/workbench_theme.dart' show ColorThemeStorage;
 import 'editor_launcher.dart';
 import 'preference_store.dart';
 
@@ -152,7 +153,7 @@ typedef _Snapshot = ({
 /// ([SessionCatalog]), plus folders opened this run. Only what the user
 /// picks is kept here, in [preferences]: the kernel, mode, model and so
 /// on new agents start with, and those of each agent.
-class Workspace extends ChangeNotifier {
+class Workspace extends ChangeNotifier implements ColorThemeStorage {
   Workspace({
     List<Project> projects = const [],
     List<KernelDescriptor>? kernels,
@@ -186,7 +187,7 @@ class Workspace extends ChangeNotifier {
   Future<void> load() async {
     _loading = true;
     notifyListeners();
-    await _restore();
+    await (_restoring = _restore());
     for (final kernel in kernels) {
       final catalog = kernel.catalog;
       if (catalog == null) continue;
@@ -483,6 +484,32 @@ class Workspace extends ChangeNotifier {
   /// Agents' choices kept, the most recent ones.
   static const _keptAgents = 500;
 
+  // --- Color theme --------------------------------------------------------
+
+  /// The `workbench.colorTheme` setting.
+  @override
+  String? get colorThemeSetting => _colorTheme;
+  String? _colorTheme;
+
+  /// The current theme as `ColorThemeData.toStorage` keeps it.
+  @override
+  String? get colorThemeData => _colorThemeData;
+  String? _colorThemeData;
+  bool _colorThemeStored = false;
+
+  @override
+  void storeColorTheme({required String setting, String? data}) {
+    _colorTheme = setting;
+    _colorThemeData = data;
+    _colorThemeStored = true;
+    // Not before what was kept is read: that would be written over.
+    unawaited(_restoring.then((_) => _save()));
+  }
+
+  /// What was kept, read once [load] has read it.
+  Future<void> get restored => _restoring;
+  Future<void> _restoring = Future.value();
+
   final PreferenceStore? _store;
 
   Future<void> _restore() async {
@@ -519,6 +546,12 @@ class Workspace extends ChangeNotifier {
         if (key is String) _agentSettings[key] = strings(value);
       }
     }
+    if (!_colorThemeStored) {
+      if (kept['colorTheme'] case final String setting) _colorTheme = setting;
+      if (kept['colorThemeData'] case final String data) {
+        _colorThemeData = data;
+      }
+    }
   }
 
   void _save() => unawaited(
@@ -529,6 +562,8 @@ class Workspace extends ChangeNotifier {
       'settings': _settings,
       'agents': _agentSettings,
       'ignoredRecommendations': [..._ignoredRecommendations],
+      'colorTheme': ?_colorTheme,
+      'colorThemeData': ?_colorThemeData,
     }),
   );
 

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/ide/ide_breadcrumbs.dart';
 import 'package:monad/ide/ide_explorer.dart';
+import 'package:monad/ide/ide_hover.dart';
 import 'package:monad/ide/ide_tab_bar.dart';
 import 'package:monad/ide/ide_welcome.dart';
 
@@ -143,6 +144,25 @@ void main() {
     expect(find.byType(IdeExplorer), findsNothing);
     await chord(tester, LogicalKeyboardKey.keyB, control: true);
     expect(find.byType(IdeExplorer), findsOneWidget);
+  });
+
+  testWidgets('explorer: a row\'s title is its path, in the workbench hover '
+      'at the pointer', (tester) async {
+    await pumpWorkbench(tester, files);
+    await tester.pumpAndSettle();
+    final row = tester.getRect(_explorerRow('a.dart'));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(row.center);
+    await tester.pump();
+    await tester.pump(ideHoverDelay + const Duration(milliseconds: 150));
+    final hover = find.ancestor(
+      of: find.text(inRoot('a.dart')),
+      matching: find.byType(IdeHoverBox),
+    );
+    expect(hover, findsOneWidget);
+    expect(tester.getRect(hover).left, closeTo(row.center.dx + 10, 0.01));
   });
 
   testWidgets('explorer: keyboard navigation, collapse all and refresh', (

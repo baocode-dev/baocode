@@ -7,8 +7,11 @@ import 'package:flutter/services.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../chat/widgets/inline_rename_field.dart';
+import '../ide/ide_hover.dart';
 import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
+import '../theme/workbench_theme.dart' show themeColors;
+import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
 import 'sidebar_menu.dart';
@@ -273,18 +276,20 @@ class _SidebarState extends State<Sidebar> {
 
   /// Under the window's traffic lights; the collapse button on the right.
   Widget _buildTopBar() {
-    return SizedBox(
-      height: CursorMetrics.titleBarHeight,
-      child: Row(
-        children: [
-          const Spacer(),
-          SidebarIconButton(
-            icon: Codicons.layoutSidebarLeft,
-            tooltip: 'Hide sidebar',
-            onTap: widget.onCollapse,
-          ),
-          const SizedBox(width: 6),
-        ],
+    return TitleBarDoubleClick(
+      child: SizedBox(
+        height: CursorMetrics.titleBarHeight,
+        child: Row(
+          children: [
+            const Spacer(),
+            SidebarIconButton(
+              icon: Codicons.layoutSidebarLeft,
+              tooltip: 'Hide sidebar',
+              onTap: widget.onCollapse,
+            ),
+            const SizedBox(width: 6),
+          ],
+        ),
       ),
     );
   }
@@ -294,7 +299,7 @@ class _SidebarState extends State<Sidebar> {
       padding: const EdgeInsets.fromLTRB(14, 6, 6, 2),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Text(
               'Agents',
               style: TextStyle(
@@ -334,12 +339,12 @@ class _SidebarState extends State<Sidebar> {
                     children: [
                       Text(
                         'By ${_grouping.label.toLowerCase()}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: CursorColors.textMuted,
                           fontSize: 11.5,
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.keyboard_arrow_down_rounded,
                         size: 14,
                         color: CursorColors.textFaint,
@@ -369,7 +374,7 @@ class _SidebarState extends State<Sidebar> {
         child: Text(
           searching ? 'No matching agents' : 'No agents yet',
           textAlign: TextAlign.center,
-          style: const TextStyle(color: CursorColors.textFaint, fontSize: 12),
+          style: TextStyle(color: CursorColors.textFaint, fontSize: 12),
         ),
       );
     }
@@ -423,7 +428,7 @@ class _SidebarState extends State<Sidebar> {
     final count = _workspace.threads.where((t) => t.archived).length;
     if (count == 0) return const SizedBox.shrink();
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(top: BorderSide(color: CursorColors.border)),
       ),
       padding: const EdgeInsets.all(6),
@@ -440,7 +445,7 @@ class _SidebarState extends State<Sidebar> {
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.inventory_2_outlined,
                   size: 13,
                   color: CursorColors.textMuted,
@@ -449,7 +454,7 @@ class _SidebarState extends State<Sidebar> {
                 Expanded(
                   child: Text(
                     _showArchived ? 'Hide archived' : 'Archived · $count',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: CursorColors.textMuted,
                       fontSize: 12,
                     ),
@@ -466,6 +471,7 @@ class _SidebarState extends State<Sidebar> {
   Future<void> _confirmDelete(AgentThread thread) async {
     final confirmed = await showDialog<bool>(
       context: context,
+      // Black, not the theme's: as upstream's dialogs dim the window.
       barrierColor: const Color(0x99000000),
       builder: (context) => _ConfirmDialog(
         title: 'Delete agent?',
@@ -487,6 +493,9 @@ class _NewAgentButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The agent sessions window's New Session button.
+    final colors = themeColors;
+    final foreground = colors['agentsNewSessionButton.foreground'];
     return HoverBuilder(
       cursor: SystemMouseCursors.click,
       builder: (context, hovered) => GestureDetector(
@@ -496,18 +505,21 @@ class _NewAgentButton extends StatelessWidget {
           height: 30,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color: hovered ? const Color(0x14FFFFFF) : const Color(0x0AFFFFFF),
+            color:
+                colors[hovered
+                    ? 'agentsNewSessionButton.hoverBackground'
+                    : 'agentsNewSessionButton.background'],
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: CursorColors.border),
+            border: Border.all(color: colors['agentsNewSessionButton.border']),
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.add_rounded, size: 16, color: CursorColors.text),
+              Icon(Icons.add_rounded, size: 16, color: foreground),
               SizedBox(width: 6),
               Expanded(
                 child: Text(
                   'New Agent',
-                  style: TextStyle(color: CursorColors.text, fontSize: 12.5),
+                  style: TextStyle(color: foreground, fontSize: 12.5),
                 ),
               ),
             ],
@@ -526,6 +538,8 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // An input box.
+    final colors = themeColors;
     return SizedBox(
       height: 28,
       child: CallbackShortcuts(
@@ -538,17 +552,17 @@ class _SearchField extends StatelessWidget {
         child: TextField(
           controller: controller,
           focusNode: focusNode,
-          style: const TextStyle(color: CursorColors.text, fontSize: 12.5),
+          style: TextStyle(color: colors['input.foreground'], fontSize: 12.5),
           cursorColor: CursorColors.text,
           cursorHeight: 14,
           decoration: InputDecoration(
             isDense: true,
             hintText: 'Search agents…',
-            hintStyle: const TextStyle(
-              color: CursorColors.textFaint,
+            hintStyle: TextStyle(
+              color: colors['input.placeholderForeground'],
               fontSize: 12.5,
             ),
-            prefixIcon: const Icon(
+            prefixIcon: Icon(
               Icons.search_rounded,
               size: 15,
               color: CursorColors.textFaint,
@@ -558,7 +572,7 @@ class _SearchField extends StatelessWidget {
                 ? null
                 : GestureDetector(
                     onTap: controller.clear,
-                    child: const MouseRegion(
+                    child: MouseRegion(
                       cursor: SystemMouseCursors.click,
                       child: Icon(
                         Icons.close_rounded,
@@ -570,14 +584,14 @@ class _SearchField extends StatelessWidget {
             suffixIconConstraints: const BoxConstraints(minWidth: 28),
             contentPadding: const EdgeInsets.symmetric(vertical: 7),
             filled: true,
-            fillColor: const Color(0x0AFFFFFF),
+            fillColor: colors['input.background'],
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: CursorColors.border),
+              borderSide: BorderSide(color: CursorColors.borderStrong),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: Color(0xFF4D4D4D)),
+              borderSide: BorderSide(color: colors['focusBorder']),
             ),
           ),
         ),
@@ -632,7 +646,7 @@ class _GroupHeader extends StatelessWidget {
               ),
               const SizedBox(width: 2),
               if (project != null) ...[
-                const Icon(
+                Icon(
                   Icons.folder_outlined,
                   size: 13,
                   color: CursorColors.textMuted,
@@ -658,7 +672,7 @@ class _GroupHeader extends StatelessWidget {
                   padding: const EdgeInsets.only(right: 6),
                   child: Text(
                     '${group.threads.length}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: CursorColors.textFaint,
                       fontSize: 11,
                     ),
@@ -748,12 +762,24 @@ class _ThreadRow extends StatelessWidget {
               padding: const EdgeInsets.only(left: 8, right: 4),
               decoration: BoxDecoration(
                 color: selected
-                    ? const Color(0x1FFFFFFF)
+                    ? themeColors['list.activeSelectionBackground']
                     : active
                     ? CursorColors.hover
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(5),
               ),
+              // High contrast themes outline the selection and the hovered
+              // row, as the IDE's lists do (IdeListRow: dotted and dashed
+              // upstream).
+              foregroundDecoration: switch (selected || active
+                  ? themeColors.get('contrastActiveBorder')
+                  : null) {
+                final outline? => BoxDecoration(
+                  border: Border.all(color: outline),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                null => null,
+              },
               child: Row(
                 children: [
                   SizedBox(
@@ -789,7 +815,7 @@ class _ThreadRow extends StatelessWidget {
           if (showProject)
             TextSpan(
               text: '  ${thread.project.name}',
-              style: const TextStyle(
+              style: TextStyle(
                 color: CursorColors.textFaint,
                 fontSize: 11.5,
                 fontWeight: FontWeight.normal,
@@ -800,7 +826,11 @@ class _ThreadRow extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
-        color: emphasized ? CursorColors.textPrimary : CursorColors.text,
+        color: selected
+            ? themeColors['list.activeSelectionForeground']
+            : emphasized
+            ? CursorColors.textPrimary
+            : CursorColors.text,
         fontSize: 12.5,
         fontWeight: status == ThreadStatus.unread
             ? FontWeight.w600
@@ -819,11 +849,15 @@ class _ThreadRow extends StatelessWidget {
             children: [
               TextSpan(
                 text: '+${diff.added}',
-                style: const TextStyle(color: CursorColors.added),
+                style: TextStyle(
+                  color: themeColors['chat.linesAddedForeground'],
+                ),
               ),
               TextSpan(
                 text: ' −${diff.removed}',
-                style: const TextStyle(color: CursorColors.removed),
+                style: TextStyle(
+                  color: themeColors['chat.linesRemovedForeground'],
+                ),
               ),
             ],
           ),
@@ -861,7 +895,7 @@ class _ThreadRow extends StatelessWidget {
                 : relativeTime(thread.updatedAt, DateTime.now()),
             textAlign: TextAlign.right,
             maxLines: 1,
-            style: const TextStyle(color: CursorColors.textFaint, fontSize: 11),
+            style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
           ),
         ),
       const SizedBox(width: 2),
@@ -874,22 +908,23 @@ class _ThreadRow extends StatelessWidget {
 class StatusIndicator extends StatelessWidget {
   const StatusIndicator(this.status, {super.key});
 
-  static const needsInputColor = Color(0xFFE5B454);
+  /// As the agent sessions list shows an agent waiting on the user.
+  static Color get needsInputColor => themeColors['list.warningForeground'];
 
   final ThreadStatus status;
 
   @override
   Widget build(BuildContext context) {
     return switch (status) {
-      ThreadStatus.running => const SizedBox.square(
+      ThreadStatus.running => SizedBox.square(
         dimension: 10,
         child: CircularProgressIndicator(
           strokeWidth: 1.5,
           color: CursorColors.textMuted,
         ),
       ),
-      ThreadStatus.needsInput => const _Dot(needsInputColor),
-      ThreadStatus.unread => const _Dot(CursorColors.accent),
+      ThreadStatus.needsInput => _Dot(needsInputColor),
+      ThreadStatus.unread => _Dot(CursorColors.accent),
       ThreadStatus.idle => const SizedBox.shrink(),
     };
   }
@@ -927,24 +962,31 @@ class SidebarIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: tooltip,
-      child: HoverBuilder(
-        cursor: SystemMouseCursors.click,
-        builder: (context, hovered) => GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              color: hovered ? const Color(0x1AFFFFFF) : Colors.transparent,
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Icon(
-              icon,
-              size: size * 0.65,
-              color: hovered ? CursorColors.text : CursorColors.textMuted,
+    // The workbench hover, as the IDE's action buttons have.
+    return IdeHover(
+      message: tooltip,
+      excludeFromSemantics: true,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: HoverBuilder(
+          cursor: SystemMouseCursors.click,
+          builder: (context, hovered) => GestureDetector(
+            onTap: onTap,
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: hovered
+                    ? themeColors['toolbar.hoverBackground']
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: Icon(
+                icon,
+                size: size * 0.65,
+                color: hovered ? CursorColors.text : CursorColors.textMuted,
+              ),
             ),
           ),
         ),
@@ -966,11 +1008,17 @@ class _ConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // As upstream's dialog: a widget's colors, bordered in high contrast.
+    final colors = themeColors;
     return Dialog(
-      backgroundColor: CursorColors.surfaceRaised,
+      backgroundColor: CursorColors.surface,
+      shadowColor: colors['widget.shadow'],
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: CursorColors.borderStrong),
+        side: switch (colors.get('contrastBorder')) {
+          final border? => BorderSide(color: border),
+          null => BorderSide.none,
+        },
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 360),
@@ -982,7 +1030,7 @@ class _ConfirmDialog extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   color: CursorColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -991,7 +1039,10 @@ class _ConfirmDialog extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 message,
-                style: const TextStyle(color: CursorColors.text, fontSize: 13),
+                style: TextStyle(
+                  color: colors['editorWidget.foreground'],
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 16),
               Row(
@@ -1030,6 +1081,8 @@ class _DialogButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The dialog's buttons: the action primary, as upstream's.
+    final colors = themeColors;
     return HoverBuilder(
       cursor: SystemMouseCursors.click,
       builder: (context, hovered) => GestureDetector(
@@ -1039,15 +1092,28 @@ class _DialogButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: destructive
-                ? (hovered ? const Color(0xFFD9444B) : const Color(0xFFC23B41))
-                : (hovered ? const Color(0x1AFFFFFF) : const Color(0x0FFFFFFF)),
+            color:
+                colors[switch ((destructive, hovered)) {
+                  (true, true) => 'button.hoverBackground',
+                  (true, false) => 'button.background',
+                  (false, true) => 'button.secondaryHoverBackground',
+                  (false, false) => 'button.secondaryBackground',
+                }],
             borderRadius: BorderRadius.circular(6),
+            border: switch (colors.get(
+              destructive ? 'button.border' : 'button.secondaryBorder',
+            )) {
+              final border? => Border.all(color: border),
+              null => null,
+            },
           ),
           child: Text(
             label,
             style: TextStyle(
-              color: destructive ? Colors.white : CursorColors.text,
+              color:
+                  colors[destructive
+                      ? 'button.foreground'
+                      : 'button.secondaryForeground'],
               fontSize: 12.5,
             ),
           ),

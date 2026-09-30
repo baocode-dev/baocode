@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../kernel/kernel_types.dart';
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import 'panel_card.dart';
 
 /// Modal area, opened from the composer ring: what fills the context
@@ -20,14 +21,21 @@ class ContextUsagePanel extends StatelessWidget {
   final UsageStats? stats;
   final VoidCallback onClose;
 
-  static const _colors = [
-    Color(0xFF8C8C8C),
-    Color(0xFFB392F0),
-    Color(0xFFE2C08D),
-    Color(0xFF4FC3F7),
-    Color(0xFF4EC98A),
-    Color(0xFFF07178),
-  ];
+  /// The parts' colors, in turn: the charts'.
+  static List<Color> get _colors {
+    final colors = themeColors;
+    return [
+      for (final id in const [
+        'descriptionForeground',
+        'charts.purple',
+        'charts.yellow',
+        'charts.blue',
+        'charts.green',
+        'charts.red',
+      ])
+        colors[id],
+    ];
+  }
 
   static String _format(int tokens) => tokens >= 1000000
       ? '${(tokens / 1000000).toStringAsFixed(1)}M'
@@ -52,10 +60,11 @@ class ContextUsagePanel extends StatelessWidget {
         .where((s) => s.kind == ContextKind.buffer)
         .fold(0, (sum, s) => sum + s.tokens);
     final stats = this.stats;
+    final colors = _colors;
     return PanelCard(
       header: Row(
         children: [
-          const Text(
+          Text(
             'Context window',
             style: TextStyle(
               color: CursorColors.text,
@@ -70,16 +79,13 @@ class ContextUsagePanel extends StatelessWidget {
               '${total == 0 ? 0 : (used / total * 100).toStringAsFixed(0)}%',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: CursorColors.textFaint,
-                fontSize: 11,
-              ),
+              style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
             ),
           ),
           const SizedBox(width: 8),
           GestureDetector(
             onTap: onClose,
-            child: const MouseRegion(
+            child: MouseRegion(
               cursor: SystemMouseCursors.click,
               child: Icon(
                 Icons.close_rounded,
@@ -103,8 +109,9 @@ class ContextUsagePanel extends StatelessWidget {
                   window: total,
                   used: [
                     for (var i = 0; i < filled.length; i++)
-                      (filled[i].tokens, _colors[i % _colors.length]),
+                      (filled[i].tokens, colors[i % colors.length]),
                   ],
+                  track: themeColors['editorWidget.border'],
                 ),
               ),
             ),
@@ -116,7 +123,7 @@ class ContextUsagePanel extends StatelessWidget {
                 children: [
                   for (var i = 0; i < filled.length; i++)
                     _Legend(
-                      color: _colors[i % _colors.length],
+                      color: colors[i % colors.length],
                       label: filled[i].label,
                       value: _format(filled[i].tokens),
                     ),
@@ -134,7 +141,7 @@ class ContextUsagePanel extends StatelessWidget {
                     stats.limits.isNotEmpty ||
                     stats.limitsState != LimitsState.idle)) ...[
               const SizedBox(height: 12),
-              const Divider(height: 1, color: CursorColors.border),
+              Divider(height: 1, color: CursorColors.border),
               const SizedBox(height: 10),
               _PlanUsage(stats: stats),
             ],
@@ -158,7 +165,7 @@ class _PlanUsage extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 'Plan usage',
                 style: TextStyle(
@@ -191,10 +198,7 @@ class _PlanUsage extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               note,
-              style: const TextStyle(
-                color: CursorColors.textFaint,
-                fontSize: 11,
-              ),
+              style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
             ),
           ],
       ],
@@ -228,12 +232,12 @@ class _Legend extends StatelessWidget {
         ],
         Text(
           label,
-          style: const TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
+          style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
         ),
         const SizedBox(width: 4),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             color: CursorColors.text,
             fontFamily: CursorFonts.mono,
             fontSize: 11,
@@ -257,12 +261,12 @@ class _Stat extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
+          style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
         ),
         const SizedBox(width: 6),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             color: CursorColors.text,
             fontFamily: CursorFonts.mono,
             fontSize: 11.5,
@@ -284,11 +288,13 @@ class _LimitMeter extends StatelessWidget {
     // Past its reset, the window starts over.
     final over = resets != null && !resets.isAfter(DateTime.now());
     final fraction = over ? 0.0 : limit.utilization.clamp(0.0, 1.0);
-    final color = fraction >= 0.9
-        ? CursorColors.removed
-        : fraction >= 0.7
-        ? const Color(0xFFE2C08D)
-        : CursorColors.accent;
+    // As upstream's quota indicator.
+    final color =
+        themeColors[fraction >= 0.9
+            ? 'editorError.foreground'
+            : fraction >= 0.7
+            ? 'editorWarning.foreground'
+            : 'focusBorder'];
     return Row(
       children: [
         SizedBox(
@@ -297,10 +303,7 @@ class _LimitMeter extends StatelessWidget {
             limit.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: CursorColors.textMuted,
-              fontSize: 11.5,
-            ),
+            style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
           ),
         ),
         Expanded(
@@ -311,7 +314,7 @@ class _LimitMeter extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: fraction,
                 color: color,
-                backgroundColor: CursorColors.border,
+                backgroundColor: themeColors['editorWidget.border'],
               ),
             ),
           ),
@@ -334,7 +337,7 @@ class _LimitMeter extends StatelessWidget {
             resets == null || over ? '' : 'resets ${resetsIn(resets)}',
             textAlign: TextAlign.right,
             maxLines: 1,
-            style: const TextStyle(color: CursorColors.textFaint, fontSize: 11),
+            style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
           ),
         ),
       ],
@@ -360,12 +363,19 @@ String resetsIn(DateTime time, {DateTime? now}) {
 /// The window as one rounded strip: what is used from the left, one color
 /// a part, end to end. A part too small to see is drawn 2 pixels wide.
 class _UsageBarPainter extends CustomPainter {
-  const _UsageBarPainter({required this.window, required this.used});
+  const _UsageBarPainter({
+    required this.window,
+    required this.used,
+    required this.track,
+  });
 
   static const _minWidth = 2.0;
 
   final int window;
   final List<(int, Color)> used;
+
+  /// Under what is used.
+  final Color track;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -376,7 +386,7 @@ class _UsageBarPainter extends CustomPainter {
     canvas
       ..save()
       ..clipRRect(bar)
-      ..drawRect(Offset.zero & size, Paint()..color = CursorColors.border);
+      ..drawRect(Offset.zero & size, Paint()..color = track);
     if (window > 0) {
       double width(int tokens) => tokens <= 0
           ? 0
@@ -396,5 +406,5 @@ class _UsageBarPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_UsageBarPainter old) =>
-      old.window != window || !listEquals(old.used, used);
+      old.window != window || old.track != track || !listEquals(old.used, used);
 }

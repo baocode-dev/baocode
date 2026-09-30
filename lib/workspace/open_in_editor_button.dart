@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 
 import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
+import '../ide/ide_hover.dart';
 import '../sidebar/sidebar_menu.dart';
 import '../theme/cursor_theme.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'editor_launcher.dart';
 import 'workspace.dart';
 
@@ -78,10 +80,7 @@ class OpenInEditorButton extends StatelessWidget {
                   const SizedBox(width: 5),
                   Text(
                     editor.platformLabel,
-                    style: const TextStyle(
-                      color: CursorColors.text,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: CursorColors.text, fontSize: 12),
                   ),
                 ],
               ),
@@ -95,7 +94,7 @@ class OpenInEditorButton extends StatelessWidget {
               borderRadius: const BorderRadius.horizontal(
                 right: Radius.circular(5),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.keyboard_arrow_down_rounded,
                 size: 15,
                 color: CursorColors.textMuted,
@@ -127,24 +126,30 @@ class _Segment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: semanticsLabel,
-      excludeSemantics: true,
-      child: HoverBuilder(
-        cursor: SystemMouseCursors.click,
-        builder: (context, hovered) => GestureDetector(
-          onTap: onTap,
-          child: Container(
-            padding: padding,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: hovered || active
-                  ? CursorColors.hover
-                  : Colors.transparent,
-              borderRadius: borderRadius,
+    return IdeHover(
+      message: semanticsLabel,
+      excludeFromSemantics: true,
+      child: Semantics(
+        button: true,
+        label: semanticsLabel,
+        excludeSemantics: true,
+        child: HoverBuilder(
+          cursor: SystemMouseCursors.click,
+          builder: (context, hovered) => GestureDetector(
+            onTap: onTap,
+            child: Container(
+              padding: padding,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: active
+                    ? themeColors['toolbar.activeBackground']
+                    : hovered
+                    ? themeColors['toolbar.hoverBackground']
+                    : Colors.transparent,
+                borderRadius: borderRadius,
+              ),
+              child: child,
             ),
-            child: child,
           ),
         ),
       ),

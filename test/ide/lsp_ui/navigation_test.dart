@@ -5,6 +5,7 @@ import 'package:monad/ide/editor/monaco/flutter/editor_surface.dart';
 import 'package:monad/ide/lsp/lsp_protocol.dart';
 import 'package:monad/ide/lsp_ui/language_widgets.dart';
 import 'package:monad/ide/lsp_ui/problems_panel.dart';
+import 'package:monad/theme/workbench_theme.dart';
 
 import '../workbench/fake_files.dart';
 import 'fake_language_features.dart';
@@ -55,13 +56,24 @@ void main() {
       ),
       hasLength(1),
     );
-    // The unnecessary hint fades instead of squiggling.
+    // The unnecessary hint fades instead of squiggling: the text at the
+    // theme's `editorUnnecessaryCode.opacity`, where it has one.
     final bar = offsetOf(tester, 'bar');
     expect(
       surface.decorations.where(
-        (d) => d.start == bar && d.overlayColor != null,
+        (d) => d.start == bar && d.kind == EditorDecorationKind.hint,
       ),
-      hasLength(1),
+      isEmpty,
+    );
+    final opacity = themeColors.get('editorUnnecessaryCode.opacity');
+    expect(
+      surface.decorations
+          .where((d) => d.start == bar && d.overlayColor != null)
+          .map((d) => d.overlayColor),
+      [
+        if (opacity != null)
+          themeColors['editor.background'].withValues(alpha: 1 - opacity.a),
+      ],
     );
 
     // `$(error) 1 $(warning) 1`: each icon a placeholder in the text.

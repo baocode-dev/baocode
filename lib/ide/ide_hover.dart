@@ -7,8 +7,14 @@
 //
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/platform/hover/browser/{hover.ts,hover.css,hoverWidget.ts} and
-// src/vs/base/browser/ui/hover/hoverWidget.css, with the colors of Dark 2026
-// (extensions/theme-defaults/themes/2026-dark.json), its default theme.
+// src/vs/base/browser/ui/hover/hoverWidget.css, with the color theme's
+// `editorHoverWidget.*` colors.
+//
+// Placement: `element` (upstream's default for action bars: beside the
+// target, by [IdeHoverPosition]) or `mouse` ([IdeHover.followMouse], the
+// default hover delegate of labels and list rows,
+// `getDefaultHoverDelegate('mouse')`: below the target from 10px right of
+// the pointer, updatableHoverWidget.ts and hoverWidget.ts `layout`).
 //
 // Deviations: Flutter's [RawTooltip] does the showing and hiding. It shows
 // at once when another hover is still up (VS Code: hidden less than 200 ms
@@ -21,24 +27,18 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// VS Code's Dark 2026 hover colors.
+import '../theme/workbench_theme.dart' show themeColors;
+
+/// The workbench hover's colors, in the color theme.
 abstract final class IdeHoverColors {
-  /// `editorHoverWidget.background`.
-  static const background = Color(0xFF202122);
+  static Color get background => themeColors['editorHoverWidget.background'];
+  static Color get foreground => themeColors['editorHoverWidget.foreground'];
+  static Color get border => themeColors['editorHoverWidget.border'];
+  static Color get link => themeColors['textLink.foreground'];
+  static Color get codeBlock => themeColors['textCodeBlock.background'];
 
-  /// `editorHoverWidget.foreground` (`editorWidget.foreground`).
-  static const foreground = Color(0xFFBFBFBF);
-
-  /// `editorHoverWidget.border`.
-  static const border = Color(0xFF2A2B2C);
-
-  /// `textLink.foreground`.
-  static const link = Color(0xFF48A0C7);
-
-  /// `textCodeBlock.background`.
-  static const codeBlock = Color(0xFF242526);
-
-  /// `--vscode-shadow-lg`.
+  /// `--vscode-shadow-lg` (workbench/browser/media/style.css): the same in
+  /// every theme.
   static const shadow = [BoxShadow(color: Color(0x24000000), blurRadius: 12)];
 }
 
@@ -104,7 +104,7 @@ class IdeHoverBox extends StatelessWidget {
 
 /// Shows [message] (or [content]) in a workbench hover while [child] is
 /// hovered, after [ideHoverDelay].
-class IdeHover extends StatelessWidget {
+class IdeHover extends StatefulWidget {
   const IdeHover({
     super.key,
     this.message,
@@ -112,6 +112,8 @@ class IdeHover extends StatelessWidget {
     this.position = IdeHoverPosition.below,
     this.pointer = false,
     this.compact = true,
+    this.followMouse = false,
+    this.excludeFromSemantics = false,
     required this.child,
   }) : assert(message != null || content != null);
 
@@ -126,38 +128,90 @@ class IdeHover extends StatelessWidget {
   /// bar's hovers have.
   final bool pointer;
   final bool compact;
+
+  /// The `mouse` placement: below [child] (above when there is no room),
+  /// its left edge 10px right of where the pointer was ([position] and
+  /// [pointer] do not apply).
+  final bool followMouse;
+
+  /// For a [child] that has [message] as its own semantics label already.
+  final bool excludeFromSemantics;
   final Widget child;
 
   static const _gap = 4.0;
   static const _pointerSize = 3.0;
 
   @override
+  State<IdeHover> createState() => _IdeHoverState();
+}
+
+class _IdeHoverState extends State<IdeHover> {
+  /// Where the pointer last moved over the target, in the target.
+  Offset? _mouse;
+
+  @override
   Widget build(BuildContext context) {
-    if (message?.isEmpty ?? false) return child;
+    final widget = this.widget;
+    if (widget.message?.isEmpty ?? false) return widget.child;
     return RawTooltip(
-      semanticsTooltip: message,
+      semanticsTooltip: widget.excludeFromSemantics ? null : widget.message,
       hoverDelay: ideHoverDelay,
       triggerMode: TooltipTriggerMode.manual,
       animationStyle: const AnimationStyle(
         duration: Duration(milliseconds: 100),
         reverseDuration: Duration.zero,
       ),
-      positionDelegate: _place,
+      positionDelegate: widget.followMouse ? _placeAtMouse : _place,
       tooltipBuilder: (context, animation) =>
           FadeTransition(opacity: animation, child: _box()),
-      child: child,
+      child: widget.followMouse
+          ? MouseRegion(
+              onHover: (event) => _mouse = event.localPosition,
+              child: widget.child,
+            )
+          : widget.child,
+    );
+  }
+
+  /// `target.x = e.x + 10` (hoverService.ts `setupManagedHover`), and
+  /// hoverWidget.ts' coordinates for it: `target.bottom - 2` below, or
+  /// ending at `target.top` when the window's bottom is in the way; at the
+  /// target's left + 2 when left of the window.
+  Offset _placeAtMouse(TooltipPositionContext context) {
+    final target = context.target;
+    final half = context.targetSize / 2;
+    final size = context.tooltipSize;
+    final overlay = context.overlaySize;
+    final left = target.dx - half.width;
+    // No pointer yet (focus): the target's left.
+    var x = switch (_mouse) {
+      final mouse? => left + mouse.dx + 10,
+      null => left,
+    };
+    if (x < 0) x = left + 2;
+    final bottom = target.dy + half.height;
+    final y = bottom + size.height > overlay.height
+        ? target.dy - half.height - size.height
+        : bottom - 2;
+    return Offset(
+      x.clamp(0, math.max(0, overlay.width - size.width)),
+      y.clamp(0, math.max(0, overlay.height - size.height)),
     );
   }
 
   Widget _box() {
     final box = IdeHoverBox(
-      compact: compact,
-      radius: pointer ? 3 : 5,
-      child: content ?? Text(message!),
+      compact: widget.compact,
+      radius: widget.pointer ? 3 : 5,
+      child: widget.content ?? Text(widget.message!),
     );
-    if (!pointer) return box;
+    if (!widget.pointer) return box;
     return CustomPaint(
-      foregroundPainter: _PointerPainter(position),
+      foregroundPainter: _PointerPainter(
+        widget.position,
+        background: IdeHoverColors.background,
+        border: IdeHoverColors.border,
+      ),
       child: box,
     );
   }
@@ -167,10 +221,10 @@ class IdeHover extends StatelessWidget {
     final half = context.targetSize / 2;
     final size = context.tooltipSize;
     final overlay = context.overlaySize;
-    final gap = _gap + (pointer ? _pointerSize : 0);
-    var side = position;
+    final gap = IdeHover._gap + (widget.pointer ? IdeHover._pointerSize : 0);
+    var side = widget.position;
     // Flip to the other side when this one has no room (pointers stay).
-    if (!pointer) {
+    if (!widget.pointer) {
       side = switch (side) {
         IdeHoverPosition.below
             when target.dy + half.height + gap + size.height > overlay.height &&
@@ -216,9 +270,15 @@ class IdeHover extends StatelessWidget {
 /// `.workbench-hover-pointer`: a 6px square turned 45°, half outside the
 /// hover's edge facing the target.
 class _PointerPainter extends CustomPainter {
-  const _PointerPainter(this.position);
+  const _PointerPainter(
+    this.position, {
+    required this.background,
+    required this.border,
+  });
 
   final IdeHoverPosition position;
+  final Color background;
+  final Color border;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -239,24 +299,27 @@ class _PointerPainter extends CustomPainter {
       ..translate(center.dx, center.dy)
       ..rotate(angle);
     const square = Rect.fromLTWH(-3, -3, 6, 6);
-    canvas.drawRect(square, Paint()..color = IdeHoverColors.background);
+    canvas.drawRect(square, Paint()..color = background);
     // The two sides outside the hover carry its border.
-    final border = Paint()
-      ..color = IdeHoverColors.border
+    final edge = Paint()
+      ..color = border
       ..style = PaintingStyle.stroke;
     canvas
-      ..drawLine(square.bottomLeft, square.topLeft, border)
-      ..drawLine(square.bottomLeft, square.bottomRight, border)
+      ..drawLine(square.bottomLeft, square.topLeft, edge)
+      ..drawLine(square.bottomLeft, square.bottomRight, edge)
       ..restore();
   }
 
   @override
   bool shouldRepaint(_PointerPainter oldDelegate) =>
-      oldDelegate.position != position;
+      oldDelegate.position != position ||
+      oldDelegate.background != background ||
+      oldDelegate.border != border;
 }
 
 /// An action bar button: a codicon in a 22px square that lights up on
-/// hover (`.monaco-action-bar .action-label`), with a workbench hover.
+/// hover (`.monaco-action-bar .action-label`, workbench/browser/media/
+/// style.css), with a workbench hover.
 class IdeActionButton extends StatefulWidget {
   const IdeActionButton({
     super.key,
@@ -279,15 +342,13 @@ class IdeActionButton extends StatefulWidget {
   /// `icon.foreground` when null.
   final Color? color;
 
-  /// Shown pressed, as a toggle that is on.
+  /// Shown pressed (`.action-item.active`), as while its menu is open.
   final bool checked;
   final IdeHoverPosition hoverPosition;
 
-  /// `toolbar.hoverBackground`.
-  static const hoverBackground = Color(0x505A5D5E);
-
-  /// `icon.foreground` (Dark 2026).
-  static const foreground = Color(0xFF8C8C8C);
+  static Color get hoverBackground => themeColors['toolbar.hoverBackground'];
+  static Color get activeBackground => themeColors['toolbar.activeBackground'];
+  static Color get foreground => themeColors['icon.foreground'];
 
   @override
   State<IdeActionButton> createState() => _IdeActionButtonState();
@@ -299,6 +360,10 @@ class _IdeActionButtonState extends State<IdeActionButton> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null;
+    // High contrast themes outline it on hover (dashed upstream).
+    final outline = enabled && _hover
+        ? themeColors.get('toolbar.hoverOutline')
+        : null;
     return IdeHover(
       message: widget.tooltip,
       position: widget.hoverPosition,
@@ -318,11 +383,21 @@ class _IdeActionButtonState extends State<IdeActionButton> {
               height: widget.size,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: enabled && (_hover || widget.checked)
+                color: !enabled
+                    ? null
+                    : widget.checked
+                    ? IdeActionButton.activeBackground
+                    : _hover
                     ? IdeActionButton.hoverBackground
                     : null,
                 borderRadius: BorderRadius.circular(5),
               ),
+              foregroundDecoration: outline == null
+                  ? null
+                  : BoxDecoration(
+                      border: Border.all(color: outline),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
               child: Opacity(
                 opacity: enabled ? 1 : 0.4,
                 child: Icon(

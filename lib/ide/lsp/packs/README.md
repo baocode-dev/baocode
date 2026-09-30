@@ -126,6 +126,25 @@ replace its grammar. For language servers, a pack language is a language
 entry as in `lsp.json` (with `extensions` as `fileTypes` and `filenames` as
 `fileNames`).
 
+### Packs and TextMate highlighting
+
+On the desktop the editor highlights with VS Code's TextMate grammars
+(`assets/textmate/`, `lib/ide/editor/textmate/`), which VS Code's language
+detection picks from the file name, extension, glob or first line. Pack
+grammars are Monarch grammars, and they still come first: a file a pack
+language claims (as above) is highlighted by the pack, whatever grammar
+VS Code has for it. A file no pack claims is highlighted by TextMate when a
+VS Code language with a grammar matches it, and by the bundled Monarch
+grammars otherwise (languages VS Code does not ship, e.g. Kotlin). On the
+web, or when the native Oniguruma library does not load, everything is
+Monarch, as before.
+
+Language ids are separate matters: highlighting uses VS Code's ids
+(`shellscript`, `typescriptreact`), Monarch uses Monaco's (`shell`),
+language servers use this catalog's (`languageId`). Where a VS Code id
+falls back to Monarch it is mapped (`monarchLanguageIdFor` in
+`textmate_syntax.dart`); language servers never see highlighting ids.
+
 ### `grammar.json`
 
 A Monarch definition (https://microsoft.github.io/monaco-editor/monarch.html)
@@ -189,3 +208,5 @@ servers instead of the bundled ones. A single server object works too.
   installer.
 - `lib/ide/editor/monaco/flutter/language_assets.dart`: pack grammars and
   registrations for the editor.
+- `lib/ide/editor/textmate/textmate_syntax.dart`: TextMate highlighting,
+  which defers to packs (`TextMateSyntax.languageIdForPath`).

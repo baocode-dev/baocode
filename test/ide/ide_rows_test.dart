@@ -51,5 +51,16 @@ void main() {
       expect(const IdeRows(panel: 0).canGrowPanel(900), isTrue);
       expect(const IdeRows(panel: 0).canGrowPanel(140), isFalse);
     });
+
+    test('under the chat, maximized, the chat keeps its own minimum', () {
+      final rows = IdeRows.fit(300, panel: 200, minAbove: IdeRows.minChat);
+      expect(rows, const IdeRows(panel: 140, minAbove: IdeRows.minChat));
+      expect(rows.canGrowPanel(300), isFalse);
+      expect(rows.drag(300, -100), rows);
+      expect(
+        rows.drag(300, 40),
+        const IdeRows(panel: 100, minAbove: IdeRows.minChat),
+      );
+    });
   });
 }

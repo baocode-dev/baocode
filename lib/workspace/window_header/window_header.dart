@@ -7,6 +7,7 @@ import '../../ide/ide_modern_ui.dart';
 import '../../sidebar/sidebar.dart';
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../back_to_chat_button.dart';
 import '../open_in_editor_button.dart';
 import '../pin_window_button.dart';
@@ -116,13 +117,18 @@ class _WindowHeaderState extends State<WindowHeader> {
     // Windows (see WindowControls.drawsHeader), so the system draws none.
     // Over the IDE it is the IDE's title bar: its color, no line, and the
     // way back to the chat on the right, as on macOS.
+    final colors = themeColors;
     return Material(
-      color: ide ? IdeModernUI.shell : CursorColors.background,
+      color: ide ? IdeModernUI.shell : colors['titleBar.activeBackground'],
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: ide
               ? null
-              : const Border(bottom: BorderSide(color: CursorColors.border)),
+              : Border(
+                  bottom: BorderSide(
+                    color: colors.get('titleBar.border') ?? CursorColors.border,
+                  ),
+                ),
         ),
         child: SizedBox(
           height: CursorMetrics.headerHeight,

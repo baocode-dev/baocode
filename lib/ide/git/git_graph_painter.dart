@@ -12,12 +12,14 @@
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/workbench/contrib/scm/browser/scmHistory.ts
 // (`renderSCMHistoryItemGraph`, `renderSCMHistoryGraphPlaceholder`) and the
-// circles' strokes and fills in media/scm.css.
+// circles' strokes and fills in media/scm.css. Lanes are drawn in their
+// color ids (`asCssVariable`) as the current color theme has them.
 
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+import '../../theme/workbench_theme.dart';
 import 'git_model.dart';
 
 const _laneHeight = 22.0;
@@ -36,14 +38,17 @@ double ideGraphPlaceholderWidth(List<IdeGraphLane> lanes) =>
     _laneWidth * (lanes.length + 1);
 
 class IdeGraphPainter extends CustomPainter {
-  const IdeGraphPainter(
+  IdeGraphPainter(
     this.row, {
     required this.background,
     this.hovered = false,
     this.expanded = false,
-  });
+  }) : colors = themeColors;
 
   final IdeGraphRow row;
+
+  /// The color theme's colors, which the lanes' ids name.
+  final WorkbenchColors colors;
 
   /// What is behind the row (the side bar, or its hover or selection): the
   /// circles' outlines and hollow centers are this color.
@@ -70,11 +75,11 @@ class IdeGraphPainter extends CustomPainter {
     final output = row.outputLanes;
     final inputIndex = input.indexWhere((lane) => lane.id == commit.id);
     final circleIndex = row.circleIndex;
-    final circleColor = row.circleColor;
+    final circleColor = colors[row.circleColor];
 
     var outputIndex = 0;
     for (var index = 0; index < input.length; index++) {
-      final color = input[index].color;
+      final color = colors[input[index].color];
       if (input[index].id == commit.id) {
         if (index != circleIndex) {
           // The base commit's lane curves into its circle: / then -.
@@ -128,7 +133,7 @@ class IdeGraphPainter extends CustomPainter {
         )
         ..moveTo(w * parentIndex, h / 2)
         ..lineTo(w * (circleIndex + 1), h / 2);
-      canvas.drawPath(path, _stroke(output[parentIndex].color));
+      canvas.drawPath(path, _stroke(colors[output[parentIndex].color]));
     }
 
     final x = w * (circleIndex + 1);
@@ -136,7 +141,7 @@ class IdeGraphPainter extends CustomPainter {
       canvas.drawLine(
         Offset(x, 0),
         Offset(x, h / 2),
-        _stroke(input[inputIndex].color),
+        _stroke(colors[input[inputIndex].color]),
       );
     }
     if (commit.parentIds.isNotEmpty) {
@@ -201,6 +206,7 @@ class IdeGraphPainter extends CustomPainter {
   @override
   bool shouldRepaint(IdeGraphPainter oldDelegate) =>
       oldDelegate.row != row ||
+      oldDelegate.colors != colors ||
       oldDelegate.background != background ||
       oldDelegate.hovered != hovered ||
       oldDelegate.expanded != expanded;
@@ -209,10 +215,14 @@ class IdeGraphPainter extends CustomPainter {
 /// The lanes beside an expanded commit's changes: straight down, the
 /// commit's own ([highlight]) 3px wide.
 class IdeGraphPlaceholderPainter extends CustomPainter {
-  const IdeGraphPlaceholderPainter(this.lanes, {this.highlight});
+  IdeGraphPlaceholderPainter(this.lanes, {this.highlight})
+    : colors = themeColors;
 
   final List<IdeGraphLane> lanes;
   final int? highlight;
+
+  /// The color theme's colors, which the lanes' ids name.
+  final WorkbenchColors colors;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -221,12 +231,14 @@ class IdeGraphPlaceholderPainter extends CustomPainter {
       canvas.drawLine(
         Offset(x, 0),
         Offset(x, _laneHeight),
-        IdeGraphPainter._stroke(lane.color, index == highlight ? 3 : 1),
+        IdeGraphPainter._stroke(colors[lane.color], index == highlight ? 3 : 1),
       );
     }
   }
 
   @override
   bool shouldRepaint(IdeGraphPlaceholderPainter oldDelegate) =>
-      oldDelegate.lanes != lanes || oldDelegate.highlight != highlight;
+      oldDelegate.lanes != lanes ||
+      oldDelegate.colors != colors ||
+      oldDelegate.highlight != highlight;
 }

@@ -6,52 +6,62 @@ import 'package:flutter/services.dart';
 
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart';
 import '../editor/monaco/flutter/editor_surface.dart';
 import '../editor/monaco/vs/base/common/filters.dart';
 import '../ide_hover.dart';
 import '../ide_input.dart';
 import '../lsp/lsp_protocol.dart';
-import 'diagnostics.dart';
 import 'editor_language_session.dart';
 import 'hover_markdown.dart';
 import 'language_icons.dart';
 import 'suggest_session.dart';
 
-/// Dark 2026 widget colors (`editorWidget.*`, `editorSuggestWidget.*`).
-abstract final class IdeWidgetColors {
-  static const background = Color(0xFF202122);
-  static const border = Color(0xFF2A2B2C);
+// The widgets' colors are the color theme's, by the ids their upstream
+// CSS reads (suggest.css, parameterHints.css, actionWidget.css,
+// renameWidget.ts, messageController.css, hover.css).
 
-  /// `editorSuggestWidget.selectedBackground`.
-  static const selected = Color(0x26FFFFFF);
-
-  /// `editorHoverWidget.highlightForeground` (`list.highlightForeground`):
-  /// the active parameter.
-  static const highlight = Color(0xFF48A0C7);
-
-  /// `editorSuggestWidget.highlightForeground`: matched characters, bold.
-  static const suggestHighlight = Color(0xFFBFBFBF);
-  static const foreground = Color(0xFFBFBFBF);
-
-  /// `descriptionForeground`.
-  static const faint = Color(0xFF8C8C8C);
-  static const lightbulb = Color(0xFFFFCC00);
-  static const lightbulbAutoFix = Color(0xFF75BEFF);
-}
-
-const _monoStyle = TextStyle(
+/// The editor's font for code in the widgets, in [color].
+TextStyle _mono(Color color) => TextStyle(
   fontFamily: CursorFonts.mono,
   fontSize: 12.5,
-  color: IdeWidgetColors.foreground,
+  color: color,
   height: 1.4,
 );
 
-BoxDecoration _boxDecoration() => BoxDecoration(
-  color: IdeWidgetColors.background,
-  border: Border.all(color: IdeWidgetColors.border),
-  borderRadius: BorderRadius.circular(4),
-  boxShadow: const [
-    BoxShadow(color: Color(0x5C000000), blurRadius: 8, offset: Offset(0, 2)),
+/// Text drawn at CSS `opacity`.
+Color _faded(Color color, double opacity) =>
+    color.withValues(alpha: color.a * opacity);
+
+/// `--vscode-shadow-lg`, a workbench constant (not a theme color).
+const _shadowLarge = [BoxShadow(color: Color(0x24000000), blurRadius: 12)];
+
+/// A widget's box: the [background] and [border] colors' ids, and its
+/// [shadow].
+BoxDecoration _box({
+  required String background,
+  required String border,
+  required List<BoxShadow> shadow,
+}) {
+  final colors = themeColors;
+  return BoxDecoration(
+    color: colors[background],
+    border: Border.all(color: colors[border]),
+    borderRadius: BorderRadius.circular(4),
+    boxShadow: shadow,
+  );
+}
+
+/// The suggest widget's box: `0 2px 8px widget.shadow`.
+BoxDecoration _suggestBox() => _box(
+  background: 'editorSuggestWidget.background',
+  border: 'editorSuggestWidget.border',
+  shadow: [
+    BoxShadow(
+      color: themeColors['widget.shadow'],
+      blurRadius: 8,
+      offset: const Offset(0, 2),
+    ),
   ],
 );
 
@@ -304,19 +314,26 @@ class _MessageBox extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(maxWidth: 420),
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(
-      color: const Color(0xFF1B3B5A),
-      border: Border.all(color: IdeDiagnosticColors.info),
-      borderRadius: BorderRadius.circular(3),
-    ),
-    child: Text(
-      text,
-      style: const TextStyle(fontSize: 12, color: IdeWidgetColors.foreground),
-    ),
-  );
+  Widget build(BuildContext context) {
+    // `.monaco-editor-overlaymessage .message`.
+    final colors = themeColors;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 420),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colors['editorHoverWidget.background'],
+        border: Border.all(color: colors['inputValidation.infoBorder']),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          color: colors['editorHoverWidget.foreground'],
+        ),
+      ),
+    );
+  }
 }
 
 /// The editor hover (`ContentHoverWidget`): a row per problem at the
@@ -342,13 +359,18 @@ class IdeHoverCard extends StatelessWidget {
   /// The editor's language, for code blocks that name none.
   final String? language;
 
-  /// `.monaco-hover .hover-row + .hover-row`'s `border-top`.
-  static final rowBorder = IdeHoverColors.border.withValues(
-    alpha: IdeHoverColors.border.a / 2,
-  );
+  /// `.monaco-hover .hover-row + .hover-row`'s `border-top`: the border at
+  /// half strength.
+  static Color get rowBorder {
+    final border = themeColors['editorHoverWidget.border'];
+    return border.withValues(alpha: border.a / 2);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final colors = themeColors;
+    final foreground = colors['editorHoverWidget.foreground'];
+    final rowBorder = IdeHoverCard.rowBorder;
     final rows = <Widget>[
       for (final d in state.diagnostics)
         // The message in the editor's font, then `source(code)` at 60%.
@@ -363,13 +385,11 @@ class IdeHoverCard extends StatelessWidget {
                     text:
                         '  ${d.source ?? ''}'
                         '${d.code == null ? '' : '(${d.code})'}',
-                    style: TextStyle(
-                      color: IdeHoverColors.foreground.withValues(alpha: 0.6),
-                    ),
+                    style: TextStyle(color: _faded(foreground, 0.6)),
                   ),
               ],
             ),
-            style: ideHoverCodeStyle.copyWith(color: IdeHoverColors.foreground),
+            style: ideHoverCodeStyle.copyWith(color: foreground),
           ),
         ),
       if (state.markdown case final markdown?)
@@ -382,10 +402,10 @@ class IdeHoverCard extends StatelessWidget {
         // `--vscode-hover-maxWidth` of text, and the hover's padding.
         constraints: const BoxConstraints(maxWidth: 500 + 16, maxHeight: 300),
         decoration: BoxDecoration(
-          color: IdeHoverColors.background,
-          border: Border.all(color: IdeHoverColors.border),
+          color: colors['editorHoverWidget.background'],
+          border: Border.all(color: colors['editorHoverWidget.border']),
           borderRadius: BorderRadius.circular(8),
-          boxShadow: IdeHoverColors.shadow,
+          boxShadow: _shadowLarge,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(7),
@@ -436,9 +456,10 @@ class IdeLightbulb extends StatelessWidget {
         child: Icon(
           autoFix ? Codicons.lightbulbAutofix : Codicons.lightBulb,
           size: 14,
-          color: autoFix
-              ? IdeWidgetColors.lightbulbAutoFix
-              : IdeWidgetColors.lightbulb,
+          color:
+              themeColors[autoFix
+                  ? 'editorLightBulbAutoFix.foreground'
+                  : 'editorLightBulb.foreground'],
         ),
       ),
     ),
@@ -513,10 +534,13 @@ class _IdeSuggestWidgetState extends State<IdeSuggestWidget> {
         height: IdeSuggestWidget.rowHeight + 4,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         alignment: Alignment.centerLeft,
-        decoration: _boxDecoration(),
+        decoration: _suggestBox(),
         child: Text(
           session.loading ? 'Loading...' : 'No suggestions.',
-          style: const TextStyle(fontSize: 12.5, color: IdeWidgetColors.faint),
+          style: TextStyle(
+            fontSize: 12.5,
+            color: themeColors['editorSuggestWidget.foreground'],
+          ),
         ),
       );
     } else {
@@ -524,7 +548,7 @@ class _IdeSuggestWidgetState extends State<IdeSuggestWidget> {
       list = Container(
         width: IdeSuggestWidget.width,
         height: visible * IdeSuggestWidget.rowHeight + 2,
-        decoration: _boxDecoration(),
+        decoration: _suggestBox(),
         child: ListView.builder(
           controller: _scroll,
           itemExtent: IdeSuggestWidget.rowHeight,
@@ -589,10 +613,28 @@ class _SuggestRow extends StatelessWidget {
     final label = completion.label;
     final spans = <TextSpan>[];
     var at = 0;
+    // The focused row: `selectedForeground`, its icon
+    // `selectedIconForeground`, its matches `focusHighlightForeground`;
+    // each inherits where the theme has none, as in CSS.
+    final colors = themeColors;
+    final unselected = colors['editorSuggestWidget.foreground'];
+    final foreground = selected
+        ? colors.get('editorSuggestWidget.selectedForeground') ?? unselected
+        : unselected;
+    final highlight = selected
+        ? colors.get('editorSuggestWidget.focusHighlightForeground') ??
+              foreground
+        : colors['editorSuggestWidget.highlightForeground'];
+    final iconColor = selected
+        ? colors.get('editorSuggestWidget.selectedIconForeground') ?? foreground
+        : icon.color;
+    final focusOutline = selected
+        ? colors.get('editorSuggestWidget.focusOutline')
+        : null;
     final base = TextStyle(
       fontFamily: CursorFonts.mono,
       fontSize: 12.5,
-      color: IdeWidgetColors.foreground,
+      color: foreground,
       decoration: completion.deprecated ? TextDecoration.lineThrough : null,
     );
     for (final match in createMatches(item.score)) {
@@ -602,20 +644,18 @@ class _SuggestRow extends StatelessWidget {
       spans.add(
         TextSpan(
           text: label.substring(start, end),
-          style: const TextStyle(
-            color: IdeWidgetColors.suggestHighlight,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: highlight, fontWeight: FontWeight.bold),
         ),
       );
       at = end;
     }
     if (at < label.length) spans.add(TextSpan(text: label.substring(at)));
     if (completion.labelDetail case final detail?) {
+      // `.signature-label`.
       spans.add(
         TextSpan(
           text: detail,
-          style: const TextStyle(color: IdeWidgetColors.faint),
+          style: TextStyle(color: _faded(foreground, 0.6)),
         ),
       );
     }
@@ -627,11 +667,16 @@ class _SuggestRow extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Container(
-          color: selected ? IdeWidgetColors.selected : null,
+          color: selected
+              ? colors['editorSuggestWidget.selectedBackground']
+              : null,
+          foregroundDecoration: focusOutline == null
+              ? null
+              : BoxDecoration(border: Border.all(color: focusOutline)),
           padding: const EdgeInsets.symmetric(horizontal: 6),
           child: Row(
             children: [
-              Icon(icon.icon, size: 14, color: icon.color),
+              Icon(icon.icon, size: 14, color: iconColor),
               const SizedBox(width: 6),
               Expanded(
                 child: Text.rich(
@@ -648,10 +693,8 @@ class _SuggestRow extends StatelessWidget {
                     right.replaceAll('\n', ' '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      color: IdeWidgetColors.faint,
-                    ),
+                    // `.details-label`.
+                    style: TextStyle(fontSize: 11.5, color: foreground),
                   ),
                 ),
               ],
@@ -678,20 +721,22 @@ class _SuggestDetails extends StatelessWidget {
         (documentation == null || documentation.isEmpty)) {
       return const SizedBox.shrink();
     }
+    final foreground = themeColors['editorSuggestWidget.foreground'];
     return Container(
       key: const ValueKey('ide-suggest-details'),
       width: IdeSuggestWidget.detailsWidth,
       constraints: const BoxConstraints(maxHeight: 280),
       margin: const EdgeInsets.only(left: 2),
-      decoration: _boxDecoration(),
+      decoration: _suggestBox(),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // `.header > .type`.
             if (detail != null && detail.isNotEmpty)
-              Text(detail, style: _monoStyle),
+              Text(detail, style: _mono(_faded(foreground, 0.7))),
             if (detail != null &&
                 detail.isNotEmpty &&
                 documentation != null &&
@@ -703,6 +748,7 @@ class _SuggestDetails extends StatelessWidget {
                 colorize: colorize,
                 language: language,
                 padding: 0,
+                foreground: 'editorSuggestWidget.foreground',
               ),
           ],
         ),
@@ -760,9 +806,16 @@ class IdeParameterHints extends StatelessWidget {
     final parameterDoc = active >= 0 && active < signature.parameters.length
         ? signature.parameters[active].documentation
         : null;
+    final colors = themeColors;
+    final foreground = colors['editorHoverWidget.foreground'];
+    final border = colors['editorHoverWidget.border'];
     return Container(
       constraints: const BoxConstraints(maxWidth: 560, maxHeight: 260),
-      decoration: _boxDecoration(),
+      decoration: _box(
+        background: 'editorHoverWidget.background',
+        border: 'editorHoverWidget.border',
+        shadow: _shadowLarge,
+      ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         child: Column(
@@ -782,10 +835,7 @@ class IdeParameterHints extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 2),
                     child: Text(
                       '${state.activeSignature + 1}/$count',
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: IdeWidgetColors.faint,
-                      ),
+                      style: TextStyle(fontSize: 11.5, color: foreground),
                     ),
                   ),
                   _OverloadButton(
@@ -803,15 +853,16 @@ class IdeParameterHints extends StatelessWidget {
                               TextSpan(text: label.substring(0, range.$1)),
                               TextSpan(
                                 text: label.substring(range.$1, range.$2),
-                                style: const TextStyle(
-                                  color: IdeWidgetColors.highlight,
+                                style: TextStyle(
+                                  color:
+                                      colors['editorHoverWidget.highlightForeground'],
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               TextSpan(text: label.substring(range.$2)),
                             ],
                     ),
-                    style: _monoStyle,
+                    style: _mono(foreground),
                   ),
                 ),
               ],
@@ -827,7 +878,8 @@ class IdeParameterHints extends StatelessWidget {
             ],
             if (signature.documentation case final doc?
                 when doc.isNotEmpty) ...[
-              const Divider(height: 10, color: IdeWidgetColors.border),
+              // `.signature.has-docs::after`: the border at half opacity.
+              Divider(height: 10, color: _faded(border, 0.5)),
               IdeHoverMarkdown(
                 doc,
                 colorize: colorize,
@@ -853,7 +905,11 @@ class _OverloadButton extends StatelessWidget {
     cursor: SystemMouseCursors.click,
     child: GestureDetector(
       onTap: onTap,
-      child: Icon(icon, size: 16, color: IdeWidgetColors.foreground),
+      child: Icon(
+        icon,
+        size: 16,
+        color: themeColors['editorHoverWidget.foreground'],
+      ),
     ),
   );
 }
@@ -884,6 +940,10 @@ class IdeCodeActionMenuWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // actionWidget.css; the lightbulb's color is `actionList.ts`'.
+    final colors = themeColors;
+    final foreground = colors['menu.foreground'];
+    final disabledForeground = colors['disabledForeground'];
     final rows = <Widget>[];
     var index = 0;
     for (final (group, actions) in menu.groups) {
@@ -893,9 +953,9 @@ class IdeCodeActionMenuWidget extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(8, 4, 8, 2),
             child: Text(
               group.title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
-                color: IdeWidgetColors.faint,
+                color: colors['descriptionForeground'],
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -906,20 +966,31 @@ class IdeCodeActionMenuWidget extends StatelessWidget {
         final i = index++;
         final selected = i == menu.selected;
         final disabled = action.isDisabled;
+        final focused = selected && !disabled;
+        final rowForeground = focused
+            ? colors.get('list.hoverForeground') ?? foreground
+            : foreground;
+        final icon = iconFor(action);
+        final outline = focused ? colors.get('contrastActiveBorder') : null;
         Widget row = Container(
           height: 22,
-          color: selected && !disabled ? IdeWidgetColors.selected : null,
+          color: focused ? colors['list.hoverBackground'] : null,
+          foregroundDecoration: outline == null
+              ? null
+              : BoxDecoration(border: Border.all(color: outline)),
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
             children: [
               Icon(
-                iconFor(action),
+                icon,
                 size: 14,
                 color: disabled
-                    ? IdeWidgetColors.faint
-                    : action.isPreferred
-                    ? IdeWidgetColors.lightbulbAutoFix
-                    : IdeWidgetColors.lightbulb,
+                    ? disabledForeground
+                    : icon != Codicons.lightBulb
+                    ? rowForeground
+                    : colors[action.isPreferred
+                          ? 'editorLightBulbAutoFix.foreground'
+                          : 'editorLightBulb.foreground'],
               ),
               const SizedBox(width: 6),
               Flexible(
@@ -929,20 +1000,18 @@ class IdeCodeActionMenuWidget extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12.5,
-                    color: disabled
-                        ? IdeWidgetColors.faint
-                        : IdeWidgetColors.foreground,
+                    color: disabled ? disabledForeground : rowForeground,
                   ),
                 ),
               ),
               if (action.isPreferred && !disabled) ...[
                 const SizedBox(width: 6),
-                const IdeHover(
+                IdeHover(
                   message: 'Preferred',
                   child: Icon(
                     Codicons.starFull,
                     size: 11,
-                    color: IdeWidgetColors.lightbulbAutoFix,
+                    color: colors['editorLightBulbAutoFix.foreground'],
                   ),
                 ),
               ],
@@ -968,7 +1037,11 @@ class IdeCodeActionMenuWidget extends StatelessWidget {
     return Container(
       constraints: const BoxConstraints(minWidth: 200, maxWidth: 440),
       padding: const EdgeInsets.symmetric(vertical: 3),
-      decoration: _boxDecoration(),
+      decoration: _box(
+        background: 'menu.background',
+        border: 'editorHoverWidget.border',
+        shadow: _shadowLarge,
+      ),
       child: IntrinsicWidth(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1025,10 +1098,27 @@ class _IdeRenameInputState extends State<IdeRenameInput> {
 
   @override
   Widget build(BuildContext context) {
+    // `RenameWidget._updateStyles`.
+    final colors = themeColors;
+    final foreground = colors['input.foreground'];
+    final inputBorder = colors.get('input.border');
+    final border = inputBorder == null
+        ? InputBorder.none
+        : OutlineInputBorder(borderSide: BorderSide(color: inputBorder));
     return Container(
       width: 240,
       padding: const EdgeInsets.all(4),
-      decoration: _boxDecoration(),
+      decoration: _box(
+        background: 'editorWidget.background',
+        border: 'widget.border',
+        shadow: [
+          BoxShadow(
+            color: colors['widget.shadow'],
+            blurRadius: 8,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1048,21 +1138,20 @@ class _IdeRenameInputState extends State<IdeRenameInput> {
               controller: widget.state.text,
               focusNode: widget.state.focusNode,
               autofocus: true,
-              style: _monoStyle,
-              cursorColor: CursorColors.accent,
+              style: _mono(foreground),
+              cursorColor: foreground,
               cursorHeight: ideCaretHeight(12.5),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(
+                filled: true,
+                fillColor: colors['input.background'],
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 6,
                   vertical: 5,
                 ),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide(color: CursorColors.accent),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: CursorColors.accent),
-                ),
+                border: border,
+                enabledBorder: border,
+                focusedBorder: border,
               ),
               onSubmitted: (_) {
                 _done = true;
@@ -1070,11 +1159,12 @@ class _IdeRenameInputState extends State<IdeRenameInput> {
               },
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.only(top: 3, left: 2),
+          // `.rename-label`.
+          Padding(
+            padding: const EdgeInsets.only(top: 3, left: 2),
             child: Text(
               'Enter to Rename, Escape to Cancel',
-              style: TextStyle(fontSize: 10.5, color: IdeWidgetColors.faint),
+              style: TextStyle(fontSize: 10.5, color: _faded(foreground, 0.8)),
             ),
           ),
         ],

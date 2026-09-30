@@ -71,10 +71,8 @@ class MathView extends StatelessWidget {
   final String tex;
   final bool display;
 
-  static const _style = TextStyle(
-    color: CursorColors.textPrimary,
-    fontSize: 14.5,
-  );
+  static TextStyle get _style =>
+      TextStyle(color: CursorColors.textPrimary, fontSize: 14.5);
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +82,7 @@ class MathView extends StatelessWidget {
       textStyle: _style,
       onErrorFallback: (_) => Text(
         display ? tex : '\$$tex\$',
-        style: const TextStyle(
+        style: TextStyle(
           color: CursorColors.inlineCode,
           fontFamily: CursorFonts.mono,
           fontSize: 12.5,

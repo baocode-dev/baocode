@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../../theme/cursor_theme.dart';
+import '../../ide/ide_hover.dart';
 import 'floating_layer.dart';
 import 'floating_placement.dart';
 import 'floating_registry.dart';
@@ -145,42 +145,16 @@ class _HoverTooltipState extends State<HoverTooltip> {
   }
 }
 
-/// The tooltip's panel: neutral, compact, selectable text.
+/// The tooltip's panel: the workbench hover's box ([IdeHoverBox]), with
+/// selectable text.
 class TooltipSurface extends StatelessWidget {
   const TooltipSurface({super.key, required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 380),
-      child: Material(
-        type: MaterialType.transparency,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 7, 10, 8),
-          decoration: BoxDecoration(
-            color: CursorColors.surfaceRaised,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: CursorColors.borderStrong),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x80000000),
-                blurRadius: 16,
-                offset: Offset(0, 6),
-              ),
-            ],
-          ),
-          child: DefaultTextStyle.merge(
-            style: const TextStyle(
-              color: CursorColors.textPrimary,
-              fontSize: 12,
-              height: 1.45,
-            ),
-            child: SelectionArea(child: child),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Material(
+    type: MaterialType.transparency,
+    child: IdeHoverBox(child: SelectionArea(child: child)),
+  );
 }

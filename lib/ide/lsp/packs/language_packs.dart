@@ -106,17 +106,22 @@ class LanguagePackRegistry {
   final String? directory;
   final LspFiles _files;
   Future<List<LanguagePack>>? _packs;
+  // What [_packs] read, kept as a value: a future answers in the zone it was
+  // made in, which may be gone (a widget test's fake async zone).
+  List<LanguagePack>? _loadedPacks;
   final Map<String, Future<Object?>> _json = {};
   List<LspCatalogProblem> _problems = const [];
 
   /// What the last read skipped: unreadable manifests, bad entries.
   List<LspCatalogProblem> get problems => _problems;
 
-  Future<List<LanguagePack>> packs() => _packs ??= _read();
+  Future<List<LanguagePack>> packs() async =>
+      _loadedPacks ?? (_loadedPacks = await (_packs ??= _read()));
 
   /// Forgets what was read, so the next use reads the folder again.
   void reload() {
     _packs = null;
+    _loadedPacks = null;
     _json.clear();
   }
 

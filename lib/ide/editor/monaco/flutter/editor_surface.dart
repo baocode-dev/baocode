@@ -192,6 +192,10 @@ abstract interface class EditorSurfaceView {
   void revealRange(int start, int end);
 
   double get lineHeight;
+
+  /// The first and last one-based model lines with a visible row; null
+  /// before the first layout or when none is visible.
+  ({int first, int last})? get visibleLineRange;
 }
 
 enum _Part {
@@ -564,6 +568,19 @@ class _EditorSurfaceState extends State<EditorSurface>
 
   @override
   double get lineHeight => _layout?.lineHeight ?? 0;
+
+  @override
+  ({int first, int last})? get visibleLineRange {
+    final lines = _layout?.visibleLineNumbers;
+    if (lines == null) return null;
+    int? first;
+    var last = 0;
+    for (final line in lines) {
+      if (first == null || line < first) first = line;
+      if (line > last) last = line;
+    }
+    return first == null ? null : (first: first, last: last);
+  }
 
   @override
   Rect? get textArea => _geometry?.contentRect;

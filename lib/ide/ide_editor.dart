@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../theme/cursor_theme.dart';
+import '../theme/workbench_theme.dart' hide ColorScheme;
 import 'editor/monaco/flutter/document_snapshot.dart';
 import 'editor/monaco/flutter/editor_surface.dart';
 import 'editor/monaco/flutter/editor_surface_controller.dart';
@@ -22,6 +23,8 @@ import 'editor/monaco/flutter/editor_keybindings.dart';
 import 'editor/monaco/flutter/language_configuration_assets.dart';
 import 'editor/monaco/vs/editor/common/languages/language_configuration_registry.dart'
     show plainTextLanguageConfiguration;
+import 'editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'editor/textmate/textmate_syntax.dart';
 import 'ide_commands.dart';
 import 'ide_find_widget.dart';
 import 'ide_menu.dart';
@@ -30,6 +33,7 @@ import 'lsp/language_features.dart';
 import 'lsp/lsp_protocol.dart';
 import 'lsp_ui/editor_language_session.dart';
 import 'lsp_ui/language_widgets.dart';
+import 'lsp_ui/semantic_tokens.dart';
 import 'lsp_ui/lsp_convert.dart';
 import 'lsp_ui/workspace_edit.dart';
 
@@ -59,6 +63,7 @@ class IdeEditor extends StatefulWidget {
     this.onShowReferences,
     this.onShowCommands,
     this.formatOnSave = false,
+    this.onChordKey,
   });
 
   final IdeWorkspace workspace;
@@ -87,6 +92,11 @@ class IdeEditor extends StatefulWidget {
   /// default) when a language server can.
   final bool formatOnSave;
 
+  /// The workbench's chord keybindings, which VS Code resolves with the
+  /// editor's: told the key starting a chord here (⌘K), then handed a
+  /// [second] key the editor does not bind.
+  final void Function(KeyEvent event, {required bool second})? onChordKey;
+
   @override
   State<IdeEditor> createState() => IdeEditorState();
 }
@@ -110,10 +120,15 @@ class IdeEditorState extends State<IdeEditor> {
   EditorSurfaceController? _nativeController;
   final MonacoSyntaxService _syntax = MonacoSyntaxService();
   final Map<IdeDocument, TokenizedDocument> _tokenizedDocuments = {};
-  late final Future<MonacoBuiltinTheme> _theme = const MonacoThemeAssets().load(
-    'vs-dark',
-  );
-  MonacoBuiltinTheme? _loadedTheme;
+  // VS Code's grammars and theme where the platform has them; Monarch
+  // highlights the rest (the web, language packs, languages without one).
+  final TextMateSyntax _textMate = TextMateSyntax();
+  // Each by the path its language was picked for.
+  final Map<IdeDocument, (String, TextMateDocument)> _textMateDocuments = {};
+  bool _textMateRequested = false;
+  final WorkbenchThemeService _themes = WorkbenchThemeService.instance;
+  ThemeTypeSelector? _monarchTheme;
+  late Future<MonacoBuiltinTheme> _theme = _loadMonarchTheme();
   Map<int, List<TextSpan>>? _styledLines;
   IdeDocument? _styledDocument;
   DocumentSnapshot? _styledSnapshot;
@@ -150,6 +165,7 @@ class IdeEditorState extends State<IdeEditor> {
     _controller.addListener(_selectionChanged);
     _findController.addListener(_refreshFindResults);
     widget.workspace.addListener(_workspaceChanged);
+    _themes.addListener(_colorThemeChanged);
     if (widget.nativeEditorEnabled) _activateNativeController();
     _selectionChanged();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -158,6 +174,10 @@ class IdeEditorState extends State<IdeEditor> {
   }
 
   void _activateNativeController() {
+    if (!_textMateRequested) {
+      _textMateRequested = true;
+      unawaited(_textMate.theme);
+    }
     final doc = widget.active;
     _nativeController = _nativeControllers.putIfAbsent(doc, () {
       final controller = EditorSurfaceController(document: doc.model)
@@ -219,6 +239,8 @@ class IdeEditorState extends State<IdeEditor> {
           widget.onShowReferences?.call(title, locations),
       onApplyWorkspaceEdit: applyWorkspaceEdit,
       onFocusEditor: focus,
+      semanticTokenStyler: _semanticTokenStyler,
+      languageId: _textMateDocuments[doc]?.$2.languageId ?? 'plaintext',
     )..addListener(_languageChanged);
   }
 
@@ -231,7 +253,10 @@ class IdeEditorState extends State<IdeEditor> {
       ..dispose();
   }
 
-  void _languageChanged() {
+  void _languageChanged() => _rebuildSoon();
+
+  /// setState, after this frame when called while building.
+  void _rebuildSoon() {
     if (!mounted) return;
     if (SchedulerBinding.instance.schedulerPhase ==
         SchedulerPhase.persistentCallbacks) {
@@ -316,8 +341,12 @@ class IdeEditorState extends State<IdeEditor> {
     if (_pendingChord case final pending?) {
       _pendingChord = null;
       final id = matchEditorLanguageKey(chord, pending: pending);
-      if (id != null && id != editorChordPrefix) session.run(id);
-      // Upstream swallows an unknown second chord too.
+      if (id != null && id != editorChordPrefix) {
+        session.run(id);
+      } else {
+        // The workbench's (⌘K ⌘T); upstream swallows unbound ones too.
+        widget.onChordKey?.call(event, second: true);
+      }
       return KeyEventResult.handled;
     }
     final id = matchEditorLanguageKey(chord);
@@ -326,6 +355,7 @@ class IdeEditorState extends State<IdeEditor> {
     }
     if (id == editorChordPrefix) {
       _pendingChord = chord;
+      widget.onChordKey?.call(event, second: false);
       return KeyEventResult.handled;
     }
     return session.run(id) ? KeyEventResult.handled : KeyEventResult.ignored;
@@ -344,25 +374,37 @@ class IdeEditorState extends State<IdeEditor> {
 
   void _viewChanged() {
     _language?.onViewChanged();
+    _textMateViewportChanged();
     _languageChanged();
+  }
+
+  /// The lines on screen go to the TextMate worker first.
+  void _textMateViewportChanged() {
+    final document = _textMateDocuments[widget.active]?.$2;
+    final view = _surfaceKey.currentState;
+    if (document == null || view is! EditorSurfaceView) return;
+    if ((view as EditorSurfaceView).visibleLineRange case final range?) {
+      document.setViewport(range.first, range.last);
+    }
   }
 
   /// Snippet placeholders (`editor.snippetTabstopHighlight*`).
   List<EditorDecoration> _snippetDecorations(
     EditorSurfaceController controller,
+    WorkbenchColors colors,
   ) => [
     for (final (start, end, _, isFinal) in controller.snippetPlaceholders)
       if (isFinal)
         EditorDecoration(
           start: start,
           end: end,
-          borderColor: const Color(0xFF525252),
+          borderColor: colors['editor.snippetFinalTabstopHighlightBorder'],
         )
       else
         EditorDecoration(
           start: start,
           end: end,
-          backgroundColor: const Color(0x4D7C7C7C),
+          backgroundColor: colors['editor.snippetTabstopHighlightBackground'],
         ),
   ];
 
@@ -389,6 +431,39 @@ class IdeEditorState extends State<IdeEditor> {
     }
   }
 
+  /// Monaco's built-in theme of the workbench theme's type: the colors of
+  /// what Monarch highlights.
+  Future<MonacoBuiltinTheme> _loadMonarchTheme() {
+    final theme = _monarchTheme = getThemeTypeSelector(_themes.colorTheme.type);
+    return const MonacoThemeAssets().load(theme.value);
+  }
+
+  /// Semantic tokens in the current theme's rules (`getTokenStyleMetadata`).
+  IdeSemanticTokenStyler get _semanticTokenStyler {
+    final theme = _themes.colorTheme;
+    if (!identical(theme, _semanticStylerTheme)) {
+      _semanticStylerTheme = theme;
+      _semanticStyler = ideSemanticTokenStyler(theme);
+    }
+    return _semanticStyler!;
+  }
+
+  ColorThemeData? _semanticStylerTheme;
+  IdeSemanticTokenStyler? _semanticStyler;
+
+  /// TextMate recolors its documents itself; semantic tokens take the new
+  /// theme's rules; Monarch's lines are styled again when the theme type
+  /// changes.
+  void _colorThemeChanged() {
+    if (!mounted) return;
+    _language?.semanticTokenStyler = _semanticTokenStyler;
+    if (getThemeTypeSelector(_themes.colorTheme.type) == _monarchTheme) return;
+    _theme = _loadMonarchTheme();
+    _tokenizedDocuments.clear();
+    _syntaxDocument = null;
+    _scheduleSyntax();
+  }
+
   void _scheduleSyntax() {
     if (!widget.nativeEditorEnabled || _nativeController == null) return;
     final doc = widget.active;
@@ -396,6 +471,19 @@ class IdeEditorState extends State<IdeEditor> {
     if (identical(_syntaxDocument, doc) && _syntaxText == snapshot.text) return;
     _syntaxDocument = doc;
     _syntaxText = snapshot.text;
+    final textMate = _textMateDocuments[doc];
+    if (textMate != null && textMate.$1 == doc.path) {
+      // Tokens follow the edit at once; the worker sends the lines it
+      // retokenizes.
+      _syntaxRequest++;
+      textMate.$2.update(snapshot);
+      _styledDocument = doc;
+      _styledSnapshot = null;
+      _styledLines = textMate.$2.styledLines;
+      _rebuildSoon();
+      return;
+    }
+    _textMateDocuments.remove(doc)?.$2.dispose();
     // Keep painting the previous spans until the new ones arrive: lines whose
     // text no longer matches fall back to plain text in the layout.
     if (!identical(_tokenizedDocuments[doc]?.snapshot, _styledSnapshot) ||
@@ -406,11 +494,18 @@ class IdeEditorState extends State<IdeEditor> {
     unawaited(_computeSyntax(request, doc, snapshot));
   }
 
-  /// Code in hovers, in the editor's theme.
+  /// Code in hovers, in the editor's theme: TextMate's when it has the
+  /// language, else Monarch's.
   Future<List<List<TextSpan>>?> _colorizeCode(
     String language,
     String code,
-  ) async => _syntax.colorize(language, code, (await _theme).styleForToken);
+  ) async =>
+      await _textMate.colorize(language, code) ??
+      await _syntax.colorize(
+        monarchLanguageIdFor(language),
+        code,
+        (await _theme).styleForToken,
+      );
 
   Future<void> _computeSyntax(
     int request,
@@ -418,6 +513,23 @@ class IdeEditorState extends State<IdeEditor> {
     DocumentSnapshot snapshot,
   ) async {
     try {
+      final firstLine = snapshot.text.substring(0, snapshot.contentEnds.first);
+      final textMateLanguage = await _textMate.languageIdForPath(
+        doc.path,
+        firstLine: firstLine.startsWith('\uFEFF')
+            ? firstLine.substring(1)
+            : firstLine,
+      );
+      if (!mounted ||
+          !widget.nativeEditorEnabled ||
+          !identical(widget.active, doc) ||
+          request != _syntaxRequest) {
+        return;
+      }
+      if (textMateLanguage != null) {
+        _openTextMate(doc, textMateLanguage);
+        return;
+      }
       final theme = await _theme;
       final tokenized = await _syntax.tokenizeFileIncremental(
         snapshot,
@@ -433,7 +545,6 @@ class IdeEditorState extends State<IdeEditor> {
         return;
       }
       setState(() {
-        _loadedTheme = theme;
         if (tokenized != null) _tokenizedDocuments[doc] = tokenized;
         _styledDocument = doc;
         _styledSnapshot = tokenized?.snapshot;
@@ -452,6 +563,32 @@ class IdeEditorState extends State<IdeEditor> {
     }
   }
 
+  /// Highlights [doc] with TextMate from now on.
+  void _openTextMate(IdeDocument doc, String languageId) {
+    final snapshot = doc.model.snapshot;
+    final document = _textMate.open(languageId, snapshot);
+    if (document == null) return;
+    _textMateDocuments.remove(doc)?.$2.dispose();
+    _textMateDocuments[doc] = (doc.path, document);
+    if (identical(_language?.document, doc)) _language?.languageId = languageId;
+    document.addListener(() {
+      if (!mounted || !identical(widget.active, doc)) return;
+      if (!identical(_textMateDocuments[doc]?.$2, document)) return;
+      _styledLines = document.styledLines;
+      _rebuildSoon();
+    });
+    _tokenizedDocuments.remove(doc);
+    _syntaxText = snapshot.text;
+    setState(() {
+      _styledDocument = doc;
+      _styledSnapshot = null;
+      _styledLines = document.styledLines;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _textMateViewportChanged();
+    });
+  }
+
   void _workspaceChanged() {
     if (!widget.nativeEditorEnabled) return;
     final open = widget.workspace.documents;
@@ -463,6 +600,7 @@ class IdeEditorState extends State<IdeEditor> {
         if (!open.contains(entry.key)) {
           _nativeControllers.remove(entry.key);
           _tokenizedDocuments.remove(entry.key);
+          _textMateDocuments.remove(entry.key)?.$2.dispose();
           if (identical(_language?.controller, controller)) {
             _disposeLanguageSession();
           }
@@ -498,6 +636,10 @@ class IdeEditorState extends State<IdeEditor> {
     _syntaxText = null;
     _styledLines = null;
     _tokenizedDocuments.clear();
+    for (final (_, document) in _textMateDocuments.values) {
+      document.dispose();
+    }
+    _textMateDocuments.clear();
     for (final controller in _nativeControllers.values) {
       controller.dispose();
     }
@@ -596,7 +738,9 @@ class IdeEditorState extends State<IdeEditor> {
   @override
   void dispose() {
     widget.workspace.removeListener(_workspaceChanged);
+    _themes.removeListener(_colorThemeChanged);
     _disposeNativeControllers();
+    _textMate.dispose();
     _findController.dispose();
     _replaceController.dispose();
     _findFocusNode.dispose();
@@ -1058,6 +1202,7 @@ class IdeEditorState extends State<IdeEditor> {
   @override
   Widget build(BuildContext context) {
     final language = p.extension(widget.active.path).toLowerCase();
+    final colors = _themes.colors;
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyS, meta: true): () =>
@@ -1077,7 +1222,7 @@ class IdeEditorState extends State<IdeEditor> {
               openReplace,
       },
       child: ColoredBox(
-        color: CursorColors.code,
+        color: colors['editor.background'],
         child: Stack(
           children: [
             Positioned.fill(
@@ -1088,14 +1233,20 @@ class IdeEditorState extends State<IdeEditor> {
                             key: _surfaceKey,
                             controller: _nativeController!,
                             focusNode: _focusNode,
-                            backgroundColor: CursorColors.code,
-                            caretColor: CursorColors.accent,
+                            backgroundColor: colors['editor.background'],
+                            selectionColor:
+                                colors['editor.selectionBackground'],
+                            caretColor: colors['editorCursor.foreground'],
+                            theme: EditorViewTheme.fromColors(colors.get),
                             styledLines:
                                 _language?.styledLines(_styledLines) ??
                                 _styledLines,
                             decorations: [
                               ...?_language?.decorations,
-                              ..._snippetDecorations(_nativeController!),
+                              ..._snippetDecorations(
+                                _nativeController!,
+                                colors,
+                              ),
                               ..._findDecorations,
                             ],
                             onKeyEvent: _onEditorKey,
@@ -1110,9 +1261,7 @@ class IdeEditorState extends State<IdeEditor> {
                                 ? null
                                 : SystemMouseCursors.click,
                             style: TextStyle(
-                              color:
-                                  _loadedTheme?.foreground ??
-                                  CursorColors.textPrimary,
+                              color: colors['editor.foreground'],
                               fontFamily: CursorFonts.mono,
                               fontSize: 13,
                               height: 1.45,
@@ -1129,10 +1278,10 @@ class IdeEditorState extends State<IdeEditor> {
                       textInputAction: TextInputAction.newline,
                       autocorrect: false,
                       enableSuggestions: false,
-                      cursorColor: CursorColors.accent,
+                      cursorColor: colors['editorCursor.foreground'],
                       onChanged: _changed,
-                      style: const TextStyle(
-                        color: CursorColors.textPrimary,
+                      style: TextStyle(
+                        color: colors['editor.foreground'],
                         fontFamily: CursorFonts.mono,
                         fontSize: 13,
                         height: 1.45,
@@ -1148,8 +1297,8 @@ class IdeEditorState extends State<IdeEditor> {
                         hintText: language.isEmpty
                             ? 'Start typing…'
                             : 'Edit $language…',
-                        hintStyle: const TextStyle(
-                          color: CursorColors.textFaint,
+                        hintStyle: TextStyle(
+                          color: colors['editor.placeholder.foreground'],
                         ),
                       ),
                     ),
@@ -1159,7 +1308,9 @@ class IdeEditorState extends State<IdeEditor> {
                 child: IdeLanguageOverlay(
                   session: session,
                   colorize: _colorizeCode,
-                  language: _tokenizedDocuments[widget.active]?.languageId,
+                  language:
+                      _textMateDocuments[widget.active]?.$2.languageId ??
+                      _tokenizedDocuments[widget.active]?.languageId,
                   view: () => switch (_surfaceKey.currentState) {
                     final EditorSurfaceView view => view,
                     _ => null,

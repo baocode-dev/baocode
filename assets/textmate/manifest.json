@@ -3,6 +3,668 @@
   "attribution": "Copyright (c) Microsoft Corporation and others. See LICENSE.txt in this directory.",
   "grammars": [
     {
+      "extension": "bat",
+      "language": "bat",
+      "scopeName": "source.batchfile",
+      "path": "grammars/bat/syntaxes/batchfile.tmLanguage.json"
+    },
+    {
+      "extension": "clojure",
+      "language": "clojure",
+      "scopeName": "source.clojure",
+      "path": "grammars/clojure/syntaxes/clojure.tmLanguage.json"
+    },
+    {
+      "extension": "coffeescript",
+      "language": "coffeescript",
+      "scopeName": "source.coffee",
+      "path": "grammars/coffeescript/syntaxes/coffeescript.tmLanguage.json"
+    },
+    {
+      "extension": "cpp",
+      "language": "c",
+      "scopeName": "source.c",
+      "path": "grammars/cpp/syntaxes/c.tmLanguage.json"
+    },
+    {
+      "extension": "cpp",
+      "language": "cpp",
+      "scopeName": "source.cpp.embedded.macro",
+      "path": "grammars/cpp/syntaxes/cpp.embedded.macro.tmLanguage.json"
+    },
+    {
+      "extension": "cpp",
+      "language": "cpp",
+      "scopeName": "source.cpp",
+      "path": "grammars/cpp/syntaxes/cpp.tmLanguage.json"
+    },
+    {
+      "extension": "cpp",
+      "scopeName": "source.c.platform",
+      "path": "grammars/cpp/syntaxes/platform.tmLanguage.json"
+    },
+    {
+      "extension": "cpp",
+      "language": "cuda-cpp",
+      "scopeName": "source.cuda-cpp",
+      "path": "grammars/cpp/syntaxes/cuda-cpp.tmLanguage.json"
+    },
+    {
+      "extension": "csharp",
+      "language": "csharp",
+      "scopeName": "source.cs",
+      "path": "grammars/csharp/syntaxes/csharp.tmLanguage.json",
+      "tokenTypes": {
+        "meta.interpolation": "other"
+      },
+      "unbalancedBracketScopes": [
+        "keyword.operator.relational.cs",
+        "keyword.operator.arrow.cs",
+        "punctuation.accessor.pointer.cs",
+        "keyword.operator.bitwise.shift.cs",
+        "keyword.operator.assignment.compound.bitwise.cs"
+      ]
+    },
+    {
+      "extension": "css",
+      "language": "css",
+      "scopeName": "source.css",
+      "path": "grammars/css/syntaxes/css.tmLanguage.json",
+      "tokenTypes": {
+        "meta.function.url string.quoted": "other"
+      }
+    },
+    {
+      "extension": "dart",
+      "language": "dart",
+      "scopeName": "source.dart",
+      "path": "grammars/dart/syntaxes/dart.tmLanguage.json"
+    },
+    {
+      "extension": "diff",
+      "language": "diff",
+      "scopeName": "source.diff",
+      "path": "grammars/diff/syntaxes/diff.tmLanguage.json"
+    },
+    {
+      "extension": "docker",
+      "language": "dockerfile",
+      "scopeName": "source.dockerfile",
+      "path": "grammars/docker/syntaxes/docker.tmLanguage.json"
+    },
+    {
+      "extension": "dotenv",
+      "language": "dotenv",
+      "scopeName": "source.dotenv",
+      "path": "grammars/dotenv/syntaxes/dotenv.tmLanguage.json"
+    },
+    {
+      "extension": "fsharp",
+      "language": "fsharp",
+      "scopeName": "source.fsharp",
+      "path": "grammars/fsharp/syntaxes/fsharp.tmLanguage.json"
+    },
+    {
+      "extension": "git-base",
+      "language": "git-commit",
+      "scopeName": "text.git-commit",
+      "path": "grammars/git-base/syntaxes/git-commit.tmLanguage.json"
+    },
+    {
+      "extension": "git-base",
+      "language": "git-rebase",
+      "scopeName": "text.git-rebase",
+      "path": "grammars/git-base/syntaxes/git-rebase.tmLanguage.json"
+    },
+    {
+      "extension": "git-base",
+      "language": "ignore",
+      "scopeName": "source.ignore",
+      "path": "grammars/git-base/syntaxes/ignore.tmLanguage.json"
+    },
+    {
+      "extension": "go",
+      "language": "go",
+      "scopeName": "source.go",
+      "path": "grammars/go/syntaxes/go.tmLanguage.json"
+    },
+    {
+      "extension": "groovy",
+      "language": "groovy",
+      "scopeName": "source.groovy",
+      "path": "grammars/groovy/syntaxes/groovy.tmLanguage.json"
+    },
+    {
+      "extension": "handlebars",
+      "language": "handlebars",
+      "scopeName": "text.html.handlebars",
+      "path": "grammars/handlebars/syntaxes/Handlebars.tmLanguage.json"
+    },
+    {
+      "extension": "hlsl",
+      "language": "hlsl",
+      "scopeName": "source.hlsl",
+      "path": "grammars/hlsl/syntaxes/hlsl.tmLanguage.json"
+    },
+    {
+      "extension": "html",
+      "scopeName": "text.html.basic",
+      "path": "grammars/html/syntaxes/html.tmLanguage.json",
+      "embeddedLanguages": {
+        "text.html": "html",
+        "source.css": "css",
+        "source.js": "javascript",
+        "source.python": "python",
+        "source.smarty": "smarty"
+      },
+      "tokenTypes": {
+        "meta.tag string.quoted": "other"
+      }
+    },
+    {
+      "extension": "html",
+      "language": "html",
+      "scopeName": "text.html.derivative",
+      "path": "grammars/html/syntaxes/html-derivative.tmLanguage.json",
+      "embeddedLanguages": {
+        "text.html": "html",
+        "source.css": "css",
+        "source.js": "javascript",
+        "source.python": "python",
+        "source.smarty": "smarty"
+      },
+      "tokenTypes": {
+        "meta.tag string.quoted": "other"
+      }
+    },
+    {
+      "extension": "ini",
+      "language": "ini",
+      "scopeName": "source.ini",
+      "path": "grammars/ini/syntaxes/ini.tmLanguage.json"
+    },
+    {
+      "extension": "ini",
+      "language": "properties",
+      "scopeName": "source.ini",
+      "path": "grammars/ini/syntaxes/ini.tmLanguage.json"
+    },
+    {
+      "extension": "java",
+      "language": "java",
+      "scopeName": "source.java",
+      "path": "grammars/java/syntaxes/java.tmLanguage.json"
+    },
+    {
+      "extension": "javascript",
+      "language": "javascriptreact",
+      "scopeName": "source.js.jsx",
+      "path": "grammars/javascript/syntaxes/JavaScriptReact.tmLanguage.json",
+      "embeddedLanguages": {
+        "meta.tag.js": "jsx-tags",
+        "meta.tag.without-attributes.js": "jsx-tags",
+        "meta.tag.attributes.js.jsx": "javascriptreact",
+        "meta.embedded.expression.js": "javascriptreact"
+      },
+      "tokenTypes": {
+        "punctuation.definition.template-expression": "other",
+        "entity.name.type.instance.jsdoc": "other",
+        "entity.name.function.tagged-template": "other",
+        "meta.import string.quoted": "other",
+        "variable.other.jsdoc": "other"
+      }
+    },
+    {
+      "extension": "javascript",
+      "language": "javascript",
+      "scopeName": "source.js",
+      "path": "grammars/javascript/syntaxes/JavaScript.tmLanguage.json",
+      "embeddedLanguages": {
+        "meta.tag.js": "jsx-tags",
+        "meta.tag.without-attributes.js": "jsx-tags",
+        "meta.tag.attributes.js": "javascript",
+        "meta.embedded.expression.js": "javascript"
+      },
+      "tokenTypes": {
+        "punctuation.definition.template-expression": "other",
+        "entity.name.type.instance.jsdoc": "other",
+        "entity.name.function.tagged-template": "other",
+        "meta.import string.quoted": "other",
+        "variable.other.jsdoc": "other"
+      }
+    },
+    {
+      "extension": "javascript",
+      "scopeName": "source.js.regexp",
+      "path": "grammars/javascript/syntaxes/Regular Expressions (JavaScript).tmLanguage"
+    },
+    {
+      "extension": "json",
+      "language": "json",
+      "scopeName": "source.json",
+      "path": "grammars/json/syntaxes/JSON.tmLanguage.json"
+    },
+    {
+      "extension": "json",
+      "language": "jsonc",
+      "scopeName": "source.json.comments",
+      "path": "grammars/json/syntaxes/JSONC.tmLanguage.json"
+    },
+    {
+      "extension": "json",
+      "language": "jsonl",
+      "scopeName": "source.json.lines",
+      "path": "grammars/json/syntaxes/JSONL.tmLanguage.json"
+    },
+    {
+      "extension": "json",
+      "language": "snippets",
+      "scopeName": "source.json.comments.snippets",
+      "path": "grammars/json/syntaxes/snippets.tmLanguage.json"
+    },
+    {
+      "extension": "julia",
+      "language": "julia",
+      "scopeName": "source.julia",
+      "path": "grammars/julia/syntaxes/julia.tmLanguage.json",
+      "embeddedLanguages": {
+        "meta.embedded.inline.cpp": "cpp",
+        "meta.embedded.inline.javascript": "javascript",
+        "meta.embedded.inline.python": "python",
+        "meta.embedded.inline.r": "r",
+        "meta.embedded.inline.sql": "sql"
+      }
+    },
+    {
+      "extension": "latex",
+      "language": "tex",
+      "scopeName": "text.tex",
+      "path": "grammars/latex/syntaxes/TeX.tmLanguage.json",
+      "unbalancedBracketScopes": [
+        "keyword.control.ifnextchar.tex",
+        "punctuation.math.operator.tex"
+      ]
+    },
+    {
+      "extension": "latex",
+      "language": "latex",
+      "scopeName": "text.tex.latex",
+      "path": "grammars/latex/syntaxes/LaTeX.tmLanguage.json",
+      "embeddedLanguages": {
+        "source.cpp": "cpp_embedded_latex",
+        "source.css": "css",
+        "text.html": "html",
+        "source.java": "java",
+        "source.js": "javascript",
+        "source.julia": "julia",
+        "source.lua": "lua",
+        "source.python": "python",
+        "source.ruby": "ruby",
+        "source.ts": "typescript",
+        "text.xml": "xml",
+        "source.yaml": "yaml",
+        "meta.embedded.markdown_latex_combined": "markdown_latex_combined"
+      },
+      "unbalancedBracketScopes": [
+        "keyword.control.ifnextchar.tex",
+        "punctuation.math.operator.tex"
+      ]
+    },
+    {
+      "extension": "latex",
+      "language": "bibtex",
+      "scopeName": "text.bibtex",
+      "path": "grammars/latex/syntaxes/Bibtex.tmLanguage.json"
+    },
+    {
+      "extension": "latex",
+      "language": "markdown_latex_combined",
+      "scopeName": "text.tex.markdown_latex_combined",
+      "path": "grammars/latex/syntaxes/markdown-latex-combined.tmLanguage.json"
+    },
+    {
+      "extension": "latex",
+      "language": "cpp_embedded_latex",
+      "scopeName": "source.cpp.embedded.latex",
+      "path": "grammars/latex/syntaxes/cpp-grammar-bailout.tmLanguage.json"
+    },
+    {
+      "extension": "less",
+      "language": "less",
+      "scopeName": "source.css.less",
+      "path": "grammars/less/syntaxes/less.tmLanguage.json"
+    },
+    {
+      "extension": "log",
+      "language": "log",
+      "scopeName": "text.log",
+      "path": "grammars/log/syntaxes/log.tmLanguage.json"
+    },
+    {
+      "extension": "lua",
+      "language": "lua",
+      "scopeName": "source.lua",
+      "path": "grammars/lua/syntaxes/lua.tmLanguage.json",
+      "tokenTypes": {
+        "comment.line.double-dash.doc.lua": "other"
+      }
+    },
+    {
+      "extension": "make",
+      "language": "makefile",
+      "scopeName": "source.makefile",
+      "path": "grammars/make/syntaxes/make.tmLanguage.json",
+      "tokenTypes": {
+        "string.interpolated": "other"
+      }
+    },
+    {
+      "extension": "markdown-basics",
+      "language": "markdown",
+      "scopeName": "text.html.markdown",
+      "path": "grammars/markdown-basics/syntaxes/markdown.tmLanguage.json",
+      "embeddedLanguages": {
+        "meta.embedded.block.html": "html",
+        "source.js": "javascript",
+        "source.css": "css",
+        "meta.embedded.block.frontmatter": "yaml",
+        "meta.embedded.block.css": "css",
+        "meta.embedded.block.ini": "ini",
+        "meta.embedded.block.java": "java",
+        "meta.embedded.block.lua": "lua",
+        "meta.embedded.block.makefile": "makefile",
+        "meta.embedded.block.perl": "perl",
+        "meta.embedded.block.r": "r",
+        "meta.embedded.block.ruby": "ruby",
+        "meta.embedded.block.php": "php",
+        "meta.embedded.block.sql": "sql",
+        "meta.embedded.block.vs_net": "vs_net",
+        "meta.embedded.block.xml": "xml",
+        "meta.embedded.block.xsl": "xsl",
+        "meta.embedded.block.yaml": "yaml",
+        "meta.embedded.block.dosbatch": "dosbatch",
+        "meta.embedded.block.clojure": "clojure",
+        "meta.embedded.block.coffee": "coffee",
+        "meta.embedded.block.c": "c",
+        "meta.embedded.block.cpp": "cpp",
+        "meta.embedded.block.diff": "diff",
+        "meta.embedded.block.dockerfile": "dockerfile",
+        "meta.embedded.block.go": "go",
+        "meta.embedded.block.groovy": "groovy",
+        "meta.embedded.block.pug": "jade",
+        "meta.embedded.block.ignore": "ignore",
+        "meta.embedded.block.javascript": "javascript",
+        "meta.embedded.block.json": "json",
+        "meta.embedded.block.jsonc": "jsonc",
+        "meta.embedded.block.jsonl": "jsonl",
+        "meta.embedded.block.latex": "latex",
+        "meta.embedded.block.less": "less",
+        "meta.embedded.block.objc": "objc",
+        "meta.embedded.block.scss": "scss",
+        "meta.embedded.block.perl6": "perl6",
+        "meta.embedded.block.powershell": "powershell",
+        "meta.embedded.block.python": "python",
+        "meta.embedded.block.restructuredtext": "restructuredtext",
+        "meta.embedded.block.rust": "rust",
+        "meta.embedded.block.scala": "scala",
+        "meta.embedded.block.shellscript": "shellscript",
+        "meta.embedded.block.typescript": "typescript",
+        "meta.embedded.block.typescriptreact": "typescriptreact",
+        "meta.embedded.block.csharp": "csharp",
+        "meta.embedded.block.fsharp": "fsharp"
+      },
+      "unbalancedBracketScopes": [
+        "markup.underline.link.markdown",
+        "punctuation.definition.list.begin.markdown",
+        "keyword.operator.relational.cs",
+        "keyword.operator.arrow.cs",
+        "punctuation.accessor.pointer.cs",
+        "keyword.operator.bitwise.shift.cs",
+        "keyword.operator.assignment.compound.bitwise.cs",
+        "keyword.operator.relational.ts",
+        "storage.type.function.arrow.ts",
+        "keyword.operator.bitwise.shift.ts",
+        "keyword.operator.assignment.compound.bitwise.ts",
+        "keyword.operator.relational.tsx",
+        "storage.type.function.arrow.tsx",
+        "keyword.operator.bitwise.shift.tsx",
+        "keyword.operator.assignment.compound.bitwise.tsx"
+      ]
+    },
+    {
+      "extension": "markdown-math",
+      "language": "markdown-math",
+      "scopeName": "text.html.markdown.math",
+      "path": "grammars/markdown-math/syntaxes/md-math.tmLanguage.json"
+    },
+    {
+      "extension": "markdown-math",
+      "scopeName": "markdown.math.block",
+      "path": "grammars/markdown-math/syntaxes/md-math-block.tmLanguage.json",
+      "embeddedLanguages": {
+        "meta.embedded.math.markdown": "latex"
+      },
+      "injectTo": [
+        "text.html.markdown"
+      ]
+    },
+    {
+      "extension": "markdown-math",
+      "scopeName": "markdown.math.inline",
+      "path": "grammars/markdown-math/syntaxes/md-math-inline.tmLanguage.json",
+      "embeddedLanguages": {
+        "meta.embedded.math.markdown": "latex",
+        "punctuation.definition.math.end.markdown": "latex"
+      },
+      "injectTo": [
+        "text.html.markdown"
+      ]
+    },
+    {
+      "extension": "markdown-math",
+      "scopeName": "markdown.math.codeblock",
+      "path": "grammars/markdown-math/syntaxes/md-math-fence.tmLanguage.json",
+      "embeddedLanguages": {
+        "meta.embedded.math.markdown": "latex"
+      },
+      "injectTo": [
+        "text.html.markdown"
+      ]
+    },
+    {
+      "extension": "objective-c",
+      "language": "objective-c",
+      "scopeName": "source.objc",
+      "path": "grammars/objective-c/syntaxes/objective-c.tmLanguage.json"
+    },
+    {
+      "extension": "objective-c",
+      "language": "objective-cpp",
+      "scopeName": "source.objcpp",
+      "path": "grammars/objective-c/syntaxes/objective-c++.tmLanguage.json"
+    },
+    {
+      "extension": "perl",
+      "language": "perl",
+      "scopeName": "source.perl",
+      "path": "grammars/perl/syntaxes/perl.tmLanguage.json",
+      "unbalancedBracketScopes": [
+        "variable.other.predefined.perl"
+      ]
+    },
+    {
+      "extension": "perl",
+      "language": "raku",
+      "scopeName": "source.perl.6",
+      "path": "grammars/perl/syntaxes/perl6.tmLanguage.json"
+    },
+    {
+      "extension": "php",
+      "language": "php",
+      "scopeName": "source.php",
+      "path": "grammars/php/syntaxes/php.tmLanguage.json"
+    },
+    {
+      "extension": "php",
+      "language": "php",
+      "scopeName": "text.html.php",
+      "path": "grammars/php/syntaxes/html.tmLanguage.json",
+      "embeddedLanguages": {
+        "text.html": "html",
+        "source.php": "php",
+        "source.sql": "sql",
+        "text.xml": "xml",
+        "source.js": "javascript",
+        "source.json": "json",
+        "source.css": "css"
+      }
+    },
+    {
+      "extension": "powershell",
+      "language": "powershell",
+      "scopeName": "source.powershell",
+      "path": "grammars/powershell/syntaxes/powershell.tmLanguage.json"
+    },
+    {
+      "extension": "prompt-basics",
+      "language": "prompt",
+      "scopeName": "text.html.markdown.prompt",
+      "path": "grammars/prompt-basics/syntaxes/prompt.tmLanguage.json",
+      "unbalancedBracketScopes": [
+        "markup.underline.link.markdown",
+        "punctuation.definition.list.begin.markdown"
+      ]
+    },
+    {
+      "extension": "prompt-basics",
+      "language": "instructions",
+      "scopeName": "text.html.markdown.prompt",
+      "path": "grammars/prompt-basics/syntaxes/prompt.tmLanguage.json",
+      "unbalancedBracketScopes": [
+        "markup.underline.link.markdown",
+        "punctuation.definition.list.begin.markdown"
+      ]
+    },
+    {
+      "extension": "prompt-basics",
+      "language": "chatagent",
+      "scopeName": "text.html.markdown.prompt",
+      "path": "grammars/prompt-basics/syntaxes/prompt.tmLanguage.json",
+      "unbalancedBracketScopes": [
+        "markup.underline.link.markdown",
+        "punctuation.definition.list.begin.markdown"
+      ]
+    },
+    {
+      "extension": "prompt-basics",
+      "language": "skill",
+      "scopeName": "text.html.markdown.prompt",
+      "path": "grammars/prompt-basics/syntaxes/prompt.tmLanguage.json",
+      "unbalancedBracketScopes": [
+        "markup.underline.link.markdown",
+        "punctuation.definition.list.begin.markdown"
+      ]
+    },
+    {
+      "extension": "pug",
+      "language": "jade",
+      "scopeName": "text.pug",
+      "path": "grammars/pug/syntaxes/pug.tmLanguage.json"
+    },
+    {
+      "extension": "python",
+      "language": "python",
+      "scopeName": "source.python",
+      "path": "grammars/python/syntaxes/MagicPython.tmLanguage.json"
+    },
+    {
+      "extension": "python",
+      "scopeName": "source.regexp.python",
+      "path": "grammars/python/syntaxes/MagicRegExp.tmLanguage.json"
+    },
+    {
+      "extension": "r",
+      "language": "r",
+      "scopeName": "source.r",
+      "path": "grammars/r/syntaxes/r.tmLanguage.json"
+    },
+    {
+      "extension": "razor",
+      "language": "razor",
+      "scopeName": "text.html.cshtml",
+      "path": "grammars/razor/syntaxes/cshtml.tmLanguage.json",
+      "embeddedLanguages": {
+        "section.embedded.source.cshtml": "csharp",
+        "source.css": "css",
+        "source.js": "javascript"
+      }
+    },
+    {
+      "extension": "restructuredtext",
+      "language": "restructuredtext",
+      "scopeName": "source.rst",
+      "path": "grammars/restructuredtext/syntaxes/rst.tmLanguage.json"
+    },
+    {
+      "extension": "ruby",
+      "language": "ruby",
+      "scopeName": "source.ruby",
+      "path": "grammars/ruby/syntaxes/ruby.tmLanguage.json"
+    },
+    {
+      "extension": "rust",
+      "language": "rust",
+      "scopeName": "source.rust",
+      "path": "grammars/rust/syntaxes/rust.tmLanguage.json"
+    },
+    {
+      "extension": "scss",
+      "language": "scss",
+      "scopeName": "source.css.scss",
+      "path": "grammars/scss/syntaxes/scss.tmLanguage.json"
+    },
+    {
+      "extension": "scss",
+      "scopeName": "source.sassdoc",
+      "path": "grammars/scss/syntaxes/sassdoc.tmLanguage.json"
+    },
+    {
+      "extension": "search-result",
+      "language": "search-result",
+      "scopeName": "text.searchResult",
+      "path": "grammars/search-result/syntaxes/searchResult.tmLanguage.json"
+    },
+    {
+      "extension": "shaderlab",
+      "language": "shaderlab",
+      "scopeName": "source.shaderlab",
+      "path": "grammars/shaderlab/syntaxes/shaderlab.tmLanguage.json"
+    },
+    {
+      "extension": "shellscript",
+      "language": "shellscript",
+      "scopeName": "source.shell",
+      "path": "grammars/shellscript/syntaxes/shell-unix-bash.tmLanguage.json",
+      "balancedBracketScopes": [
+        "*"
+      ],
+      "unbalancedBracketScopes": [
+        "meta.scope.case-pattern.shell"
+      ]
+    },
+    {
+      "extension": "sql",
+      "language": "sql",
+      "scopeName": "source.sql",
+      "path": "grammars/sql/syntaxes/sql.tmLanguage.json"
+    },
+    {
+      "extension": "swift",
+      "language": "swift",
+      "scopeName": "source.swift",
+      "path": "grammars/swift/syntaxes/swift.tmLanguage.json"
+    },
+    {
       "extension": "typescript-basics",
       "language": "typescript",
       "scopeName": "source.ts",
@@ -66,9 +728,1284 @@
         "source.js",
         "source.js.jsx"
       ]
+    },
+    {
+      "extension": "vb",
+      "language": "vb",
+      "scopeName": "source.asp.vb.net",
+      "path": "grammars/vb/syntaxes/asp-vb-net.tmLanguage.json"
+    },
+    {
+      "extension": "xml",
+      "language": "xml",
+      "scopeName": "text.xml",
+      "path": "grammars/xml/syntaxes/xml.tmLanguage.json"
+    },
+    {
+      "extension": "xml",
+      "language": "xsl",
+      "scopeName": "text.xml.xsl",
+      "path": "grammars/xml/syntaxes/xsl.tmLanguage.json"
+    },
+    {
+      "extension": "yaml",
+      "language": "dockercompose",
+      "scopeName": "source.yaml",
+      "path": "grammars/yaml/syntaxes/yaml.tmLanguage.json"
+    },
+    {
+      "extension": "yaml",
+      "scopeName": "source.yaml.1.3",
+      "path": "grammars/yaml/syntaxes/yaml-1.3.tmLanguage.json"
+    },
+    {
+      "extension": "yaml",
+      "scopeName": "source.yaml.1.2",
+      "path": "grammars/yaml/syntaxes/yaml-1.2.tmLanguage.json"
+    },
+    {
+      "extension": "yaml",
+      "scopeName": "source.yaml.1.1",
+      "path": "grammars/yaml/syntaxes/yaml-1.1.tmLanguage.json"
+    },
+    {
+      "extension": "yaml",
+      "scopeName": "source.yaml.1.0",
+      "path": "grammars/yaml/syntaxes/yaml-1.0.tmLanguage.json"
+    },
+    {
+      "extension": "yaml",
+      "scopeName": "source.yaml.embedded",
+      "path": "grammars/yaml/syntaxes/yaml-embedded.tmLanguage.json"
+    },
+    {
+      "extension": "yaml",
+      "language": "yaml",
+      "scopeName": "source.yaml",
+      "path": "grammars/yaml/syntaxes/yaml.tmLanguage.json",
+      "unbalancedBracketScopes": [
+        "invalid.illegal",
+        "meta.scalar.yaml",
+        "storage.type.tag.shorthand.yaml",
+        "keyword.control.flow"
+      ]
     }
   ],
   "languages": [
+    {
+      "id": "plaintext",
+      "extensions": [
+        ".txt"
+      ],
+      "aliases": [
+        "Plain Text",
+        "text"
+      ],
+      "mimetypes": [
+        "text/plain"
+      ]
+    },
+    {
+      "extension": "bat",
+      "id": "bat",
+      "aliases": [
+        "Batch",
+        "bat"
+      ],
+      "extensions": [
+        ".bat",
+        ".cmd"
+      ],
+      "configuration": "grammars/bat/language-configuration.json"
+    },
+    {
+      "extension": "clojure",
+      "id": "clojure",
+      "aliases": [
+        "Clojure",
+        "clojure"
+      ],
+      "extensions": [
+        ".clj",
+        ".cljs",
+        ".cljc",
+        ".cljx",
+        ".clojure",
+        ".edn"
+      ],
+      "configuration": "grammars/clojure/language-configuration.json"
+    },
+    {
+      "extension": "coffeescript",
+      "id": "coffeescript",
+      "aliases": [
+        "CoffeeScript",
+        "coffeescript",
+        "coffee"
+      ],
+      "extensions": [
+        ".coffee",
+        ".cson",
+        ".iced"
+      ],
+      "configuration": "grammars/coffeescript/language-configuration.json"
+    },
+    {
+      "extension": "configuration-editing",
+      "id": "jsonc",
+      "extensions": [
+        ".code-workspace",
+        "language-configuration.json",
+        "icon-theme.json",
+        "color-theme.json"
+      ],
+      "filenames": [
+        "settings.json",
+        "launch.json",
+        "tasks.json",
+        "mcp.json",
+        "keybindings.json",
+        "extensions.json",
+        "argv.json",
+        "profiles.json",
+        "devcontainer.json",
+        ".devcontainer.json"
+      ]
+    },
+    {
+      "extension": "configuration-editing",
+      "id": "json",
+      "extensions": [
+        ".code-profile"
+      ]
+    },
+    {
+      "extension": "copilot",
+      "id": "ignore",
+      "aliases": [],
+      "filenamePatterns": [
+        ".copilotignore"
+      ]
+    },
+    {
+      "extension": "copilot",
+      "id": "markdown",
+      "extensions": [
+        ".copilotmd"
+      ]
+    },
+    {
+      "extension": "cpp",
+      "id": "c",
+      "aliases": [
+        "C",
+        "c"
+      ],
+      "extensions": [
+        ".c",
+        ".i"
+      ],
+      "configuration": "grammars/cpp/language-configuration.json"
+    },
+    {
+      "extension": "cpp",
+      "id": "cpp",
+      "aliases": [
+        "C++",
+        "Cpp",
+        "cpp"
+      ],
+      "extensions": [
+        ".cpp",
+        ".cppm",
+        ".cc",
+        ".ccm",
+        ".cxx",
+        ".cxxm",
+        ".c++",
+        ".c++m",
+        ".hpp",
+        ".hh",
+        ".hxx",
+        ".h++",
+        ".h",
+        ".ii",
+        ".ino",
+        ".inl",
+        ".ipp",
+        ".ixx",
+        ".mpp",
+        ".mxx",
+        ".tpp",
+        ".txx",
+        ".hpp.in",
+        ".h.in"
+      ],
+      "configuration": "grammars/cpp/language-configuration.json"
+    },
+    {
+      "extension": "cpp",
+      "id": "cuda-cpp",
+      "aliases": [
+        "CUDA C++"
+      ],
+      "extensions": [
+        ".cu",
+        ".cuh"
+      ],
+      "configuration": "grammars/cpp/language-configuration.json"
+    },
+    {
+      "extension": "csharp",
+      "id": "csharp",
+      "aliases": [
+        "C#",
+        "csharp"
+      ],
+      "extensions": [
+        ".cs",
+        ".csx",
+        ".cake"
+      ],
+      "configuration": "grammars/csharp/language-configuration.json"
+    },
+    {
+      "extension": "css",
+      "id": "css",
+      "aliases": [
+        "CSS",
+        "css"
+      ],
+      "extensions": [
+        ".css"
+      ],
+      "mimetypes": [
+        "text/css"
+      ],
+      "configuration": "grammars/css/language-configuration.json"
+    },
+    {
+      "extension": "dart",
+      "id": "dart",
+      "aliases": [
+        "Dart"
+      ],
+      "extensions": [
+        ".dart"
+      ],
+      "configuration": "grammars/dart/language-configuration.json"
+    },
+    {
+      "extension": "diff",
+      "id": "diff",
+      "aliases": [
+        "Diff",
+        "diff"
+      ],
+      "extensions": [
+        ".diff",
+        ".patch",
+        ".rej"
+      ],
+      "configuration": "grammars/diff/language-configuration.json"
+    },
+    {
+      "extension": "docker",
+      "id": "dockerfile",
+      "aliases": [
+        "Docker",
+        "Dockerfile",
+        "Containerfile"
+      ],
+      "extensions": [
+        ".dockerfile",
+        ".containerfile"
+      ],
+      "filenames": [
+        "Dockerfile",
+        "Containerfile"
+      ],
+      "filenamePatterns": [
+        "Dockerfile.*",
+        "Containerfile.*"
+      ],
+      "configuration": "grammars/docker/language-configuration.json"
+    },
+    {
+      "extension": "dotenv",
+      "id": "dotenv",
+      "aliases": [
+        "Dotenv"
+      ],
+      "extensions": [
+        ".env"
+      ],
+      "filenames": [
+        ".env",
+        ".flaskenv",
+        "user-dirs.dirs"
+      ],
+      "filenamePatterns": [
+        ".env.*"
+      ],
+      "configuration": "grammars/dotenv/language-configuration.json"
+    },
+    {
+      "extension": "extension-editing",
+      "id": "ignore",
+      "filenames": [
+        ".vscodeignore"
+      ]
+    },
+    {
+      "extension": "fsharp",
+      "id": "fsharp",
+      "aliases": [
+        "F#",
+        "FSharp",
+        "fsharp"
+      ],
+      "extensions": [
+        ".fs",
+        ".fsi",
+        ".fsx",
+        ".fsscript"
+      ],
+      "configuration": "grammars/fsharp/language-configuration.json"
+    },
+    {
+      "extension": "git-base",
+      "id": "git-commit",
+      "aliases": [
+        "Git Commit Message",
+        "git-commit"
+      ],
+      "filenames": [
+        "COMMIT_EDITMSG",
+        "MERGE_MSG"
+      ],
+      "configuration": "grammars/git-base/languages/git-commit.language-configuration.json"
+    },
+    {
+      "extension": "git-base",
+      "id": "git-rebase",
+      "aliases": [
+        "Git Rebase Message",
+        "git-rebase"
+      ],
+      "filenames": [
+        "git-rebase-todo"
+      ],
+      "filenamePatterns": [
+        "**/rebase-merge/done"
+      ],
+      "configuration": "grammars/git-base/languages/git-rebase.language-configuration.json"
+    },
+    {
+      "extension": "git-base",
+      "id": "ignore",
+      "aliases": [
+        "Ignore",
+        "ignore"
+      ],
+      "extensions": [
+        ".gitignore_global",
+        ".gitignore",
+        ".git-blame-ignore-revs"
+      ],
+      "configuration": "grammars/git-base/languages/ignore.language-configuration.json"
+    },
+    {
+      "extension": "go",
+      "id": "go",
+      "aliases": [
+        "Go"
+      ],
+      "extensions": [
+        ".go"
+      ],
+      "configuration": "grammars/go/language-configuration.json"
+    },
+    {
+      "extension": "groovy",
+      "id": "groovy",
+      "aliases": [
+        "Groovy",
+        "groovy"
+      ],
+      "extensions": [
+        ".groovy",
+        ".gvy",
+        ".gradle",
+        ".jenkinsfile",
+        ".nf"
+      ],
+      "filenames": [
+        "Jenkinsfile"
+      ],
+      "filenamePatterns": [
+        "Jenkinsfile*"
+      ],
+      "firstLine": "^#!.*\\bgroovy\\b",
+      "configuration": "grammars/groovy/language-configuration.json"
+    },
+    {
+      "extension": "handlebars",
+      "id": "handlebars",
+      "aliases": [
+        "Handlebars",
+        "handlebars"
+      ],
+      "extensions": [
+        ".handlebars",
+        ".hbs",
+        ".hjs"
+      ],
+      "mimetypes": [
+        "text/x-handlebars-template"
+      ],
+      "configuration": "grammars/handlebars/language-configuration.json"
+    },
+    {
+      "extension": "hlsl",
+      "id": "hlsl",
+      "aliases": [
+        "HLSL",
+        "hlsl"
+      ],
+      "extensions": [
+        ".hlsl",
+        ".hlsli",
+        ".fx",
+        ".fxh",
+        ".vsh",
+        ".psh",
+        ".cginc",
+        ".compute"
+      ],
+      "configuration": "grammars/hlsl/language-configuration.json"
+    },
+    {
+      "extension": "html",
+      "id": "html",
+      "aliases": [
+        "HTML",
+        "htm",
+        "html",
+        "xhtml"
+      ],
+      "extensions": [
+        ".html",
+        ".htm",
+        ".shtml",
+        ".xhtml",
+        ".xht",
+        ".mdoc",
+        ".jsp",
+        ".asp",
+        ".aspx",
+        ".jshtm",
+        ".volt",
+        ".ejs",
+        ".rhtml"
+      ],
+      "mimetypes": [
+        "text/html",
+        "text/x-jshtm",
+        "text/template",
+        "text/ng-template",
+        "application/xhtml+xml"
+      ],
+      "configuration": "grammars/html/language-configuration.json"
+    },
+    {
+      "extension": "ini",
+      "id": "ini",
+      "aliases": [
+        "Ini",
+        "ini"
+      ],
+      "extensions": [
+        ".ini"
+      ],
+      "configuration": "grammars/ini/ini.language-configuration.json"
+    },
+    {
+      "extension": "ini",
+      "id": "properties",
+      "aliases": [
+        "Properties",
+        "properties"
+      ],
+      "extensions": [
+        ".conf",
+        ".properties",
+        ".cfg",
+        ".directory",
+        ".gitattributes",
+        ".gitconfig",
+        ".gitmodules",
+        ".editorconfig",
+        ".repo"
+      ],
+      "filenames": [
+        "gitconfig"
+      ],
+      "filenamePatterns": [
+        "**/.config/git/config",
+        "**/.git/config"
+      ],
+      "configuration": "grammars/ini/properties.language-configuration.json"
+    },
+    {
+      "extension": "java",
+      "id": "java",
+      "aliases": [
+        "Java",
+        "java"
+      ],
+      "extensions": [
+        ".java",
+        ".jav"
+      ],
+      "configuration": "grammars/java/language-configuration.json"
+    },
+    {
+      "extension": "javascript",
+      "id": "javascriptreact",
+      "aliases": [
+        "JavaScript JSX",
+        "JavaScript React",
+        "jsx"
+      ],
+      "extensions": [
+        ".jsx"
+      ],
+      "configuration": "grammars/javascript/javascript-language-configuration.json"
+    },
+    {
+      "extension": "javascript",
+      "id": "javascript",
+      "aliases": [
+        "JavaScript",
+        "javascript",
+        "js"
+      ],
+      "extensions": [
+        ".js",
+        ".es6",
+        ".mjs",
+        ".cjs",
+        ".pac"
+      ],
+      "filenames": [
+        "jakefile"
+      ],
+      "firstLine": "^#!.*\\bnode",
+      "mimetypes": [
+        "text/javascript"
+      ],
+      "configuration": "grammars/javascript/javascript-language-configuration.json"
+    },
+    {
+      "extension": "javascript",
+      "id": "jsx-tags",
+      "aliases": [],
+      "configuration": "grammars/javascript/tags-language-configuration.json"
+    },
+    {
+      "extension": "json",
+      "id": "json",
+      "aliases": [
+        "JSON",
+        "json"
+      ],
+      "extensions": [
+        ".json",
+        ".bowerrc",
+        ".jscsrc",
+        ".webmanifest",
+        ".js.map",
+        ".css.map",
+        ".ts.map",
+        ".har",
+        ".jslintrc",
+        ".jsonld",
+        ".geojson",
+        ".ipynb",
+        ".vuerc"
+      ],
+      "filenames": [
+        "composer.lock",
+        ".watchmanconfig"
+      ],
+      "mimetypes": [
+        "application/json",
+        "application/manifest+json"
+      ],
+      "configuration": "grammars/json/language-configuration.json"
+    },
+    {
+      "extension": "json",
+      "id": "jsonc",
+      "aliases": [
+        "JSON with Comments"
+      ],
+      "extensions": [
+        ".jsonc",
+        ".eslintrc",
+        ".eslintrc.json",
+        ".jsfmtrc",
+        ".jshintrc",
+        ".swcrc",
+        ".hintrc",
+        ".babelrc",
+        ".toolset.jsonc"
+      ],
+      "filenames": [
+        "babel.config.json",
+        "bun.lock",
+        ".babelrc.json",
+        ".ember-cli",
+        "typedoc.json"
+      ],
+      "filenamePatterns": [
+        "**/.github/hooks/*.json"
+      ],
+      "configuration": "grammars/json/language-configuration.json"
+    },
+    {
+      "extension": "json",
+      "id": "jsonl",
+      "aliases": [
+        "JSON Lines"
+      ],
+      "extensions": [
+        ".jsonl",
+        ".ndjson"
+      ],
+      "filenames": [],
+      "configuration": "grammars/json/language-configuration.json"
+    },
+    {
+      "extension": "json",
+      "id": "snippets",
+      "aliases": [
+        "Code Snippets"
+      ],
+      "extensions": [
+        ".code-snippets"
+      ],
+      "filenamePatterns": [
+        "**/User/snippets/*.json",
+        "**/User/profiles/*/snippets/*.json",
+        "**/snippets*.json"
+      ],
+      "configuration": "grammars/json/language-configuration.json"
+    },
+    {
+      "extension": "julia",
+      "id": "julia",
+      "aliases": [
+        "Julia",
+        "julia"
+      ],
+      "extensions": [
+        ".jl"
+      ],
+      "firstLine": "^#!\\s*/.*\\bjulia[0-9.-]*\\b",
+      "configuration": "grammars/julia/language-configuration.json"
+    },
+    {
+      "extension": "julia",
+      "id": "juliamarkdown",
+      "aliases": [
+        "Julia Markdown",
+        "juliamarkdown"
+      ],
+      "extensions": [
+        ".jmd"
+      ]
+    },
+    {
+      "extension": "latex",
+      "id": "tex",
+      "aliases": [
+        "TeX",
+        "tex"
+      ],
+      "extensions": [
+        ".sty",
+        ".cls",
+        ".bbx",
+        ".cbx"
+      ],
+      "configuration": "grammars/latex/latex-language-configuration.json"
+    },
+    {
+      "extension": "latex",
+      "id": "latex",
+      "aliases": [
+        "LaTeX",
+        "latex"
+      ],
+      "extensions": [
+        ".tex",
+        ".ltx",
+        ".ctx"
+      ],
+      "configuration": "grammars/latex/latex-language-configuration.json"
+    },
+    {
+      "extension": "latex",
+      "id": "bibtex",
+      "aliases": [
+        "BibTeX",
+        "bibtex"
+      ],
+      "extensions": [
+        ".bib"
+      ]
+    },
+    {
+      "extension": "latex",
+      "id": "cpp_embedded_latex",
+      "aliases": [],
+      "configuration": "grammars/latex/latex-cpp-embedded-language-configuration.json"
+    },
+    {
+      "extension": "latex",
+      "id": "markdown_latex_combined",
+      "aliases": [],
+      "configuration": "grammars/latex/markdown-latex-combined-language-configuration.json"
+    },
+    {
+      "extension": "less",
+      "id": "less",
+      "aliases": [
+        "Less",
+        "less"
+      ],
+      "extensions": [
+        ".less"
+      ],
+      "mimetypes": [
+        "text/x-less",
+        "text/less"
+      ],
+      "configuration": "grammars/less/language-configuration.json"
+    },
+    {
+      "extension": "log",
+      "id": "log",
+      "aliases": [
+        "Log"
+      ],
+      "extensions": [
+        ".log",
+        "*.log.?"
+      ]
+    },
+    {
+      "extension": "lua",
+      "id": "lua",
+      "aliases": [
+        "Lua",
+        "lua"
+      ],
+      "extensions": [
+        ".lua"
+      ],
+      "configuration": "grammars/lua/language-configuration.json"
+    },
+    {
+      "extension": "make",
+      "id": "makefile",
+      "aliases": [
+        "Makefile",
+        "makefile"
+      ],
+      "extensions": [
+        ".mak",
+        ".mk"
+      ],
+      "filenames": [
+        "Makefile",
+        "makefile",
+        "GNUmakefile",
+        "OCamlMakefile"
+      ],
+      "firstLine": "^#!\\s*/usr/bin/make",
+      "configuration": "grammars/make/language-configuration.json"
+    },
+    {
+      "extension": "markdown-basics",
+      "id": "markdown",
+      "aliases": [
+        "Markdown",
+        "markdown"
+      ],
+      "extensions": [
+        ".md",
+        ".mkd",
+        ".mkdn",
+        ".mdwn",
+        ".mdown",
+        ".markdown",
+        ".markdn",
+        ".mdtxt",
+        ".mdtext",
+        ".litcoffee",
+        ".ron",
+        ".ronn",
+        ".workbook"
+      ],
+      "filenamePatterns": [
+        "**/.cursor/**/*.mdc"
+      ],
+      "configuration": "grammars/markdown-basics/language-configuration.json"
+    },
+    {
+      "extension": "markdown-math",
+      "id": "markdown-math",
+      "aliases": []
+    },
+    {
+      "extension": "npm",
+      "id": "ignore",
+      "extensions": [
+        ".npmignore"
+      ]
+    },
+    {
+      "extension": "npm",
+      "id": "properties",
+      "extensions": [
+        ".npmrc"
+      ]
+    },
+    {
+      "extension": "objective-c",
+      "id": "objective-c",
+      "aliases": [
+        "Objective-C"
+      ],
+      "extensions": [
+        ".m"
+      ],
+      "configuration": "grammars/objective-c/language-configuration.json"
+    },
+    {
+      "extension": "objective-c",
+      "id": "objective-cpp",
+      "aliases": [
+        "Objective-C++"
+      ],
+      "extensions": [
+        ".mm"
+      ],
+      "configuration": "grammars/objective-c/language-configuration.json"
+    },
+    {
+      "extension": "perl",
+      "id": "perl",
+      "aliases": [
+        "Perl",
+        "perl"
+      ],
+      "extensions": [
+        ".pl",
+        ".pm",
+        ".pod",
+        ".t",
+        ".PL",
+        ".psgi"
+      ],
+      "firstLine": "^#!.*\\bperl\\b",
+      "configuration": "grammars/perl/perl.language-configuration.json"
+    },
+    {
+      "extension": "perl",
+      "id": "raku",
+      "aliases": [
+        "Raku",
+        "Perl6",
+        "perl6"
+      ],
+      "extensions": [
+        ".raku",
+        ".rakumod",
+        ".rakutest",
+        ".rakudoc",
+        ".nqp",
+        ".p6",
+        ".pl6",
+        ".pm6"
+      ],
+      "firstLine": "(^#!.*\\bperl6\\b)|use\\s+v6|raku|=begin\\spod|my\\sclass",
+      "configuration": "grammars/perl/perl6.language-configuration.json"
+    },
+    {
+      "extension": "php",
+      "id": "php",
+      "aliases": [
+        "PHP",
+        "php"
+      ],
+      "extensions": [
+        ".php",
+        ".php4",
+        ".php5",
+        ".phtml",
+        ".ctp"
+      ],
+      "firstLine": "^#!\\s*/.*\\bphp\\b",
+      "mimetypes": [
+        "application/x-php"
+      ],
+      "configuration": "grammars/php/language-configuration.json"
+    },
+    {
+      "extension": "powershell",
+      "id": "powershell",
+      "aliases": [
+        "PowerShell",
+        "powershell",
+        "ps",
+        "ps1",
+        "pwsh"
+      ],
+      "extensions": [
+        ".ps1",
+        ".psm1",
+        ".psd1",
+        ".pssc",
+        ".psrc"
+      ],
+      "firstLine": "^#!\\s*/.*\\bpwsh\\b",
+      "configuration": "grammars/powershell/language-configuration.json"
+    },
+    {
+      "extension": "prompt-basics",
+      "id": "prompt",
+      "aliases": [
+        "Prompt",
+        "prompt"
+      ],
+      "extensions": [
+        ".prompt.md"
+      ],
+      "configuration": "grammars/prompt-basics/language-configuration.json"
+    },
+    {
+      "extension": "prompt-basics",
+      "id": "instructions",
+      "aliases": [
+        "Instructions",
+        "instructions"
+      ],
+      "extensions": [
+        ".instructions.md",
+        "copilot-instructions.md"
+      ],
+      "filenamePatterns": [
+        "**/.claude/rules/**/*.md"
+      ],
+      "configuration": "grammars/prompt-basics/language-configuration.json"
+    },
+    {
+      "extension": "prompt-basics",
+      "id": "chatagent",
+      "aliases": [
+        "Agent",
+        "chat agent"
+      ],
+      "extensions": [
+        ".agent.md",
+        ".chatmode.md"
+      ],
+      "filenamePatterns": [
+        "**/.github/agents/*.md",
+        "**/.claude/agents/*.md"
+      ],
+      "configuration": "grammars/prompt-basics/language-configuration.json"
+    },
+    {
+      "extension": "prompt-basics",
+      "id": "skill",
+      "aliases": [
+        "Skill",
+        "skill"
+      ],
+      "filenames": [
+        "SKILL.md"
+      ],
+      "configuration": "grammars/prompt-basics/language-configuration.json"
+    },
+    {
+      "extension": "pug",
+      "id": "jade",
+      "aliases": [
+        "Pug",
+        "Jade",
+        "jade"
+      ],
+      "extensions": [
+        ".pug",
+        ".jade"
+      ],
+      "configuration": "grammars/pug/language-configuration.json"
+    },
+    {
+      "extension": "python",
+      "id": "python",
+      "aliases": [
+        "Python",
+        "py"
+      ],
+      "extensions": [
+        ".py",
+        ".rpy",
+        ".pyw",
+        ".cpy",
+        ".gyp",
+        ".gypi",
+        ".pyi",
+        ".ipy",
+        ".pyt"
+      ],
+      "filenames": [
+        "SConstruct",
+        "SConscript"
+      ],
+      "firstLine": "^#!\\s*/?.*\\bpython[0-9.-]*\\b",
+      "configuration": "grammars/python/language-configuration.json"
+    },
+    {
+      "extension": "r",
+      "id": "r",
+      "aliases": [
+        "R",
+        "r"
+      ],
+      "extensions": [
+        ".R",
+        ".Rhistory",
+        ".Rprofile",
+        ".rt"
+      ],
+      "configuration": "grammars/r/language-configuration.json"
+    },
+    {
+      "extension": "razor",
+      "id": "razor",
+      "aliases": [
+        "Razor",
+        "razor"
+      ],
+      "extensions": [
+        ".cshtml",
+        ".razor"
+      ],
+      "mimetypes": [
+        "text/x-cshtml"
+      ],
+      "configuration": "grammars/razor/language-configuration.json"
+    },
+    {
+      "extension": "restructuredtext",
+      "id": "restructuredtext",
+      "aliases": [
+        "reStructuredText"
+      ],
+      "extensions": [
+        ".rst"
+      ],
+      "configuration": "grammars/restructuredtext/language-configuration.json"
+    },
+    {
+      "extension": "ruby",
+      "id": "ruby",
+      "aliases": [
+        "Ruby",
+        "rb"
+      ],
+      "extensions": [
+        ".rb",
+        ".rbx",
+        ".rjs",
+        ".gemspec",
+        ".rake",
+        ".ru",
+        ".erb",
+        ".podspec",
+        ".rbi"
+      ],
+      "filenames": [
+        "rakefile",
+        "gemfile",
+        "guardfile",
+        "podfile",
+        "capfile",
+        "cheffile",
+        "hobofile",
+        "vagrantfile",
+        "appraisals",
+        "rantfile",
+        "berksfile",
+        "berksfile.lock",
+        "thorfile",
+        "puppetfile",
+        "dangerfile",
+        "brewfile",
+        "fastfile",
+        "appfile",
+        "deliverfile",
+        "matchfile",
+        "scanfile",
+        "snapfile",
+        "gymfile"
+      ],
+      "firstLine": "^#!\\s*/.*\\bruby\\b",
+      "configuration": "grammars/ruby/language-configuration.json"
+    },
+    {
+      "extension": "rust",
+      "id": "rust",
+      "aliases": [
+        "Rust",
+        "rust"
+      ],
+      "extensions": [
+        ".rs"
+      ],
+      "configuration": "grammars/rust/language-configuration.json"
+    },
+    {
+      "extension": "scss",
+      "id": "scss",
+      "aliases": [
+        "SCSS",
+        "scss"
+      ],
+      "extensions": [
+        ".scss"
+      ],
+      "mimetypes": [
+        "text/x-scss",
+        "text/scss"
+      ],
+      "configuration": "grammars/scss/language-configuration.json"
+    },
+    {
+      "extension": "search-result",
+      "id": "search-result",
+      "aliases": [
+        "Search Result"
+      ],
+      "extensions": [
+        ".code-search"
+      ]
+    },
+    {
+      "extension": "shaderlab",
+      "id": "shaderlab",
+      "aliases": [
+        "ShaderLab",
+        "shaderlab"
+      ],
+      "extensions": [
+        ".shader"
+      ],
+      "configuration": "grammars/shaderlab/language-configuration.json"
+    },
+    {
+      "extension": "shellscript",
+      "id": "shellscript",
+      "aliases": [
+        "Shell Script",
+        "shellscript",
+        "bash",
+        "fish",
+        "sh",
+        "zsh",
+        "ksh",
+        "csh"
+      ],
+      "extensions": [
+        ".sh",
+        ".bash",
+        ".bashrc",
+        ".bash_aliases",
+        ".bash_profile",
+        ".bash_login",
+        ".ebuild",
+        ".eclass",
+        ".profile",
+        ".bash_logout",
+        ".xprofile",
+        ".xsession",
+        ".xsessionrc",
+        ".Xsession",
+        ".zsh",
+        ".zshrc",
+        ".zprofile",
+        ".zlogin",
+        ".zlogout",
+        ".zshenv",
+        ".zsh-theme",
+        ".fish",
+        ".ksh",
+        ".csh",
+        ".cshrc",
+        ".tcshrc",
+        ".yashrc",
+        ".yash_profile"
+      ],
+      "filenames": [
+        "APKBUILD",
+        "PKGBUILD",
+        ".envrc",
+        ".hushlogin",
+        "zshrc",
+        "zshenv",
+        "zlogin",
+        "zprofile",
+        "zlogout",
+        "bashrc_Apple_Terminal",
+        "zshrc_Apple_Terminal"
+      ],
+      "firstLine": "^#!.*\\b(bash|fish|zsh|sh|ksh|dtksh|pdksh|mksh|ash|dash|yash|sh|csh|jcsh|tcsh|itcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
+      "mimetypes": [
+        "text/x-shellscript"
+      ],
+      "configuration": "grammars/shellscript/language-configuration.json"
+    },
+    {
+      "extension": "sql",
+      "id": "sql",
+      "aliases": [
+        "MS SQL",
+        "T-SQL"
+      ],
+      "extensions": [
+        ".sql",
+        ".dsql"
+      ],
+      "configuration": "grammars/sql/language-configuration.json"
+    },
+    {
+      "extension": "swift",
+      "id": "swift",
+      "aliases": [
+        "Swift",
+        "swift"
+      ],
+      "extensions": [
+        ".swift"
+      ],
+      "configuration": "grammars/swift/language-configuration.json"
+    },
     {
       "extension": "typescript-basics",
       "id": "typescript",
@@ -99,12 +2036,177 @@
       "configuration": "grammars/typescript-basics/language-configuration.json"
     },
     {
-      "extension": "javascript",
-      "id": "jsx-tags",
-      "aliases": [],
-      "configuration": "grammars/javascript/tags-language-configuration.json"
+      "extension": "typescript-basics",
+      "id": "jsonc",
+      "filenames": [
+        "tsconfig.json",
+        "jsconfig.json"
+      ],
+      "filenamePatterns": [
+        "tsconfig.*.json",
+        "jsconfig.*.json",
+        "tsconfig-*.json",
+        "jsconfig-*.json"
+      ]
+    },
+    {
+      "extension": "typescript-basics",
+      "id": "json",
+      "extensions": [
+        ".tsbuildinfo"
+      ]
+    },
+    {
+      "extension": "vb",
+      "id": "vb",
+      "aliases": [
+        "Visual Basic",
+        "vb"
+      ],
+      "extensions": [
+        ".vb",
+        ".brs",
+        ".vbs",
+        ".bas",
+        ".vba"
+      ],
+      "configuration": "grammars/vb/language-configuration.json"
+    },
+    {
+      "extension": "xml",
+      "id": "xml",
+      "aliases": [
+        "XML",
+        "xml"
+      ],
+      "extensions": [
+        ".xml",
+        ".xsd",
+        ".ascx",
+        ".atom",
+        ".axml",
+        ".axaml",
+        ".bpmn",
+        ".cpt",
+        ".csl",
+        ".csproj",
+        ".csproj.user",
+        ".dita",
+        ".ditamap",
+        ".dtd",
+        ".ent",
+        ".mod",
+        ".dtml",
+        ".fsproj",
+        ".fxml",
+        ".iml",
+        ".isml",
+        ".jmx",
+        ".launch",
+        ".menu",
+        ".mxml",
+        ".nuspec",
+        ".opml",
+        ".owl",
+        ".proj",
+        ".props",
+        ".pt",
+        ".publishsettings",
+        ".pubxml",
+        ".pubxml.user",
+        ".rbxlx",
+        ".rbxmx",
+        ".rdf",
+        ".rng",
+        ".rss",
+        ".shproj",
+        ".slnx",
+        ".storyboard",
+        ".svg",
+        ".targets",
+        ".tld",
+        ".tmx",
+        ".vbproj",
+        ".vbproj.user",
+        ".vcxproj",
+        ".vcxproj.filters",
+        ".wixproj",
+        ".wsdl",
+        ".wxi",
+        ".wxl",
+        ".wxs",
+        ".xaml",
+        ".xbl",
+        ".xib",
+        ".xlf",
+        ".xliff",
+        ".xpdl",
+        ".xul",
+        ".xoml"
+      ],
+      "firstLine": "(\\<\\?xml.*)|(\\<svg)|(\\<\\!doctype\\s+svg)",
+      "configuration": "grammars/xml/xml.language-configuration.json"
+    },
+    {
+      "extension": "xml",
+      "id": "xsl",
+      "aliases": [
+        "XSL",
+        "xsl"
+      ],
+      "extensions": [
+        ".xsl",
+        ".xslt"
+      ],
+      "configuration": "grammars/xml/xsl.language-configuration.json"
+    },
+    {
+      "extension": "yaml",
+      "id": "dockercompose",
+      "aliases": [
+        "Compose",
+        "compose"
+      ],
+      "filenamePatterns": [
+        "compose.yml",
+        "compose.yaml",
+        "compose.*.yml",
+        "compose.*.yaml",
+        "*docker*compose*.yml",
+        "*docker*compose*.yaml"
+      ],
+      "configuration": "grammars/yaml/language-configuration.json"
+    },
+    {
+      "extension": "yaml",
+      "id": "yaml",
+      "aliases": [
+        "YAML",
+        "yaml"
+      ],
+      "extensions": [
+        ".yaml",
+        ".yml",
+        ".eyaml",
+        ".eyml",
+        ".cff",
+        ".yaml-tmlanguage",
+        ".yaml-tmpreferences",
+        ".yaml-tmtheme",
+        ".winget"
+      ],
+      "firstLine": "^#cloud-config",
+      "configuration": "grammars/yaml/language-configuration.json"
     }
   ],
+  "configurationDefaults": {
+    "[csharp]": {
+      "editor.maxTokenizationLineLength": 2500
+    },
+    "[javascript]": {
+      "editor.maxTokenizationLineLength": 2500
+    }
+  },
   "themes": [
     {
       "extension": "theme-defaults",
@@ -136,13 +2238,6 @@
     },
     {
       "extension": "theme-defaults",
-      "id": "Light+",
-      "label": "Light+",
-      "uiTheme": "vs",
-      "path": "themes/theme-defaults/themes/light_plus.json"
-    },
-    {
-      "extension": "theme-defaults",
       "id": "Light Modern",
       "label": "Light Modern",
       "uiTheme": "vs",
@@ -154,13 +2249,6 @@
       "label": "Dark (Visual Studio)",
       "uiTheme": "vs-dark",
       "path": "themes/theme-defaults/themes/dark_vs.json"
-    },
-    {
-      "extension": "theme-defaults",
-      "id": "Visual Studio Light",
-      "label": "Light (Visual Studio)",
-      "uiTheme": "vs",
-      "path": "themes/theme-defaults/themes/light_vs.json"
     },
     {
       "extension": "theme-defaults",

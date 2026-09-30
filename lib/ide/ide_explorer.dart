@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'dart:async';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../platform/app_paths.dart';
 import '../theme/codicons.dart';
-import '../theme/cursor_theme.dart';
 import '../theme/material_file_icons.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/window_controls.dart';
+import 'editor/monaco/vs/base/common/labels.dart';
 import 'file_service.dart';
 import 'git/git_model.dart';
 import 'git/git_repository.dart';
@@ -907,7 +911,8 @@ class IdeExplorerState extends State<IdeExplorer> {
     final focused = _focusNode.hasFocus;
     final decorations = widget.git?.decorations;
     return ColoredBox(
-      color: CursorColors.sidebarSurface,
+      // Modern UI: the panes are the side bar's.
+      color: themeColors['sideBar.background'],
       child: Focus(
         focusNode: _focusNode,
         onKeyEvent: _onKey,
@@ -978,6 +983,11 @@ String ideIncrementFileName(String name, {required bool isFolder}) {
   return '$prefix copy$extension';
 }
 
+/// The user's home, which path labels start at as `~` (none on the web).
+final String _userHome = kIsWeb ? '' : AppPaths.home(Platform.environment);
+
+String _pathLabel(String path) => tildify(path, _userHome);
+
 class _ExplorerRowView extends StatelessWidget {
   const _ExplorerRowView({
     super.key,
@@ -1000,7 +1010,10 @@ class _ExplorerRowView extends StatelessWidget {
   Widget build(BuildContext context) {
     final left = 4 + row.depth * IdeExplorer.indent;
     final guides = CustomPaint(
-      painter: _IndentGuidesPainter(row.depth),
+      painter: _IndentGuidesPainter(
+        row.depth,
+        themeColors['tree.inactiveIndentGuidesStroke'],
+      ),
       child: const SizedBox.expand(),
     );
     if (row.message case final message?) {
@@ -1015,7 +1028,7 @@ class _ExplorerRowView extends StatelessWidget {
                 message,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   color: IdeListColors.errorForeground,
                   fontSize: 12,
                 ),
@@ -1033,84 +1046,99 @@ class _ExplorerRowView extends StatelessWidget {
       focused: focused,
       onTap: onTap,
       onContextMenu: onContextMenu,
-      tooltip: decoration?.tooltip == null
-          ? null
-          : '${row.path} • ${decoration!.tooltip}',
-      builder: (context, _) => Stack(
-        children: [
-          Positioned.fill(child: guides),
-          Padding(
-            padding: EdgeInsets.only(left: left),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 16,
-                  child: row.isDirectory
-                      ? Icon(
-                          row.expanded
-                              ? Codicons.chevronDown
-                              : Codicons.chevronRight,
-                          size: 16,
-                          color: IdeListColors.foreground,
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 2),
-                if (row.isDirectory)
-                  FolderIcon(row.path, size: 16, expanded: row.expanded)
-                else
-                  FileIcon(row.path, size: 16),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    row.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color:
-                          color ??
-                          (selected
-                              ? IdeListColors.activeSelectionForeground
-                              : IdeListColors.foreground),
-                      decoration: decoration?.strikeThrough ?? false
-                          ? TextDecoration.lineThrough
-                          : null,
-                      decorationColor: color,
-                    ),
+      // ResourceLabel's title (labels.ts): the path label, tildified as
+      // `labelService.getUriLabel` does, then the decoration's.
+      tooltip: switch (decoration?.tooltip) {
+        final tooltip? => '${_pathLabel(row.path)} • $tooltip',
+        null => _pathLabel(row.path),
+      },
+      builder: (context, hovered) {
+        // The row's color (`listWidget.ts` `DefaultStyleController`), and
+        // its twistie's: `icon.foreground`, but the row's when selected
+        // unless the theme has a selection icon color.
+        final foreground = selected
+            ? (focused
+                  ? IdeListColors.activeSelectionForeground
+                  : IdeListColors.inactiveSelectionForeground)
+            : hovered
+            ? IdeListColors.hoverForeground
+            : IdeListColors.foreground;
+        final twistie = selected
+            ? themeColors.get(
+                    focused
+                        ? 'list.activeSelectionIconForeground'
+                        : 'list.inactiveSelectionIconForeground',
+                  ) ??
+                  foreground
+            : themeColors['icon.foreground'];
+        return Stack(
+          children: [
+            Positioned.fill(child: guides),
+            Padding(
+              padding: EdgeInsets.only(left: left),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 16,
+                    child: row.isDirectory
+                        ? Icon(
+                            row.expanded
+                                ? Codicons.chevronDown
+                                : Codicons.chevronRight,
+                            size: 16,
+                            color: twistie,
+                          )
+                        : null,
                   ),
-                ),
-                if (letter == '•')
-                  // `bubble`: a dot for a folder with changes inside.
-                  Padding(
-                    padding: const EdgeInsets.only(left: 5, right: 14),
-                    child: Icon(
-                      Codicons.circleFilled,
-                      size: 14,
-                      color: (color ?? IdeListColors.foreground).withValues(
-                        alpha: .4,
+                  const SizedBox(width: 2),
+                  if (row.isDirectory)
+                    FolderIcon(row.path, size: 16, expanded: row.expanded)
+                  else
+                    FileIcon(row.path, size: 16),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      row.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: color ?? foreground,
+                        decoration: decoration?.strikeThrough ?? false
+                            ? TextDecoration.lineThrough
+                            : null,
+                        decorationColor: color,
                       ),
                     ),
-                  )
-                else if (letter != null)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 5, right: 16),
-                    child: Text(
-                      letter,
-                      style: TextStyle(
-                        fontSize: 13 * .9,
-                        fontWeight: FontWeight.w600,
-                        color: (color ?? IdeListColors.foreground).withValues(
-                          alpha: .75,
+                  ),
+                  if (letter == '•')
+                    // `bubble`: a dot for a folder with changes inside.
+                    Padding(
+                      padding: const EdgeInsets.only(left: 5, right: 14),
+                      child: Icon(
+                        Codicons.circleFilled,
+                        size: 14,
+                        color: (color ?? foreground).withValues(alpha: .4),
+                      ),
+                    )
+                  else if (letter != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 5, right: 16),
+                      child: Text(
+                        letter,
+                        style: TextStyle(
+                          fontSize: 13 * .9,
+                          fontWeight: FontWeight.w600,
+                          color: (color ?? foreground).withValues(alpha: .75),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1222,16 +1250,19 @@ class _ExplorerEditRowState extends State<_ExplorerEditRow> {
   }
 }
 
+/// The row's indent guides, all in `tree.inactiveIndentGuidesStroke` (none
+/// is the active one's).
 class _IndentGuidesPainter extends CustomPainter {
-  const _IndentGuidesPainter(this.depth);
+  const _IndentGuidesPainter(this.depth, this.color);
 
   final int depth;
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (depth == 0) return;
     final paint = Paint()
-      ..color = const Color(0x1FFFFFFF)
+      ..color = color
       ..strokeWidth = 1;
     for (var level = 0; level < depth; level++) {
       final x = 4 + level * IdeExplorer.indent + 8.5;
@@ -1241,5 +1272,5 @@ class _IndentGuidesPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_IndentGuidesPainter oldDelegate) =>
-      oldDelegate.depth != depth;
+      oldDelegate.depth != depth || oldDelegate.color != color;
 }

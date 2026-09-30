@@ -18,14 +18,17 @@
 import 'package:flutter/material.dart';
 
 import '../theme/codicons.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'file_service.dart';
 import 'ide_button.dart';
 
-/// `editorError.foreground`, `editorWarning.foreground`.
+/// The placeholder's colors in the color theme.
 abstract final class IdePlaceholderColors {
-  static const error = Color(0xFFF14C4C);
-  static const warning = Color(0xFFCCA700);
-  static const label = Color(0xFFBFBFBF);
+  static Color get error => themeColors['editorError.foreground'];
+  static Color get warning => themeColors['editorWarning.foreground'];
+
+  /// The workbench's `foreground`, which it inherits.
+  static Color get label => themeColors['foreground'];
 }
 
 /// An action of a placeholder: its first is the primary button.
@@ -116,7 +119,7 @@ class IdeEditorPlaceholder extends StatelessWidget {
                   child: SelectableText(
                     contents.label,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       color: IdePlaceholderColors.label,
                     ),

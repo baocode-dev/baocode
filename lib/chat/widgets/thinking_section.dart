@@ -53,11 +53,8 @@ class ThinkingSection extends StatefulWidget {
 }
 
 class _ThinkingSectionState extends State<ThinkingSection> {
-  static const _textStyle = TextStyle(
-    color: CursorColors.textMuted,
-    fontSize: 13,
-    height: 1.6,
-  );
+  static TextStyle get _textStyle =>
+      TextStyle(color: CursorColors.textMuted, fontSize: 13, height: 1.6);
 
   /// Seven lines of text.
   static const _liveMaxHeight = 13 * 1.6 * 7;

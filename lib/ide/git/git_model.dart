@@ -21,6 +21,8 @@ import 'dart:ui' show Color;
 
 import 'package:path/path.dart' as p;
 
+import '../../theme/workbench_theme.dart' show themeColors;
+
 /// `Status` of the Git extension.
 enum IdeGitStatus {
   indexModified,
@@ -90,18 +92,26 @@ enum IdeGitStatus {
     bothModified => 'Conflict: Both Modified',
   };
 
-  /// `getStatusColor`, in Dark 2026.
-  Color get color => switch (this) {
-    indexModified => IdeGitColors.stageModified,
-    modified || typeChanged => IdeGitColors.modified,
-    indexDeleted => IdeGitColors.stageDeleted,
-    deleted => IdeGitColors.deleted,
-    indexAdded || intentToAdd => IdeGitColors.added,
-    indexCopied || indexRenamed || intentToRename => IdeGitColors.renamed,
-    untracked => IdeGitColors.untracked,
-    ignored => IdeGitColors.ignored,
-    _ => IdeGitColors.conflicting,
+  /// `getStatusColor`: the `gitDecoration.*` color's id.
+  String get colorId => switch (this) {
+    indexModified => 'gitDecoration.stageModifiedResourceForeground',
+    modified || typeChanged => 'gitDecoration.modifiedResourceForeground',
+    indexDeleted => 'gitDecoration.stageDeletedResourceForeground',
+    deleted => 'gitDecoration.deletedResourceForeground',
+    indexAdded || intentToAdd => 'gitDecoration.addedResourceForeground',
+    indexCopied ||
+    indexRenamed ||
+    intentToRename => 'gitDecoration.renamedResourceForeground',
+    untracked => 'gitDecoration.untrackedResourceForeground',
+    ignored => ignoredColorId,
+    _ => 'gitDecoration.conflictingResourceForeground',
   };
+
+  /// [colorId] in the current color theme.
+  Color get color => themeColors[colorId];
+
+  /// The decoration provider's color for ignored paths.
+  static const ignoredColorId = 'gitDecoration.ignoredResourceForeground';
 
   /// Deleted resources are struck through.
   bool get strikeThrough => switch (this) {
@@ -124,19 +134,6 @@ enum IdeGitStatus {
 
   /// Whether folders above show it (deletions do not).
   bool get propagates => this != deleted && this != indexDeleted;
-}
-
-/// `gitDecoration.*` of Dark 2026 (renamed from the defaults).
-abstract final class IdeGitColors {
-  static const added = Color(0xFF73C991);
-  static const modified = Color(0xFFE5BA7D);
-  static const deleted = Color(0xFFF48771);
-  static const renamed = Color(0xFF73C991);
-  static const untracked = Color(0xFF73C991);
-  static const ignored = Color(0xFF8C8C8C);
-  static const conflicting = Color(0xFFF48771);
-  static const stageModified = Color(0xFFE5BA7D);
-  static const stageDeleted = Color(0xFFF48771);
 }
 
 /// `ResourceGroupType`, in the order the view lists them.
@@ -234,18 +231,22 @@ class IdeGitState {
 /// A file's or folder's decoration in the explorer and tabs.
 class IdeGitDecoration {
   const IdeGitDecoration({
-    required this.color,
+    required this.colorId,
     required this.tooltip,
     this.letter,
     this.strikeThrough = false,
   });
 
-  final Color color;
+  /// Its `gitDecoration.*` color's id (a `ThemeColor`).
+  final String colorId;
   final String tooltip;
 
   /// The badge: a status letter, `•` for a folder with changes, or none.
   final String? letter;
   final bool strikeThrough;
+
+  /// [colorId] in the current color theme.
+  Color get color => themeColors[colorId];
 }
 
 /// The decorations of a repository's paths: a changed file's letter and
@@ -285,7 +286,7 @@ class IdeGitDecorations {
   final Set<String> _ignored = {};
 
   static const _ignoredDecoration = IdeGitDecoration(
-    color: IdeGitColors.ignored,
+    colorId: IdeGitStatus.ignoredColorId,
     tooltip: 'Ignored in Git',
   );
 
@@ -305,7 +306,7 @@ class IdeGitDecorations {
     final status = _files[normalized];
     if (status != null) {
       return IdeGitDecoration(
-        color: status.color,
+        colorId: status.colorId,
         tooltip: status.label,
         letter: status.letter,
         strikeThrough: status.strikeThrough,
@@ -321,7 +322,7 @@ class IdeGitDecorations {
     final status = _folders[normalized];
     if (status == null) return null;
     return IdeGitDecoration(
-      color: status.color,
+      colorId: status.colorId,
       tooltip: 'Contains emphasized items',
       letter: '•',
     );
@@ -588,33 +589,29 @@ List<IdeGitRef> _parseRefs(String decorations) {
   return refs;
 }
 
-/// The graph's colors (`scmGraph.*`, `charts.*` of Dark 2026).
+/// The graph's color ids (`ColorIdentifier`s), resolved when drawn.
 abstract final class IdeGraphColors {
-  /// `scmGraph.historyItemRefColor` (`charts.blue`).
-  static const ref = Color(0xFF57A3F8);
+  static const ref = 'scmGraph.historyItemRefColor';
+  static const remoteRef = 'scmGraph.historyItemRemoteRefColor';
+  static const baseRef = 'scmGraph.historyItemBaseRefColor';
 
-  /// `scmGraph.historyItemRemoteRefColor` (`charts.purple`).
-  static const remoteRef = Color(0xFFAD80D7);
-
-  /// `scmGraph.historyItemBaseRefColor`.
-  static const baseRef = Color(0xFFEA5C00);
-
-  /// `scmGraph.foreground1` to `5`, taken in turn by other lanes.
+  /// `colorRegistry`: `scmGraph.foreground1` to `5`, taken in turn by other
+  /// lanes.
   static const lanes = [
-    Color(0xFFFFB000),
-    Color(0xFFDC267F),
-    Color(0xFF994F00),
-    Color(0xFF40B0A6),
-    Color(0xFFB66DFF),
+    'scmGraph.foreground1',
+    'scmGraph.foreground2',
+    'scmGraph.foreground3',
+    'scmGraph.foreground4',
+    'scmGraph.foreground5',
   ];
 }
 
-/// A lane going through a row: the commit it leads to and its color.
+/// A lane going through a row: the commit it leads to and its color's id.
 class IdeGraphLane {
   const IdeGraphLane(this.id, this.color);
 
   final String id;
-  final Color color;
+  final String color;
 
   @override
   bool operator ==(Object other) =>
@@ -646,8 +643,8 @@ class IdeGraphRow {
   final List<IdeGraphLane> inputLanes;
   final List<IdeGraphLane> outputLanes;
 
-  /// The colors of [IdeGitCommit.references] that have one, by ref id.
-  final Map<String, Color> referenceColors;
+  /// The color ids of [IdeGitCommit.references] that have one, by ref id.
+  final Map<String, String> referenceColors;
 
   /// `getHistoryItemIndex`: the lane of the commit's circle.
   int get circleIndex {
@@ -655,8 +652,9 @@ class IdeGraphRow {
     return index < 0 ? inputLanes.length : index;
   }
 
-  /// The circle's color: its lane's below, else above, else the ref color.
-  Color get circleColor {
+  /// The circle's color id: its lane's below, else above, else the ref
+  /// color.
+  String get circleColor {
     final index = circleIndex;
     if (index < outputLanes.length) return outputLanes[index].color;
     if (index < inputLanes.length) return inputLanes[index].color;
@@ -684,12 +682,12 @@ List<IdeGraphRow> ideGraphRows(
   String? remoteName,
   String? headName,
 }) {
-  final colorMap = <String, Color>{
+  final colorMap = <String, String>{
     ?headRef: IdeGraphColors.ref,
     ?remoteRef: IdeGraphColors.remoteRef,
     ?baseRef: IdeGraphColors.baseRef,
   };
-  Color? labelColor(IdeGitCommit commit) {
+  String? labelColor(IdeGitCommit commit) {
     if (commit.id == ideIncomingChangesId) return IdeGraphColors.remoteRef;
     if (commit.id == ideOutgoingChangesId) return IdeGraphColors.ref;
     for (final ref in commit.references) {
@@ -728,7 +726,7 @@ List<IdeGraphRow> ideGraphRows(
       }
     }
     for (var i = firstParentAdded ? 1 : 0; i < commit.parentIds.length; i++) {
-      Color? color;
+      String? color;
       if (i == 0) {
         color = labelColor(commit);
       } else {
@@ -745,7 +743,7 @@ List<IdeGraphRow> ideGraphRows(
       final index = input.indexWhere((lane) => lane.id == commit.id);
       return index < 0 ? input.length : index;
     }();
-    final referenceColors = <String, Color>{};
+    final referenceColors = <String, String>{};
     for (final ref in commit.references) {
       final color = colorMap[ref.id];
       if (color != null) {

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See ../../../../LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 // Ported from VS Code src/vs/platform/theme/common/theme.ts at
-// 6a598d4a13031703d483d103c1d934a36ad27971. The string enums become Dart
-// enums whose `value` is upstream's string.
+// 6a598d4a13031703d483d103c1d934a36ad27971, plus `getThemeTypeSelector` from
+// themeService.ts. The string enums become Dart enums whose `value` is
+// upstream's string.
 
 /// Color scheme used by the OS and by color themes.
 enum ColorScheme {
@@ -35,6 +36,15 @@ enum ThemeTypeSelector {
     return null;
   }
 }
+
+/// `getThemeTypeSelector` (themeService.ts): the class a theme of [type]
+/// puts on the workbench, and the name of Monaco's built-in theme of it.
+ThemeTypeSelector getThemeTypeSelector(ColorScheme type) => switch (type) {
+  ColorScheme.dark => ThemeTypeSelector.vsDark,
+  ColorScheme.highContrastDark => ThemeTypeSelector.hcBlack,
+  ColorScheme.highContrastLight => ThemeTypeSelector.hcLight,
+  ColorScheme.light => ThemeTypeSelector.vs,
+};
 
 bool isHighContrast(ColorScheme scheme) =>
     scheme == ColorScheme.highContrastDark ||

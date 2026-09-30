@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:markdown/markdown.dart' as md;
 
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../../workspace/editor_launcher.dart';
 import 'markdown_math.dart';
 
@@ -11,18 +12,17 @@ import 'markdown_math.dart';
 /// (and task lists), code blocks, quotes, tables, rules, and inline
 /// strong, emphasis, strikethrough, code, links and TeX math.
 class MarkdownView extends StatelessWidget {
-  const MarkdownView(this.data, {super.key, this.style = baseStyle});
+  const MarkdownView(this.data, {super.key, this.style});
 
   final String data;
-  final TextStyle style;
 
-  static const baseStyle = TextStyle(
-    color: CursorColors.text,
-    fontSize: 13.5,
-    height: 1.6,
-  );
+  /// [baseStyle] when null.
+  final TextStyle? style;
 
-  static const codeStyle = TextStyle(
+  static TextStyle get baseStyle =>
+      TextStyle(color: CursorColors.text, fontSize: 13.5, height: 1.6);
+
+  static TextStyle get codeStyle => TextStyle(
     color: CursorColors.inlineCode,
     fontFamily: CursorFonts.mono,
     fontSize: 12.5,
@@ -39,7 +39,7 @@ class MarkdownView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nodes = _document.parse(data);
-    return _Blocks(nodes: nodes, style: style);
+    return _Blocks(nodes: nodes, style: style ?? baseStyle);
   }
 }
 
@@ -118,9 +118,13 @@ Widget? _block(md.Node node, TextStyle style) {
     case 'blockquote':
       return Container(
         padding: const EdgeInsets.only(left: 12),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
+          color: themeColors['textBlockQuote.background'],
           border: Border(
-            left: BorderSide(color: CursorColors.borderStrong, width: 3),
+            left: BorderSide(
+              color: themeColors['textBlockQuote.border'],
+              width: 3,
+            ),
           ),
         ),
         child: _Blocks(
@@ -129,9 +133,14 @@ Widget? _block(md.Node node, TextStyle style) {
         ),
       );
     case 'hr':
-      return const Padding(
+      // As upstream's chat: the separator's color, faint.
+      final separator = themeColors['textSeparator.foreground'];
+      return Padding(
         padding: EdgeInsets.symmetric(vertical: 4),
-        child: Divider(height: 1, color: CursorColors.border),
+        child: Divider(
+          height: 1,
+          color: separator.withValues(alpha: separator.a * 0.33),
+        ),
       );
     case 'table':
       return _Table(node: node, style: style);
@@ -291,16 +300,16 @@ class _TableState extends State<_Table> {
     final columns = rows
         .map((row) => row.$2.length)
         .reduce((a, b) => a > b ? a : b);
-    const line = BorderSide(color: CursorColors.border);
+    final line = BorderSide(color: themeColors['chat.requestBorder']);
     final table = Table(
       defaultColumnWidth: const IntrinsicColumnWidth(),
       // The card draws the edge.
-      border: const TableBorder.symmetric(inside: line),
+      border: TableBorder.symmetric(inside: line),
       children: [
         for (final (header, cells) in rows)
           TableRow(
             decoration: header
-                ? const BoxDecoration(color: CursorColors.surfaceRaised)
+                ? BoxDecoration(color: CursorColors.surfaceRaised)
                 : null,
             children: [
               for (var i = 0; i < columns; i++)
@@ -333,7 +342,7 @@ class _TableState extends State<_Table> {
         // The edge over the cells, the header's color clipped to the corners.
         foregroundDecoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: const Border.fromBorderSide(line),
+          border: Border.fromBorderSide(line),
         ),
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
         clipBehavior: Clip.antiAlias,
@@ -365,11 +374,12 @@ class MarkdownCodeBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = themeColors;
     return Container(
       decoration: BoxDecoration(
-        color: CursorColors.code,
+        color: colors['textCodeBlock.background'],
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: CursorColors.border),
+        border: Border.all(color: colors['chat.requestBorder']),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -380,10 +390,7 @@ class MarkdownCodeBlock extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
               child: Text(
                 language,
-                style: const TextStyle(
-                  color: CursorColors.textFaint,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
               ),
             ),
           SingleChildScrollView(
@@ -391,8 +398,8 @@ class MarkdownCodeBlock extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
             child: Text(
               code,
-              style: const TextStyle(
-                color: CursorColors.textPrimary,
+              style: TextStyle(
+                color: colors['editor.foreground'],
                 fontFamily: CursorFonts.mono,
                 fontSize: 12,
                 height: 1.5,
@@ -415,7 +422,7 @@ InlineSpan _inline(md.Node node) {
   List<InlineSpan> inner() => [for (final child in children) _inline(child)];
   return switch (node.tag) {
     'strong' || 'b' => TextSpan(
-      style: const TextStyle(
+      style: TextStyle(
         fontWeight: FontWeight.w600,
         color: CursorColors.textPrimary,
       ),
@@ -435,11 +442,11 @@ InlineSpan _inline(md.Node node) {
     ),
     'a' => switch (_linkRecognizer(node.attributes['href'])) {
       final recognizer? => TextSpan(
-        style: const TextStyle(color: CursorColors.accent),
+        style: TextStyle(color: CursorColors.accent),
         children: [for (final span in inner()) _linked(span, recognizer)],
       ),
       null => TextSpan(
-        style: const TextStyle(color: CursorColors.accent),
+        style: TextStyle(color: CursorColors.accent),
         children: inner(),
       ),
     },

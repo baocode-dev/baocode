@@ -11,6 +11,7 @@ import 'package:flutter_quill/quill_delta.dart';
 import '../../kernel/agent_kernel.dart';
 import '../../kernel/kernel_types.dart';
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
 import '../chat_models.dart';
 import '../chat_session.dart';
 import '../floating/floating_layer.dart';
@@ -26,6 +27,7 @@ import 'composer_images.dart';
 import 'composer_mock_data.dart';
 import 'composer_picker.dart';
 import 'suggestion_menu.dart';
+import '../../ide/ide_hover.dart';
 
 /// An open @mention or /command query: the trigger character sits at
 /// [start] and [query] is the text between it and the caret.
@@ -87,7 +89,7 @@ class ChatComposer extends StatefulWidget {
 
 class ChatComposerState extends State<ChatComposer> {
   static const _fontSize = 13.5;
-  static const _textStyle = TextStyle(
+  static TextStyle get _textStyle => TextStyle(
     color: CursorColors.textPrimary,
     fontSize: _fontSize,
     height: 1.5,
@@ -267,8 +269,12 @@ class ChatComposerState extends State<ChatComposer> {
   /// The editor subtree, built once and reused so that keystrokes (which
   /// rebuild this state for the menu and send button) do not hand Quill a
   /// new config: it treats new styles as a change and relays out every line.
-  /// Rebuilt only when an inherited dependency (theme, window size) changes.
+  /// Rebuilt only when an inherited dependency (theme, window size) or the
+  /// color theme changes.
   Widget? _editor;
+
+  /// The color theme's colors [_editor] was built with.
+  WorkbenchColors? _editorColors;
 
   @override
   void didChangeDependencies() {
@@ -606,6 +612,11 @@ class ChatComposerState extends State<ChatComposer> {
       _suggestion = suggestion;
       _editor = null; // The placeholder shows it.
     }
+    final colors = themeColors;
+    if (!identical(colors, _editorColors)) {
+      _editorColors = colors;
+      _editor = null;
+    }
     return FloatingLayer(
       visible: _trigger != null,
       // Above the composer at the trigger character; below it when there
@@ -624,12 +635,19 @@ class ChatComposerState extends State<ChatComposer> {
           key: _boxKey,
           duration: const Duration(milliseconds: 150),
           decoration: BoxDecoration(
-            color: CursorColors.surfaceRaised,
+            // The agents window's chat input; editing a sent message, its
+            // bubble (as upstream), over the page: it floats when stuck.
+            color: widget.onSubmit == null
+                ? colors['agentsChatInput.background']
+                : Color.alphaBlend(
+                    colors['chat.requestBubbleBackground'],
+                    colors['editor.background'],
+                  ),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: focused
-                  ? const Color(0xFF4D4D4D)
-                  : CursorColors.borderStrong,
+                  ? colors['agentsChatInput.focusBorder']
+                  : colors['agentsChatInput.border'],
             ),
           ),
           child: Column(
@@ -695,7 +713,7 @@ class ChatComposerState extends State<ChatComposer> {
           focusNode: _focusNode,
           scrollController: _scrollController,
           height: (_fontSize * 1.2).roundToDouble(),
-          color: CursorColors.textPrimary,
+          color: themeColors['editorCursor.foreground'],
           child: Listener(
             onPointerDown: _handleSelectPointerDown,
             onPointerMove: _handleSelectPointerMove,
@@ -863,7 +881,11 @@ class ChatComposerState extends State<ChatComposer> {
     );
     return DefaultStyles(
       paragraph: block(_textStyle),
-      placeHolder: block(_textStyle.copyWith(color: CursorColors.textFaint)),
+      placeHolder: block(
+        _textStyle.copyWith(
+          color: themeColors['agentsChatInput.placeholderForeground'],
+        ),
+      ),
     );
   }
 
@@ -984,9 +1006,9 @@ class _ContextRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    final colors = themeColors;
+    return IdeHover(
       message: 'Context usage',
-      waitDuration: const Duration(milliseconds: 400),
       child: HoverBuilder(
         cursor: SystemMouseCursors.click,
         builder: (context, hovered) => GestureDetector(
@@ -998,8 +1020,10 @@ class _ContextRing extends StatelessWidget {
             // The ring keeps its square: the box is taller than it.
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: active || hovered
-                  ? CursorColors.hover
+              color: active
+                  ? colors['toolbar.activeBackground']
+                  : hovered
+                  ? colors['toolbar.hoverBackground']
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(5),
             ),
@@ -1008,8 +1032,13 @@ class _ContextRing extends StatelessWidget {
               child: TweenAnimationBuilder<double>(
                 tween: Tween(end: fraction),
                 duration: const Duration(milliseconds: 400),
-                builder: (context, value, _) =>
-                    CustomPaint(painter: _RingPainter(value)),
+                builder: (context, value, _) => CustomPaint(
+                  painter: _RingPainter(
+                    value,
+                    track: colors['disabledForeground'],
+                    arc: colors['icon.foreground'],
+                  ),
+                ),
               ),
             ),
           ),
@@ -1019,10 +1048,14 @@ class _ContextRing extends StatelessWidget {
   }
 }
 
+/// As upstream's context usage widget: the track `disabledForeground`, the
+/// arc `icon.foreground`.
 class _RingPainter extends CustomPainter {
-  _RingPainter(this.fraction);
+  _RingPainter(this.fraction, {required this.track, required this.arc});
 
   final double fraction;
+  final Color track;
+  final Color arc;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1036,20 +1069,22 @@ class _RingPainter extends CustomPainter {
       0,
       math.pi * 2,
       false,
-      stroke..color = CursorColors.borderStrong,
+      stroke..color = track,
     );
     canvas.drawArc(
       rect.deflate(1),
       -math.pi / 2,
       math.pi * 2 * fraction.clamp(0, 1),
       false,
-      stroke..color = CursorColors.textMuted,
+      stroke..color = arc,
     );
   }
 
   @override
   bool shouldRepaint(_RingPainter oldDelegate) =>
-      oldDelegate.fraction != fraction;
+      oldDelegate.fraction != fraction ||
+      oldDelegate.track != track ||
+      oldDelegate.arc != arc;
 }
 
 class _SendButton extends StatelessWidget {
@@ -1068,21 +1103,26 @@ class _SendButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active = streaming || enabled;
-    return Tooltip(
+    final colors = themeColors;
+    // As upstream's submit button: the primary button's colors; disabled,
+    // none but the disabled icon.
+    final foreground = colors['button.foreground'];
+    return IdeHover(
       message: streaming ? 'Stop' : 'Send  ↵',
-      waitDuration: const Duration(milliseconds: 500),
-      child: MouseRegion(
+      child: HoverBuilder(
         cursor: active ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        child: GestureDetector(
+        builder: (context, hovered) => GestureDetector(
           onTap: streaming ? onStop : (enabled ? onSend : null),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             width: 24,
             height: 24,
             decoration: BoxDecoration(
-              color: active
-                  ? CursorColors.textPrimary
-                  : const Color(0xFF3A3A3A),
+              color: !active
+                  ? Colors.transparent
+                  : hovered
+                  ? colors['button.hoverBackground']
+                  : colors['button.background'],
               shape: BoxShape.circle,
             ),
             child: AnimatedSwitcher(
@@ -1095,7 +1135,7 @@ class _SendButton extends StatelessWidget {
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: CursorColors.background,
+                        color: foreground,
                         borderRadius: BorderRadius.circular(1.5),
                       ),
                     )
@@ -1103,9 +1143,7 @@ class _SendButton extends StatelessWidget {
                       key: const ValueKey('send'),
                       Icons.arrow_upward_rounded,
                       size: 15,
-                      color: active
-                          ? CursorColors.background
-                          : CursorColors.textFaint,
+                      color: active ? foreground : CursorColors.textFaint,
                     ),
             ),
           ),

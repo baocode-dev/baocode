@@ -8,8 +8,9 @@
 // primary one.
 //
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
-// src/vs/base/browser/ui/dialog/dialog.ts and dialog.css, with the
-// `editorWidget.*` and `widget.*` colors of Dark 2026.
+// src/vs/base/browser/ui/dialog/dialog.ts and dialog.css, with the color
+// theme's colors of dialogs (platform/theme/browser/defaultStyles.ts
+// `defaultDialogStyles`).
 //
 // Deviations: no checkbox or input rows, and no custom icons.
 
@@ -19,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/codicons.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_button.dart';
 import 'ide_hover.dart';
 
@@ -39,7 +41,8 @@ Future<int?> showIdeDialog(
   context: context,
   barrierDismissible: true,
   barrierLabel: 'Dismiss',
-  barrierColor: const Color(0x4D000000),
+  // `.monaco-dialog-modal-block.dimmed`: the same in every theme.
+  barrierColor: const Color(0x80000000),
   transitionDuration: Duration.zero,
   pageBuilder: (context, _, _) => _IdeDialog(
     message: message,
@@ -67,17 +70,30 @@ class _IdeDialog extends StatelessWidget {
   final bool cancels;
   final IdeDialogType type;
 
-  static const _background = Color(0xFF202122);
-  static const _foreground = Color(0xFFBFBFBF);
-
   @override
   Widget build(BuildContext context) {
+    final colors = themeColors;
     final (icon, color) = switch (type) {
-      IdeDialogType.info => (Codicons.info, const Color(0xFF3794FF)),
-      IdeDialogType.warning => (Codicons.warning, const Color(0xFFCCA700)),
-      IdeDialogType.error => (Codicons.error, const Color(0xFFF14C4C)),
-      IdeDialogType.question => (Codicons.question, const Color(0xFF3794FF)),
+      IdeDialogType.info => (
+        Codicons.info,
+        colors['problemsInfoIcon.foreground'],
+      ),
+      IdeDialogType.warning => (
+        Codicons.warning,
+        colors['problemsWarningIcon.foreground'],
+      ),
+      IdeDialogType.error => (
+        Codicons.error,
+        colors['problemsErrorIcon.foreground'],
+      ),
+      IdeDialogType.question => (
+        Codicons.question,
+        colors['problemsInfoIcon.foreground'],
+      ),
     };
+    final foreground = colors['editorWidget.foreground'];
+    final border = colors.get('widget.border');
+    final shadow = colors.get('widget.shadow');
     final width = math.max(
       480.0,
       math.min(560.0, MediaQuery.sizeOf(context).width * .9),
@@ -99,10 +115,14 @@ class _IdeDialog extends StatelessWidget {
               width: width,
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: _background,
-                border: Border.all(color: IdeHoverColors.border),
+                color: colors['editorWidget.background'],
+                border: border == null ? null : Border.all(color: border),
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: IdeHoverColors.shadow,
+                boxShadow: [
+                  // `--vscode-shadow-xl`, and the theme's around it.
+                  const BoxShadow(color: Color(0x26000000), blurRadius: 20),
+                  if (shadow != null) BoxShadow(color: shadow, blurRadius: 8),
+                ],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -136,10 +156,10 @@ class _IdeDialog extends StatelessWidget {
                                 ),
                                 child: SelectableText(
                                   message,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
-                                    color: _foreground,
+                                    color: foreground,
                                   ),
                                 ),
                               ),
@@ -147,10 +167,10 @@ class _IdeDialog extends StatelessWidget {
                                 const SizedBox(height: 4),
                                 SelectableText(
                                   detail,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 13,
                                     height: 20 / 13,
-                                    color: _foreground,
+                                    color: foreground,
                                   ),
                                 ),
                               ],

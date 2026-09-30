@@ -3,25 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// VS Code's text button (`.monaco-text-button`), in Dark 2026.
+// VS Code's text button (`.monaco-text-button`), in the color theme.
 //
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
-// src/vs/base/browser/ui/button/button.css, and the `button.*` colors of
-// extensions/theme-defaults/themes/2026-dark.json (which leaves the
-// secondary background and foreground to dark_modern.json).
+// src/vs/base/browser/ui/button/button.css and button.ts, with the color
+// theme's `button.*` colors (platform/theme/browser/defaultStyles.ts
+// `defaultButtonStyles`).
 
 import 'package:flutter/material.dart';
 
-/// Dark 2026 `button.*` colors.
+import '../theme/workbench_theme.dart' show themeColors;
+
+/// The color theme's `button.*` colors.
 abstract final class IdeButtonColors {
-  static const background = Color(0xFF297AA0);
-  static const hoverBackground = Color(0xFF2B7DA3);
-  static const foreground = Color(0xFFFFFFFF);
-  static const border = Color(0xFF297AA0);
-  static const secondaryBackground = Color(0x00000000);
-  static const secondaryHoverBackground = Color(0x10FFFFFF);
-  static const secondaryForeground = Color(0xFFCCCCCC);
-  static const secondaryBorder = Color(0xFF333536);
+  static Color get background => themeColors['button.background'];
+  static Color get hoverBackground => themeColors['button.hoverBackground'];
+  static Color get foreground => themeColors['button.foreground'];
+
+  /// Transparent where the theme has none: there is always a border.
+  static Color get border => themeColors['button.border'];
+  static Color get secondaryBackground =>
+      themeColors['button.secondaryBackground'];
+  static Color get secondaryHoverBackground =>
+      themeColors['button.secondaryHoverBackground'];
+  static Color get secondaryForeground =>
+      themeColors['button.secondaryForeground'];
+
+  /// `button.secondaryBorder`, else `button.border`.
+  static Color get secondaryBorder =>
+      themeColors.get('button.secondaryBorder') ?? border;
+
+  /// Between a split button's parts.
+  static Color get separator => themeColors['button.separator'];
 }
 
 /// A text button: 12px text, `padding: 4px 8px`, 4px corners, a 1px

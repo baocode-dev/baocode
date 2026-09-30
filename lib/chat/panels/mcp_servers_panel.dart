@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../kernel/kernel_types.dart';
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../widgets/hover_builder.dart';
 import 'interaction_panel.dart';
 import 'panel_card.dart';
+import '../../ide/ide_hover.dart';
 
 /// Modal area, opened from the composer: the MCP servers the agent uses,
 /// whether each is up, and what to do about one that is not.
@@ -34,7 +36,7 @@ class McpServersPanel extends StatelessWidget {
     return PanelCard(
       header: Row(
         children: [
-          const Text(
+          Text(
             'MCP servers',
             style: TextStyle(
               color: CursorColors.text,
@@ -46,10 +48,7 @@ class McpServersPanel extends StatelessWidget {
           if (servers.isNotEmpty)
             Text(
               '$connected of ${servers.length} connected',
-              style: const TextStyle(
-                color: CursorColors.textFaint,
-                fontSize: 11,
-              ),
+              style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
             ),
           const Spacer(),
           _HeaderIcon(
@@ -66,7 +65,7 @@ class McpServersPanel extends StatelessWidget {
         ],
       ),
       child: servers.isEmpty
-          ? const Padding(
+          ? Padding(
               padding: EdgeInsets.fromLTRB(4, 4, 4, 2),
               child: Text(
                 'No MCP servers configured for this project.',
@@ -104,11 +103,19 @@ class _ServerRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // As upstream's MCP server list.
+    final colors = themeColors;
     final (color, label) = switch (server.status) {
-      McpServerStatus.connected => (CursorColors.added, 'Connected'),
-      McpServerStatus.pending => (CursorColors.textMuted, 'Connecting…'),
-      McpServerStatus.failed => (CursorColors.removed, 'Failed'),
-      McpServerStatus.needsAuth => (const Color(0xFFE2C08D), 'Needs sign-in'),
+      McpServerStatus.connected => (colors['charts.green'], 'Connected'),
+      McpServerStatus.pending => (
+        colors['progressBar.background'],
+        'Connecting…',
+      ),
+      McpServerStatus.failed => (colors['errorForeground'], 'Failed'),
+      McpServerStatus.needsAuth => (
+        colors['list.warningForeground'],
+        'Needs sign-in',
+      ),
       McpServerStatus.disabled => (CursorColors.textFaint, 'Disabled'),
     };
     final details = [
@@ -154,7 +161,7 @@ class _ServerRow extends StatelessWidget {
                         server.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: CursorColors.text,
                           fontSize: 13,
                         ),
@@ -167,7 +174,7 @@ class _ServerRow extends StatelessWidget {
                 if (details.isNotEmpty)
                   Text(
                     details,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: CursorColors.textFaint,
                       fontSize: 11.5,
                     ),
@@ -180,7 +187,7 @@ class _ServerRow extends StatelessWidget {
                       error,
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: CursorColors.textMuted,
                         fontFamily: CursorFonts.mono,
                         fontSize: 11,
@@ -192,11 +199,10 @@ class _ServerRow extends StatelessWidget {
           ),
           if (action != null) ...[const SizedBox(width: 8), action],
           const SizedBox(width: 8),
-          Tooltip(
+          IdeHover(
             message: server.status == McpServerStatus.disabled
                 ? 'Enable'
                 : 'Disable',
-            waitDuration: const Duration(milliseconds: 500),
             child: Transform.scale(
               scale: 0.7,
               child: Switch(
@@ -231,9 +237,8 @@ class _HeaderIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    return IdeHover(
       message: tooltip,
-      waitDuration: const Duration(milliseconds: 500),
       child: HoverBuilder(
         cursor: SystemMouseCursors.click,
         builder: (context, hovered) => GestureDetector(

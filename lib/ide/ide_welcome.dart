@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../theme/codicons.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_commands.dart';
 import 'ide_quick_input.dart';
 
 /// The editor area with no open file: the key shortcuts, VS Code's
-/// watermark, each also clickable.
+/// watermark (workbench/browser/parts/editor/media/editorgroupview.css),
+/// each also clickable.
 class IdeWelcome extends StatelessWidget {
   const IdeWelcome({super.key, required this.commands});
 
@@ -14,14 +15,24 @@ class IdeWelcome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = themeColors;
     return ColoredBox(
-      color: CursorColors.background,
+      // An empty group's, else the editor's under it.
+      color:
+          colors.get('editorGroup.emptyBackground') ??
+          colors['editor.background'],
       child: Center(
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Codicons.code, size: 56, color: Color(0x14FFFFFF)),
+              // In place of the letterpress image, which is no theme color:
+              // the text's, faint.
+              Icon(
+                Codicons.code,
+                size: 56,
+                color: colors['foreground'].withValues(alpha: .08),
+              ),
               const SizedBox(height: 20),
               for (final command in commands) _WelcomeEntry(command: command),
             ],
@@ -66,7 +77,10 @@ class _WelcomeEntryState extends State<_WelcomeEntry> {
                   textAlign: TextAlign.right,
                   style: TextStyle(
                     fontSize: 12.5,
-                    color: _hover ? CursorColors.text : CursorColors.textMuted,
+                    // `.shortcuts dl`; the text's on hover.
+                    color: _hover
+                        ? themeColors['foreground']
+                        : themeColors['descriptionForeground'],
                   ),
                 ),
               ),

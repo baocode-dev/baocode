@@ -88,7 +88,7 @@ class CommandStep extends StatelessWidget {
                 Text.rich(
                   TextSpan(
                     children: [
-                      const TextSpan(
+                      TextSpan(
                         text: '\$ ',
                         style: TextStyle(color: CursorColors.textFaint),
                       ),

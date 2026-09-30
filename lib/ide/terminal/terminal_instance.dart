@@ -17,7 +17,10 @@
 // It owns its emulator, as VS Code's instance owns its xterm: what the
 // process prints is parsed into [TerminalInstance.terminal] here, so that
 // terminals in the background keep their screens, and so are the keyboard,
-// mouse and selection, which the view drives while it shows.
+// mouse and selection, which the view drives while it shows. It follows the
+// workbench's colors ([terminalColorTheme]) as VS Code's XtermTerminal
+// follows `onDidColorThemeChange` (xtermTerminal.ts `_updateTheme`), and
+// its find as the find widget does (terminalFindWidget.ts).
 
 import 'dart:async';
 import 'dart:convert';
@@ -40,8 +43,6 @@ import 'links/terminal_links.dart';
 import 'terminal_colors.dart';
 import 'terminal_find.dart';
 import 'terminal_xterm.dart';
-import 'xterm/addons/addon_search/typings/addon_search.dart';
-import 'xterm/common/color.dart';
 import 'xterm/common/platform.dart';
 import 'xterm/common/services/decoration_service.dart';
 import 'xterm/headless/terminal.dart' as internal;
@@ -87,7 +88,14 @@ class TerminalInstance extends ChangeNotifier {
     this.onExit,
   }) {
     _initPlatform();
-    xterm = TerminalXterm(vscodeTerminalOptions(cols: _columns, rows: _rows));
+    xterm = TerminalXterm(
+      vscodeTerminalOptions(
+        cols: _columns,
+        rows: _rows,
+        theme: terminalColorTheme.value,
+      ),
+    );
+    terminalColorTheme.addListener(_updateTheme);
     source = TerminalCoreSource(terminal, decorationService: decorations);
     clipboard = TerminalClipboard(
       selection: selection,
@@ -182,9 +190,27 @@ class TerminalInstance extends ChangeNotifier {
   /// Find in the terminal: made the first time it is asked for.
   late final TerminalFind find = () {
     _findCreated = true;
-    return TerminalFind(xterm, decorations: _findDecorations());
+    terminalColorTheme.addListener(_updateFindColors);
+    return TerminalFind(
+      xterm,
+      decorations: terminalColorTheme.value.toSearchDecorations(),
+    );
   }();
   bool _findCreated = false;
+
+  /// Upstream `_updateTheme`: the workbench's colors as xterm.js' `theme`
+  /// option, which replaces the terminal's colors (and those escape
+  /// sequences set), clears the contrast cache and redraws.
+  void _updateTheme() {
+    xterm.options.theme = vscodeTerminalTheme(terminalColorTheme.value);
+  }
+
+  /// The find widget's theme listener, with `_updateFindColors`' new colors.
+  void _updateFindColors() {
+    find
+      ..decorations = terminalColorTheme.value.toSearchDecorations()
+      ..handleColorThemeChange();
+  }
 
   late final TerminalClipboard clipboard;
   late final TerminalMouse mouse;
@@ -393,10 +419,14 @@ class TerminalInstance extends ChangeNotifier {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    terminalColorTheme.removeListener(_updateTheme);
     if (!_exited) _pty?.kill();
     unawaited(_printing?.cancel());
     unawaited(_output.close());
-    if (_findCreated) find.dispose();
+    if (_findCreated) {
+      terminalColorTheme.removeListener(_updateFindColors);
+      find.dispose();
+    }
     _shellIntegration?.dispose();
     keyboard.dispose();
     mouse.dispose();
@@ -426,25 +456,4 @@ String formatMessageForTerminal(
   result.write(loudFormatting ? '\x1b[0;104m' : '\x1b[0m');
   result.write(' $message \x1b[0m\n\r');
   return result.toString();
-}
-
-/// The find matches' colors, as VS Code's `_updateFindColors` takes them
-/// from the theme.
-ISearchDecorationOptions _findDecorations() {
-  String css(Color color) => channels.toCss(
-    (color.r * 255).round(),
-    (color.g * 255).round(),
-    (color.b * 255).round(),
-    (color.a * 255).round(),
-  );
-  return ISearchDecorationOptions(
-    activeMatchBackground: css(TerminalColors.findMatchBackground),
-    activeMatchBorder: 'transparent',
-    activeMatchColorOverviewRuler: css(
-      TerminalColors.overviewRulerCursorForeground,
-    ),
-    matchBackground: css(TerminalColors.findMatchHighlightBackgroundOpaque),
-    matchBorder: 'transparent',
-    matchOverviewRuler: css(TerminalColors.overviewRulerFindMatchForeground),
-  );
 }

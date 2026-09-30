@@ -9,6 +9,7 @@
 // decorations have no element, hover or listeners here: disposing one
 // removes it from the addon's decorations.
 
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter/painting.dart' show Color;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/ide/terminal/shell_integration/capabilities/buffer_mark_capability.dart';
@@ -25,6 +26,7 @@ import 'package:monad/ide/terminal/xterm/common/services/decoration_service.dart
 import 'package:monad/ide/terminal/xterm/headless/terminal.dart';
 import 'package:monad/theme/codicons.dart';
 
+import '../terminal_color_themes.dart';
 import 'shell_integration_test_helpers.dart';
 
 void main() {
@@ -364,6 +366,78 @@ void main() {
         ],
       );
     });
+  });
+
+  // Upstream's `onDidColorThemeChange` listener (`_refreshStyles(true)`).
+  test('a theme change recolors the decorations and their marks', () {
+    final theme = ValueNotifier(TerminalColorTheme.dark2026);
+    addTearDown(theme.dispose);
+    decorationAddon.dispose();
+    decorationAddon = DecorationAddon(
+      capabilities,
+      decorationService,
+      colorTheme: theme,
+    );
+    decorationAddon.activate(xterm);
+    decorationAddon.registerCommandDecoration(
+      command('false', marker: xterm.registerMarker(0), exitCode: 1),
+    );
+    decorationAddon.registerCommandDecoration(
+      command('sleep 1', marker: xterm.registerMarker(1)),
+      true,
+    );
+    final [failed, placeholder] = decorationAddon.decorations.toList();
+    expect(failed.color, TerminalColors.commandDecorationErrorBackground);
+    expect(
+      placeholder.decoration.options.overviewRulerOptions!.color,
+      'rgba(255, 255, 255, 0.25)',
+    );
+    var changes = 0;
+    decorationAddon.onDidChangeDecorations((_) => changes++);
+
+    theme.value = light2026;
+    expect(changes, 1);
+    expect(failed.color, const Color(0xFFE51400));
+    expect(placeholder.color, const Color(0x40000000));
+    expect(failed.decoration.options.overviewRulerOptions!.color, '#e51400');
+    expect(failed.decoration.options.overviewRulerOptions!.position, 'right');
+    expect(
+      placeholder.decoration.options.overviewRulerOptions!.color,
+      'rgba(0, 0, 0, 0.25)',
+    );
+    // New ones take the theme's colors.
+    decorationAddon.registerCommandDecoration(
+      command('true', marker: xterm.registerMarker(2), exitCode: 0),
+    );
+    final succeeded = decorationAddon.decorations.last;
+    expect(succeeded.color, const Color(0xFF2090D3));
+    expect(succeeded.decoration.options.overviewRulerOptions!.color, '#2090d3');
+
+    decorationAddon.dispose();
+    // ignore: invalid_use_of_protected_member
+    expect(theme.hasListeners, isFalse);
+  });
+
+  test('as upstream, a theme change gives a decoration registered without '
+      'an overview ruler mark one', () {
+    final theme = ValueNotifier(TerminalColorTheme.dark2026);
+    addTearDown(theme.dispose);
+    decorationAddon.dispose();
+    decorationAddon = DecorationAddon(
+      capabilities,
+      decorationService,
+      showOverviewRulerDecorations: false,
+      colorTheme: theme,
+    );
+    decorationAddon.activate(xterm);
+    decorationAddon.registerCommandDecoration(
+      command('true', marker: xterm.registerMarker(0), exitCode: 0),
+    );
+    final decoration = decorationAddon.decorations.single.decoration;
+    expect(decoration.options.overviewRulerOptions, isNull);
+    theme.value = light2026;
+    expect(decoration.options.overviewRulerOptions!.color, '#2090d3');
+    expect(decoration.options.overviewRulerOptions!.position, isNull);
   });
 
   test('cssColor', () {

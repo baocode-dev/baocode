@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/codicons.dart';
+import '../../theme/workbench_theme.dart';
 import '../editor/monaco/flutter/document_snapshot.dart';
 import '../editor/monaco/flutter/editor_decorations.dart';
 import '../editor/monaco/vs/editor/common/core/range.dart';
@@ -8,12 +9,15 @@ import '../editor/monaco/vs/editor/contrib/gotoError/browser/marker_navigation.d
 import '../lsp/lsp_protocol.dart';
 import 'lsp_convert.dart';
 
-/// `problemsErrorIcon.foreground` and friends (Dark Modern).
+/// The severity icons' colors (severityIcon.css), from the color theme.
 abstract final class IdeDiagnosticColors {
-  static const error = Color(0xFFF14C4C);
-  static const warning = Color(0xFFCCA700);
-  static const info = Color(0xFF3794FF);
-  static const hint = Color(0xFF8C8C8C);
+  static Color get error => themeColors['problemsErrorIcon.foreground'];
+  static Color get warning => themeColors['problemsWarningIcon.foreground'];
+  static Color get info => themeColors['problemsInfoIcon.foreground'];
+
+  /// `SeverityIcon`'s `severity-ignore` icon has no color of its own: the
+  /// text's.
+  static Color get hint => themeColors['foreground'];
 }
 
 IconData ideDiagnosticIcon(LspDiagnosticSeverity severity) =>
@@ -74,12 +78,20 @@ int ideMarkerSeverity(LspDiagnosticSeverity severity) => switch (severity) {
 }
 
 /// Squiggles (and the unnecessary-code fade) for [diagnostics] over
-/// [snapshot], most severe painted last.
+/// [snapshot], most severe painted last, in the current color theme.
 List<EditorDecoration> ideDiagnosticDecorations(
   DocumentSnapshot snapshot,
-  List<LspDiagnostic> diagnostics, {
-  Color fadeColor = const Color(0x94141414),
-}) {
+  List<LspDiagnostic> diagnostics,
+) {
+  final colors = themeColors;
+  // `editorUnnecessaryCode.opacity`: the text at its alpha, as the editor
+  // background over it; high contrast themes have none, and a dashed
+  // `editorUnnecessaryCode.border` (drawn dotted) instead.
+  final opacity = colors.get('editorUnnecessaryCode.opacity');
+  final fadeColor = opacity == null
+      ? null
+      : colors['editor.background'].withValues(alpha: 1 - opacity.a);
+  final unnecessaryBorder = colors.get('editorUnnecessaryCode.border');
   final sorted = List.of(diagnostics)
     ..sort((a, b) => b.severity.index.compareTo(a.severity.index));
   return [
@@ -88,13 +100,24 @@ List<EditorDecoration> ideDiagnosticDecorations(
         final (start, end) = ideDiagnosticOffsets(snapshot, d.range);
         if (start == end) return const <EditorDecoration>[];
         return [
-          if (d.unnecessary)
+          if (d.unnecessary && fadeColor != null)
             EditorDecoration(start: start, end: end, overlayColor: fadeColor),
+          if (d.unnecessary &&
+              !d.deprecated &&
+              d.severity == LspDiagnosticSeverity.hint &&
+              unnecessaryBorder != null)
+            EditorDecoration(
+              start: start,
+              end: end,
+              underlineColor: unnecessaryBorder,
+              underlineStyle: EditorUnderlineStyle.dotted,
+            ),
+          // `.squiggly-inline-deprecated`: struck in `editor.foreground`.
           if (d.deprecated)
             EditorDecoration(
               start: start,
               end: end,
-              underlineColor: const Color(0xFFCCCCCC),
+              underlineColor: colors['editor.foreground'],
               underlineStyle: EditorUnderlineStyle.solid,
             ),
           // Unnecessary/deprecated hints show only through their style.

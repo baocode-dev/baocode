@@ -1,0 +1,172 @@
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:monad/theme/workbench_theme.dart';
+import 'package:monad/workspace/preference_store.dart';
+import 'package:monad/workspace/workspace.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('starts in the kept theme and loads it', () async {
+    final themes = WorkbenchThemeService.instance;
+    expect(themes.colorThemeId, ThemeSettingDefaults.colorThemeDark);
+    expect(themes.colors.dark, isTrue);
+    expect(themes.colors.get('editor.background'), isNotNull);
+    final restored = themes.colorTheme;
+    expect(restored.isLoaded, isFalse);
+
+    await themes.initialize();
+    expect(themes.colorTheme.isLoaded, isTrue);
+    expect(themes.colorTheme.settingsId, ThemeSettingDefaults.colorThemeDark);
+    expect(
+      themes.colors['editor.background'],
+      WorkbenchColors(restored)['editor.background'],
+    );
+    final ids = [for (final theme in themes.colorThemes) theme.id];
+    expect(ids, containsAll(['Dark 2026', 'Light 2026', 'Dark Modern']));
+    expect(
+      themes.colorThemes.firstWhere((t) => t.id == 'Light 2026').type,
+      ColorScheme.light,
+    );
+  });
+
+  test('the initial colors paint until the theme loads', () async {
+    final themes = WorkbenchThemeService()
+      ..restore(setting: ThemeSettingDefaults.colorThemeLight);
+    expect(themes.colorThemeId, ThemeSettingDefaults.colorThemeLight);
+    expect(
+      themes.colors['editor.background'],
+      const Color(0xFFFFFFFF),
+      reason: 'COLOR_THEME_LIGHT_INITIAL_COLORS',
+    );
+    await themes.initialize();
+    expect(themes.colorTheme.settingsId, ThemeSettingDefaults.colorThemeLight);
+    expect(themes.colors.dark, isFalse);
+  });
+
+  test('a theme gone falls back to the default', () async {
+    final themes = WorkbenchThemeService()..restore(setting: 'No Such Theme');
+    await themes.initialize();
+    expect(themes.colorTheme.settingsId, ThemeSettingDefaults.colorThemeDark);
+  });
+
+  test(
+    'a kept theme no longer bundled falls back to its type\'s default',
+    () async {
+      // What an earlier build kept for Light (Visual Studio).
+      const data =
+          '{"id":"vs vscode-theme-defaults-themes-light_vs-json",'
+          '"label":"Light (Visual Studio)","settingsId":"Visual Studio Light",'
+          '"themeTokenColors":[],"semanticTokenRules":[],'
+          '"extensionData":{"_extensionId":"vscode.theme-defaults"},'
+          '"themeSemanticHighlighting":false,'
+          '"colorMap":{"editor.background":"#ffffff"},"watch":false}';
+      final themes = WorkbenchThemeService()
+        ..restore(setting: 'Visual Studio Light', data: data);
+      expect(themes.colorTheme.type, ColorScheme.light);
+      await themes.initialize();
+      expect(
+        themes.colorTheme.settingsId,
+        ThemeSettingDefaults.colorThemeLight,
+      );
+    },
+  );
+
+  test('old setting ids are migrated', () {
+    expect(migrateThemeSettingsId('Default Dark Modern'), 'Dark Modern');
+    expect(
+      migrateThemeSettingsId('VS Code Light'),
+      ThemeSettingDefaults.colorThemeLight,
+    );
+    expect(migrateThemeSettingsId('Monokai'), 'Monokai');
+  });
+
+  test('a choice is kept and restored on the next start', () async {
+    final store = MemoryPreferenceStore({'kernel': 'kept'});
+    final workspace = Workspace(preferences: store);
+    await workspace.load();
+    final themes = WorkbenchThemeService.instance..storage = workspace;
+    var changes = 0;
+    themes.addListener(() => changes++);
+
+    // A preview shows the theme without keeping it.
+    await themes.setColorTheme('Light 2026', preview: true);
+    expect(themes.colorThemeId, 'Light 2026');
+    expect(changes, 1);
+    expect(store.preferences['colorTheme'], isNull);
+
+    await themes.setColorTheme('Monokai');
+    await pumpEventQueue();
+    expect(themes.colorThemeId, 'Monokai');
+    expect(store.preferences['colorTheme'], 'Monokai');
+    expect(store.preferences['colorThemeData'], isA<String>());
+    expect(store.preferences['kernel'], isNotNull);
+
+    // The next run paints with it before reading any theme file.
+    final next = Workspace(preferences: store);
+    await next.load();
+    final restarted = WorkbenchThemeService()
+      ..restore(setting: next.colorThemeSetting, data: next.colorThemeData);
+    expect(restarted.colorThemeId, 'Monokai');
+    expect(restarted.colorTheme.isLoaded, isFalse);
+    expect(
+      restarted.colors['editor.background'],
+      themes.colors['editor.background'],
+    );
+    expect(restarted.colorTheme.tokenColors, isNotEmpty);
+
+    // Its type too: the window and Monarch's theme follow it.
+    await themes.setColorTheme('Light 2026');
+    await pumpEventQueue();
+    final light = WorkbenchThemeService()
+      ..restore(
+        setting: store.preferences['colorTheme'] as String?,
+        data: store.preferences['colorThemeData'] as String?,
+      );
+    expect(light.colorTheme.type, ColorScheme.light);
+    expect(light.colors.dark, isFalse);
+    workspace.dispose();
+    next.dispose();
+  });
+
+  test('a theme kept before the preferences are read is not lost', () async {
+    final store = MemoryPreferenceStore({'layout': 'ide'});
+    final workspace = Workspace(preferences: store);
+    final loading = workspace.load();
+    workspace.storeColorTheme(setting: 'Dark Modern');
+    await loading;
+    await pumpEventQueue();
+    expect(store.preferences['layout'], 'ide');
+    expect(store.preferences['colorTheme'], 'Dark Modern');
+    expect(workspace.colorThemeSetting, 'Dark Modern');
+    workspace.dispose();
+  });
+
+  testWidgets('the scope rebuilds everything on a change', (tester) async {
+    final themes = WorkbenchThemeService.instance;
+    await tester.runAsync(themes.initialize);
+    final seen = <Color>[];
+    await tester.pumpWidget(
+      WorkbenchThemeScope(builder: (_) => const _Probe()),
+    );
+    seen.add(_Probe.last!);
+    await tester.runAsync(() => themes.setColorTheme('Light 2026'));
+    await tester.pump();
+    seen.add(_Probe.last!);
+    expect(seen.first, isNot(seen.last));
+    expect(seen.last, themes.colors['editor.background']);
+  });
+}
+
+/// A const widget, which only an explicit rebuild builds again.
+class _Probe extends StatelessWidget {
+  const _Probe();
+
+  static Color? last;
+
+  @override
+  Widget build(BuildContext context) {
+    last = WorkbenchThemeService.instance.colors['editor.background'];
+    return const SizedBox();
+  }
+}

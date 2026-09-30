@@ -54,7 +54,7 @@ class UserMessageBubble extends StatefulWidget {
 const _collapsedLines = 3;
 const _lineHeight = 13.5 * 1.5;
 
-const _messageStyle = TextStyle(
+TextStyle get _messageStyle => TextStyle(
   color: CursorColors.textPrimary,
   fontSize: 13.5,
   height: 1.5,
@@ -127,13 +127,13 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              const Icon(
+              Icon(
                 Icons.schedule_rounded,
                 size: 12,
                 color: CursorColors.textFaint,
               ),
               const SizedBox(width: 4),
-              const Text(
+              Text(
                 'Queued',
                 style: TextStyle(color: CursorColors.textFaint, fontSize: 11.5),
               ),
@@ -141,7 +141,7 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
                 const SizedBox(width: 8),
                 GestureDetector(
                   onTap: cancel,
-                  child: const MouseRegion(
+                  child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: Text(
                       'Cancel',
@@ -207,7 +207,7 @@ class _CollapsedOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const IgnorePointer(
+    return IgnorePointer(
       child: Align(
         alignment: Alignment.bottomCenter,
         child: Icon(

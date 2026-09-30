@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../theme/cursor_theme.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'chat_feed.dart';
 import 'chat_models.dart';
 import 'widgets/agent_step.dart';
 import 'widgets/hover_builder.dart';
+import '../ide/ide_hover.dart';
 
 /// One conversation over another as the view goes into a subagent: it
 /// comes in from the right as the one under it fades out to the left, and
@@ -105,7 +107,7 @@ class SubagentHeader extends StatelessWidget {
                 const SizedBox(width: 4),
                 _Crumb(label: 'Conversation', onTap: () => onBack(0)),
                 for (final (i, label) in trail.indexed) ...[
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(horizontal: 2),
                     child: Icon(
                       Icons.chevron_right_rounded,
@@ -119,7 +121,7 @@ class SubagentHeader extends StatelessWidget {
                         label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: CursorColors.textPrimary,
                           fontSize: 12.5,
                           fontWeight: FontWeight.w500,
@@ -148,9 +150,8 @@ class _BackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    return IdeHover(
       message: 'Back (Esc)',
-      waitDuration: const Duration(milliseconds: 500),
       child: IconButton(
         focusNode: focusNode,
         onPressed: onTap,
@@ -252,8 +253,11 @@ class _SubagentStatusBarState extends State<SubagentStatusBar> {
             CursorColors.text,
           ),
           CommandStatus.running => ('Running', CursorColors.text),
-          CommandStatus.succeeded => ('Done', CursorColors.added),
-          CommandStatus.failed => ('Failed', CursorColors.removed),
+          CommandStatus.succeeded => (
+            'Done',
+            themeColors['testing.iconPassed'],
+          ),
+          CommandStatus.failed => ('Failed', themeColors['testing.iconFailed']),
           null => ('Gone', CursorColors.textMuted),
         };
         final meta = agent == null ? '' : AgentStep.meta(agent);
@@ -292,13 +296,13 @@ class _SubagentStatusBarState extends State<SubagentStatusBar> {
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: CursorColors.textMuted,
                           fontSize: 12.5,
                         ),
                       ),
                       const SizedBox(height: 2),
-                      const Text(
+                      Text(
                         'A subagent works for the agent: messages go to the '
                         'conversation.',
                         maxLines: 1,

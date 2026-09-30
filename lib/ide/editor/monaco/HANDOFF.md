@@ -121,12 +121,15 @@
   - 只实现默认密度，不含 compact。
 - **列宽与分隔条**：`lib/ide/ide_columns.dart` 按 VS Code grid（`splitview.ts`）分配侧边栏、编辑器、聊天三列的宽度。
   - 各列最小宽度：侧边栏 170、编辑器 320、聊天 360。各列没有最大宽度。
-  - 窗口变窄时，先缩聊天到最小宽度，再缩侧边栏到最小宽度，然后隐藏侧边栏。聊天始终在右侧，不再有窄窗口下把聊天放到底部的布局。
+  - 窗口变窄时，先缩聊天到最小宽度，再缩侧边栏到最小宽度，然后隐藏侧边栏（`IdeLayout.sidebarVisible` 为假，活动栏图标和标题栏开关都显示为关闭）。聊天始终在右侧，不再有窄窗口下把聊天放到底部的布局。聊天隐藏时，侧边栏不再被挤掉：空间不够时它和编辑器按最小宽度的比例分。
+  - 主动打开一侧（活动栏图标、⌘B/⌘J、标题栏开关、在资源管理器中显示、双击分隔条）时，如果侧边栏和聊天放不下（`IdeColumns.roomForBoth`，由 IDE 在布局后写入 `IdeLayout.roomForBoth`），就收起另一侧，保证点的那一侧能打开（`IdeLayout.showSidebar`/`showChat`）。
   - 分隔条拖过编辑器的最小宽度后，会继续挤压另一侧的列。拖回原处时，被挤压的列恢复原宽度（按拖动开始时的宽度计算）。
-  - 另一侧的列被挤到最小宽度后，再往前拖超过它最小宽度的一半，它会吸附隐藏，被拖的列跟随指针变宽。拖回来时它重新显示（VS Code `splitview.ts` 的 `snapAfter`/`snapBefore`）。拖动过程中始终用拖动开始时的可用宽度计算，因为聊天隐藏后会连带去掉窗口边上的 4px 间隙。
-  - 拖到本列最小宽度的一半以下会吸附隐藏，再拖出超过一半时显示。拖动隐藏后，⌘B/⌘J 按隐藏前的宽度重新打开。列隐藏时，它的分隔条就是窗口边缘那 4px 间隙，可以从这里拖出来。
+  - 另一侧的列被挤到最小宽度后，再往前拖超过它最小宽度的 1/6（VS Code 是一半，拖得太远，按用户要求改为原来的 1/3），它会吸附隐藏，被拖的列跟随指针变宽。拖回来时它重新显示（VS Code `splitview.ts` 的 `snapAfter`/`snapBefore`）。拖动过程中始终用拖动开始时的可用宽度计算，因为聊天隐藏后会连带去掉窗口边上的 4px 间隙。
+  - 拖到比本列最小宽度少 1/6 以下会吸附隐藏，再拖出超过这个位置时显示。面板（终端）的上下吸附仍是 VS Code 的一半。拖动隐藏后，⌘B/⌘J 按隐藏前的宽度重新打开。列隐藏时，它的分隔条就是窗口边缘那 4px 间隙，可以从这里拖出来。
   - 光标表示分隔条能移动的方向：两边都能动时为 `resizeColumn`，只能向左时为 `resizeLeft`，只能向右时为 `resizeRight`（对应 VS Code 的 `.minimum`/`.maximum`）。拖动时在 Overlay 上盖一层遮罩，所以指针越过分隔条后光标保持不变。
   - 双击分隔条会显示对应的列，并恢复默认宽度（侧边栏 240，聊天 420）。
+  - 聊天最大化（`IdeLayout.chatMaximized`，对应 VS Code 的 `setAuxiliaryBarMaximized`）：聊天分隔条往左拖，侧边栏先吸附隐藏，编辑器到最小宽度后再拖过它最小宽度的 1/6，编辑器也吸附隐藏，聊天占据中间一列；面板开着时是上下布局，聊天在上、面板在下（聊天最小高度 160）。编辑器没有卸载，只是 Offstage；聊天用 GlobalKey 挪位置，状态保留。聊天的分隔条移到活动栏旁边，往右拖回，编辑器按指针重新出现。显示侧边栏、隐藏聊天、打开文件（上游的 `showEditorIfHidden`）或双击分隔条都会结束最大化；隐藏侧边栏或打开面板不会（上游最大化时会隐藏面板，这里按用户要求保留在聊天下方）。
+- **标题栏双击**：macOS 上 IDE、侧边栏、聊天和空工作区的标题栏空白处双击，按系统设置「连按窗口标题栏以」缩放、填充、最小化或不处理（`lib/workspace/title_bar_double_click.dart`，原生端 `MainFlutterWindow.swift` 的 `handleTitleDoubleClick`，照 Electron/Chromium `NativeWidgetMacNSWindow sendEvent:` 的逻辑）。按钮、输入框以及 `TitleBarControls` 包住的一组按钮（含按钮之间的缝）不算空白。Windows 由系统按 HTCAPTION 处理。
 - **悬浮框**：`lib/ide/lsp_ui/hover_markdown.dart` 按 VS Code 编辑器悬浮框渲染 Markdown，参考 `hoverWidget.css`、`hover.css`、`hoverContribution.ts` 和 `editorMarkdownCodeBlockRenderer.ts`。
   - 代码块用编辑器的 Monarch 语法和主题上色：语言取代码块标注（按 id 或别名，大小写不敏感，见 `MonacoLanguageAssets.languageIdForName`），没有标注时用当前编辑器的语言。
   - 代码块不显示语言标签，也不加外框。
@@ -135,7 +138,7 @@
   - 字号和行高跟随编辑器（13 / 1.45）。
   - 签名帮助和补全详情用同一个渲染器。
   - 不支持：状态栏动作行（View Problem / Quick Fix）；表格和 HTML 按纯文本显示。
-- **配色**：悬浮框、编辑器小部件、动作按钮（`icon.foreground` #8C8C8C）都改为 Dark 2026。编辑器 token 配色仍用 `vs-dark`。
+- **配色**：悬浮框、编辑器小部件、动作按钮（`icon.foreground`）都取当前颜色主题（默认 Dark 2026）；编辑器 token 用 TextMate 与主题规则，Monarch 兜底时按主题类型用内置 `vs`/`vs-dark`/`hc-black`/`hc-light`（见 PORTING.md「Workbench color theme」）。
 - **图标粗细**：用 headless Chrome（VS Code 所用的 Chromium）和 Flutter 以同样条件渲染 codicon（24px、#8C8C8C、2x），着色覆盖量几乎相同（如 803 与 805）。显得粗是颜色和经典样式造成的，不是光栅化问题，所以仍用字体渲染。
 
 ## 侧边栏、超长行与编辑器外围（2026-09-30）

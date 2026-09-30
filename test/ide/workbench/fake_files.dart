@@ -5,6 +5,7 @@ import 'package:monad/ide/extensions/ide_extensions.dart';
 import 'package:monad/ide/file_service.dart';
 import 'package:monad/ide/git/commit_message.dart';
 import 'package:monad/ide/git/git_repository.dart';
+import 'package:monad/ide/ide_color_theme_picker.dart';
 import 'package:monad/ide/ide_workbench.dart';
 import 'package:monad/ide/ide_workspace.dart';
 import 'package:monad/ide/lsp/language_features.dart';
@@ -162,6 +163,7 @@ Future<IdeWorkspace> pumpWorkbench(
   ValueChanged<bool>? onPinnedChanged,
   PtyStarter? startPty,
   bool terminals = true,
+  IdeColorThemeController? colorThemes,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -197,6 +199,7 @@ Future<IdeWorkspace> pumpWorkbench(
         // Never the real Claude Code under test.
         commitMessage: commitMessage ?? _noModel,
         onPinnedChanged: onPinnedChanged,
+        colorThemes: colorThemes,
         // Never a real shell under test.
         terminalBackend: TerminalBackend(
           launch: fakeTerminalLaunch,

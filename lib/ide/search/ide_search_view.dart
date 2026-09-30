@@ -25,6 +25,7 @@ import 'package:path/path.dart' as p;
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/material_file_icons.dart';
+import '../../theme/workbench_theme.dart';
 import '../ide_commands.dart';
 import '../ide_dialog.dart';
 import '../ide_hover.dart';
@@ -259,15 +260,16 @@ class IdeSearchSession extends ChangeNotifier {
   }
 }
 
-abstract final class _SearchColors {
-  /// `editor.findMatchHighlightBackground`.
-  static const match = Color(0x55EA5C00);
-
-  /// `diffEditor.insertedTextBackground` and `removedTextBackground`.
-  static const inserted = Color(0x339CCC2C);
-  static const removed = Color(0x33FF0000);
-
-  static const label = Color(0xFFBFBFBF);
+/// A selected row's text: the list's selection foreground, focused or not;
+/// the side bar's where the theme has none.
+Color _selectedForeground({required bool focused}) {
+  final colors = themeColors;
+  return colors.get(
+        focused
+            ? 'list.activeSelectionForeground'
+            : 'list.inactiveSelectionForeground',
+      ) ??
+      colors['sideBar.foreground'];
 }
 
 class IdeSearchView extends StatefulWidget {
@@ -497,10 +499,10 @@ class _IdeSearchViewState extends State<IdeSearchView> {
           SizedBox(
             height: 2,
             child: session.searching
-                ? const LinearProgressIndicator(
+                ? LinearProgressIndicator(
                     minHeight: 2,
                     backgroundColor: Colors.transparent,
-                    color: Color(0xFF878889),
+                    color: themeColors['progressBar.background'],
                   )
                 : null,
           ),
@@ -629,7 +631,11 @@ class _IdeSearchViewState extends State<IdeSearchView> {
   /// exclude.
   Widget _details() {
     final session = _session;
-    const heading = TextStyle(fontSize: 11, color: _SearchColors.label);
+    // `.query-details h4`: the side bar's text.
+    final heading = TextStyle(
+      fontSize: 11,
+      color: themeColors['sideBar.foreground'],
+    );
     return Padding(
       padding: const EdgeInsets.only(left: 19, right: 12),
       child: Column(
@@ -650,8 +656,8 @@ class _IdeSearchViewState extends State<IdeSearchView> {
             ),
           ),
           if (session.detailsShown) ...[
-            const Padding(
-              padding: EdgeInsets.only(top: 4, bottom: 2),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 2),
               child: Text('files to include', style: heading),
             ),
             IdeInputBox(
@@ -661,8 +667,8 @@ class _IdeSearchViewState extends State<IdeSearchView> {
               onChanged: (_) => session.searchSoon(_root),
               onSubmitted: (_) => session.search(_root),
             ),
-            const Padding(
-              padding: EdgeInsets.only(top: 4, bottom: 2),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 2),
               child: Text('files to exclude', style: heading),
             ),
             IdeInputBox(
@@ -733,9 +739,9 @@ class _IdeSearchViewState extends State<IdeSearchView> {
               padding: const EdgeInsets.only(bottom: 4),
               child: SelectableText(
                 line,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: IdeListColors.foreground,
+                  color: themeColors['search.resultsInfoForeground'],
                 ),
               ),
             ),
@@ -955,13 +961,13 @@ class _ToggleReplaceState extends State<_ToggleReplace> {
           child: Container(
             width: 16,
             decoration: BoxDecoration(
-              color: _hover ? IdeListColors.hover : null,
+              color: _hover ? themeColors['toolbar.hoverBackground'] : null,
               borderRadius: BorderRadius.circular(4),
             ),
             child: Icon(
               widget.expanded ? Codicons.chevronDown : Codicons.chevronRight,
               size: 16,
-              color: IdeListColors.foreground,
+              color: themeColors['sideBar.foreground'],
             ),
           ),
         ),
@@ -989,13 +995,13 @@ class _ToggleDetails extends StatelessWidget {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onPressed,
-          child: const SizedBox(
+          child: SizedBox(
             width: 25,
             height: 16,
             child: Icon(
               Codicons.ellipsis,
               size: 16,
-              color: IdeListColors.foreground,
+              color: themeColors['sideBar.foreground'],
             ),
           ),
         ),
@@ -1046,7 +1052,7 @@ class _FileRow extends StatelessWidget {
             Icon(
               expanded ? Codicons.chevronDown : Codicons.chevronRight,
               size: 16,
-              color: IdeListColors.foreground,
+              color: themeColors['sideBar.foreground'],
             ),
             const SizedBox(width: 2),
             FileIcon(file.path, size: 16),
@@ -1056,7 +1062,7 @@ class _FileRow extends StatelessWidget {
                 name: p.basename(file.path),
                 description: folder == '.' ? null : folder,
                 nameColor: selected
-                    ? IdeListColors.activeSelectionForeground
+                    ? _selectedForeground(focused: focused)
                     : null,
               ),
             ),
@@ -1123,6 +1129,10 @@ class _MatchRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final preview = ideMatchPreview(match);
     final replacement = this.replacement;
+    // searchview.css: high contrast themes outline matches instead of
+    // filling them (not drawn here).
+    final colors = themeColors;
+    Color? fill(String id) => colors.highContrast ? null : colors[id];
     return IdeListRow(
       selected: selected,
       focused: focused,
@@ -1142,9 +1152,11 @@ class _MatchRow extends StatelessWidget {
                     TextSpan(
                       text: preview.inside,
                       style: TextStyle(
-                        backgroundColor: replacement == null
-                            ? _SearchColors.match
-                            : _SearchColors.removed,
+                        backgroundColor: fill(
+                          replacement == null
+                              ? 'editor.findMatchHighlightBackground'
+                              : 'diffEditor.removedTextBackground',
+                        ),
                         decoration: replacement == null
                             ? null
                             : TextDecoration.lineThrough,
@@ -1153,8 +1165,10 @@ class _MatchRow extends StatelessWidget {
                     if (replacement != null && replacement.isNotEmpty)
                       TextSpan(
                         text: replacement,
-                        style: const TextStyle(
-                          backgroundColor: _SearchColors.inserted,
+                        style: TextStyle(
+                          backgroundColor: fill(
+                            'diffEditor.insertedTextBackground',
+                          ),
                         ),
                       ),
                     TextSpan(text: preview.after),
@@ -1166,8 +1180,8 @@ class _MatchRow extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   color: selected
-                      ? IdeListColors.activeSelectionForeground
-                      : IdeListColors.foreground,
+                      ? _selectedForeground(focused: focused)
+                      : colors['sideBar.foreground'],
                 ),
               ),
             ),

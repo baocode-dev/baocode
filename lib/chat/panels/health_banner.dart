@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../kernel/kernel_types.dart';
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import 'interaction_panel.dart';
 
 /// Says why the agent's runtime cannot run (not installed, not logged in,
@@ -35,9 +36,9 @@ class _HealthBannerState extends State<HealthBanner> {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 9, 10, 9),
       decoration: BoxDecoration(
-        color: const Color(0x1AF07178),
+        color: themeColors['inputValidation.errorBackground'],
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0x55F07178)),
+        border: Border.all(color: themeColors['inputValidation.errorBorder']),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -45,16 +46,16 @@ class _HealthBannerState extends State<HealthBanner> {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline_rounded,
                 size: 15,
-                color: CursorColors.removed,
+                color: themeColors['errorForeground'],
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   health.message ?? '${widget.kernelName} stopped',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: CursorColors.textPrimary,
                     fontSize: 12.5,
                   ),
@@ -82,7 +83,7 @@ class _HealthBannerState extends State<HealthBanner> {
               child: SingleChildScrollView(
                 child: SelectableText(
                   detail,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: CursorColors.textMuted,
                     fontFamily: CursorFonts.mono,
                     fontSize: 11.5,

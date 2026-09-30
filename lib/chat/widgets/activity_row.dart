@@ -212,7 +212,7 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
   static const _dots = '...';
 
   /// The agent's prose's color, at the size of the steps (e.g. Thinking).
-  static final _style = TextStyle(
+  static TextStyle get _style => TextStyle(
     color: MarkdownView.baseStyle.color,
     fontSize: StepHeader.fontSize,
   );

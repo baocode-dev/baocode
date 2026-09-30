@@ -31,7 +31,7 @@ import '../ide_hover.dart';
 import '../ide_input.dart';
 import '../ide_list.dart';
 import '../ide_menu.dart';
-import '../ide_modern_ui.dart';
+import 'terminal_colors.dart';
 import 'terminal_instance.dart';
 import 'terminal_service.dart';
 
@@ -80,16 +80,17 @@ List<IdeMenuEntry> terminalTabMenu(
 /// The marker of a terminal whose process ended and that stays to say why:
 /// VS Code's error status, as a failed task's tab has it.
 class TerminalExitedIcon extends StatelessWidget {
-  const TerminalExitedIcon({
-    super.key,
-    this.color = IdeListColors.errorForeground,
-  });
+  const TerminalExitedIcon({super.key, this.color});
 
-  final Color color;
+  /// [IdeListColors.errorForeground] when null.
+  final Color? color;
 
   @override
-  Widget build(BuildContext context) =>
-      Icon(Codicons.error, size: 16, color: color);
+  Widget build(BuildContext context) => Icon(
+    Codicons.error,
+    size: 16,
+    color: color ?? IdeListColors.errorForeground,
+  );
 }
 
 /// The list of terminals: each as its icon and name, the active one
@@ -162,10 +163,16 @@ class _TerminalTabsState extends State<TerminalTabs> {
     final terminals = _terminals;
     final active = terminals.active;
     final editing = terminals.editing;
-    return DecoratedBox(
-      // `terminal.border`, between the terminal and its tabs.
-      decoration: const BoxDecoration(
-        border: Border(left: BorderSide(color: IdeModernUI.border)),
+    return ValueListenableBuilder<TerminalColorTheme>(
+      valueListenable: terminalColorTheme,
+      builder: (context, theme, child) => DecoratedBox(
+        // `terminal.border`, between the terminal and its tabs.
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(color: theme.border ?? const Color(0x00000000)),
+          ),
+        ),
+        child: child,
       ),
       child: Focus(
         focusNode: _focus,
@@ -325,11 +332,7 @@ class _RenameRow extends StatelessWidget {
     padding: const EdgeInsets.only(left: 8),
     child: Row(
       children: [
-        const Icon(
-          Codicons.terminal,
-          size: 16,
-          color: IdeListColors.foreground,
-        ),
+        Icon(Codicons.terminal, size: 16, color: IdeListColors.foreground),
         const SizedBox(width: 4),
         Expanded(
           child: TerminalRenameInput(instance: instance, onDone: onDone),

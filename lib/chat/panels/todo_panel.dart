@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../kernel/kernel_types.dart';
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 
 /// The agent's todo list, docked above the composer while it has open
 /// items: done ones struck through, the current one in its active words.
@@ -49,7 +50,7 @@ class _TodoPanelState extends State<TodoPanel> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.checklist_rounded,
                       size: 14,
                       color: CursorColors.textMuted,
@@ -57,7 +58,7 @@ class _TodoPanelState extends State<TodoPanel> {
                     const SizedBox(width: 8),
                     Text(
                       'Todos $done/${todos.length}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: CursorColors.text,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -71,7 +72,7 @@ class _TodoPanelState extends State<TodoPanel> {
                           current.activeForm ?? current.content,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: CursorColors.textMuted,
                             fontSize: 12,
                           ),
@@ -117,10 +118,13 @@ class _TodoPanelState extends State<TodoPanel> {
                                   Icons.radio_button_unchecked_rounded,
                               },
                               size: 13,
+                              // As upstream's todo list.
                               color: switch (todo.status) {
-                                TodoStatus.completed => CursorColors.added,
-                                TodoStatus.inProgress => CursorColors.accent,
-                                TodoStatus.pending => CursorColors.textFaint,
+                                TodoStatus.completed =>
+                                  themeColors['charts.green'],
+                                TodoStatus.inProgress =>
+                                  themeColors['charts.blue'],
+                                TodoStatus.pending => CursorColors.text,
                               },
                             ),
                           ),

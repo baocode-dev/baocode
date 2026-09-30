@@ -6,10 +6,10 @@ import '../../theme/cursor_theme.dart';
 /// runs, quoted strings, options. A light tokenizer, not a parser: anything
 /// it does not know stays plain.
 List<TextSpan> highlightShell(String command) {
-  const plain = TextStyle(color: CursorColors.textPrimary);
-  const program = TextStyle(color: CursorColors.syntaxCommand);
-  const string = TextStyle(color: CursorColors.syntaxString);
-  const option = TextStyle(color: CursorColors.syntaxOption);
+  final plain = TextStyle(color: CursorColors.textPrimary);
+  final program = TextStyle(color: CursorColors.syntaxCommand);
+  final string = TextStyle(color: CursorColors.syntaxString);
+  final option = TextStyle(color: CursorColors.syntaxOption);
 
   final spans = <TextSpan>[];
   void add(String text, TextStyle style) {

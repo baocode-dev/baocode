@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_session.dart';
 import '../widgets/hover_builder.dart';
 import '../../kernel/agent_kernel.dart';
@@ -372,14 +373,15 @@ class _ComposerPickerState extends State<ComposerPicker> {
           onPointerUp: _handlePressUp,
           child: HoverBuilder(
             cursor: SystemMouseCursors.click,
-            builder: (context, hovered) => _buildPill(hovered || _open),
+            builder: (context, hovered) => _buildPill(hovered, _open),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildPill(bool active) {
+  Widget _buildPill(bool hovered, bool open) {
+    final colors = themeColors;
     final emphasized = widget.emphasized;
     final color = widget.selected.caution
         ? CursorColors.caution
@@ -390,10 +392,24 @@ class _ComposerPickerState extends State<ComposerPicker> {
       duration: const Duration(milliseconds: 120),
       height: 22,
       padding: const EdgeInsets.only(left: 6, right: 3),
+      // Emphasized, a secondary button, as the agents window's pickers in
+      // its chat input; else a toolbar item.
       decoration: BoxDecoration(
         color: emphasized
-            ? (active ? const Color(0x24FFFFFF) : const Color(0x14FFFFFF))
-            : (active ? CursorColors.hover : Colors.transparent),
+            ? colors[hovered || open
+                  ? 'button.secondaryHoverBackground'
+                  : 'button.secondaryBackground']
+            : open
+            ? colors['toolbar.activeBackground']
+            : hovered
+            ? colors['toolbar.hoverBackground']
+            : Colors.transparent,
+        border: switch (emphasized
+            ? colors.get('button.secondaryBorder')
+            : null) {
+          final border? => Border.all(color: border),
+          null => null,
+        },
         borderRadius: BorderRadius.circular(11),
       ),
       child: Row(
@@ -405,7 +421,7 @@ class _ComposerPickerState extends State<ComposerPicker> {
             widget.label ?? widget.selected.label,
             style: TextStyle(color: color, fontSize: 12),
           ),
-          const Icon(
+          Icon(
             Icons.keyboard_arrow_down_rounded,
             size: 15,
             color: CursorColors.textFaint,
@@ -425,12 +441,17 @@ class _ComposerPickerState extends State<ComposerPicker> {
 
   double get _rowHeight => widget.describes ? 40 : 30;
 
+  /// As upstream's action widget, its pickers' menu.
   static BoxDecoration get _panel => BoxDecoration(
     color: CursorColors.surfaceRaised,
     borderRadius: BorderRadius.circular(8),
-    border: Border.all(color: CursorColors.borderStrong),
-    boxShadow: const [
-      BoxShadow(color: Color(0x66000000), blurRadius: 24, offset: Offset(0, 8)),
+    border: Border.all(color: themeColors['editorHoverWidget.border']),
+    boxShadow: [
+      BoxShadow(
+        color: themeColors['widget.shadow'],
+        blurRadius: 24,
+        offset: const Offset(0, 8),
+      ),
     ],
   );
 
@@ -478,7 +499,7 @@ class _ComposerPickerState extends State<ComposerPicker> {
                   vertical: (_settingGap - 1) / 2,
                   horizontal: 4,
                 ),
-                color: CursorColors.border,
+                color: themeColors['editorHoverWidget.border'],
               ),
             SizedBox(
               height: _settingHeaderHeight,
@@ -492,7 +513,7 @@ class _ComposerPickerState extends State<ComposerPicker> {
                       KernelChoiceKind.effort => 'Effort',
                       _ => '',
                     },
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: CursorColors.textFaint,
                       fontSize: 11,
                     ),
@@ -533,10 +554,7 @@ class _ComposerPickerState extends State<ComposerPicker> {
               padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
               child: Text(
                 title,
-                style: const TextStyle(
-                  color: CursorColors.textMuted,
-                  fontSize: 11.5,
-                ),
+                style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
               ),
             ),
           for (var i = 0; i < widget.options.length; i++)
@@ -618,9 +636,10 @@ class _PickerRow extends StatelessWidget {
           height: height,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color: highlighted ? const Color(0x1AFFFFFF) : Colors.transparent,
+            color: highlighted ? CursorColors.hover : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
           ),
+          foregroundDecoration: _highlightOutline(highlighted),
           child: Row(
             children: [
               Icon(
@@ -670,7 +689,7 @@ class _PickerRow extends StatelessWidget {
                   color: caution ? CursorColors.caution : CursorColors.text,
                 ),
               if (hasSettings)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(left: 4),
                   child: Icon(
                     Icons.chevron_right_rounded,
@@ -684,6 +703,17 @@ class _PickerRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A highlighted row's outline: in high contrast themes only
+/// (`contrastActiveBorder`), as upstream's action widget.
+BoxDecoration? _highlightOutline(bool highlighted) {
+  final outline = highlighted ? themeColors.get('contrastActiveBorder') : null;
+  if (outline == null) return null;
+  return BoxDecoration(
+    border: Border.all(color: outline),
+    borderRadius: BorderRadius.circular(5),
+  );
 }
 
 /// An option of a setting at the side of the menu: its label, checked when
@@ -715,9 +745,10 @@ class _SettingRow extends StatelessWidget {
           height: _ComposerPickerState._settingRowHeight,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color: highlighted ? const Color(0x1AFFFFFF) : Colors.transparent,
+            color: highlighted ? CursorColors.hover : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
           ),
+          foregroundDecoration: _highlightOutline(highlighted),
           child: Row(
             children: [
               Expanded(
@@ -725,18 +756,14 @@ class _SettingRow extends StatelessWidget {
                   option.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: CursorColors.textPrimary,
                     fontSize: 12.5,
                   ),
                 ),
               ),
               if (selected)
-                const Icon(
-                  Icons.check_rounded,
-                  size: 15,
-                  color: CursorColors.text,
-                ),
+                Icon(Icons.check_rounded, size: 15, color: CursorColors.text),
             ],
           ),
         ),

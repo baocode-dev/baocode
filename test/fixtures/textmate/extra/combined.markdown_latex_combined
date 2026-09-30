@@ -1,0 +1,11 @@
+\section{Introduction}
+Some \textbf{bold} text with $x^2$ math % a comment
+
+```python
+def f(x):
+    return x ** 2
+```
+
+\begin{itemize}
+  \item First
+\end{itemize}

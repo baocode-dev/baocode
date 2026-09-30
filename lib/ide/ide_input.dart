@@ -10,30 +10,34 @@
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/base/browser/ui/inputbox/inputBox.css, toggle/toggle.css, and the
 // SCM input's validation (contrib/scm/browser/media/scm.css), with the
-// `input*`, `inputOption.*` and `inputValidation.*` colors of Dark 2026.
+// color theme's `input.*`, `inputOption.*` and `inputValidation.*` colors
+// (platform/theme/browser/defaultStyles.ts `defaultInputBoxStyles`,
+// `defaultToggleStyles`).
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../chat/widgets/wheel_latch.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_hover.dart';
 
-/// Dark 2026 `input.*`, `inputOption.*`, `inputValidation.*`, `focusBorder`.
+/// The color theme's `input.*`, `inputOption.*` and `focusBorder`.
 abstract final class IdeInputColors {
-  static const background = Color(0xFF191A1B);
-  static const border = Color(0xFF333536);
-  static const foreground = Color(0xFFBFBFBF);
-  static const placeholder = Color(0xFF555555);
-  static const focusBorder = Color(0xB33994BC);
-  static const optionActiveBackground = Color(0xFF313233);
-  static const optionActiveBorder = Color(0xFF3994BC);
+  static Color get background => themeColors['input.background'];
 
-  static const infoBackground = Color(0xFF1E3A47);
-  static const infoBorder = Color(0xFF3994BC);
-  static const warningBackground = Color(0xFF352A05);
-  static const warningBorder = Color(0xFFB89500);
-  static const errorBackground = Color(0xFF3A1D1D);
-  static const errorBorder = Color(0xFFBE1100);
+  /// Transparent where the theme has none: there is always a border.
+  static Color get border => themeColors['input.border'];
+  static Color get foreground => themeColors['input.foreground'];
+  static Color get placeholder => themeColors['input.placeholderForeground'];
+  static Color get focusBorder => themeColors['focusBorder'];
+  static Color get optionActiveBackground =>
+      themeColors['inputOption.activeBackground'];
+  static Color get optionActiveBorder =>
+      themeColors['inputOption.activeBorder'];
+  static Color get optionActiveForeground =>
+      themeColors['inputOption.activeForeground'];
+  static Color get optionHoverBackground =>
+      themeColors['inputOption.hoverBackground'];
 }
 
 enum IdeValidationSeverity { info, warning, error }
@@ -48,20 +52,15 @@ class IdeInputValidation {
   final String message;
   final IdeValidationSeverity severity;
 
-  (Color background, Color border) get _colors => switch (severity) {
-    IdeValidationSeverity.info => (
-      IdeInputColors.infoBackground,
-      IdeInputColors.infoBorder,
-    ),
-    IdeValidationSeverity.warning => (
-      IdeInputColors.warningBackground,
-      IdeInputColors.warningBorder,
-    ),
-    IdeValidationSeverity.error => (
-      IdeInputColors.errorBackground,
-      IdeInputColors.errorBorder,
-    ),
-  };
+  /// `inputValidation.{info,warning,error}{Background,Border,Foreground}`.
+  (Color background, Color border, Color foreground) get _colors {
+    final kind = severity.name;
+    return (
+      themeColors['inputValidation.${kind}Background'],
+      themeColors['inputValidation.${kind}Border'],
+      themeColors['inputValidation.${kind}Foreground'],
+    );
+  }
 }
 
 /// An input box: [minLines] to [maxLines] lines (it grows, then scrolls),
@@ -291,7 +290,7 @@ class _IdeInputBoxState extends State<IdeInputBox> {
   }
 
   Widget _message(IdeInputValidation validation) {
-    final (background, border) = validation._colors;
+    final (background, border, foreground) = validation._colors;
     return Container(
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
@@ -307,10 +306,7 @@ class _IdeInputBoxState extends State<IdeInputBox> {
         padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
         child: Text(
           validation.message,
-          style: TextStyle(
-            fontSize: widget.fontSize * .9,
-            color: IdeInputColors.foreground,
-          ),
+          style: TextStyle(fontSize: widget.fontSize * .9, color: foreground),
         ),
       ),
     );
@@ -318,7 +314,9 @@ class _IdeInputBoxState extends State<IdeInputBox> {
 }
 
 /// An input's toggle (`.monaco-custom-toggle`): a 16px codicon in a 20px
-/// square, bordered and filled while [checked].
+/// square, bordered and filled while [checked]. Unchecked, it is in the
+/// color around it (`inherit`): the side bar's, where the search view has
+/// it.
 class IdeInputToggle extends StatefulWidget {
   const IdeInputToggle({
     super.key,
@@ -343,6 +341,9 @@ class _IdeInputToggleState extends State<IdeInputToggle> {
   @override
   Widget build(BuildContext context) {
     final checked = widget.checked;
+    final colors = themeColors;
+    // High contrast themes outline it on hover instead (dashed upstream).
+    final highContrast = colors.highContrast;
     return IdeHover(
       message: widget.tooltip,
       child: Semantics(
@@ -364,13 +365,15 @@ class _IdeInputToggleState extends State<IdeInputToggle> {
               decoration: BoxDecoration(
                 color: checked
                     ? IdeInputColors.optionActiveBackground
-                    : _hover
-                    ? IdeActionButton.hoverBackground
+                    : _hover && !highContrast
+                    ? IdeInputColors.optionHoverBackground
                     : null,
                 border: Border.all(
-                  color: checked
+                  color: _hover && highContrast
+                      ? colors['focusBorder']
+                      : checked
                       ? IdeInputColors.optionActiveBorder
-                      : const Color(0x00000000),
+                      : Colors.transparent,
                 ),
                 borderRadius: BorderRadius.circular(3),
               ),
@@ -378,8 +381,8 @@ class _IdeInputToggleState extends State<IdeInputToggle> {
                 widget.icon,
                 size: 16,
                 color: checked
-                    ? IdeInputColors.foreground
-                    : IdeActionButton.foreground,
+                    ? IdeInputColors.optionActiveForeground
+                    : colors['sideBar.foreground'],
               ),
             ),
           ),

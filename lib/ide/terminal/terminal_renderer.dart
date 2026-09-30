@@ -15,7 +15,8 @@
 // resize, a selection or theme change), and a row's pictures (its
 // backgrounds; its text as one paragraph with custom glyphs and lines) are
 // recorded only when its model is new: pictures are cached by model, so a
-// scroll reuses the rows it moves. Painting replays the backgrounds of all
+// scroll reuses the rows it moves. A color change drops them all, as
+// upstream takes a new texture atlas. Painting replays the backgrounds of all
 // rows, then their text, then the cursor, as upstream's layers.
 //
 // Text keeps to the grid as the DOM renderer keeps it: each run of a row's
@@ -263,6 +264,10 @@ class TerminalRenderer {
     );
     store.add(
       source.themeService.onChangeColors((_) {
+        // Upstream `_handleColorChange`: a texture atlas for the new colors
+        // (the pictures here, which may hold the background) and a full
+        // refresh.
+        _clearPictures();
         _updateColors();
         _refreshAll();
       }),

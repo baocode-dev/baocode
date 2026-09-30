@@ -111,7 +111,7 @@ class MonacoSyntaxService {
     if (previous != null && previous.languageId == languageId) {
       oldLines = previous.lines;
       lineShift = previous.snapshot.lineCount - document.lineCount;
-      final (prefixLines, suffixLines) = _unchangedLines(
+      final (prefixLines, suffixLines) = unchangedLines(
         previous.snapshot,
         document,
       );
@@ -169,7 +169,7 @@ class MonacoSyntaxService {
   /// Counts whole lines (content and newline) shared at the start and end of
   /// two snapshots, comparing code units in place rather than per-line copies.
   /// The counts never overlap in either snapshot.
-  static (int, int) _unchangedLines(
+  static (int, int) unchangedLines(
     DocumentSnapshot old,
     DocumentSnapshot next,
   ) {

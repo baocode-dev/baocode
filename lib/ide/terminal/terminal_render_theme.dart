@@ -4,12 +4,13 @@
 // src/browser/ColorContrastCache.ts and CoreBrowserTerminal.ts
 // (`_handleColorEvent`) (c58ea36); the theme and options VS Code passes are
 // from VS Code 6a598d4a src/vs/workbench/contrib/terminal/browser/xterm/
-// xtermTerminal.ts (`getXtermTheme`, the `Terminal` options) with Dark 2026's
-// colors (terminal_colors.dart).
+// xtermTerminal.ts (`getXtermTheme`, the `Terminal` options) with the
+// workbench theme's colors (terminal_colors.dart: [terminalColorTheme]).
 //
 // The colors live here rather than in the core: they are the renderer's
 // (xterm.js keeps them in the browser part), and OSC 4/10/11/12 change them
-// through [TerminalThemeService.handleColorEvent].
+// through [TerminalThemeService.handleColorEvent]. A new `theme` option
+// replaces them all, those escape sequences set included, as upstream.
 
 import 'dart:ui' show Color;
 
@@ -405,46 +406,10 @@ IColor iColorOf(Color c) {
 /// The core's `rgba` (0xRRGGBBAA) as a Flutter color's `0xAARRGGBB`.
 int argbOfRgba(int rgba) => ((rgba & 0xFF) << 24 | (rgba >>> 8)) & 0xFFFFFFFF;
 
-String _cssOf(Color c) => iColorOf(c).css;
-
-/// VS Code's `getXtermTheme` with Dark 2026's colors ([TerminalColors]).
-ITheme vscodeTerminalTheme() {
-  const ansi = TerminalColors.ansi;
-  return ITheme(
-    background: _cssOf(TerminalColors.background),
-    foreground: _cssOf(TerminalColors.foreground),
-    cursor: _cssOf(TerminalColors.cursorForeground),
-    cursorAccent: _cssOf(TerminalColors.cursorBackground),
-    selectionBackground: _cssOf(TerminalColors.selectionBackground),
-    selectionInactiveBackground: _cssOf(
-      TerminalColors.inactiveSelectionBackground,
-    ),
-    overviewRulerBorder: _cssOf(TerminalColors.overviewRulerBorder),
-    scrollbarSliderActiveBackground: _cssOf(
-      TerminalColors.scrollbarSliderActiveBackground,
-    ),
-    scrollbarSliderBackground: _cssOf(TerminalColors.scrollbarSliderBackground),
-    scrollbarSliderHoverBackground: _cssOf(
-      TerminalColors.scrollbarSliderHoverBackground,
-    ),
-    black: _cssOf(ansi[0]),
-    red: _cssOf(ansi[1]),
-    green: _cssOf(ansi[2]),
-    yellow: _cssOf(ansi[3]),
-    blue: _cssOf(ansi[4]),
-    magenta: _cssOf(ansi[5]),
-    cyan: _cssOf(ansi[6]),
-    white: _cssOf(ansi[7]),
-    brightBlack: _cssOf(ansi[8]),
-    brightRed: _cssOf(ansi[9]),
-    brightGreen: _cssOf(ansi[10]),
-    brightYellow: _cssOf(ansi[11]),
-    brightBlue: _cssOf(ansi[12]),
-    brightMagenta: _cssOf(ansi[13]),
-    brightCyan: _cssOf(ansi[14]),
-    brightWhite: _cssOf(ansi[15]),
-  );
-}
+/// VS Code's `getXtermTheme` with [theme]'s colors, the workbench's
+/// ([terminalColorTheme]) by default.
+ITheme vscodeTerminalTheme([TerminalColorTheme? theme]) =>
+    (theme ?? terminalColorTheme.value).toXtermTheme();
 
 /// The terminal font, as VS Code's `getFont` resolves it without a
 /// `terminal.integrated.fontFamily`: the editor's family (this app's editor
@@ -467,36 +432,40 @@ String vscodeTerminalFontFamily() {
 /// cursor that does not blink and an outline when unfocused, bold in bright
 /// colors, a minimum contrast ratio of 4.5, overlapping glyphs rescaled,
 /// 1000 lines of scrollback, no smooth scrolling and Modern UI's 10px
-/// scrollbar with the overview ruler's top border.
-ITerminalOptions vscodeTerminalOptions({int? cols, int? rows}) =>
-    ITerminalOptions(
-      cols: cols,
-      rows: rows,
-      allowProposedApi: true,
-      scrollback: 1000,
-      theme: vscodeTerminalTheme(),
-      drawBoldTextInBrightColors: true,
-      fontFamily: vscodeTerminalFontFamily(),
-      fontWeight: 'normal',
-      fontWeightBold: 'bold',
-      fontSize: 13,
-      letterSpacing: 0,
-      lineHeight: 1,
-      minimumContrastRatio: 4.5,
-      tabStopWidth: 8,
-      cursorBlink: false,
-      blinkIntervalDuration: 0,
-      cursorStyle: 'block',
-      cursorInactiveStyle: 'outline',
-      cursorWidth: 1,
-      fastScrollSensitivity: 5,
-      scrollSensitivity: 1,
-      scrollOnEraseInDisplay: true,
-      smoothScrollDuration: 0,
-      scrollbar: IScrollbarOptions(
-        width: 10,
-        overviewRuler: IOverviewRulerOptions(showTopBorder: true),
-      ),
-      rescaleOverlappingGlyphs: true,
-      allowTransparency: false,
-    );
+/// scrollbar with the overview ruler's top border. The colors are
+/// [theme]'s, the workbench's ([terminalColorTheme]) by default.
+ITerminalOptions vscodeTerminalOptions({
+  int? cols,
+  int? rows,
+  TerminalColorTheme? theme,
+}) => ITerminalOptions(
+  cols: cols,
+  rows: rows,
+  allowProposedApi: true,
+  scrollback: 1000,
+  theme: vscodeTerminalTheme(theme),
+  drawBoldTextInBrightColors: true,
+  fontFamily: vscodeTerminalFontFamily(),
+  fontWeight: 'normal',
+  fontWeightBold: 'bold',
+  fontSize: 13,
+  letterSpacing: 0,
+  lineHeight: 1,
+  minimumContrastRatio: 4.5,
+  tabStopWidth: 8,
+  cursorBlink: false,
+  blinkIntervalDuration: 0,
+  cursorStyle: 'block',
+  cursorInactiveStyle: 'outline',
+  cursorWidth: 1,
+  fastScrollSensitivity: 5,
+  scrollSensitivity: 1,
+  scrollOnEraseInDisplay: true,
+  smoothScrollDuration: 0,
+  scrollbar: IScrollbarOptions(
+    width: 10,
+    overviewRuler: IOverviewRulerOptions(showTopBorder: true),
+  ),
+  rescaleOverlappingGlyphs: true,
+  allowTransparency: false,
+);

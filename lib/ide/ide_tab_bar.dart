@@ -4,8 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../theme/codicons.dart';
-import '../theme/cursor_theme.dart';
 import '../theme/material_file_icons.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_commands.dart';
 import 'ide_hover.dart';
 import 'ide_menu.dart';
@@ -70,6 +70,9 @@ List<String?> ideTabDescriptions(List<String> paths, String root) {
 
 /// VS Code-style editor tabs: icon, name, dirty dot / close button, context
 /// menu, middle-click close, and scrolling that keeps the active tab visible.
+/// In the color theme's `tab.*` colors of an active group
+/// (workbench/browser/parts/editor/multiEditorTabsControl.ts and
+/// media/multieditortabscontrol.css).
 class IdeTabBar extends StatefulWidget {
   const IdeTabBar({
     super.key,
@@ -252,7 +255,7 @@ class _IdeTabBarState extends State<IdeTabBar> {
     ], widget.root);
     return Container(
       height: IdeTabBar.height,
-      color: CursorColors.surface,
+      color: themeColors['editorGroupHeader.tabsBackground'],
       child: Row(
         children: [
           Expanded(
@@ -352,6 +355,20 @@ class _TabState extends State<_Tab> {
     final active = widget.active;
     final dirty = doc.dirty;
     final showClose = _hover || (active && !dirty);
+    final colors = themeColors;
+    // The active tab is selected: hovering it changes nothing.
+    final hovered = _hover && !active;
+    final foreground = active
+        ? colors['tab.activeForeground']
+        : (hovered ? colors.get('tab.hoverForeground') : null) ??
+              colors['tab.inactiveForeground'];
+    final bottom = active ? colors.get('tab.activeBorder') : null;
+    final right = colors.get('tab.border') ?? colors.get('contrastBorder');
+    // `activeContrastBorder`: high contrast themes outline the active tab
+    // and a hovered one (5px inside it, and dashed on hover, upstream).
+    final outline = active || _hover
+        ? colors.get('contrastActiveBorder')
+        : null;
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -368,17 +385,26 @@ class _TabState extends State<_Tab> {
             padding: const EdgeInsets.only(left: 10, right: 5),
             decoration: BoxDecoration(
               color: active
-                  ? CursorColors.background
-                  : _hover
-                  ? const Color(0xFF232323)
-                  : CursorColors.surface,
+                  ? colors['tab.activeBackground']
+                  : (hovered ? colors.get('tab.hoverBackground') : null) ??
+                        colors['tab.inactiveBackground'],
               border: Border(
                 top: BorderSide(
-                  color: active ? CursorColors.accent : Colors.transparent,
+                  color:
+                      (active ? colors.get('tab.activeBorderTop') : null) ??
+                      Colors.transparent,
                 ),
-                right: const BorderSide(color: CursorColors.border),
+                right: BorderSide(color: right ?? Colors.transparent),
               ),
             ),
+            // Over the tab, as upstream's are.
+            foregroundDecoration: bottom == null && outline == null
+                ? null
+                : BoxDecoration(
+                    border: outline != null
+                        ? Border.all(color: outline)
+                        : Border(bottom: BorderSide(color: bottom!)),
+                  ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -392,8 +418,11 @@ class _TabState extends State<_Tab> {
                         if (widget.description case final description?)
                           TextSpan(
                             text: '  $description',
-                            style: const TextStyle(
-                              color: CursorColors.textFaint,
+                            // `.label-description`: 70% opaque.
+                            style: TextStyle(
+                              color: foreground.withValues(
+                                alpha: foreground.a * .7,
+                              ),
                               fontSize: 11,
                             ),
                           ),
@@ -401,12 +430,7 @@ class _TabState extends State<_Tab> {
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: active
-                          ? CursorColors.textPrimary
-                          : CursorColors.textMuted,
-                    ),
+                    style: TextStyle(fontSize: 12.5, color: foreground),
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -426,16 +450,15 @@ class _TabState extends State<_Tab> {
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
                                   color: _closeHover
-                                      ? const Color(0x1FFFFFFF)
+                                      ? colors['toolbar.hoverBackground']
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(4),
                                 ),
+                                // The tab's color (`inherit`).
                                 child: Icon(
                                   Codicons.close,
                                   size: 14,
-                                  color: active
-                                      ? CursorColors.textPrimary
-                                      : CursorColors.textMuted,
+                                  color: foreground,
                                 ),
                               ),
                             ),
@@ -449,9 +472,7 @@ class _TabState extends State<_Tab> {
                             height: 8,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: active
-                                  ? CursorColors.textPrimary
-                                  : CursorColors.textMuted,
+                              color: foreground,
                             ),
                           ),
                         )

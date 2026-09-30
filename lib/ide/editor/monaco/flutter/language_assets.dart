@@ -158,12 +158,22 @@ class MonacoLanguageAssets {
   }
 
   Future<MonacoLanguage?> forPath(String path, {String? firstLine}) async {
+    final registration = await registrationForPath(path, firstLine: firstLine);
+    return registration == null ? null : loadRegistered(registration.id);
+  }
+
+  /// The registration [forPath] loads; a language pack's when its
+  /// [MonacoLanguageRegistration.assetId] starts with [packAssetPrefix].
+  Future<MonacoLanguageRegistration?> registrationForPath(
+    String path, {
+    String? firstLine,
+  }) async {
     final filename = p.basename(path);
     final lower = filename.toLowerCase();
     final candidates = await registrations();
     for (final registration in candidates) {
       if (registration.filenames.any((name) => name.toLowerCase() == lower)) {
-        return loadRegistered(registration.id);
+        return registration;
       }
     }
     final byExtension = <(int, int, MonacoLanguageRegistration)>[];
@@ -178,13 +188,13 @@ class MonacoLanguageAssets {
       byExtension.sort(
         (a, b) => a.$1 != b.$1 ? b.$1.compareTo(a.$1) : a.$2.compareTo(b.$2),
       );
-      return loadRegistered(byExtension.first.$3.id);
+      return byExtension.first.$3;
     }
     if (firstLine != null) {
       for (final registration in candidates) {
         final pattern = registration.firstLinePattern;
         if (pattern != null && RegExp(pattern).hasMatch(firstLine)) {
-          return loadRegistered(registration.id);
+          return registration;
         }
       }
     }

@@ -7,9 +7,10 @@
 // 6a598d4a13031703d483d103c1d934a36ad27971: `_validateGrammarDefinition`
 // (with `validateGrammarExtensionPoint`'s language check) as
 // [validateGrammarDefinition], and the theme `_updateTheme` hands to
-// vscode-textmate as [toRawTheme]. The service, its grammar factory, the
-// tokenization supports and the background tokenizer are not ported; the
-// editor loop they implement is documented on [maxTokenizationLineLength].
+// vscode-textmate as [toRawTheme]. The service itself is not ported: the
+// tokenization supports are in tokenization_support/, the background
+// tokenizer in background_tokenization/, and lib/ide/editor/textmate/
+// textmate_worker.dart creates grammars as the service does.
 // Deviations: the language service is two callbacks; the grammar's location
 // is its path, already resolved against the extension; an unregistered
 // language rejects the grammar without reporting it.

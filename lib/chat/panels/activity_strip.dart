@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
+import '../../ide/ide_hover.dart';
 import '../../kernel/kernel_types.dart';
 import '../chat_models.dart';
 import '../widgets/file_label.dart';
@@ -87,7 +89,7 @@ class _ActivityStripState extends State<ActivityStrip> {
     final changes = widget.changes;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: CursorColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
         border: Border(
@@ -210,7 +212,7 @@ class _TaskRow extends StatelessWidget {
           // A subagent left to run on its own.
           child: task.kind == KernelTaskKind.agent && task.background
               ? const OrbitIndicator()
-              : const Padding(
+              : Padding(
                   padding: EdgeInsets.all(1.5),
                   child: CircularProgressIndicator(
                     strokeWidth: 1.6,
@@ -220,11 +222,7 @@ class _TaskRow extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         if (task.kind != KernelTaskKind.agent) ...[
-          const Icon(
-            Icons.terminal_rounded,
-            size: 13,
-            color: CursorColors.textFaint,
-          ),
+          Icon(Icons.terminal_rounded, size: 13, color: CursorColors.textFaint),
           const SizedBox(width: 5),
         ],
         // All the room there is, so the action sits at the end (a Flexible
@@ -249,10 +247,7 @@ class _TaskRow extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Running · ${elapsed}s',
-                style: const TextStyle(
-                  color: CursorColors.textMuted,
-                  fontSize: 11.5,
-                ),
+                style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
               ),
             ],
           ),
@@ -278,14 +273,18 @@ class _IconAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Icon(icon, size: 14, color: CursorColors.textFaint),
+    return IdeHover(
+      message: tooltip,
+      excludeFromSemantics: true,
+      child: Semantics(
+        button: true,
+        label: tooltip,
+        child: GestureDetector(
+          onTap: onTap,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Icon(icon, size: 14, color: CursorColors.textFaint),
+          ),
         ),
       ),
     );
@@ -321,7 +320,7 @@ class _FilesHeader extends StatelessWidget {
               AnimatedRotation(
                 turns: expanded ? 0.25 : 0,
                 duration: const Duration(milliseconds: 150),
-                child: const Icon(
+                child: Icon(
                   Icons.chevron_right_rounded,
                   size: 16,
                   color: CursorColors.textMuted,
@@ -334,17 +333,14 @@ class _FilesHeader extends StatelessWidget {
                   maxLines: 1,
                   softWrap: false,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: CursorColors.text,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: CursorColors.text, fontSize: 12),
                 ),
               ),
               const SizedBox(width: 8),
               Text(
                 '+$added',
-                style: const TextStyle(
-                  color: CursorColors.added,
+                style: TextStyle(
+                  color: themeColors['chat.linesAddedForeground'],
                   fontFamily: CursorFonts.mono,
                   fontSize: 11.5,
                 ),
@@ -352,8 +348,8 @@ class _FilesHeader extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 '-$removed',
-                style: const TextStyle(
-                  color: CursorColors.removed,
+                style: TextStyle(
+                  color: themeColors['chat.linesRemovedForeground'],
                   fontFamily: CursorFonts.mono,
                   fontSize: 11.5,
                 ),
@@ -400,18 +396,15 @@ class _FileRow extends StatelessWidget {
             change.directory,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: CursorColors.textFaint,
-              fontSize: 11.5,
-            ),
+            style: TextStyle(color: CursorColors.textFaint, fontSize: 11.5),
           ),
         ),
         // A count of none is left out.
         if (change.added > 0)
           Text(
             '+${change.added}',
-            style: const TextStyle(
-              color: CursorColors.added,
+            style: TextStyle(
+              color: themeColors['chat.linesAddedForeground'],
               fontFamily: CursorFonts.mono,
               fontSize: 11,
             ),
@@ -420,8 +413,8 @@ class _FileRow extends StatelessWidget {
         if (change.removed > 0)
           Text(
             '-${change.removed}',
-            style: const TextStyle(
-              color: CursorColors.removed,
+            style: TextStyle(
+              color: themeColors['chat.linesRemovedForeground'],
               fontFamily: CursorFonts.mono,
               fontSize: 11,
             ),

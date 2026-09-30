@@ -1,10 +1,25 @@
 import 'package:flutter/material.dart';
 
 import '../platform/app_platform.dart';
+import 'workbench_theme.dart' hide ColorScheme;
 
-/// Cursor-style dark palette.
+/// The app's colors, from the workbench's color theme: each is a VS Code
+/// color id's (see [WorkbenchThemeService]), so they follow the theme the
+/// user picks as VS Code's workbench does.
 abstract final class CursorColors {
-  static const background = Color(0xFF181818);
+  static WorkbenchColors get _colors => WorkbenchThemeService.instance.colors;
+
+  /// The first of [ids] the theme or the registry gives a color.
+  static Color _first(List<String> ids) {
+    final colors = _colors;
+    for (final id in ids) {
+      if (colors.get(id) case final color?) return color;
+    }
+    return const Color(0x00000000);
+  }
+
+  /// `sideBar.background`.
+  static Color get background => _colors['sideBar.background'];
 
   /// Whether the window has the system's sidebar material under it (the
   /// macOS app; see MainFlutterWindow.swift), to show through the sidebar.
@@ -15,47 +30,90 @@ abstract final class CursorColors {
   static Color get windowCanvas =>
       usesMacOSMaterial ? Colors.transparent : background;
 
-  /// The sidebar's: a tint over the material, or as opaque as the rest.
-  static Color get sidebarSurface =>
-      usesMacOSMaterial ? const Color(0xCC1C1D20) : background;
+  /// The sidebar's: [background] as a tint over the material, or opaque.
+  static Color get sidebarSurface => usesMacOSMaterial
+      ? background.withValues(alpha: background.a * 0.8)
+      : background;
 
-  /// The conversation's: over the material a darker tint than the
-  /// sidebar's, or [background].
-  static Color get conversationSurface =>
-      usesMacOSMaterial ? const Color(0xE6161618) : background;
-  static const surface = Color(0xFF1F1F1F);
-  static const surfaceRaised = Color(0xFF262626);
-  static const code = Color(0xFF141414);
-  static const border = Color(0xFF2C2C2C);
-  static const borderStrong = Color(0xFF3A3A3A);
-  static const hover = Color(0x0FFFFFFF);
+  /// The conversation's: `editor.background`, as VS Code's agent sessions
+  /// window has it; over the material a denser tint than the sidebar's.
+  static Color get conversationSurface {
+    final color = _colors['editor.background'];
+    return usesMacOSMaterial ? color.withValues(alpha: color.a * 0.9) : color;
+  }
 
-  static const textPrimary = Color(0xFFE6E6E6);
-  static const text = Color(0xFFCCCCCC);
-  static const textMuted = Color(0xFF8C8C8C);
-  static const textFaint = Color(0xFF5E5E5E);
+  /// `editorWidget.background`: cards and panels.
+  static Color get surface => _colors['editorWidget.background'];
 
-  static const accent = Color(0xFF4C9DFF);
+  /// `menu.background`: menus and popups over the rest.
+  static Color get surfaceRaised => _colors['menu.background'];
 
-  /// Claude's terracotta: its spark while it thinks.
+  /// `editor.background`: code and terminal output.
+  static Color get code => _colors['editor.background'];
+
+  /// `panel.border`.
+  static Color get border => _colors['panel.border'];
+
+  /// `input.border`, else `dropdown.border`.
+  static Color get borderStrong => _first(['input.border', 'dropdown.border']);
+
+  /// `list.hoverBackground`.
+  static Color get hover => _colors['list.hoverBackground'];
+
+  /// `settings.headerForeground`: titles and what stands out.
+  static Color get textPrimary => _colors['settings.headerForeground'];
+
+  /// `foreground`.
+  static Color get text => _colors['foreground'];
+
+  /// `descriptionForeground`.
+  static Color get textMuted => _colors['descriptionForeground'];
+
+  /// `disabledForeground`.
+  static Color get textFaint => _colors['disabledForeground'];
+
+  /// `textLink.foreground`.
+  static Color get accent => _colors['textLink.foreground'];
+
+  /// Claude's terracotta: its spark while it thinks. Not the theme's.
   static const claude = Color(0xFFD97857);
-  static const inlineCode = Color(0xFFE2C08D);
 
-  /// #2A2A2A over [background], and see-through: a selection is painted
-  /// under the text, and shows through it as on the web.
-  static const inlineCodeBackground = Color(0x14FFFFFF);
-  static const added = Color(0xFF4EC98A);
-  static const addedBackground = Color(0x1F3FB950);
-  static const removed = Color(0xFFF07178);
-  static const removedBackground = Color(0x1FF85149);
+  /// `textPreformat.foreground`.
+  static Color get inlineCode => _colors['textPreformat.foreground'];
 
-  /// A risky choice, e.g. running with no permission checks.
-  static const caution = Color(0xFFF0884E);
+  /// `textPreformat.background`. See-through in the default themes: a
+  /// selection is painted under the text, and shows through it as on the
+  /// web.
+  static Color get inlineCodeBackground => _colors['textPreformat.background'];
 
-  // Shell commands: the program run, quoted strings, options.
-  static const syntaxCommand = Color(0xFFE5A15B);
-  static const syntaxString = Color(0xFFE08BD8);
-  static const syntaxOption = Color(0xFF6FCFC6);
+  /// `gitDecoration.addedResourceForeground`.
+  static Color get added => _colors['gitDecoration.addedResourceForeground'];
+
+  /// `diffEditor.insertedLineBackground`, else the inserted text's.
+  static Color get addedBackground => _first([
+    'diffEditor.insertedLineBackground',
+    'diffEditor.insertedTextBackground',
+  ]);
+
+  /// `gitDecoration.deletedResourceForeground`.
+  static Color get removed =>
+      _colors['gitDecoration.deletedResourceForeground'];
+
+  /// `diffEditor.removedLineBackground`, else the removed text's.
+  static Color get removedBackground => _first([
+    'diffEditor.removedLineBackground',
+    'diffEditor.removedTextBackground',
+  ]);
+
+  /// `editorWarning.foreground`: a risky choice, e.g. running with no
+  /// permission checks.
+  static Color get caution => _colors['editorWarning.foreground'];
+
+  // Shell commands, in the terminal's colors: the program run, quoted
+  // strings, options.
+  static Color get syntaxCommand => _colors['terminal.ansiYellow'];
+  static Color get syntaxString => _colors['terminal.ansiMagenta'];
+  static Color get syntaxOption => _colors['terminal.ansiCyan'];
 }
 
 /// Window chrome shared by the sidebar and the chat, so their edges line up.
@@ -126,29 +184,32 @@ abstract final class CursorFonts {
 }
 
 ThemeData buildCursorTheme() {
+  final colors = WorkbenchThemeService.instance.colors;
+  final brightness = colors.dark ? Brightness.dark : Brightness.light;
   return ThemeData(
-    brightness: Brightness.dark,
+    brightness: brightness,
     fontFamilyFallback: AppPlatform.isWindows
         ? CursorFonts.windowsFallbacks
         : null,
     // The conversation's own color is under it (see Workbench).
     scaffoldBackgroundColor: CursorColors.windowCanvas,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: CursorColors.accent,
-      brightness: Brightness.dark,
+      seedColor: colors['button.background'],
+      brightness: brightness,
       surface: CursorColors.surface,
     ),
     dividerColor: CursorColors.border,
     visualDensity: VisualDensity.compact,
-    textSelectionTheme: const TextSelectionThemeData(
-      selectionColor: Color(0x554C9DFF),
+    textSelectionTheme: TextSelectionThemeData(
+      selectionColor: colors['editor.selectionBackground'],
+      cursorColor: colors['editorCursor.foreground'],
     ),
-    scrollbarTheme: const ScrollbarThemeData(
-      thumbColor: WidgetStatePropertyAll(Color(0xFF4A4A4A)),
-      trackColor: WidgetStatePropertyAll(Colors.transparent),
-      trackBorderColor: WidgetStatePropertyAll(Colors.transparent),
-      thickness: WidgetStatePropertyAll(7),
-      radius: Radius.circular(4),
+    scrollbarTheme: ScrollbarThemeData(
+      thumbColor: WidgetStatePropertyAll(colors['scrollbarSlider.background']),
+      trackColor: const WidgetStatePropertyAll(Colors.transparent),
+      trackBorderColor: const WidgetStatePropertyAll(Colors.transparent),
+      thickness: const WidgetStatePropertyAll(7),
+      radius: const Radius.circular(4),
       minThumbLength: 48,
     ),
   );

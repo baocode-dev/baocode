@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../theme/cursor_theme.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 import 'chat_feed.dart';
 import 'chat_models.dart';
 import 'chat_session.dart';
@@ -753,6 +754,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   }
 
   Widget _buildEditorLayer(int index) {
+    final shadow = themeColors['widget.shadow'];
     return Positioned.fill(
       // The editor's text area scrolls on its own. It is not inside the list,
       // so its scroll notifications would reach the history's scrollbar as
@@ -795,18 +797,18 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(10),
-                            boxShadow: const [
-                              // Dark UI: a deep, soft drop plus a tight contact
+                            boxShadow: [
+                              // A deep, soft drop plus a tight contact
                               // shadow, or it does not read against the page.
                               BoxShadow(
-                                color: Color(0xA6000000),
+                                color: shadow,
                                 blurRadius: 32,
-                                offset: Offset(0, 12),
+                                offset: const Offset(0, 12),
                               ),
                               BoxShadow(
-                                color: Color(0x66000000),
+                                color: shadow.withValues(alpha: shadow.a * 0.6),
                                 blurRadius: 6,
-                                offset: Offset(0, 2),
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),
@@ -1017,9 +1019,17 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
           onExit: (_) => _setPointerInside(false),
           child: ScrollbarTheme(
             data: ScrollbarTheme.of(context).copyWith(
-              thumbColor: WidgetStatePropertyAll(
-                _isPointerInside ? const Color(0xFF4A4A4A) : Colors.transparent,
-              ),
+              thumbColor: WidgetStateProperty.resolveWith((states) {
+                if (!_isPointerInside) return Colors.transparent;
+                final colors = themeColors;
+                if (states.contains(WidgetState.dragged)) {
+                  return colors['scrollbarSlider.activeBackground'];
+                }
+                if (states.contains(WidgetState.hovered)) {
+                  return colors['scrollbarSlider.hoverBackground'];
+                }
+                return colors['scrollbarSlider.background'];
+              }),
               // The thumb as thin as ever, easier to catch: its track (what
               // takes a press) is that much wider on both sides.
               crossAxisMargin: _scrollbarMargin,
@@ -1205,11 +1215,14 @@ class _JumpToBottomButton extends StatelessWidget {
                   color: CursorColors.surfaceRaised,
                   shape: BoxShape.circle,
                   border: Border.all(color: CursorColors.borderStrong),
-                  boxShadow: const [
-                    BoxShadow(color: Color(0x66000000), blurRadius: 12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: themeColors['widget.shadow'],
+                      blurRadius: 12,
+                    ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.arrow_downward_rounded,
                   size: 15,
                   color: CursorColors.text,

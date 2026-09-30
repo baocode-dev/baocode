@@ -64,15 +64,18 @@ const terminalDecorationSuccess = Codicons.circleFilled;
 
 /// A decoration's color from its [classNames], as terminal.css gives it:
 /// `terminalCommandDecoration.errorBackground` for `error`,
-/// `.defaultBackground` for `default`, else `.successBackground`.
-Color decorationColorOf(List<String> classNames) {
+/// `.defaultBackground` for `default`, else `.successBackground`; in
+/// [theme], the workbench's ([terminalColorTheme]) by default. None when the
+/// theme has none.
+Color? decorationColorOf(List<String> classNames, [TerminalColorTheme? theme]) {
+  theme ??= terminalColorTheme.value;
   if (classNames.contains(DecorationSelector.errorColor)) {
-    return TerminalColors.commandDecorationErrorBackground;
+    return theme.commandDecorationErrorBackground;
   }
   if (classNames.contains(DecorationSelector.defaultClass)) {
-    return TerminalColors.commandDecorationDefaultBackground;
+    return theme.commandDecorationDefaultBackground;
   }
-  return TerminalColors.commandDecorationSuccessBackground;
+  return theme.commandDecorationSuccessBackground;
 }
 
 String getTerminalDecorationHoverContent(
@@ -158,8 +161,8 @@ class TerminalCommandDecorationState {
   final String durationText;
   final String hoverMessage;
 
-  /// The color its [classNames] give it.
-  Color get color => decorationColorOf(classNames);
+  /// The color its [classNames] give it in the workbench's theme.
+  Color? get color => decorationColorOf(classNames);
 }
 
 const _unknownText = 'Unknown';

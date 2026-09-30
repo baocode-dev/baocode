@@ -143,7 +143,7 @@ void main() {
         (await bundled('Default High Contrast Light')).type,
         ColorScheme.highContrastLight,
       );
-      expect((await bundled('Light+')).type, ColorScheme.light);
+      expect((await bundled('Light Modern')).type, ColorScheme.light);
     });
   });
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/cursor_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 
 /// Inline editor for a title, with it all selected: Enter or leaving it
 /// saves, Esc cancels.
@@ -10,17 +11,16 @@ class InlineRenameField extends StatefulWidget {
     super.key,
     required this.initial,
     required this.onDone,
-    this.style = const TextStyle(
-      color: CursorColors.textPrimary,
-      fontSize: 12.5,
-    ),
+    this.style,
   });
 
   final String initial;
 
   /// The new text, or null when cancelled.
   final ValueChanged<String?> onDone;
-  final TextStyle style;
+
+  /// [CursorColors.textPrimary] at 12.5 when null.
+  final TextStyle? style;
 
   @override
   State<InlineRenameField> createState() => _InlineRenameFieldState();
@@ -62,6 +62,11 @@ class _InlineRenameFieldState extends State<InlineRenameField> {
 
   @override
   Widget build(BuildContext context) {
+    // An input box, focused, as upstream's inline rename.
+    final colors = themeColors;
+    final border = OutlineInputBorder(
+      borderSide: BorderSide(color: colors['focusBorder']),
+    );
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () => _finish(null),
@@ -70,20 +75,18 @@ class _InlineRenameFieldState extends State<InlineRenameField> {
         controller: _controller,
         focusNode: _focus,
         onSubmitted: _finish,
-        style: widget.style,
+        style:
+            widget.style ??
+            TextStyle(color: CursorColors.textPrimary, fontSize: 12.5),
         cursorColor: CursorColors.text,
         cursorHeight: 14,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           isDense: true,
           contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           filled: true,
-          fillColor: CursorColors.code,
-          enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: CursorColors.accent),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: CursorColors.accent),
-          ),
+          fillColor: colors['input.background'],
+          enabledBorder: border,
+          focusedBorder: border,
         ),
       ),
     );
