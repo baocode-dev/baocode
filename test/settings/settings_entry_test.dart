@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/chat/chat_screen.dart';
+import 'package:monad/ide/ide_hover.dart';
 import 'package:monad/ide/ide_workbench.dart';
 import 'package:monad/keybindings/default_keybindings.dart';
 import 'package:monad/keybindings/keybinding_entry.dart';
@@ -89,7 +90,17 @@ void main() {
             widget is SidebarIconButton && widget.icon == Codicons.settingsGear,
       ),
     );
-    expect(tester.widget<SidebarIconButton>(gear).tooltip, 'Settings (⌘,)');
+    // Its label the title; its hover with the keys.
+    expect(tester.widget<SidebarIconButton>(gear).tooltip, 'Settings');
+    expect(
+      find.descendant(
+        of: gear,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is IdeHover && widget.message == 'Settings (⌘,)',
+        ),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(gear);
     await tester.pumpAndSettle();
     expect(_section(tester), SettingsSection.language);

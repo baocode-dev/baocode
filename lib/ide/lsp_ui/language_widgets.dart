@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
@@ -457,8 +458,13 @@ class IdeLightbulb extends StatelessWidget {
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
+      // Quick Fix's keys (`LightBulbWidget._computeLightBulbInfo`,
+      // lightBulbWidget.ts: `Show Code Actions (⌘.)`).
       child: IdeHover(
-        message: context.l10n.langShowCodeActions,
+        message: KeybindingService.instance.titleWithKeybinding(
+          context.l10n.langShowCodeActions,
+          'editor.action.quickFix',
+        ),
         child: Icon(
           autoFix ? Codicons.lightbulbAutofix : Codicons.lightBulb,
           size: 14,
@@ -837,6 +843,10 @@ class IdeParameterHints extends StatelessWidget {
                 if (count > 1) ...[
                   _OverloadButton(
                     icon: Codicons.chevronUp,
+                    tooltip: KeybindingService.instance.titleWithKeybinding(
+                      context.l10n.cmdEditorShowPrevParameterHint,
+                      'showPrevParameterHint',
+                    ),
                     onTap: () => onCycle(-1),
                   ),
                   Padding(
@@ -848,6 +858,10 @@ class IdeParameterHints extends StatelessWidget {
                   ),
                   _OverloadButton(
                     icon: Codicons.chevronDown,
+                    tooltip: KeybindingService.instance.titleWithKeybinding(
+                      context.l10n.cmdEditorShowNextParameterHint,
+                      'showNextParameterHint',
+                    ),
                     onTap: () => onCycle(1),
                   ),
                   const SizedBox(width: 4),
@@ -902,21 +916,31 @@ class IdeParameterHints extends StatelessWidget {
   }
 }
 
+/// The parameter hints' previous or next overload (upstream's have no
+/// title: a deviation, for the keys).
 class _OverloadButton extends StatelessWidget {
-  const _OverloadButton({required this.icon, required this.onTap});
+  const _OverloadButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
 
   final IconData icon;
+  final String tooltip;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => MouseRegion(
-    cursor: SystemMouseCursors.click,
-    child: GestureDetector(
-      onTap: onTap,
-      child: Icon(
-        icon,
-        size: 16,
-        color: themeColors['editorHoverWidget.foreground'],
+  Widget build(BuildContext context) => IdeHover(
+    message: tooltip,
+    child: MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Icon(
+          icon,
+          size: 16,
+          color: themeColors['editorHoverWidget.foreground'],
+        ),
       ),
     ),
   );

@@ -325,7 +325,7 @@ class IdeScmViewState extends State<IdeScmView>
             actions: [
               IdePaneAction(
                 icon: Codicons.check,
-                tooltip: l10n.scmCommit,
+                tooltip: _withCommitKeys(l10n.scmCommit),
                 onPressed: () => unawaited(_commit()),
               ),
               IdePaneAction(
@@ -856,6 +856,18 @@ class IdeScmViewState extends State<IdeScmView>
     ],
   };
 
+  /// A commit button's tooltip: [title] and the keys committing, Commit's
+  /// (`git.commit`), else the input's Accept (`scm.acceptInput`, which
+  /// commits).
+  String _withCommitKeys(String title) =>
+      switch (KeybindingService.instance.labelFor('git.commit')) {
+        final keys? => '$title ($keys)',
+        null => KeybindingService.instance.titleWithKeybinding(
+          title,
+          'scm.acceptInput',
+        ),
+      };
+
   /// `scm.acceptInput`'s keybinding, else ⌘Enter / Ctrl+Enter (upstream's
   /// placeholder).
   String get _commitKey =>
@@ -1106,7 +1118,7 @@ class IdeScmViewState extends State<IdeScmView>
       _SplitButton(
         icon: Codicons.check,
         label: context.l10n.scmCommit,
-        tooltip: context.l10n.scmCommitChanges,
+        tooltip: _withCommitKeys(context.l10n.scmCommitChanges),
         enabled: enabled && !git.busy,
         onPressed: () => unawaited(_commit()),
         dropdownTooltip: context.l10n.commonMoreActions,

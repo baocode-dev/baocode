@@ -275,7 +275,10 @@ class TerminalTitleActions extends StatelessWidget {
             const SizedBox(width: 2),
             IdeActionButton(
               icon: Codicons.trash,
-              tooltip: context.l10n.termKillTerminal,
+              tooltip: KeybindingService.instance.titleWithKeybinding(
+                context.l10n.termKillTerminal,
+                'workbench.action.terminal.kill',
+              ),
               onPressed: () => terminals.kill(single),
             ),
           ],

@@ -295,7 +295,8 @@ void main() {
     expect(rowOutline(), outline);
   });
 
-  testWidgets('its icon buttons have the workbench hover', (tester) async {
+  testWidgets('its icon buttons have the workbench hover, with the key that '
+      'does the same', (tester) async {
     await pumpApp(tester);
     final button = inSidebar(find.bySemanticsLabel('Hide sidebar'));
     expect(button, findsOneWidget);
@@ -306,7 +307,7 @@ void main() {
     await tester.pump(ideHoverDelay + const Duration(milliseconds: 150));
     expect(
       find.ancestor(
-        of: find.text('Hide sidebar'),
+        of: find.text('Hide sidebar (Ctrl+B)'),
         matching: find.byType(IdeHoverBox),
       ),
       findsOneWidget,

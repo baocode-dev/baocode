@@ -117,6 +117,19 @@ abstract final class ChatKeys {
     return targetsOf(focus?.context).any((target) => target.chatComposing);
   }
 
+  /// The context keys of the chat layout, for a button of the window (the
+  /// sidebar, the panes, the title bar): its keybindings hold there.
+  static const Map<String, Object> chatLayout = {
+    'chatMode': true,
+    'ideMode': false,
+  };
+
+  /// Those of the IDE's layout.
+  static const Map<String, Object> ideLayout = {
+    'chatMode': false,
+    'ideMode': true,
+  };
+
   /// [title] and the key that runs [command] where the context keys
   /// [context] hold (the last such keybinding's), as upstream's buttons
   /// title themselves: `Send (Enter)`.
@@ -126,6 +139,17 @@ abstract final class ChatKeys {
     Map<String, Object> context = const {},
   ]) => KeybindingService.instance.titleWithKeybinding(
     title,
+    command,
+    context: (key) => context[key],
+  );
+
+  /// The key that runs [command] where the context keys [context] hold, as
+  /// [titleWithKey] shows it (`⌘N`); null when it has none, for a hint
+  /// that then goes.
+  static String? keyLabel(
+    String command, [
+    Map<String, Object> context = const {},
+  ]) => KeybindingService.instance.labelFor(
     command,
     context: (key) => context[key],
   );

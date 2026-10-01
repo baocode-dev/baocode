@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../ide/ide_hover.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
@@ -32,6 +33,7 @@ class ComposerPicker extends StatefulWidget {
     this.settingsOf,
     this.emphasized = false,
     this.title,
+    this.tooltip,
     this.menuWidth = 248,
     this.tapRegionGroupId,
     this.focusNode,
@@ -56,6 +58,10 @@ class ComposerPicker extends StatefulWidget {
 
   /// Heads the menu, e.g. the question its options answer.
   final String? title;
+
+  /// The pill's hover, e.g. what it does and the key that opens it (`Set
+  /// Mode (⌘.)`); none when null.
+  final String? tooltip;
   final double menuWidth;
 
   /// Group of a region around the whole composer, which the menu counts as
@@ -361,6 +367,14 @@ class ComposerPickerState extends State<ComposerPicker> {
 
   @override
   Widget build(BuildContext context) {
+    Widget pill = HoverBuilder(
+      cursor: SystemMouseCursors.click,
+      builder: (context, hovered) => _buildPill(hovered, _open),
+    );
+    // The workbench hover, as upstream's pickers in the chat input have.
+    if (widget.tooltip case final tooltip?) {
+      pill = IdeHover(message: tooltip, child: pill);
+    }
     return FloatingLayer(
       visible: _open,
       // Above the pill; below it when there is no room (e.g. a message being
@@ -376,10 +390,7 @@ class ComposerPickerState extends State<ComposerPicker> {
           onPointerDown: _handlePressDown,
           onPointerMove: _handlePressMove,
           onPointerUp: _handlePressUp,
-          child: HoverBuilder(
-            cursor: SystemMouseCursors.click,
-            builder: (context, hovered) => _buildPill(hovered, _open),
-          ),
+          child: pill,
         ),
       ),
     );

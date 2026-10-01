@@ -70,18 +70,18 @@ void main() {
     await tester.pump();
     expect(find.text('2 of 4'), findsOneWidget);
 
-    expect(_toggled(tester, 'Match case'), isFalse);
-    await tester.tap(find.byTooltip('Match case'));
+    expect(_toggled(tester, 'Match case (Alt+C)'), isFalse);
+    await tester.tap(find.byTooltip('Match case (Alt+C)'));
     await tester.pump();
-    expect(_toggled(tester, 'Match case'), isTrue);
+    expect(_toggled(tester, 'Match case (Alt+C)'), isTrue);
     expect(find.text('? of 2'), findsOneWidget);
-    await tester.tap(find.byTooltip('Whole word'));
+    await tester.tap(find.byTooltip('Whole word (Alt+W)'));
     await tester.pump();
-    expect(_toggled(tester, 'Whole word'), isTrue);
+    expect(_toggled(tester, 'Whole word (Alt+W)'), isTrue);
     expect(find.text('? of 1'), findsOneWidget);
-    await tester.tap(find.byTooltip('Regular expression'));
+    await tester.tap(find.byTooltip('Regular expression (Alt+R)'));
     await tester.pump();
-    expect(_toggled(tester, 'Regular expression'), isTrue);
+    expect(_toggled(tester, 'Regular expression (Alt+R)'), isTrue);
 
     await tester.enterText(_findInputs, 'zzz');
     await tester.pump();

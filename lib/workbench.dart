@@ -902,6 +902,7 @@ class _WorkbenchState extends State<Workbench> {
         ? SidebarIconButton(
             icon: Codicons.layoutSidebarLeftOff,
             tooltip: context.l10n.windowShowSidebar,
+            command: 'workbench.action.toggleSidebarVisibility',
             onTap: _toggle,
           )
         : null;
@@ -933,9 +934,12 @@ class _WorkbenchState extends State<Workbench> {
       ],
       if (!place.alone) ...[
         if (windowTools) const SizedBox(width: 6),
+        // With Close Pane's keys, which close the focused pane: as each of
+        // upstream's tabs titles its close button with Close's.
         SidebarIconButton(
           icon: Codicons.close,
           tooltip: context.l10n.workspaceClosePane,
+          command: ChatCommandIds.closePane,
           onTap: () => _workspace.closePane(thread),
         ),
       ],

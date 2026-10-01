@@ -271,10 +271,7 @@ void main() {
       ),
     ];
     await tester.pump();
-    final semantics = tester.ensureSemantics();
-    await tester.pump();
-    expect(find.bySemanticsLabel('Whole word (Ctrl+Alt+W)'), findsOneWidget);
-    semantics.dispose();
+    expect(find.byTooltip('Whole word (Ctrl+Alt+W)'), findsOneWidget);
     await press(tester, LogicalKeyboardKey.keyW, control: true, alt: true);
     expect(find_.wholeWord, isTrue);
 

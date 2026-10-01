@@ -94,6 +94,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdCategoryList => 'List';
 
   @override
+  String get composerSetMode => 'Set Mode';
+
+  @override
+  String get composerPickModel => 'Pick Model';
+
+  @override
+  String get interactionHintChoose => '1-9 to choose';
+
+  @override
+  String interactionHintContinue(String keybinding) {
+    return '$keybinding to continue';
+  }
+
+  @override
+  String interactionHintSkip(String keybinding) {
+    return '$keybinding to skip';
+  }
+
+  @override
   String get cmdCategoryChat => 'Chat';
 
   @override
@@ -207,6 +226,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdOpenFilePreserveFocus => 'Open File, Keeping the Focus';
+
+  @override
+  String ideSearchProject(String name) {
+    return 'Search $name';
+  }
+
+  @override
+  String get idePanelProblems => 'Problems';
+
+  @override
+  String get idePanelReferences => 'References';
+
+  @override
+  String get idePanelTerminal => 'Terminal';
 
   @override
   String get cmdScmFocus => 'Focus on Changes View';
@@ -1731,11 +1764,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Plan, search, build anything  ·  @ to mention  / for commands';
 
   @override
-  String composerTabToAccept(String suggestion) {
-    return '$suggestion    ⇥ Tab';
-  }
-
-  @override
   String composerApprovalTitle(String agent) {
     return 'How should $agent get approval?';
   }
@@ -1885,10 +1913,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String interactionStepOf(int step, int total) {
     return '$step / $total';
   }
-
-  @override
-  String get interactionKeysHint =>
-      '1-9 to choose · ↵ to continue · esc to skip';
 
   @override
   String get interactionSkip => 'Skip';

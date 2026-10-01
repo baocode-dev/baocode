@@ -260,6 +260,36 @@ abstract class AppLocalizations {
   /// **'List'**
   String get cmdCategoryList;
 
+  /// Hover of the chat input's mode picker, followed by its keybinding.
+  ///
+  /// In en, this message translates to:
+  /// **'Set Mode'**
+  String get composerSetMode;
+
+  /// Hover of the chat input's model picker, followed by its keybinding.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick Model'**
+  String get composerPickModel;
+
+  /// Key hint under a prompt's options: the digits pick one.
+  ///
+  /// In en, this message translates to:
+  /// **'1-9 to choose'**
+  String get interactionHintChoose;
+
+  /// Key hint under a prompt's options.
+  ///
+  /// In en, this message translates to:
+  /// **'{keybinding} to continue'**
+  String interactionHintContinue(String keybinding);
+
+  /// Key hint under a prompt's options.
+  ///
+  /// In en, this message translates to:
+  /// **'{keybinding} to skip'**
+  String interactionHintSkip(String keybinding);
+
   /// Command category: the chat window's commands.
   ///
   /// In en, this message translates to:
@@ -481,6 +511,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open File, Keeping the Focus'**
   String get cmdOpenFilePreserveFocus;
+
+  /// The IDE title bar's search box tooltip (VS Code's command center), before its keybinding.
+  ///
+  /// In en, this message translates to:
+  /// **'Search {name}'**
+  String ideSearchProject(String name);
+
+  /// No description provided for @idePanelProblems.
+  ///
+  /// In en, this message translates to:
+  /// **'Problems'**
+  String get idePanelProblems;
+
+  /// No description provided for @idePanelReferences.
+  ///
+  /// In en, this message translates to:
+  /// **'References'**
+  String get idePanelReferences;
+
+  /// No description provided for @idePanelTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal'**
+  String get idePanelTerminal;
 
   /// No description provided for @cmdScmFocus.
   ///
@@ -3308,12 +3362,6 @@ abstract class AppLocalizations {
   /// **'Plan, search, build anything  ·  @ to mention  / for commands'**
   String get composerPlaceholder;
 
-  /// Placeholder showing an inline suggestion accepted with Tab.
-  ///
-  /// In en, this message translates to:
-  /// **'{suggestion}    ⇥ Tab'**
-  String composerTabToAccept(String suggestion);
-
   /// No description provided for @composerApprovalTitle.
   ///
   /// In en, this message translates to:
@@ -3547,12 +3595,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{step} / {total}'**
   String interactionStepOf(int step, int total);
-
-  /// No description provided for @interactionKeysHint.
-  ///
-  /// In en, this message translates to:
-  /// **'1-9 to choose · ↵ to continue · esc to skip'**
-  String get interactionKeysHint;
 
   /// No description provided for @interactionSkip.
   ///

@@ -2,11 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../../chat/chat_keys.dart';
+import '../../ide/ide_hover.dart';
 import '../../ide/ide_layout.dart';
 import '../../ide/ide_modern_ui.dart';
 import '../../keybindings/chat_keybindings.dart';
 import '../../keybindings/default_keybindings.dart' show openSettingsCommandId;
-import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../sidebar/sidebar.dart';
 import '../../theme/codicons.dart';
@@ -84,6 +85,10 @@ class WindowHeader extends StatefulWidget {
 }
 
 class _WindowHeaderState extends State<WindowHeader> {
+  static const _toggleSidebarCommand =
+      'workbench.action.toggleSidebarVisibility';
+  static const _backToChatCommand = 'monad.ide.backToChat';
+
   /// The controls the window leaves to Flutter, read back as rectangles
   /// after each layout (see [_report]).
   final _toggle = GlobalKey(debugLabel: 'header sidebar');
@@ -168,6 +173,7 @@ class _WindowHeaderState extends State<WindowHeader> {
                     tooltip: widget.sidebarShown
                         ? context.l10n.windowHideSidebar
                         : context.l10n.windowShowSidebar,
+                    command: _toggleSidebarCommand,
                     onTap: widget.onToggleSidebar,
                   ),
                 },
@@ -200,9 +206,19 @@ class _WindowHeaderState extends State<WindowHeader> {
                 const SizedBox(width: 8),
                 KeyedSubtree(
                   key: _back,
-                  child: BackToChatButton(
-                    onPressed: () =>
-                        widget.workspace.layout = WorkspaceLayout.chat,
+                  // Its label and the keys of Back to Chat, as on the IDE's
+                  // own title bar.
+                  child: IdeHover(
+                    message: ChatKeys.titleWithKey(
+                      context.l10n.workspaceBackToChat,
+                      _backToChatCommand,
+                      ChatKeys.ideLayout,
+                    ),
+                    excludeFromSemantics: true,
+                    child: BackToChatButton(
+                      onPressed: () =>
+                          widget.workspace.layout = WorkspaceLayout.chat,
+                    ),
                   ),
                 ),
               ],
@@ -331,12 +347,13 @@ class _WindowHeaderState extends State<WindowHeader> {
         if (widget.workspace.layout == WorkspaceLayout.ide)
           HeaderMenuItem(
             l10n.menuBackToChat,
+            shortcut: _shortcut(_backToChatCommand, ChatKeys.ideLayout),
             onSelected: () => widget.workspace.layout = WorkspaceLayout.chat,
           )
         else
           HeaderMenuItem(
             widget.sidebarShown ? l10n.menuHideSidebar : l10n.menuShowSidebar,
-            shortcut: _shortcut('workbench.action.toggleSidebarVisibility'),
+            shortcut: _shortcut(_toggleSidebarCommand),
             onSelected: widget.onToggleSidebar,
           ),
         if (run != null) ...[
@@ -365,15 +382,12 @@ class _WindowHeaderState extends State<WindowHeader> {
     };
   }
 
-  /// [command]'s keybinding in the chat, as the keybindings have it now.
-  String? _shortcut(String command) => KeybindingService.instance.labelFor(
-    command,
-    context: (key) => switch (key) {
-      'chatMode' => true,
-      'ideMode' => false,
-      _ => null,
-    },
-  );
+  /// [command]'s keybinding in the chat (or the [layout] given), as the
+  /// keybindings have it now.
+  String? _shortcut(
+    String command, [
+    Map<String, Object> layout = ChatKeys.chatLayout,
+  ]) => ChatKeys.keyLabel(command, layout);
 
   /// The projects File offers under the folder picker: the most recent ones,
   /// as the workspace keeps them.

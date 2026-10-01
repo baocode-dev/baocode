@@ -176,7 +176,7 @@ void main() {
 
   testWidgets('committing without a message asks for one', (tester) async {
     await pumpScm(tester);
-    await tester.tap(find.byTooltip('Commit Changes'));
+    await tester.tap(find.byTooltip('Commit Changes (Ctrl+Enter)'));
     await tester.pumpAndSettle();
     expect(find.text('Please provide a commit message'), findsOneWidget);
     expect(git.callsTo('commit'), isEmpty);
@@ -193,7 +193,7 @@ void main() {
     git.onCommand = (arguments) {
       if (arguments.first == 'commit') git.status = '## main\x00';
     };
-    await tester.tap(find.byTooltip('Commit Changes'));
+    await tester.tap(find.byTooltip('Commit Changes (Ctrl+Enter)'));
     await tester.pumpAndSettle();
     expect(git.callsTo('commit').single, [
       'commit',
@@ -211,7 +211,7 @@ void main() {
     git.status = '## main\x00 M lib/a.dart\x00?? notes.md\x00';
     await pumpScm(tester);
     await tester.enterText(find.byType(TextField).first, 'Everything');
-    await tester.tap(find.byTooltip('Commit Changes'));
+    await tester.tap(find.byTooltip('Commit Changes (Ctrl+Enter)'));
     await tester.pumpAndSettle();
     expect(
       find.textContaining('There are no staged changes to commit.'),
@@ -236,12 +236,12 @@ void main() {
     git.status = '## main\x00 M lib/a.dart\x00';
     await pumpScm(tester);
     await tester.enterText(find.byType(TextField).first, 'Nope');
-    await tester.tap(find.byTooltip('Commit Changes'));
+    await tester.tap(find.byTooltip('Commit Changes (Ctrl+Enter)'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Never'));
     await tester.pumpAndSettle();
     // Nothing to commit now: the branch's own action takes the button.
-    expect(find.byTooltip('Commit Changes'), findsNothing);
+    expect(find.byTooltip('Commit Changes (Ctrl+Enter)'), findsNothing);
     expect(find.text('Publish Branch'), findsOneWidget);
     await tester.tap(find.byType(TextField).first);
     await chord(tester, LogicalKeyboardKey.enter, control: true);
@@ -447,7 +447,7 @@ void main() {
         find.byTooltip('Pull 1 and push 2 commits between origin/main'),
         findsOneWidget,
       );
-      expect(find.byTooltip('Commit Changes'), findsNothing);
+      expect(find.byTooltip('Commit Changes (Ctrl+Enter)'), findsNothing);
 
       await tester.tap(find.text('Sync Changes'));
       await tester.pumpAndSettle();
@@ -473,7 +473,7 @@ void main() {
       expect(git.callsTo('push').single, ['push', 'origin', 'main:main']);
       // In sync: Commit, with nothing to commit.
       expect(find.text('Sync Changes'), findsNothing);
-      expect(find.byTooltip('Commit Changes'), findsOneWidget);
+      expect(find.byTooltip('Commit Changes (Ctrl+Enter)'), findsOneWidget);
     });
 
     testWidgets('behind alone, it pulls and does not push; Don\'t Show Again '

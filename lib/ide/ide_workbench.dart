@@ -2105,12 +2105,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       );
     }
 
-    String shortcut(String command) =>
-        switch (KeybindingService.instance.labelFor(command)) {
-          final label? => ' ($label)',
-          null => '',
-        };
-
+    // Each view's name and the keybinding of the command opening it, as
+    // upstream's `CompositeBarActionViewItem.computeTitle`
+    // (compositeBarActions.ts), then its badge's description.
+    final keys = KeybindingService.instance;
     final l10n = context.l10n;
     const radius = Radius.circular(IdeModernUI.radius);
     // Half the lane each side, less the border already there.
@@ -2119,24 +2117,30 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       item(
         IdeSideView.explorer,
         Codicons.files,
-        '${l10n.wbExplorer}${shortcut('workbench.view.explorer')}',
+        keys.titleWithKeybinding(l10n.wbExplorer, 'workbench.view.explorer'),
       ),
       item(
         IdeSideView.search,
         Codicons.search,
-        '${l10n.wbSearchFiles}${shortcut('workbench.action.findInFiles')}',
+        // Find in Files has Show Search's ⇧⌘F (workbench_keybindings.dart),
+        // which then shows nothing of its own.
+        switch (keys.labelFor('workbench.action.findInFiles') ??
+            keys.labelFor('workbench.view.search')) {
+          final shortcut? => '${l10n.wbSearchFiles} ($shortcut)',
+          null => l10n.wbSearchFiles,
+        },
       ),
       item(
         IdeSideView.sourceControl,
         Codicons.sourceControl,
-        '${l10n.scmTitle}${shortcut('workbench.view.scm')}'
-        '${_gitCount > 0 ? ' - ${l10n.wbPendingChanges(_gitCount)}' : ''}',
+        keys.titleWithKeybinding(l10n.scmTitle, 'workbench.view.scm') +
+            (_gitCount > 0 ? ' - ${l10n.wbPendingChanges(_gitCount)}' : ''),
         badge: _gitCount,
       ),
       item(
         IdeSideView.extensions,
         Codicons.extensions,
-        '${l10n.extTitle}${shortcut('workbench.view.extensions')}',
+        keys.titleWithKeybinding(l10n.extTitle, 'workbench.view.extensions'),
       ),
     ];
     return SizedBox(
@@ -2243,6 +2247,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final workspace = widget.workspace;
     final activePath = workspace.active?.path;
     final timelinePath = IdeTimelineView.pathOf(_timeline, activePath);
+    // The folder's actions are the explorer's commands: their keybindings
+    // in their tooltips (upstream's `MenuEntryActionViewItem.getTooltip`).
+    final keys = KeybindingService.instance;
     return ColoredBox(
       color: themeColors['sideBar.background'],
       child: Column(
@@ -2263,7 +2270,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   actions: [
                     IdePaneAction(
                       icon: Codicons.newFile,
-                      tooltip: context.l10n.explorerNewFile,
+                      tooltip: keys.titleWithKeybinding(
+                        context.l10n.explorerNewFile,
+                        'explorer.newFile',
+                      ),
                       onPressed: () => unawaited(
                         _explorerTree.currentState?.startCreate(
                           directory: false,
@@ -2272,7 +2282,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     ),
                     IdePaneAction(
                       icon: Codicons.newFolder,
-                      tooltip: context.l10n.explorerNewFolder,
+                      tooltip: keys.titleWithKeybinding(
+                        context.l10n.explorerNewFolder,
+                        'explorer.newFolder',
+                      ),
                       onPressed: () => unawaited(
                         _explorerTree.currentState?.startCreate(
                           directory: true,
@@ -2281,12 +2294,18 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     ),
                     IdePaneAction(
                       icon: Codicons.refresh,
-                      tooltip: context.l10n.cmdRefreshExplorer,
+                      tooltip: keys.titleWithKeybinding(
+                        context.l10n.cmdRefreshExplorer,
+                        'workbench.files.action.refreshFilesExplorer',
+                      ),
                       onPressed: () => unawaited(_explorer.refresh()),
                     ),
                     IdePaneAction(
                       icon: Codicons.collapseAll,
-                      tooltip: context.l10n.cmdCollapseExplorerFolders,
+                      tooltip: keys.titleWithKeybinding(
+                        context.l10n.cmdCollapseExplorerFolders,
+                        'workbench.files.action.collapseExplorerFolders',
+                      ),
                       onPressed: _explorer.collapseAll,
                     ),
                   ],
@@ -2858,8 +2877,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   Widget _titleBar() {
-    final quickOpen =
-        KeybindingService.instance.labelFor('workbench.action.quickOpen') ?? '';
+    final keys = KeybindingService.instance;
+    final l10n = context.l10n;
     // A double click on its empty part zooms the window, as the system's
     // title bar does.
     return TitleBarDoubleClick(
@@ -2876,7 +2895,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               child: Center(
                 child: _CommandCenter(
                   label: widget.project.name,
-                  shortcut: quickOpen,
+                  tooltip: keys.titleWithKeybinding(
+                    l10n.ideSearchProject(widget.project.name),
+                    'workbench.action.quickOpen',
+                  ),
                   onTap: () => _showQuickInput(''),
                 ),
               ),
@@ -2895,7 +2917,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     ),
                   ],
                   const SizedBox(width: 8),
-                  BackToChatButton(onPressed: () => unawaited(_back())),
+                  // Its label, and the keys that do the same.
+                  IdeHover(
+                    message: keys.titleWithKeybinding(
+                      l10n.workspaceBackToChat,
+                      'monad.ide.backToChat',
+                    ),
+                    child: BackToChatButton(
+                      onPressed: () => unawaited(_back()),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -2909,12 +2940,18 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   IdeStatusBar _statusBar() {
     final active = widget.workspace.active;
     final l10n = context.l10n;
+    // An item doing what a command does has its keybinding in its tooltip
+    // (a deviation: upstream's status bar items have their tooltips alone).
+    final keys = KeybindingService.instance;
     final left = [
       if (_gitBranch ?? _branch case final branch?)
         IdeStatusBarItem(
           branch,
           icon: Codicons.gitBranch,
-          tooltip: l10n.scmTitle,
+          tooltip: keys.titleWithKeybinding(
+            l10n.scmTitle,
+            'workbench.view.scm',
+          ),
           onTap: () => _showView(IdeSideView.sourceControl),
         ),
       IdeStatusBarItem(
@@ -2924,7 +2961,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           'Text editor' => l10n.wbTextEditor,
           final status => status,
         },
-        tooltip: l10n.wbRetryLanguageServices,
+        tooltip: keys.titleWithKeybinding(
+          l10n.wbRetryLanguageServices,
+          'monad.ide.retryLanguageServices',
+        ),
         onTap: () => unawaited(_editor?.retryLanguageServer()),
       ),
       if (_languages case final languages?) ...[
@@ -2933,15 +2973,18 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           return IdeStatusBarItem(
             '\$(error) ${counts.errors} \$(warning) ${counts.warnings}'
             '${counts.infos > 0 ? ' \$(info) ${counts.infos}' : ''}',
-            tooltip: counts.errors + counts.warnings + counts.infos == 0
-                ? l10n.wbNoProblems
-                : counts.infos > 0
-                ? l10n.wbProblemCountsInfos(
-                    counts.errors,
-                    counts.warnings,
-                    counts.infos,
-                  )
-                : l10n.wbProblemCounts(counts.errors, counts.warnings),
+            tooltip: keys.titleWithKeybinding(
+              counts.errors + counts.warnings + counts.infos == 0
+                  ? l10n.wbNoProblems
+                  : counts.infos > 0
+                  ? l10n.wbProblemCountsInfos(
+                      counts.errors,
+                      counts.warnings,
+                      counts.infos,
+                    )
+                  : l10n.wbProblemCounts(counts.errors, counts.warnings),
+              'workbench.actions.view.problems',
+            ),
             onTap: () => _togglePanel(IdePanelTab.problems),
           );
         }(),
@@ -2972,7 +3015,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               (_selectionLength > 0
                   ? ' ${l10n.wbSelectedCount(_selectionLength)}'
                   : ''),
-          tooltip: l10n.wbGoToLineColumn,
+          tooltip: keys.titleWithKeybinding(
+            l10n.wbGoToLineColumn,
+            'workbench.action.gotoLine',
+          ),
           onTap: () => _showQuickInput(':'),
         ),
         IdeStatusBarItem(
@@ -3094,12 +3140,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 class _CommandCenter extends StatefulWidget {
   const _CommandCenter({
     required this.label,
-    required this.shortcut,
+    required this.tooltip,
     required this.onTap,
   });
 
   final String label;
-  final String shortcut;
+
+  /// `Search monad (⌘P)`: upstream's `CommandCenterCenterViewItem
+  /// .getTooltip` (commandCenterControl.ts), but the window title after it.
+  final String tooltip;
   final VoidCallback onTap;
 
   @override
@@ -3116,45 +3165,48 @@ class _CommandCenterState extends State<_CommandCenter> {
         colors[_hover
             ? 'commandCenter.activeForeground'
             : 'commandCenter.foreground'];
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 380, minWidth: 160),
-          height: 22,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          // `.command-center-center` (titlebarpart.css).
-          decoration: BoxDecoration(
-            color:
-                colors[_hover
-                    ? 'commandCenter.activeBackground'
-                    : 'commandCenter.background'],
-            borderRadius: BorderRadius.circular(5),
-            border: Border.all(
+    return IdeHover(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 380, minWidth: 160),
+            height: 22,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            // `.command-center-center` (titlebarpart.css).
+            decoration: BoxDecoration(
               color:
                   colors[_hover
-                      ? 'commandCenter.activeBorder'
-                      : 'commandCenter.border'],
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Codicons.search, size: 14, color: foreground),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: foreground),
-                ),
+                      ? 'commandCenter.activeBackground'
+                      : 'commandCenter.background'],
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(
+                color:
+                    colors[_hover
+                        ? 'commandCenter.activeBorder'
+                        : 'commandCenter.border'],
               ),
-            ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Codicons.search, size: 14, color: foreground),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: foreground),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

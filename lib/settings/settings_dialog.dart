@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
@@ -281,7 +282,9 @@ class _CloseButtonState extends State<_CloseButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    // The workbench hover, as the app's other buttons have. Escape closes
+    // the dialog too, but is no keybinding of a command: not shown.
+    return IdeHover(
       message: widget.tooltip,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,

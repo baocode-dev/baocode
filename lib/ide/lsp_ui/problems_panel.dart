@@ -19,6 +19,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
+import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
@@ -235,6 +236,9 @@ class IdeBottomPanel extends StatelessWidget {
         final total = counts.errors + counts.warnings + counts.infos;
         // `panelTitle.border`: under the title in high contrast themes.
         final titleBorder = themeColors.get('panelTitle.border');
+        // A tab's hover: its view's name and the keys showing it, as the
+        // activity bar's (compositeBarActions.ts `computeTitle`).
+        final keys = KeybindingService.instance;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -257,12 +261,17 @@ class IdeBottomPanel extends StatelessWidget {
                         children: [
                           _Tab(
                             label: context.l10n.panelProblems,
+                            tooltip: keys.titleWithKeybinding(
+                              context.l10n.idePanelProblems,
+                              'workbench.actions.view.problems',
+                            ),
                             badge: total == 0 ? null : '$total',
                             selected: tab == IdePanelTab.problems,
                             onTap: () => onTab(IdePanelTab.problems),
                           ),
                           _Tab(
                             label: context.l10n.panelReferences,
+                            tooltip: context.l10n.idePanelReferences,
                             badge: references == null
                                 ? null
                                 : '${references!.locations.length}',
@@ -272,6 +281,10 @@ class IdeBottomPanel extends StatelessWidget {
                           if (terminal != null)
                             _Tab(
                               label: context.l10n.panelTerminal,
+                              tooltip: keys.titleWithKeybinding(
+                                context.l10n.idePanelTerminal,
+                                'workbench.action.terminal.toggleTerminal',
+                              ),
                               selected: tab == IdePanelTab.terminal,
                               onTap: () => onTab(IdePanelTab.terminal),
                             ),
@@ -282,7 +295,17 @@ class IdeBottomPanel extends StatelessWidget {
                   if (tab == IdePanelTab.terminal) ?terminalActions,
                   IdeActionButton(
                     icon: Codicons.close,
-                    tooltip: context.l10n.panelClose,
+                    // Upstream's is Toggle Panel's (`MenuId.PanelTitle`,
+                    // panelActions.ts): its keys, else Hide Panel's.
+                    tooltip: switch (keys.labelFor(
+                      'workbench.action.togglePanel',
+                    )) {
+                      final toggle? => '${context.l10n.panelClose} ($toggle)',
+                      null => keys.titleWithKeybinding(
+                        context.l10n.panelClose,
+                        'workbench.action.closePanel',
+                      ),
+                    },
                     onPressed: onClose,
                   ),
                   const SizedBox(width: 4),
@@ -422,12 +445,16 @@ class IdeBottomPanel extends StatelessWidget {
 class _Tab extends StatelessWidget {
   const _Tab({
     required this.label,
+    required this.tooltip,
     required this.selected,
     required this.onTap,
     this.badge,
   });
 
   final String label;
+
+  /// Its view's name (not upper-cased) and keybinding.
+  final String tooltip;
   final String? badge;
   final bool selected;
   final VoidCallback onTap;
@@ -435,55 +462,58 @@ class _Tab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = themeColors;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: selected
-                    ? colors['panelTitle.activeBorder']
-                    : Colors.transparent,
+    return IdeHover(
+      message: tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: selected
+                      ? colors['panelTitle.activeBorder']
+                      : Colors.transparent,
+                ),
               ),
             ),
-          ),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  letterSpacing: 0.3,
-                  color:
-                      colors[selected
-                          ? 'panelTitle.activeForeground'
-                          : 'panelTitle.inactiveForeground'],
-                ),
-              ),
-              if (badge != null) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
-                  decoration: BoxDecoration(
-                    color: colors['panelTitleBadge.background'],
-                    borderRadius: BorderRadius.circular(8),
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    letterSpacing: 0.3,
+                    color:
+                        colors[selected
+                            ? 'panelTitle.activeForeground'
+                            : 'panelTitle.inactiveForeground'],
                   ),
-                  child: Text(
-                    badge!,
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      color: colors['panelTitleBadge.foreground'],
+                ),
+                if (badge != null) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    decoration: BoxDecoration(
+                      color: colors['panelTitleBadge.background'],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      badge!,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: colors['panelTitleBadge.foreground'],
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../ide/ide_hover.dart';
 import '../../kernel/kernel_types.dart';
 import '../../keybindings/chat_keybindings.dart';
 import '../../l10n/l10n.dart';
@@ -291,11 +292,55 @@ class _InteractionPanelState extends State<InteractionPanel>
     PlanReviewRequest() => (Icons.checklist_rounded, CursorColors.accent),
   };
 
+  /// The context keys where the options' keys apply: they have the focus.
+  static const _optionsKeys = {ChatContextKeys.inInteraction: true};
+
+  /// Those where a tool's Accept and Skip apply.
+  static const _toolKeys = {ChatContextKeys.hasToolConfirmation: true};
+
+  /// The keys under the options, as the keybindings have them now: the
+  /// digits (not a keybinding), then those that go on and dismiss, each
+  /// gone when unbound.
+  String _keysHint(AppLocalizations l10n) => [
+    l10n.interactionHintChoose,
+    if (ChatKeys.keyLabel(ChatCommandIds.interactionAccept, _optionsKeys)
+        case final keys?)
+      l10n.interactionHintContinue(keys),
+    if (ChatKeys.keyLabel(ChatCommandIds.interactionDismiss, _optionsKeys)
+        case final keys?)
+      l10n.interactionHintSkip(keys),
+  ].join(' · ');
+
+  /// The dismiss button's hover: a tool's Deny with Skip's keys, as
+  /// upstream's tool confirmation titles its Skip; else Dismiss's.
+  String _dismissTooltip(String label) => widget.request is ApprovalRequest
+      ? ChatKeys.titleWithKey(label, ChatCommandIds.skipTool, _toolKeys)
+      : ChatKeys.titleWithKey(
+          label,
+          ChatCommandIds.interactionDismiss,
+          _optionsKeys,
+        );
+
+  /// Option [index]'s hover: a tool's Allow Once has Accept's keys, which
+  /// do the same; the others, none.
+  String? _optionTooltip(int index, _Row row) =>
+      widget.request is ApprovalRequest && index == 0
+      ? ChatKeys.titleWithKey(row.label, ChatCommandIds.acceptTool, _toolKeys)
+      : null;
+
   @override
   Widget build(BuildContext context) {
     final step = _current;
     final total = _steps.length;
     final (icon, color) = _icon;
+    final dismiss = switch (widget.request) {
+      QuestionRequest() => context.l10n.interactionSkip,
+      ApprovalRequest() => context.l10n.interactionDeny,
+      PlanReviewRequest() => context.l10n.interactionKeepPlanning,
+    };
+    final submit = _isLast
+        ? context.l10n.interactionSubmit
+        : context.l10n.interactionNext;
     return Focus(
       focusNode: _focusNode,
       onKeyEvent: _handleKey,
@@ -405,6 +450,7 @@ class _InteractionPanelState extends State<InteractionPanel>
                           onTextSubmitted: _advance,
                           onTextEscape: _focusNode.requestFocus,
                           onHover: () => setState(() => _highlighted = i),
+                          tooltip: _optionTooltip(i, step.rows[i]),
                           onTap: () {
                             _focusNode.requestFocus();
                             _pick(i);
@@ -418,7 +464,7 @@ class _InteractionPanelState extends State<InteractionPanel>
                   children: [
                     Expanded(
                       child: Text(
-                        context.l10n.interactionKeysHint,
+                        _keysHint(context.l10n),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -429,19 +475,19 @@ class _InteractionPanelState extends State<InteractionPanel>
                     ),
                     const SizedBox(width: 8),
                     PanelButton(
-                      label: switch (widget.request) {
-                        QuestionRequest() => context.l10n.interactionSkip,
-                        ApprovalRequest() => context.l10n.interactionDeny,
-                        PlanReviewRequest() =>
-                          context.l10n.interactionKeepPlanning,
-                      },
+                      label: dismiss,
+                      tooltip: _dismissTooltip(dismiss),
                       onTap: _dismiss,
                     ),
                     const SizedBox(width: 6),
+                    // Enter goes on as it does, a pick made.
                     PanelButton(
-                      label: _isLast
-                          ? context.l10n.interactionSubmit
-                          : context.l10n.interactionNext,
+                      label: submit,
+                      tooltip: ChatKeys.titleWithKey(
+                        submit,
+                        ChatCommandIds.interactionAccept,
+                        _optionsKeys,
+                      ),
                       primary: true,
                       onTap: _picks[_step].isEmpty ? null : _advance,
                     ),
@@ -495,6 +541,7 @@ class _OptionRow extends StatelessWidget {
     required this.onTextEscape,
     required this.onHover,
     required this.onTap,
+    this.tooltip,
   });
 
   final int index;
@@ -509,8 +556,25 @@ class _OptionRow extends StatelessWidget {
   final VoidCallback onHover;
   final VoidCallback onTap;
 
+  /// Its hover (a list row's, by the pointer), e.g. with the keys that pick
+  /// it; none when null.
+  final String? tooltip;
+
   @override
   Widget build(BuildContext context) {
+    final option = _buildOption(context);
+    return switch (tooltip) {
+      final tooltip? => IdeHover(
+        message: tooltip,
+        followMouse: true,
+        excludeFromSemantics: true,
+        child: option,
+      ),
+      null => option,
+    };
+  }
+
+  Widget _buildOption(BuildContext context) {
     final hint = row.textHint;
     final colors = themeColors;
     // As upstream's question list: hover, then the selection; high contrast
@@ -835,14 +899,31 @@ class PanelButton extends StatelessWidget {
     required this.label,
     this.onTap,
     this.primary = false,
+    this.tooltip,
   });
 
   final String label;
   final VoidCallback? onTap;
   final bool primary;
 
+  /// Its hover, e.g. [label] with the keys that do the same (`Submit
+  /// (Enter)`); none when null.
+  final String? tooltip;
+
   @override
   Widget build(BuildContext context) {
+    final button = _buildButton();
+    return switch (tooltip) {
+      final tooltip? => IdeHover(
+        message: tooltip,
+        excludeFromSemantics: true,
+        child: button,
+      ),
+      null => button,
+    };
+  }
+
+  Widget _buildButton() {
     final enabled = onTap != null;
     final colors = themeColors;
     // A button as upstream's: primary or secondary; dimmed when disabled.

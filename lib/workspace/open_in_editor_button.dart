@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../chat/chat_keys.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../ide/ide_hover.dart';
+import '../keybindings/chat_keybindings.dart';
 import '../l10n/l10n.dart';
 import '../sidebar/sidebar_menu.dart';
 import '../theme/cursor_theme.dart';
@@ -40,6 +42,9 @@ class OpenInEditorButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final editor = workspace.preferredEditor;
+    final open = context.l10n.workspaceOpenIn(
+      editor.localizedPlatformLabel(context.l10n),
+    );
     return SidebarMenu(
       width: 200,
       placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
@@ -68,9 +73,16 @@ class OpenInEditorButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _Segment(
-              semanticsLabel: context.l10n.workspaceOpenIn(
-                editor.localizedPlatformLabel(context.l10n),
-              ),
+              semanticsLabel: open,
+              // The Fast Ide's with the keys of Open in Fast Ide, which
+              // does the same; an app's has none.
+              tooltip: editor == Editor.fastIde
+                  ? ChatKeys.titleWithKey(
+                      open,
+                      ChatCommandIds.openIde,
+                      ChatKeys.chatLayout,
+                    )
+                  : open,
               onTap: () => _open(editor),
               padding: const EdgeInsets.only(left: 7, right: 7),
               borderRadius: const BorderRadius.horizontal(
@@ -117,10 +129,14 @@ class _Segment extends StatelessWidget {
     required this.padding,
     required this.borderRadius,
     required this.child,
+    this.tooltip,
     this.active = false,
   });
 
   final String semanticsLabel;
+
+  /// Its hover's text: [semanticsLabel] by default.
+  final String? tooltip;
   final VoidCallback onTap;
   final EdgeInsets padding;
   final BorderRadius borderRadius;
@@ -130,7 +146,7 @@ class _Segment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IdeHover(
-      message: semanticsLabel,
+      message: tooltip ?? semanticsLabel,
       excludeFromSemantics: true,
       child: Semantics(
         button: true,

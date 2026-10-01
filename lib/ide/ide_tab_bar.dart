@@ -428,8 +428,18 @@ class _TabState extends State<_Tab> {
                           cursor: SystemMouseCursors.click,
                           onEnter: (_) => setState(() => _closeHover = true),
                           onExit: (_) => setState(() => _closeHover = false),
+                          // Close Editor's keys, on the active tab's only:
+                          // they close that one (a deviation: upstream's
+                          // `redrawTabAction`, multiEditorTabsControl.ts,
+                          // has them on every tab's).
                           child: IdeHover(
-                            message: context.l10n.tabCloseNamed(doc.title),
+                            message: active
+                                ? KeybindingService.instance
+                                      .titleWithKeybinding(
+                                        context.l10n.tabCloseNamed(doc.title),
+                                        'workbench.action.closeActiveEditor',
+                                      )
+                                : context.l10n.tabCloseNamed(doc.title),
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
                               onTap: widget.onClose,

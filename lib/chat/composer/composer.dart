@@ -258,6 +258,17 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
   /// empty dock composer; Tab takes it.
   String? _suggestion;
 
+  /// The key that takes it, as the keybindings have it now: shown after
+  /// it; none when unbound.
+  String? _suggestionKey;
+
+  /// The context keys where the suggested prompt's key applies.
+  static const _suggestionKeyContext = {
+    ChatContextKeys.inChatInput: true,
+    ChatContextKeys.hasPromptSuggestion: true,
+    ChatContextKeys.inputHasText: false,
+  };
+
   void _acceptSuggestion() {
     final suggestion = _suggestion;
     if (suggestion == null) return;
@@ -749,9 +760,18 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
     final suggestion = widget.onSubmit == null
         ? widget.session.promptSuggestion
         : null;
-    if (suggestion != _suggestion) {
+    // Its key follows the keybindings (the window builds again when they
+    // change).
+    final suggestionKey = suggestion == null
+        ? null
+        : ChatKeys.keyLabel(
+            ChatCommandIds.acceptPromptSuggestion,
+            _suggestionKeyContext,
+          );
+    if (suggestion != _suggestion || suggestionKey != _suggestionKey) {
       _suggestion = suggestion;
-      _editor = null; // The placeholder shows it.
+      _suggestionKey = suggestionKey;
+      _editor = null; // The placeholder shows them.
     }
     final colors = themeColors;
     if (!identical(colors, _editorColors)) {
@@ -992,9 +1012,12 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
       scrollController: _scrollController,
       config: QuillEditorConfig(
         editorKey: _editorKey,
-        placeholder: switch (_suggestion) {
-          final suggestion? => context.l10n.composerTabToAccept(suggestion),
-          null => context.l10n.composerPlaceholder,
+        // A suggested prompt, then the key that takes it as the keybindings
+        // label it (`Tab`); alone when it has none.
+        placeholder: switch ((_suggestion, _suggestionKey)) {
+          (final suggestion?, final key?) => '$suggestion    $key',
+          (final suggestion?, null) => suggestion,
+          (null, _) => context.l10n.composerPlaceholder,
         },
         minHeight: _minEditorHeight,
         maxHeight: _maxEditorHeight(context),
@@ -1050,6 +1073,10 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
     final permission = session.permissions;
     final model = session.models;
     final context = session.context;
+    final l10n = this.context.l10n;
+    // The pickers' and the ring's hovers, with the keys that do the same in
+    // the input.
+    const input = {ChatContextKeys.inChatInput: true};
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
       child: Row(
@@ -1077,6 +1104,11 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
                       options: mode.options,
                       selected: mode.selected,
                       emphasized: true,
+                      tooltip: ChatKeys.titleWithKey(
+                        l10n.composerSetMode,
+                        ChatCommandIds.openModePicker,
+                        input,
+                      ),
                       tapRegionGroupId: widget.tapRegionGroupId,
                       focusNode: _focusNode,
                       onSelected: mode.onSelected,
@@ -1088,9 +1120,7 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
                       options: permission.options,
                       selected: permission.selected,
                       // `context` is the session's here.
-                      title: this.context.l10n.composerApprovalTitle(
-                        session.kernel.label,
-                      ),
+                      title: l10n.composerApprovalTitle(session.kernel.label),
                       menuWidth: 290,
                       tapRegionGroupId: widget.tapRegionGroupId,
                       focusNode: _focusNode,
@@ -1106,6 +1136,11 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
                       label: _modelLabel(model.selected),
                       describes: false,
                       settingsOf: (option) => session.modelSettings(option.id),
+                      tooltip: ChatKeys.titleWithKey(
+                        l10n.composerPickModel,
+                        ChatCommandIds.openModelPicker,
+                        input,
+                      ),
                       menuWidth: 220,
                       tapRegionGroupId: widget.tapRegionGroupId,
                       focusNode: _focusNode,
@@ -1123,6 +1158,12 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
             _ContextRing(
               fraction: usage.fraction,
               active: widget.contextPanelOpen,
+              // Toggle Context Panel's, which has none by default.
+              tooltip: ChatKeys.titleWithKey(
+                l10n.composerContextUsage,
+                ChatCommandIds.toggleContextPanel,
+                const {...input, ChatContextKeys.inChat: true},
+              ),
               onTap: onToggle,
             ),
             const SizedBox(width: 2),
@@ -1144,18 +1185,20 @@ class _ContextRing extends StatelessWidget {
   const _ContextRing({
     required this.fraction,
     required this.active,
+    required this.tooltip,
     required this.onTap,
   });
 
   final double fraction;
   final bool active;
+  final String tooltip;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = themeColors;
     return IdeHover(
-      message: context.l10n.composerContextUsage,
+      message: tooltip,
       child: HoverBuilder(
         cursor: SystemMouseCursors.click,
         builder: (context, hovered) => GestureDetector(

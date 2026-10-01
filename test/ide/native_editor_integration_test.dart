@@ -184,7 +184,7 @@ void main() {
     await tester.tap(find.byTooltip('Toggle replace'));
     await tester.pump();
     await tester.enterText(find.byType(TextField).last, 'two');
-    await tester.tap(find.byTooltip('Replace all'));
+    await tester.tap(find.byTooltip('Replace all (Ctrl+Alt+Enter)'));
     await tester.pump();
     expect(workspace.active!.text, 'two\r\ntwo two');
     expect(_controller(tester).value.text, 'two\r\ntwo two');
@@ -374,7 +374,7 @@ void main() {
       await tester.pump();
       expect(find.text('2 of 2'), findsOneWidget);
       expect(_controller(tester).value.selection.start, 12);
-      await tester.tap(find.byTooltip('Next match'));
+      await tester.tap(find.byTooltip('Next match (Enter)'));
       await tester.pump();
       final controller = _controller(tester);
       expect(
@@ -392,7 +392,7 @@ void main() {
       expect(controller.value.text, 'a\t😀\npin needle');
       expect(find.text('? of 1'), findsOneWidget);
       expect(workspace.active!.model.canUndo, isTrue);
-      await tester.tap(find.byTooltip('Close find'));
+      await tester.tap(find.byTooltip('Close find (Escape)'));
       await tester.pump();
       expect(find.byType(TextField), findsNothing);
       expect(tester.testTextInput.hasAnyClients, isTrue);
@@ -473,7 +473,7 @@ void main() {
     await tester.pump();
     await tester.enterText(find.byType(TextField), 'needle');
     await tester.pump();
-    await tester.tap(find.byTooltip('Next match'));
+    await tester.tap(find.byTooltip('Next match (Enter)'));
     await tester.pump();
     await tester.pump();
     expect(find.text('1 of 1'), findsOneWidget);

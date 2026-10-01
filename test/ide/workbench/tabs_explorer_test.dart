@@ -136,13 +136,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(_tabNames(tester), ['a.dart', 'b.dart', 'c.dart']);
 
-    // Middle-click closes; the close button closes the active tab.
+    // Middle-click closes; the close button closes the active tab, whose
+    // tooltip has Close Editor's keys.
     await tester.tap(_tab('a.dart'), buttons: kMiddleMouseButton);
     await tester.pumpAndSettle();
     expect(_tabNames(tester), ['b.dart', 'c.dart']);
-    await tester.tap(find.byTooltip('Close c.dart'));
+    await tester.tap(find.byTooltip('Close c.dart (Ctrl+W)'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Close b.dart'));
+    await tester.tap(find.byTooltip('Close b.dart (Ctrl+W)'));
     await tester.pumpAndSettle();
     expect(workspace.documents, isEmpty);
     expect(find.byType(IdeWelcome), findsOneWidget);

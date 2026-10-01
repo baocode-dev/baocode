@@ -10,6 +10,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
+import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
 import '../theme/cursor_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
@@ -1382,28 +1383,38 @@ class _JumpToBottomButton extends StatelessWidget {
         child: AnimatedSlide(
           offset: visible ? Offset.zero : const Offset(0, 0.4),
           duration: const Duration(milliseconds: 150),
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: onTap,
-              child: Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: CursorColors.surfaceRaised,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: CursorColors.borderStrong),
-                  boxShadow: [
-                    BoxShadow(
-                      color: themeColors['widget.shadow'],
-                      blurRadius: 12,
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.arrow_downward_rounded,
-                  size: 15,
-                  color: CursorColors.text,
+          // With the key that does the same in the conversation (End: the
+          // list's Focus Last).
+          child: IdeHover(
+            message: ChatKeys.titleWithKey(
+              context.l10n.cmdTerminalScrollToBottom,
+              'list.focusLast',
+              const {'listFocus': true, 'inputFocus': false},
+            ),
+            position: IdeHoverPosition.above,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: onTap,
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: CursorColors.surfaceRaised,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: CursorColors.borderStrong),
+                    boxShadow: [
+                      BoxShadow(
+                        color: themeColors['widget.shadow'],
+                        blurRadius: 12,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.arrow_downward_rounded,
+                    size: 15,
+                    color: CursorColors.text,
+                  ),
                 ),
               ),
             ),

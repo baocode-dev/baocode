@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../ide/ide_hover.dart';
 import '../../kernel/kernel_types.dart';
+import '../../keybindings/chat_keybindings.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
+import '../chat_keys.dart';
 import 'panel_card.dart';
 
 /// Modal area, opened from the composer ring: what fills the context
@@ -88,14 +91,23 @@ class ContextUsagePanel extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          GestureDetector(
-            onTap: onClose,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Icon(
-                Icons.close_rounded,
-                size: 15,
-                color: CursorColors.textMuted,
+          // With the keys of Toggle Context Panel, which closes it too
+          // (none by default).
+          IdeHover(
+            message: ChatKeys.titleWithKey(
+              l10n.commonClose,
+              ChatCommandIds.toggleContextPanel,
+              const {ChatContextKeys.inChat: true},
+            ),
+            child: GestureDetector(
+              onTap: onClose,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 15,
+                  color: CursorColors.textMuted,
+                ),
               ),
             ),
           ),

@@ -886,6 +886,9 @@ class IdeSearchViewState extends State<IdeSearchView>
   Widget build(BuildContext context) {
     final session = _session;
     final anyExpanded = session.anyExpanded;
+    // The title's actions are the view's commands: their keybindings in
+    // their tooltips (searchActionsTopBar.ts, in `MenuId.ViewTitle`).
+    final keys = KeybindingService.instance;
     return ColoredBox(
       color: CursorColors.sidebarSurface,
       child: Column(
@@ -896,14 +899,20 @@ class IdeSearchViewState extends State<IdeSearchView>
             actions: [
               IdePaneAction(
                 icon: Codicons.refresh,
-                tooltip: context.l10n.commonRefresh,
+                tooltip: keys.titleWithKeybinding(
+                  context.l10n.commonRefresh,
+                  'search.action.refreshSearchResults',
+                ),
                 onPressed: session.query.text.isEmpty
                     ? null
                     : () => session.search(_root),
               ),
               IdePaneAction(
                 icon: Codicons.clearAll,
-                tooltip: context.l10n.searchClearResults,
+                tooltip: keys.titleWithKeybinding(
+                  context.l10n.searchClearResults,
+                  'search.action.clearSearchResults',
+                ),
                 onPressed: session.query.text.isEmpty && session.results.isEmpty
                     ? null
                     : session.clear,
@@ -911,8 +920,14 @@ class IdeSearchViewState extends State<IdeSearchView>
               IdePaneAction(
                 icon: anyExpanded ? Codicons.collapseAll : Codicons.expandAll,
                 tooltip: anyExpanded
-                    ? context.l10n.commonCollapseAll
-                    : context.l10n.commonExpandAll,
+                    ? keys.titleWithKeybinding(
+                        context.l10n.commonCollapseAll,
+                        'search.action.collapseSearchResults',
+                      )
+                    : keys.titleWithKeybinding(
+                        context.l10n.commonExpandAll,
+                        'search.action.expandSearchResults',
+                      ),
                 onPressed: session.results.isEmpty
                     ? null
                     : session.toggleCollapseAll,
@@ -1404,7 +1419,11 @@ class _ToggleDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => IdeHover(
-    message: context.l10n.searchToggleDetails,
+    // `appendKeybinding` (searchView.ts `renderQueryDetails`).
+    message: KeybindingService.instance.titleWithKeybinding(
+      context.l10n.searchToggleDetails,
+      'workbench.action.search.toggleQueryDetails',
+    ),
     child: Semantics(
       button: true,
       expanded: expanded,

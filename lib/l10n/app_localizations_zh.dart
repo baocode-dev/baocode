@@ -93,6 +93,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdCategoryList => '列表';
 
   @override
+  String get composerSetMode => '设置模式';
+
+  @override
+  String get composerPickModel => '选择模型';
+
+  @override
+  String get interactionHintChoose => '1-9 选择';
+
+  @override
+  String interactionHintContinue(String keybinding) {
+    return '$keybinding 继续';
+  }
+
+  @override
+  String interactionHintSkip(String keybinding) {
+    return '$keybinding 跳过';
+  }
+
+  @override
   String get cmdCategoryChat => '聊天';
 
   @override
@@ -206,6 +225,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdOpenFilePreserveFocus => '打开文件并保留焦点';
+
+  @override
+  String ideSearchProject(String name) {
+    return '搜索 $name';
+  }
+
+  @override
+  String get idePanelProblems => '问题';
+
+  @override
+  String get idePanelReferences => '引用';
+
+  @override
+  String get idePanelTerminal => '终端';
 
   @override
   String get cmdScmFocus => '聚焦到“更改”视图';
@@ -1675,11 +1708,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get composerPlaceholder => '规划、搜索、构建任何内容  ·  @ 提及  / 命令';
 
   @override
-  String composerTabToAccept(String suggestion) {
-    return '$suggestion    ⇥ Tab';
-  }
-
-  @override
   String composerApprovalTitle(String agent) {
     return '$agent 应如何获得批准？';
   }
@@ -1826,9 +1854,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String interactionStepOf(int step, int total) {
     return '$step / $total';
   }
-
-  @override
-  String get interactionKeysHint => '1-9 选择 · ↵ 继续 · esc 跳过';
 
   @override
   String get interactionSkip => '跳过';

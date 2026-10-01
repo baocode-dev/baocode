@@ -4,13 +4,14 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../chat/chat_keys.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../chat/widgets/inline_rename_field.dart';
 import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
+import '../keybindings/chat_keybindings.dart';
 import '../keybindings/default_keybindings.dart' show openSettingsCommandId;
-import '../keybindings/keybinding_service.dart';
 import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
@@ -366,6 +367,7 @@ class _SidebarState extends State<Sidebar> {
             SidebarIconButton(
               icon: Codicons.layoutSidebarLeft,
               tooltip: context.l10n.windowHideSidebar,
+              command: 'workbench.action.toggleSidebarVisibility',
               onTap: widget.onCollapse,
             ),
             const SizedBox(width: 6),
@@ -531,12 +533,8 @@ class _SidebarState extends State<Sidebar> {
             const SizedBox(width: 4),
             SidebarIconButton(
               icon: Codicons.settingsGear,
-              tooltip: switch (KeybindingService.instance.labelFor(
-                openSettingsCommandId,
-              )) {
-                final shortcut? => '${context.l10n.settingsTitle} ($shortcut)',
-                null => context.l10n.settingsTitle,
-              },
+              tooltip: context.l10n.settingsTitle,
+              command: openSettingsCommandId,
               onTap: settings,
             ),
           ],
@@ -611,36 +609,47 @@ class _NewAgentButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The agent sessions window's New Session button.
+    // The agent sessions window's New Session button; its hover with the
+    // keys of New Agent, which does the same (a folder first, without one).
     final colors = themeColors;
     final foreground = colors['agentsNewSessionButton.foreground'];
-    return HoverBuilder(
-      cursor: SystemMouseCursors.click,
-      builder: (context, hovered) => GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          height: 30,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color:
-                colors[hovered
-                    ? 'agentsNewSessionButton.hoverBackground'
-                    : 'agentsNewSessionButton.background'],
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: colors['agentsNewSessionButton.border']),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.add_rounded, size: 16, color: foreground),
-              SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  context.l10n.sidebarNewAgent,
-                  style: TextStyle(color: foreground, fontSize: 12.5),
-                ),
+    return IdeHover(
+      message: ChatKeys.titleWithKey(
+        context.l10n.sidebarNewAgent,
+        ChatCommandIds.newChat,
+        ChatKeys.chatLayout,
+      ),
+      excludeFromSemantics: true,
+      child: HoverBuilder(
+        cursor: SystemMouseCursors.click,
+        builder: (context, hovered) => GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            height: 30,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color:
+                  colors[hovered
+                      ? 'agentsNewSessionButton.hoverBackground'
+                      : 'agentsNewSessionButton.background'],
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: colors['agentsNewSessionButton.border'],
               ),
-            ],
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.add_rounded, size: 16, color: foreground),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    context.l10n.sidebarNewAgent,
+                    style: TextStyle(color: foreground, fontSize: 12.5),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -656,9 +665,10 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // An input box.
+    // An input box; its hover with the keys that focus it, as upstream's
+    // command center has (`Search monad (⌘P)`).
     final colors = themeColors;
-    return SizedBox(
+    final box = SizedBox(
       height: 28,
       child: CallbackShortcuts(
         bindings: {
@@ -714,6 +724,15 @@ class _SearchField extends StatelessWidget {
           ),
         ),
       ),
+    );
+    return IdeHover(
+      message: ChatKeys.titleWithKey(
+        context.l10n.cmdChatSearchAgents,
+        ChatCommandIds.searchAgents,
+        ChatKeys.chatLayout,
+      ),
+      excludeFromSemantics: true,
+      child: box,
     );
   }
 }
@@ -1092,18 +1111,35 @@ class SidebarIconButton extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     this.size = 24,
+    this.command,
+    this.keyContext = ChatKeys.chatLayout,
   });
 
   final IconData icon;
+
+  /// What it does: its label, and its hover's text.
   final String tooltip;
   final VoidCallback onTap;
   final double size;
 
+  /// The command it runs, if a keybinding can run it too: its hover adds
+  /// the key, as the keybindings have it now (`Hide sidebar (⌘B)`).
+  final String? command;
+
+  /// The context keys where it is, which pick the keybinding shown: the
+  /// chat layout's by default.
+  final Map<String, Object> keyContext;
+
   @override
   Widget build(BuildContext context) {
-    // The workbench hover, as the IDE's action buttons have.
+    // The workbench hover, as the IDE's action buttons have, titled as
+    // upstream's action bar items are (actionViewItems.ts `getTooltip`,
+    // `titleAndKb`); the label without the key.
     return IdeHover(
-      message: tooltip,
+      message: switch (command) {
+        final command? => ChatKeys.titleWithKey(tooltip, command, keyContext),
+        null => tooltip,
+      },
       excludeFromSemantics: true,
       child: Semantics(
         button: true,

@@ -68,6 +68,38 @@
   "@cmdCategoryList": {
     "description": "Command category."
   },
+  "composerSetMode": "Set Mode",
+  "@composerSetMode": {
+    "description": "Hover of the chat input's mode picker, followed by its keybinding."
+  },
+  "composerPickModel": "Pick Model",
+  "@composerPickModel": {
+    "description": "Hover of the chat input's model picker, followed by its keybinding."
+  },
+  "interactionHintChoose": "1-9 to choose",
+  "@interactionHintChoose": {
+    "description": "Key hint under a prompt's options: the digits pick one."
+  },
+  "interactionHintContinue": "{keybinding} to continue",
+  "@interactionHintContinue": {
+    "description": "Key hint under a prompt's options.",
+    "placeholders": {
+      "keybinding": {
+        "type": "String",
+        "example": "Enter"
+      }
+    }
+  },
+  "interactionHintSkip": "{keybinding} to skip",
+  "@interactionHintSkip": {
+    "description": "Key hint under a prompt's options.",
+    "placeholders": {
+      "keybinding": {
+        "type": "String",
+        "example": "Escape"
+      }
+    }
+  },
   "cmdCategoryChat": "Chat",
   "@cmdCategoryChat": {
     "description": "Command category: the chat window's commands."
@@ -122,6 +154,18 @@
   "cmdChatInteractionAccept": "Continue",
   "cmdChatInteractionDismiss": "Dismiss",
   "cmdOpenFilePreserveFocus": "Open File, Keeping the Focus",
+  "ideSearchProject": "Search {name}",
+  "@ideSearchProject": {
+    "description": "The IDE title bar's search box tooltip (VS Code's command center), before its keybinding.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "idePanelProblems": "Problems",
+  "idePanelReferences": "References",
+  "idePanelTerminal": "Terminal",
   "cmdScmFocus": "Focus on Changes View",
   "cmdScmAcceptInput": "Accept Input",
   "cmdScmClearValidation": "Clear Validation",
@@ -900,15 +944,6 @@
     "description": "Suggestion menu title."
   },
   "composerPlaceholder": "Plan, search, build anything  ·  @ to mention  / for commands",
-  "composerTabToAccept": "{suggestion}    ⇥ Tab",
-  "@composerTabToAccept": {
-    "description": "Placeholder showing an inline suggestion accepted with Tab.",
-    "placeholders": {
-      "suggestion": {
-        "type": "String"
-      }
-    }
-  },
   "composerApprovalTitle": "How should {agent} get approval?",
   "@composerApprovalTitle": {
     "placeholders": {
@@ -1065,7 +1100,6 @@
       }
     }
   },
-  "interactionKeysHint": "1-9 to choose · ↵ to continue · esc to skip",
   "interactionSkip": "Skip",
   "interactionKeepPlanning": "Keep planning",
   "interactionSubmit": "Submit",

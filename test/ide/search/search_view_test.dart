@@ -185,7 +185,7 @@ void main() {
     );
     // The search widget's inputs are 2px shorter than the others.
     expect(box('Search').height, 26);
-    final details = find.byTooltip('Toggle Search Details');
+    final details = find.byTooltip('Toggle Search Details (Ctrl+Shift+J)');
     expect(tester.getSize(details), const Size(25, 16));
 
     await tester.tap(details);

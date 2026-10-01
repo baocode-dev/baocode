@@ -229,13 +229,24 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
     return KeyEventResult.ignored;
   }
 
-  /// The keybinding label of [action]'s command, or [fallback] (VS Code's
-  /// default key) without [IdeFindWidget.commandIds].
-  String _shortcut(IdeFindAction action, String fallback) {
+  /// The keybinding label of [action]'s command (null when it has none),
+  /// or [fallback] (VS Code's default key, the built-in keys') without
+  /// [IdeFindWidget.commandIds].
+  String? _shortcut(IdeFindAction action, String? fallback) {
     final id = widget.commandIds?[action];
     if (id == null) return fallback;
-    return KeybindingService.instance.labelFor(id) ?? '';
+    return KeybindingService.instance.labelFor(id);
   }
+
+  /// A control's tooltip: [title] and its [action]'s keys, as upstream's
+  /// find widgets title their buttons and toggles (findWidget.ts
+  /// `_keybindingLabelFor`, simpleFindWidget.ts `_getKeybinding`:
+  /// `Next Match (Enter)`); [title] alone when it has none.
+  String _tooltip(String title, IdeFindAction action, String? fallback) =>
+      switch (_shortcut(action, fallback)) {
+        final keys? => '$title ($keys)',
+        null => title,
+      };
 
   Map<ShortcutActivator, VoidCallback> get _toggleBindings {
     final mac = ideUsesMacKeys;
@@ -253,11 +264,28 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
     final count = widget.matchCount;
     final noResults = count == 0 && widget.findController.text.isNotEmpty;
     final mac = ideUsesMacKeys;
-    String shortcut(LogicalKeyboardKey key) => _shortcut(switch (key) {
-      LogicalKeyboardKey.keyC => IdeFindAction.toggleMatchCase,
-      LogicalKeyboardKey.keyW => IdeFindAction.toggleWholeWord,
-      _ => IdeFindAction.toggleRegex,
-    }, IdeKeybinding(key, alt: true, primary: mac).label());
+    // A control's tooltip; without [IdeFindWidget.commandIds], with the
+    // built-in keys ([_builtInKeys], and the replace input's).
+    IdeKeybinding option(LogicalKeyboardKey key) =>
+        IdeKeybinding(key, alt: true, primary: mac);
+    const enter = LogicalKeyboardKey.enter;
+    String tooltip(String title, IdeFindAction action) => _tooltip(
+      title,
+      action,
+      switch (action) {
+        IdeFindAction.next || IdeFindAction.previous => IdeKeybinding(
+          enter,
+          shift:
+              (action == IdeFindAction.previous) != widget.enterFindsPrevious,
+        ),
+        IdeFindAction.close => const IdeKeybinding(LogicalKeyboardKey.escape),
+        IdeFindAction.toggleMatchCase => option(LogicalKeyboardKey.keyC),
+        IdeFindAction.toggleWholeWord => option(LogicalKeyboardKey.keyW),
+        IdeFindAction.toggleRegex => option(LogicalKeyboardKey.keyR),
+        IdeFindAction.replace => const IdeKeybinding(enter),
+        IdeFindAction.replaceAll => const IdeKeybinding(enter, primary: true),
+      }.label(),
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
         // Narrow editors drop the counter's fixed width (Monaco's 69px).
@@ -267,7 +295,7 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
             borderRadius: BorderRadius.vertical(bottom: Radius.circular(4)),
             boxShadow: IdeHoverColors.shadow,
           ),
-          child: _build(noResults, count, mac, shortcut, counterWidth),
+          child: _build(noResults, count, mac, tooltip, counterWidth),
         );
       },
     );
@@ -277,7 +305,7 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
     bool noResults,
     int count,
     bool mac,
-    String Function(LogicalKeyboardKey) shortcut,
+    String Function(String title, IdeFindAction action) tooltip,
     double counterWidth,
   ) {
     final colors = themeColors;
@@ -290,7 +318,7 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
         canRequestFocus: false,
         skipTraversal: true,
         onKeyEvent: _onKey,
-        child: _body(noResults, count, mac, shortcut, counterWidth, border),
+        child: _body(noResults, count, mac, tooltip, counterWidth, border),
       ),
     );
   }
@@ -314,7 +342,7 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
     bool noResults,
     int count,
     bool mac,
-    String Function(LogicalKeyboardKey) shortcut,
+    String Function(String title, IdeFindAction action) tooltip,
     double counterWidth,
     Color? border,
   ) {
@@ -356,8 +384,10 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
                             error: noResults,
                             toggles: [
                               _InlineToggle(
-                                tooltip: l10n.findMatchCase,
-                                shortcut: shortcut(LogicalKeyboardKey.keyC),
+                                tooltip: tooltip(
+                                  l10n.findMatchCase,
+                                  IdeFindAction.toggleMatchCase,
+                                ),
                                 active: widget.matchCase,
                                 onTap: widget.onToggleMatchCase,
                                 child: const Icon(
@@ -366,15 +396,19 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
                                 ),
                               ),
                               _InlineToggle(
-                                tooltip: l10n.findWholeWord,
-                                shortcut: shortcut(LogicalKeyboardKey.keyW),
+                                tooltip: tooltip(
+                                  l10n.findWholeWord,
+                                  IdeFindAction.toggleWholeWord,
+                                ),
                                 active: widget.wholeWord,
                                 onTap: widget.onToggleWholeWord,
                                 child: const Icon(Codicons.wholeWord, size: 16),
                               ),
                               _InlineToggle(
-                                tooltip: l10n.findRegularExpression,
-                                shortcut: shortcut(LogicalKeyboardKey.keyR),
+                                tooltip: tooltip(
+                                  l10n.findRegularExpression,
+                                  IdeFindAction.toggleRegex,
+                                ),
                                 active: widget.regex,
                                 onTap: widget.onToggleRegex,
                                 child: const Icon(Codicons.regex, size: 16),
@@ -406,17 +440,23 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
                           ),
                         ),
                         _FindButton(
-                          tooltip: l10n.findPreviousMatch,
+                          tooltip: tooltip(
+                            l10n.findPreviousMatch,
+                            IdeFindAction.previous,
+                          ),
                           icon: Codicons.arrowUp,
                           onTap: count == 0 ? null : widget.onPrevious,
                         ),
                         _FindButton(
-                          tooltip: l10n.findNextMatch,
+                          tooltip: tooltip(
+                            l10n.findNextMatch,
+                            IdeFindAction.next,
+                          ),
                           icon: Codicons.arrowDown,
                           onTap: count == 0 ? null : widget.onNext,
                         ),
                         _FindButton(
-                          tooltip: l10n.findClose,
+                          tooltip: tooltip(l10n.findClose, IdeFindAction.close),
                           icon: Codicons.close,
                           onTap: widget.onClose,
                         ),
@@ -456,12 +496,18 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
                             ),
                             const SizedBox(width: 6),
                             _FindButton(
-                              tooltip: l10n.findReplaceMatch,
+                              tooltip: tooltip(
+                                l10n.findReplaceMatch,
+                                IdeFindAction.replace,
+                              ),
                               icon: Codicons.replace,
                               onTap: count == 0 ? null : widget.onReplace,
                             ),
                             _FindButton(
-                              tooltip: l10n.findReplaceAll,
+                              tooltip: tooltip(
+                                l10n.findReplaceAll,
+                                IdeFindAction.replaceAll,
+                              ),
                               icon: Codicons.replaceAll,
                               onTap: count == 0 ? null : widget.onReplaceAll,
                             ),
@@ -598,14 +644,13 @@ class _FindInput extends StatelessWidget {
 class _InlineToggle extends StatefulWidget {
   const _InlineToggle({
     required this.tooltip,
-    required this.shortcut,
     required this.active,
     required this.onTap,
     required this.child,
   });
 
+  /// Its title and keybinding: also what screen readers announce.
   final String tooltip;
-  final String shortcut;
   final bool active;
   final VoidCallback onTap;
   final Widget child;
@@ -628,7 +673,6 @@ class _InlineToggleState extends State<_InlineToggle> {
       child: Semantics(
         toggled: active,
         button: true,
-        label: '${widget.tooltip} (${widget.shortcut})',
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           onEnter: (_) => setState(() => _hover = true),
