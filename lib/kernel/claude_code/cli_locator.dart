@@ -13,8 +13,9 @@ class ClaudeCli {
   final String executable;
   final Map<String, String> environment;
 
-  /// Whether starting it goes through the shell: on Windows the CLI is an
-  /// npm `.cmd` shim, which only `cmd.exe` runs.
+  /// Whether starting it goes through the shell, which only `cmd.exe` runs a
+  /// `.cmd` / `.bat` for. Windows runs the native build (see [_candidates]),
+  /// so this is its answer elsewhere.
   bool get throughShell =>
       Platform.isWindows &&
       const {'.cmd', '.bat'}.contains(p.extension(executable).toLowerCase());
@@ -67,16 +68,29 @@ abstract final class CliLocator {
 
   /// Where the CLI usually is: on the PATH first, then where npm and the
   /// installers put it.
+  ///
+  /// On Windows it is the native `claude.exe`, never the npm `.cmd` shim that
+  /// stands beside it. The shim only forwards to that exe, but reaching it
+  /// means `cmd.exe`, which parses the arguments as a command line of its own
+  /// first: `<` and `>` in them are redirections there, and the `--settings`
+  /// JSON carries the angle brackets in BaoCode's own attribution (see
+  /// [ClaudeLaunch.arguments]). A shim is only a fallback for a layout
+  /// [_besideShim] does not know.
   static List<String> _candidates(Map<String, String> environment) {
     final home = AppPaths.home(environment);
     final path = environment['PATH'] ?? '';
     if (Platform.isWindows) {
+      final npm = p.join(environment['APPDATA'] ?? home, 'npm');
       return [
+        // The native build behind each shim on the PATH, and the npm one
+        // where it is not on the PATH itself.
         for (final dir in path.split(';'))
-          if (dir.isNotEmpty)
-            for (final name in const ['claude.cmd', 'claude.exe', 'claude.bat'])
-              p.join(dir, name),
-        p.join(environment['APPDATA'] ?? home, 'npm', 'claude.cmd'),
+          if (dir.isNotEmpty) _besideShim(p.join(dir, 'claude.cmd')),
+        _besideShim(p.join(npm, 'claude.cmd')),
+        // A native build standing on its own.
+        for (final dir in path.split(';'))
+          if (dir.isNotEmpty) p.join(dir, 'claude.exe'),
+        p.join(npm, 'claude.exe'),
         p.join(
           environment['LOCALAPPDATA'] ?? home,
           'Programs',
@@ -96,6 +110,20 @@ abstract final class CliLocator {
       '/usr/local/bin/claude',
     ];
   }
+
+  /// The native build the npm shim at [shim] forwards to, or the shim itself
+  /// when it is not where npm puts it (`bin/` of its package): the shim then
+  /// stands, and only the shell can run it.
+  static String _besideShim(String shim) {
+    final exe = _nativePackageExe(
+      p.join(p.dirname(shim), 'node_modules', '@anthropic-ai', 'claude-code'),
+    );
+    return File(exe).existsSync() ? exe : shim;
+  }
+
+  /// Where the npm package puts its native build.
+  static String _nativePackageExe(String package) =>
+      p.join(package, 'bin', 'claude.exe');
 
   /// Replaces the environment the CLI is found in, and looks again, e.g.
   /// with one set up under test. Null asks the login shell again.

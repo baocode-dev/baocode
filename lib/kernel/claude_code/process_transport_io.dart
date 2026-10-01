@@ -16,15 +16,28 @@ class ProcessTransport implements ClaudeCodeTransport {
     _live.add(this);
     unawaited(registry.add(_process.pid));
     _process.stdout
-        .transform(utf8.decoder)
+        .transform(_decoder)
         .transform(const LineSplitter())
-        .listen(_line, onDone: _stdoutDone);
+        .listen(_line, onError: _undecodable, onDone: _stdoutDone);
     _process.stderr
-        .transform(utf8.decoder)
+        .transform(_decoder)
         .transform(const LineSplitter())
-        .listen(_stderrLine);
+        .listen(_stderrLine, onError: _undecodable);
     unawaited(_process.exitCode.then(_exited));
   }
+
+  /// What both streams are read with, and not strict about it: a line that
+  /// is not UTF-8 takes the replacement character and goes on to [_line],
+  /// which drops it as it would any other line that is not protocol. Strict,
+  /// the decode error would reach the subscription instead and end the
+  /// stream there — and what the CLI printed before it failed is exactly
+  /// what says why (its own errors can carry the console's code page on
+  /// Windows), so the session would end with nothing said of it.
+  static const _decoder = Utf8Decoder(allowMalformed: true);
+
+  /// A read error on either stream: kept as a stderr line, so that it is in
+  /// the report when the process ends.
+  void _undecodable(Object error) => _stderrLine('$error');
 
   /// A transport over [process], e.g. a stand-in process under test.
   @visibleForTesting
