@@ -10,8 +10,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cwchar>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -148,8 +150,7 @@ CaptionAreas::Rect ButtonRect(const flutter::EncodableMap& arguments,
 // (CommandLineToArgvW): backslashes are only literal where no quote follows
 // them, which the closing one does — a drive's root, `C:\`, would otherwise
 // run on into what comes after it.
-std::wstring Quoted(const std::string& argument) {
-  const std::wstring text = Utf16FromUtf8(argument);
+std::wstring Quoted(const std::wstring& text) {
   std::wstring quoted = L"\"";
   size_t backslashes = 0;
   for (const wchar_t c : text) {
@@ -165,6 +166,142 @@ std::wstring Quoted(const std::string& argument) {
   // Before the closing quote, each doubled.
   quoted.append(backslashes * 2, L'\\');
   return quoted + L"\"";
+}
+
+// An argument (quoted already) as cmd.exe is to pass it on unchanged, as
+// node's cross-spawn has it: each character cmd makes something of is
+// escaped (^), the quotes too — escaped, they start no quoted part, inside
+// which % would still be read as a variable.
+std::wstring CmdEscaped(const std::wstring& text) {
+  constexpr std::wstring_view kSpecial = L"()[]%!^\"`<>&|;, *?";
+  std::wstring escaped;
+  for (const wchar_t c : text) {
+    if (kSpecial.find(c) != std::wstring_view::npos) {
+      escaped += L'^';
+    }
+    escaped += c;
+  }
+  return escaped;
+}
+
+// The environment variable |name|; empty when it is not set.
+std::wstring EnvironmentVariable(const wchar_t* name) {
+  const DWORD size = ::GetEnvironmentVariableW(name, nullptr, 0);
+  if (size == 0) {
+    return std::wstring();
+  }
+  std::wstring value(size, L'\0');
+  value.resize(::GetEnvironmentVariableW(name, value.data(), size));
+  return value;
+}
+
+// The parts of |text| between each |separator|, the empty ones left out.
+std::vector<std::wstring> Split(const std::wstring& text, wchar_t separator) {
+  std::vector<std::wstring> parts;
+  size_t start = 0;
+  while (start < text.size()) {
+    size_t end = text.find(separator, start);
+    if (end == std::wstring::npos) {
+      end = text.size();
+    }
+    if (end > start) {
+      parts.push_back(text.substr(start, end - start));
+    }
+    start = end + 1;
+  }
+  return parts;
+}
+
+bool IsFile(const std::wstring& path) {
+  const DWORD attributes = ::GetFileAttributesW(path.c_str());
+  return attributes != INVALID_FILE_ATTRIBUTES &&
+         (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+}
+
+// Whether |path| ends in |extension|, in any case.
+bool HasExtension(const std::wstring& path, std::wstring_view extension) {
+  return path.size() > extension.size() &&
+         ::_wcsicmp(path.c_str() + path.size() - extension.size(),
+                    extension.data()) == 0;
+}
+
+// Where the PATH has the program |name|, as the terminal's lookup has it
+// (see _locate in packages/bao_pty/lib/src/pty_windows.dart): with each of
+// the PATHEXT's extensions first, then as it is — VS Code's folder has a
+// `code` for Unix shells beside the `code.cmd`. Empty when it is not there,
+// or |name| is a path.
+std::wstring FindOnPath(const std::wstring& name) {
+  if (name.find_first_of(L"\\/:") != std::wstring::npos) {
+    return std::wstring();
+  }
+  std::wstring extensions = EnvironmentVariable(L"PATHEXT");
+  if (extensions.empty()) {
+    extensions = L".COM;.EXE;.BAT;.CMD";
+  }
+  std::vector<std::wstring> suffixes = Split(extensions, L';');
+  suffixes.push_back(std::wstring());
+  for (std::wstring folder : Split(EnvironmentVariable(L"PATH"), L';')) {
+    // An entry with a semicolon in it comes quoted.
+    if (folder.size() >= 2 && folder.front() == L'"' &&
+        folder.back() == L'"') {
+      folder = folder.substr(1, folder.size() - 2);
+    }
+    if (folder.empty()) {
+      continue;
+    }
+    if (folder.back() != L'\\' && folder.back() != L'/') {
+      folder += L'\\';
+    }
+    for (const std::wstring& suffix : suffixes) {
+      const std::wstring candidate = folder + name + suffix;
+      if (IsFile(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return std::wstring();
+}
+
+// Starts the program at |path| with |arguments| (each quoted), and no
+// console window: a `.cmd` or `.bat` (VS Code's `code`, Cursor's `cursor`)
+// runs in cmd.exe, whose console flashes up when the shell starts it.
+// False when it is neither a program nor a script, or did not start.
+bool StartWithoutConsole(const std::wstring& path,
+                         const std::vector<std::wstring>& arguments) {
+  std::wstring application;
+  std::wstring command_line;
+  if (HasExtension(path, L".exe") || HasExtension(path, L".com")) {
+    command_line = Quoted(path);
+    for (const std::wstring& argument : arguments) {
+      command_line += L' ' + argument;
+    }
+  } else if (HasExtension(path, L".cmd") || HasExtension(path, L".bat")) {
+    application = EnvironmentVariable(L"ComSpec");
+    if (application.empty()) {
+      return false;
+    }
+    // With /s, only the outer quotes of what follows /c go: inside them,
+    // the script in quotes of its own, then its arguments escaped.
+    command_line = Quoted(application) + L" /d /s /c \"" + Quoted(path);
+    for (const std::wstring& argument : arguments) {
+      command_line += L' ' + CmdEscaped(argument);
+    }
+    command_line += L'"';
+  } else {
+    return false;
+  }
+  STARTUPINFOW startup = {};
+  startup.cb = sizeof(startup);
+  PROCESS_INFORMATION process = {};
+  if (!::CreateProcessW(application.empty() ? nullptr : application.c_str(),
+                        command_line.data(), nullptr, nullptr, FALSE,
+                        CREATE_NO_WINDOW, nullptr, nullptr, &startup,
+                        &process)) {
+    return false;
+  }
+  ::CloseHandle(process.hThread);
+  ::CloseHandle(process.hProcess);
+  return true;
 }
 
 // The work area of the monitor |window| is on: the screen less the taskbar.
@@ -469,29 +606,39 @@ void WindowChannel::Open(
     result->Success(flutter::EncodableValue(false));
     return;
   }
-  // Named an app: the shell finds it by the command the Flutter side uses
-  // (`code`, `wt`…), the way the PATH does for a terminal. When the Flutter
-  // side also passes arguments, those are the whole of what the app is
-  // given (e.g. `wt -d folder`); otherwise the target is what it opens.
-  // Without an app, the target itself is what opens, in whatever the system
-  // opens it with (a URL, a folder, a file).
+  // Named an app: the command the Flutter side uses (`code`, `wt`…), found
+  // on the PATH as a terminal would, and started without a console (see
+  // StartWithoutConsole); the shell is left to find it when that does not
+  // do. When the Flutter side also passes arguments, those are the whole of
+  // what the app is given (e.g. `wt -d folder`); otherwise the target is
+  // what it opens. Without an app, the target itself is what opens, in
+  // whatever the system opens it with (a URL, a folder, a file).
   const std::string app = String(arguments, "app");
-  const std::wstring file = Utf16FromUtf8(app.empty() ? target : app);
   const std::vector<std::string> extras = Strings(arguments, "arguments");
-  std::wstring parameters;
+  std::vector<std::wstring> quoted;
   if (!app.empty()) {
     if (extras.empty()) {
-      parameters = Quoted(target);
+      quoted.push_back(Quoted(Utf16FromUtf8(target)));
     } else {
       for (const std::string& extra : extras) {
-        if (!parameters.empty()) {
-          parameters += L' ';
-        }
-        parameters += Quoted(extra);
+        quoted.push_back(Quoted(Utf16FromUtf8(extra)));
       }
+    }
+    const std::wstring found = FindOnPath(Utf16FromUtf8(app));
+    if (!found.empty() && StartWithoutConsole(found, quoted)) {
+      result->Success(flutter::EncodableValue(true));
+      return;
     }
   }
 
+  const std::wstring file = Utf16FromUtf8(app.empty() ? target : app);
+  std::wstring parameters;
+  for (const std::wstring& argument : quoted) {
+    if (!parameters.empty()) {
+      parameters += L' ';
+    }
+    parameters += argument;
+  }
   const HINSTANCE opened =
       ::ShellExecuteW(nullptr, L"open", file.c_str(),
                       parameters.empty() ? nullptr : parameters.c_str(),

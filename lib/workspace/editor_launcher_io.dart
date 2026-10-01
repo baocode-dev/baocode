@@ -26,9 +26,9 @@ Future<bool> _onMacOS(String path, String? appName) async {
   }
 }
 
-/// The shell opens it, on Windows: `ShellExecute` finds the app on the
-/// PATH (see windows/runner/window_channel.cpp), which is also how a
-/// `.cmd` shim and a console app are started the way they expect.
+/// The window opens it, on Windows: the app found on the PATH, started
+/// without a console — a `.cmd` shim (`code`, `cursor`) through cmd.exe —
+/// or else by `ShellExecute` (see windows/runner/window_channel.cpp).
 Future<bool> _onWindows(String path, Editor? editor) {
   final command = editor?.command;
   if (command == null) return WindowControls.openExternal(path);

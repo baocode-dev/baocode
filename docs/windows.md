@@ -12,7 +12,7 @@ windows/
     flutter_window.cpp       hosts Flutter; wires baocode/window; the window's
                              parts: hit test, move, resize, its buttons
     window_channel.cpp       setAlwaysOnTop, pickDirectory, clipboard,
-                             context menu, ShellExecute open
+                             context menu, open (CreateProcess / ShellExecute)
     caption_areas.*          where Flutter's header and its controls are
     clipboard_images.cpp     CF_HDROP / CF_DIB → PNG for the composer
     context_menu.cpp         TrackPopupMenu for the composer's right click
@@ -34,7 +34,7 @@ lib/
 | `canPaste` | text, HDROP, or DIB on the clipboard |
 | `readPasteboardImages` | image files from HDROP; else DIB→PNG when there is no text |
 | `showContextMenu` | system popup; shortcuts shown as Ctrl+… |
-| `open` | `ShellExecuteW` (PATH finds `code` / `cursor` / `wt`) |
+| `open` | an app (`code` / `cursor` / `wt`) found on PATH + PATHEXT: `CreateProcessW` with `CREATE_NO_WINDOW` (`.cmd` / `.bat` through `cmd.exe /d /s /c`, so no console flashes up); otherwise `ShellExecuteW` |
 
 Edit-menu bridging (`editCommand` / `baocodeSelectAll:` …) is **macOS only**.
 Windows has no app menu bar for those; Flutter handles Ctrl+A/C/V itself
@@ -81,8 +81,9 @@ Default client size 1024×760, minimum 400×540 — same numbers as
 ## Editors in the title bar
 
 `Editor.availableEditors` drops Xcode on Windows. Labels: File Explorer,
-Windows Terminal. Open goes through `ShellExecute` (`wt -d <folder>` for
-Terminal).
+Windows Terminal. Open starts the app found on the PATH without a console
+(`wt -d <folder>` for Terminal), or goes through `ShellExecute` when it is
+not found there.
 
 ## Fonts
 
