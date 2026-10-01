@@ -902,6 +902,24 @@
   "toolSent": "Sent",
   "toolUsing": "Using",
   "toolUsed": "Used",
+  "imageChip": "Image {number}",
+  "@imageChip": {
+    "description": "An image's reference in a message's text, as a small tag.",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "imageReferenceRemoved": "[Image {number}]",
+  "@imageReferenceRemoved": {
+    "description": "The words left in a message's text where an image was referred to, once the image is taken out.",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "stepsRead": "{count, plural, =1{read 1 file} other{read {count} files}}",
   "@stepsRead": {
     "description": "Part of a folded run of steps' line, e.g. \"Read 3 files, ran 2 commands\".",

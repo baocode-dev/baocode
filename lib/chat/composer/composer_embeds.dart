@@ -5,9 +5,12 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill/quill_delta.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
+import '../chat_models.dart';
+import '../floating/hover_tooltip.dart';
 import '../widgets/file_label.dart';
 import '../../kernel/kernel_types.dart';
 import 'composer_mock_data.dart';
@@ -45,6 +48,37 @@ class ComposerTokenEmbed {
         ? '/${token.value}'
         : '@${token.value}';
   }
+}
+
+/// Inline, atomic reference to an image of the message, by its number:
+/// what the message's text says of it (`[Image #3]`). The text decides
+/// which images go: deleting the reference takes its image out; taking
+/// the image out leaves words in its place (see the composer).
+class ComposerImageEmbed {
+  static const type = 'composer-image';
+
+  static Embeddable of(int number) => Embeddable(type, '$number');
+
+  static int decode(Object? data) => int.parse('$data');
+
+  /// Text it contributes to the sent message and to plain-text copies.
+  static String plainText(Object? data) => imageReference(decode(data));
+}
+
+/// The images a composer holds, by number, for the references in its text
+/// to show.
+class ComposerImages extends InheritedWidget {
+  const ComposerImages({super.key, required this.images, required super.child});
+
+  final Map<int, ImageAttachment> images;
+
+  static Map<int, ImageAttachment> of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ComposerImages>()?.images ??
+      const {};
+
+  @override
+  bool updateShouldNotify(ComposerImages oldWidget) =>
+      !identical(images, oldWidget.images);
 }
 
 /// What can become a token: the kernel's `/commands` and the project's
@@ -89,18 +123,25 @@ class ComposerVocabulary extends InheritedWidget {
 
 /// A composer document for sent [text], the inverse of
 /// [ComposerTokenEmbed.plainText]: see [composerDeltaFromPaste].
-Delta composerDeltaFromText(String text, ComposerVocabulary vocabulary) =>
-    composerDeltaFromPaste(text, vocabulary, atStart: true)..insert('\n');
+Delta composerDeltaFromText(
+  String text,
+  ComposerVocabulary vocabulary, {
+  Set<int> images = const {},
+}) =>
+    composerDeltaFromPaste(text, vocabulary, atStart: true, images: images)
+      ..insert('\n');
 
 /// [text] (plain, e.g. pasted) as composer content, without the document's
 /// closing newline: `@value` of a known mention becomes a token again, and
 /// so does a leading `/command` when the text goes [atStart] of the message
 /// (where alone a command counts). Any other `@word` stays text: pasted text
-/// is full of those (`@override`, handles).
+/// is full of those (`@override`, handles). An `[Image #N]` becomes a
+/// reference again when image N is among [images].
 Delta composerDeltaFromPaste(
   String text,
   ComposerVocabulary vocabulary, {
   required bool atStart,
+  Set<int> images = const {},
 }) {
   final delta = Delta();
   final buffer = StringBuffer();
@@ -135,6 +176,15 @@ Delta composerDeltaFromPaste(
   }
   final mentions = longestFirst(vocabulary.mentions);
   while (i < text.length) {
+    if (text[i] == '[' && images.isNotEmpty) {
+      if (imageReferencePattern.matchAsPrefix(text, i) case final match?
+          when images.contains(int.parse(match[1]!))) {
+        flush();
+        delta.insert(ComposerImageEmbed.of(int.parse(match[1]!)).toJson());
+        i = match.end;
+        continue;
+      }
+    }
     final atBoundary = i == 0 || text[i - 1].trim().isEmpty;
     if (text[i] == '@' && atBoundary) {
       final mention = mentions
@@ -287,6 +337,149 @@ class ComposerTokenChip extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class ComposerImageEmbedBuilder extends EmbedBuilder {
+  const ComposerImageEmbedBuilder();
+
+  @override
+  String get key => ComposerImageEmbed.type;
+
+  @override
+  bool get expanded => false;
+
+  // As a token's (see [ComposerTokenEmbedBuilder]).
+  @override
+  WidgetSpan buildWidgetSpan(Widget widget) => WidgetSpan(
+    alignment: PlaceholderAlignment.baseline,
+    baseline: TextBaseline.alphabetic,
+    child: widget,
+  );
+
+  @override
+  String toPlainText(Embed node) =>
+      ComposerImageEmbed.plainText(node.value.data);
+
+  @override
+  Widget build(BuildContext context, EmbedContext embedContext) {
+    final number = ComposerImageEmbed.decode(embedContext.node.value.data);
+    return ComposerImageChip(
+      number: number,
+      image: ComposerImages.of(context)[number],
+      textStyle: embedContext.textStyle,
+    );
+  }
+}
+
+/// The inline reference to image [number] of a message, centered on text
+/// of [textStyle]: a small picture of it and its name, the picture shown
+/// larger on hover. In the composer and in sent messages alike.
+///
+/// Inside a selectable area it copies as its message text (`[Image #3]`).
+class ComposerImageChip extends StatelessWidget {
+  const ComposerImageChip({
+    super.key,
+    required this.number,
+    required this.image,
+    required this.textStyle,
+  });
+
+  final int number;
+  final ImageAttachment? image;
+  final TextStyle textStyle;
+
+  /// [ComposerImageChip] as a span for rich text of [textStyle].
+  static InlineSpan span(
+    int number,
+    ImageAttachment? image,
+    TextStyle textStyle,
+  ) => WidgetSpan(
+    alignment: PlaceholderAlignment.baseline,
+    baseline: TextBaseline.alphabetic,
+    child: ComposerImageChip(
+      number: number,
+      image: image,
+      textStyle: textStyle,
+    ),
+  );
+
+  static const _pictureSize = 14.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = this.image;
+    Widget chip = _CenteredOnText(
+      textStyle: textStyle,
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(
+          height: 1.25,
+          leadingDistribution: TextLeadingDistribution.even,
+        ),
+        child: SelectionContainer.disabled(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 1),
+            padding: const EdgeInsets.fromLTRB(2, 1, 5, 1),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: themeColors['chat.requestBorder']),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2.5),
+                  child: SizedBox.square(
+                    dimension: _pictureSize,
+                    child: image == null
+                        ? Icon(
+                            Icons.image_outlined,
+                            size: 12,
+                            color: AppColors.textMuted,
+                          )
+                        : Image.memory(
+                            image.bytes,
+                            fit: BoxFit.cover,
+                            cacheWidth: (_pictureSize * 3).round(),
+                            gaplessPlayback: true,
+                            errorBuilder: (context, error, stack) => Icon(
+                              Icons.broken_image_outlined,
+                              size: 12,
+                              color: AppColors.textFaint,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  context.l10n.imageChip(number),
+                  style: TextStyle(color: AppColors.text, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (image != null) {
+      chip = HoverTooltip(
+        content: (context) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 240, maxHeight: 180),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Image.memory(
+              image.bytes,
+              fit: BoxFit.contain,
+              cacheWidth: 720,
+              gaplessPlayback: true,
+            ),
+          ),
+        ),
+        child: chip,
+      );
+    }
+    return _SelectableToken(text: imageReference(number), child: chip);
   }
 }
 

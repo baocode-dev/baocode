@@ -528,6 +528,8 @@
   "toolSent": "已发送",
   "toolUsing": "正在使用",
   "toolUsed": "已使用",
+  "imageChip": "图片 {number}",
+  "imageReferenceRemoved": "[图片 {number}]",
   "stepsRead": "{count, plural, other{读取 {count} 个文件}}",
   "stepsSearched": "{count, plural, other{搜索 {count} 次}}",
   "stepsListed": "{count, plural, other{列出 {count} 个目录}}",

@@ -42,6 +42,7 @@ class ImageAttachment {
     required this.bytes,
     required this.mediaType,
     this.name,
+    this.number,
   });
 
   final Uint8List bytes;
@@ -51,7 +52,26 @@ class ImageAttachment {
 
   /// The file it came from, if any.
   final String? name;
+
+  /// Its number in the conversation, as its message's text refers to it
+  /// (`[Image #3]`): counted on from the last one, never reused. Null for
+  /// one sent before images were numbered.
+  final int? number;
+
+  ImageAttachment withNumber(int number) => ImageAttachment(
+    bytes: bytes,
+    mediaType: mediaType,
+    name: name,
+    number: number,
+  );
 }
+
+/// How a message's text refers to its image [number], as Claude Code
+/// writes it: `[Image #3]`.
+String imageReference(int number) => '[Image #$number]';
+
+/// Every `[Image #N]` in a text.
+final imageReferencePattern = RegExp(r'\[Image #(\d+)\]');
 
 /// Plain assistant prose. Supports `inline code` and `- ` bullet lines.
 class AssistantTextItem extends ChatItem {

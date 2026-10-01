@@ -3266,6 +3266,18 @@ abstract class AppLocalizations {
   /// **'Used'**
   String get toolUsed;
 
+  /// An image's reference in a message's text, as a small tag.
+  ///
+  /// In en, this message translates to:
+  /// **'Image {number}'**
+  String imageChip(int number);
+
+  /// The words left in a message's text where an image was referred to, once the image is taken out.
+  ///
+  /// In en, this message translates to:
+  /// **'[Image {number}]'**
+  String imageReferenceRemoved(int number);
+
   /// Part of a folded run of steps' line, e.g. "Read 3 files, ran 2 commands".
   ///
   /// In en, this message translates to:

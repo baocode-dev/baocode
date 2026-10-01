@@ -1712,6 +1712,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolUsed => 'Used';
 
   @override
+  String imageChip(int number) {
+    return 'Image $number';
+  }
+
+  @override
+  String imageReferenceRemoved(int number) {
+    return '[Image $number]';
+  }
+
+  @override
   String stepsRead(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

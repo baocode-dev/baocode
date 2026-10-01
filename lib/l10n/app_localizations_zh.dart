@@ -1657,6 +1657,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toolUsed => '已使用';
 
   @override
+  String imageChip(int number) {
+    return '图片 $number';
+  }
+
+  @override
+  String imageReferenceRemoved(int number) {
+    return '[图片 $number]';
+  }
+
+  @override
   String stepsRead(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
