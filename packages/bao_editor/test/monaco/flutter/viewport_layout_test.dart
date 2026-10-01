@@ -5,9 +5,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/document_snapshot.dart';
-import 'package:baocode/ide/editor/monaco/flutter/viewport_layout.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/viewport_layout.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
 
 const style = TextStyle(
   fontFamily: 'ViewportRoboto',

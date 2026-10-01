@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_notifications.dart';
 import 'package:baocode/keybindings/import_dialog.dart';
-import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/keybindings/keybindings_sync.dart';
 import 'package:baocode/keybindings/keymap.dart';

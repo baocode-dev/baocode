@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/position.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/selection.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/selection.dart';
 
 Range rangeOf(List<dynamic> coordinates) => Range(
   coordinates[0] as int,

@@ -1,6 +1,6 @@
 // Copyright (c) 2023 The xterm.js authors. All rights reserved.
 // Licensed under the MIT License. See
-// lib/ide/terminal/xterm/addons/addon_unicode_graphemes/LICENSE.
+// lib/addons/addon_unicode_graphemes/LICENSE.
 // Ported from xterm.js
 // addons/addon-unicode-graphemes/src/UnicodeGraphemeProvider.ts (c58ea36).
 

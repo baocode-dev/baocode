@@ -12,8 +12,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/model/interval_tree.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/common/model/interval_tree.dart';
 
 void main() {
   group('upstream generated regressions', () {

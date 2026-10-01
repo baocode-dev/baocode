@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The xterm.js authors. All rights reserved.
 // Licensed under the MIT License. See
-// lib/ide/terminal/xterm/addons/addon_search/LICENSE.
+// lib/addons/addon_search/LICENSE.
 // Ported from xterm.js addons/addon-search/src/SearchLineCache.ts (c58ea36).
 //
 // Upstream types the browser `Terminal` but uses only its headless API. The

@@ -25,7 +25,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'keybinding_entry.dart';
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 
 /// One key with the modifiers held (upstream `KeyCodeChord`): [meta] is ⌘
 /// on macOS and the Windows key elsewhere.

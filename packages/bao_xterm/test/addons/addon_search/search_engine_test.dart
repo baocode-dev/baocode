@@ -1,6 +1,6 @@
 // Copyright (c) 2024 The xterm.js authors. All rights reserved.
 // Licensed under the MIT License. See
-// lib/ide/terminal/xterm/addons/addon_search/LICENSE.
+// lib/addons/addon_search/LICENSE.
 // Adapted from xterm.js addons/addon-search/src/SearchEngine.test.ts
 // (c58ea36).
 //
@@ -12,14 +12,13 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_search/search_engine.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_search/search_line_cache.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_search/typings/addon_search.dart';
-import 'package:baocode/ide/terminal/xterm/common/lifecycle.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
-    show ITerminalOptions;
+import 'package:bao_xterm/addons/addon_search/search_engine.dart';
+import 'package:bao_xterm/addons/addon_search/search_line_cache.dart';
+import 'package:bao_xterm/addons/addon_search/typings/addon_search.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart' show ITerminalOptions;
 
-import 'search_test_terminal.dart';
+import 'package:bao_xterm/testing/search_test_terminal.dart';
 
 Future<void> writeP(SearchTestTerminal terminal, String data) {
   final c = Completer<void>();

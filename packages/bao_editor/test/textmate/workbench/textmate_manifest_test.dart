@@ -5,20 +5,20 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/base/common/json.dart' as json;
-import 'package:baocode/ide/editor/monaco/vs/editor/common/encoded_token_attributes.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/text_mate/common/tm_grammars.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/text_mate/common/tm_scope_registry.dart';
-import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
-import 'package:baocode/ide/editor/textmate/vscode_textmate/main.dart'
+import 'package:bao_editor/monaco/vs/base/common/json.dart' as json;
+import 'package:bao_editor/monaco/vs/editor/common/encoded_token_attributes.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/text_mate/common/tm_grammars.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/text_mate/common/tm_scope_registry.dart';
+import 'package:bao_editor/textmate/textmate_manifest.dart';
+import 'package:bao_editor/textmate/vscode_textmate/main.dart'
     show parseRawGrammar;
 
 import '../textmate_fixture.dart';
 
 void main() {
   final manifest = TextMateManifest.parse(
-    File('$textMateAssetRoot/manifest.json').readAsStringSync(),
+    File('$textMateAssetDirectory/manifest.json').readAsStringSync(),
   );
   final fixture = loadTextMateFixture();
   final languageIds = (fixture['languageIds'] as Map<String, Object?>)
@@ -56,7 +56,7 @@ void main() {
       ];
       for (final path in paths) {
         expect(
-          File('$textMateAssetRoot/$path').existsSync(),
+          File('$textMateAssetDirectory/$path').existsSync(),
           isTrue,
           reason: path,
         );
@@ -66,7 +66,7 @@ void main() {
         if (configuration == null) continue;
         final errors = <json.ParseError>[];
         json.parse(
-          File('$textMateAssetRoot/$configuration').readAsStringSync(),
+          File('$textMateAssetDirectory/$configuration').readAsStringSync(),
           errors,
         );
         expect(errors, isEmpty, reason: configuration);
@@ -149,7 +149,7 @@ void main() {
       );
       for (final grammar in manifest.grammars) {
         final raw = parseRawGrammar(
-          File('$textMateAssetRoot/${grammar.path}').readAsStringSync(),
+          File('$textMateAssetDirectory/${grammar.path}').readAsStringSync(),
           grammar.path,
         );
         expect(raw.scopeName, grammar.scopeName, reason: grammar.path);

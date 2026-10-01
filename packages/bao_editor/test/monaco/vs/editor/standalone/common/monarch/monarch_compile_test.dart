@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT License. See lib/ide/editor/monaco/LICENSE.txt.
+// Licensed under the MIT License. See lib/monaco/LICENSE.txt.
 // Source-derived compiler tests for VS Code 6a598d4a monarchCompile.ts.
 // The embedded-case fixture also follows standalone/test/browser/monarch.test.ts.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_common.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_compile.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_types.dart';
+import 'package:bao_editor/monaco/vs/editor/standalone/common/monarch/monarch_common.dart';
+import 'package:bao_editor/monaco/vs/editor/standalone/common/monarch/monarch_compile.dart';
+import 'package:bao_editor/monaco/vs/editor/standalone/common/monarch/monarch_types.dart';
 
 ILexer _lexerForAction(
   Object? action, {

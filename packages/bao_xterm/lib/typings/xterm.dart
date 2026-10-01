@@ -1,5 +1,5 @@
 // Copyright (c) 2017-2019 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js typings/xterm.d.ts (c58ea36), the declarations that
 // src/common and src/headless use.
 //

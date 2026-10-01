@@ -3,7 +3,7 @@
 // (c58ea36): Unicode 15 Grapheme_Cluster_Break and East_Asian_Width data as a
 // compressed trie, and the grapheme clustering rules (UAX #29). Upstream's
 // copy carries no license header of its own; it ships under the addon's MIT
-// license, see lib/ide/terminal/xterm/addons/addon_unicode_graphemes/LICENSE.
+// license, see lib/addons/addon_unicode_graphemes/LICENSE.
 //
 // Upstream's SCREAMING_CASE and Snake_Case constants are lowerCamelCase
 // (`GRAPHEME_BREAK_Hangul_LV` is `graphemeBreakHangulLV`).

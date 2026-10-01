@@ -1,9 +1,9 @@
 // Copyright (c) 2021 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/input/XParseColor.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/input/x_parse_color.dart';
+import 'package:bao_xterm/common/input/x_parse_color.dart';
 
 void main() {
   group('XParseColor', () {

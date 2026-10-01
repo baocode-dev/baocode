@@ -1,9 +1,9 @@
 // Copyright (c) 2016 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/CircularList.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/circular_list.dart';
+import 'package:bao_xterm/common/circular_list.dart';
 
 Matcher _throwsMessage(String message) => throwsA(
   isA<Error>().having((e) => e.toString(), 'message', contains(message)),

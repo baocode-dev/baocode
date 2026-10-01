@@ -9,10 +9,10 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/textmate/oniguruma/onig_lib.dart';
-import 'package:baocode/ide/editor/textmate/oniguruma/onig_lib_io.dart'
+import 'package:bao_editor/textmate/oniguruma/onig_lib.dart';
+import 'package:bao_editor/textmate/oniguruma/onig_lib_io.dart'
     hide loadNativeOnigLib;
-import 'package:baocode/ide/editor/textmate/vscode_textmate/onig_lib.dart';
+import 'package:bao_editor/textmate/vscode_textmate/onig_lib.dart';
 
 /// vscode-oniguruma's result, as its tests compare it.
 Map<String, Object>? _plain(IOnigMatch? match) => match == null
@@ -390,7 +390,7 @@ void main() {
 
     test('an invalid pattern makes a scanner, as in VS Code', () {
       // vscode-oniguruma 1.7.0's WebAssembly never throws (see
-      // native/oniguruma/baocode_onig.c).
+      // native/oniguruma/bao_onig.c).
       final scanner = _scanner(['a', '(', 'b']) as NativeOnigScanner;
       expect(scanner.error?.message, 'end pattern with unmatched parenthesis');
       expect(scanner.error?.pattern, '(');

@@ -11,7 +11,7 @@ class MonacoThemeAssets {
   const MonacoThemeAssets({this.bundle});
 
   static const revision = '6a598d4a13031703d483d103c1d934a36ad27971';
-  static const path = 'assets/monaco/themes.json';
+  static const path = 'packages/bao_editor/assets/monaco/themes.json';
   final AssetBundle? bundle;
 
   Future<MonacoBuiltinTheme> load(String id) async {

@@ -9,7 +9,7 @@
 // [validateGrammarDefinition], and the theme `_updateTheme` hands to
 // vscode-textmate as [toRawTheme]. The service itself is not ported: the
 // tokenization supports are in tokenization_support/, the background
-// tokenizer in background_tokenization/, and lib/ide/editor/textmate/
+// tokenizer in background_tokenization/, and lib/textmate/
 // textmate_worker.dart creates grammars as the service does.
 // Deviations: the language service is two callbacks; the grammar's location
 // is its path, already resolved against the extension; an unregistered

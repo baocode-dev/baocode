@@ -1,13 +1,13 @@
 // Copyright (c) 2020 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/services/OptionsService.test.ts (c58ea36).
 
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/lifecycle.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/options_service.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/services/options_service.dart';
+import 'package:bao_xterm/common/services/services.dart';
 
 void main() {
   group('OptionsService', () {

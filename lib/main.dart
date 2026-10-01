@@ -6,11 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
+import 'package:bao_editor/monaco/flutter/language_assets.dart';
+
 import 'ide/git/git_repository.dart';
 import 'ide/git/git_service.dart';
 import 'ide/lsp/catalog/standard_lsp.dart';
 import 'ide/lsp/language_features.dart';
 import 'ide/lsp/lsp_process.dart';
+import 'ide/lsp/packs/language_packs.dart';
 import 'ide/terminal/pty.dart';
 import 'ide/terminal/terminal_colors.dart';
 import 'ide/terminal/terminal_instance.dart';
@@ -48,6 +51,9 @@ Future<void> main() async {
   unawaited(reapLspProcesses());
   unawaited(reapPtyProcesses());
   WidgetsFlutterBinding.ensureInitialized();
+  // The editor's language packs are the language servers' (README.md in
+  // lib/ide/lsp/packs).
+  MonacoLanguageAssets.defaultPacks = () => LanguagePackRegistry.instance;
   // The user's settings files ([SettingsFiles.instance]): read before the
   // first frame, which is in their language and theme, and followed as
   // they change on disk.

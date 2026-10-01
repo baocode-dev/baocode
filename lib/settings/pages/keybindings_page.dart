@@ -51,7 +51,9 @@ import '../../ide/ide_menu.dart';
 import '../../ide/ide_quick_input.dart' show IdeKeycap;
 import '../../keybindings/default_keybindings.dart';
 import '../../keybindings/key_chord.dart';
-import '../../keybindings/keybinding_entry.dart';
+
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
+
 import '../../keybindings/keybinding_service.dart';
 import '../../keybindings/keybindings_editing.dart';
 import '../../l10n/command_titles.dart';

@@ -2,6 +2,8 @@
 
 这里记录集成终端与 VS Code（`6a598d4a`，xterm.js `c58ea36`）的行为差异：没做的、做法不同的，以及原因。
 
+这份清单放在 bao_xterm 包里（MIT，暂不发布，见 [HANDOFF.md](HANDOFF.md#发布计划)），但覆盖整个集成终端：终端内核在本包，PTY 在 [bao_pty](../bao_pty/HANDOFF.md)，面板、标签、绘制、键鼠、链接、shell 集成和聊天里的命令输出在应用里（`../../lib/ide/terminal/`、`../../lib/chat/`，GPL-3.0-only）。
+
 ## 暂不做
 
 - sticky scroll。
@@ -79,7 +81,7 @@
 
 ## 聊天里的命令输出（M6）
 
-聊天里命令的输出（`TerminalItem`）交给终端内核解析后只读显示（`lib/chat/widgets/terminal_output.dart`），VS Code 没有对应的功能，这里记下它的限制：
+聊天里命令的输出（`TerminalItem`）交给终端内核解析后只读显示（`../../lib/chat/widgets/terminal_output.dart`），VS Code 没有对应的功能，这里记下它的限制：
 
 - 没有 ESC、`\r`、退格的输出原样显示，和以前完全一样。
 - 没有最小对比度调整（VS Code 终端是 4.5），深色底上的黑字会看不清。
@@ -92,7 +94,7 @@
 
 ## Shell 集成
 
-- VS Code 的 shell 集成脚本原样打包成 Dart 常量（由 `tool/generate_shell_integration_scripts.dart` 生成），每次运行时写到临时目录里新建的 0700 文件夹；VS Code 用安装目录里的脚本。
+- VS Code 的 shell 集成脚本原样打包成 Dart 常量（由 `../../tool/generate_shell_integration_scripts.dart` 生成），每次运行时写到临时目录里新建的 0700 文件夹；VS Code 用安装目录里的脚本。
 - zsh 的 ZDOTDIR 是这个文件夹下的 `zsh/`，不是 VS Code 的 `<tmp>/<用户>-<应用>-zsh` 加 sticky bit（Dart 不能 chmod）。
 - `TERM_PROGRAM` 是 `baocode`，而 fish 的脚本只在 `vscode` 下运行：fish 的启动命令在 source 脚本期间把它临时改成 `vscode`，之后还原。
 - 没有扩展的环境变量集合，`VSCODE_PATH_PREFIX` 从不设置。

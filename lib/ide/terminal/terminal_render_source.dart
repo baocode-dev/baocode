@@ -9,10 +9,11 @@
 // (DomRenderer, WebglRenderer, RenderService, Viewport).
 
 import 'terminal_render_theme.dart';
-import 'xterm/common/buffer/types.dart';
-import 'xterm/common/event.dart';
-import 'xterm/common/lifecycle.dart';
-import 'xterm/common/services/services.dart';
+
+import 'package:bao_xterm/common/buffer/types.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/services/services.dart';
 
 /// The screen and state a terminal renderer paints.
 abstract interface class TerminalRenderSource {

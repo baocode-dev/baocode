@@ -10,15 +10,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/base/common/color.dart';
-import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/color_registry_data.g.dart';
-import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/color_utils.dart';
-import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/theme.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
+import 'package:bao_editor/monaco/vs/base/common/color.dart';
+import 'package:bao_editor/monaco/vs/platform/theme/common/color_registry_data.g.dart';
+import 'package:bao_editor/monaco/vs/platform/theme/common/color_utils.dart';
+import 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:bao_editor/textmate/textmate_manifest.dart';
 
 Future<String> readAsset(String path) =>
-    File('$textMateAssetRoot/$path').readAsString();
+    File('$textMateAssetDirectory/$path').readAsString();
 
 /// How JavaScript prints a number.
 String _js(double value) {
@@ -87,7 +87,7 @@ void main() {
     ),
   ) as Map<String, Object?>;
   final manifest = TextMateManifest.parse(
-    File('$textMateAssetRoot/manifest.json').readAsStringSync(),
+    File('$textMateAssetDirectory/manifest.json').readAsStringSync(),
   );
   final ids = (fixture['ids'] as List<Object?>).cast<String>();
   final values = [

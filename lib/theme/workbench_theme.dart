@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See lib/ide/editor/monaco/LICENSE.txt for license information.
+ *  Licensed under the MIT License. See packages/bao_editor/lib/monaco/LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 // The workbench's color theme (`workbench.colorTheme`): which bundled VS Code
 // theme is current, its colors as widgets read them, and keeping the choice.
@@ -11,7 +11,7 @@
 // `restoreColorTheme`) and common/workbenchThemeService.ts
 // (`ThemeSettingDefaults`, `COLOR_THEME_*_INITIAL_COLORS`,
 // `migrateThemeSettingsId`). The themes are the ones bundled under
-// assets/textmate (textmate_manifest.dart).
+// packages/bao_editor/assets/textmate (textmate_manifest.dart).
 //
 // Deviations: settings and storage are two preference entries the app keeps
 // (`ColorThemeStorage`), read once at startup; no customizations, transient
@@ -27,16 +27,19 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import '../ide/editor/monaco/vs/base/common/color.dart' as vs;
-import '../ide/editor/monaco/vs/platform/theme/common/theme.dart';
-import '../ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import '../ide/editor/textmate/textmate_manifest.dart';
-import '../ide/editor/textmate/textmate_worker.dart'
+import 'package:bao_editor/monaco/vs/base/common/color.dart' as vs;
+import 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:bao_editor/textmate/textmate_manifest.dart';
+import 'package:bao_editor/textmate/textmate_syntax.dart'
+    show TextMateThemeSource;
+import 'package:bao_editor/textmate/textmate_worker.dart'
     show decodeTextMateResource;
+
 import '../ide/ide_color_theme_picker.dart';
 import 'workbench_theme_initial_colors.dart';
 
-export '../ide/editor/monaco/vs/platform/theme/common/theme.dart'
+export 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart'
     show
         ColorScheme,
         ThemeTypeSelector,
@@ -119,7 +122,7 @@ WorkbenchColors get themeColors => WorkbenchThemeService.instance.colors;
 /// color themes only). One per app: [instance]. Preferences: Color Theme
 /// picks from it ([IdeColorThemeController]).
 class WorkbenchThemeService extends ChangeNotifier
-    implements IdeColorThemeController {
+    implements IdeColorThemeController, TextMateThemeSource {
   WorkbenchThemeService({this.bundle, ColorThemeData? initial})
     : _current =
           initial ??
@@ -146,6 +149,7 @@ class WorkbenchThemeService extends ChangeNotifier
 
   /// The current theme: from storage or a type's initial colors until the
   /// theme file is loaded ([ColorThemeData.isLoaded]).
+  @override
   ColorThemeData get colorTheme => _current;
 
   /// The settings id of the theme the workbench shows.
@@ -233,6 +237,7 @@ class WorkbenchThemeService extends ChangeNotifier
   });
 
   /// The current theme, loaded; the setting's when none is.
+  @override
   Future<ColorThemeData> loadedColorTheme() async {
     if (!_current.isLoaded) await initialize();
     return _current;

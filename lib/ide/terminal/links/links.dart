@@ -16,7 +16,8 @@
 
 import 'dart:async';
 
-import '../xterm/typings/xterm_headless.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart';
+
 import 'terminal_link_parsing.dart';
 
 /// A link detector can search for and return links within the xterm.js

@@ -1,5 +1,5 @@
 // Copyright (c) 2018 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js src/headless/public/Terminal.ts (c58ea36).
 //
 // The typings' `Terminal` interface is imported `as api`, the internal

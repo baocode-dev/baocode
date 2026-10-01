@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See packages/bao_xterm/lib/LICENSE.txt.
 // Adapted from xterm.js src/browser/services/MouseService.ts,
 // src/browser/services/MouseCoordsService.ts and the pointer wiring of
 // src/browser/CoreBrowserTerminal.ts (`open`, `_initGlobal`) (c58ea36), with
@@ -32,10 +32,11 @@ import 'package:flutter/services.dart';
 
 import 'terminal_clipboard.dart';
 import 'terminal_selection.dart';
-import 'xterm/common/data/escape_sequences.dart';
-import 'xterm/common/lifecycle.dart';
-import 'xterm/common/services/services.dart';
-import 'xterm/common/types.dart';
+
+import 'package:bao_xterm/common/data/escape_sequences.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/services/services.dart';
+import 'package:bao_xterm/common/types.dart';
 
 /// The kind of a [TerminalMouseEvent] (DOM's event types).
 enum TerminalMouseEventType { mouseDown, mouseUp, mouseMove, wheel }

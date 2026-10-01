@@ -15,7 +15,7 @@ import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/keybindings/chat_keybindings.dart';
-import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/theme/app_theme.dart';

@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_document_model.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/ide_workspace.dart';
 import 'package:path/path.dart' as p;

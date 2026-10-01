@@ -16,8 +16,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/terminal/shell_integration/capabilities/capabilities.dart';
 import 'package:baocode/ide/terminal/shell_integration/capabilities/command_detection/prompt_input_model.dart';
 import 'package:baocode/ide/terminal/shell_integration/capabilities/command_detection/terminal_command.dart';
-import 'package:baocode/ide/terminal/xterm/common/event.dart';
-import 'package:baocode/ide/terminal/xterm/headless/terminal.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/headless/terminal.dart';
 
 import '../../shell_integration_test_helpers.dart';
 

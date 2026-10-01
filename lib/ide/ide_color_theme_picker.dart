@@ -34,7 +34,9 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 
 import '../l10n/l10n.dart';
-import 'editor/monaco/vs/platform/theme/common/theme.dart';
+
+import 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart';
+
 import 'ide_commands.dart';
 import 'ide_quick_input.dart';
 

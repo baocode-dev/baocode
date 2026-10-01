@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/language_assets.dart';
+import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +27,7 @@ void main() {
     () async {
       final registrations = await assets.registrations();
       expect(registrations, hasLength(89));
-      expect((await assets.forPath('lib/main.dart'))?.id, 'dart');
+      expect((await assets.forPath('../../lib/main.dart'))?.id, 'dart');
       expect((await assets.forPath('include/example.h'))?.id, 'c');
       expect((await assets.forPath('lib/main.c'))?.id, 'c');
       expect(

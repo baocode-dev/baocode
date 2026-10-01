@@ -1,10 +1,10 @@
 // Copyright (c) 2025 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/input/KittyKeyboard.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/input/kitty_keyboard.dart';
-import 'package:baocode/ide/terminal/xterm/common/types.dart';
+import 'package:bao_xterm/common/input/kitty_keyboard.dart';
+import 'package:bao_xterm/common/types.dart';
 
 /// Upstream takes a `Partial<IKeyboardEvent>`; here its fields are named
 /// parameters.

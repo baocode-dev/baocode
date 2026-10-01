@@ -8,10 +8,11 @@
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/platform/terminal/common/capabilities/bufferMarkCapability.ts.
 
-import '../../xterm/common/buffer/types.dart';
-import '../../xterm/common/event.dart';
-import '../../xterm/common/lifecycle.dart';
-import '../../xterm/headless/terminal.dart';
+import 'package:bao_xterm/common/buffer/types.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/headless/terminal.dart';
+
 import 'capabilities.dart';
 
 /// Manages "marks" in the buffer which are lines that are tracked when lines

@@ -26,7 +26,7 @@
 // - `math.pow` may differ from V8's `Math.pow` in the last bit of a channel's
 //   relative luminance (32 of the 256 channel values); after the rounding to
 //   four decimals, [Color.getRelativeLuminance] equals upstream's for every
-//   RGB color (test/ide/editor/monaco/vs/base/common/color_test.dart).
+//   RGB color (test/monaco/vs/base/common/color_test.dart).
 
 import 'dart:math' as math;
 

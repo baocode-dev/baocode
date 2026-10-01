@@ -18,12 +18,13 @@
 
 import 'dart:math' as math;
 
-import '../../../xterm/common/buffer/cell_data.dart';
-import '../../../xterm/common/buffer/types.dart';
-import '../../../xterm/common/event.dart';
-import '../../../xterm/common/lifecycle.dart';
-import '../../../xterm/common/services/services.dart';
-import '../../../xterm/headless/terminal.dart';
+import 'package:bao_xterm/common/buffer/cell_data.dart';
+import 'package:bao_xterm/common/buffer/types.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/services/services.dart';
+import 'package:bao_xterm/headless/terminal.dart';
+
 import '../capabilities.dart';
 import 'terminal_command.dart';
 

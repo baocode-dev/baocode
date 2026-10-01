@@ -1,5 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT License. See lib/ide/editor/monaco/LICENSE.txt.
+// Licensed under the MIT License. See lib/monaco/LICENSE.txt.
 // Port of the sequence-shifting and short-match heuristics in
 // defaultLinesDiffComputer/heuristicSequenceOptimizations.ts.
 

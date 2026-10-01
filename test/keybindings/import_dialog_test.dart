@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/keybindings/import_dialog.dart';
-import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/vscode_import.dart';
 
 const _code = KeybindingsSource(

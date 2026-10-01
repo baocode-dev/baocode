@@ -1,12 +1,12 @@
 // Copyright (c) 2017 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/browser/input/Mouse.test.ts (c58ea36).
 //
 // Upstream clicks a jsdom element at the window's origin with no padding;
 // here the positions are relative to the element's content box.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/browser/input/mouse.dart';
+import 'package:bao_xterm/browser/input/mouse.dart';
 
 const double charWidth = 10;
 const double charHeight = 20;

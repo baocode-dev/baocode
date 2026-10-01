@@ -5,9 +5,9 @@
 // Translated in full from VS Code lineHeights.test.ts at
 // 6a598d4a13031703d483d103c1d934a36ad27971 (apart from the disposal harness).
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/view_layout/view_layout_contracts.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/view_layout/line_heights.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/common/view_layout/view_layout_contracts.dart';
+import 'package:bao_editor/monaco/vs/editor/common/view_layout/line_heights.dart';
 
 void main() {
   group('Editor ViewLayout - LineHeightsManager', () {

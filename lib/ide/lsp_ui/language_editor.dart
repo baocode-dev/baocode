@@ -1,4 +1,5 @@
-import '../editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+
 import '../ide_workspace.dart';
 import '../lsp/language_features.dart';
 import '../lsp/lsp_protocol.dart';

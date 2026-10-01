@@ -2,7 +2,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/text_change.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/text_change.dart';
 
 // Mirrors the deterministic compression cases in VS Code's textChange.test.ts.
 typedef _Edit = (int offset, int length, String text);

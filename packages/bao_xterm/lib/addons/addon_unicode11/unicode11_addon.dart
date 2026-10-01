@@ -1,6 +1,6 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
 // Licensed under the MIT License. See
-// lib/ide/terminal/xterm/addons/addon_unicode11/LICENSE.
+// lib/addons/addon_unicode11/LICENSE.
 // Ported from xterm.js addons/addon-unicode11/src/Unicode11Addon.ts (c58ea36).
 //
 // UnicodeVersionProvider for V11.

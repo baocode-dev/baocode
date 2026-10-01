@@ -1,10 +1,10 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/model/piece_tree_text_buffer/piece_tree_base.dart'
+import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/common/model/piece_tree_text_buffer/piece_tree_base.dart'
     as tree;
-import 'package:baocode/ide/editor/monaco/vs/editor/common/model/piece_tree_text_buffer/rb_tree_base.dart'
+import 'package:bao_editor/monaco/vs/editor/common/model/piece_tree_text_buffer/rb_tree_base.dart'
     as rb;
 
 List<int> referenceStarts(String text) {

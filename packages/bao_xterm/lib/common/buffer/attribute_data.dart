@@ -1,5 +1,5 @@
 // Copyright (c) 2018 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js src/common/buffer/AttributeData.ts (c58ea36).
 //
 // `fg`, `bg` and `ext` hold unsigned 32-bit values; the flag getters return

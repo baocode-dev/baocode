@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/TestUtils.test.ts (c58ea36).
 //
 // Helpers and service mocks for the ported tests; like upstream's file it
@@ -8,17 +8,17 @@
 // MockOptionsService never fires `onOptionChange` and its `options` is the
 // very object `rawOptions` is.
 
-import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_set.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/cell_data.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/constants.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/types.dart';
-import 'package:baocode/ide/terminal/xterm/common/event.dart';
-import 'package:baocode/ide/terminal/xterm/common/input/unicode_v6.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/options_service.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/unicode_service.dart';
-import 'package:baocode/ide/terminal/xterm/common/types.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
+import 'package:bao_xterm/common/buffer/buffer_set.dart';
+import 'package:bao_xterm/common/buffer/cell_data.dart';
+import 'package:bao_xterm/common/buffer/constants.dart';
+import 'package:bao_xterm/common/buffer/types.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/input/unicode_v6.dart';
+import 'package:bao_xterm/common/services/options_service.dart';
+import 'package:bao_xterm/common/services/services.dart';
+import 'package:bao_xterm/common/services/unicode_service.dart';
+import 'package:bao_xterm/common/types.dart';
+import 'package:bao_xterm/typings/xterm.dart'
     show IDecoration, IDecorationOptions;
 
 CellData createCellData(int attr, String char, int width) {

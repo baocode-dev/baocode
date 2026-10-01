@@ -7,11 +7,11 @@
 // pieceTreeTextBuffer.test.ts; directional search also covers PieceTreeBase
 // edits, CRLF normalization, and UTF-16 / zero-width positions.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/position.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/model/piece_tree_text_buffer/piece_tree_base.dart'
+import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/common/model/piece_tree_text_buffer/piece_tree_base.dart'
     as tree;
-import 'package:baocode/ide/editor/monaco/vs/editor/common/model/search/piece_tree_search.dart';
+import 'package:bao_editor/monaco/vs/editor/common/model/search/piece_tree_search.dart';
 
 const separators = r'.,:;()-[]{}';
 

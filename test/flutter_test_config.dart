@@ -3,10 +3,12 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
-import 'package:baocode/ide/editor/textmate/textmate_syntax.dart';
-import 'package:baocode/ide/editor/textmate/textmate_worker.dart';
+import 'package:bao_editor/monaco/flutter/language_assets.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:bao_editor/textmate/textmate_manifest.dart';
+import 'package:bao_editor/textmate/textmate_syntax.dart';
+import 'package:bao_editor/textmate/textmate_worker.dart';
+import 'package:baocode/ide/lsp/packs/language_packs.dart';
 import 'package:baocode/kernel/kernel_registry.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/theme/workbench_theme.dart';
@@ -24,6 +26,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   checkDesktopSemantics();
   KernelRegistry.use(MockKernels.all);
   textMateWorkerLauncher = () async => TextMateInProcessWorker.create();
+  MonacoLanguageAssets.defaultPacks = () => LanguagePackRegistry.instance;
   final defaultTheme = await _defaultColorTheme();
   setUp(() {
     rootBundle.clear();

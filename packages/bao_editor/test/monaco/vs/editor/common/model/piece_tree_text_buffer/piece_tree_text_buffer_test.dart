@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/model/piece_tree_text_buffer/piece_tree_text_buffer.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/model/piece_tree_text_buffer/piece_tree_text_buffer_builder.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/common/model/piece_tree_text_buffer/piece_tree_text_buffer.dart';
+import 'package:bao_editor/monaco/vs/editor/common/model/piece_tree_text_buffer/piece_tree_text_buffer_builder.dart';
 
 PieceTreeTextBuffer _buffer(String text, {bool normalizeEOL = true}) {
   final builder = PieceTreeTextBufferBuilder()..acceptChunk(text);

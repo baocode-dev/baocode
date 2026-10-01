@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See packages/bao_xterm/lib/LICENSE.txt.
 // Ported from xterm.js src/browser/services/CharSizeService.ts,
 // src/browser/renderer/dom/WidthCache.ts and the cell geometry of
 // addons/addon-webgl/src/WebglRenderer.ts (`_updateDimensions`) (c58ea36);
@@ -14,7 +14,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'xterm/common/services/services.dart';
+import 'package:bao_xterm/common/services/services.dart';
 
 /// The font the terminal draws in, from the options.
 class TerminalFont {

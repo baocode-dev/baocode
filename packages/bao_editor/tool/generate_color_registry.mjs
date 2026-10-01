@@ -1,6 +1,6 @@
 // Evaluates the real upstream VS Code color registrations, never the Dart port, to write
-// lib/ide/editor/monaco/vs/platform/theme/common/color_registry_data.g.dart and the golden
-// data test/ide/editor/textmate/workbench/color_registry_test.dart replays.
+// lib/monaco/vs/platform/theme/common/color_registry_data.g.dart and the golden
+// data test/textmate/workbench/color_registry_test.dart replays.
 //
 // Usage: node tool/generate_color_registry.mjs [vscode-source] [--keep]
 //   [vscode-source]  the VS Code sources at `revision`: a git checkout, or a directory this
@@ -63,7 +63,7 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 
 const revision = '6a598d4a13031703d483d103c1d934a36ad27971';
 const platforms = ['darwin', 'linux', 'win32'];
-const dartOutput = 'lib/ide/editor/monaco/vs/platform/theme/common/color_registry_data.g.dart';
+const dartOutput = 'lib/monaco/vs/platform/theme/common/color_registry_data.g.dart';
 const fixtureOutput = 'test/fixtures/theme/color_registry.json.gz';
 const manifestPath = 'assets/textmate/manifest.json';
 

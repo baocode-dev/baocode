@@ -13,9 +13,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/headless/terminal.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
-    hide Terminal;
+import 'package:bao_xterm/headless/terminal.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart' hide Terminal;
 
 /// Writes [data] and waits for it to be parsed.
 Future<void> writeP(Terminal terminal, String data) {

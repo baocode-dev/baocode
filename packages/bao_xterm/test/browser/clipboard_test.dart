@@ -1,9 +1,9 @@
 // Copyright (c) 2016 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/browser/Clipboard.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/browser/clipboard.dart' as clipboard;
+import 'package:bao_xterm/browser/clipboard.dart' as clipboard;
 
 void main() {
   group('evaluatePastedTextProcessing', () {

@@ -37,6 +37,7 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+/packages/*/build/
 /coverage/
 
 # The project's own record of how flutter create made it. Removed: it is not

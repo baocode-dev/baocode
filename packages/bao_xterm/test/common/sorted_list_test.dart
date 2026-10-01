@@ -1,10 +1,10 @@
 // Copyright (c) 2018 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/SortedList.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
-import 'package:baocode/ide/terminal/xterm/common/sorted_list.dart';
+import 'package:bao_xterm/common/services/services.dart';
+import 'package:bao_xterm/common/sorted_list.dart';
 
 /// Upstream's `MockLogService` from TestUtils.test.ts, which is ported
 /// separately.

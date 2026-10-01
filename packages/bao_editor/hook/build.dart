@@ -4,32 +4,22 @@ import 'package:native_toolchain_c/native_toolchain_c.dart';
 
 import 'windows_vswhere.dart';
 
-/// Builds the native code, for the app and for `flutter test` alike: the
-/// pseudo terminal's native half (native/pty) for macOS and Linux (Windows
-/// needs none: its ConPTY is in kernel32), and Oniguruma with its scanner
-/// (native/oniguruma) for macOS, Linux and Windows. The web has neither.
+/// Builds Oniguruma with its scanner (native/oniguruma) for macOS, Linux
+/// and Windows, for an app and for `flutter test` alike. The web has none:
+/// TextMate highlighting is off there.
 void main(List<String> arguments) async {
   await build(arguments, (input, output) async {
     if (!input.config.buildCodeAssets) return;
     final os = input.config.code.targetOS;
-    if (os == OS.macOS || os == OS.linux) {
-      await CBuilder.library(
-        name: 'baocode_pty',
-        assetName: 'ide/terminal/pty_native.dart',
-        sources: ['native/pty/baocode_pty.c'],
-        frameworks: const [],
-        flags: const ['-Wall', '-Wextra'],
-      ).run(input: input, output: output);
-    }
     if (os == OS.macOS || os == OS.linux || os == OS.windows) {
       if (os == OS.windows) {
         await configureWindowsCompiler(input.config);
       }
       await CBuilder.library(
-        name: 'baocode_onig',
-        assetName: 'ide/editor/textmate/oniguruma/onig_native.dart',
+        name: 'bao_onig',
+        assetName: 'textmate/oniguruma/onig_native.dart',
         sources: [
-          'native/oniguruma/baocode_onig.c',
+          'native/oniguruma/bao_onig.c',
           for (final source in _oniguruma) 'native/oniguruma/onig/src/$source',
         ],
         includes: const [

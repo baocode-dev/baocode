@@ -1,0 +1,152 @@
+name: bao_editor
+description: >-
+  Monaco, ported to Flutter: the editor, its Monarch and TextMate
+  highlighting (with Oniguruma, built by a native assets hook), VS Code's
+  color themes and keybindings.
+version: 0.1.0
+# Not on pub.dev yet: see HANDOFF.md.
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  code_assets: ^1.2.1
+  flutter:
+    sdk: flutter
+  hooks: ^2.0.2
+  native_toolchain_c: ^0.19.2
+  path: ^1.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  assets:
+    - assets/monaco/LICENSE.txt
+    - assets/monaco/themes.json
+    - assets/monaco/languages/
+    - assets/textmate/
+    - assets/textmate/grammars/bat/
+    - assets/textmate/grammars/bat/syntaxes/
+    - assets/textmate/grammars/clojure/
+    - assets/textmate/grammars/clojure/syntaxes/
+    - assets/textmate/grammars/coffeescript/
+    - assets/textmate/grammars/coffeescript/syntaxes/
+    - assets/textmate/grammars/cpp/
+    - assets/textmate/grammars/cpp/syntaxes/
+    - assets/textmate/grammars/csharp/
+    - assets/textmate/grammars/csharp/syntaxes/
+    - assets/textmate/grammars/css/
+    - assets/textmate/grammars/css/syntaxes/
+    - assets/textmate/grammars/dart/
+    - assets/textmate/grammars/dart/syntaxes/
+    - assets/textmate/grammars/diff/
+    - assets/textmate/grammars/diff/syntaxes/
+    - assets/textmate/grammars/docker/
+    - assets/textmate/grammars/docker/syntaxes/
+    - assets/textmate/grammars/dotenv/
+    - assets/textmate/grammars/dotenv/syntaxes/
+    - assets/textmate/grammars/fsharp/
+    - assets/textmate/grammars/fsharp/syntaxes/
+    - assets/textmate/grammars/git-base/
+    - assets/textmate/grammars/git-base/languages/
+    - assets/textmate/grammars/git-base/syntaxes/
+    - assets/textmate/grammars/go/
+    - assets/textmate/grammars/go/syntaxes/
+    - assets/textmate/grammars/groovy/
+    - assets/textmate/grammars/groovy/syntaxes/
+    - assets/textmate/grammars/handlebars/
+    - assets/textmate/grammars/handlebars/syntaxes/
+    - assets/textmate/grammars/hlsl/
+    - assets/textmate/grammars/hlsl/syntaxes/
+    - assets/textmate/grammars/html/
+    - assets/textmate/grammars/html/syntaxes/
+    - assets/textmate/grammars/ini/
+    - assets/textmate/grammars/ini/syntaxes/
+    - assets/textmate/grammars/java/
+    - assets/textmate/grammars/java/syntaxes/
+    - assets/textmate/grammars/javascript/
+    - assets/textmate/grammars/javascript/syntaxes/
+    - assets/textmate/grammars/json/
+    - assets/textmate/grammars/json/syntaxes/
+    - assets/textmate/grammars/julia/
+    - assets/textmate/grammars/julia/syntaxes/
+    - assets/textmate/grammars/latex/
+    - assets/textmate/grammars/latex/syntaxes/
+    - assets/textmate/grammars/less/
+    - assets/textmate/grammars/less/syntaxes/
+    - assets/textmate/grammars/log/
+    - assets/textmate/grammars/log/syntaxes/
+    - assets/textmate/grammars/lua/
+    - assets/textmate/grammars/lua/syntaxes/
+    - assets/textmate/grammars/make/
+    - assets/textmate/grammars/make/syntaxes/
+    - assets/textmate/grammars/markdown-basics/
+    - assets/textmate/grammars/markdown-basics/syntaxes/
+    - assets/textmate/grammars/markdown-math/
+    - assets/textmate/grammars/markdown-math/syntaxes/
+    - assets/textmate/grammars/objective-c/
+    - assets/textmate/grammars/objective-c/syntaxes/
+    - assets/textmate/grammars/perl/
+    - assets/textmate/grammars/perl/syntaxes/
+    - assets/textmate/grammars/php/
+    - assets/textmate/grammars/php/syntaxes/
+    - assets/textmate/grammars/powershell/
+    - assets/textmate/grammars/powershell/syntaxes/
+    - assets/textmate/grammars/prompt-basics/
+    - assets/textmate/grammars/prompt-basics/syntaxes/
+    - assets/textmate/grammars/pug/
+    - assets/textmate/grammars/pug/syntaxes/
+    - assets/textmate/grammars/python/
+    - assets/textmate/grammars/python/syntaxes/
+    - assets/textmate/grammars/r/
+    - assets/textmate/grammars/r/syntaxes/
+    - assets/textmate/grammars/razor/
+    - assets/textmate/grammars/razor/syntaxes/
+    - assets/textmate/grammars/restructuredtext/
+    - assets/textmate/grammars/restructuredtext/syntaxes/
+    - assets/textmate/grammars/ruby/
+    - assets/textmate/grammars/ruby/syntaxes/
+    - assets/textmate/grammars/rust/
+    - assets/textmate/grammars/rust/syntaxes/
+    - assets/textmate/grammars/scss/
+    - assets/textmate/grammars/scss/syntaxes/
+    - assets/textmate/grammars/search-result/syntaxes/
+    - assets/textmate/grammars/shaderlab/
+    - assets/textmate/grammars/shaderlab/syntaxes/
+    - assets/textmate/grammars/shellscript/
+    - assets/textmate/grammars/shellscript/syntaxes/
+    - assets/textmate/grammars/sql/
+    - assets/textmate/grammars/sql/syntaxes/
+    - assets/textmate/grammars/swift/
+    - assets/textmate/grammars/swift/syntaxes/
+    - assets/textmate/grammars/typescript-basics/
+    - assets/textmate/grammars/typescript-basics/syntaxes/
+    - assets/textmate/grammars/vb/
+    - assets/textmate/grammars/vb/syntaxes/
+    - assets/textmate/grammars/xml/
+    - assets/textmate/grammars/xml/syntaxes/
+    - assets/textmate/grammars/yaml/
+    - assets/textmate/grammars/yaml/syntaxes/
+    - assets/textmate/themes/theme-abyss/
+    - assets/textmate/themes/theme-abyss/themes/
+    - assets/textmate/themes/theme-defaults/themes/
+    - assets/textmate/themes/theme-kimbie-dark/
+    - assets/textmate/themes/theme-kimbie-dark/themes/
+    - assets/textmate/themes/theme-monokai-dimmed/
+    - assets/textmate/themes/theme-monokai-dimmed/themes/
+    - assets/textmate/themes/theme-monokai/
+    - assets/textmate/themes/theme-monokai/themes/
+    - assets/textmate/themes/theme-quietlight/
+    - assets/textmate/themes/theme-quietlight/themes/
+    - assets/textmate/themes/theme-red/
+    - assets/textmate/themes/theme-red/themes/
+    - assets/textmate/themes/theme-solarized-dark/
+    - assets/textmate/themes/theme-solarized-dark/themes/
+    - assets/textmate/themes/theme-solarized-light/
+    - assets/textmate/themes/theme-solarized-light/themes/
+    - assets/textmate/themes/theme-tomorrow-night-blue/
+    - assets/textmate/themes/theme-tomorrow-night-blue/themes/

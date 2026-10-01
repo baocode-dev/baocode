@@ -14,9 +14,8 @@ import 'package:baocode/ide/terminal/links/links.dart';
 import 'package:baocode/ide/terminal/links/terminal_link_parsing.dart';
 import 'package:baocode/ide/terminal/links/terminal_link_resolver.dart';
 import 'package:baocode/ide/terminal/links/terminal_uri_link_detector.dart';
-import 'package:baocode/ide/terminal/xterm/headless/public/terminal.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
-    hide Terminal;
+import 'package:bao_xterm/headless/public/terminal.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart' hide Terminal;
 
 import 'link_test_utils.dart';
 

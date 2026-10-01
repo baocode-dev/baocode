@@ -45,7 +45,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../../../keybindings/keybinding_entry.dart';
+import 'keybinding_entry.dart';
 import '../vs/editor/common/cursor/cursor_word_operations.dart'
     show WordNavigationType;
 import 'bracket_matching.dart';

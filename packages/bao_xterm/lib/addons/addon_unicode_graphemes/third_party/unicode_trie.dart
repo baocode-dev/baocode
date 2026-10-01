@@ -3,7 +3,7 @@
 // a TypeScript copy of the reader of the `unicode-trie` npm package (a port of
 // ICU's UTrie2). Upstream's copy carries no license header of its own; it
 // ships under the addon's MIT license, see
-// lib/ide/terminal/xterm/addons/addon_unicode_graphemes/LICENSE.
+// lib/addons/addon_unicode_graphemes/LICENSE.
 //
 // Upstream's SCREAMING_CASE constants are lowerCamelCase.
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2022 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js src/common/MultiKeyMap.ts (c58ea36).
 //
 // Upstream's keys are `string | number` object keys; here any keys with

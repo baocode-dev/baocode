@@ -13,8 +13,13 @@ import 'dart:convert';
 import '../monaco/vs/workbench/services/text_mate/common/tm_grammars.dart';
 import '../monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
 
-/// Where the generator writes the assets, as Flutter bundles them.
-const String textMateAssetRoot = 'assets/textmate';
+/// Where the generator writes the assets, in this package.
+const String textMateAssetDirectory = 'assets/textmate';
+
+/// [textMateAssetDirectory] as an app's bundle has it: under the package's
+/// `packages/bao_editor/`. Read from an app's folder, the same path finds
+/// the files in this repository.
+const String textMateAssetRoot = 'packages/bao_editor/$textMateAssetDirectory';
 
 class TextMateManifest {
   const TextMateManifest({

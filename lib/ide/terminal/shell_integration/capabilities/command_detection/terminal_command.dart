@@ -13,8 +13,9 @@
 
 import 'dart:math' as math;
 
-import '../../../xterm/common/buffer/types.dart';
-import '../../../xterm/headless/terminal.dart';
+import 'package:bao_xterm/common/buffer/types.dart';
+import 'package:bao_xterm/headless/terminal.dart';
+
 import '../../uuid.dart';
 import '../capabilities.dart';
 

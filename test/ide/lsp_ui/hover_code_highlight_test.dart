@@ -5,10 +5,11 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/textmate/textmate_syntax.dart';
-import 'package:baocode/ide/editor/textmate/textmate_worker.dart';
+import 'package:bao_editor/textmate/textmate_syntax.dart';
+import 'package:bao_editor/textmate/textmate_worker.dart';
 import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:baocode/ide/lsp_ui/language_widgets.dart';
+import 'package:baocode/theme/workbench_theme.dart';
 
 import 'fake_language_features.dart';
 import 'lsp_test_helpers.dart';
@@ -39,6 +40,7 @@ Future<List<TextSpan>> _textMate(
   String code,
 ) async {
   final syntax = TextMateSyntax(
+    themes: WorkbenchThemeService.instance,
     launch: () async => TextMateInProcessWorker.create(),
   );
   try {

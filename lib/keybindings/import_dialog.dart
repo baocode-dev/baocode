@@ -29,7 +29,9 @@ import '../ide/ide_quick_input.dart' show IdeKeycap;
 import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
-import 'keybinding_entry.dart';
+
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
+
 import 'vscode_import.dart';
 
 /// Imports [source]'s keybindings into ours ([importKeybindings]).

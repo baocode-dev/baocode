@@ -3,32 +3,84 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
-import '../../../lsp/packs/language_packs.dart';
 import '../vs/editor/standalone/common/monarch/monarch_compile.dart' as monarch;
 import '../vs/editor/standalone/common/monarch/monarch_common.dart';
 import '../vs/editor/standalone/common/monarch/monarch_types.dart';
 
+/// Languages added to the bundled ones, as an app's language packs give
+/// them: each pack's languages, and the JSON files of their grammars and
+/// configurations, in the bundled assets' shape.
+abstract interface class MonacoLanguagePacks {
+  /// No packs at all.
+  static const MonacoLanguagePacks none = _NoLanguagePacks();
+
+  Future<List<MonacoLanguagePack>> packs();
+
+  /// The JSON in [path]: a [MonacoPackLanguage.grammarPath] or
+  /// [MonacoPackLanguage.configurationPath].
+  Future<Object?> readJson(String path);
+}
+
+abstract interface class MonacoLanguagePack {
+  String get name;
+  List<MonacoPackLanguage> get languages;
+}
+
+/// A language of a pack, registered as Monaco registers its own.
+abstract interface class MonacoPackLanguage {
+  String get id;
+
+  /// With the leading dot, as Monaco registers them (`.zig`).
+  List<String> get extensions;
+  List<String> get filenames;
+  List<String> get aliases;
+
+  /// A pattern the first line matches, as Monaco's `firstLine`.
+  String? get firstLine;
+
+  /// The Monarch grammar and language configuration files; null when the
+  /// pack has none for this language.
+  String? get grammarPath;
+  String? get configurationPath;
+}
+
+final class _NoLanguagePacks implements MonacoLanguagePacks {
+  const _NoLanguagePacks();
+
+  @override
+  Future<List<MonacoLanguagePack>> packs() async => const [];
+
+  @override
+  Future<Object?> readJson(String path) async =>
+      throw FormatException('Missing language pack file', path);
+}
+
 /// Data exported from Monaco v0.57.0's original language definitions.
 /// Patterns are reconstructed before the pinned Monarch compiler sees them.
 ///
-/// Language packs ([packs], else [LanguagePackRegistry.instance]) add
-/// registrations of their own, listed before the bundled ones and preferred
-/// over them for the same file; their grammars and configurations use the
-/// bundled assets' JSON shape (see `lib/ide/lsp/packs/README.md`).
+/// Language packs ([packs], else [defaultPacks]) add registrations of their
+/// own, listed before the bundled ones and preferred over them for the same
+/// file; their grammars and configurations use the bundled assets' JSON
+/// shape.
 class MonacoLanguageAssets {
   const MonacoLanguageAssets({this.bundle, this.packs});
 
+  /// The packs of an instance given none: [MonacoLanguagePacks.none]
+  /// unless the app supplies its own, read at each use.
+  static MonacoLanguagePacks Function() defaultPacks = () =>
+      MonacoLanguagePacks.none;
+
   static const revision = 'd61824269f1377111d34306e4a47172327777083';
-  static const _base = 'assets/monaco/languages';
+  static const _base = 'packages/bao_editor/assets/monaco/languages';
 
   /// Marks a pack registration's [MonacoLanguageRegistration.assetId]:
   /// `pack:<pack name>/<language id>`.
   static const packAssetPrefix = 'pack:';
   final AssetBundle? bundle;
-  final LanguagePackRegistry? packs;
+  final MonacoLanguagePacks? packs;
 
   AssetBundle get _assets => bundle ?? rootBundle;
-  LanguagePackRegistry get _packs => packs ?? LanguagePackRegistry.instance;
+  MonacoLanguagePacks get _packs => packs ?? defaultPacks();
 
   Future<Map<String, dynamic>> _manifest() async {
     final manifest = jsonDecode(
@@ -54,7 +106,7 @@ class MonacoLanguageAssets {
           MonacoLanguageRegistration.fromMap(raw as Map<String, dynamic>),
       ]);
 
-  Future<List<(MonacoLanguageRegistration, LanguagePackLanguage)>>
+  Future<List<(MonacoLanguageRegistration, MonacoPackLanguage)>>
   _packRegistrations() async => [
     for (final pack in await _packs.packs())
       for (final language in pack.languages)

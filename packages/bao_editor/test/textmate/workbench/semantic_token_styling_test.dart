@@ -9,13 +9,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/services/semantic_tokens_provider_styling.dart';
-import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/token_classification_registry.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_token_styles.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/token_classification_extension_point.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
-import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
+import 'package:bao_editor/monaco/vs/editor/common/services/semantic_tokens_provider_styling.dart';
+import 'package:bao_editor/monaco/vs/platform/theme/common/token_classification_registry.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_token_styles.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/token_classification_extension_point.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
+import 'package:bao_editor/textmate/textmate_manifest.dart';
 
 const fixturePath = 'test/fixtures/theme/semantic_tokens.json.gz';
 
@@ -26,7 +26,7 @@ Map<String, Object?> readSemanticTokenFixture() =>
 void main() {
   final fixture = readSemanticTokenFixture();
   final manifest = TextMateManifest.parse(
-    File('$textMateAssetRoot/manifest.json').readAsStringSync(),
+    File('$textMateAssetDirectory/manifest.json').readAsStringSync(),
   );
   final legend = fixture['legend'] as Map<String, Object?>;
   final tokenTypes = (legend['tokenTypes'] as List).cast<String>();
@@ -145,7 +145,7 @@ void main() {
           extensionId: contribution.extensionId,
         );
         await theme.ensureLoaded(
-          (path) => File('$textMateAssetRoot/$path').readAsString(),
+          (path) => File('$textMateAssetDirectory/$path').readAsString(),
         );
         expect(theme.type.value, expected['type']);
         expect(theme.semanticHighlighting, expected['semanticHighlighting']);

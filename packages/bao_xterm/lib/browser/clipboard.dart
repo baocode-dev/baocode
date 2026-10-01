@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js src/browser/Clipboard.ts (c58ea36).
 //
 // Subset: the text preparation and `paste`. The DOM handlers (`copyHandler`,

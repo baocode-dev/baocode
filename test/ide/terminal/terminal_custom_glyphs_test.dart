@@ -1,5 +1,5 @@
 // Copyright (c) 2026 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See packages/bao_xterm/lib/LICENSE.txt.
 // Adapted from xterm.js addons/addon-webgl/test/WebglCustomGlyphs.test.ts
 // (c58ea36), with pixel checks of CustomGlyphRasterizer.ts' geometry.
 
@@ -9,8 +9,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/terminal/terminal_custom_glyphs.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_webgl/custom_glyphs/custom_glyph_definitions.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_webgl/custom_glyphs/types.dart';
+import 'package:bao_xterm/addons/addon_webgl/custom_glyphs/custom_glyph_definitions.dart';
+import 'package:bao_xterm/addons/addon_webgl/custom_glyphs/types.dart';
 
 const _white = Color(0xFFFFFFFF);
 

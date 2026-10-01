@@ -6,11 +6,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:baocode/chat/widgets/activity_row.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_keybindings.dart';
+import 'package:bao_editor/monaco/flutter/editor_keybindings.dart';
 import 'package:baocode/ide/ide_commands.dart';
 import 'package:baocode/ide/ide_quick_open.dart';
 import 'package:baocode/keybindings/default_keybindings.dart';
-import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/keybindings/keybindings_editing.dart';
 import 'package:baocode/l10n/app_localizations_zh.dart';

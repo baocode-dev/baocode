@@ -4,11 +4,12 @@
 // language servers keep their own ids whatever highlights the file.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/language_assets.dart';
-import 'package:baocode/ide/editor/textmate/textmate_syntax.dart';
-import 'package:baocode/ide/editor/textmate/textmate_worker.dart';
+import 'package:bao_editor/monaco/flutter/language_assets.dart';
+import 'package:bao_editor/textmate/textmate_syntax.dart';
+import 'package:bao_editor/textmate/textmate_worker.dart';
 import 'package:baocode/ide/lsp/catalog/bundled_lsp_catalog.dart';
 import 'package:baocode/ide/lsp/packs/language_packs.dart';
+import 'package:baocode/theme/workbench_theme.dart';
 import 'package:path/path.dart' as p;
 
 final _packsDirectory = p.absolute('test/fixtures/lsp/packs');
@@ -18,6 +19,7 @@ void main() {
 
   TextMateSyntax syntax({MonacoLanguageAssets? monarch}) {
     final syntax = TextMateSyntax(
+      themes: WorkbenchThemeService.instance,
       monarch: monarch,
       launch: () async => TextMateInProcessWorker.create(),
     );

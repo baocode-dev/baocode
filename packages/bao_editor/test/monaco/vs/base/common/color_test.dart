@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See ../../../../../../../lib/ide/editor/monaco/LICENSE.txt for license information.
+ *  Licensed under the MIT License. See ../../../../../lib/monaco/LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 // Ported from VS Code src/vs/base/test/common/color.test.ts at
 // 6a598d4a13031703d483d103c1d934a36ad27971 (the 'Color' suite), plus a
@@ -17,7 +17,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/base/common/color.dart';
+import 'package:bao_editor/monaco/vs/base/common/color.dart';
 
 Object? _deep(Object? value) => switch (value) {
   RGBA() => ['RGBA', value.r, value.g, value.b, value.a],

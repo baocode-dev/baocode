@@ -8,10 +8,13 @@
 
 import 'package:flutter/foundation.dart';
 
-import '../ide/editor/monaco/flutter/editor_keybindings.dart';
+import 'package:bao_editor/monaco/flutter/editor_keybindings.dart';
+
 import 'chat_keybindings.dart';
 import 'key_chord.dart';
-import 'keybinding_entry.dart';
+
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
+
 import 'workbench_keybindings.dart';
 
 /// Open Settings: the settings dialog, from either layout.

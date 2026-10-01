@@ -3,7 +3,7 @@
 // filters.test.ts.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/base/common/filters.dart';
+import 'package:bao_editor/monaco/vs/base/common/filters.dart';
 
 List<(int, int)>? _fuzzy(String pattern, String word, [FuzzyScorer? scorer]) {
   final score = (scorer ?? fuzzyScore)(

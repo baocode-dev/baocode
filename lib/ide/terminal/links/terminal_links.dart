@@ -25,7 +25,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import '../xterm/typings/xterm_headless.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart';
+
 import 'links.dart';
 import 'terminal_link_parsing.dart';
 import 'terminal_link_resolver.dart';

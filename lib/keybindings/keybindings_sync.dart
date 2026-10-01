@@ -8,7 +8,9 @@ import 'dart:async';
 
 import '../settings/jsonc_file.dart';
 import '../settings/user_settings.dart';
-import 'keybinding_entry.dart';
+
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
+
 import 'keybinding_service.dart';
 import 'keymap.dart';
 

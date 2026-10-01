@@ -21,12 +21,15 @@ import '../workspace/pin_window_button.dart';
 import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
-import 'editor/monaco/flutter/document_snapshot.dart';
-import 'editor/monaco/flutter/editor_document_model.dart'
+
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart'
     show EditorContentChangeEvent, EditorDocumentModel;
-import 'editor/monaco/flutter/editor_keybindings.dart' show editorChordPrefix;
-import 'editor/monaco/vs/editor/common/core/position.dart';
-import 'editor/monaco/vs/editor/contrib/gotoError/browser/marker_navigation.dart';
+import 'package:bao_editor/monaco/flutter/editor_keybindings.dart'
+    show editorChordPrefix;
+import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/gotoError/browser/marker_navigation.dart';
+
 import 'extensions/ide_extensions.dart';
 import 'extensions/ide_extensions_view.dart';
 import 'file_service.dart' show localizedFileError;

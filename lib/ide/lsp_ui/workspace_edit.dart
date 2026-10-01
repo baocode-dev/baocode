@@ -1,4 +1,5 @@
-import '../editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
+
 import '../ide_workspace.dart';
 import '../lsp/lsp_protocol.dart';
 import 'lsp_convert.dart';

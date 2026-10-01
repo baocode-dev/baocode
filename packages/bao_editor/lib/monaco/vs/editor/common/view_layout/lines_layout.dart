@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 // Ported from src/vs/editor/common/viewLayout/linesLayout.ts at VS Code
 // 6a598d4a13031703d483d103c1d934a36ad27971.
-// The bundled license is at lib/ide/editor/monaco/LICENSE.txt.
+// The bundled license is at lib/monaco/LICENSE.txt.
 
 import 'dart:math' as math;
 

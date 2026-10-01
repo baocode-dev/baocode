@@ -4,11 +4,13 @@ import 'dart:math' as math;
 import 'package:flutter/painting.dart';
 
 import '../../ide/terminal/terminal_colors.dart';
-import '../../ide/terminal/xterm/common/buffer/cell_data.dart';
-import '../../ide/terminal/xterm/common/buffer/constants.dart';
-import '../../ide/terminal/xterm/common/buffer/types.dart';
-import '../../ide/terminal/xterm/common/types.dart';
-import '../../ide/terminal/xterm/headless/terminal.dart' as xterm;
+
+import 'package:bao_xterm/common/buffer/cell_data.dart';
+import 'package:bao_xterm/common/buffer/constants.dart';
+import 'package:bao_xterm/common/buffer/types.dart';
+import 'package:bao_xterm/common/types.dart';
+import 'package:bao_xterm/headless/terminal.dart' as xterm;
+
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
 

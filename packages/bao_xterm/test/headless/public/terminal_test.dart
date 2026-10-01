@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/headless/public/Terminal.test.ts (c58ea36).
 //
 // Object literals are Dart objects: the addons are a small class, `modes`
@@ -10,12 +10,9 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/headless/public/terminal.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
-    hide Terminal;
-import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
-    as api
-    show Terminal;
+import 'package:bao_xterm/headless/public/terminal.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart' hide Terminal;
+import 'package:bao_xterm/typings/xterm_headless.dart' as api show Terminal;
 
 late Terminal term;
 

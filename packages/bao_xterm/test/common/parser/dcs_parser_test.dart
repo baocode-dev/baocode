@@ -1,14 +1,14 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/parser/DcsParser.test.ts (c58ea36).
 
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/input/text_decoder.dart';
-import 'package:baocode/ide/terminal/xterm/common/parser/dcs_parser.dart';
-import 'package:baocode/ide/terminal/xterm/common/parser/params.dart';
-import 'package:baocode/ide/terminal/xterm/common/parser/types.dart';
+import 'package:bao_xterm/common/input/text_decoder.dart';
+import 'package:bao_xterm/common/parser/dcs_parser.dart';
+import 'package:bao_xterm/common/parser/params.dart';
+import 'package:bao_xterm/common/parser/types.dart';
 
 import 'parser_test_utils.dart';
 

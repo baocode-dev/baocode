@@ -6,10 +6,12 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
-import '../editor/monaco/flutter/document_snapshot.dart';
-import '../editor/monaco/flutter/editor_decorations.dart';
-import '../editor/monaco/flutter/editor_surface_controller.dart';
-import '../editor/monaco/vs/editor/contrib/codeAction/common/types.dart';
+
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/editor_decorations.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/codeAction/common/types.dart';
+
 import '../ide_commands.dart';
 import '../ide_workspace.dart';
 import '../lsp/language_features.dart';

@@ -1,6 +1,6 @@
 // Runs the real upstream VS Code semantic token styling code, never the Dart
 // port, to create the golden data replayed by
-// test/ide/editor/textmate/workbench/semantic_token_styling_test.dart.
+// test/textmate/workbench/semantic_token_styling_test.dart.
 //
 // Usage: node tool/generate_semantic_token_fixtures.mjs [vscode-checkout] [output.json.gz]
 //   [vscode-checkout]  a checkout of microsoft/vscode at `revision` (default: a sparse,

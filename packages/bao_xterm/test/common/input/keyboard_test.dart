@@ -1,10 +1,10 @@
 // Copyright (c) 2014 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/input/Keyboard.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/input/keyboard.dart';
-import 'package:baocode/ide/terminal/xterm/common/types.dart';
+import 'package:bao_xterm/common/input/keyboard.dart';
+import 'package:bao_xterm/common/types.dart';
 
 /// A helper function for testing which allows passing in a partial event and
 /// defaults will be filled in on it.

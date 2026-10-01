@@ -1,10 +1,10 @@
 // Copyright (c) 2024-2026 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/Event.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/event.dart';
-import 'package:baocode/ide/terminal/xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
 
 class _Handler {
   int value = 0;

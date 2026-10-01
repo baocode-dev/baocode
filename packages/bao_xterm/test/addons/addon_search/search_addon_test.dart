@@ -1,6 +1,6 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
 // Licensed under the MIT License. See
-// lib/ide/terminal/xterm/addons/addon_search/LICENSE.
+// lib/addons/addon_search/LICENSE.
 // Adapted from xterm.js addons/addon-search/test/SearchAddon.test.ts
 // (c58ea36).
 //
@@ -17,14 +17,13 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_search/search_addon.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_search/typings/addon_search.dart'
+import 'package:bao_xterm/addons/addon_search/search_addon.dart';
+import 'package:bao_xterm/addons/addon_search/typings/addon_search.dart'
     hide SearchAddon;
-import 'package:baocode/ide/terminal/xterm/common/async.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
-    show ITerminalOptions;
+import 'package:bao_xterm/common/async.dart';
+import 'package:bao_xterm/typings/xterm.dart' show ITerminalOptions;
 
-import 'search_test_terminal.dart';
+import 'package:bao_xterm/testing/search_test_terminal.dart';
 
 late SearchTestTerminal term;
 late SearchAddon search;
@@ -424,9 +423,8 @@ void main() {
         late String fixture;
 
         setUpAll(() {
-          fixture = File(
-            'test/ide/terminal/xterm/addons/addon_search/fixtures/issue-2444',
-          ).readAsStringSync();
+          fixture = File('test/addons/addon_search/fixtures/issue-2444')
+              .readAsStringSync();
           if (!Platform.isWindows) {
             fixture = fixture.replaceAll('\n', '\n\r');
           }

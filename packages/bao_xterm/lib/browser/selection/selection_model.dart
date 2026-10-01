@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js src/browser/selection/SelectionModel.ts (c58ea36).
 
 import 'dart:math' as math;
@@ -55,10 +55,7 @@ class SelectionModel {
   List<int>? get finalSelectionEnd {
     final cols = _bufferService.cols;
     if (isSelectAllActive) {
-      return <int>[
-        cols,
-        _bufferService.buffer.ybase + _bufferService.rows - 1,
-      ];
+      return <int>[cols, _bufferService.buffer.ybase + _bufferService.rows - 1];
     }
 
     final start = selectionStart;

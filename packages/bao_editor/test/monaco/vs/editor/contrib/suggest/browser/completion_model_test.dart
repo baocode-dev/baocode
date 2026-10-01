@@ -4,8 +4,8 @@
 // assertions stay. Each item gets its own provider, as upstream's helper.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/position.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/contrib/suggest/browser/completion_model.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/suggest/browser/completion_model.dart';
 
 // languages.CompletionItemKind
 const _property = 9;

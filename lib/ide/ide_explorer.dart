@@ -18,7 +18,9 @@ import '../theme/codicons.dart';
 import '../theme/material_file_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/window_controls.dart';
-import 'editor/monaco/vs/base/common/labels.dart';
+
+import 'package:bao_editor/monaco/vs/base/common/labels.dart';
+
 import 'file_service.dart';
 import 'git/git_model.dart';
 import 'git/git_repository.dart';

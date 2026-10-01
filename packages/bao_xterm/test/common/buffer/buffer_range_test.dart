@@ -1,10 +1,10 @@
 // Copyright (c) 2021 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/buffer/BufferRange.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_range.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm.dart';
+import 'package:bao_xterm/common/buffer/buffer_range.dart';
+import 'package:bao_xterm/typings/xterm.dart';
 
 void main() {
   group('BufferRange', () {

@@ -1,6 +1,6 @@
 // Runs the real upstream VS Code language detection code, never the Dart port,
 // to create the golden data replayed by
-// test/ide/editor/monaco/vs/editor/common/services/language_detection_golden_test.dart.
+// test/monaco/vs/editor/common/services/language_detection_golden_test.dart.
 //
 // Usage: node tool/generate_language_detection_fixtures.mjs [vscode-checkout] [output.json]
 //   [vscode-checkout]  a checkout of microsoft/vscode at `revision` (default: a sparse,
@@ -9,7 +9,7 @@
 //                      ECMAScript lower-case table goes next to it as
 //                      language_detection_lowercase.json.
 //   --print-lowercase-table  also prints the run-length table used by
-//                      lib/ide/editor/monaco/vs/base/common/ecmascript_lower_case.dart.
+//                      lib/monaco/vs/base/common/ecmascript_lower_case.dart.
 //
 // What it does, at VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // 1. Bundles the unmodified languagesRegistry.ts, languagesAssociations.ts,

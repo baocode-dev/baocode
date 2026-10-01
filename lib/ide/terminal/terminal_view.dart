@@ -55,8 +55,9 @@ import 'terminal_instance.dart';
 import 'terminal_keyboard.dart';
 import 'terminal_renderer.dart';
 import 'terminal_widget.dart';
-import 'xterm/common/data/escape_sequences.dart';
-import 'xterm/common/lifecycle.dart';
+
+import 'package:bao_xterm/common/data/escape_sequences.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
 
 /// A terminal's screen, and the keyboard's way into it
 /// ([TerminalInstance.focusNode]).

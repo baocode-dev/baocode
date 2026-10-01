@@ -1,5 +1,5 @@
 // Copyright (c) 2018 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js src/browser/input/MoveToCell.ts (c58ea36).
 
 import '../../common/data/escape_sequences.dart';
@@ -235,8 +235,7 @@ String _horizontalDirection(
     startRow = startY;
   }
 
-  if ((startX < targetX &&
-          startRow <= targetY) || // down/right or same y/right
+  if ((startX < targetX && startRow <= targetY) || // down/right or same y/right
       (startX >= targetX && startRow < targetY)) {
     // down/left or same y/left
     return _Direction.right;

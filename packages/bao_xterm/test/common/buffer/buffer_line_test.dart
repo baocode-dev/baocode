@@ -1,15 +1,15 @@
 // Copyright (c) 2018 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/buffer/BufferLine.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/attribute_data.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_line.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/cell_data.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/constants.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/types.dart';
+import 'package:bao_xterm/common/buffer/attribute_data.dart';
+import 'package:bao_xterm/common/buffer/buffer_line.dart';
+import 'package:bao_xterm/common/buffer/cell_data.dart';
+import 'package:bao_xterm/common/buffer/constants.dart';
+import 'package:bao_xterm/common/buffer/types.dart';
 
-import '../test_utils.dart';
+import 'package:bao_xterm/testing/test_utils.dart';
 
 class TestBufferLine extends BufferLine {
   TestBufferLine(super.cols, [super.fillCellData, super.isWrapped]);

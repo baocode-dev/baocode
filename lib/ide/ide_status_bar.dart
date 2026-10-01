@@ -5,8 +5,10 @@ import 'package:path/path.dart' as p;
 
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
-import 'editor/monaco/flutter/document_snapshot.dart';
-import 'editor/monaco/flutter/language_assets.dart';
+
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/language_assets.dart';
+
 import 'ide_editor.dart';
 import 'ide_hover.dart';
 

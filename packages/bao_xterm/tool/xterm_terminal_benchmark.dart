@@ -21,9 +21,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:baocode/ide/terminal/xterm/headless/public/terminal.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
-    hide Terminal;
+import 'package:bao_xterm/headless/public/terminal.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart' hide Terminal;
 
 const int _cols = 120;
 const int _rows = 40;
@@ -122,7 +121,7 @@ String _lsLine() {
 /// `cat` of Dart sources: plain text, tabs and CRLF (onlcr); one unit per
 /// line.
 List<String> _catText() {
-  final dir = Directory('lib/ide/terminal/xterm');
+  final dir = Directory('lib');
   if (!dir.existsSync()) {
     stderr.writeln('Run from the repository root (needs $dir).');
     exit(2);

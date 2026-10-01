@@ -1,13 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT License. See lib/ide/editor/monaco/LICENSE.txt.
+// Licensed under the MIT License. See lib/monaco/LICENSE.txt.
 // Adapted from the pinned VS Code
 // src/vs/editor/contrib/folding/test/browser/{indentRangeProvider,indentFold,
 // foldingRanges}.test.ts.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/languages/language_configuration.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/contrib/folding/browser/folding_ranges.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/contrib/folding/browser/indent_range_provider.dart';
+import 'package:bao_editor/monaco/vs/editor/common/languages/language_configuration.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/folding/browser/folding_ranges.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/folding/browser/indent_range_provider.dart';
 
 class _Lines implements FoldingLineSource {
   _Lines(this.lines);

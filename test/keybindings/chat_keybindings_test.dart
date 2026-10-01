@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/keybindings/chat_keybindings.dart';
 import 'package:baocode/keybindings/default_keybindings.dart';
 import 'package:baocode/keybindings/key_chord.dart';
-import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/l10n/app_localizations_zh.dart';
 import 'package:baocode/l10n/command_titles.dart';

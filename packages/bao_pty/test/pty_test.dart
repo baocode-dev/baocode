@@ -4,11 +4,8 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bao_pty/bao_pty.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/pty.dart';
-import 'package:baocode/ide/terminal/pty_io.dart';
-import 'package:baocode/ide/terminal/terminal_shell.dart';
-import 'package:baocode/platform/child_process_registry.dart';
 import 'package:path/path.dart' as p;
 
 /// Real processes on a real pseudo terminal: only `/bin/sh -c` with fixed
@@ -16,18 +13,8 @@ import 'package:path/path.dart' as p;
 /// test's own (no user shell configuration is read).
 void main() {
   late Directory dir;
-  late File registryFile;
 
-  setUp(() {
-    dir = Directory.systemTemp.createTempSync('baocode-pty');
-    registryFile = File(p.join(dir.path, 'pty-processes.json'));
-    // Never the user's own list, nor their processes.
-    PtyProcesses.registry = ChildProcessRegistry(
-      file: registryFile,
-      lookup: (_) async => null,
-      signal: (_) => false,
-    );
-  });
+  setUp(() => dir = Directory.systemTemp.createTempSync('bao_pty'));
   tearDown(() => dir.deleteSync(recursive: true));
 
   const timeout = Duration(seconds: 10);
@@ -39,7 +26,7 @@ void main() {
     int rows = 24,
     Map<String, String>? environment,
   }) async {
-    final pty = await startPty(
+    final pty = await spawnPty(
       PtyLaunch(
         executable: '/bin/sh',
         arguments: ['-c', script],
@@ -81,7 +68,7 @@ void main() {
   });
 
   test('the output closes before the exit code comes', () async {
-    final pty = await startPty(
+    final pty = await spawnPty(
       PtyLaunch(
         executable: '/bin/sh',
         arguments: const ['-c', 'echo done'],
@@ -196,21 +183,17 @@ void main() {
   });
 
   test('runs in the working directory, with the environment given', () async {
-    final environment = terminalEnvironment(
-      const {'PATH': '/usr/bin:/bin', 'LANG': 'C'},
-      os: Platform.isMacOS ? TerminalOs.macOS : TerminalOs.linux,
-      locale: 'en_US',
-    );
     final (pty, printed) = await sh(
-      r'pwd -P; echo "term=$TERM program=$TERM_PROGRAM lang=$LANG"',
-      environment: environment,
+      r'pwd -P; echo "term=$TERM program=$TERM_PROGRAM"',
+      environment: const {
+        'PATH': '/usr/bin:/bin',
+        'TERM': 'xterm-256color',
+        'TERM_PROGRAM': 'bao_pty',
+      },
     );
     expect(await pty.exitCode.timeout(timeout), 0);
     expect(printed.toString(), contains(dir.resolveSymbolicLinksSync()));
-    expect(
-      printed.toString(),
-      contains('term=xterm-256color program=baocode lang=en_US.UTF-8'),
-    );
+    expect(printed.toString(), contains('term=xterm-256color program=bao_pty'));
   });
 
   test('the app ignoring SIGPIPE does not carry into the child', () async {
@@ -219,7 +202,7 @@ void main() {
   });
 
   test('finds a program on the PATH', () async {
-    final pty = await startPty(
+    final pty = await spawnPty(
       PtyLaunch(
         executable: 'sh',
         arguments: const ['-c', 'exit 7'],
@@ -232,7 +215,7 @@ void main() {
 
   test('fails to start what is not there', () async {
     await expectLater(
-      startPty(
+      spawnPty(
         PtyLaunch(
           executable: p.join(dir.path, 'missing'),
           workingDirectory: dir.path,
@@ -248,9 +231,9 @@ void main() {
       ),
     );
     await expectLater(
-      startPty(
+      spawnPty(
         PtyLaunch(
-          executable: 'baocode-no-such-program',
+          executable: 'bao-pty-no-such-program',
           workingDirectory: dir.path,
           environment: const {'PATH': '/usr/bin:/bin'},
         ),
@@ -258,7 +241,7 @@ void main() {
       throwsA(isA<PtyException>()),
     );
     await expectLater(
-      startPty(
+      spawnPty(
         PtyLaunch(
           executable: '/bin/sh',
           workingDirectory: p.join(dir.path, 'gone'),
@@ -266,30 +249,6 @@ void main() {
       ),
       throwsA(isA<PtyException>()),
     );
-  });
-
-  test('is recorded while it runs', () async {
-    final (pty, _) = await sh('read x');
-    await PtyProcesses.registry.reaped;
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    expect(jsonDecode(registryFile.readAsStringSync()), [
-      {'pid': pty.pid, 'parent': pid},
-    ]);
-    pty.writeText('\n');
-    await pty.exitCode.timeout(timeout);
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    expect(jsonDecode(registryFile.readAsStringSync()), isEmpty);
-  });
-
-  test('stopPtyProcesses hangs up every terminal and waits', () async {
-    final (first, _) = await sh('sleep 10');
-    final (second, _) = await sh(
-      "trap '' HUP INT TERM; while :; do sleep 1; done",
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    await PtyProcesses.stopAll(timeout: const Duration(milliseconds: 500));
-    expect(await first.exitCode.timeout(timeout), -PtySignal.hangup.number);
-    expect(await second.exitCode.timeout(timeout), -PtySignal.kill.number);
   });
 
   test('writes, resizes and kills after the exit do nothing', () async {

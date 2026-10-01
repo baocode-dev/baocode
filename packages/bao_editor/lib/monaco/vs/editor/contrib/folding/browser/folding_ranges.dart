@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 // Ported from VS Code src/vs/editor/contrib/folding/browser/foldingRanges.ts
 // at 6a598d4a13031703d483d103c1d934a36ad27971.
-// The bundled license is at lib/ide/editor/monaco/LICENSE.txt.
+// The bundled license is at lib/monaco/LICENSE.txt.
 //
 // Deviations: `SelectedLines` (declared upstream in folding.ts) is included
 // here as a small interface; `toString` is `debugString`. `FoldRange` is a

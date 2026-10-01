@@ -51,7 +51,8 @@
 //   checked by the command.
 
 import 'default_keybindings.dart' show CommandInfo;
-import 'keybinding_entry.dart';
+
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 
 /// The workbench's further commands, for the catalog.
 final List<CommandInfo> workbenchExtraCommands = [

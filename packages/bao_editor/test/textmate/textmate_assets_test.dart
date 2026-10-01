@@ -11,11 +11,11 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/language_configuration_assets.dart';
-import 'package:baocode/ide/editor/monaco/vs/base/common/json.dart' as json;
-import 'package:baocode/ide/editor/monaco/vs/editor/common/languages/language_configuration.dart';
-import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
-import 'package:baocode/ide/editor/textmate/vscode_textmate/main.dart'
+import 'package:bao_editor/monaco/flutter/language_configuration_assets.dart';
+import 'package:bao_editor/monaco/vs/base/common/json.dart' as json;
+import 'package:bao_editor/monaco/vs/editor/common/languages/language_configuration.dart';
+import 'package:bao_editor/textmate/textmate_manifest.dart';
+import 'package:bao_editor/textmate/vscode_textmate/main.dart'
     show parseRawGrammar;
 
 /// What the loader does not keep of a bundled configuration that VS Code
@@ -83,10 +83,10 @@ const _loaderLosses = {
 
 void main() {
   final manifest = TextMateManifest.parse(
-    File('$textMateAssetRoot/manifest.json').readAsStringSync(),
+    File('$textMateAssetDirectory/manifest.json').readAsStringSync(),
   );
   String read(String path) =>
-      File('$textMateAssetRoot/$path').readAsStringSync();
+      File('$textMateAssetDirectory/$path').readAsStringSync();
 
   test('every grammar parses with parseRawGrammar', () {
     final paths = {for (final grammar in manifest.grammars) grammar.path};

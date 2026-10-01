@@ -30,8 +30,8 @@ const _required = [
   'Contents/MacOS/BaoCode',
   'Contents/Frameworks/FlutterMacOS.framework',
   'Contents/Frameworks/App.framework',
-  // The terminal's native half (hook/build.dart builds it).
-  'Contents/Frameworks/baocode_pty.framework',
+  // The terminal's native half (bao_pty's hook/build.dart builds it).
+  'Contents/Frameworks/bao_pty.framework',
   'Contents/Resources/flutter_assets',
 ];
 

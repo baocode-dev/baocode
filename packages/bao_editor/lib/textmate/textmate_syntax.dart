@@ -30,7 +30,6 @@ import '../monaco/vs/editor/common/tokens/line_tokens.dart';
 import '../monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
 import '../monaco/vs/workbench/services/text_mate/common/tm_scope_registry.dart';
 import '../monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import '../../../theme/workbench_theme.dart';
 import 'textmate_manifest.dart';
 import 'textmate_worker.dart';
 
@@ -300,6 +299,19 @@ class _Runtime {
   }
 }
 
+/// Where [TextMateSyntax] gets the color theme it paints with, and word
+/// when it changes: what VS Code's `IWorkbenchThemeService` gives an
+/// editor. An app's workbench theme implements it.
+abstract interface class TextMateThemeSource implements Listenable {
+  /// The theme in use. One restored from storage has its rules; one whose
+  /// [ColorThemeData.settingsId] starts with `__` has not read its file
+  /// yet ([loadedColorTheme]).
+  ColorThemeData get colorTheme;
+
+  /// [colorTheme], its file read.
+  Future<ColorThemeData> loadedColorTheme();
+}
+
 /// TextMate highlighting for one editor: VS Code's grammars and theme, with
 /// tokenization in a worker. Unavailable (every method answers null) on the
 /// web, where the native Oniguruma library does not load, or without the
@@ -308,11 +320,10 @@ class TextMateSyntax {
   TextMateSyntax({
     AssetBundle? bundle,
     MonacoLanguageAssets? monarch,
-    WorkbenchThemeService? themes,
+    required this._themes,
     Future<TextMateWorkerChannel?> Function()? launch,
   }) : _bundle = bundle ?? rootBundle,
        _monarch = monarch ?? MonacoLanguageAssets(bundle: bundle),
-       _themes = themes ?? WorkbenchThemeService.instance,
        _launch = launch ?? textMateWorkerLauncher {
     _themes.addListener(_colorThemeChanged);
   }
@@ -322,7 +333,7 @@ class TextMateSyntax {
   final Future<TextMateWorkerChannel?> Function() _launch;
 
   /// The workbench theme, which the editor paints with.
-  final WorkbenchThemeService _themes;
+  final TextMateThemeSource _themes;
 
   Future<_Runtime?>? _runtime;
   _Runtime? _started;

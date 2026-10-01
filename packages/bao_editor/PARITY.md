@@ -16,6 +16,11 @@ Authoritative inventories in the pinned VS Code checkout:
 
 The complete VS Code extension host is not part of Monaco Editor.
 
+This checklist ships with the bao_editor package (MIT; not on pub.dev yet, see
+[HANDOFF.md](HANDOFF.md) for the publishing plan). Rows marked "BaoCode, not
+Monaco" and the contributions over LSP belong to the app (`../../lib/ide/`,
+GPL-3.0-only), not to the package.
+
 | Boundary | Current state | Required before parity |
 | --- | --- | --- |
 | Position, Range, Selection | Source ports with tests | Maintain pinned behavior tests and documented Dart API names |
@@ -32,7 +37,7 @@ The complete VS Code extension host is not part of Monaco Editor.
 | Accessibility | Pending native validation | Text semantics, navigation/announcements, accessible diff, VoiceOver/Narrator |
 | Rendering | Gutter with line numbers and fold chevrons, current line, multi-selection/carets with blink, bracket match, selection occurrences, indent guides, whitespace, overlay scrollbars with overview ruler, block minimap, Monarch token colors | Glyph widgets, sticky scroll, smooth scrolling, character minimap, rulers |
 | Tokenization and language providers | Token data and Monarch compiler/lexer ported, 86 pinned grammar variants/89 registrations bundled; first-line matching and prefix/converged-suffix reuse; opt-in surface uses built-in `vs-dark` rules | Full incremental invalidation, theme/provider registry, cancellation, language workers/services |
-| Editor contributions | Over LSP (`lib/ide/lsp_ui/`): diagnostics squiggles/overview marks/Problems panel/F8, markdown hover, definition/type definition/implementation/references (panel, not peek), ⌘-click links, back/forward, suggest widget with fuzzy filter (`filters.ts` port), resolve, commit characters and snippets (`snippetParser`/`snippetSession` ports), signature help, rename, document/selection formatting, document symbols in breadcrumbs/outline/`@` quick open, code actions (lightbulb, ⌘.), semantic token overlay | Peek views, inlay hints, CodeLens, links/colors, server folding, sticky scroll, word-distance ranking, nested snippets, Outline sort/filter |
+| Editor contributions | Over LSP (`../../lib/ide/lsp_ui/`): diagnostics squiggles/overview marks/Problems panel/F8, markdown hover, definition/type definition/implementation/references (panel, not peek), ⌘-click links, back/forward, suggest widget with fuzzy filter (`filters.ts` port), resolve, commit characters and snippets (`snippetParser`/`snippetSession` ports), signature help, rename, document/selection formatting, document symbols in breadcrumbs/outline/`@` quick open, code actions (lightbulb, ⌘.), semantic token overlay | Peek views, inlay hints, CodeLens, links/colors, server folding, sticky scroll, word-distance ranking, nested snippets, Outline sort/filter |
 | Diff editor | Source-derived subset of line/character diff and range mappings; side-by-side/inline UI (900px breakpoint) with view zones, deleted code, decorations, overview ruler and sash, opened from Source Control changes | Moved-line heuristics, workers, navigation/revert, gutter menu, hidden unchanged regions, word wrap, accessibility; Timeline/Graph diffs |
 | Language servers (BaoCode, not Monaco) | Generic LSP 3.17 client over stdio (UTF-16, incremental sync, dynamic registration, configuration, watched files, progress, applyEdit); per-root × server processes with idle stop, crash backoff, reaping; Helix-derived language map; mason-registry installer; user overrides and language packs | Pull diagnostics, semantic token ranges/deltas, resource operations in workspace edits, `showDocument`, process-group kill, symlink-resolved document keys |
 | Workbench look (BaoCode, not Monaco) | VS Code 1.140 defaults: Modern UI cards (activity bar, side bar, editor, chat; 4px gaps, 8px corners, grip sashes), Dark 2026 colors, workbench hovers, codicons; editor hovers render markdown with editor-tokenized code blocks | Compact density, right-side activity bar, hover status bar actions, markdown tables/HTML in hovers |
@@ -54,7 +59,7 @@ The complete VS Code extension host is not part of Monaco Editor.
 5. Full parity requires checking all public API/option/contribution entries,
    native platforms, and representative performance/large-file cases. This
    checklist is not yet complete and is not a declaration of completion.
-6. Language features go through `LanguageFeatures` (`lib/ide/lsp/language_features.dart`);
+6. Language features go through `LanguageFeatures` (`../../lib/ide/lsp/language_features.dart`);
    UI tests use an in-memory fake, the client is tested end to end against
-   `test/fixtures/lsp/fake_lsp_server.dart`, and the real `dart language-server`
+   `../../test/fixtures/lsp/fake_lsp_server.dart`, and the real `dart language-server`
    smoke test runs only with `--run-skipped -t lsp-smoke`.

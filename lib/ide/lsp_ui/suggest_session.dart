@@ -4,12 +4,13 @@ import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show KeyEventResult;
 
-import '../editor/monaco/flutter/document_snapshot.dart';
-import '../editor/monaco/flutter/editor_document_model.dart';
-import '../editor/monaco/flutter/editor_keybindings.dart';
-import '../editor/monaco/vs/editor/common/core/position.dart';
-import '../editor/monaco/vs/editor/contrib/snippet/browser/snippet_parser.dart';
-import '../editor/monaco/vs/editor/contrib/suggest/browser/completion_model.dart';
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/flutter/editor_keybindings.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/snippet/browser/snippet_parser.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/suggest/browser/completion_model.dart';
+
 import '../lsp/language_features.dart';
 import '../lsp/lsp_protocol.dart';
 import 'language_editor.dart';

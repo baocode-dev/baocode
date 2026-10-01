@@ -1,5 +1,5 @@
 // Copyright (c) 2022 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See packages/bao_xterm/lib/LICENSE.txt.
 // Ported from xterm.js src/browser/services/ThemeService.ts,
 // src/browser/ColorContrastCache.ts and CoreBrowserTerminal.ts
 // (`_handleColorEvent`) (c58ea36); the theme and options VS Code passes are
@@ -17,13 +17,14 @@ import 'dart:ui' show Color;
 import '../../platform/app_platform.dart';
 import '../../theme/app_theme.dart';
 import 'terminal_colors.dart';
-import 'xterm/common/color.dart';
-import 'xterm/common/data/escape_sequences.dart';
-import 'xterm/common/event.dart';
-import 'xterm/common/input/x_parse_color.dart';
-import 'xterm/common/lifecycle.dart';
-import 'xterm/common/services/services.dart';
-import 'xterm/common/types.dart';
+
+import 'package:bao_xterm/common/color.dart';
+import 'package:bao_xterm/common/data/escape_sequences.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/input/x_parse_color.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/services/services.dart';
+import 'package:bao_xterm/common/types.dart';
 
 /// Minimum-contrast results by background and foreground `rgba`; a cached
 /// null means the pair already meets the ratio.

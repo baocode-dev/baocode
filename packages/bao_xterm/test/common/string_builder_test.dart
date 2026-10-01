@@ -1,9 +1,9 @@
 // Copyright (c) 2026 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/StringBuilder.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/string_builder.dart';
+import 'package:bao_xterm/common/string_builder.dart';
 
 void main() {
   group('StringBuilder', () {

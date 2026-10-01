@@ -16,7 +16,8 @@
 
 import 'package:path/path.dart' as p;
 
-import '../xterm/typings/xterm_headless.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart';
+
 import 'link_computer.dart';
 import 'terminal_link_parsing.dart';
 import 'terminal_link_resolver.dart';

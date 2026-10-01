@@ -12,26 +12,28 @@ import '../l10n/command_titles.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' hide ColorScheme;
-import 'editor/monaco/flutter/diff_editor.dart';
-import 'editor/monaco/flutter/diff_editor_model.dart';
-import 'editor/monaco/flutter/document_snapshot.dart';
-import 'editor/monaco/flutter/editor_surface.dart';
-import 'editor/monaco/flutter/editor_surface_controller.dart';
-import 'editor/monaco/flutter/monaco_syntax.dart';
-import 'editor/monaco/flutter/selection_adapter.dart';
-import 'editor/monaco/flutter/theme_assets.dart';
-import 'editor/monaco/vs/editor/common/core/cursor_columns.dart';
-import 'editor/monaco/vs/editor/common/core/position.dart';
-import 'editor/monaco/vs/editor/contrib/find/browser/replace_pattern.dart';
-import 'editor/monaco/vs/editor/contrib/gotoError/browser/marker_navigation.dart';
-import 'editor/monaco/vs/editor/common/model/search/piece_tree_search.dart';
-import 'editor/monaco/flutter/editor_document_model.dart';
-import 'editor/monaco/flutter/editor_keybindings.dart';
-import 'editor/monaco/flutter/language_configuration_assets.dart';
-import 'editor/monaco/vs/editor/common/languages/language_configuration_registry.dart'
+
+import 'package:bao_editor/monaco/flutter/diff_editor.dart';
+import 'package:bao_editor/monaco/flutter/diff_editor_model.dart';
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/flutter/monaco_syntax.dart';
+import 'package:bao_editor/monaco/flutter/selection_adapter.dart';
+import 'package:bao_editor/monaco/flutter/theme_assets.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/cursor_columns.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/find/browser/replace_pattern.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/gotoError/browser/marker_navigation.dart';
+import 'package:bao_editor/monaco/vs/editor/common/model/search/piece_tree_search.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/flutter/editor_keybindings.dart';
+import 'package:bao_editor/monaco/flutter/language_configuration_assets.dart';
+import 'package:bao_editor/monaco/vs/editor/common/languages/language_configuration_registry.dart'
     show plainTextLanguageConfiguration;
-import 'editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'editor/textmate/textmate_syntax.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:bao_editor/textmate/textmate_syntax.dart';
+
 import 'git/git_blame.dart';
 import 'ide_commands.dart';
 import 'ide_find_widget.dart';
@@ -147,7 +149,9 @@ class IdeEditorState extends State<IdeEditor> {
   final Map<IdeDocument, TokenizedDocument> _tokenizedDocuments = {};
   // VS Code's grammars and theme where the platform has them; Monarch
   // highlights the rest (the web, language packs, languages without one).
-  final TextMateSyntax _textMate = TextMateSyntax();
+  final TextMateSyntax _textMate = TextMateSyntax(
+    themes: WorkbenchThemeService.instance,
+  );
   // Each by the path its language was picked for.
   final Map<IdeDocument, (String, TextMateDocument)> _textMateDocuments = {};
   bool _textMateRequested = false;

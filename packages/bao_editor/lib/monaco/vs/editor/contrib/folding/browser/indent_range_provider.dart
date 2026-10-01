@@ -5,7 +5,7 @@
 // Ported from VS Code src/vs/editor/contrib/folding/browser/indentRangeProvider.ts
 // (and `computeIndentLevel` from src/vs/editor/common/model/utils.ts) at
 // 6a598d4a13031703d483d103c1d934a36ad27971.
-// The bundled license is at lib/ide/editor/monaco/LICENSE.txt.
+// The bundled license is at lib/monaco/LICENSE.txt.
 //
 // Deviations: [computeRanges] reads lines through [FoldingLineSource] instead
 // of an ITextModel, and takes the tab size directly; the async

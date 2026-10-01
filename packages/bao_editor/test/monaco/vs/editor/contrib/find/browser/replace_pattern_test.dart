@@ -7,7 +7,7 @@
 // RegExpMatch.group can be null for an unmatched capture (JS: undefined).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/contrib/find/browser/replace_pattern.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/find/browser/replace_pattern.dart';
 
 List<String?>? _matches(String target, RegExp search) {
   final match = search.firstMatch(target);

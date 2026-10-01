@@ -1,12 +1,12 @@
 // Copyright (c) 2017 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/browser/input/MoveToCell.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/browser/input/move_to_cell.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
+import 'package:bao_xterm/browser/input/move_to_cell.dart';
+import 'package:bao_xterm/common/services/services.dart';
 
-import '../../common/test_utils.dart';
+import 'package:bao_xterm/testing/test_utils.dart';
 
 String _times(String s, int n) => List<String>.filled(n, s).join();
 

@@ -4,17 +4,17 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/bracket_matching.dart';
-import 'package:baocode/ide/editor/monaco/flutter/document_snapshot.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_decorations.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_document_model.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_folding.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_minimap.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_scrollbar.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_surface.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_surface_controller.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_view_painters.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/languages/language_configuration.dart';
+import 'package:bao_editor/monaco/flutter/bracket_matching.dart';
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/editor_decorations.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/flutter/editor_folding.dart';
+import 'package:bao_editor/monaco/flutter/editor_minimap.dart';
+import 'package:bao_editor/monaco/flutter/editor_scrollbar.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/flutter/editor_view_painters.dart';
+import 'package:bao_editor/monaco/vs/editor/common/languages/language_configuration.dart';
 
 EditorSurfaceController _controller(String text) {
   final document = EditorDocumentModel(text);

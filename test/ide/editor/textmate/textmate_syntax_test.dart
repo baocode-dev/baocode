@@ -11,11 +11,11 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/document_snapshot.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/tokens/contiguous_tokens_store.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/tokens/line_tokens.dart';
-import 'package:baocode/ide/editor/textmate/textmate_syntax.dart';
-import 'package:baocode/ide/editor/textmate/textmate_worker.dart';
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/vs/editor/common/tokens/contiguous_tokens_store.dart';
+import 'package:bao_editor/monaco/vs/editor/common/tokens/line_tokens.dart';
+import 'package:bao_editor/textmate/textmate_syntax.dart';
+import 'package:bao_editor/textmate/textmate_worker.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 
 import 'textmate_fixture.dart';
@@ -59,6 +59,7 @@ void main() {
 
   setUp(() {
     syntax = TextMateSyntax(
+      themes: WorkbenchThemeService.instance,
       launch: () async => TextMateInProcessWorker.create(),
     );
   });
@@ -88,7 +89,8 @@ void main() {
     final fixture = jsonDecode(
       utf8.decode(
         gzip.decode(
-          File('test/fixtures/textmate/tokens.json.gz').readAsBytesSync(),
+          File('packages/bao_editor/test/fixtures/textmate/tokens.json.gz')
+              .readAsBytesSync(),
         ),
       ),
     ) as Map<String, Object?>;
@@ -327,7 +329,10 @@ class A {
   });
 
   test('is unavailable without a worker', () async {
-    final unavailable = TextMateSyntax(launch: () async => null);
+    final unavailable = TextMateSyntax(
+      themes: WorkbenchThemeService.instance,
+      launch: () async => null,
+    );
     addTearDown(unavailable.dispose);
     expect(await unavailable.languageIdForPath('/w/a.ts'), isNull);
     expect(await unavailable.theme, isNull);
@@ -337,7 +342,10 @@ class A {
 
   test('a background isolate tokenizes, not this one', () async {
     final created = TextMateWorker.debugCreated;
-    final isolated = TextMateSyntax(launch: spawnTextMateWorker);
+    final isolated = TextMateSyntax(
+      themes: WorkbenchThemeService.instance,
+      launch: spawnTextMateWorker,
+    );
     addTearDown(isolated.dispose);
     final document = isolated.open(
       (await isolated.languageIdForPath('/w/a.ts'))!,

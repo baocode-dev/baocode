@@ -7,7 +7,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/keybindings/chat_keybindings.dart';
-import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';

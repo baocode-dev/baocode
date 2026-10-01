@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See ../../../../../../../../../lib/ide/editor/monaco/LICENSE.txt for license information.
+ *  Licensed under the MIT License. See ../../../../../../../lib/monaco/LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 // Source-derived checks for VS Code tokenization.ts and tokenization.test.ts
 // at 6a598d4a13031703d483d103c1d934a36ad27971.
@@ -8,8 +8,8 @@
 import 'dart:ui' show Color;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/encoded_token_attributes.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/languages/supports/tokenization.dart';
+import 'package:bao_editor/monaco/vs/editor/common/encoded_token_attributes.dart';
+import 'package:bao_editor/monaco/vs/editor/common/languages/supports/tokenization.dart';
 
 void expectRule(
   ThemeTrieElementRule actual,

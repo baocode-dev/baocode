@@ -13,8 +13,8 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/terminal/shell_integration/capabilities/capabilities.dart';
 import 'package:baocode/ide/terminal/shell_integration/shell_integration_addon.dart';
-import 'package:baocode/ide/terminal/xterm/common/lifecycle.dart';
-import 'package:baocode/ide/terminal/xterm/headless/terminal.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/headless/terminal.dart';
 
 import 'recordings.dart';
 import 'shell_integration_test_helpers.dart';

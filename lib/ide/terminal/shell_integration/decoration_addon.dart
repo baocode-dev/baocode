@@ -31,16 +31,18 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart' show IconData;
 
 import '../terminal_colors.dart';
-import '../xterm/common/event.dart';
-import '../xterm/common/lifecycle.dart';
-import '../xterm/common/services/services.dart';
-import '../xterm/headless/terminal.dart';
-import '../xterm/typings/xterm.dart'
+
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/services/services.dart';
+import 'package:bao_xterm/headless/terminal.dart';
+import 'package:bao_xterm/typings/xterm.dart'
     show
         IDecoration,
         IDecorationOptions,
         IDecorationOverviewRulerOptions,
         IMarker;
+
 import 'capabilities/capabilities.dart';
 import 'decoration_styles.dart';
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2021 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js addons/addon-webgl/src/customGlyphs/CustomGlyphDefinitions.ts (c58ea36).
 
 import 'types.dart';

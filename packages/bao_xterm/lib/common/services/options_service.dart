@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js src/common/services/OptionsService.ts (c58ea36).
 //
 // Upstream's `options` object defines a validating getter/setter per key with

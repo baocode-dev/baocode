@@ -13,17 +13,17 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/text_mate/common/tm_grammar_factory.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:baocode/ide/editor/textmate/oniguruma/onig_lib.dart';
-import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
-import 'package:baocode/ide/editor/textmate/vscode_textmate/main.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/text_mate/common/tm_grammar_factory.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:bao_editor/textmate/oniguruma/onig_lib.dart';
+import 'package:bao_editor/textmate/textmate_manifest.dart';
+import 'package:bao_editor/textmate/vscode_textmate/main.dart';
 
 import 'textmate_fixture.dart';
 
 Future<String> _readAsset(String path) =>
-    File('$textMateAssetRoot/$path').readAsString();
+    File('$textMateAssetDirectory/$path').readAsString();
 
 class _Host implements ITMGrammarFactoryHost {
   @override
@@ -184,7 +184,7 @@ void main() {
   group('binary tokens (the editor loop)', () {
     // The fixture's themes the assets still bundle.
     final bundled = TextMateManifest.parse(
-      File('$textMateAssetRoot/manifest.json').readAsStringSync(),
+      File('$textMateAssetDirectory/manifest.json').readAsStringSync(),
     );
     for (final themeId in colorMaps.keys) {
       if (bundled.themeById(themeId) == null) continue;

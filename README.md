@@ -11,8 +11,9 @@ Issues are welcome. Pull requests are not accepted.
 ## License
 
 BaoCode is licensed under the [GNU General Public License v3.0](LICENSE)
-(GPL-3.0-only). Third-party components keep their own licenses, found next
-to them in the source tree.
+(GPL-3.0-only). The editor and terminal packages in [packages/](packages)
+(bao_editor, bao_xterm, bao_pty) are MIT. Third-party components keep their
+own licenses, found next to them in the source tree.
 
 BaoCode is an independent project, not affiliated with or endorsed by
 Anthropic.

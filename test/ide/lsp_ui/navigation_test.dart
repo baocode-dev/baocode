@@ -1,7 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_surface.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:baocode/ide/lsp_ui/language_widgets.dart';
 import 'package:baocode/ide/lsp_ui/problems_panel.dart';

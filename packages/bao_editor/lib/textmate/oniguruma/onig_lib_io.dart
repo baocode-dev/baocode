@@ -146,7 +146,7 @@ final class NativeOnigString implements OnigString, Finalizable {
 final class NativeOnigScanner implements OnigScanner, Finalizable {
   /// With [strict], throws an [OnigError] for the first invalid pattern.
   /// Otherwise the scanner is made all the same, as VS Code's
-  /// vscode-oniguruma makes it (native/oniguruma/baocode_onig.c has the
+  /// vscode-oniguruma makes it (native/oniguruma/bao_onig.c has the
   /// details): an invalid pattern never matches, and with valid ones beside
   /// it, nothing matches in a string under 1000 UTF-8 bytes.
   factory NativeOnigScanner(List<String> sources, {bool strict = false}) {

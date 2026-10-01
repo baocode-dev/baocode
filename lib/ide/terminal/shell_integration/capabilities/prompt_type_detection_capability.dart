@@ -9,8 +9,9 @@
 // src/vs/platform/terminal/common/capabilities/
 // promptTypeDetectionCapability.ts.
 
-import '../../xterm/common/event.dart';
-import '../../xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+
 import 'capabilities.dart';
 
 class PromptTypeDetectionCapability extends Disposable

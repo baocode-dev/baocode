@@ -49,12 +49,12 @@ revision, not the Monaco repository's generated bundles:
 | `src/vs/workbench/services/textMate/common/TMScopeRegistry.ts` | `vs/workbench/services/text_mate/common/tm_scope_registry.dart` |
 | `src/vs/workbench/services/textMate/common/TMGrammarFactory.ts` | `vs/workbench/services/text_mate/common/tm_grammar_factory.dart` |
 | `src/vs/workbench/services/textMate/browser/textMateTokenizationFeatureImpl.ts` (subset) | `vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart` |
-| `src/vs/editor/test/common/core/range.test.ts` | `test/ide/editor/monaco/vs/editor/common/core/range_test.dart` |
-| `src/vs/base/test/common/json.test.ts` | `test/ide/editor/textmate/workbench/json_test.dart` |
+| `src/vs/editor/test/common/core/range.test.ts` | `test/monaco/vs/editor/common/core/range_test.dart` |
+| `src/vs/base/test/common/json.test.ts` | `test/textmate/workbench/json_test.dart` |
 
 `Position`, `Range`, `Selection`, the `EditOperation` factories, `TextChange`,
 and the EOL counter are ported editor-core primitives. Dart tests live in
-`test/ide/editor/monaco/vs/editor/common/core/`; the Range tests mirror the
+`test/monaco/vs/editor/common/core/`; the Range tests mirror the
 upstream test file, while the other tests cover cases derived from the pinned
 TypeScript implementations. The piece-tree buffer, builder, and red-black tree
 are also partially ported. The base tree shares an append-only change buffer
@@ -90,7 +90,7 @@ Dart API adaptations:
   factory returns a buffer directly, and its content-change notifications use
   subscribe/unsubscribe callbacks instead of the upstream event object.
 - The Flutter boundary is `flutter/selection_adapter.dart`, used by
-  `lib/ide/ide_editor.dart`: Monaco-style `Position`/`Selection` represent
+  `../../lib/ide/ide_editor.dart`: Monaco-style `Position`/`Selection` represent
   logical line/column coordinates, while Flutter `TextSelection` uses zero-based
   UTF-16 offsets. `flutter/document_snapshot.dart` indexes line starts for
   repeated O(log lineCount) caret lookup. These Flutter adapters are not ports
@@ -125,9 +125,9 @@ regressions have platform coverage. The separate search and text-command
 subsets under `vs/editor/common/model/search/` and `vs/editor/common/commands/`
 currently adapt upstream behavior but do not implement their full APIs.
 
-The test fixtures in `test/ide/editor/monaco/vs/editor/common/core/` mirror
+The test fixtures in `test/monaco/vs/editor/common/core/` mirror
 upstream Range cases and cover extra ported behavior. Run the port's tests with
-`flutter test test/ide/editor/monaco/` and verify the app with `flutter test`.
+`flutter test test/monaco/` and verify the app with `flutter test`.
 The reference source can be checked out outside the repository at the pinned
 `vscodeRef`; do not commit the complete VS Code checkout or minified bundles.
 `tool/generate_monaco_core_fixtures.mjs` runs the pinned upstream Position,
@@ -195,7 +195,7 @@ each file):
 - `contrib/codeAction/common/types.ts` (kinds, filters, ordering).
 - `contrib/gotoError/browser/markerNavigation.ts` (next/previous across files).
 
-Flutter adaptations in `lib/ide/lsp_ui/` (not ports): the per-editor
+Flutter adaptations in `../../lib/ide/lsp_ui/` (not ports): the per-editor
 `EditorLanguageSession` (debounced, version-checked requests; hover, links,
 lightbulb, signature help, suggest), suggest/hover/signature/rename/code action
 widgets, the Problems and References panels, Outline, breadcrumbs symbols,
@@ -204,7 +204,7 @@ minimal-edit formatting (line diff → one undo step keeping cursors) and
 workspace edit application. Rename edits to unopened files open them as dirty
 tabs; resource operations are refused. References go to a panel, not a peek.
 
-Client (`lib/ide/lsp/`, BaoCode code, not VS Code): `json_rpc.dart`,
+Client (`../../lib/ide/lsp/`, BaoCode code, not VS Code): `json_rpc.dart`,
 `lsp_client.dart`, `lsp_manager.dart`, `lsp_process*.dart`, `lsp_glob.dart`;
 contracts `lsp_protocol.dart`, `lsp_server_definition.dart`,
 `language_features.dart`. `EditorDocumentModel.changes` emits LSP-ordered
@@ -214,18 +214,18 @@ completion `data`/`commitCharacters` item defaults.
 
 Catalog and installer:
 
-- `node tool/generate_lsp_languages.mjs [helix-checkout|languages.toml]
-  [out-dir] [--mason registry.json(.zip)]` writes `assets/lsp/languages.json`
+- `node ../../tool/generate_lsp_languages.mjs [helix-checkout|languages.toml]
+  [out-dir] [--mason registry.json(.zip)]` writes `../../assets/lsp/languages.json`
   from Helix `languages.toml` at `ba40e547426b0f9896c8bdc699a4ab11f2b37dbc`
-  (MPL-2.0, `assets/lsp/LICENSE-helix`). Helix `config` is sent as
+  (MPL-2.0, `../../assets/lsp/LICENSE-helix`). Helix `config` is sent as
   `initializationOptions` and answers `workspace/configuration`. Per-language
   `only-features`/`except-features` become derived server ids
   (`id#except=…`). Matching: file name, glob, longest extension, shebang,
   then a pack's `firstLine`.
-- `node tool/generate_mason_registry.mjs [registry.json(.zip)] [out-dir]`
-  writes `assets/lsp/mason-registry.json` from mason-registry
+- `node ../../tool/generate_mason_registry.mjs [registry.json(.zip)] [out-dir]`
+  writes `../../assets/lsp/mason-registry.json` from mason-registry
   `2026-09-29-glass-hat` (`27cabd46dfb4e97187a4619d7de966589e3945f7`,
-  Apache-2.0, `assets/lsp/LICENSE-mason-registry`). Run it after the
+  Apache-2.0, `../../assets/lsp/LICENSE-mason-registry`). Run it after the
   languages script; without arguments both fetch the pinned inputs into /tmp.
 - `MasonServerProvider` installs github releases (per-platform assets),
   npm, pypi (venv), golang and cargo packages into
@@ -236,11 +236,11 @@ Catalog and installer:
 - User overrides: `AppPaths.dataDir/lsp.json`; language packs:
   `AppPaths.dataDir/language-packs/<name>/` (`manifest.json`, Monarch
   `grammar.json`, `configuration.json`, optional `server.json`), documented in
-  `lib/ide/lsp/packs/README.md`.
+  `../../lib/ide/lsp/packs/README.md`.
 
 ## Workbench hover and codicons (2026-09-30)
 
-- `lib/ide/ide_hover.dart` adapts `src/vs/platform/hover/browser/{hover.ts,
+- `../../lib/ide/ide_hover.dart` adapts `src/vs/platform/hover/browser/{hover.ts,
   hover.css,hoverWidget.ts}` and `base/browser/ui/hover/hoverWidget.css`
   (Dark 2026 colors since the Modern UI update below, compact 12px, `workbench.hover.delay` 1500/500 ms,
   pointer for the activity and status bars) over Flutter's `RawTooltip`.
@@ -256,15 +256,15 @@ Catalog and installer:
   `ResourceLabel` builds it. Every other tooltip, in the IDE and the chat,
   is this hover (no Material `Tooltip`); the chat's `HoverTooltip` keeps its
   own timing and selectable text in the same box (`IdeHoverBox`).
-- `tool/generate_codicons.mjs` bundles `@vscode/codicons@0.0.46-40` (pinned by
-  the VS Code checkout's package-lock) as `assets/codicons/codicon.ttf` with
-  `lib/theme/codicons.dart` generated from `codiconsLibrary.ts`/`codicons.ts`.
+- `../../tool/generate_codicons.mjs` bundles `@vscode/codicons@0.0.46-40` (pinned by
+  the VS Code checkout's package-lock) as `../../assets/codicons/codicon.ttf` with
+  `../../lib/theme/codicons.dart` generated from `codiconsLibrary.ts`/`codicons.ts`.
   Completion/symbol icons follow `CompletionItemKinds`/`SymbolKinds.toIcon`
   and `symbolIcons.ts` colors; code action groups follow `codeActionMenu.ts`.
 
 ## Workbench layout (2026-09-30)
 
-- `lib/ide/ide_columns.dart` sizes the side bar, editor and chat as the
+- `../../lib/ide/ide_columns.dart` sizes the side bar, editor and chat as the
   grid's `splitview.ts` does. Deviation: a view snaps shut a sixth of its
   minimum past it (upstream: half), for the view dragged and the one
   pushed; the panel's rows keep upstream's half.
@@ -284,7 +284,7 @@ Catalog and installer:
   either or opening an editor brings the editor back. With the chat
   hidden, the side bar shares too little room with the editor by their
   minimums, as the chat does.
-- `lib/workspace/title_bar_double_click.dart`: on macOS a double click on a
+- `../../lib/workspace/title_bar_double_click.dart`: on macOS a double click on a
   title bar's empty part does what `AppleActionOnDoubleClick` says, as
   Electron's `-[NativeWidgetMacNSWindow sendEvent:]` does in VS Code's
   `.titlebar-drag-region`; controls, `TitleBarControls` groups included,
@@ -293,7 +293,7 @@ Catalog and installer:
 
 ## Source Control action button (2026-10-01)
 
-- `lib/ide/git/ide_scm_view.dart` picks the button below the commit
+- `../../lib/ide/git/ide_scm_view.dart` picks the button below the commit
   message as the Git extension's `actionButton.ts` does: Commit while
   `repositoryHasChangesToCommit` (staged changes, or others where the
   smart commit would stage them or offer to), else Publish Branch (a
@@ -336,12 +336,12 @@ Catalog and installer:
   (`LinesLayout` whitespaces, `EditorViewZone`): rows lay out around them,
   arrow keys step over them, and a press in one does not move the caret;
   the gutter paints margin decorations and line decoration icons.
-- `lib/ide/ide_workspace.dart`: diff tabs (`openDiff`) and read-only
+- `../../lib/ide/ide_workspace.dart`: diff tabs (`openDiff`) and read-only
   revision tabs (`openRevision`), keyed by path and label; a working tree
   diff tab shares its file's model with the file's tab (edits, undo, dirty
   state, saving, language server sync); revisions are read again on each
   Git status, as `git:` documents follow the repository.
-- `lib/ide/git/git_change_editor.dart` ports `ResourceCommandResolver`'s
+- `../../lib/ide/git/git_change_editor.dart` ports `ResourceCommandResolver`'s
   `getLeftResource`, `getRightResource` and `getTitle` and
   `sanitizeRef`; `IdeGitService.show` runs `git show --textconv
   ref:path`. A click on a change, and Open Changes, open its diff
@@ -360,13 +360,13 @@ Catalog and installer:
 
 ## Modern UI and editor hover markdown (2026-09-30)
 
-- `lib/ide/ide_modern_ui.dart` ports the default-density Modern UI layout
+- `../../lib/ide/ide_modern_ui.dart` ports the default-density Modern UI layout
   (`browser/media/floatingPanels.css`, `contrib/modernUI/browser/media/
   {activityBar,editorBorder,sashHandles}.css`, `activitybarPart.ts` floating
   sizes, `baseSizes.ts` tokens) in the color theme's colors (see "Workbench
   color theme"). Deviations: no compact density; activity bar on the left
   only.
-- `lib/ide/lsp_ui/hover_markdown.dart` renders hover/signature/suggest
+- `../../lib/ide/lsp_ui/hover_markdown.dart` renders hover/signature/suggest
   markdown like `.monaco-hover` (`hoverWidget.css`, `hover.css`,
   `hoverContribution.ts`); fenced code goes through
   `MonacoSyntaxService.colorize` like `EditorMarkdownCodeBlockRenderer`
@@ -402,7 +402,7 @@ Catalog and installer:
   modeled; in VS Code they may take ids before the extension languages. Grammars keep every entry; lookups by scope or language are
   last-wins, as `TMGrammarFactory` builds its maps. `configurationDefaults`
   keeps the per-language `editor.maxTokenizationLineLength` defaults.
-  `lib/ide/editor/textmate/textmate_manifest.dart` models the manifest.
+  `lib/textmate/textmate_manifest.dart` models the manifest.
 - `tool/generate_textmate_fixtures.mjs` runs vscode-textmate 9.3.2 and
   vscode-oniguruma 1.7.0 the way `TMGrammarFactory` and
   `textMateTokenizationFeatureImpl.ts` do, with every bundled grammar
@@ -427,7 +427,7 @@ Catalog and installer:
   `theme-defaults` themes are checked against
   `extensions/vscode-colorize-tests/test/colorize-results` as
   `themes.test.contribution.ts` computes them: no differences.
-- `test/ide/editor/textmate/textmate_parity_test.dart` repeats all of that
+- `test/textmate/textmate_parity_test.dart` repeats all of that
   in Dart. `textmate_assets_test.dart` parses every grammar with
   `parseRawGrammar` and every language configuration with `json.dart`, and
   compares what `language_configuration_assets.dart` reads with what VS
@@ -442,7 +442,7 @@ Catalog and installer:
   token styling or font index. `colors` keeps the theme's strings;
   `getColor` applies `Color.fromHex`. `toRawTheme` drops a rule's font
   family, size and line height, which `IRawThemeSettingStyle` cannot hold.
-  `test/ide/editor/textmate/workbench/` checks every bundled theme against
+  `test/textmate/workbench/` checks every bundled theme against
   its fixture.
 
 ## Language detection (2026-09-30)
@@ -552,8 +552,8 @@ a web worker.
 | `src/vs/workbench/services/textMate/browser/tokenizationSupport/textMateTokenizationSupport.ts` | `vs/workbench/services/text_mate/browser/tokenization_support/text_mate_tokenization_support.dart` |
 | `src/vs/workbench/services/textMate/browser/tokenizationSupport/tokenizationSupportWithLineLimit.ts` | `vs/workbench/services/text_mate/browser/tokenization_support/tokenization_support_with_line_limit.dart` |
 | `src/vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateWorkerTokenizer.ts` | `vs/workbench/services/text_mate/browser/background_tokenization/worker/text_mate_worker_tokenizer.dart` |
-| `.../backgroundTokenization/worker/textMateTokenizationWorker.worker.ts` (grammar factory, documents) | `lib/ide/editor/textmate/textmate_worker.dart` (`TextMateWorker`) |
-| `.../backgroundTokenization/textMateWorkerTokenizerController.ts`, `textMateTokenizationFeatureImpl.ts` (registry, theme, color map) | `lib/ide/editor/textmate/textmate_syntax.dart` (`TextMateDocument`, `TextMateSyntax`) |
+| `.../backgroundTokenization/worker/textMateTokenizationWorker.worker.ts` (grammar factory, documents) | `lib/textmate/textmate_worker.dart` (`TextMateWorker`) |
+| `.../backgroundTokenization/textMateWorkerTokenizerController.ts`, `textMateTokenizationFeatureImpl.ts` (registry, theme, color map) | `lib/textmate/textmate_syntax.dart` (`TextMateDocument`, `TextMateSyntax`) |
 
 - Wiring: `IdeEditor._computeSyntax` asks `TextMateSyntax.languageIdForPath`
   first. A language pack that claims the path keeps its Monarch grammar.
@@ -565,7 +565,7 @@ a web worker.
   resolves a fence's language name or alias with
   `getLanguageIdByLanguageName`; Monarch is the fallback.
 - Theme: the workbench's color theme (`WorkbenchThemeService`,
-  lib/theme/workbench_theme.dart). On a change the worker gets the new theme
+  ../../lib/theme/workbench_theme.dart). On a change the worker gets the new theme
   (`$acceptTheme`) and every document's tokens are requested again, as
   `setColorMap` resets tokenization of every model upstream; a change that
   keeps the token rules and color map only swaps the editor colors. Until
@@ -609,10 +609,10 @@ a web worker.
     colors them (`monarchLanguageIdFor`: shellscript→shell,
     javascriptreact→javascript, typescriptreact→typescript, properties→ini,
     dockercompose→yaml, cuda-cpp→cpp, jade→pug). Language servers keep the
-    catalog's ids (`lib/ide/lsp/packs/README.md`).
+    catalog's ids (`../../lib/ide/lsp/packs/README.md`).
   - `semantic_tokens.dart` is unchanged: semantic tokens still paint over
     whichever highlighter runs.
-- Tests: `test/ide/editor/textmate/textmate_syntax_test.dart` covers the
+- Tests: `../../test/ide/editor/textmate/textmate_syntax_test.dart` covers the
   worker's tokens for every colorize sample against VS Code's (Dark 2026),
   language detection, codec numbering, background and viewport-first
   tokenization, edit convergence (including seeded random edits) and
@@ -620,9 +620,9 @@ a web worker.
   on TS, Python, Markdown (with a code block), HTML (CSS and JS), JSON and
   Rust, edits, and the Monarch fallback. `textmate_languages_test.dart`
   covers pack precedence and id mapping, and
-  `test/ide/lsp_ui/hover_code_highlight_test.dart` covers hovers. Widget
-  tests run the worker in their own isolate (`test/flutter_test_config.dart`).
-  `tool/textmate_perf_app.dart` measures it in profile mode.
+  `../../test/ide/lsp_ui/hover_code_highlight_test.dart` covers hovers. Widget
+  tests run the worker in their own isolate (`../../test/flutter_test_config.dart`).
+  `../../tool/textmate_perf_app.dart` measures it in profile mode.
 
 ## Semantic token styling (2026-09-30)
 
@@ -640,9 +640,9 @@ encodes it), instead of a hardcoded Dark+ palette. Ported at
 | `src/vs/workbench/services/themes/common/tokenClassificationExtensionPoint.ts`, plus the built-in extensions' `semanticTokenScopes` | `vs/workbench/services/themes/common/token_classification_extension_point.dart` |
 | `src/vs/editor/common/services/semanticTokensProviderStyling.ts` (`getMetadata`) | `vs/editor/common/services/semantic_tokens_provider_styling.dart` |
 | `src/vs/editor/contrib/semanticTokens/common/semanticTokensConfig.ts`, the `editor.semanticHighlighting.enabled` default | `vs/editor/contrib/semanticTokens/common/semantic_tokens_config.dart` |
-| `src/vs/editor/common/tokens/sparseTokensStore.ts` (the `SEMANTIC_USE_*` merge) | `lib/ide/lsp_ui/semantic_tokens.dart` (`IdeTokenStyle.applyTo`) |
+| `src/vs/editor/common/tokens/sparseTokensStore.ts` (the `SEMANTIC_USE_*` merge) | `../../lib/ide/lsp_ui/semantic_tokens.dart` (`IdeTokenStyle.applyTo`) |
 
-- `lib/ide/lsp_ui/semantic_tokens.dart`: `IdeSemanticTokenStyler` (type,
+- `../../lib/ide/lsp_ui/semantic_tokens.dart`: `IdeSemanticTokenStyler` (type,
   modifiers, language id → `IdeTokenStyle?`), `ideSemanticTokenStyler(theme)`
   (cached per type, modifiers and language; nothing when the theme has no
   `semanticHighlighting`, as the `configuredByTheme` default says), and
@@ -656,8 +656,8 @@ encodes it), instead of a hardcoded Dark+ palette. Ported at
   upstream handlers, loads the 17 bundled themes plus two synthetic ones, and
   writes `test/fixtures/theme/semantic_tokens.json.gz`: the metadata of 33
   legend types × 24 modifier sets × 8 languages per theme, the registry and
-  selector scores. `test/ide/editor/textmate/workbench/semantic_token_styling_test.dart`
-  replays it; `test/ide/lsp_ui/semantic_tokens_test.dart` checks the styler
+  selector scores. `test/textmate/workbench/semantic_token_styling_test.dart`
+  replays it; `../../test/ide/lsp_ui/semantic_tokens_test.dart` checks the styler
   and the overlay against it.
 
 Deviations:
@@ -700,7 +700,7 @@ Deviations:
 
 ## Workbench color theme (2026-09-30)
 
-- `lib/theme/workbench_theme.dart` is the color theme part of
+- `../../lib/theme/workbench_theme.dart` is the color theme part of
   `IWorkbenchThemeService` (`browser/workbenchThemeService.ts`,
   `common/workbenchThemeService.ts`): `ThemeSettingDefaults`,
   `migrateThemeSettingsId`, the constructor's restore, `setColorTheme(id,
@@ -708,19 +708,19 @@ Deviations:
   `restoreColorTheme`. `ColorThemeData` gained `toStorage`,
   `fromStorageData`, `createUnloadedTheme` and
   `createUnloadedThemeForThemeType`; `COLOR_THEME_{DARK,LIGHT}_INITIAL_COLORS`
-  are in `lib/theme/workbench_theme_initial_colors.dart`.
+  are in `../../lib/theme/workbench_theme_initial_colors.dart`.
 - The `workbench.colorTheme` setting and the `colorThemeData` storage entry
   are the `colorTheme` and `colorThemeData` preferences the `Workspace` keeps
   (`ColorThemeStorage`). `main()` reads them before the first frame, paints
   the stored theme, then loads the theme file (`initialize`). A preview is
   neither kept nor written to storage; an applied theme is kept once loaded.
 - Preferences: Color Theme (`workbench.action.selectTheme`, ⌘K ⌘T) is
-  `lib/ide/ide_color_theme_picker.dart` over `IdeQuickPick`, whose
+  `../../lib/ide/ide_color_theme_picker.dart` over `IdeQuickPick`, whose
   `onDidChangeActive` previews after 200ms; the service implements its
   `IdeColorThemeController`. The workbench resolves two-key chords as
   `abstractKeybindingService.ts` does (see that file's header).
 - Widgets read `themeColors[id]` (`IColorTheme.getColor`). `AppColors`
-  (lib/theme/app_theme.dart) and `IdeModernUI` are getters over color
+  (../../lib/theme/app_theme.dart) and `IdeModernUI` are getters over color
   ids (`sideBar.background`, `editorWidget.background`, `menu.background`,
   `panel.border`, `foreground`, `descriptionForeground`,
   `disabledForeground`, `textLink.foreground`, `surface.*`,
@@ -758,7 +758,7 @@ Deviations:
   rather than `modernUI.shellBackground`, and the status bar has no
   background or top border of its own: its text is `statusBar.foreground`
   where the theme's `statusBar.background` is the side bar's (or unset), else
-  the side bar's foreground. `test/theme/theme_sweep_test.dart` paints the workbench and
+  the side bar's foreground. `../../test/theme/theme_sweep_test.dart` paints the workbench and
   the chat in every bundled theme (`BAOCODE_THEME_SNAPSHOTS=<dir>` writes what
   each paints).
 
@@ -771,7 +771,7 @@ Deviations:
 | `src/vs/platform/theme/common/themeService.ts` (`IColorTheme`: `type`, `getColor`, `defines`) | `vs/platform/theme/common/color_utils.dart` |
 | every `registerColor` the desktop workbench runs, plus built-in `contributes.colors` (`colorExtensionPoint.ts`) | `vs/platform/theme/common/color_registry_data.g.dart` (generated) |
 | `src/vs/workbench/services/themes/common/colorThemeData.ts` (`getColor`, `getDefault`, `defines`) | `vs/workbench/services/themes/common/color_theme_data.dart` |
-| `src/vs/base/test/common/color.test.ts` | `test/ide/editor/monaco/vs/base/common/color_test.dart` |
+| `src/vs/base/test/common/color.test.ts` | `test/monaco/vs/base/common/color_test.dart` |
 
 - `tool/generate_color_registry.mjs` (Node 22) evaluates the unmodified
   upstream code, never the Dart port. It greps `src/vs` (no tests, no
@@ -800,7 +800,7 @@ Deviations:
   theme files, and an empty theme per color scheme, every id's
   `getColor(id)`, `getColor(id, false)` and `defines(id)` (RGBA plus any
   HSLA/HSVA the color was made from), and real `color.ts` results for seeded
-  random inputs. `test/ide/editor/textmate/workbench/color_registry_test.dart`
+  random inputs. `test/textmate/workbench/color_registry_test.dart`
   and `color_test.dart` replay them with 0 differences.
 - API: `getColorRegistry().getColors()` (ids in registration order),
   `resolveDefaultColor(id, theme)`, `resolveColorValue`, `executeTransform`,

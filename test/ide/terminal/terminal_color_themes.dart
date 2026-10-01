@@ -5,7 +5,7 @@
 
 import 'dart:ui';
 
-import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/theme.dart'
+import 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart'
     show ColorScheme;
 import 'package:baocode/ide/terminal/terminal_colors.dart';
 

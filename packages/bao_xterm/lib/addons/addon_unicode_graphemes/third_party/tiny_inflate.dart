@@ -3,7 +3,7 @@
 // a TypeScript copy of the `tiny-inflate` npm package (a port of Joergen
 // Ibsen's tinf). Upstream's copy carries no license header of its own; it
 // ships under the addon's MIT license, see
-// lib/ide/terminal/xterm/addons/addon_unicode_graphemes/LICENSE.
+// lib/addons/addon_unicode_graphemes/LICENSE.
 //
 // Upstream's snake_case names are lowerCamelCase. JavaScript reads past the
 // end of a typed array as `undefined` (0 in the bit operations here); the

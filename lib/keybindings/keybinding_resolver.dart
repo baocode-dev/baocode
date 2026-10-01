@@ -26,7 +26,9 @@
 import 'package:flutter/foundation.dart';
 
 import 'key_chord.dart';
-import 'keybinding_entry.dart';
+
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
+
 import 'when_expression.dart';
 
 /// Where a keybinding comes from.

@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See lib/ide/editor/monaco/LICENSE.txt.
+ *  Licensed under the MIT License. See lib/monaco/LICENSE.txt.
  *--------------------------------------------------------------------------------------------*/
 // Upstream regression cases ported from VS Code
 // src/vs/editor/standalone/test/browser/monarch.test.ts at
@@ -10,10 +10,10 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/encoded_token_attributes.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_common.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_compile.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_lexer.dart';
+import 'package:bao_editor/monaco/vs/editor/common/encoded_token_attributes.dart';
+import 'package:bao_editor/monaco/vs/editor/standalone/common/monarch/monarch_common.dart';
+import 'package:bao_editor/monaco/vs/editor/standalone/common/monarch/monarch_compile.dart';
+import 'package:bao_editor/monaco/vs/editor/standalone/common/monarch/monarch_lexer.dart';
 
 MonarchTokenizer _tokenizer(
   Map<String, Object?> language, {

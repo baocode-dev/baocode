@@ -1,6 +1,6 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
 // Licensed under the MIT License. See
-// lib/ide/terminal/xterm/addons/addon_unicode11/LICENSE.
+// lib/addons/addon_unicode11/LICENSE.
 // Ported from xterm.js addons/addon-unicode11/src/UnicodeV11.ts (c58ea36).
 
 import 'dart:typed_data';

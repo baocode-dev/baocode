@@ -2,11 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:bao_pty/bao_pty.dart';
+import 'package:bao_pty/src/pty_windows.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/pty.dart';
-import 'package:baocode/ide/terminal/pty_io.dart';
-import 'package:baocode/ide/terminal/pty_windows.dart';
-import 'package:baocode/platform/child_process_registry.dart';
 import 'package:path/path.dart' as p;
 
 /// A console for [ConsolePoll]: the output waiting in its pipe, and what
@@ -172,18 +170,11 @@ void main() {
   group('ConPTY', () {
     late Directory dir;
 
-    setUp(() {
-      dir = Directory.systemTemp.createTempSync('baocode-conpty');
-      PtyProcesses.registry = ChildProcessRegistry(
-        file: File(p.join(dir.path, 'pty-processes.json')),
-        lookup: (_) async => null,
-        signal: (_) => false,
-      );
-    });
+    setUp(() => dir = Directory.systemTemp.createTempSync('bao_pty-conpty'));
     tearDown(() => dir.deleteSync(recursive: true));
 
     Future<(Pty, StringBuffer)> cmd(String command) async {
-      final pty = await startPty(
+      final pty = await spawnPty(
         PtyLaunch(
           executable: 'cmd.exe',
           arguments: ['/d', '/c', command],

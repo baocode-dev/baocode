@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2020 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 //
 // New: not upstream. xterm.js has no tests of its own for
 // src/common/CoreTerminal.ts, src/headless/Terminal.ts or the public API
@@ -12,12 +12,10 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_unicode11/unicode11_addon.dart';
-import 'package:baocode/ide/terminal/xterm/headless/public/terminal.dart'
-    as public;
-import 'package:baocode/ide/terminal/xterm/headless/terminal.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
-    hide Terminal;
+import 'package:bao_xterm/addons/addon_unicode11/unicode11_addon.dart';
+import 'package:bao_xterm/headless/public/terminal.dart' as public;
+import 'package:bao_xterm/headless/terminal.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart' hide Terminal;
 
 Future<void> _write(Terminal term, Object data) {
   final c = Completer<void>();

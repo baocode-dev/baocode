@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_surface.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 
 final _textSemanticsFinder = find.byWidgetPredicate(
   (widget) => widget is Semantics && widget.properties.textField == true,

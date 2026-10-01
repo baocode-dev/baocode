@@ -10,7 +10,7 @@ import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/ide/ide_quick_input.dart';
 import 'package:baocode/ide/ide_workbench.dart';
-import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 
 import '../git/fake_git.dart';

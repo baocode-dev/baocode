@@ -5,7 +5,7 @@ import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/keybindings/default_keybindings.dart';
-import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/settings/settings_dialog.dart';

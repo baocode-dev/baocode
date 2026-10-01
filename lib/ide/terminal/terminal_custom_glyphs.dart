@@ -1,5 +1,5 @@
 // Copyright (c) 2021 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See packages/bao_xterm/lib/LICENSE.txt.
 // Ported from xterm.js addons/addon-webgl/src/customGlyphs/CustomGlyphRasterizer.ts (c58ea36).
 //
 // Box drawing, block elements, shades, Powerline, sextants, legacy computing
@@ -26,10 +26,10 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
-import 'xterm/addons/addon_webgl/custom_glyphs/custom_glyph_definitions.dart';
-import 'xterm/addons/addon_webgl/custom_glyphs/types.dart';
+import 'package:bao_xterm/addons/addon_webgl/custom_glyphs/custom_glyph_definitions.dart';
+import 'package:bao_xterm/addons/addon_webgl/custom_glyphs/types.dart';
 
-export 'xterm/addons/addon_webgl/custom_glyphs/custom_glyph_definitions.dart'
+export 'package:bao_xterm/addons/addon_webgl/custom_glyphs/custom_glyph_definitions.dart'
     show blockPatternCodepoints;
 
 /// Whether [codePoint] is drawn by [paintCustomGlyph] rather than the font.

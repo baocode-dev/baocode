@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT License. See lib/ide/editor/monaco/LICENSE.txt.
+// Licensed under the MIT License. See lib/monaco/LICENSE.txt.
 // Source-derived tests for pinned VS Code monarchCommon.ts (6a598d4a).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_common.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_compile.dart'
+import 'package:bao_editor/monaco/vs/editor/standalone/common/monarch/monarch_common.dart';
+import 'package:bao_editor/monaco/vs/editor/standalone/common/monarch/monarch_compile.dart'
     as compiler;
 
 void main() {

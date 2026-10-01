@@ -35,7 +35,8 @@
 //   (`baocode.chat.*`).
 
 import 'default_keybindings.dart' show CommandInfo;
-import 'keybinding_entry.dart';
+
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 
 /// The chat's command ids.
 abstract final class ChatCommandIds {

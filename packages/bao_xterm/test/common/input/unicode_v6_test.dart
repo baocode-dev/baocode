@@ -1,11 +1,11 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/input/UnicodeV6.test.ts (c58ea36).
 
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/input/unicode_v6.dart';
+import 'package:bao_xterm/common/input/unicode_v6.dart';
 
 // old implementation
 int Function(int ucs) _wcwidthOld({required int nul, required int control}) {

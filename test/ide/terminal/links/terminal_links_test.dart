@@ -8,9 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/terminal/links/terminal_link_parsing.dart';
 import 'package:baocode/ide/terminal/links/terminal_link_resolver.dart';
 import 'package:baocode/ide/terminal/links/terminal_links.dart';
-import 'package:baocode/ide/terminal/xterm/headless/public/terminal.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
-    hide Terminal;
+import 'package:bao_xterm/headless/public/terminal.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart' hide Terminal;
 
 IBufferRange range((int, int) start, (int, int) end) => IBufferRange(
   start: IBufferCellPosition(x: start.$1, y: start.$2),

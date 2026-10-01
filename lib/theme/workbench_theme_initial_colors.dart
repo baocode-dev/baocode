@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See lib/ide/editor/monaco/LICENSE.txt for license information.
+ *  Licensed under the MIT License. See packages/bao_editor/lib/monaco/LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 // `COLOR_THEME_DARK_INITIAL_COLORS` and `COLOR_THEME_LIGHT_INITIAL_COLORS`
 // from VS Code 6a598d4a13031703d483d103c1d934a36ad27971

@@ -21,13 +21,14 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import '../../xterm/common/buffer/types.dart';
-import '../../xterm/common/event.dart';
-import '../../xterm/common/lifecycle.dart';
-import '../../xterm/common/public/parser_api.dart';
-import '../../xterm/common/services/services.dart';
-import '../../xterm/headless/terminal.dart';
-import '../../xterm/typings/xterm.dart' show IFunctionIdentifier;
+import 'package:bao_xterm/common/buffer/types.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/public/parser_api.dart';
+import 'package:bao_xterm/common/services/services.dart';
+import 'package:bao_xterm/headless/terminal.dart';
+import 'package:bao_xterm/typings/xterm.dart' show IFunctionIdentifier;
+
 import 'capabilities.dart';
 import 'command_detection/prompt_input_model.dart';
 import 'command_detection/terminal_command.dart';

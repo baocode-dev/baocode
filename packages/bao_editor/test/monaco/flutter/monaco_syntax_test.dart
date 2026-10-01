@@ -2,10 +2,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/document_snapshot.dart';
-import 'package:baocode/ide/editor/monaco/flutter/language_assets.dart';
-import 'package:baocode/ide/editor/monaco/flutter/monaco_syntax.dart';
-import 'package:baocode/ide/editor/monaco/flutter/viewport_layout.dart';
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/language_assets.dart';
+import 'package:bao_editor/monaco/flutter/monaco_syntax.dart';
+import 'package:bao_editor/monaco/flutter/viewport_layout.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

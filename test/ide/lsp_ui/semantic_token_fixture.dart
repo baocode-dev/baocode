@@ -1,15 +1,15 @@
 // Expected semantic token styles from the upstream golden data
-// (test/fixtures/theme/semantic_tokens.json.gz, written by
-// tool/generate_semantic_token_fixtures.mjs), decoded here independently of
-// the code under test.
+// (packages/bao_editor/test/fixtures/theme/semantic_tokens.json.gz, written
+// by bao_editor's tool/generate_semantic_token_fixtures.mjs), decoded here
+// independently of the code under test.
 
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show Color;
 
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
-import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
+import 'package:bao_editor/textmate/textmate_manifest.dart';
 import 'package:baocode/ide/lsp_ui/semantic_tokens.dart';
 
 class SemanticTokenFixture {
@@ -26,7 +26,9 @@ class SemanticTokenFixture {
     jsonDecode(
       utf8.decode(
         gzip.decode(
-          File('test/fixtures/theme/semantic_tokens.json.gz').readAsBytesSync(),
+          File(
+            'packages/bao_editor/test/fixtures/theme/semantic_tokens.json.gz',
+          ).readAsBytesSync(),
         ),
       ),
     ) as Map<String, Object?>,
@@ -119,7 +121,7 @@ class SemanticTokenFixture {
     return Color((alpha << 24) | rgb);
   }
 
-  /// A theme of the fixture, loaded: bundled from assets/textmate, synthetic
+  /// A theme of the fixture, loaded: bundled from packages/bao_editor/assets/textmate, synthetic
   /// from the files the fixture holds.
   Future<ColorThemeData> loadTheme(String themeId) async {
     if (themeIds.contains(themeId)) {

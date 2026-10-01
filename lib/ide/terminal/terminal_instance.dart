@@ -46,9 +46,10 @@ import 'terminal_find.dart';
 import 'terminal_profiles.dart';
 import 'terminal_shell.dart';
 import 'terminal_xterm.dart';
-import 'xterm/common/platform.dart';
-import 'xterm/common/services/decoration_service.dart';
-import 'xterm/headless/terminal.dart' as internal;
+
+import 'package:bao_xterm/common/platform.dart';
+import 'package:bao_xterm/common/services/decoration_service.dart';
+import 'package:bao_xterm/headless/terminal.dart' as internal;
 
 /// What a new terminal runs in [root]: [terminalLaunch] in the app;
 /// [shell] when a profile names it, else the user's shell.

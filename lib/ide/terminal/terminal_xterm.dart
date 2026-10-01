@@ -15,11 +15,12 @@
 // `registerDecoration`, `onSelectionChange`).
 
 import 'terminal_selection.dart';
-import 'xterm/addons/addon_search/typings/addon_search.dart';
-import 'xterm/common/event.dart';
-import 'xterm/common/services/decoration_service.dart';
-import 'xterm/headless/public/terminal.dart';
-import 'xterm/typings/xterm.dart'
+
+import 'package:bao_xterm/addons/addon_search/typings/addon_search.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/services/decoration_service.dart';
+import 'package:bao_xterm/headless/public/terminal.dart';
+import 'package:bao_xterm/typings/xterm.dart'
     show IBufferCellPosition, IBufferRange, IDecoration, IDecorationOptions;
 
 class TerminalXterm extends Terminal implements ISearchTerminal {

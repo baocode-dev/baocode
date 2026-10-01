@@ -26,12 +26,12 @@ Source-derived code is covered by the xterm.js MIT license in
 
 | Upstream | Dart |
 | --- | --- |
-| `src/common/buffer/BufferLine.ts` | `lib/ide/terminal/xterm/common/buffer/buffer_line.dart` |
-| `src/headless/public/Terminal.ts` | `lib/ide/terminal/xterm/headless/public/terminal.dart` |
-| `typings/xterm-headless.d.ts` | `lib/ide/terminal/xterm/typings/xterm_headless.dart` |
-| `addons/addon-unicode11/src/UnicodeV11.ts` | `lib/ide/terminal/xterm/addons/addon_unicode11/unicode_v11.dart` |
-| `src/common/buffer/BufferLine.test.ts` | `test/ide/terminal/xterm/common/buffer/buffer_line_test.dart` |
-| `src/common/TestUtils.test.ts` | `test/ide/terminal/xterm/common/test_utils.dart` (helpers, not a test) |
+| `src/common/buffer/BufferLine.ts` | `lib/common/buffer/buffer_line.dart` |
+| `src/headless/public/Terminal.ts` | `lib/headless/public/terminal.dart` |
+| `typings/xterm-headless.d.ts` | `lib/typings/xterm_headless.dart` |
+| `addons/addon-unicode11/src/UnicodeV11.ts` | `lib/addons/addon_unicode11/unicode_v11.dart` |
+| `src/common/buffer/BufferLine.test.ts` | `test/common/buffer/buffer_line_test.dart` |
+| `src/common/TestUtils.test.ts` | `lib/testing/test_utils.dart` (helpers, not a test) |
 
 Directories keep upstream's names (lower case, `-` → `_`); file names are
 upstream's in snake_case.
@@ -44,7 +44,7 @@ Every ported file follows these, so the parts ported separately fit.
 
   ```dart
   // Copyright (c) 2018 The xterm.js authors. All rights reserved.
-  // Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+  // Licensed under the MIT License. See lib/LICENSE.txt.
   // Ported from xterm.js src/common/buffer/BufferLine.ts (c58ea36).
   ```
 
@@ -144,7 +144,7 @@ Every ported file follows these, so the parts ported separately fit.
 | `src/common/services/DecorationService.ts` | `common/services/decoration_service.dart` | `DecorationLineCache` and `Decoration` are public |
 | `src/common/services/MouseStateService.ts` | `common/services/mouse_state_service.dart` | |
 | `src/common/services/OscLinkService.ts` | `common/services/osc_link_service.dart` | |
-| `src/common/TestUtils.test.ts` | `test/ide/terminal/xterm/common/test_utils.dart` | every mock, plus `cloneDefaultOptions()` |
+| `src/common/TestUtils.test.ts` | `lib/testing/test_utils.dart` | every mock, plus `cloneDefaultOptions()` |
 | `src/common/parser/Params.ts` | `common/parser/params.dart` | protected fields are read-only getters |
 | `src/common/parser/OscParser.ts` | `common/parser/osc_parser.dart` | `OscHandler.payloadLimit` is a public static so tests can change it |
 | `src/common/parser/DcsParser.ts` | `common/parser/dcs_parser.dart` | as OSC |
@@ -174,24 +174,24 @@ Every ported file follows these, so the parts ported separately fit.
 | `addons/addon-unicode-graphemes/src/third-party/UnicodeProperties.ts` | `addons/addon_unicode_graphemes/third_party/unicode_properties.dart` | trie data in adjacent string literals |
 | `addons/addon-webgl/src/customGlyphs/Types.ts` | `addons/addon_webgl/custom_glyphs/types.dart` | |
 | `addons/addon-webgl/src/customGlyphs/CustomGlyphDefinitions.ts` | `addons/addon_webgl/custom_glyphs/custom_glyph_definitions.dart` | converted by script; all 778 definitions and `blockPatternCodepoints` checked equal; under `// dart format off` |
-| `addons/addon-webgl/src/customGlyphs/CustomGlyphRasterizer.ts` | `lib/ide/terminal/terminal_custom_glyphs.dart` | Flutter painter, outside `xterm/`: `tryDrawCustomGlyph` is `paintCustomGlyph`; no `createPatternCanvas` |
-| `src/browser/Types.ts` | `lib/ide/terminal/terminal_colors.dart` | subset: `DEFAULT_ANSI_COLORS` is `terminalAnsiColors` |
+| `addons/addon-webgl/src/customGlyphs/CustomGlyphRasterizer.ts` | `../../lib/ide/terminal/terminal_custom_glyphs.dart` | Flutter painter, outside `xterm/`: `tryDrawCustomGlyph` is `paintCustomGlyph`; no `createPatternCanvas` |
+| `src/browser/Types.ts` | `../../lib/ide/terminal/terminal_colors.dart` | subset: `DEFAULT_ANSI_COLORS` is `terminalAnsiColors` |
 | `src/browser/selection/Types.ts` | `browser/selection/types.dart` | |
 | `src/browser/selection/SelectionModel.ts` | `browser/selection/selection_model.dart` | |
 | `src/browser/Clipboard.ts` | `browser/clipboard.dart` | subset: `prepareTextForTerminal`, `bracketTextForPaste`, `paste` (no textarea) |
 | `src/browser/input/MoveToCell.ts` | `browser/input/move_to_cell.dart` | |
 | `src/browser/input/Mouse.ts` | `browser/input/mouse.dart` | subset: `getCoords`, from a position relative to the grid |
-| `src/browser/services/SelectionService.ts` | `lib/ide/terminal/terminal_selection.dart` | adapted: Flutter pointer events; the platform is a parameter, not `isMac` |
-| `src/browser/services/MouseService.ts`, `CoreBrowserTerminal.ts` (mouse) | `lib/ide/terminal/terminal_mouse.dart` | adapted, as selection |
-| `src/browser/services/KeyboardService.ts`, `CoreBrowserTerminal.ts` (keys) | `lib/ide/terminal/terminal_keyboard.dart` | adapted: Flutter `KeyEvent`s, with VS Code's terminal keybindings |
-| `src/browser/Clipboard.ts` (events), VS Code's clipboard commands | `lib/ide/terminal/terminal_clipboard.dart` | adapted |
-| `addons/addon-webgl/src/WebglRenderer.ts`, `src/browser/renderer/shared/RendererUtils.ts`, `SelectionRenderModel.ts`, `src/browser/services/RenderService.ts` | `lib/ide/terminal/terminal_renderer.dart` | adapted: `dart:ui` instead of WebGL; a model per viewport row, its picture cached by content; at most one paint per frame |
-| `src/browser/Viewport.ts`, `src/browser/decorations/OverviewRulerRenderer.ts`, `ColorZoneStore.ts`, `src/browser/input/Mouse.ts` (grid coordinates) | `lib/ide/terminal/terminal_widget.dart` | adapted; the scrollbar follows VS Code's `ScrollableElement` |
-| `src/browser/services/ThemeService.ts`, `src/browser/ColorContrastCache.ts`, `CoreBrowserTerminal.ts` (color requests) | `lib/ide/terminal/terminal_render_theme.dart` | adapted; VS Code's option defaults and theme (the workbench's colors, `terminalColorTheme` in `terminal_colors.dart`) as `vscodeTerminalOptions` / `vscodeTerminalTheme` |
-| `src/browser/services/CharSizeService.ts`, `src/browser/renderer/dom/WidthCache.ts`, `WebglRenderer._updateDimensions` | `lib/ide/terminal/terminal_render_metrics.dart` | adapted: measured with `dart:ui` paragraphs |
-| `addons/addon-webgl/src/CursorBlinkStateManager.ts`, `src/browser/renderer/shared/TextBlinkStateManager.ts` | `lib/ide/terminal/terminal_render_blink.dart` | |
-| `CoreBrowserTerminal.ts` (`_showCursor`) | `lib/ide/terminal/terminal_instance.dart` (`showCursor`) | called on the view's focus and on each key the keyboard sends (its `onKey`), where upstream calls it |
-| `src/browser/public/Terminal.ts` (selection, `registerDecoration`) | `lib/ide/terminal/terminal_xterm.dart` | the headless public `Terminal` plus the browser terminal's selection and decorations, as the search addon's `ISearchTerminal`; VS Code's `XtermTerminal` |
+| `src/browser/services/SelectionService.ts` | `../../lib/ide/terminal/terminal_selection.dart` | adapted: Flutter pointer events; the platform is a parameter, not `isMac` |
+| `src/browser/services/MouseService.ts`, `CoreBrowserTerminal.ts` (mouse) | `../../lib/ide/terminal/terminal_mouse.dart` | adapted, as selection |
+| `src/browser/services/KeyboardService.ts`, `CoreBrowserTerminal.ts` (keys) | `../../lib/ide/terminal/terminal_keyboard.dart` | adapted: Flutter `KeyEvent`s, with VS Code's terminal keybindings |
+| `src/browser/Clipboard.ts` (events), VS Code's clipboard commands | `../../lib/ide/terminal/terminal_clipboard.dart` | adapted |
+| `addons/addon-webgl/src/WebglRenderer.ts`, `src/browser/renderer/shared/RendererUtils.ts`, `SelectionRenderModel.ts`, `src/browser/services/RenderService.ts` | `../../lib/ide/terminal/terminal_renderer.dart` | adapted: `dart:ui` instead of WebGL; a model per viewport row, its picture cached by content; at most one paint per frame |
+| `src/browser/Viewport.ts`, `src/browser/decorations/OverviewRulerRenderer.ts`, `ColorZoneStore.ts`, `src/browser/input/Mouse.ts` (grid coordinates) | `../../lib/ide/terminal/terminal_widget.dart` | adapted; the scrollbar follows VS Code's `ScrollableElement` |
+| `src/browser/services/ThemeService.ts`, `src/browser/ColorContrastCache.ts`, `CoreBrowserTerminal.ts` (color requests) | `../../lib/ide/terminal/terminal_render_theme.dart` | adapted; VS Code's option defaults and theme (the workbench's colors, `terminalColorTheme` in `terminal_colors.dart`) as `vscodeTerminalOptions` / `vscodeTerminalTheme` |
+| `src/browser/services/CharSizeService.ts`, `src/browser/renderer/dom/WidthCache.ts`, `WebglRenderer._updateDimensions` | `../../lib/ide/terminal/terminal_render_metrics.dart` | adapted: measured with `dart:ui` paragraphs |
+| `addons/addon-webgl/src/CursorBlinkStateManager.ts`, `src/browser/renderer/shared/TextBlinkStateManager.ts` | `../../lib/ide/terminal/terminal_render_blink.dart` | |
+| `CoreBrowserTerminal.ts` (`_showCursor`) | `../../lib/ide/terminal/terminal_instance.dart` (`showCursor`) | called on the view's focus and on each key the keyboard sends (its `onKey`), where upstream calls it |
+| `src/browser/public/Terminal.ts` (selection, `registerDecoration`) | `../../lib/ide/terminal/terminal_xterm.dart` | the headless public `Terminal` plus the browser terminal's selection and decorations, as the search addon's `ISearchTerminal`; VS Code's `XtermTerminal` |
 | `addons/addon-search/typings/addon-search.d.ts` | `addons/addon_search/typings/addon_search.dart` | adds `ISearchTerminal`, the browser `Terminal`'s selection and decorations |
 | `addons/addon-search/src/SearchAddon.ts` | `addons/addon_search/search_addon.dart` | `activate` takes a `covariant ISearchTerminal` |
 | `addons/addon-search/src/SearchEngine.ts` | `addons/addon_search/search_engine.dart` | an invalid regex throws `FormatException` |
@@ -199,10 +199,10 @@ Every ported file follows these, so the parts ported separately fit.
 | `addons/addon-search/src/SearchResultTracker.ts` | `addons/addon_search/search_result_tracker.dart` | |
 | `addons/addon-search/src/SearchState.ts` | `addons/addon_search/search_state.dart` | |
 | `addons/addon-search/src/DecorationManager.ts` | `addons/addon_search/decoration_manager.dart` | subset: no `_applyStyles` (CSS class and outline on the DOM element), so `matchBorder`/`activeMatchBorder` go unused |
-| VS Code's `terminalFindWidget.ts`, `simpleFindWidget.ts` (state), `xtermTerminal.ts` (search) | `lib/ide/terminal/terminal_find.dart` | adapted: the find widget's state and actions, no widget |
+| VS Code's `terminalFindWidget.ts`, `simpleFindWidget.ts` (state), `xtermTerminal.ts` (search) | `../../lib/ide/terminal/terminal_find.dart` | adapted: the find widget's state and actions, no widget |
 
 Every ported `*.test.ts` of these files is ported in full under
-`test/ide/terminal/xterm/common/` (Event, CircularList, SortedList,
+`test/common/` (Event, CircularList, SortedList,
 MultiKeyMap, StringBuilder, Color, CellData, BufferRange, TextDecoder,
 UnicodeV6, OptionsService, UnicodeService). SortedList.test.ts defines its own
 `MockLogService` until TestUtils lands; the Event `thisArgs` case listens with

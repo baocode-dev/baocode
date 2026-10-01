@@ -1,16 +1,16 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT License. See lib/ide/editor/monaco/LICENSE.txt.
+// Licensed under the MIT License. See lib/monaco/LICENSE.txt.
 // Cases adapted from pinned VS Code defaultLinesDiffComputer.test.ts,
 // rangeMapping.ts, and the advanced diffing fixture families.
 
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/diff/default_lines_diff_computer/algorithms.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/diff/default_lines_diff_computer/char_sequence.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/diff/default_lines_diff_computer/default_lines_diff_computer.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/diff/range_mapping.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/common/diff/default_lines_diff_computer/algorithms.dart';
+import 'package:bao_editor/monaco/vs/editor/common/diff/default_lines_diff_computer/char_sequence.dart';
+import 'package:bao_editor/monaco/vs/editor/common/diff/default_lines_diff_computer/default_lines_diff_computer.dart';
+import 'package:bao_editor/monaco/vs/editor/common/diff/range_mapping.dart';
 
 void main() {
   final computer = DefaultLinesDiffComputer();

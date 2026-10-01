@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See packages/bao_xterm/lib/LICENSE.txt.
 // Adapted from xterm.js src/browser/CoreBrowserTerminal.ts (`_keyDown`,
 // `_keyUp`, `_keyPress`, `_inputEvent`, `_isThirdLevelShift`,
 // `wasModifierKeyOnlyEvent`) and src/browser/services/KeyboardService.ts
@@ -38,13 +38,14 @@ import 'package:flutter/widgets.dart' show KeyEventResult;
 import 'terminal_clipboard.dart';
 import 'terminal_mouse.dart' show LogicalKeysPressed;
 import 'terminal_selection.dart';
-import 'xterm/common/event.dart';
-import 'xterm/common/input/keyboard.dart';
-import 'xterm/common/input/kitty_keyboard.dart';
-import 'xterm/common/input/win32_input_mode.dart';
-import 'xterm/common/lifecycle.dart';
-import 'xterm/common/services/services.dart';
-import 'xterm/common/types.dart';
+
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/input/keyboard.dart';
+import 'package:bao_xterm/common/input/kitty_keyboard.dart';
+import 'package:bao_xterm/common/input/win32_input_mode.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/services/services.dart';
+import 'package:bao_xterm/common/types.dart';
 
 /// A DOM `KeyboardEvent` made from a Flutter [KeyEvent].
 class TerminalKeyboardEvent extends IKeyboardEvent {

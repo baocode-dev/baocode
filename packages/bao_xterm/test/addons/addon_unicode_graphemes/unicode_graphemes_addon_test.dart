@@ -1,6 +1,6 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
 // Licensed under the MIT License. See
-// lib/ide/terminal/xterm/addons/addon_unicode_graphemes/LICENSE.
+// lib/addons/addon_unicode_graphemes/LICENSE.
 // Adapted from xterm.js
 // addons/addon-unicode-graphemes/test/UnicodeGraphemesAddon.test.ts (c58ea36).
 //
@@ -14,14 +14,14 @@ import 'dart:io' show ZLibEncoder;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_unicode_graphemes/third_party/tiny_inflate.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_unicode_graphemes/third_party/unicode_properties.dart'
+import 'package:bao_xterm/addons/addon_unicode_graphemes/third_party/tiny_inflate.dart';
+import 'package:bao_xterm/addons/addon_unicode_graphemes/third_party/unicode_properties.dart'
     as uc;
-import 'package:baocode/ide/terminal/xterm/addons/addon_unicode_graphemes/unicode_grapheme_provider.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_unicode_graphemes/unicode_graphemes_addon.dart';
-import 'package:baocode/ide/terminal/xterm/common/input/unicode_v6.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/unicode_service.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart';
+import 'package:bao_xterm/addons/addon_unicode_graphemes/unicode_grapheme_provider.dart';
+import 'package:bao_xterm/addons/addon_unicode_graphemes/unicode_graphemes_addon.dart';
+import 'package:bao_xterm/common/input/unicode_v6.dart';
+import 'package:bao_xterm/common/services/unicode_service.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart';
 
 /// `Terminal.unicode` over the core's UnicodeService, as the public terminal
 /// hands it out.

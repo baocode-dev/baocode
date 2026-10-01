@@ -18,7 +18,8 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../settings/jsonc.dart';
-import 'keybinding_entry.dart';
+
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 
 /// A keymap: [entries] under an extension's [id].
 @immutable

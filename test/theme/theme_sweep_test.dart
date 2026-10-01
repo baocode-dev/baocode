@@ -4,9 +4,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
-import 'package:baocode/ide/editor/textmate/textmate_syntax.dart'
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:bao_editor/textmate/textmate_manifest.dart';
+import 'package:bao_editor/textmate/textmate_syntax.dart'
     show textMateWorkerLauncher;
 import 'package:baocode/ide/ide_modern_ui.dart';
 import 'package:baocode/ide/lsp_ui/problems_panel.dart';

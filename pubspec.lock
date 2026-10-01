@@ -50,7 +50,7 @@ packages:
     source: hosted
     version: "1.1.3"
   code_assets:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: code_assets
       sha256: bf394f466ba9205f1812a0433b392d6af280f155f56651eda7c18cc32ed493b8
@@ -278,7 +278,7 @@ packages:
     source: hosted
     version: "2.2.0"
   hooks:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: hooks
       sha256: "9a62a50b50b769a737bc0a8ff381f333529df3ab746b2f6b02e83760231455ba"
@@ -398,7 +398,7 @@ packages:
     source: hosted
     version: "1.18.3"
   native_toolchain_c:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: native_toolchain_c
       sha256: f9c168717100ae6d9fee9ffb0be379bf1f8b26b0f6bcbd4fdddcd931993a6a72

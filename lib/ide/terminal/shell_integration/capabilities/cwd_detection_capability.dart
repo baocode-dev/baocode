@@ -8,8 +8,9 @@
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/platform/terminal/common/capabilities/cwdDetectionCapability.ts.
 
-import '../../xterm/common/event.dart';
-import '../../xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+
 import 'capabilities.dart';
 
 class CwdDetectionCapability extends Disposable

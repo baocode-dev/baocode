@@ -2,8 +2,8 @@
 // (MIT, see fixtures/LICENSE.md).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/textmate/vscode_textmate/grammar/grammar.dart';
-import 'package:baocode/ide/editor/textmate/vscode_textmate/main.dart';
+import 'package:bao_editor/textmate/vscode_textmate/grammar/grammar.dart';
+import 'package:bao_editor/textmate/vscode_textmate/main.dart';
 
 import 'support/onig.dart';
 

@@ -1,6 +1,6 @@
 // Copyright (c) 2014 The xterm.js authors. All rights reserved.
 // Copyright (c) 2012-2013, Christopher Jeffrey (MIT License)
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js src/common/InputHandler.ts (c58ea36).
 //
 // `parse` takes a `String` or a `Uint8List` and returns a future only when a

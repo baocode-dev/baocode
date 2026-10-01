@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2024 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See packages/bao_xterm/lib/LICENSE.txt.
 // The viewport is ported from xterm.js src/browser/Viewport.ts, the overview
 // ruler from src/browser/decorations/OverviewRulerRenderer.ts and
 // ColorZoneStore.ts, the grid coordinates from src/browser/input/Mouse.ts
@@ -33,13 +33,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../chat/widgets/wheel_latch.dart';
-import '../editor/monaco/flutter/editor_scrollbar.dart';
+
+import 'package:bao_editor/monaco/flutter/editor_scrollbar.dart';
+
 import 'terminal_render_source.dart';
 import 'terminal_render_theme.dart';
 import 'terminal_renderer.dart';
-import 'xterm/common/color.dart' as color_lib;
-import 'xterm/common/lifecycle.dart';
-import 'xterm/common/services/services.dart';
+
+import 'package:bao_xterm/common/color.dart' as color_lib;
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/services/services.dart';
 
 /// A pointer event on the grid: [gridPosition] is from the grid's top left
 /// (the terminal's screen, inside the padding), in logical pixels.

@@ -3,13 +3,15 @@ import 'dart:convert';
 
 import 'package:path/path.dart' as p;
 
+import 'package:bao_editor/monaco/flutter/language_assets.dart';
+
 import '../catalog/lsp_catalog_overlay.dart';
 import 'lsp_files.dart';
 
 /// A folder of `language-packs/`: languages the editor highlights with a
 /// Monarch grammar and edits with a language configuration, and optionally
 /// the language servers that serve them. The format is in README.md.
-class LanguagePack {
+class LanguagePack implements MonacoLanguagePack {
   const LanguagePack({
     required this.name,
     required this.directory,
@@ -17,13 +19,15 @@ class LanguagePack {
     this.servers = const [],
   });
 
+  @override
   final String name;
   final String directory;
+  @override
   final List<LanguagePackLanguage> languages;
   final List<LanguagePackServer> servers;
 }
 
-class LanguagePackLanguage {
+class LanguagePackLanguage implements MonacoPackLanguage {
   const LanguagePackLanguage({
     required this.id,
     required this.pack,
@@ -38,17 +42,19 @@ class LanguagePackLanguage {
     this.configurationPath,
   });
 
+  @override
   final String id;
 
   /// The pack's name.
   final String pack;
 
-  /// With the leading dot, as Monaco registers them (`.zig`).
+  @override
   final List<String> extensions;
+  @override
   final List<String> filenames;
+  @override
   final List<String> aliases;
-
-  /// A pattern the first line matches, as Monaco's `firstLine`.
+  @override
   final String? firstLine;
   final List<String> shebangs;
   final List<String> rootMarkers;
@@ -56,9 +62,9 @@ class LanguagePackLanguage {
   /// The LSP `languageId`, when it is not [id].
   final String? languageId;
 
-  /// The Monarch grammar and language configuration files; null when the
-  /// pack has none for this language.
+  @override
   final String? grammarPath;
+  @override
   final String? configurationPath;
 }
 
@@ -77,7 +83,7 @@ class LanguagePackServer {
 /// [instance] is what the editor's `MonacoLanguageAssets` and the catalog
 /// use by default: the app data folder's `language-packs/` (none on the
 /// web or under `flutter test`); tests replace it or pass their own.
-class LanguagePackRegistry {
+class LanguagePackRegistry implements MonacoLanguagePacks {
   LanguagePackRegistry(this.directory, {LspFiles? files})
     : _files = files ?? LspFiles.local();
 
@@ -115,6 +121,7 @@ class LanguagePackRegistry {
   /// What the last read skipped: unreadable manifests, bad entries.
   List<LspCatalogProblem> get problems => _problems;
 
+  @override
   Future<List<LanguagePack>> packs() async =>
       _loadedPacks ?? (_loadedPacks = await (_packs ??= _read()));
 
@@ -126,6 +133,7 @@ class LanguagePackRegistry {
   }
 
   /// A pack file's JSON (a grammar or configuration), read once.
+  @override
   Future<Object?> readJson(String path) => _json.putIfAbsent(path, () async {
     final text = await _files.readString(path);
     if (text == null) throw FormatException('Missing language pack file', path);

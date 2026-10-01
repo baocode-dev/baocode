@@ -6,9 +6,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/textmate/vscode_textmate/main.dart';
-import 'package:baocode/ide/editor/textmate/vscode_textmate/theme.dart';
-import 'package:baocode/ide/editor/textmate/vscode_textmate/utils.dart';
+import 'package:bao_editor/textmate/vscode_textmate/main.dart';
+import 'package:bao_editor/textmate/vscode_textmate/theme.dart';
+import 'package:bao_editor/textmate/vscode_textmate/utils.dart';
 
 import 'support/fixtures.dart';
 import 'support/onig.dart';

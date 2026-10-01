@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import '../editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 
 /// Shrinks [edits] (disjoint, sorted, against [text]) to the changes they
 /// actually make, so formatting keeps cursors and undo small: a line diff

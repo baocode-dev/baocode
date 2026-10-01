@@ -26,7 +26,7 @@ try {
   const themes = await import(pathToFileURL(join(temporary, 'themes.ts')));
   const result = {
     revision,
-    attribution: 'Copyright (c) Microsoft Corporation. Licensed under the MIT License; see lib/ide/editor/monaco/LICENSE.txt.',
+    attribution: 'Copyright (c) Microsoft Corporation. Licensed under the MIT License; see lib/monaco/LICENSE.txt.',
     themes: { vs: themes.vs, 'vs-dark': themes.vs_dark,
       'hc-black': themes.hc_black, 'hc-light': themes.hc_light },
   };

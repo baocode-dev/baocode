@@ -131,7 +131,7 @@ entry as in `lsp.json` (with `extensions` as `fileTypes` and `filenames` as
 ### Packs and TextMate highlighting
 
 On the desktop the editor highlights with VS Code's TextMate grammars
-(`assets/textmate/`, `lib/ide/editor/textmate/`), which VS Code's language
+(`packages/bao_editor/assets/textmate/`, `packages/bao_editor/lib/textmate/`), which VS Code's language
 detection picks from the file name, extension, glob or first line. Pack
 grammars are Monarch grammars, and they still come first: a file a pack
 language claims (as above) is highlighted by the pack, whatever grammar
@@ -150,7 +150,7 @@ falls back to Monarch it is mapped (`monarchLanguageIdFor` in
 ### `grammar.json`
 
 A Monarch definition (https://microsoft.github.io/monaco-editor/monarch.html)
-as JSON: the same shape as `assets/monaco/languages/*.json`, either that
+as JSON: the same shape as `packages/bao_editor/assets/monaco/languages/*.json`, either that
 whole file (`{ "language": { … }, "configuration": { … } }`) or just the
 definition. It needs a `tokenizer`. Regular expressions are strings, or
 `{ "$regex": "…", "$flags": "i" }` objects as the bundled assets write them.
@@ -208,7 +208,7 @@ servers instead of the bundled ones. A single server object works too.
   `instance` is what `MonacoLanguageAssets` uses by default).
 - `lib/ide/lsp/install/`: `MasonServerProvider`, the mason-registry
   installer.
-- `lib/ide/editor/monaco/flutter/language_assets.dart`: pack grammars and
+- `packages/bao_editor/lib/monaco/flutter/language_assets.dart`: pack grammars and
   registrations for the editor.
-- `lib/ide/editor/textmate/textmate_syntax.dart`: TextMate highlighting,
+- `packages/bao_editor/lib/textmate/textmate_syntax.dart`: TextMate highlighting,
   which defers to packs (`TextMateSyntax.languageIdForPath`).

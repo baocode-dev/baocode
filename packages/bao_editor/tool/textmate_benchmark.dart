@@ -11,19 +11,19 @@
 
 import 'dart:io';
 
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/text_mate/common/tm_grammar_factory.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:baocode/ide/editor/textmate/oniguruma/onig_lib.dart';
-import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
-import 'package:baocode/ide/editor/textmate/vscode_textmate/main.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/text_mate/common/tm_grammar_factory.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:bao_editor/textmate/oniguruma/onig_lib.dart';
+import 'package:bao_editor/textmate/textmate_manifest.dart';
+import 'package:bao_editor/textmate/vscode_textmate/main.dart';
 
 const _sample = 'test/fixtures/textmate/samples/bench/textModel.ts';
 const _theme = 'Dark+';
 const _rounds = 10;
 
 Future<String> _readAsset(String path) =>
-    File('$textMateAssetRoot/$path').readAsString();
+    File('$textMateAssetDirectory/$path').readAsString();
 
 class _Host implements ITMGrammarFactoryHost {
   @override

@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../keybindings/key_chord.dart';
-import '../keybindings/keybinding_entry.dart';
+
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
+
 import '../keybindings/keybinding_service.dart';
 
 /// The keys of the characters [IdeKeybinding.character] matches, as the US

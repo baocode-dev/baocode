@@ -3,7 +3,7 @@
 
 import 'dart:io';
 
-import 'package:baocode/ide/editor/textmate/vscode_textmate/main.dart';
+import 'package:bao_editor/textmate/vscode_textmate/main.dart';
 
 class ILanguageRegistration {
   ILanguageRegistration(this.id, this.extensions, this.filenames);

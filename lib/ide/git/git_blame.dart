@@ -27,10 +27,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show TextSelection;
 
 import '../../l10n/app_localizations.dart';
-import '../editor/monaco/flutter/document_snapshot.dart';
-import '../editor/monaco/flutter/editor_document_model.dart';
-import '../editor/monaco/vs/editor/common/diff/default_lines_diff_computer/default_lines_diff_computer.dart';
-import '../editor/monaco/vs/editor/common/diff/range_mapping.dart';
+
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/vs/editor/common/diff/default_lines_diff_computer/default_lines_diff_computer.dart';
+import 'package:bao_editor/monaco/vs/editor/common/diff/range_mapping.dart';
+
 import '../ide_dates.dart';
 import 'git_model.dart';
 import 'git_repository.dart';

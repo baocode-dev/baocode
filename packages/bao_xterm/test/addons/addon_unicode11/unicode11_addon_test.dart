@@ -1,6 +1,6 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
 // Licensed under the MIT License. See
-// lib/ide/terminal/xterm/addons/addon_unicode11/LICENSE.
+// lib/addons/addon_unicode11/LICENSE.
 // Adapted from xterm.js addons/addon-unicode11/test/Unicode11Addon.test.ts
 // (c58ea36).
 //
@@ -10,11 +10,11 @@
 // V6.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_unicode11/unicode11_addon.dart';
-import 'package:baocode/ide/terminal/xterm/addons/addon_unicode11/unicode_v11.dart';
-import 'package:baocode/ide/terminal/xterm/common/input/unicode_v6.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/unicode_service.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart';
+import 'package:bao_xterm/addons/addon_unicode11/unicode11_addon.dart';
+import 'package:bao_xterm/addons/addon_unicode11/unicode_v11.dart';
+import 'package:bao_xterm/common/input/unicode_v6.dart';
+import 'package:bao_xterm/common/services/unicode_service.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart';
 
 /// `Terminal.unicode` over the core's UnicodeService, as the public terminal
 /// hands it out.

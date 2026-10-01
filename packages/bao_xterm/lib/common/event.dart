@@ -1,5 +1,5 @@
 // Copyright (c) 2024-2026 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js src/common/Event.ts (c58ea36).
 
 /// Minimal event utilities for the xterm.js core, simplified from VS Code's

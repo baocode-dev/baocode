@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_surface.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 import 'package:baocode/ide/ide_commands.dart';
 import 'package:baocode/ide/ide_editor.dart';
 import 'package:baocode/ide/ide_workbench.dart';

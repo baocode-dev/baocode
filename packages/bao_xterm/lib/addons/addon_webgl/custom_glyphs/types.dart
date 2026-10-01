@@ -1,5 +1,5 @@
 // Copyright (c) 2021 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js addons/addon-webgl/src/customGlyphs/Types.ts (c58ea36).
 //
 // Upstream's object-literal interfaces are `final class`es with const

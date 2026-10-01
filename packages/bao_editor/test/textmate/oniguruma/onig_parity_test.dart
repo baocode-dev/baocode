@@ -9,11 +9,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/textmate/oniguruma/onig_lib_io.dart';
+import 'package:bao_editor/textmate/oniguruma/onig_lib_io.dart';
 
 void main() {
   final fixture = jsonDecode(
-    File('test/ide/editor/textmate/oniguruma/vscode_oniguruma_parity.json')
+    File('test/textmate/oniguruma/vscode_oniguruma_parity.json')
         .readAsStringSync(),
   ) as Map<String, Object?>;
   final sessions = (fixture['sessions']! as List).cast<Map<String, Object?>>();

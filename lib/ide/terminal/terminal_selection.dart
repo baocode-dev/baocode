@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See packages/bao_xterm/lib/LICENSE.txt.
 // Adapted from xterm.js src/browser/services/SelectionService.ts (c58ea36).
 //
 // The terminal's text selection without the DOM: character, word (double
@@ -22,17 +22,19 @@ import 'dart:ui' show Size;
 import 'package:flutter/foundation.dart';
 
 import 'terminal_mouse.dart' show TerminalMouseEvent;
-import 'xterm/browser/input/mouse.dart';
-import 'xterm/browser/input/move_to_cell.dart';
-import 'xterm/browser/selection/selection_model.dart';
-import 'xterm/browser/selection/types.dart';
-import 'xterm/common/buffer/buffer_range.dart';
-import 'xterm/common/buffer/cell_data.dart';
-import 'xterm/common/buffer/types.dart';
-import 'xterm/common/event.dart';
-import 'xterm/common/lifecycle.dart';
-import 'xterm/common/services/services.dart';
-import 'xterm/typings/xterm.dart' show IBufferCellPosition, IBufferRange;
+
+import 'package:bao_xterm/browser/input/mouse.dart';
+import 'package:bao_xterm/browser/input/move_to_cell.dart';
+import 'package:bao_xterm/browser/selection/selection_model.dart';
+import 'package:bao_xterm/browser/selection/types.dart';
+import 'package:bao_xterm/common/buffer/buffer_range.dart';
+import 'package:bao_xterm/common/buffer/cell_data.dart';
+import 'package:bao_xterm/common/buffer/types.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/services/services.dart';
+import 'package:bao_xterm/typings/xterm.dart'
+    show IBufferCellPosition, IBufferRange;
 
 /// VS Code's `terminal.integrated.wordSeparators` default, for the core's
 /// `wordSeparator` option (xterm.js' own default lacks `─‘’“”|`).

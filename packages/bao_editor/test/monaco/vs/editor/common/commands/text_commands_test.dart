@@ -1,13 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/commands/replace_command.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/commands/shift_command.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/commands/surround_selection_command.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/commands/trim_trailing_whitespace_command.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/position.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/selection.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/model/piece_tree_text_buffer/piece_tree_text_buffer.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/model/piece_tree_text_buffer/piece_tree_text_buffer_builder.dart';
+import 'package:bao_editor/monaco/vs/editor/common/commands/replace_command.dart';
+import 'package:bao_editor/monaco/vs/editor/common/commands/shift_command.dart';
+import 'package:bao_editor/monaco/vs/editor/common/commands/surround_selection_command.dart';
+import 'package:bao_editor/monaco/vs/editor/common/commands/trim_trailing_whitespace_command.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/selection.dart';
+import 'package:bao_editor/monaco/vs/editor/common/model/piece_tree_text_buffer/piece_tree_text_buffer.dart';
+import 'package:bao_editor/monaco/vs/editor/common/model/piece_tree_text_buffer/piece_tree_text_buffer_builder.dart';
 
 PieceTreeTextBuffer buffer(String value) {
   final builder = PieceTreeTextBufferBuilder()..acceptChunk(value);

@@ -1,5 +1,5 @@
 // Copyright (c) 2018 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js src/common/buffer/BufferLine.ts (c58ea36).
 //
 // Upstream reads and writes a `Uint32Array` without bounds checks: a read past

@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See packages/bao_xterm/lib/LICENSE.txt.
 // Ported from xterm.js addons/addon-webgl/src/CursorBlinkStateManager.ts and
 // src/browser/renderer/shared/TextBlinkStateManager.ts (c58ea36).
 //

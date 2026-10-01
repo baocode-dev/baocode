@@ -3,8 +3,8 @@
 // `tildify` itself.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/base/common/labels.dart';
-import 'package:baocode/ide/editor/monaco/vs/base/common/platform.dart';
+import 'package:bao_editor/monaco/vs/base/common/labels.dart';
+import 'package:bao_editor/monaco/vs/base/common/platform.dart';
 
 void main() {
   test('tildify', () {

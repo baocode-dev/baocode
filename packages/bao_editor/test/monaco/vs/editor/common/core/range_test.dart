@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT License. See lib/ide/editor/monaco/LICENSE.txt.
+// Licensed under the MIT License. See lib/monaco/LICENSE.txt.
 // Adapted from the pinned VS Code range.test.ts; additional API cases below.
 
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/position.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
 
 class _RangeData implements IRange {
   const _RangeData(

@@ -14,7 +14,7 @@ import 'package:baocode/ide/terminal/terminal_render_adapter.dart';
 import 'package:baocode/ide/terminal/terminal_render_theme.dart';
 import 'package:baocode/ide/terminal/terminal_renderer.dart';
 import 'package:baocode/ide/terminal/terminal_widget.dart';
-import 'package:baocode/ide/terminal/xterm/headless/terminal.dart' as headless;
+import 'package:bao_xterm/headless/terminal.dart' as headless;
 
 const _fg = Color(0xFFCCCCCC);
 const _bg = Color(0xFF191A1B);

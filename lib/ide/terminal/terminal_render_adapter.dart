@@ -7,11 +7,12 @@
 
 import 'terminal_render_source.dart';
 import 'terminal_render_theme.dart';
-import 'xterm/common/buffer/types.dart';
-import 'xterm/common/event.dart';
-import 'xterm/common/lifecycle.dart';
-import 'xterm/common/services/services.dart';
-import 'xterm/headless/terminal.dart' as headless;
+
+import 'package:bao_xterm/common/buffer/types.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/common/services/services.dart';
+import 'package:bao_xterm/headless/terminal.dart' as headless;
 
 /// The renderer's view of a headless terminal.
 class TerminalCoreSource extends Disposable implements TerminalRenderSource {

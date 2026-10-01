@@ -1,0 +1,15 @@
+name: bao_xterm
+description: >-
+  A Dart port of xterm.js: its parser, buffer and headless terminal, with the
+  search, Unicode 11 and grapheme addons. No Flutter in the library.
+version: 0.1.0
+# Not on pub.dev yet: see HANDOFF.md.
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

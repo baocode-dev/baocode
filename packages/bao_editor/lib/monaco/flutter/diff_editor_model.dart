@@ -1,5 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT License. See lib/ide/editor/monaco/LICENSE.txt.
+// Licensed under the MIT License. See lib/monaco/LICENSE.txt.
 //
 // A diff editor's model, adapted from VS Code
 // 6a598d4a13031703d483d103c1d934a36ad27971:

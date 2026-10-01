@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/public/AddonManager.test.ts (c58ea36).
 //
 // Upstream passes `'foo'` and `null` as the terminal; a stand-in terminal
@@ -7,8 +7,8 @@
 // needed to read it.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/public/addon_manager.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart';
+import 'package:bao_xterm/common/public/addon_manager.dart';
+import 'package:bao_xterm/typings/xterm_headless.dart';
 
 /// A terminal that the addons only compare.
 class _StandInTerminal implements Terminal {

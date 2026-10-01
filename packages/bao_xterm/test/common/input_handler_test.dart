@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/InputHandler.test.ts (c58ea36).
 //
 // `TestInputHandler` reads the title stacks straight off `InputHandler`
@@ -12,25 +12,24 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/attribute_data.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_line.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/cell_data.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/constants.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/types.dart';
-import 'package:baocode/ide/terminal/xterm/common/data/charsets.dart';
-import 'package:baocode/ide/terminal/xterm/common/input_handler.dart';
-import 'package:baocode/ide/terminal/xterm/common/parser/escape_sequence_parser.dart';
-import 'package:baocode/ide/terminal/xterm/common/parser/params.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/buffer_service.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/charset_service.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/core_service.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/osc_link_service.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
-import 'package:baocode/ide/terminal/xterm/common/types.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
-    show IFunctionIdentifier;
+import 'package:bao_xterm/common/buffer/attribute_data.dart';
+import 'package:bao_xterm/common/buffer/buffer_line.dart';
+import 'package:bao_xterm/common/buffer/cell_data.dart';
+import 'package:bao_xterm/common/buffer/constants.dart';
+import 'package:bao_xterm/common/buffer/types.dart';
+import 'package:bao_xterm/common/data/charsets.dart';
+import 'package:bao_xterm/common/input_handler.dart';
+import 'package:bao_xterm/common/parser/escape_sequence_parser.dart';
+import 'package:bao_xterm/common/parser/params.dart';
+import 'package:bao_xterm/common/services/buffer_service.dart';
+import 'package:bao_xterm/common/services/charset_service.dart';
+import 'package:bao_xterm/common/services/core_service.dart';
+import 'package:bao_xterm/common/services/osc_link_service.dart';
+import 'package:bao_xterm/common/services/services.dart';
+import 'package:bao_xterm/common/types.dart';
+import 'package:bao_xterm/typings/xterm.dart' show IFunctionIdentifier;
 
-import 'test_utils.dart';
+import 'package:bao_xterm/testing/test_utils.dart';
 
 List<int> getCursor(IBufferService bufferService) {
   return <int>[bufferService.buffer.x, bufferService.buffer.y];

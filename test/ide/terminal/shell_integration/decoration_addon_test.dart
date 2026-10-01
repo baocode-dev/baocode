@@ -21,9 +21,9 @@ import 'package:baocode/ide/terminal/shell_integration/decoration_addon.dart';
 import 'package:baocode/ide/terminal/shell_integration/decoration_styles.dart';
 import 'package:baocode/ide/terminal/shell_integration/shell_integration_addon.dart';
 import 'package:baocode/ide/terminal/terminal_colors.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/types.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/decoration_service.dart';
-import 'package:baocode/ide/terminal/xterm/headless/terminal.dart';
+import 'package:bao_xterm/common/buffer/types.dart';
+import 'package:bao_xterm/common/services/decoration_service.dart';
+import 'package:bao_xterm/headless/terminal.dart';
 import 'package:baocode/theme/codicons.dart';
 
 import '../terminal_color_themes.dart';

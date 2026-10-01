@@ -9,7 +9,7 @@
 // leak suite hook does not apply to these static operations.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/cursor/cursor_atomic_move_operations.dart';
+import 'package:bao_editor/monaco/vs/editor/common/cursor/cursor_atomic_move_operations.dart';
 
 void main() {
   group('Cursor move command test', () {

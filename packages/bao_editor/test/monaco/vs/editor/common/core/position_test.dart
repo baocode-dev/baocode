@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/position.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 
 class _PositionData implements IPosition {
   const _PositionData(this.lineNumber, this.column);

@@ -2,13 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_document_model.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_folding.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_keybindings.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_surface_controller.dart';
-import 'package:baocode/ide/editor/monaco/flutter/language_assets.dart';
-import 'package:baocode/ide/editor/monaco/flutter/language_configuration_assets.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/languages/language_configuration.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/flutter/editor_folding.dart';
+import 'package:bao_editor/monaco/flutter/editor_keybindings.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/flutter/language_assets.dart';
+import 'package:bao_editor/monaco/flutter/language_configuration_assets.dart';
+import 'package:bao_editor/monaco/vs/editor/common/languages/language_configuration.dart';
 
 const _assets = MonacoLanguageAssets();
 

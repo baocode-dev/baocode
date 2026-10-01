@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/input/TextDecoder.test.ts (c58ea36).
 
 import 'dart:convert';
@@ -7,7 +7,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/input/text_decoder.dart';
+import 'package:bao_xterm/common/input/text_decoder.dart';
 
 // convert UTF32 codepoints to string
 String toString(Uint32List data, int length) {

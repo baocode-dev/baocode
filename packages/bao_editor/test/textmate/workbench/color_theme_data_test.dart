@@ -7,18 +7,18 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/base/common/color.dart';
-import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/theme.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/plist_parser.dart'
+import 'package:bao_editor/monaco/vs/base/common/color.dart';
+import 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/plist_parser.dart'
     as plist;
-import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
-import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
-import 'package:baocode/ide/editor/textmate/vscode_textmate/raw_theme.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
+import 'package:bao_editor/textmate/textmate_manifest.dart';
+import 'package:bao_editor/textmate/vscode_textmate/raw_theme.dart';
 
 Future<String> readAsset(String path) =>
-    File('$textMateAssetRoot/$path').readAsString();
+    File('$textMateAssetDirectory/$path').readAsString();
 
 /// The IRawTheme as plain JSON, as `JSON.stringify` writes it upstream.
 Map<String, Object?> rawThemeToJson(IRawTheme theme) => {
@@ -66,7 +66,7 @@ Future<ColorThemeData> loadTheme(
 
 void main() {
   final manifest = TextMateManifest.parse(
-    File('$textMateAssetRoot/manifest.json').readAsStringSync(),
+    File('$textMateAssetDirectory/manifest.json').readAsStringSync(),
   );
 
   group('bundled themes match VS Code', () {

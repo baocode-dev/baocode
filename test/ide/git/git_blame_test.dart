@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_document_model.dart';
-import 'package:baocode/ide/editor/monaco/flutter/editor_surface.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/diff/range_mapping.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/common/diff/range_mapping.dart';
 import 'package:baocode/ide/git/git_blame.dart';
 import 'package:baocode/ide/git/git_model.dart';
 import 'package:baocode/ide/git/git_repository.dart';

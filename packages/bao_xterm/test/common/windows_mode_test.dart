@@ -1,16 +1,15 @@
 // Copyright (c) 2026 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/WindowsMode.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_line.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/buffer_service.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/options_service.dart';
-import 'package:baocode/ide/terminal/xterm/common/windows_mode.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
-    show ITerminalOptions;
+import 'package:bao_xterm/common/buffer/buffer_line.dart';
+import 'package:bao_xterm/common/services/buffer_service.dart';
+import 'package:bao_xterm/common/services/options_service.dart';
+import 'package:bao_xterm/common/windows_mode.dart';
+import 'package:bao_xterm/typings/xterm.dart' show ITerminalOptions;
 
-import 'test_utils.dart';
+import 'package:bao_xterm/testing/test_utils.dart';
 
 void main() {
   group('WindowsMode', () {

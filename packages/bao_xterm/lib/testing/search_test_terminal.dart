@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/browser/public/Terminal.ts and
 // src/browser/services/SelectionService.ts (c58ea36).
 //
@@ -10,12 +10,12 @@
 // `setSelection`, `clearSelection`, `hasSelection` and `selectionText` (not
 // in column mode); no mouse, trimming or clearing on input.
 
-import 'package:baocode/ide/terminal/xterm/addons/addon_search/typings/addon_search.dart';
-import 'package:baocode/ide/terminal/xterm/browser/selection/selection_model.dart';
-import 'package:baocode/ide/terminal/xterm/common/event.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/decoration_service.dart';
-import 'package:baocode/ide/terminal/xterm/headless/public/terminal.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
+import 'package:bao_xterm/addons/addon_search/typings/addon_search.dart';
+import 'package:bao_xterm/browser/selection/selection_model.dart';
+import 'package:bao_xterm/common/event.dart';
+import 'package:bao_xterm/common/services/decoration_service.dart';
+import 'package:bao_xterm/headless/public/terminal.dart';
+import 'package:bao_xterm/typings/xterm.dart'
     show IBufferCellPosition, IBufferRange, IDecoration, IDecorationOptions;
 
 final RegExp _allNonBreakingSpace = RegExp('\u00a0');

@@ -1,0 +1,22 @@
+name: bao_pty
+description: >-
+  Processes on a pseudo terminal for Dart: forkpty on macOS and Linux (built
+  by a native assets hook), ConPTY on Windows. No Flutter in the library.
+version: 0.1.0
+# Not on pub.dev yet: see HANDOFF.md.
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  code_assets: ^1.2.1
+  hooks: ^2.0.2
+  meta: ^1.15.0
+  native_toolchain_c: ^0.19.2
+  path: ^1.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

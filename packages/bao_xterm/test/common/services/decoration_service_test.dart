@@ -1,17 +1,16 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/services/DecorationService.test.ts
 // (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/buffer.dart';
-import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_line.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/decoration_service.dart';
-import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
-import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
-    show IDecorationOptions;
+import 'package:bao_xterm/common/buffer/buffer.dart';
+import 'package:bao_xterm/common/buffer/buffer_line.dart';
+import 'package:bao_xterm/common/services/decoration_service.dart';
+import 'package:bao_xterm/common/services/services.dart';
+import 'package:bao_xterm/typings/xterm.dart' show IDecorationOptions;
 
-import '../test_utils.dart';
+import 'package:bao_xterm/testing/test_utils.dart';
 
 void main() {
   group('DecorationService', () {

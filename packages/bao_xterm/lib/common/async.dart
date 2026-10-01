@@ -1,5 +1,5 @@
 // Copyright (c) 2026 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js src/common/Async.ts (c58ea36).
 
 /// Minimal async helpers for the xterm.js core.

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 // Narrow contracts referenced by lineHeights.ts and linesLayout.ts, from VS Code
 // 6a598d4a13031703d483d103c1d934a36ad27971. The bundled license is at
-// lib/ide/editor/monaco/LICENSE.txt. These are not full editor service ports.
+// lib/monaco/LICENSE.txt. These are not full editor service ports.
 
 import '../core/range.dart';
 

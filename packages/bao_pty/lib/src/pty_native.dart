@@ -1,7 +1,7 @@
 /// The native half of the pseudo terminal on macOS and Linux:
-/// native/pty/baocode_pty.c, built by hook/build.dart. The calls that may
+/// native/bao_pty.c, built by hook/build.dart. The calls that may
 /// block are not leaf calls; only a helper isolate makes those.
-@DefaultAsset('package:baocode/ide/terminal/pty_native.dart')
+@DefaultAsset('package:bao_pty/src/pty_native.dart')
 library;
 
 import 'dart:ffi';
@@ -24,7 +24,7 @@ const ptyStageSetup = 0, ptyStageDirectory = 1, ptyStageExec = 2;
     Pointer<Int32>,
     Pointer<Int32>,
   )
->(symbol: 'baocode_pty_spawn')
+>(symbol: 'bao_pty_spawn')
 external int ptySpawn(
   Pointer<Uint8> path,
   Pointer<Pointer<Uint8>> argv,
@@ -37,57 +37,52 @@ external int ptySpawn(
   Pointer<Int32> stage,
 );
 
-@Native<Int32 Function(Int32, Int32, Int32, Int32)>(symbol: 'baocode_pty_poll')
+@Native<Int32 Function(Int32, Int32, Int32, Int32)>(symbol: 'bao_pty_poll')
 external int ptyPoll(int master, int exitFd, int wake, int timeout);
 
-@Native<Int32 Function(Int32, Pointer<Uint8>, Int32)>(
-  symbol: 'baocode_pty_read',
-)
+@Native<Int32 Function(Int32, Pointer<Uint8>, Int32)>(symbol: 'bao_pty_read')
 external int ptyRead(int master, Pointer<Uint8> buffer, int length);
 
 @Native<Int32 Function(Int32, Pointer<Uint8>, Int32)>(
-  symbol: 'baocode_pty_write',
+  symbol: 'bao_pty_write',
   isLeaf: true,
 )
 external int ptyWrite(int master, Pointer<Uint8> data, int length);
 
 @Native<Int32 Function(Int32, Int32, Pointer<Int32>)>(
-  symbol: 'baocode_pty_exit_status',
+  symbol: 'bao_pty_exit_status',
 )
 external int ptyExitStatus(int pid, int exitFd, Pointer<Int32> code);
 
 @Native<Int32 Function(Int32, Int32, Int32)>(
-  symbol: 'baocode_pty_resize',
+  symbol: 'bao_pty_resize',
   isLeaf: true,
 )
 external int ptyResize(int master, int columns, int rows);
 
 @Native<Int32 Function(Int32, Int32, Int32)>(
-  symbol: 'baocode_pty_kill',
+  symbol: 'bao_pty_kill',
   isLeaf: true,
 )
 external int ptyKill(int pid, int master, int signal);
 
-@Native<Int32 Function(Pointer<Int32>)>(
-  symbol: 'baocode_pty_pipe',
-  isLeaf: true,
-)
+@Native<Int32 Function(Pointer<Int32>)>(symbol: 'bao_pty_pipe', isLeaf: true)
 external int ptyPipe(Pointer<Int32> fds);
 
-@Native<Void Function(Int32)>(symbol: 'baocode_pty_wake', isLeaf: true)
+@Native<Void Function(Int32)>(symbol: 'bao_pty_wake', isLeaf: true)
 external void ptyWake(int fd);
 
-@Native<Void Function(Int32)>(symbol: 'baocode_pty_close', isLeaf: true)
+@Native<Void Function(Int32)>(symbol: 'bao_pty_close', isLeaf: true)
 external void ptyClose(int fd);
 
 @Native<Pointer<Uint8> Function(Int32)>(
-  symbol: 'baocode_pty_describe',
+  symbol: 'bao_pty_describe',
   isLeaf: true,
 )
 external Pointer<Uint8> ptyDescribe(int error);
 
-@Native<Pointer<Void> Function(Size)>(symbol: 'baocode_pty_alloc', isLeaf: true)
+@Native<Pointer<Void> Function(Size)>(symbol: 'bao_pty_alloc', isLeaf: true)
 external Pointer<Void> ptyAlloc(int size);
 
-@Native<Void Function(Pointer<Void>)>(symbol: 'baocode_pty_free', isLeaf: true)
+@Native<Void Function(Pointer<Void>)>(symbol: 'bao_pty_free', isLeaf: true)
 external void ptyFree(Pointer<Void> pointer);

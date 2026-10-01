@@ -25,7 +25,9 @@ import '../../theme/codicons.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
-import '../editor/monaco/flutter/document_snapshot.dart';
+
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+
 import '../ide_hover.dart';
 import '../ide_list.dart';
 import '../lsp/language_features.dart';

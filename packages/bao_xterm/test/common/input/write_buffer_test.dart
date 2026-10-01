@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Adapted from xterm.js src/common/input/WriteBuffer.test.ts (c58ea36).
 //
 // Mocha's `done` callbacks are completers the test awaits; `setTimeout(...,
@@ -11,7 +11,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/terminal/xterm/common/input/write_buffer.dart';
+import 'package:bao_xterm/common/input/write_buffer.dart';
 
 Uint8List toBytes(String s) {
   return Uint8List.fromList(utf8.encode(s));

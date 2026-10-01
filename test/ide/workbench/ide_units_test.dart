@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/ide_commands.dart';
 import 'package:baocode/ide/ide_find_widget.dart';
@@ -12,7 +12,7 @@ import 'package:baocode/ide/ide_quick_open.dart';
 import 'package:baocode/ide/ide_status_bar.dart';
 import 'package:baocode/ide/ide_tab_bar.dart';
 import 'package:baocode/ide/project_tools.dart';
-import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:path/path.dart' as p;
 
 import 'fake_files.dart';

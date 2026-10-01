@@ -62,7 +62,7 @@ try {
   });
   await writeFile(output, JSON.stringify({
     revision,
-    attribution: 'Copyright (c) Microsoft Corporation. Licensed under the MIT License; see lib/ide/editor/monaco/LICENSE.txt.',
+    attribution: 'Copyright (c) Microsoft Corporation. Licensed under the MIT License; see lib/monaco/LICENSE.txt.',
     position, range, selection,
   }, null, 2) + '\n');
 } finally {

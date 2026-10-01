@@ -9,8 +9,6 @@ abstract final class PtyProcesses {
     detail: 'The browser cannot start local processes.',
   );
 
-  static bool get supported => false;
-
   static Future<Pty> start(PtyLaunch launch) async => throw _unsupported;
 
   static Future<PtyLaunch> terminalLaunch(

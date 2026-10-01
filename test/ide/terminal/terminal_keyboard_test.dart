@@ -4,13 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/terminal/terminal_clipboard.dart';
 import 'package:baocode/ide/terminal/terminal_keyboard.dart';
 import 'package:baocode/ide/terminal/terminal_selection.dart';
-import 'package:baocode/ide/terminal/xterm/common/input/kitty_keyboard.dart';
-import 'package:baocode/ide/terminal/xterm/common/types.dart'
-    show IKeyboardEvent;
-import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
-    show IVtExtensions;
+import 'package:bao_xterm/common/input/kitty_keyboard.dart';
+import 'package:bao_xterm/common/types.dart' show IKeyboardEvent;
+import 'package:bao_xterm/typings/xterm.dart' show IVtExtensions;
 
-import 'xterm/common/test_utils.dart';
+import 'package:bao_xterm/testing/test_utils.dart';
 
 class _DataCoreService extends MockCoreService {
   final List<String> data = [];

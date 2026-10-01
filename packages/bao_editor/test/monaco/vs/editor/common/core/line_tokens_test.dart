@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See ../../../../../../../../lib/ide/editor/monaco/LICENSE.txt.
+ *  Licensed under the MIT License. See ../../../../../../lib/monaco/LICENSE.txt.
  *--------------------------------------------------------------------------------------------*/
 // The upstream group mirrors every case in VS Code
 // src/vs/editor/test/common/core/lineTokens.test.ts at
@@ -11,8 +11,8 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/tokens/line_tokens.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/encoded_token_attributes.dart';
+import 'package:bao_editor/monaco/vs/editor/common/tokens/line_tokens.dart';
+import 'package:bao_editor/monaco/vs/editor/common/encoded_token_attributes.dart';
 
 final class _Codec implements ILanguageIdCodec {
   const _Codec();

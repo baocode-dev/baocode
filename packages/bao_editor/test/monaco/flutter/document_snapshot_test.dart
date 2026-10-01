@@ -1,9 +1,9 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/editor/monaco/flutter/document_snapshot.dart';
-import 'package:baocode/ide/editor/monaco/flutter/selection_adapter.dart';
-import 'package:baocode/ide/editor/monaco/vs/editor/common/core/position.dart';
+import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/selection_adapter.dart';
+import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 
 void main() {
   group('DocumentSnapshot', () {

@@ -2,8 +2,8 @@
 // port, to create the parity data onig_parity_test.dart checks against.
 // Usage:
 //   npm pack vscode-oniguruma@1.7.0 && tar -xzf vscode-oniguruma-1.7.0.tgz
-//   node test/ide/editor/textmate/oniguruma/vscode_oniguruma_parity.mjs \
-//     package test/ide/editor/textmate/oniguruma/vscode_oniguruma_parity.json
+//   node test/textmate/oniguruma/vscode_oniguruma_parity.mjs \
+//     package test/textmate/oniguruma/vscode_oniguruma_parity.json
 import { readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';

@@ -13,7 +13,7 @@ import 'package:baocode/ide/terminal/shell_integration/capabilities/capabilities
 import 'package:baocode/ide/terminal/shell_integration/capabilities/command_detection/terminal_command.dart';
 import 'package:baocode/ide/terminal/shell_integration/decoration_styles.dart';
 import 'package:baocode/ide/terminal/terminal_colors.dart';
-import 'package:baocode/ide/terminal/xterm/headless/terminal.dart';
+import 'package:bao_xterm/headless/terminal.dart';
 import 'package:baocode/theme/codicons.dart';
 
 import 'shell_integration_test_helpers.dart';

@@ -5,11 +5,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:baocode/ide/editor/textmate/vscode_textmate/plist.dart';
-import 'package:baocode/ide/editor/textmate/vscode_textmate/theme.dart';
+import 'package:bao_editor/textmate/vscode_textmate/plist.dart';
+import 'package:bao_editor/textmate/vscode_textmate/theme.dart';
 
 /// Upstream's `test-cases/` folder, copied next to the tests.
-const String fixturesRoot = 'test/ide/editor/textmate/vscode_textmate/fixtures';
+const String fixturesRoot = 'test/textmate/vscode_textmate/fixtures';
 
 String fixturePath(String relative) => '$fixturesRoot/$relative';
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The xterm.js authors. All rights reserved.
-// Licensed under the MIT License. See lib/ide/terminal/xterm/LICENSE.txt.
+// Licensed under the MIT License. See lib/LICENSE.txt.
 // Ported from xterm.js src/browser/input/Mouse.ts (c58ea36).
 //
 // Subset: `getCoordsRelativeToElement` reads the element's bounding rect and
