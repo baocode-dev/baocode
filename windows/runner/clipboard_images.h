@@ -3,7 +3,10 @@
 
 #include <windows.h>
 
+#include <shellapi.h>
+
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -24,6 +27,22 @@ bool ClipboardHasContent();
 // wins over image data: apps put a picture of copied text (e.g. cells) beside
 // it.
 std::vector<ClipboardImage> ClipboardImages();
+
+// The files copied to the clipboard (in Explorer, or the IDE's explorer).
+std::vector<std::wstring> ClipboardFilePaths();
+
+// Puts |paths| on the clipboard as files, owned by |owner|, as Explorer copies
+// them (CF_HDROP, to be copied rather than moved): pasted there they are
+// copied, pasted in the composer they are referred to. False when the
+// clipboard is not to be had.
+bool WriteClipboardFiles(HWND owner, const std::vector<std::wstring>& paths);
+
+// The files a drop (or the clipboard) holds as CF_HDROP.
+std::vector<std::wstring> DroppedFilePaths(HDROP drop);
+
+// The image file at |path| as the composer takes one (the formats it does not
+// send as they are encoded as PNG); nullopt when it is no image WIC reads.
+std::optional<ClipboardImage> ImageAtPath(const std::wstring& path);
 
 // Puts the image in |bytes| (of |media_type|) on the clipboard, owned by
 // |owner|: as a bitmap with alpha (CF_DIBV5, which Windows offers as CF_DIB

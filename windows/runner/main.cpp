@@ -2,6 +2,7 @@
 #include <flutter/flutter_view_controller.h>
 #include <flutter_windows.h>
 #include <windows.h>
+#include <ole2.h>
 
 #include <algorithm>
 #include <vector>
@@ -66,8 +67,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   // Initialize COM, so that it is available for use in the library and/or
-  // plugins, and for the folder picker and clipboard imaging.
-  ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+  // plugins, and for the folder picker and clipboard imaging; through OLE,
+  // which the files dragged onto the window need as well (RegisterDragDrop).
+  ::OleInitialize(nullptr);
 
   flutter::DartProject project(L"data");
 
@@ -93,6 +95,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     ::DispatchMessage(&msg);
   }
 
-  ::CoUninitialize();
+  ::OleUninitialize();
   return EXIT_SUCCESS;
 }

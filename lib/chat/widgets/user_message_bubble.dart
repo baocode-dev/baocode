@@ -11,8 +11,10 @@ import 'assistant_text.dart';
 import 'fade_curve.dart';
 import 'image_thumbnails.dart';
 
-/// A sent user message, echoed as text: `@mentions` and a leading
-/// `/command` in it show as the same inline tags as in the composer.
+/// A sent user message, echoed as text: `@paths`, `[path:lines]` and a
+/// leading `/command` in it show as the same inline tags as in the composer.
+/// The lines a message carries after its text (see [codeAppendix]) show in
+/// their tags only.
 /// Clicking it opens it for editing when [onEdit] is set; dragging still
 /// selects text.
 ///
@@ -89,6 +91,10 @@ TextSpan _messageSpan(
           {ComposerImageEmbed.type: final data} => ComposerImageChip.span(
             ComposerImageEmbed.decode(data),
             byNumber[ComposerImageEmbed.decode(data)],
+            _messageStyle,
+          ),
+          {ComposerCodeEmbed.type: final data} => ComposerCodeChip.span(
+            data,
             _messageStyle,
           ),
           final Map<dynamic, dynamic> data => ComposerTokenChip.span(

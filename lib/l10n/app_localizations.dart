@@ -3434,16 +3434,10 @@ abstract class AppLocalizations {
   /// **'Commands'**
   String get composerCommands;
 
-  /// Suggestion menu title.
-  ///
-  /// In en, this message translates to:
-  /// **'Files, folders & context'**
-  String get composerFilesAndContext;
-
   /// No description provided for @composerPlaceholder.
   ///
   /// In en, this message translates to:
-  /// **'Plan, search, build anything  ·  @ to mention  / for commands'**
+  /// **'Plan, search, build anything  ·  drop or paste files  / for commands'**
   String get composerPlaceholder;
 
   /// No description provided for @composerApprovalTitle.

@@ -13,12 +13,12 @@ import '../chat_models.dart';
 import '../floating/hover_tooltip.dart';
 import '../widgets/file_label.dart';
 import '../widgets/image_thumbnails.dart';
-import '../../kernel/kernel_types.dart';
+import 'composer_files.dart';
 import 'composer_mock_data.dart';
 
-/// Inline, atomic token for an @mention or a /command. It occupies a single
-/// character in the document, so the caret skips it and backspace deletes it
-/// as a whole.
+/// Inline, atomic token for a file or folder, or a /command. It occupies a
+/// single character in the document, so the caret skips it and backspace
+/// deletes it as a whole.
 class ComposerTokenEmbed {
   static const type = 'composer-token';
 
@@ -30,6 +30,24 @@ class ComposerTokenEmbed {
       'value': suggestion.value,
     }),
   );
+
+  /// The file or folder at [path], as the message refers to it (see
+  /// [displayPath]).
+  static Embeddable file(String path, {bool directory = false}) => Embeddable(
+    type,
+    jsonEncode({
+      'kind': (directory ? SuggestionKind.folder : SuggestionKind.file).name,
+      'label': _name(path),
+      'value': path,
+    }),
+  );
+
+  /// The last part of [path], whichever its separators.
+  static String _name(String path) {
+    final trimmed = path.replaceFirst(RegExp(r'[/\\]+$'), '');
+    final name = trimmed.split(RegExp(r'[/\\]')).last;
+    return name.isEmpty ? path : name;
+  }
 
   static ({SuggestionKind kind, String label, String value}) decode(
     Object? data,
@@ -47,8 +65,46 @@ class ComposerTokenEmbed {
     final token = decode(data);
     return token.kind == SuggestionKind.command
         ? '/${token.value}'
-        : '@${token.value}';
+        : fileReferenceText(
+            token.value,
+            directory: token.kind == SuggestionKind.folder,
+          );
   }
+}
+
+/// Inline, atomic reference to lines of a file, copied from the IDE's
+/// editor: the message's text says `[lib/main.dart:12-30]`, and the lines
+/// go after it (see [codeAppendix]).
+class ComposerCodeEmbed {
+  static const type = 'composer-code';
+
+  static Embeddable of(CodeReference reference) =>
+      Embeddable(type, jsonEncode(reference.toJson()));
+
+  static CodeReference decode(Object? data) => CodeReference.fromJson(
+    jsonDecode(data as String) as Map<String, Object?>,
+  );
+
+  /// Text it contributes to the sent message and to plain-text copies.
+  static String plainText(Object? data) => decode(data).reference;
+}
+
+/// Where what is dragged over the composer would go, released: the tags it
+/// would put in, faint. Never sent; only there while the drag is.
+class ComposerGhostEmbed {
+  static const type = 'composer-ghost';
+
+  static Embeddable of(List<ComposerFile> files) => Embeddable(
+    type,
+    jsonEncode([
+      for (final file in files)
+        {
+          'name': file.name,
+          'directory': file.directory,
+          'image': file.maybeImage,
+        },
+    ]),
+  );
 }
 
 /// Inline, atomic reference to an image of the message, by its number:
@@ -82,28 +138,20 @@ class ComposerImages extends InheritedWidget {
       !identical(images, oldWidget.images);
 }
 
-/// What can become a token: the kernel's `/commands` and the project's
-/// `@mentions`, for the composer and the sent messages under it.
+/// What can become a token besides files: the kernel's `/commands`, for
+/// the composer and the sent messages under it.
 class ComposerVocabulary extends InheritedWidget {
   const ComposerVocabulary({
     super.key,
     required this.commands,
-    required this.mentions,
-    this.suggestFiles,
     required super.child,
   });
 
   final List<Suggestion> commands;
-  final List<Suggestion> mentions;
 
-  /// Looks files up as `@` is typed; given, any `@path` counts as a
-  /// mention, not only those in [mentions].
-  final Future<List<FileSuggestion>> Function(String query)? suggestFiles;
-
-  /// Outside any: the mock project's mentions, no commands.
+  /// Outside any: no commands.
   static const fallback = ComposerVocabulary(
     commands: [],
-    mentions: ComposerMockData.mentions,
     child: SizedBox.shrink(),
   );
 
@@ -117,9 +165,7 @@ class ComposerVocabulary extends InheritedWidget {
 
   @override
   bool updateShouldNotify(ComposerVocabulary oldWidget) =>
-      !identical(commands, oldWidget.commands) ||
-      !identical(mentions, oldWidget.mentions) ||
-      suggestFiles != oldWidget.suggestFiles;
+      !identical(commands, oldWidget.commands);
 }
 
 /// A composer document for sent [text], the inverse of
@@ -133,17 +179,20 @@ Delta composerDeltaFromText(
       ..insert('\n');
 
 /// [text] (plain, e.g. pasted) as composer content, without the document's
-/// closing newline: `@value` of a known mention becomes a token again, and
-/// so does a leading `/command` when the text goes [atStart] of the message
-/// (where alone a command counts). Any other `@word` stays text: pasted text
-/// is full of those (`@override`, handles). An `[Image #N]` becomes a
-/// reference again when image N is among [images].
+/// closing newline: an `@path` becomes a file's token again (see
+/// [parseFileReference]; `@override`, handles stay text), and so does a
+/// leading `/command` when the text goes [atStart] of the message (where
+/// alone a command counts). An `[Image #N]` becomes a reference again when
+/// image N is among [images], and a `[path:12-30]` when the code it refers
+/// to is in the [codeAppendix] at the end, which goes.
 Delta composerDeltaFromPaste(
   String text,
   ComposerVocabulary vocabulary, {
   required bool atStart,
   Set<int> images = const {},
 }) {
+  final (body: body, references: code) = splitCodeAppendix(text);
+  text = body;
   final delta = Delta();
   final buffer = StringBuffer();
   void flush() {
@@ -152,12 +201,7 @@ Delta composerDeltaFromPaste(
     buffer.clear();
   }
 
-  void token(Suggestion suggestion) {
-    flush();
-    delta.insert(ComposerTokenEmbed.fromSuggestion(suggestion).toJson());
-  }
-
-  // Where a token's value may end: not inside a path or word.
+  // Where a command ends: not inside a word.
   final valueChar = RegExp(r'[A-Za-z0-9_./\-]');
   bool endsAt(int index) =>
       index >= text.length || !valueChar.hasMatch(text[index]);
@@ -169,45 +213,48 @@ Delta composerDeltaFromPaste(
     for (final command in longestFirst(vocabulary.commands)) {
       if (text.startsWith(command.value, 1) &&
           endsAt(1 + command.value.length)) {
-        token(command);
+        flush();
+        delta.insert(ComposerTokenEmbed.fromSuggestion(command).toJson());
         i = 1 + command.value.length;
         break;
       }
     }
   }
-  final mentions = longestFirst(vocabulary.mentions);
   while (i < text.length) {
-    if (text[i] == '[' && images.isNotEmpty) {
-      if (imageReferencePattern.matchAsPrefix(text, i) case final match?
-          when images.contains(int.parse(match[1]!))) {
-        flush();
-        delta.insert(ComposerImageEmbed.of(int.parse(match[1]!)).toJson());
-        i = match.end;
-        continue;
+    if (text[i] == '[') {
+      if (images.isNotEmpty) {
+        if (imageReferencePattern.matchAsPrefix(text, i) case final match?
+            when images.contains(int.parse(match[1]!))) {
+          flush();
+          delta.insert(ComposerImageEmbed.of(int.parse(match[1]!)).toJson());
+          i = match.end;
+          continue;
+        }
+      }
+      if (code.isNotEmpty) {
+        final close = text.indexOf(']', i);
+        final reference = close < 0 ? null : code[text.substring(i, close + 1)];
+        if (reference != null) {
+          flush();
+          delta.insert(ComposerCodeEmbed.of(reference).toJson());
+          i = close + 1;
+          continue;
+        }
       }
     }
     final atBoundary = i == 0 || text[i - 1].trim().isEmpty;
     if (text[i] == '@' && atBoundary) {
-      final mention = mentions
-          .where((m) => text.startsWith(m.value, i + 1))
-          .where((m) => endsAt(i + 1 + m.value.length))
-          .firstOrNull;
-      if (mention != null) {
-        token(mention);
-        i += 1 + mention.value.length;
+      if (parseFileReference(text, i) case (
+        :final path,
+        :final directory,
+        :final end,
+      )) {
+        flush();
+        delta.insert(
+          ComposerTokenEmbed.file(path, directory: directory).toJson(),
+        );
+        i = end;
         continue;
-      }
-      if (vocabulary.suggestFiles != null) {
-        var end = i + 1;
-        while (end < text.length && valueChar.hasMatch(text[end])) {
-          end++;
-        }
-        final path = text.substring(i + 1, end);
-        if (path.contains('/') || path.contains('.')) {
-          token(fileSuggestion(FileSuggestion(path)));
-          i = end;
-          continue;
-        }
       }
     }
     buffer.write(text[i]);
@@ -275,64 +322,296 @@ class ComposerTokenChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final token = ComposerTokenEmbed.decode(data);
     final isCommand = token.kind == SuggestionKind.command;
-    return _SelectableToken(
-      text: ComposerTokenEmbed.plainText(data),
-      child: _CenteredOnText(
-        textStyle: textStyle,
-        // A 1.5 line height would otherwise make the token taller than the
-        // line itself.
-        child: DefaultTextStyle.merge(
-          style: const TextStyle(
-            height: 1.25,
-            leadingDistribution: TextLeadingDistribution.even,
-          ),
-          // The label is for show; the tag selects and copies as a whole.
-          child: SelectionContainer.disabled(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 1),
-              padding: const EdgeInsets.fromLTRB(4, 1, 5, 1),
-              // A command as upstream's in the chat input; a mention as an
-              // attachment's pill.
-              decoration: BoxDecoration(
+    Widget tag = _CenteredOnText(
+      textStyle: textStyle,
+      // A 1.5 line height would otherwise make the token taller than the
+      // line itself.
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(
+          height: 1.25,
+          leadingDistribution: TextLeadingDistribution.even,
+        ),
+        // The label is for show; the tag selects and copies as a whole.
+        child: SelectionContainer.disabled(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 1),
+            padding: const EdgeInsets.fromLTRB(4, 1, 5, 1),
+            // A command as upstream's in the chat input; a file as an
+            // attachment's pill.
+            decoration: BoxDecoration(
+              color: isCommand
+                  ? themeColors['chat.slashCommandBackground']
+                  : AppColors.surface,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
                 color: isCommand
-                    ? themeColors['chat.slashCommandBackground']
-                    : AppColors.surface,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: isCommand
-                      ? Colors.transparent
-                      : themeColors['chat.requestBorder'],
+                    ? Colors.transparent
+                    : themeColors['chat.requestBorder'],
+              ),
+            ),
+            child: switch (token.kind) {
+              SuggestionKind.command => Text(
+                '/${token.label}',
+                style: TextStyle(
+                  color: themeColors['chat.slashCommandForeground'],
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-              child: switch (token.kind) {
-                SuggestionKind.file => FileLabel(token.label, fontSize: 12),
-                SuggestionKind.command => Text(
-                  '/${token.label}',
-                  style: TextStyle(
-                    color: themeColors['chat.slashCommandForeground'],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+              SuggestionKind.folder => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FolderIcon(token.label, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    token.label,
+                    style: TextStyle(color: AppColors.text, fontSize: 12),
                   ),
+                ],
+              ),
+              SuggestionKind.file => FileLabel(token.label, fontSize: 12),
+            },
+          ),
+        ),
+      ),
+    );
+    // Where it is, when the tag shows only its name.
+    if (!isCommand && token.value != token.label) {
+      tag = HoverTooltip(
+        content: (context) => _PathTip(token.value),
+        child: tag,
+      );
+    }
+    return _SelectableToken(
+      text: ComposerTokenEmbed.plainText(data),
+      child: tag,
+    );
+  }
+}
+
+/// A tag's hover: the path it stands for.
+class _PathTip extends StatelessWidget {
+  const _PathTip(this.path);
+
+  final String path;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 420),
+    child: Text(path, style: TextStyle(color: AppColors.text, fontSize: 12)),
+  );
+}
+
+class ComposerCodeEmbedBuilder extends EmbedBuilder {
+  const ComposerCodeEmbedBuilder();
+
+  @override
+  String get key => ComposerCodeEmbed.type;
+
+  @override
+  bool get expanded => false;
+
+  // As a token's (see [ComposerTokenEmbedBuilder]).
+  @override
+  WidgetSpan buildWidgetSpan(Widget widget) => WidgetSpan(
+    alignment: PlaceholderAlignment.baseline,
+    baseline: TextBaseline.alphabetic,
+    child: widget,
+  );
+
+  @override
+  String toPlainText(Embed node) =>
+      ComposerCodeEmbed.plainText(node.value.data);
+
+  @override
+  Widget build(BuildContext context, EmbedContext embedContext) =>
+      ComposerCodeChip(
+        data: embedContext.node.value.data,
+        textStyle: embedContext.textStyle,
+      );
+}
+
+/// The inline tag for lines of a file ([ComposerCodeEmbed] data), centered
+/// on text of [textStyle]: the file's name and the lines, the lines
+/// themselves on hover. In the composer and in sent messages alike.
+///
+/// Inside a selectable area it copies as its message text
+/// (`[lib/main.dart:12-30]`).
+class ComposerCodeChip extends StatelessWidget {
+  const ComposerCodeChip({
+    super.key,
+    required this.data,
+    required this.textStyle,
+  });
+
+  final Object? data;
+  final TextStyle textStyle;
+
+  /// [ComposerCodeChip] as a span for rich text of [textStyle].
+  static InlineSpan span(Object? data, TextStyle textStyle) => WidgetSpan(
+    alignment: PlaceholderAlignment.baseline,
+    baseline: TextBaseline.alphabetic,
+    child: ComposerCodeChip(data: data, textStyle: textStyle),
+  );
+
+  /// Lines shown on hover, at most.
+  static const _previewLines = 14;
+
+  @override
+  Widget build(BuildContext context) {
+    final reference = ComposerCodeEmbed.decode(data);
+    final name = ComposerTokenEmbed._name(reference.path);
+    final lines = reference.start == reference.end
+        ? '${reference.start}'
+        : '${reference.start}-${reference.end}';
+    final tag = _CenteredOnText(
+      textStyle: textStyle,
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(
+          height: 1.25,
+          leadingDistribution: TextLeadingDistribution.even,
+        ),
+        child: SelectionContainer.disabled(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 1),
+            padding: const EdgeInsets.fromLTRB(4, 1, 5, 1),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: themeColors['chat.requestBorder']),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FileIcon(name, size: 15),
+                const SizedBox(width: 5),
+                Text(
+                  name,
+                  style: TextStyle(color: AppColors.text, fontSize: 12),
                 ),
-                _ => Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (token.kind == SuggestionKind.folder)
-                      FolderIcon(token.label, size: 14)
-                    else
-                      Icon(
-                        Icons.alternate_email_rounded,
-                        size: 13,
-                        color: AppColors.textMuted,
+                Text(
+                  ':$lines',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final code = reference.code.split('\n');
+    final shown = code.length > _previewLines
+        ? [...code.take(_previewLines), '…']
+        : code;
+    return _SelectableToken(
+      text: reference.reference,
+      child: HoverTooltip(
+        content: (context) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                reference.label,
+                style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                shown.join('\n'),
+                softWrap: false,
+                overflow: TextOverflow.fade,
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontFamily: AppFonts.mono,
+                  fontSize: 11.5,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+        child: tag,
+      ),
+    );
+  }
+}
+
+class ComposerGhostEmbedBuilder extends EmbedBuilder {
+  const ComposerGhostEmbedBuilder();
+
+  @override
+  String get key => ComposerGhostEmbed.type;
+
+  @override
+  bool get expanded => false;
+
+  // As a token's (see [ComposerTokenEmbedBuilder]).
+  @override
+  WidgetSpan buildWidgetSpan(Widget widget) => WidgetSpan(
+    alignment: PlaceholderAlignment.baseline,
+    baseline: TextBaseline.alphabetic,
+    child: widget,
+  );
+
+  @override
+  String toPlainText(Embed node) => '';
+
+  @override
+  Widget build(BuildContext context, EmbedContext embedContext) {
+    final files = [
+      for (final file in jsonDecode(
+        embedContext.node.value.data as String,
+      ) as List<dynamic>)
+        file as Map<String, dynamic>,
+    ];
+    return _CenteredOnText(
+      textStyle: embedContext.textStyle,
+      child: IgnorePointer(
+        child: Opacity(
+          opacity: .45,
+          child: DefaultTextStyle.merge(
+            style: const TextStyle(
+              height: 1.25,
+              leadingDistribution: TextLeadingDistribution.even,
+            ),
+            child: Row(
+              key: const ValueKey(ComposerGhostEmbed.type),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final file in files)
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 1),
+                    padding: const EdgeInsets.fromLTRB(4, 1, 5, 1),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: themeColors['agentsChatInput.focusBorder'],
                       ),
-                    const SizedBox(width: 4),
-                    Text(
-                      token.label,
-                      style: TextStyle(color: AppColors.text, fontSize: 12),
                     ),
-                  ],
-                ),
-              },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (file['directory'] == true)
+                          FolderIcon(file['name'] as String, size: 14)
+                        else if (file['image'] == true)
+                          Icon(
+                            Icons.image_outlined,
+                            size: 13,
+                            color: AppColors.textMuted,
+                          )
+                        else
+                          FileIcon(file['name'] as String, size: 15),
+                        const SizedBox(width: 4),
+                        Text(
+                          file['name'] as String,
+                          style: TextStyle(color: AppColors.text, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -727,18 +1006,4 @@ class _RenderCenteredOnText extends RenderProxyBox {
     BoxConstraints constraints,
     TextBaseline baseline,
   ) => getDryLayout(constraints).height / 2 + _centerAboveBaseline;
-}
-
-/// A file the kernel found, as a mention suggestion.
-Suggestion fileSuggestion(FileSuggestion file) {
-  final directory = file.isDirectory;
-  final path = directory
-      ? file.path.substring(0, file.path.length - 1)
-      : file.path;
-  final slash = path.lastIndexOf('/');
-  return Suggestion(
-    kind: directory ? SuggestionKind.folder : SuggestionKind.file,
-    label: path.substring(slash + 1),
-    detail: slash < 0 ? '' : path.substring(0, slash),
-  );
 }

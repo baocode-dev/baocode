@@ -1042,11 +1042,7 @@
   "@composerCommands": {
     "description": "Suggestion menu title."
   },
-  "composerFilesAndContext": "Files, folders & context",
-  "@composerFilesAndContext": {
-    "description": "Suggestion menu title."
-  },
-  "composerPlaceholder": "Plan, search, build anything  ·  @ to mention  / for commands",
+  "composerPlaceholder": "Plan, search, build anything  ·  drop or paste files  / for commands",
   "composerApprovalTitle": "How should {agent} get approval?",
   "@composerApprovalTitle": {
     "placeholders": {

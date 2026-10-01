@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum SuggestionKind { file, folder, command, special }
+enum SuggestionKind { file, folder, command }
 
 class Suggestion {
   const Suggestion({
@@ -25,85 +25,6 @@ class Suggestion {
     SuggestionKind.folder => detail.isEmpty ? label : '$detail/$label',
     _ => label,
   };
-}
-
-/// The project's files and other context to @mention (mock).
-abstract final class ComposerMockData {
-  static const mentions = [
-    Suggestion(
-      kind: SuggestionKind.file,
-      label: 'chat_screen.dart',
-      detail: 'lib/chat',
-    ),
-    Suggestion(
-      kind: SuggestionKind.file,
-      label: 'chat_history_view.dart',
-      detail: 'lib/chat',
-    ),
-    Suggestion(
-      kind: SuggestionKind.file,
-      label: 'chat_models.dart',
-      detail: 'lib/chat',
-    ),
-    Suggestion(
-      kind: SuggestionKind.file,
-      label: 'chat_session.dart',
-      detail: 'lib/chat',
-    ),
-    Suggestion(
-      kind: SuggestionKind.file,
-      label: 'mock_conversation.dart',
-      detail: 'lib/chat',
-    ),
-    Suggestion(
-      kind: SuggestionKind.file,
-      label: 'composer.dart',
-      detail: 'lib/chat/composer',
-    ),
-    Suggestion(
-      kind: SuggestionKind.file,
-      label: 'app_theme.dart',
-      detail: 'lib/theme',
-    ),
-    Suggestion(kind: SuggestionKind.file, label: 'main.dart', detail: 'lib'),
-    Suggestion(kind: SuggestionKind.file, label: 'pubspec.yaml', detail: ''),
-    Suggestion(
-      kind: SuggestionKind.file,
-      label: 'widget_test.dart',
-      detail: 'test',
-    ),
-    Suggestion(kind: SuggestionKind.file, label: 'README.md', detail: ''),
-    Suggestion(kind: SuggestionKind.folder, label: 'chat', detail: 'lib'),
-    Suggestion(
-      kind: SuggestionKind.folder,
-      label: 'widgets',
-      detail: 'lib/chat',
-    ),
-    Suggestion(
-      kind: SuggestionKind.special,
-      label: 'Terminal',
-      detail: 'Recent output',
-      icon: Icons.terminal_rounded,
-    ),
-    Suggestion(
-      kind: SuggestionKind.special,
-      label: 'Git diff',
-      detail: 'Uncommitted changes',
-      icon: Icons.difference_outlined,
-    ),
-    Suggestion(
-      kind: SuggestionKind.special,
-      label: 'Web',
-      detail: 'Search the web',
-      icon: Icons.language_rounded,
-    ),
-    Suggestion(
-      kind: SuggestionKind.special,
-      label: 'Past chats',
-      detail: 'Reference a conversation',
-      icon: Icons.history_rounded,
-    ),
-  ];
 }
 
 /// Subsequence fuzzy match. Returns matched character indexes in [text], or

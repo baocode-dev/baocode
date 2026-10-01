@@ -77,6 +77,11 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
   List<_AutoClosed> _autoClosed = const [];
   MultiCursorSession? _multiCursorSession;
   _ClipboardMetadata? _clipboardMetadata;
+
+  /// Told what [copy] and [cut] put on the clipboard, and the lines (from
+  /// 1) it is from, when it is from one place: one selection, or one
+  /// cursor's line.
+  void Function(String text, int startLine, int endLine)? onCopy;
   final List<List<TextSelection>> _cursorUndoStack = [];
   ColumnSelectResult? _columnSelectData;
   (int, String?)? _eolCache;
@@ -1748,6 +1753,9 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
       }
       final text = buffer.toString();
       _clipboardMetadata = _ClipboardMetadata(text, true, null);
+      if (lines.length == 1) {
+        onCopy?.call(text, lines.first + 1, lines.first + 1);
+      }
       return text;
     }
     final parts = [
@@ -1760,6 +1768,16 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
       false,
       parts.length > 1 ? parts : null,
     );
+    if (parts.length == 1) {
+      final selection = sorted.firstWhere((s) => !s.isCollapsed);
+      final start = snapshot.positionAtOffset(selection.start);
+      final end = snapshot.positionAtOffset(selection.end);
+      // A selection to the start of a line ends on the line before.
+      final endLine = end.column == 1 && end.lineNumber > start.lineNumber
+          ? end.lineNumber - 1
+          : end.lineNumber;
+      onCopy?.call(text, start.lineNumber, endLine);
+    }
     return text;
   }
 

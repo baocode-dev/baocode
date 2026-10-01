@@ -257,6 +257,37 @@ void main() {
     );
   });
 
+  testWidgets('a copied file is on the system\'s clipboard too, to paste '
+      'into the chat; a cut one is not', (tester) async {
+    final written = <Object?>[];
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(const MethodChannel('baocode/window'), (
+      call,
+    ) async {
+      if (call.method == 'writePasteboardFiles') written.add(call.arguments);
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(
+        const MethodChannel('baocode/window'),
+        null,
+      ),
+    );
+    await pumpWorkbench(tester, files);
+    await tester.pumpAndSettle();
+    await rightClick(tester, row('README.md'));
+    await tester.tap(find.text('Copy'));
+    await tester.pumpAndSettle();
+    expect(written, [
+      [inRoot('README.md')],
+    ]);
+
+    await rightClick(tester, row('README.md'));
+    await tester.tap(find.text('Cut'));
+    await tester.pumpAndSettle();
+    expect(written, hasLength(1));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
   testWidgets('rows show Git\'s colors and letters; folders a dot', (
     tester,
   ) async {

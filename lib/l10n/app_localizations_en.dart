@@ -1863,11 +1863,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get composerCommands => 'Commands';
 
   @override
-  String get composerFilesAndContext => 'Files, folders & context';
-
-  @override
   String get composerPlaceholder =>
-      'Plan, search, build anything  ·  @ to mention  / for commands';
+      'Plan, search, build anything  ·  drop or paste files  / for commands';
 
   @override
   String composerApprovalTitle(String agent) {

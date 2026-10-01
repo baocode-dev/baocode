@@ -124,6 +124,11 @@ bool FlutterWindow::OnCreate() {
   window_channel_ = std::make_unique<WindowChannel>(
       flutter_controller_->engine()->messenger(), GetHandle());
 
+  // Files dragged onto the view from other apps (see file_drop.dart).
+  drop_target_ =
+      new DropTarget(flutter_controller_->engine()->messenger(), view_);
+  ::RegisterDragDrop(view_, drop_target_);
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
   });
@@ -140,6 +145,14 @@ void FlutterWindow::OnDestroy() {
   // The view goes with the controller below: its own procedure is put back
   // first, so that what is left of its life is not spent in ViewProc (which
   // would look for a window that is on its way out).
+  if (drop_target_ != nullptr) {
+    if (view_ != nullptr) {
+      ::RevokeDragDrop(view_);
+    }
+    drop_target_->Detach();
+    drop_target_->Release();
+    drop_target_ = nullptr;
+  }
   if (view_ != nullptr && view_proc_ != nullptr) {
     ::SetWindowLongPtrW(view_, GWLP_WNDPROC,
                         reinterpret_cast<LONG_PTR>(view_proc_));

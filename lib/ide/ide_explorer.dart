@@ -11,6 +11,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../chat/composer/composer_files.dart';
+import '../chat/composer/file_drag.dart';
 import '../keybindings/keybinding_service.dart';
 import '../l10n/l10n.dart';
 import '../platform/app_paths.dart';
@@ -232,8 +234,9 @@ class IdeExplorerController extends ChangeNotifier {
 /// fileActions.contribution.ts, views/explorerViewer.ts) and the Git
 /// extension's decorations (extensions/git/src/decorationProvider.ts).
 ///
-/// Deviations: one item is selected at a time (no multi-select), nothing is
-/// dragged, and deleting cannot be undone from the editor.
+/// Deviations: one item is selected at a time (no multi-select), an item
+/// drags only onto the chat's composer (not to move it), and deleting
+/// cannot be undone from the editor.
 class IdeExplorer extends StatefulWidget {
   const IdeExplorer({
     super.key,
@@ -560,9 +563,14 @@ class IdeExplorerState extends State<IdeExplorer> {
 
   /// `filesExplorer.copy`, or `filesExplorer.cut`.
   void copySelected({bool cut = false}) {
-    if (_selectedRow case final row?) {
-      _controller.clipboard = (paths: [row.path], cut: cut);
-    }
+    if (_selectedRow case final row?) _copy(row.path, cut: cut);
+  }
+
+  /// Copied, the file is on the system's clipboard too, as Finder copies
+  /// one: to paste into the chat, or into another app.
+  void _copy(String path, {required bool cut}) {
+    _controller.clipboard = (paths: [path], cut: cut);
+    if (!cut) unawaited(WindowControls.writePasteboardFiles([path]));
   }
 
   /// Whether there is something cut or copied.
@@ -874,14 +882,12 @@ class IdeExplorerState extends State<IdeExplorer> {
             IdeMenuAction(
               l10n.commonCut,
               keybinding: _keybinding('filesExplorer.cut'),
-              onSelected: () =>
-                  _controller.clipboard = (paths: [path], cut: true),
+              onSelected: () => _copy(path, cut: true),
             ),
             IdeMenuAction(
               l10n.commonCopy,
               keybinding: _keybinding('filesExplorer.copy'),
-              onSelected: () =>
-                  _controller.clipboard = (paths: [path], cut: false),
+              onSelected: () => _copy(path, cut: false),
             ),
           ],
           if (isFolder)
@@ -1011,8 +1017,7 @@ class IdeExplorerState extends State<IdeExplorer> {
                   onCancel: _cancelEdit,
                 );
               }
-              return _ExplorerRowView(
-                key: ValueKey(row.path),
+              final view = _ExplorerRowView(
                 row: row,
                 selected: row.path == _controller.selected,
                 focused: focused,
@@ -1030,6 +1035,16 @@ class IdeExplorerState extends State<IdeExplorer> {
                   unawaited(_showMenu(position, row));
                 },
               );
+              // Dragged onto the chat's composer, it goes in as a file.
+              return row.message != null
+                  ? KeyedSubtree(key: ValueKey(row.path), child: view)
+                  : FileDraggable(
+                      key: ValueKey(row.path),
+                      files: [
+                        ComposerFile(row.path, directory: row.isDirectory),
+                      ],
+                      child: view,
+                    );
             },
           ),
         ),
@@ -1060,7 +1075,6 @@ String _pathLabel(String path) => tildify(path, _userHome);
 
 class _ExplorerRowView extends StatelessWidget {
   const _ExplorerRowView({
-    super.key,
     required this.row,
     required this.selected,
     required this.focused,

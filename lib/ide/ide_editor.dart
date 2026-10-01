@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../chat/composer/composer_files.dart';
 import '../keybindings/key_chord.dart';
 import '../keybindings/keybinding_service.dart';
 import '../l10n/command_titles.dart';
@@ -272,6 +273,16 @@ class IdeEditorState extends State<IdeEditor> {
     _nativeController = _nativeControllers.putIfAbsent(doc, () {
       final controller = EditorSurfaceController(document: doc.model)
         ..detectIndentation();
+      // Its lines pasted into the chat go in as a reference to them; not
+      // so a revision's, whose lines are not the file's.
+      if (doc.readRevision == null) {
+        controller.onCopy = (text, start, end) => CopiedCode.record(
+          path: doc.path,
+          start: start,
+          end: end,
+          code: text,
+        );
+      }
       unawaited(_loadLanguageConfiguration(doc, controller));
       var previousText = controller.value.text;
       controller.addListener(() {

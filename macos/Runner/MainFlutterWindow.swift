@@ -51,6 +51,16 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
+    // Files dragged onto the window from other apps (see file_drop.dart).
+    let drops = FileDropView(channel: FlutterMethodChannel(
+      name: "baocode/drop",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    ))
+    drops.frame = flutterViewController.view.frame
+    drops.autoresizingMask = [.width, .height]
+    flutterViewController.view.superview?.addSubview(
+      drops, positioned: .above, relativeTo: flutterViewController.view)
+
     // Window controls the Flutter side asks for (see window_controls.dart).
     let channel = FlutterMethodChannel(
       name: "baocode/window",
@@ -114,6 +124,39 @@ class MainFlutterWindow: NSWindow {
         }
       case "readPasteboardImages":
         result(Self.pasteboardImages())
+      case "readPasteboardFiles":
+        // Files copied in Finder (or the IDE's explorer, see below).
+        result(FileDropView.files(on: NSPasteboard.general))
+      case "writePasteboardFiles":
+        // As Finder copies files: pasted there they are copied, pasted in
+        // the composer they are referred to.
+        let urls = (call.arguments as? [String] ?? []).map {
+          URL(fileURLWithPath: $0) as NSURL
+        }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        result(!urls.isEmpty && pasteboard.writeObjects(urls))
+      case "readImageFile":
+        // An image file dropped or pasted, as the composer takes it.
+        guard let path = call.arguments as? String else {
+          result(nil)
+          return
+        }
+        result(Self.image(at: URL(fileURLWithPath: path)))
+      case "pickFiles":
+        // Files and folders to put in the composer (Add Context…).
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Add"
+        guard let window = self else {
+          result([])
+          return
+        }
+        panel.beginSheetModal(for: window) { response in
+          result(response == .OK ? panel.urls.map(FileDropView.entry) : [])
+        }
       case "writePasteboardImage":
         guard let arguments = call.arguments as? [String: Any],
               let bytes = arguments["bytes"] as? FlutterStandardTypedData
@@ -333,6 +376,135 @@ private class VibrantContent: NSViewController {
     flutter.view.autoresizingMask = [.width, .height]
     material.addSubview(flutter.view)
     view = material
+  }
+}
+
+/// Takes the files other apps drag onto the window (Finder, Mail…) for
+/// Flutter, which shows where they would go and puts them there (see
+/// lib/chat/composer/file_drop.dart): over the Flutter view, it answers no
+/// hit test, so clicks and the rest go on to Flutter; only drags stop here.
+private class FileDropView: NSView {
+  private let channel: FlutterMethodChannel
+
+  /// What Flutter last said of the drag: whether what is under it takes it.
+  /// It answers later than the system asks, so the system is told this.
+  private var accepting = false
+
+  init(channel: FlutterMethodChannel) {
+    self.channel = channel
+    super.init(frame: .zero)
+    registerForDraggedTypes(
+      [.fileURL]
+        + NSFilePromiseReceiver.readableDraggedTypes.map {
+          NSPasteboard.PasteboardType($0)
+        })
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is not used")
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+  /// Where the drag is, as Flutter counts: from the top left, in points.
+  private func position(_ sender: NSDraggingInfo) -> [String: Any] {
+    let point = convert(sender.draggingLocation, from: nil)
+    return [
+      "x": Double(point.x),
+      "y": Double(isFlipped ? point.y : bounds.height - point.y),
+    ]
+  }
+
+  private func update(_ arguments: [String: Any]) {
+    channel.invokeMethod("dragUpdate", arguments: arguments) { [weak self] answer in
+      self?.accepting = answer as? Bool ?? false
+    }
+  }
+
+  override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+    accepting = false
+    var arguments = position(sender)
+    // None yet for files an app is still to write (a mail's attachment).
+    arguments["files"] = Self.files(on: sender.draggingPasteboard)
+    update(arguments)
+    return accepting ? .copy : []
+  }
+
+  override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+    update(position(sender))
+    return accepting ? .copy : []
+  }
+
+  override func draggingExited(_ sender: NSDraggingInfo?) {
+    accepting = false
+    channel.invokeMethod("dragExit", arguments: nil)
+  }
+
+  override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+    accepting
+  }
+
+  override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+    accepting = false
+    let at = position(sender)
+    let pasteboard = sender.draggingPasteboard
+    let files = Self.files(on: pasteboard)
+    let promises = pasteboard.readObjects(
+      forClasses: [NSFilePromiseReceiver.self], options: nil
+    ) as? [NSFilePromiseReceiver] ?? []
+    if !files.isEmpty || promises.isEmpty {
+      drop(files, at: at)
+      return true
+    }
+    // Files an app writes once they are let go: into a folder of their own.
+    let folder = FileManager.default.temporaryDirectory
+      .appendingPathComponent("baocode-drops", isDirectory: true)
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try? FileManager.default.createDirectory(
+      at: folder, withIntermediateDirectories: true)
+    // One answer for each file promised; dropped once the last is in.
+    var pending = promises.reduce(0) { $0 + max(1, $1.fileTypes.count) }
+    var received: [URL] = []
+    let lock = NSLock()
+    let queue = OperationQueue()
+    for promise in promises {
+      promise.receivePromisedFiles(
+        atDestination: folder, options: [:], operationQueue: queue
+      ) { [weak self] url, error in
+        lock.lock()
+        if error == nil { received.append(url) }
+        pending -= 1
+        let done = pending == 0
+        let files = received
+        lock.unlock()
+        if done {
+          DispatchQueue.main.async { self?.drop(files.map(Self.entry), at: at) }
+        }
+      }
+    }
+    return true
+  }
+
+  private func drop(_ files: [[String: Any]], at position: [String: Any]) {
+    var arguments = position
+    arguments["files"] = files
+    channel.invokeMethod("drop", arguments: arguments)
+  }
+
+  /// The files on [pasteboard], as Flutter takes them.
+  static func files(on pasteboard: NSPasteboard) -> [[String: Any]] {
+    let urls = pasteboard.readObjects(
+      forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]
+    ) as? [URL] ?? []
+    return urls.map(entry)
+  }
+
+  /// A file as Flutter takes it: its path, and whether it is a folder (not
+  /// so a package, an app, which is one file to the user).
+  static func entry(_ url: URL) -> [String: Any] {
+    let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
+    let directory = (values?.isDirectory ?? false) && !(values?.isPackage ?? false)
+    return ["path": url.path, "directory": directory]
   }
 }
 

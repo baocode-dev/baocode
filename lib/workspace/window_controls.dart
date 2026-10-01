@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../chat/chat_models.dart';
+import '../chat/composer/composer_files.dart';
+import '../chat/composer/file_drop.dart';
 import '../platform/app_platform.dart';
 
 /// One of the window's own buttons, over a header the app draws itself: the
@@ -332,6 +334,63 @@ abstract final class WindowControls {
   /// text.
   static Future<List<ImageAttachment>> readPasteboardImages() =>
       _images('readPasteboardImages');
+
+  /// Files and folders copied to the clipboard (in Finder, Explorer, the
+  /// IDE's explorer…).
+  static Future<List<ComposerFile>> readPasteboardFiles() =>
+      _files('readPasteboardFiles');
+
+  /// Puts [paths] on the clipboard as files, as Finder and Explorer copy
+  /// them: pasted there, they are copied; pasted in the composer, they are
+  /// referred to. Whether it could.
+  static Future<bool> writePasteboardFiles(List<String> paths) async {
+    if (!isDesktop || paths.isEmpty) return false;
+    try {
+      return await _channel.invokeMethod<bool>('writePasteboardFiles', paths) ??
+          false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  /// The image file at [path] as the composer takes one (the formats it
+  /// does not send as they are converted to PNG); null when it is no image
+  /// the system reads.
+  static Future<ImageAttachment?> readImageFile(String path) async {
+    if (!isDesktop) return null;
+    try {
+      final image = await _channel.invokeMapMethod<Object?, Object?>(
+        'readImageFile',
+        path,
+      );
+      if (image?['bytes'] case final Uint8List bytes) {
+        return ImageAttachment(
+          bytes: bytes,
+          mediaType: image!['type'] as String? ?? 'image/png',
+          name: image['name'] as String?,
+        );
+      }
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  /// Whether there is a native file picker: the desktop app.
+  static bool get canPickFiles => isDesktop;
+
+  /// Asks the user for files (the native open panel); none if they cancel.
+  static Future<List<ComposerFile>> pickFiles() => _files('pickFiles');
+
+  static Future<List<ComposerFile>> _files(String method) async {
+    if (!isDesktop) return const [];
+    try {
+      final files = await _channel.invokeListMethod<Object?>(method);
+      return FileDrops.decode(files ?? const []);
+    } on MissingPluginException {
+      return const [];
+    }
+  }
 
   /// Puts [image] on the clipboard, as other apps paste a picture; whether
   /// it could.

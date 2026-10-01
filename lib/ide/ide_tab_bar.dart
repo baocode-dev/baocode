@@ -2,6 +2,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
+import '../chat/composer/composer_files.dart';
+import '../chat/composer/file_drag.dart';
 import '../keybindings/keybinding_service.dart';
 import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
@@ -231,6 +233,16 @@ class _IdeTabBarState extends State<IdeTabBar> {
     );
   }
 
+  /// [tab], dragged onto the chat's composer, puts its file in; not a
+  /// revision's tab, whose text is not the file's.
+  Widget _draggable(IdeDocument doc, Widget tab) => doc.readRevision != null
+      ? KeyedSubtree(key: ObjectKey(doc), child: tab)
+      : FileDraggable(
+          key: ObjectKey(doc),
+          files: [ComposerFile(doc.path)],
+          child: tab,
+        );
+
   @override
   Widget build(BuildContext context) {
     final docs = widget.documents;
@@ -254,15 +266,18 @@ class _IdeTabBarState extends State<IdeTabBar> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final (i, doc) in docs.indexed)
-                      _Tab(
-                        key: _keys.putIfAbsent(doc, GlobalKey.new),
-                        doc: doc,
-                        description: descriptions[i],
-                        active: identical(doc, widget.active),
-                        onSelect: () => widget.onSelect(doc),
-                        onClose: () => widget.onClose(doc),
-                        onMenu: (position) =>
-                            _showMenu(doc, position: position),
+                      _draggable(
+                        doc,
+                        _Tab(
+                          key: _keys.putIfAbsent(doc, GlobalKey.new),
+                          doc: doc,
+                          description: descriptions[i],
+                          active: identical(doc, widget.active),
+                          onSelect: () => widget.onSelect(doc),
+                          onClose: () => widget.onClose(doc),
+                          onMenu: (position) =>
+                              _showMenu(doc, position: position),
+                        ),
                       ),
                   ],
                 ),

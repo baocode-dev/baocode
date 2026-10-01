@@ -2,6 +2,7 @@
 
 #include <windows.h>
 #include <shellapi.h>
+#include <shlobj.h>
 #include <wincodec.h>
 #include <wrl/client.h>
 
@@ -408,6 +409,63 @@ std::vector<ClipboardImage> ClipboardImages() {
   }
   ::CloseClipboard();
   return images;
+}
+
+std::vector<std::wstring> ClipboardFilePaths() {
+  std::vector<std::wstring> paths;
+  if (!::OpenClipboard(nullptr)) {
+    return paths;
+  }
+  if (auto* drop = static_cast<HDROP>(::GetClipboardData(CF_HDROP))) {
+    paths = DroppedNames(drop);
+  }
+  ::CloseClipboard();
+  return paths;
+}
+
+bool WriteClipboardFiles(HWND owner, const std::vector<std::wstring>& paths) {
+  if (paths.empty()) {
+    return false;
+  }
+  // DROPFILES, then each path with its null, then one more null.
+  size_t characters = 1;
+  for (const std::wstring& path : paths) {
+    characters += path.size() + 1;
+  }
+  std::vector<uint8_t> bytes(sizeof(DROPFILES) + characters * sizeof(wchar_t),
+                             0);
+  auto* header = reinterpret_cast<DROPFILES*>(bytes.data());
+  header->pFiles = sizeof(DROPFILES);
+  header->fWide = TRUE;
+  auto* names = reinterpret_cast<wchar_t*>(bytes.data() + sizeof(DROPFILES));
+  for (const std::wstring& path : paths) {
+    std::copy(path.begin(), path.end(), names);
+    names += path.size() + 1;
+  }
+  // Copied, not cut: Explorer's paste copies them.
+  const DWORD effect = DROPEFFECT_COPY;
+  std::vector<uint8_t> effect_bytes(sizeof(effect));
+  std::memcpy(effect_bytes.data(), &effect, sizeof(effect));
+  static const UINT kDropEffect =
+      ::RegisterClipboardFormatW(CFSTR_PREFERREDDROPEFFECT);
+  // Owned by a window: with none, EmptyClipboard leaves it to no one and
+  // SetClipboardData fails.
+  if (!::OpenClipboard(owner)) {
+    return false;
+  }
+  ::EmptyClipboard();
+  const bool written = SetClipboardBytes(CF_HDROP, bytes);
+  SetClipboardBytes(kDropEffect, effect_bytes);
+  ::CloseClipboard();
+  return written;
+}
+
+std::vector<std::wstring> DroppedFilePaths(HDROP drop) {
+  return DroppedNames(drop);
+}
+
+std::optional<ClipboardImage> ImageAtPath(const std::wstring& path) {
+  return ImageFromFile(path);
 }
 
 bool WriteClipboardImage(HWND owner, const std::vector<uint8_t>& bytes,

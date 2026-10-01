@@ -238,6 +238,34 @@ void main() {
       },
     );
 
+    test('a copy from one place tells where its lines are', () async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async => null,
+      );
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      final copies = <(String, int, int)>[];
+      final c = _controller('one\ntwo\nthree', selections: [_range(5, 6)])
+        ..onCopy = (text, start, end) => copies.add((text, start, end));
+      await c.copy();
+      // To the start of a line: the lines before it.
+      c.setSelections([_range(0, 8)]);
+      await c.copy();
+      // A cursor's line.
+      c.setSelections([_at(9)]);
+      await c.copy();
+      expect(copies, [('w', 2, 2), ('one\ntwo\n', 1, 2), ('three\n', 3, 3)]);
+
+      // From several places: no lines to tell.
+      c.setSelections([_range(0, 1), _range(4, 5)]);
+      await c.copy();
+      expect(copies, hasLength(3));
+    });
+
     test('cut of empty selections deletes whole lines', () async {
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;

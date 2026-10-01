@@ -24,6 +24,10 @@
 //   canPaste                      whether the clipboard holds anything
 //   readPasteboardImages          the images on the clipboard
 //   writePasteboardImage (…)      put an image on the clipboard
+//   readPasteboardFiles           the files copied to the clipboard
+//   writePasteboardFiles (paths)  copy files to the clipboard, as Explorer
+//   readImageFile (path)          an image file as the composer takes one
+//   pickFiles                     the files the user chose, or none
 //   showContextMenu (x, y, items) the item chosen from the system's menu
 //   open (target, app?, …)        the system opens it, in the app's own way
 //   setHitTestAreas (…)           where the header Flutter draws is, so the

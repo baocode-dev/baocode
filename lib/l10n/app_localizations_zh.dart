@@ -1801,10 +1801,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get composerCommands => '命令';
 
   @override
-  String get composerFilesAndContext => '文件、文件夹和上下文';
-
-  @override
-  String get composerPlaceholder => '规划、搜索、构建任何内容  ·  @ 提及  / 命令';
+  String get composerPlaceholder => '规划、搜索、构建任何内容  ·  拖入或粘贴文件  / 命令';
 
   @override
   String composerApprovalTitle(String agent) {

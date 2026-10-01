@@ -19,6 +19,7 @@
 
 #include "clipboard_images.h"
 #include "context_menu.h"
+#include "drop_target.h"
 #include "utils.h"
 
 namespace {
@@ -316,6 +317,42 @@ RECT WorkArea(HWND window) {
   return info.rcWork;
 }
 
+// The files the user picked through the system's own panel, to put in the
+// composer (Add Context…); none when they cancel, or it cannot be shown.
+std::vector<std::wstring> PickFiles(HWND window) {
+  ComPtr<IFileOpenDialog> dialog;
+  if (FAILED(::CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) {
+    return {};
+  }
+  DWORD options = 0;
+  if (SUCCEEDED(dialog->GetOptions(&options))) {
+    dialog->SetOptions(options | FOS_ALLOWMULTISELECT | FOS_FORCEFILESYSTEM |
+                       FOS_FILEMUSTEXIST);
+  }
+  dialog->SetOkButtonLabel(L"Add");
+  if (FAILED(dialog->Show(window))) {
+    return {};
+  }
+  ComPtr<IShellItemArray> items;
+  if (FAILED(dialog->GetResults(&items))) {
+    return {};
+  }
+  DWORD count = 0;
+  items->GetCount(&count);
+  std::vector<std::wstring> paths;
+  for (DWORD index = 0; index < count; index++) {
+    ComPtr<IShellItem> item;
+    PWSTR path = nullptr;
+    if (SUCCEEDED(items->GetItemAt(index, &item)) &&
+        SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
+      paths.emplace_back(path);
+      ::CoTaskMemFree(path);
+    }
+  }
+  return paths;
+}
+
 // The project folder the user picked through the system's own panel; null
 // when they cancel, or it cannot be shown.
 std::optional<std::string> PickDirectory(HWND window) {
@@ -409,6 +446,53 @@ void WindowChannel::HandleMethodCall(
       images.push_back(flutter::EncodableValue(std::move(encoded)));
     }
     result->Success(flutter::EncodableValue(std::move(images)));
+    return;
+  }
+
+  if (method == "readPasteboardFiles") {
+    result->Success(flutter::EncodableValue(FileEntries(ClipboardFilePaths())));
+    return;
+  }
+
+  if (method == "writePasteboardFiles") {
+    std::vector<std::wstring> paths;
+    if (const auto* list = call.arguments() == nullptr
+                               ? nullptr
+                               : std::get_if<flutter::EncodableList>(
+                                     call.arguments())) {
+      for (const flutter::EncodableValue& value : *list) {
+        if (const auto* path = std::get_if<std::string>(&value)) {
+          paths.push_back(Utf16FromUtf8(*path));
+        }
+      }
+    }
+    result->Success(flutter::EncodableValue(WriteClipboardFiles(window_, paths)));
+    return;
+  }
+
+  if (method == "readImageFile") {
+    const auto* path = call.arguments() == nullptr
+                           ? nullptr
+                           : std::get_if<std::string>(call.arguments());
+    std::optional<ClipboardImage> image =
+        path == nullptr ? std::nullopt : ImageAtPath(Utf16FromUtf8(*path));
+    if (!image.has_value()) {
+      result->Success();
+      return;
+    }
+    flutter::EncodableMap encoded;
+    encoded[flutter::EncodableValue("bytes")] =
+        flutter::EncodableValue(std::move(image->bytes));
+    encoded[flutter::EncodableValue("type")] =
+        flutter::EncodableValue(image->media_type);
+    encoded[flutter::EncodableValue("name")] =
+        flutter::EncodableValue(image->name);
+    result->Success(flutter::EncodableValue(std::move(encoded)));
+    return;
+  }
+
+  if (method == "pickFiles") {
+    result->Success(flutter::EncodableValue(FileEntries(PickFiles(window_))));
     return;
   }
 

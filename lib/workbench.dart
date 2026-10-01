@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'chat/chat_keys.dart';
 import 'chat/chat_models.dart' show FileChange, FileChangeKind;
 import 'chat/chat_screen.dart';
+import 'chat/composer/file_drop.dart';
 import 'chat/panels/interaction_panel.dart';
 import 'ide/git/git_repository.dart';
 import 'ide/ide_commands.dart';
@@ -166,6 +167,7 @@ class _WorkbenchState extends State<Workbench> {
     WindowControls.onMenuCommand = _runMenuCommand;
     WindowControls.handleEditCommands();
     WindowControls.handleWindowEvents();
+    FileDrops.listen();
     _lifecycle = AppLifecycleListener(
       onResume: () => unawaited(_workspace.refresh()),
     );
@@ -969,8 +971,6 @@ class _WorkbenchState extends State<Workbench> {
         title: thread.localizedTitle(context.l10n),
         autofocus: thread.session.itemCount == 0,
         onRename: (title) => _workspace.rename(thread, title),
-        // Files come from the agent's own lookup, not a fixed list.
-        mentions: const [],
         // Beside the sidebar, the traffic lights are over it, not here.
         titleBarInset: titleBarInset,
         leading: leading,

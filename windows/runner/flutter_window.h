@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 
+#include "drop_target.h"
 #include "win32_window.h"
 #include "window_channel.h"
 
@@ -49,6 +50,10 @@ class FlutterWindow : public Win32Window {
 
   // What Flutter asks of this window.
   std::unique_ptr<WindowChannel> window_channel_;
+
+  // Takes the files other apps drag onto the view, for Flutter; a COM object,
+  // released when the window goes.
+  DropTarget* drop_target_ = nullptr;
 
   // The window button pressed, until the press is let go: the button acts
   // then, and only if the pointer is still on it, as the system's own do.

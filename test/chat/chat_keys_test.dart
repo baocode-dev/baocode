@@ -61,6 +61,26 @@ String composerMessage(WidgetTester tester) => [
     },
 ].join().trim();
 
+/// The (mock) window's file picker answers [paths].
+void pickFiles(WidgetTester tester, List<String> paths) {
+  final messenger = tester.binding.defaultBinaryMessenger;
+  messenger.setMockMethodCallHandler(
+    const MethodChannel('baocode/window'),
+    (call) async => switch (call.method) {
+      'pickFiles' => [
+        for (final path in paths) {'path': path, 'directory': false},
+      ],
+      _ => null,
+    },
+  );
+  addTearDown(
+    () => messenger.setMockMethodCallHandler(
+      const MethodChannel('baocode/window'),
+      null,
+    ),
+  );
+}
+
 /// Types [text] in place of what the composer has, the caret at its end;
 /// [composing], the part an input method is still composing.
 Future<void> typeText(
@@ -181,11 +201,11 @@ void main() {
     await stopTurn(tester, session);
   });
 
-  testWidgets('with the @ menu open, its keys win: ↓ moves, Enter picks, '
+  testWidgets('with the / menu open, its keys win: ↓ moves, Enter picks, '
       'Esc closes it', (tester) async {
     final session = await pumpChat(tester);
     final before = sentMessages(session).length;
-    await typeText(tester, 'look at @');
+    await typeText(tester, '/');
     SuggestionMenu menu() => tester.widget(find.byType(SuggestionMenu));
     expect(menu().highlighted, 0);
     await press(tester, LogicalKeyboardKey.arrowDown);
@@ -203,6 +223,7 @@ void main() {
       reason: 'the token of ${picked.label}',
     );
 
+    composer(tester).clear();
     await typeText(tester, '/');
     expect(find.byType(SuggestionMenu), findsOneWidget);
     await press(tester, LogicalKeyboardKey.escape);
@@ -273,14 +294,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   });
 
-  testWidgets('on macOS: ⌘/ starts a mention, ⌘. opens the mode picker, '
+  testWidgets('on macOS: ⌘/ adds files, ⌘. opens the mode picker, '
       '⌘Esc cancels the turn', (tester) async {
     final session = await pumpChat(tester);
+    pickFiles(tester, ['/tmp/notes.md']);
     await typeText(tester, 'see');
     await press(tester, LogicalKeyboardKey.slash, meta: true);
-    expect(composerText(tester), 'see @');
-    await press(tester, LogicalKeyboardKey.escape);
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    expect(composerMessage(tester), 'see @/tmp/notes.md');
 
     final modeRow = find.text('Plan, edit and run on its own');
     await press(tester, LogicalKeyboardKey.period, meta: true);
@@ -297,13 +318,15 @@ void main() {
     expect(session.isStreaming, isFalse);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-  testWidgets('Ctrl+/ starts a mention', (tester) async {
+  testWidgets('Ctrl+/ adds files', (tester) async {
     await pumpChat(tester);
+    pickFiles(tester, [r'C:\work\notes.md']);
     await typeText(tester, 'see');
     await press(tester, LogicalKeyboardKey.slash, control: true);
-    expect(composerText(tester), 'see @');
-    expect(find.byType(SuggestionMenu), findsOneWidget);
-  });
+    await tester.pump();
+    expect(composerMessage(tester), r'see @C:\work\notes.md');
+    expect(find.byType(SuggestionMenu), findsNothing);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('Ctrl+↑ focuses the conversation, where the list\'s keys '
       'scroll it; Ctrl+↓ goes back to the input', (tester) async {

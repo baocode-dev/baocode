@@ -10,6 +10,7 @@ add_executable(${BINARY_NAME} WIN32
   "caption_areas.cpp"
   "clipboard_images.cpp"
   "context_menu.cpp"
+  "drop_target.cpp"
   "flutter_window.cpp"
   "main.cpp"
   "utils.cpp"

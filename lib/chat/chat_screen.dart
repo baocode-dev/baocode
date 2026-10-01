@@ -41,7 +41,6 @@ class ChatScreen extends StatefulWidget {
     this.embedded = false,
     this.windowTitleBar = true,
     this.focused = true,
-    this.mentions = ComposerMockData.mentions,
     this.onOpenChange,
   });
 
@@ -76,9 +75,6 @@ class ChatScreen extends StatefulWidget {
   /// Whether it is the conversation focused, of several side by side: the
   /// others' titles are dimmer.
   final bool focused;
-
-  /// What `@` offers: the project's files and other context.
-  final List<Suggestion> mentions;
 
   /// Opens a changed file's changes: against [original], its text before
   /// the agent changed it, or the file alone where that is not known.
@@ -394,12 +390,8 @@ class _ChatScreenState extends State<ChatScreen>
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: _session,
-      builder: (context, child) => ComposerVocabulary(
-        commands: _commandSuggestions(),
-        mentions: widget.mentions,
-        suggestFiles: _session.suggestFiles,
-        child: child!,
-      ),
+      builder: (context, child) =>
+          ComposerVocabulary(commands: _commandSuggestions(), child: child!),
       child: _buildBody(),
     );
   }

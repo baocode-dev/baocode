@@ -30,6 +30,7 @@ import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/composer/composer_caret.dart';
 import 'package:baocode/chat/composer/composer_embeds.dart';
+import 'package:baocode/chat/composer/composer_files.dart';
 import 'package:baocode/chat/composer/composer_picker.dart';
 import 'package:baocode/chat/floating/floating_layer.dart';
 import 'package:baocode/chat/composer/suggestion_menu.dart';
@@ -104,33 +105,17 @@ void main() {
     expect(width(false), width(true) - 2 * UserMessageBubble.radius);
   });
 
-  testWidgets('@ opens the mention menu and inserts an atomic token', (
+  testWidgets('@ opens no menu: files come in dragged, pasted or picked', (
     tester,
   ) async {
     await pumpScreen(tester);
-    expect(find.byType(SuggestionMenu), findsNothing);
-
     await typeText(tester, 'look at @hist');
-    expect(find.byType(SuggestionMenu), findsOneWidget);
-    expect(
-      find.text('chat_history_view.dart', findRichText: true),
-      findsOneWidget,
-    );
-
-    await pressKey(tester, LogicalKeyboardKey.enter);
     await settleAnimations(tester);
     expect(find.byType(SuggestionMenu), findsNothing);
-
-    final ops = composerController(tester).document.toDelta().toList();
-    final token = ops
-        .map((op) => op.data)
-        .whereType<Map>()
-        .single[ComposerTokenEmbed.type];
     expect(
-      ComposerTokenEmbed.plainText(token),
-      '@lib/chat/chat_history_view.dart',
+      composerController(tester).document.toPlainText(),
+      'look at @hist\n',
     );
-    expect(ops.first.data, 'look at ');
   });
 
   testWidgets('escape dismisses the menu until the trigger changes', (
@@ -541,8 +526,10 @@ void main() {
     await pressKey(tester, LogicalKeyboardKey.enter);
     await tester.pump();
     expect(height(), empty);
-    await typeText(tester, '1 @chat_s');
-    await pressKey(tester, LogicalKeyboardKey.enter);
+    await typeText(tester, '1');
+    await tester
+        .state<ChatComposerState>(find.byType(ChatComposer))
+        .insertFiles(const [ComposerFile('/work/lib/chat/chat_screen.dart')]);
     await tester.pump();
     expect(height(), empty);
     await typeText(tester, 'x');
@@ -566,11 +553,11 @@ void main() {
     tester,
   ) async {
     await pumpScreen(tester);
-    await typeText(tester, 'see @chat_s');
+    await typeText(tester, '/rev');
     await pressKey(tester, LogicalKeyboardKey.enter);
     final controller = composerController(tester);
-    expect(controller.document.toPlainText(), 'see \uFFFC \n');
-    expect(controller.selection.baseOffset, 6);
+    expect(controller.document.toPlainText(), '\uFFFC \n');
+    expect(controller.selection.baseOffset, 2);
   });
 
   testWidgets('a right click opens the system menu: cut, copy, paste, '
@@ -804,14 +791,14 @@ void main() {
     expect(controller.selection.extentOffset, extent);
   });
 
-  testWidgets('the mention menu opens only at the end of a query', (
+  testWidgets('the command menu opens only at the end of a query', (
     tester,
   ) async {
     await pumpScreen(tester);
-    await typeText(tester, 'see @chat_s');
+    await typeText(tester, '/revi');
     expect(find.byType(SuggestionMenu), findsOneWidget);
     composerController(tester).updateSelection(
-      const TextSelection.collapsed(offset: 9),
+      const TextSelection.collapsed(offset: 3),
       ChangeSource.local,
     );
     await settleAnimations(tester);

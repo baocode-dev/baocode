@@ -376,12 +376,6 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   };
 
   /// Files matching an `@` query; null when the kernel does not look.
-  Future<List<FileSuggestion>> Function(String query)? get suggestFiles =>
-      switch (_kernel) {
-        final SuggestsFiles kernel => kernel.suggestFiles,
-        _ => null,
-      };
-
   ContextUsage? get context => switch (_kernel) {
     final ReportsContext kernel =>
       _transcript.usage ?? ContextUsage(window: kernel.contextWindow, used: 0),

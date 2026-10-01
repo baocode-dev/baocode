@@ -16,6 +16,7 @@ windows/
     caption_areas.*          where Flutter's header and its controls are
     clipboard_images.cpp     CF_HDROP / CF_DIB → PNG for the composer
     context_menu.cpp         TrackPopupMenu for the composer's right click
+    drop_target.cpp          IDropTarget: files dragged in from other apps
     win32_window.cpp         DPI-aware frame without a caption; WM_GETMINMAXINFO
 lib/
   platform/app_paths.dart    home / app data / temp, by platform
@@ -33,8 +34,20 @@ lib/
 | `pickDirectory` | `IFileOpenDialog` with `FOS_PICKFOLDERS` |
 | `canPaste` | text, HDROP, or DIB on the clipboard |
 | `readPasteboardImages` | image files from HDROP; else DIB→PNG when there is no text |
+| `readPasteboardFiles` | the paths in HDROP, each with whether it is a folder |
+| `writePasteboardFiles` | HDROP + `Preferred DropEffect` = copy, as Explorer's Copy |
+| `readImageFile` | an image file as the composer takes it (WIC → PNG for other formats) |
+| `pickFiles` | `IFileOpenDialog` with `FOS_ALLOWMULTISELECT` |
 | `showContextMenu` | system popup; shortcuts shown as Ctrl+… |
 | `open` | an app (`code` / `cursor` / `wt`) found on PATH + PATHEXT: `CreateProcessW` with `CREATE_NO_WINDOW` (`.cmd` / `.bat` through `cmd.exe /d /s /c`, so no console flashes up); otherwise `ShellExecuteW` |
+
+Files dragged onto the window from other apps come over a channel of their
+own, `baocode/drop` (`dragUpdate` / `dragExit` / `drop`, see
+`lib/chat/composer/file_drop.dart`): `drop_target.cpp` is registered on the
+Flutter view with `RegisterDragDrop`, which is why `main.cpp` initializes
+COM through `OleInitialize`. Flutter answers whether the composer is under
+the pointer later than OLE asks, so `DragOver` tells OLE the last answer (it
+is asked again while the drag rests).
 
 Edit-menu bridging (`editCommand` / `baocodeSelectAll:` …) is **macOS only**.
 Windows has no app menu bar for those; Flutter handles Ctrl+A/C/V itself

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -26,23 +27,24 @@ import '../widgets/image_thumbnails.dart';
 import 'composer_caret.dart';
 import 'composer_draft.dart';
 import 'composer_embeds.dart';
+import 'composer_files.dart';
 import 'composer_images.dart';
 import 'composer_mock_data.dart';
 import 'composer_picker.dart';
+import 'file_drop.dart';
 import 'suggestion_menu.dart';
 import '../../ide/ide_hover.dart';
 
-/// An open @mention or /command query: the trigger character sits at
-/// [start] and [query] is the text between it and the caret.
+/// An open /command query: the slash starts the message, and [query] is
+/// the text between it and the caret.
 class _Trigger {
-  const _Trigger(this.kind, this.start, this.query);
+  const _Trigger(this.query);
 
-  final SuggestionKind kind;
-  final int start;
+  /// Where the slash is.
+  int get start => 0;
   final String query;
 
-  bool sameAnchor(_Trigger? other) =>
-      other != null && other.kind == kind && other.start == start;
+  bool sameAnchor(_Trigger? other) => other != null;
 }
 
 /// The chat input, built on flutter_quill.
@@ -53,7 +55,12 @@ class _Trigger {
 /// [onCancel].
 ///
 /// Its keys are keybindings (see [ChatCommandIds]): Enter sends, ↑ at its
-/// start shows the messages sent before, the @ and / menu's keys…
+/// start shows the messages sent before, the / menu's keys…
+///
+/// Files come in as tags of their paths (images as images, where the
+/// conversation takes them): dragged onto it from other apps or from the
+/// IDE, pasted after a copy, or picked (Add Context…). Code copied from the
+/// IDE's editor pastes as a tag of its lines (see [CopiedCode]).
 class ChatComposer extends StatefulWidget {
   const ChatComposer({
     super.key,
@@ -72,8 +79,8 @@ class ChatComposer extends StatefulWidget {
   final bool contextPanelOpen;
   final VoidCallback? onToggleContextPanel;
 
-  /// Text to start from; `@mentions` and a leading `/command` in it become
-  /// tokens again.
+  /// Text to start from; `@paths`, `[path:lines]` and a leading `/command`
+  /// in it become tags again.
   final String? initialText;
 
   /// Images to start from (the message being edited had them).
@@ -93,7 +100,9 @@ class ChatComposer extends StatefulWidget {
   State<ChatComposer> createState() => ChatComposerState();
 }
 
-class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
+class ChatComposerState extends State<ChatComposer>
+    with ChatKeyTarget
+    implements FileDropDelegate {
   static const _fontSize = 13.5;
   static TextStyle get _textStyle => TextStyle(
     color: AppColors.textPrimary,
@@ -200,12 +209,32 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
     );
   }
 
-  /// Pastes the clipboard's plain text with its @mentions (and a leading
-  /// /command) as tokens, as the message will show once sent: copied from
-  /// the history, from this editor or from elsewhere alike. Also keeps
-  /// Quill from pasting HTML or Markdown as rich text into this plain-text
-  /// input. Returns false (Quill's own handling, e.g. images) for no text.
+  /// Pastes what the clipboard holds: copied files as tags of their paths
+  /// (images as images), code the IDE's editor copied as a tag of its lines,
+  /// a picture (a screenshot), or else its plain text, with its `@paths`
+  /// (and a leading /command) as tags, as the message will show once sent:
+  /// copied from the history, from this editor or from elsewhere alike.
+  /// Also keeps Quill from pasting HTML or Markdown as rich text into this
+  /// plain-text input. Returns false (Quill's own handling) for nothing.
   Future<bool> _paste() async {
+    final files = await WindowControls.readPasteboardFiles();
+    if (!mounted) return false;
+    if (files.isNotEmpty) {
+      await insertFiles(files);
+      return true;
+    }
+    final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+    if (!mounted) return false;
+    if (text != null) {
+      if (CopiedCode.matching(text) case final code?) {
+        _insertTags([
+          ComposerCodeEmbed.of(
+            code.withPath(displayPath(code.path, widget.session.root)),
+          ),
+        ]);
+        return true;
+      }
+    }
     if (widget.session.acceptsImages) {
       final images = await WindowControls.readPasteboardImages();
       if (images.isNotEmpty) {
@@ -213,7 +242,6 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
         return true;
       }
     }
-    final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
     if (text == null || !mounted) return false;
     final selection = _controller.selection;
     final start = selection.start;
@@ -289,39 +317,95 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
       ?_pool[number],
   ];
 
-  /// Puts [images] in at the caret, each as a reference in the text,
-  /// numbered on from the conversation's last.
-  Future<void> _addImages(List<ImageAttachment> images) async {
-    final prepared = [
-      for (final image in await Future.wait(images.map(prepareImage))) ?image,
-    ];
-    if (!mounted || prepared.isEmpty) return;
+  /// Puts [images] in at [at] (in place of the selection when null), each
+  /// as a reference in the text, numbered on from the conversation's last.
+  Future<void> _addImages(List<ImageAttachment> images, {int? at}) async {
+    final added = (await _numbered(images)).nonNulls;
+    if (!mounted || added.isEmpty) return;
+    _insertTags([
+      for (final image in added) ComposerImageEmbed.of(image.number!),
+    ], at: at);
+  }
+
+  /// [images] made ready to send (see [prepareImage]), numbered on from the
+  /// conversation's last and put in the pool, in their places: null for
+  /// those that are no images, or past the most a message takes.
+  Future<List<ImageAttachment?>> _numbered(
+    List<ImageAttachment?> images,
+  ) async {
+    final prepared = await Future.wait([
+      for (final image in images)
+        image == null ? Future<ImageAttachment?>.value() : prepareImage(image),
+    ]);
+    if (!mounted) return [for (final _ in images) null];
     var next =
         math.max(widget.session.lastImageNumber, _pool.keys.fold(0, math.max)) +
         1;
-    final added = [
-      for (final image in prepared.take(_maxImages - _images.length))
-        image.withNumber(next++),
+    var room = _maxImages - _images.length;
+    final numbered = [
+      for (final image in prepared)
+        image != null && room-- > 0 ? image.withNumber(next++) : null,
     ];
-    if (added.isEmpty) return;
-    _pool = {..._pool, for (final image in added) image.number!: image};
+    _pool = {
+      ..._pool,
+      for (final image in numbered.nonNulls) image.number!: image,
+    };
+    return numbered;
+  }
+
+  /// Puts [files] in at [at] (in place of the selection when null), in
+  /// their order: each a tag of its path, from the project's root when it
+  /// is in it, or, for an image the conversation takes, the image.
+  Future<void> insertFiles(List<ComposerFile> files, {int? at}) async {
+    if (files.isEmpty) return;
+    var images = <ImageAttachment?>[for (final _ in files) null];
+    if (widget.session.acceptsImages) {
+      images = await _numbered(
+        await Future.wait([
+          for (final file in files)
+            file.maybeImage
+                ? WindowControls.readImageFile(file.path)
+                : Future<ImageAttachment?>.value(),
+        ]),
+      );
+    }
+    if (!mounted) return;
+    final root = widget.session.root;
+    _insertTags([
+      for (final (index, file) in files.indexed)
+        if (images[index] case final image?)
+          ComposerImageEmbed.of(image.number!)
+        else
+          ComposerTokenEmbed.file(
+            displayPath(file.path, root),
+            directory: file.directory,
+          ),
+    ], at: at);
+  }
+
+  /// Puts [tags] in at [at] (in place of the selection when null), apart
+  /// from a word before them, each followed by a space, so that none is
+  /// the last thing on its line (see [_padTrailingTokens]); the caret after
+  /// them. One edit, undone as one.
+  void _insertTags(List<Embeddable> tags, {int? at}) {
+    if (tags.isEmpty) return;
     final selection = _controller.selection;
-    final start = math.max(0, selection.start);
+    final end = _controller.document.length - 1;
+    final start = (at ?? selection.start).clamp(0, end);
+    final replaced = at == null ? math.max(0, selection.end - start) : 0;
     final plain = _controller.document.toPlainText();
     final content = Delta();
-    // Apart from a word before it.
     if (start > 0 && plain[start - 1].trim().isNotEmpty) content.insert(' ');
-    for (final image in added) {
-      // Never last on its line (see [_padTrailingTokens]).
+    for (final tag in tags) {
       content
-        ..insert(ComposerImageEmbed.of(image.number!).toJson())
+        ..insert(tag.toJson())
         ..insert(' ');
     }
     _controller
       ..compose(
         (Delta()
               ..retain(start)
-              ..delete(math.max(0, selection.end - start)))
+              ..delete(replaced))
             .concat(content),
         selection,
         ChangeSource.local,
@@ -428,6 +512,8 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
   );
 
   void _handleEditorChanged() {
+    // The placeholder of a drag coming and going: not the user's edit.
+    if (_ghosting) return;
     if (_padTrailingTokens()) return; // Re-entered with the fixed document.
     _images = _referredImages();
     _saveDraft();
@@ -445,21 +531,15 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
     final visible = trigger != null && _dismissedTrigger == null;
 
     if (visible) {
-      final vocabulary = ComposerVocabulary.read(context);
-      final source = trigger.kind == SuggestionKind.command
-          ? vocabulary.commands
-          : vocabulary.mentions;
       final queryChanged =
           !trigger.sameAnchor(_trigger) || trigger.query != _trigger!.query;
       if (queryChanged) {
-        _matches = rankSuggestions(source, trigger.query);
-        if (trigger.kind != SuggestionKind.command) {
-          if (vocabulary.suggestFiles case final suggest?) {
-            _lookUpFiles(trigger, suggest, source);
-          }
-        }
+        _matches = rankSuggestions(
+          ComposerVocabulary.read(context).commands,
+          trigger.query,
+        );
+        _highlighted = 0;
       }
-      if (queryChanged) _highlighted = 0;
       _highlighted = _highlighted.clamp(0, math.max(0, _matches.length - 1));
       _menuX = _caretX(trigger.start);
     }
@@ -467,39 +547,6 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
     _syncMenuRegistration();
     _hasContent = hasContent;
     setState(() {});
-  }
-
-  int _lookups = 0;
-
-  /// Asks the kernel for files matching [trigger], and shows them ahead of
-  /// the fixed mentions. Answers to older queries are dropped.
-  Future<void> _lookUpFiles(
-    _Trigger trigger,
-    Future<List<FileSuggestion>> Function(String query) suggest,
-    List<Suggestion> fixed,
-  ) async {
-    final lookup = ++_lookups;
-    final files = await suggest(trigger.query);
-    final current = _trigger;
-    if (!mounted ||
-        lookup != _lookups ||
-        current == null ||
-        !current.sameAnchor(trigger) ||
-        current.query != trigger.query) {
-      return;
-    }
-    setState(() {
-      _matches = [
-        for (final suggestion in files.map(fileSuggestion))
-          SuggestionMatch(
-            suggestion,
-            fuzzyMatch(suggestion.label, trigger.query)?.indexes ?? const [],
-          ),
-        ...rankSuggestions(fixed, trigger.query),
-      ];
-      _highlighted = _highlighted.clamp(0, math.max(0, _matches.length - 1));
-    });
-    _syncMenuRegistration();
   }
 
   /// Flutter lays out a line whose only content is an inline widget taller
@@ -526,20 +573,12 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
     bool isBoundary(String char) =>
         char.trim().isEmpty || char == _plainTextEmbed;
     // Only at the end of a query: a caret moved into existing text (e.g.
-    // `@pubspec.|yaml`) is not typing one.
+    // `/re|view`) is not typing one.
     if (caret < plain.length && !isBoundary(plain[caret])) return null;
-
-    for (var i = caret - 1; i >= 0; i--) {
-      final char = plain[i];
-      if (isBoundary(char)) return null;
-      if (char == '@' && (i == 0 || isBoundary(plain[i - 1]))) {
-        return _Trigger(SuggestionKind.file, i, plain.substring(i + 1, caret));
-      }
-      if (char == '/' && i == 0) {
-        return _Trigger(SuggestionKind.command, 0, plain.substring(1, caret));
-      }
-    }
-    return null;
+    if (!plain.startsWith('/')) return null;
+    final query = plain.substring(1, caret);
+    if (query.split('').any(isBoundary)) return null;
+    return _Trigger(query);
   }
 
   /// Horizontal caret position of [offset] relative to the composer box.
@@ -693,7 +732,8 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
         ChatCommandIds.openModePicker: picker.toggle,
       if (_modelPickerKey.currentState case final picker?)
         ChatCommandIds.openModelPicker: picker.toggle,
-      ChatCommandIds.attachContext: _attachContext,
+      if (WindowControls.canPickFiles)
+        ChatCommandIds.attachContext: _attachContext,
       if (menu) ...{
         ChatCommandIds.selectNextSuggestion: () => _moveHighlight(1),
         ChatCommandIds.selectPrevSuggestion: () => _moveHighlight(-1),
@@ -707,23 +747,124 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
   @override
   bool get chatComposing => _isComposing;
 
-  /// Types `@` at the caret, which opens the files and context to mention
-  /// (upstream's Add Context… picks them in a picker of its own).
-  void _attachContext() {
-    final selection = _controller.selection;
-    final start = selection.start < 0 ? 0 : selection.start;
-    final end = selection.end < 0 ? start : selection.end;
-    final plain = _controller.document.toPlainText();
-    final before = start == 0 ? '' : plain[start - 1];
-    // A mention starts a word.
-    final text = before.trim().isEmpty ? '@' : ' @';
-    _controller.replaceText(
-      start,
-      end - start,
-      text,
-      TextSelection.collapsed(offset: start + text.length),
-    );
+  /// Asks for files (the system's open panel) and puts them in at the
+  /// caret (upstream's Add Context… picks them in a picker of its own).
+  Future<void> _attachContext() async {
+    final files = await WindowControls.pickFiles();
+    if (!mounted) return;
+    await insertFiles(files);
     _focusNode.requestFocus();
+  }
+
+  // --- Drag and drop -----------------------------------------------------
+  //
+  // Files dragged over the composer, from other apps (see [FileDrops]) or
+  // from the IDE ([FileDragData]), show where they would go: their tags,
+  // faint, in the text at the pointer, the text making room for them. Let
+  // go, the tags take their place.
+
+  /// Where the placeholder is in the document, while a drag is over it.
+  int? _ghostAt;
+
+  /// The placeholder and the space after it.
+  static const _ghostLength = 2;
+
+  /// What the placeholder shows.
+  List<ComposerFile> _ghostFiles = const [];
+
+  /// The placeholder is being put in or taken out: no edit of the user's
+  /// (see [_handleEditorChanged]), and nothing to undo.
+  bool _ghosting = false;
+
+  /// Where in the text [position] (the window's) would put what is let go
+  /// there: an offset in the document without the placeholder. Below or
+  /// beside the text (the toolbar, the pictures), its end.
+  int _dropOffset(Offset position) {
+    final end =
+        _controller.document.length - 1 - (_ghostAt == null ? 0 : _ghostLength);
+    final editor = _editorKey.currentState?.renderEditor;
+    if (editor == null || !editor.attached) return end;
+    final local = editor.globalToLocal(position);
+    if (!(Offset.zero & editor.size).contains(local)) return end;
+    var offset = editor.getPositionForOffset(position).offset;
+    if (_ghostAt case final ghost? when offset > ghost) {
+      offset = math.max(ghost, offset - _ghostLength);
+    }
+    return offset.clamp(0, end);
+  }
+
+  void _showGhost(Offset position, List<ComposerFile> files) {
+    if (!mounted) return;
+    final at = _dropOffset(position);
+    if (at == _ghostAt && listEquals(files, _ghostFiles)) return;
+    final shown = _ghostAt != null;
+    _editGhost(() {
+      _removeGhost();
+      _controller.compose(
+        Delta()
+          ..retain(at)
+          ..insert(ComposerGhostEmbed.of(files).toJson())
+          ..insert(' '),
+        _controller.selection,
+        ChangeSource.local,
+      );
+      _ghostAt = at;
+      _ghostFiles = files;
+    });
+    // The border shows it.
+    if (!shown) setState(() {});
+  }
+
+  void _hideGhost() {
+    if (!mounted || _ghostAt == null) return;
+    _editGhost(_removeGhost);
+    setState(() {});
+  }
+
+  void _removeGhost() {
+    final at = _ghostAt;
+    if (at == null) return;
+    _ghostAt = null;
+    _ghostFiles = const [];
+    _controller.compose(
+      Delta()
+        ..retain(at)
+        ..delete(_ghostLength),
+      _controller.selection,
+      ChangeSource.local,
+    );
+  }
+
+  void _editGhost(VoidCallback edit) {
+    final history = _controller.document.history;
+    final ignoring = history.ignoreChange;
+    _ghosting = true;
+    history.ignoreChange = true;
+    try {
+      edit();
+    } finally {
+      history.ignoreChange = ignoring;
+      _ghosting = false;
+    }
+  }
+
+  @override
+  void fileDragOver(Offset position, List<ComposerFile> files) => _showGhost(
+    position,
+    // Files an app is still to write (a mail's attachment) have no names
+    // yet.
+    files.isEmpty ? const [ComposerFile('…')] : files,
+  );
+
+  @override
+  void fileDragLeave() => _hideGhost();
+
+  @override
+  void fileDrop(Offset position, List<ComposerFile> files) {
+    if (!mounted) return;
+    final at = _ghostAt ?? _dropOffset(position);
+    _hideGhost();
+    unawaited(insertFiles(files, at: at));
   }
 
   // --- Prompt history ------------------------------------------------------
@@ -816,12 +957,17 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
   ComposerMessage _buildMessage() {
     final text = StringBuffer();
     final mentions = <String>[];
+    final code = <String, CodeReference>{};
     for (final op in _controller.document.toDelta().toList()) {
       final data = op.data;
       if (data is String) {
         text.write(data);
       } else if (data case {ComposerImageEmbed.type: final image}) {
         text.write(ComposerImageEmbed.plainText(image));
+      } else if (data case {ComposerCodeEmbed.type: final raw}) {
+        final reference = ComposerCodeEmbed.decode(raw);
+        text.write(reference.reference);
+        code.putIfAbsent(reference.reference, () => reference);
       } else if (data is Map && data.containsKey(ComposerTokenEmbed.type)) {
         final raw = data[ComposerTokenEmbed.type];
         text.write(ComposerTokenEmbed.plainText(raw));
@@ -833,7 +979,8 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
       }
     }
     return ComposerMessage(
-      text: text.toString().trim(),
+      // The lines it refers to after it.
+      text: text.toString().trim() + codeAppendix(code.values),
       mentions: mentions,
       images: [..._images],
     );
@@ -899,58 +1046,68 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
       tapRegionGroupId: _focusNode,
       outerTapRegionGroupId: widget.tapRegionGroupId,
       builder: _buildMenu,
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: _focusNode.requestFocus,
-        child: AnimatedContainer(
-          key: _boxKey,
-          duration: const Duration(milliseconds: 150),
-          decoration: BoxDecoration(
-            // The agents window's chat input; editing a sent message, its
-            // bubble (as upstream), over the page: it floats when stuck.
-            color: widget.onSubmit == null
-                ? colors['agentsChatInput.background']
-                : Color.alphaBlend(
-                    colors['chat.requestBubbleBackground'],
-                    colors['editor.background'],
-                  ),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: focused
-                  ? colors['agentsChatInput.focusBorder']
-                  : colors['agentsChatInput.border'],
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_images.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                  child: ImageThumbnails(
-                    images: _images,
-                    onRemove: _removeImage,
-                  ),
+      child: FileDropRegion(
+        delegate: this,
+        child: DragTarget<FileDragData>(
+          onWillAcceptWithDetails: (details) => details.data.files.isNotEmpty,
+          onMove: (details) => _showGhost(details.offset, details.data.files),
+          onLeave: (_) => _hideGhost(),
+          onAcceptWithDetails: (details) =>
+              fileDrop(details.offset, details.data.files),
+          builder: (context, candidates, rejected) =>
+              _buildBox(focused: focused || _ghostAt != null),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBox({required bool focused}) {
+    final colors = themeColors;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: _focusNode.requestFocus,
+      child: AnimatedContainer(
+        key: _boxKey,
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          // The agents window's chat input; editing a sent message, its
+          // bubble (as upstream), over the page: it floats when stuck.
+          color: widget.onSubmit == null
+              ? colors['agentsChatInput.background']
+              : Color.alphaBlend(
+                  colors['chat.requestBubbleBackground'],
+                  colors['editor.background'],
                 ),
-              ComposerImages(
-                images: _pool,
-                child: _editor ??= _buildEditor(context),
-              ),
-              _buildToolbar(),
-            ],
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: focused
+                ? colors['agentsChatInput.focusBorder']
+                : colors['agentsChatInput.border'],
           ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_images.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: ImageThumbnails(images: _images, onRemove: _removeImage),
+              ),
+            ComposerImages(
+              images: _pool,
+              child: _editor ??= _buildEditor(context),
+            ),
+            _buildToolbar(),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildMenu(BuildContext context) {
-    final trigger = _trigger!;
     return SuggestionMenu(
-      title: trigger.kind == SuggestionKind.command
-          ? context.l10n.composerCommands
-          : context.l10n.composerFilesAndContext,
+      title: context.l10n.composerCommands,
       matches: _matches,
       highlighted: _highlighted,
       onHighlight: (index) => setState(() => _highlighted = index),
@@ -1139,6 +1296,8 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
         embedBuilders: const [
           ComposerTokenEmbedBuilder(),
           ComposerImageEmbedBuilder(),
+          ComposerCodeEmbedBuilder(),
+          ComposerGhostEmbedBuilder(),
         ],
         // ignore: experimental_member_use
         onKeyPressed: _handleKey,
