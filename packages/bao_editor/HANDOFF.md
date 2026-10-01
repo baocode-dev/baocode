@@ -109,7 +109,7 @@
   - `IdeActionButton` 是动作栏按钮（22px、`toolbar.hoverBackground`）。
   - IDE 内不再使用 Material 的 `Tooltip` 和 `IconButton`。
   - `find.byTooltip` 仍可用。
-- **编辑器选择**：`Editor.fastIde` 成为标题栏下拉中的一个选项，选中后会记住；主按钮切换到 IDE 布局。`openInEditor` 不会启动它。
+- **编辑器选择**：`Editor.fastIde` 成为标题栏下拉中的一个选项，选中后会记住；主按钮切换到 IDE 布局。`openInEditor` 不会启动它。2026-10-01 起它是默认选项（`Workspace._preferredEditor`）；`state.json` 里已记住其他编辑器的用户保持不变。
 - **返回聊天**：标题栏右侧的 `BackToChatButton`（`../../lib/workspace/back_to_chat_button.dart`）是带图标的实心 `IdeButton`，高 22px。macOS 下位于 IDE 自己的标题栏；Windows 下位于应用绘制的 header，在窗口按钮左侧。IDE 模式下 Windows header 使用 IDE 的底色，没有下边线，左侧不再显示返回聊天的小图标。活动栏底部不再有返回聊天项。
 - **布局开关**：聊天和 IDE 的侧边栏开关都用 VS Code 的布局图标（`Codicons.layoutSidebarLeft`/`layoutSidebarLeftOff`，图标表示当前是否打开）。macOS 的 IDE 标题栏去掉了 “Fast Ide” 文字，主侧边栏开关放在红绿灯右侧，面板和聊天的开关仍在右侧。Windows header 的侧边栏开关在菜单栏之后。IDE 模式下，Windows header 和 macOS 的 IDE 标题栏一致：菜单后是主侧边栏开关，右侧是面板和聊天开关、置顶、返回聊天，不显示“在编辑器中打开”的下拉。三个开关是共用组件 `IdeLayoutToggle`（`../../lib/ide/ide_layout.dart`）；主侧边栏、面板（含上次显示的页）、聊天的显示状态放在 `IdeWorkspace.layout`（`IdeLayout`），IDE 和 header 共用。面板切换的副作用（焦点还给编辑器、终端页没有终端时新建一个）由 IDE 监听 `IdeLayout` 统一处理，不论是谁切换的。
 - **release 修复**：`FileIcon` 不再给 `SvgPicture.asset` 传 `bundle:`。flutter_svg 会把 loader 发到 isolate，带缓存的 bundle 在 release 下无法发送，导致文件图标全空。已加 isolate 可发送性的回归测试。

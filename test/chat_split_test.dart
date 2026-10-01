@@ -331,6 +331,8 @@ void main() {
     };
     addTearDown(() => OpenInEditorButton.launch = openInEditor);
     final workspace = await pumpApp(tester);
+    // An app to launch first; the Fast Ide (the default) below.
+    workspace.preferredEditor = Editor.vscode;
     await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
     await dropAgent(
       tester,

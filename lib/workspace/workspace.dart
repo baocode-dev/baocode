@@ -460,9 +460,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     notifyListeners();
   }
 
-  /// Where "Open" in the title bar opens a project.
+  /// Where "Open" in the title bar opens a project: the Fast Ide until the
+  /// user picks another (kept with the rest, so an earlier pick stays).
   Editor get preferredEditor => _preferredEditor;
-  Editor _preferredEditor = Editor.vscode;
+  Editor _preferredEditor = Editor.fastIde;
   set preferredEditor(Editor editor) {
     if (editor == _preferredEditor) return;
     _preferredEditor = editor;

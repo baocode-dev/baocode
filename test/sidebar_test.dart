@@ -436,7 +436,8 @@ void main() {
     };
     addTearDown(() => OpenInEditorButton.launch = openInEditor);
     final workspace = await pumpApp(tester);
-    expect(find.bySemanticsLabel('Open in VS Code'), findsOneWidget);
+    // The Fast Ide, until another is picked.
+    expect(find.bySemanticsLabel('Open in Fast Ide'), findsOneWidget);
     await tester.tap(find.bySemanticsLabel('Choose editor'));
     await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(find.text('Zed'));
@@ -521,7 +522,7 @@ void main() {
     // Left of the editor button.
     expect(
       tester.getTopRight(pin).dx,
-      lessThan(tester.getTopLeft(find.bySemanticsLabel('Open in VS Code')).dx),
+      lessThan(tester.getTopLeft(find.bySemanticsLabel('Open in Fast Ide')).dx),
     );
 
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
