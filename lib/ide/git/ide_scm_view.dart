@@ -36,6 +36,7 @@ import 'package:path/path.dart' as p;
 
 import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
+import '../../settings/user_settings.dart';
 import '../../theme/codicons.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
@@ -66,6 +67,30 @@ import 'scm_tree.dart';
 enum IdeScmSort { name, path, status }
 
 class IdeScmSession {
+  IdeScmSession({this.settings});
+
+  /// settings.json, where the choices made in its dialogs (Always, Never,
+  /// Don't Show Again) are kept as VS Code keeps them; none under test,
+  /// when they last as long as the session.
+  final UserSettings? settings;
+  final Map<String, bool> _choices = {};
+
+  bool _choice(String key, bool fallback) => switch (settings?[key]) {
+    final bool value => value,
+    _ => _choices[key] ?? fallback,
+  };
+
+  void _choose(String key, bool value) {
+    _choices[key] = value;
+    unawaited(
+      settings?.update(key, value).catchError((Object error) {
+        // A settings file that does not parse is left as it is; its error
+        // is shown.
+        debugPrint('$key not kept: $error');
+      }),
+    );
+  }
+
   final TextEditingController message = TextEditingController();
   final Set<String> expandedPanes = {'changes', 'graph'};
   final Set<IdeGitGroup> collapsedGroups = {};
@@ -79,13 +104,17 @@ class IdeScmSession {
   final Set<String> collapsedFolders = {};
 
   /// `git.enableSmartCommit`: commit every change when none is staged.
-  bool enableSmartCommit = false;
+  bool get enableSmartCommit => _choice('git.enableSmartCommit', false);
+  set enableSmartCommit(bool value) => _choose('git.enableSmartCommit', value);
 
   /// `git.suggestSmartCommit`: ask before doing so.
-  bool suggestSmartCommit = true;
+  bool get suggestSmartCommit => _choice('git.suggestSmartCommit', true);
+  set suggestSmartCommit(bool value) =>
+      _choose('git.suggestSmartCommit', value);
 
   /// `git.confirmSync`: ask before Sync Changes.
-  bool confirmSync = true;
+  bool get confirmSync => _choice('git.confirmSync', true);
+  set confirmSync(bool value) => _choose('git.confirmSync', value);
 
   /// Completes to cancel the commit message being generated; null when
   /// none is. Kept here, so that the message still arrives when the view

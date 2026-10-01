@@ -411,25 +411,12 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
                 8,
                 6,
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _NewAgentButton(
-                      onTap: _workspace.projects.isEmpty
-                          ? (widget.onOpenFolder ?? () {})
-                          : _create,
-                    ),
-                  ),
-                  if (widget.onOpenFolder case final open?) ...[
-                    const SizedBox(width: 4),
-                    SidebarIconButton(
-                      icon: Icons.create_new_folder_outlined,
-                      tooltip: context.l10n.sidebarOpenFolder,
-                      size: 30,
-                      onTap: open,
-                    ),
-                  ],
-                ],
+              // A new chat picks its folder over its input (see
+              // NewChatFolderBar): a folder first only without any.
+              child: _NewAgentButton(
+                onTap: _workspace.projects.isEmpty
+                    ? (widget.onOpenFolder ?? () {})
+                    : _create,
               ),
             ),
             Padding(
@@ -1310,7 +1297,15 @@ class _RowHoverState extends State<_RowHover> {
         delegate: _BelowMouse(target, x),
         child: IgnorePointer(
           child: ExcludeSemantics(
-            child: IdeHoverBox(compact: false, child: widget.content(context)),
+            // In the window's overlay, above the sidebar's Material: the
+            // text style is its own.
+            child: Material(
+              type: MaterialType.transparency,
+              child: IdeHoverBox(
+                compact: false,
+                child: widget.content(context),
+              ),
+            ),
           ),
         ),
       ),

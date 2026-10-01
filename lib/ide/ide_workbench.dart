@@ -12,6 +12,7 @@ import '../keybindings/default_keybindings.dart'
 import '../keybindings/key_chord.dart';
 import '../l10n/l10n.dart';
 import '../keybindings/keybinding_service.dart';
+import '../settings/user_settings.dart';
 import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
@@ -109,6 +110,7 @@ class IdeWorkbench extends StatefulWidget {
     this.colorThemes,
     this.recentFolders = const [],
     this.onOpenRecent,
+    this.settings,
   });
 
   final IdeWorkspace workspace;
@@ -165,6 +167,10 @@ class IdeWorkbench extends StatefulWidget {
   /// a window without one; [onOpenRecent] opens one.
   final List<String> recentFolders;
   final ValueChanged<String>? onOpenRecent;
+
+  /// settings.json: where Source Control keeps the choices made in its
+  /// dialogs; none under test.
+  final UserSettings? settings;
 
   @override
   State<IdeWorkbench> createState() => IdeWorkbenchState();
@@ -264,7 +270,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   String? _activeKey;
 
   /// The Source Control view's message and state, while other views show.
-  IdeScmSession _scm = IdeScmSession();
+  late IdeScmSession _scm = IdeScmSession(settings: widget.settings);
 
   /// The explorer's open panes (Folders first, then Outline and Timeline,
   /// collapsed as VS Code starts them), and what the timeline follows.
@@ -454,7 +460,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _git = null;
     _gitState = null;
     _scm.dispose();
-    _scm = IdeScmSession();
+    _scm = IdeScmSession(settings: widget.settings);
     _explorer.dispose();
     _fileIndex.dispose();
     _languages?.removeListener(_languagesChanged);

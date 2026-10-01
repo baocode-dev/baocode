@@ -893,7 +893,9 @@ class _WorkbenchState extends State<Workbench> {
           _drawerOpen = false;
           _drawerClosing = false;
         }
-        return ColoredBox(
+        // The text style (and ink) for what is not inside a panel's own:
+        // the empty workspace, the dragged agent over the window.
+        return Material(
           color: AppColors.windowCanvas,
           child: Stack(
             fit: StackFit.expand,
@@ -970,6 +972,7 @@ class _WorkbenchState extends State<Workbench> {
             commands: _ideCommandsFor(path),
             recentFolders: _workspace.recentFolders,
             onOpenRecent: _openIdeFolder,
+            settings: widget.settings?.files?.settings,
             terminalBackend:
                 widget.terminalBackend ??
                 const TerminalBackend(supported: false),
@@ -1421,10 +1424,13 @@ class _IdeNoFolderChat extends StatelessWidget {
             ),
             if (onOpenFolder case final open?) ...[
               const SizedBox(height: 16),
-              PanelButton(
-                label: l10n.explorerOpenFolder,
-                primary: true,
-                onTap: open,
+              // As wide as its label: a centred column would stretch it.
+              IntrinsicWidth(
+                child: PanelButton(
+                  label: l10n.explorerOpenFolder,
+                  primary: true,
+                  onTap: open,
+                ),
               ),
             ],
           ],
@@ -1500,10 +1506,13 @@ class _EmptyWorkspace extends StatelessWidget {
                 ],
                 if (onOpenFolder case final open? when !loading) ...[
                   const SizedBox(height: 16),
-                  PanelButton(
-                    label: l10n.sidebarOpenFolder,
-                    primary: true,
-                    onTap: open,
+                  // As wide as its label: a centred column would stretch it.
+                  IntrinsicWidth(
+                    child: PanelButton(
+                      label: l10n.sidebarOpenFolder,
+                      primary: true,
+                      onTap: open,
+                    ),
                   ),
                 ],
               ],

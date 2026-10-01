@@ -876,6 +876,12 @@ void main() {
     await mouse.moveTo(tester.getCenter(inSidebar(find.text('b'))));
     await tester.pump(const Duration(seconds: 2));
     expect(find.text('/tmp/b'), findsOneWidget);
+    // In the window's overlay, not the error style of text with no
+    // Material above it.
+    expect(
+      find.ancestor(of: find.text('/tmp/b'), matching: find.byType(Material)),
+      findsOneWidget,
+    );
 
     await mouse.moveTo(tester.getCenter(inSidebar(find.text('Chat b1'))));
     await tester.pump(const Duration(seconds: 2));
