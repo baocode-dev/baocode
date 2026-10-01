@@ -325,7 +325,10 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     final l10n = context.l10n;
     final threads = [
       for (final thread in _workspace.threads)
-        if (_listed(thread) &&
+        // Archived ones are listed whatever their project: the footer
+        // counts them all, so one of a project taken off the sidebar (see
+        // [Workspace.hideProject]) would be counted with no way back.
+        if ((thread.archived || _listed(thread)) &&
             _workspace.listsInSidebar(thread) &&
             _matches(thread))
           thread,

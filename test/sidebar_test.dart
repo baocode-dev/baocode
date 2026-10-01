@@ -317,6 +317,35 @@ void main() {
     expect(row(), findsNothing);
   });
 
+  testWidgets('the archived agents of a project taken off the sidebar are '
+      'listed', (tester) async {
+    final records = [
+      for (var i = 0; i < 12; i++) kept('monad$i', r'C:\monad', 60 * (i + 1)),
+      kept('here0', r'C:\here', 1),
+    ];
+    final store = MemoryPreferenceStore({
+      'sidebar': {
+        'showArchived': true,
+        'archived': [for (final record in records) record.id],
+        // As "Remove from List" leaves a project: hidden, but its archived
+        // agents are still counted by the footer.
+        'hiddenProjects': {r'C:\monad': DateTime.now().toIso8601String()},
+      },
+    });
+    final workspace = await pumpKept(
+      tester,
+      KeptCatalog(records),
+      preferences: store,
+    );
+    expect(workspace.threads.where((thread) => thread.archived), hasLength(13));
+
+    expect(inSidebar(find.text('Archived')), findsOneWidget);
+    expect(inSidebar(find.text('Chat here0')), findsOneWidget);
+    // Not listed under a project of its own, but among the archived ones.
+    expect(inSidebar(find.text('Chat monad0')), findsOneWidget);
+    expect(inSidebar(find.text('monad')), findsNothing);
+  });
+
   testWidgets('shown, the archived agents are scrolled to', (tester) async {
     final workspace = await pumpApp(tester);
     // Too short for them all.
