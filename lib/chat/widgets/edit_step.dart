@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import 'step_header.dart';
@@ -21,7 +21,7 @@ class EditStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const count = TextStyle(fontFamily: CursorFonts.mono, fontSize: 11.5);
+    const count = TextStyle(fontFamily: AppFonts.mono, fontSize: 11.5);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -77,20 +77,16 @@ class _DiffLineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (prefix, prefixColor, background) = switch (line.type) {
-      DiffLineType.added => (
-        '+',
-        CursorColors.added,
-        CursorColors.addedBackground,
-      ),
+      DiffLineType.added => ('+', AppColors.added, AppColors.addedBackground),
       DiffLineType.removed => (
         '-',
-        CursorColors.removed,
-        CursorColors.removedBackground,
+        AppColors.removed,
+        AppColors.removedBackground,
       ),
-      DiffLineType.context => (' ', CursorColors.textFaint, Colors.transparent),
+      DiffLineType.context => (' ', AppColors.textFaint, Colors.transparent),
     };
     const mono = TextStyle(
-      fontFamily: CursorFonts.mono,
+      fontFamily: AppFonts.mono,
       fontSize: 12,
       height: 1.6,
     );
@@ -105,7 +101,7 @@ class _DiffLineRow extends StatelessWidget {
             child: Text(
               '${line.lineNumber}',
               textAlign: TextAlign.right,
-              style: mono.copyWith(color: CursorColors.textFaint),
+              style: mono.copyWith(color: AppColors.textFaint),
             ),
           ),
           SizedBox(
@@ -124,8 +120,8 @@ class _DiffLineRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: mono.copyWith(
                 color: line.type == DiffLineType.context
-                    ? CursorColors.textMuted
-                    : CursorColors.textPrimary,
+                    ? AppColors.textMuted
+                    : AppColors.textPrimary,
               ),
             ),
           ),

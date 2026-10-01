@@ -13,7 +13,7 @@ import '../keybindings/key_chord.dart';
 import '../l10n/l10n.dart';
 import '../keybindings/keybinding_service.dart';
 import '../theme/codicons.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/back_to_chat_button.dart';
 import '../workspace/editor_launcher.dart';
@@ -2950,10 +2950,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // title bar does.
     return TitleBarDoubleClick(
       child: SizedBox(
-        height: CursorMetrics.titleBarHeight,
+        height: AppMetrics.titleBarHeight,
         child: Row(
           children: [
-            SizedBox(width: CursorMetrics.trafficLightsWidth + 6),
+            SizedBox(width: AppMetrics.trafficLightsWidth + 6),
             // VS Code's layout controls; the side bar's on its side, after
             // the traffic lights.
             IdeLayoutToggle.sidebar(_layout),
@@ -3139,7 +3139,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 Positioned(
                   right: 8,
                   bottom: 36,
-                  top: CursorMetrics.titleBarHeight,
+                  top: AppMetrics.titleBarHeight,
                   left: 8,
                   child: Align(
                     alignment: Alignment.bottomRight,
@@ -3161,7 +3161,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   Positioned.fill(
                     top: WindowControls.drawsHeader
                         ? 0
-                        : CursorMetrics.titleBarHeight,
+                        : AppMetrics.titleBarHeight,
                     child: switch (_quickPick) {
                       final pick? => IdeQuickInput.pick(
                         key: _quickInputKey,

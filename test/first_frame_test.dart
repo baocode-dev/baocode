@@ -9,7 +9,7 @@ import 'package:monad/chat/chat_session.dart';
 import 'package:monad/chat/composer/composer.dart';
 import 'package:monad/chat/composer/composer_draft.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 
 /// A conversation whose last turn is long: its message is far from the end,
 /// and stuck to the top as the list opens there. Dense with text, for what
@@ -59,7 +59,7 @@ void main() {
     addTearDown(session.dispose);
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildCursorTheme(),
+        theme: buildAppTheme(),
         localizationsDelegates: const [FlutterQuillLocalizations.delegate],
         home: ChatScreen(session: session),
       ),
@@ -79,7 +79,7 @@ void main() {
     addTearDown(feed.dispose);
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildCursorTheme(),
+        theme: buildAppTheme(),
         home: Scaffold(body: ChatHistoryView(feed: feed)),
       ),
     );

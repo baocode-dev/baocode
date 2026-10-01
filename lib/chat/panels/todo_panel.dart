@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../kernel/kernel_types.dart';
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
 /// The agent's todo list, docked above the composer while it has open
@@ -32,9 +32,9 @@ class _TodoPanelState extends State<TodoPanel> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: CursorColors.surface,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: CursorColors.borderStrong),
+        border: Border.all(color: AppColors.borderStrong),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -54,13 +54,13 @@ class _TodoPanelState extends State<TodoPanel> {
                     Icon(
                       Icons.checklist_rounded,
                       size: 14,
-                      color: CursorColors.textMuted,
+                      color: AppColors.textMuted,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       context.l10n.todoCount(done, todos.length),
                       style: TextStyle(
-                        color: CursorColors.text,
+                        color: AppColors.text,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -74,7 +74,7 @@ class _TodoPanelState extends State<TodoPanel> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: CursorColors.textMuted,
+                            color: AppColors.textMuted,
                             fontSize: 12,
                           ),
                         ),
@@ -87,7 +87,7 @@ class _TodoPanelState extends State<TodoPanel> {
                           ? Icons.keyboard_arrow_down_rounded
                           : Icons.keyboard_arrow_up_rounded,
                       size: 16,
-                      color: CursorColors.textFaint,
+                      color: AppColors.textFaint,
                     ),
                   ],
                 ),
@@ -125,7 +125,7 @@ class _TodoPanelState extends State<TodoPanel> {
                                   themeColors['charts.green'],
                                 TodoStatus.inProgress =>
                                   themeColors['charts.blue'],
-                                TodoStatus.pending => CursorColors.text,
+                                TodoStatus.pending => AppColors.text,
                               },
                             ),
                           ),
@@ -137,8 +137,8 @@ class _TodoPanelState extends State<TodoPanel> {
                                   : todo.content,
                               style: TextStyle(
                                 color: todo.status == TodoStatus.completed
-                                    ? CursorColors.textFaint
-                                    : CursorColors.text,
+                                    ? AppColors.textFaint
+                                    : AppColors.text,
                                 fontSize: 12.5,
                                 decoration: todo.status == TodoStatus.completed
                                     ? TextDecoration.lineThrough

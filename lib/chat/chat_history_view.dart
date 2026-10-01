@@ -12,7 +12,7 @@ import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'chat_feed.dart';
 import 'chat_keys.dart';
@@ -788,7 +788,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   // --- The sticky user message ---------------------------------------------
 
   /// Room above the stuck message, as above the editor stuck to the top.
-  static const _stickyInset = CursorMetrics.contentInset;
+  static const _stickyInset = AppMetrics.contentInset;
 
   /// Height of the fade under the stuck message, over the transcript
   /// scrolling beneath it.
@@ -1532,9 +1532,9 @@ class _JumpToBottomButton extends StatelessWidget {
                   width: 28,
                   height: 28,
                   decoration: BoxDecoration(
-                    color: CursorColors.surfaceRaised,
+                    color: AppColors.surfaceRaised,
                     shape: BoxShape.circle,
-                    border: Border.all(color: CursorColors.borderStrong),
+                    border: Border.all(color: AppColors.borderStrong),
                     boxShadow: [
                       BoxShadow(
                         color: themeColors['widget.shadow'],
@@ -1545,7 +1545,7 @@ class _JumpToBottomButton extends StatelessWidget {
                   child: Icon(
                     Icons.arrow_downward_rounded,
                     size: 15,
-                    color: CursorColors.text,
+                    color: AppColors.text,
                   ),
                 ),
               ),

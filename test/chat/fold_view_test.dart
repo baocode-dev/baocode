@@ -8,7 +8,7 @@ import 'package:monad/chat/chat_models.dart';
 import 'package:monad/chat/chat_session.dart';
 import 'package:monad/chat/composer/composer_draft.dart';
 import 'package:monad/chat/widgets/fold_line.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 /// A conversation held in a list, changed by hand.
@@ -80,7 +80,7 @@ List<ChatItem> _turn({Duration? worked, String words = 'Found it.'}) => [
 Future<void> _pump(WidgetTester tester, ChatFeed feed) async {
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildCursorTheme(),
+      theme: buildAppTheme(),
       home: Scaffold(body: ChatHistoryView(feed: feed)),
     ),
   );

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'composer_mock_data.dart';
@@ -110,7 +110,7 @@ class _SuggestionMenuState extends State<SuggestionMenu> {
               child: Text(
                 widget.title,
                 style: TextStyle(
-                  color: CursorColors.textFaint,
+                  color: AppColors.textFaint,
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),
@@ -128,7 +128,7 @@ class _SuggestionMenuState extends State<SuggestionMenu> {
                         child: Text(
                           context.l10n.composerNoResults,
                           style: TextStyle(
-                            color: CursorColors.textFaint,
+                            color: AppColors.textFaint,
                             fontSize: 12.5,
                           ),
                         ),
@@ -212,7 +212,7 @@ class _SuggestionRow extends StatelessWidget {
                     size: 14,
                     color: highlighted
                         ? colors['editorSuggestWidget.selectedIconForeground']
-                        : CursorColors.textMuted,
+                        : AppColors.textMuted,
                   ),
                 },
               ),
@@ -230,10 +230,7 @@ class _SuggestionRow extends StatelessWidget {
                   suggestion.detail,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: CursorColors.textFaint,
-                    fontSize: 11.5,
-                  ),
+                  style: TextStyle(color: AppColors.textFaint, fontSize: 11.5),
                 ),
               ),
               // An icon rather than '↵': no bundled font has that glyph,
@@ -242,7 +239,7 @@ class _SuggestionRow extends StatelessWidget {
                 Icon(
                   Icons.keyboard_return_rounded,
                   size: 12,
-                  color: CursorColors.textFaint,
+                  color: AppColors.textFaint,
                 ),
             ],
           ),

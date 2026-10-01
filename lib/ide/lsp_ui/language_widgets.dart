@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart';
 import '../editor/monaco/flutter/editor_surface.dart';
 import '../editor/monaco/vs/base/common/filters.dart';
@@ -25,7 +25,7 @@ import 'suggest_session.dart';
 
 /// The editor's font for code in the widgets, in [color].
 TextStyle _mono(Color color) => TextStyle(
-  fontFamily: CursorFonts.mono,
+  fontFamily: AppFonts.mono,
   fontSize: 12.5,
   color: color,
   height: 1.4,
@@ -646,7 +646,7 @@ class _SuggestRow extends StatelessWidget {
         ? colors.get('editorSuggestWidget.focusOutline')
         : null;
     final base = TextStyle(
-      fontFamily: CursorFonts.mono,
+      fontFamily: AppFonts.mono,
       fontSize: 12.5,
       color: foreground,
       decoration: completion.deprecated ? TextDecoration.lineThrough : null,

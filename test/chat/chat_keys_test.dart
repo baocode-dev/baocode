@@ -19,7 +19,7 @@ import 'package:monad/kernel/mock/mock_kernels.dart';
 import 'package:monad/keybindings/chat_keybindings.dart';
 import 'package:monad/keybindings/keybinding_entry.dart';
 import 'package:monad/keybindings/keybinding_service.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 
 Future<ChatSession> pumpChat(
   WidgetTester tester, {
@@ -32,7 +32,7 @@ Future<ChatSession> pumpChat(
   addTearDown(session.dispose);
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildCursorTheme(),
+      theme: buildAppTheme(),
       localizationsDelegates: const [FlutterQuillLocalizations.delegate],
       home: ChatScreen(session: session),
     ),
@@ -391,7 +391,7 @@ void main() {
       final answers = <InteractionAnswer>[];
       await tester.pumpWidget(
         MaterialApp(
-          theme: buildCursorTheme(),
+          theme: buildAppTheme(),
           home: Scaffold(
             body: InteractionPanel(request: request, onAnswer: answers.add),
           ),

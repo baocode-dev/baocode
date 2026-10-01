@@ -13,7 +13,7 @@ import '../l10n/l10n.dart';
 import '../keybindings/chat_keybindings.dart';
 import '../keybindings/default_keybindings.dart' show openSettingsCommandId;
 import '../theme/codicons.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/chat_drag.dart';
 import '../workspace/title_bar_double_click.dart';
@@ -306,7 +306,7 @@ class _SidebarState extends State<Sidebar> {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: CursorColors.sidebarSurface,
+      color: AppColors.sidebarSurface,
       child: ListenableBuilder(
         listenable: _workspace,
         builder: (context, _) => Column(
@@ -318,7 +318,7 @@ class _SidebarState extends State<Sidebar> {
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 8,
-                CursorMetrics.contentInset,
+                AppMetrics.contentInset,
                 8,
                 6,
               ),
@@ -360,7 +360,7 @@ class _SidebarState extends State<Sidebar> {
   Widget _buildTopBar() {
     return TitleBarDoubleClick(
       child: SizedBox(
-        height: CursorMetrics.titleBarHeight,
+        height: AppMetrics.titleBarHeight,
         child: Row(
           children: [
             const Spacer(),
@@ -386,7 +386,7 @@ class _SidebarState extends State<Sidebar> {
             child: Text(
               context.l10n.sidebarAgents,
               style: TextStyle(
-                color: CursorColors.textFaint,
+                color: AppColors.textFaint,
                 fontSize: 11.5,
                 fontWeight: FontWeight.w500,
               ),
@@ -413,7 +413,7 @@ class _SidebarState extends State<Sidebar> {
                   padding: const EdgeInsets.only(left: 6, right: 2),
                   decoration: BoxDecoration(
                     color: hovered || menu.isOpen
-                        ? CursorColors.hover
+                        ? AppColors.hover
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(4),
                   ),
@@ -423,14 +423,14 @@ class _SidebarState extends State<Sidebar> {
                       Text(
                         _grouping.localizedBy(context.l10n),
                         style: TextStyle(
-                          color: CursorColors.textMuted,
+                          color: AppColors.textMuted,
                           fontSize: 11.5,
                         ),
                       ),
                       Icon(
                         Icons.keyboard_arrow_down_rounded,
                         size: 14,
-                        color: CursorColors.textFaint,
+                        color: AppColors.textFaint,
                       ),
                     ],
                   ),
@@ -459,7 +459,7 @@ class _SidebarState extends State<Sidebar> {
               ? context.l10n.sidebarNoMatchingAgents
               : context.l10n.sidebarNoAgentsYet,
           textAlign: TextAlign.center,
-          style: TextStyle(color: CursorColors.textFaint, fontSize: 12),
+          style: TextStyle(color: AppColors.textFaint, fontSize: 12),
         ),
       );
     }
@@ -519,7 +519,7 @@ class _SidebarState extends State<Sidebar> {
     if (count == 0 && settings == null) return const SizedBox.shrink();
     return Container(
       decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: CursorColors.border)),
+        border: Border(top: BorderSide(color: AppColors.border)),
       ),
       padding: const EdgeInsets.all(6),
       child: Row(
@@ -552,7 +552,7 @@ class _SidebarState extends State<Sidebar> {
           height: 26,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color: hovered ? CursorColors.hover : Colors.transparent,
+            color: hovered ? AppColors.hover : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
           ),
           child: Row(
@@ -560,7 +560,7 @@ class _SidebarState extends State<Sidebar> {
               Icon(
                 Icons.inventory_2_outlined,
                 size: 13,
-                color: CursorColors.textMuted,
+                color: AppColors.textMuted,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -568,7 +568,7 @@ class _SidebarState extends State<Sidebar> {
                   _showArchived
                       ? context.l10n.sidebarHideArchived
                       : context.l10n.sidebarArchivedCount(count),
-                  style: TextStyle(color: CursorColors.textMuted, fontSize: 12),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
               ),
             ],
@@ -681,7 +681,7 @@ class _SearchField extends StatelessWidget {
           controller: controller,
           focusNode: focusNode,
           style: TextStyle(color: colors['input.foreground'], fontSize: 12.5),
-          cursorColor: CursorColors.text,
+          cursorColor: AppColors.text,
           cursorHeight: 14,
           decoration: InputDecoration(
             isDense: true,
@@ -693,7 +693,7 @@ class _SearchField extends StatelessWidget {
             prefixIcon: Icon(
               Icons.search_rounded,
               size: 15,
-              color: CursorColors.textFaint,
+              color: AppColors.textFaint,
             ),
             prefixIconConstraints: const BoxConstraints(minWidth: 30),
             suffixIcon: controller.text.isEmpty
@@ -705,7 +705,7 @@ class _SearchField extends StatelessWidget {
                       child: Icon(
                         Icons.close_rounded,
                         size: 14,
-                        color: CursorColors.textMuted,
+                        color: AppColors.textMuted,
                       ),
                     ),
                   ),
@@ -715,7 +715,7 @@ class _SearchField extends StatelessWidget {
             fillColor: colors['input.background'],
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
-              borderSide: BorderSide(color: CursorColors.borderStrong),
+              borderSide: BorderSide(color: AppColors.borderStrong),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
@@ -764,7 +764,7 @@ class _GroupHeader extends StatelessWidget {
           padding: const EdgeInsets.only(left: 4, right: 2),
           decoration: BoxDecoration(
             color: hovered && project != null
-                ? CursorColors.hover
+                ? AppColors.hover
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
           ),
@@ -776,9 +776,7 @@ class _GroupHeader extends StatelessWidget {
                 child: Icon(
                   Icons.chevron_right_rounded,
                   size: 15,
-                  color: hovered
-                      ? CursorColors.textMuted
-                      : CursorColors.textFaint,
+                  color: hovered ? AppColors.textMuted : AppColors.textFaint,
                 ),
               ),
               const SizedBox(width: 2),
@@ -786,7 +784,7 @@ class _GroupHeader extends StatelessWidget {
                 Icon(
                   Icons.folder_outlined,
                   size: 13,
-                  color: CursorColors.textMuted,
+                  color: AppColors.textMuted,
                 ),
                 const SizedBox(width: 6),
               ],
@@ -797,8 +795,8 @@ class _GroupHeader extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: project != null
-                        ? CursorColors.text
-                        : CursorColors.textMuted,
+                        ? AppColors.text
+                        : AppColors.textMuted,
                     fontSize: project != null ? 12.5 : 11.5,
                     fontWeight: FontWeight.w500,
                   ),
@@ -809,10 +807,7 @@ class _GroupHeader extends StatelessWidget {
                   padding: const EdgeInsets.only(right: 6),
                   child: Text(
                     '${group.threads.length}',
-                    style: TextStyle(
-                      color: CursorColors.textFaint,
-                      fontSize: 11,
-                    ),
+                    style: TextStyle(color: AppColors.textFaint, fontSize: 11),
                   ),
                 ),
               if (onCreate case final onCreate? when hovered)
@@ -911,7 +906,7 @@ class _ThreadRow extends StatelessWidget {
                 color: selected
                     ? themeColors['list.activeSelectionBackground']
                     : active
-                    ? CursorColors.hover
+                    ? AppColors.hover
                     : shown
                     ? themeColors['list.inactiveSelectionBackground']
                     : Colors.transparent,
@@ -971,7 +966,7 @@ class _ThreadRow extends StatelessWidget {
             TextSpan(
               text: '  ${thread.project.name}',
               style: TextStyle(
-                color: CursorColors.textFaint,
+                color: AppColors.textFaint,
                 fontSize: 11.5,
                 fontWeight: FontWeight.normal,
               ),
@@ -984,8 +979,8 @@ class _ThreadRow extends StatelessWidget {
         color: selected
             ? themeColors['list.activeSelectionForeground']
             : emphasized
-            ? CursorColors.textPrimary
-            : CursorColors.text,
+            ? AppColors.textPrimary
+            : AppColors.text,
         fontSize: 12.5,
         fontWeight: status == ThreadStatus.unread
             ? FontWeight.w600
@@ -1053,7 +1048,7 @@ class _ThreadRow extends StatelessWidget {
                 : relativeTime(thread.updatedAt, DateTime.now(), l10n),
             textAlign: TextAlign.right,
             maxLines: 1,
-            style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
+            style: TextStyle(color: AppColors.textFaint, fontSize: 11),
           ),
         ),
       const SizedBox(width: 2),
@@ -1078,11 +1073,11 @@ class StatusIndicator extends StatelessWidget {
         dimension: 10,
         child: CircularProgressIndicator(
           strokeWidth: 1.5,
-          color: CursorColors.textMuted,
+          color: AppColors.textMuted,
         ),
       ),
       ThreadStatus.needsInput => _Dot(needsInputColor),
-      ThreadStatus.unread => _Dot(CursorColors.accent),
+      ThreadStatus.unread => _Dot(AppColors.accent),
       ThreadStatus.idle => const SizedBox.shrink(),
     };
   }
@@ -1160,7 +1155,7 @@ class SidebarIconButton extends StatelessWidget {
               child: Icon(
                 icon,
                 size: size * 0.65,
-                color: hovered ? CursorColors.text : CursorColors.textMuted,
+                color: hovered ? AppColors.text : AppColors.textMuted,
               ),
             ),
           ),
@@ -1186,7 +1181,7 @@ class _ConfirmDialog extends StatelessWidget {
     // As upstream's dialog: a widget's colors, bordered in high contrast.
     final colors = themeColors;
     return Dialog(
-      backgroundColor: CursorColors.surface,
+      backgroundColor: AppColors.surface,
       shadowColor: colors['widget.shadow'],
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
@@ -1206,7 +1201,7 @@ class _ConfirmDialog extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  color: CursorColors.textPrimary,
+                  color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),

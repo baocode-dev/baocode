@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 
 /// The settings dialog's pages.
@@ -113,11 +113,11 @@ class SettingsDialogState extends State<SettingsDialog> {
               height: height,
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
-                color: CursorColors.surface,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(10),
                 border: switch (colors.get('contrastBorder')) {
                   final border? => Border.all(color: border),
-                  null => Border.all(color: CursorColors.border),
+                  null => Border.all(color: AppColors.border),
                 },
                 boxShadow: [
                   BoxShadow(
@@ -131,7 +131,7 @@ class SettingsDialogState extends State<SettingsDialog> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   SizedBox(width: navWidth, child: _nav(context)),
-                  Container(width: 1, color: CursorColors.border),
+                  Container(width: 1, color: AppColors.border),
                   Expanded(
                     child: Stack(
                       children: [
@@ -163,7 +163,7 @@ class SettingsDialogState extends State<SettingsDialog> {
 
   Widget _nav(BuildContext context) {
     return ColoredBox(
-      color: CursorColors.background,
+      color: AppColors.background,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
         children: [
@@ -172,7 +172,7 @@ class SettingsDialogState extends State<SettingsDialog> {
             child: Text(
               context.l10n.settingsTitle,
               style: TextStyle(
-                color: CursorColors.textPrimary,
+                color: AppColors.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
@@ -233,7 +233,7 @@ class _NavItemState extends State<_NavItem> {
               color: selected
                   ? colors['list.inactiveSelectionBackground']
                   : _hover
-                  ? CursorColors.hover
+                  ? AppColors.hover
                   : null,
               borderRadius: BorderRadius.circular(6),
             ),
@@ -242,7 +242,7 @@ class _NavItemState extends State<_NavItem> {
                 Icon(
                   widget.icon,
                   size: 15,
-                  color: selected ? CursorColors.text : CursorColors.textMuted,
+                  color: selected ? AppColors.text : AppColors.textMuted,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -251,9 +251,7 @@ class _NavItemState extends State<_NavItem> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: selected
-                          ? CursorColors.textPrimary
-                          : CursorColors.text,
+                      color: selected ? AppColors.textPrimary : AppColors.text,
                       fontSize: 13,
                     ),
                   ),
@@ -296,10 +294,10 @@ class _CloseButtonState extends State<_CloseButton> {
             width: 26,
             height: 26,
             decoration: BoxDecoration(
-              color: _hover ? CursorColors.hover : null,
+              color: _hover ? AppColors.hover : null,
               borderRadius: BorderRadius.circular(5),
             ),
-            child: Icon(Codicons.close, size: 15, color: CursorColors.textMuted),
+            child: Icon(Codicons.close, size: 15, color: AppColors.textMuted),
           ),
         ),
       ),

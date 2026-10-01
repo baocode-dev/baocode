@@ -4,7 +4,7 @@ import '../chat/floating/floating_placement.dart';
 import '../chat/floating/hover_tooltip.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../l10n/l10n.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'window_controls.dart';
 
@@ -64,10 +64,10 @@ class PinWindowButton extends StatelessWidget {
                 color: pinned
                     ? colors['inputOption.activeForeground']
                     : !enabled
-                    ? CursorColors.textFaint
+                    ? AppColors.textFaint
                     : hovered
-                    ? CursorColors.text
-                    : CursorColors.textMuted,
+                    ? AppColors.text
+                    : AppColors.textMuted,
               ),
             ),
           ),

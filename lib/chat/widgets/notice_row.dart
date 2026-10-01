@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import 'markdown_view.dart';
@@ -21,22 +21,22 @@ class NoticeRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             children: [
-              Expanded(child: Divider(color: CursorColors.border)),
+              Expanded(child: Divider(color: AppColors.border)),
               const SizedBox(width: 10),
               Icon(
                 Icons.compress_rounded,
                 size: 13,
-                color: CursorColors.textFaint,
+                color: AppColors.textFaint,
               ),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   text,
-                  style: TextStyle(color: CursorColors.textFaint, fontSize: 12),
+                  style: TextStyle(color: AppColors.textFaint, fontSize: 12),
                 ),
               ),
               const SizedBox(width: 10),
-              Expanded(child: Divider(color: CursorColors.border)),
+              Expanded(child: Divider(color: AppColors.border)),
             ],
           ),
         );
@@ -44,9 +44,9 @@ class NoticeRow extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
           decoration: BoxDecoration(
-            color: CursorColors.surface,
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: CursorColors.border),
+            border: Border.all(color: AppColors.border),
           ),
           child: MarkdownView(
             text,
@@ -64,7 +64,7 @@ class NoticeRow extends StatelessWidget {
             Icons.warning_amber_rounded,
             themeColors['notificationsWarningIcon.foreground'],
           ),
-          _ => (Icons.info_outline_rounded, CursorColors.textMuted),
+          _ => (Icons.info_outline_rounded, AppColors.textMuted),
         };
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -82,7 +82,7 @@ class NoticeRow extends StatelessWidget {
                   style: TextStyle(
                     color: item.kind == NoticeKind.error
                         ? error
-                        : CursorColors.textMuted,
+                        : AppColors.textMuted,
                     fontSize: 12.5,
                     height: 1.45,
                   ),

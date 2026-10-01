@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../app_locale.dart';
 
@@ -44,7 +44,7 @@ class LanguageSettingsPage extends StatelessWidget {
             Text(
               l10n.languageSettingsTitle,
               style: TextStyle(
-                color: CursorColors.textPrimary,
+                color: AppColors.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
@@ -53,7 +53,7 @@ class LanguageSettingsPage extends StatelessWidget {
             Text(
               l10n.languageSettingsDisplayLanguage,
               style: TextStyle(
-                color: CursorColors.textPrimary,
+                color: AppColors.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -62,7 +62,7 @@ class LanguageSettingsPage extends StatelessWidget {
             Text(
               l10n.languageSettingsDescription,
               style: TextStyle(
-                color: CursorColors.textMuted,
+                color: AppColors.textMuted,
                 fontSize: 12,
                 height: 1.5,
               ),
@@ -70,9 +70,9 @@ class LanguageSettingsPage extends StatelessWidget {
             const SizedBox(height: 10),
             Container(
               decoration: BoxDecoration(
-                color: CursorColors.surface,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: CursorColors.border),
+                border: Border.all(color: AppColors.border),
               ),
               padding: const EdgeInsets.all(4),
               child: Column(
@@ -158,7 +158,7 @@ class _LanguageOptionState extends State<_LanguageOption> {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
               color: _hovered || widget.selected
-                  ? CursorColors.hover
+                  ? AppColors.hover
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(5),
               border: Border.all(
@@ -172,7 +172,7 @@ class _LanguageOptionState extends State<_LanguageOption> {
                     widget.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: CursorColors.text, fontSize: 13),
+                    style: TextStyle(color: AppColors.text, fontSize: 13),
                   ),
                 ),
                 if (widget.detail case final detail?) ...[
@@ -183,7 +183,7 @@ class _LanguageOptionState extends State<_LanguageOption> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: CursorColors.textMuted,
+                        color: AppColors.textMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -191,7 +191,7 @@ class _LanguageOptionState extends State<_LanguageOption> {
                 ],
                 const Spacer(),
                 if (widget.selected)
-                  Icon(Codicons.check, size: 16, color: CursorColors.accent),
+                  Icon(Codicons.check, size: 16, color: AppColors.accent),
               ],
             ),
           ),

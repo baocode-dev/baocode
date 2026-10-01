@@ -8,7 +8,7 @@ import 'package:monad/chat/widgets/markdown_view.dart';
 import 'package:monad/ide/ide_modern_ui.dart';
 import 'package:monad/ide/ide_workbench.dart';
 import 'package:monad/main.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 import 'package:monad/sidebar/sidebar.dart';
 import 'package:monad/workspace/chat_grid.dart';
 import 'package:monad/workspace/chat_grid_view.dart';
@@ -127,7 +127,7 @@ void main() {
     expect(right.left - left.right, ChatGridView.gap);
     expect(left.height, grid.height);
     // As the sidebar's border.
-    expect(lineColor(tester), CursorColors.border);
+    expect(lineColor(tester), AppColors.border);
     final drawn = tester.getRect(line());
     expect(drawn.width, 1);
     expect(drawn.height, grid.height);
@@ -404,7 +404,7 @@ void main() {
     expect(tester.getSize(line()).width, IdeModernUI.gap);
     await gesture.up();
     await tester.pumpAndSettle();
-    expect(lineColor(tester), CursorColors.border);
+    expect(lineColor(tester), AppColors.border);
     expect(tester.getSize(line()).width, 1);
     expect(tester.getRect(pane(first)).width, before.width - 100);
     expect(tester.getRect(pane(third)).width, before.width - 100);

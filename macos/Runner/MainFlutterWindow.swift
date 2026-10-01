@@ -284,7 +284,7 @@ class MainFlutterWindow: NSWindow {
 
 /// The window's content: the system's sidebar material, blurring what is
 /// behind the window, under the Flutter view. Flutter paints over it all
-/// but the sidebar, which only tints it (see CursorColors.sidebarSurface).
+/// but the sidebar, which only tints it (see AppColors.sidebarSurface).
 private class VibrantContent: NSViewController {
   private let flutter: FlutterViewController
   private let size: NSSize

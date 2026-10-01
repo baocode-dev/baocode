@@ -22,7 +22,7 @@ import 'package:path/path.dart' as p;
 import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
 import '../editor/monaco/flutter/document_snapshot.dart';
@@ -1071,7 +1071,7 @@ class _ReferenceRowState extends State<_ReferenceRow> {
       selected: widget.selected,
       text: TextSpan(
         children: spans,
-        style: const TextStyle(fontFamily: CursorFonts.mono, fontSize: 12),
+        style: const TextStyle(fontFamily: AppFonts.mono, fontSize: 12),
       ),
     );
   }

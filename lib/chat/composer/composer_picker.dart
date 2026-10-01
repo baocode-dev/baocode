@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../../ide/ide_hover.dart';
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_session.dart';
 import '../widgets/hover_builder.dart';
@@ -400,10 +400,10 @@ class ComposerPickerState extends State<ComposerPicker> {
     final colors = themeColors;
     final emphasized = widget.emphasized;
     final color = widget.selected.caution
-        ? CursorColors.caution
+        ? AppColors.caution
         : emphasized
-        ? CursorColors.text
-        : CursorColors.textMuted;
+        ? AppColors.text
+        : AppColors.textMuted;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
       height: 22,
@@ -440,7 +440,7 @@ class ComposerPickerState extends State<ComposerPicker> {
           Icon(
             Icons.keyboard_arrow_down_rounded,
             size: 15,
-            color: CursorColors.textFaint,
+            color: AppColors.textFaint,
           ),
         ],
       ),
@@ -459,7 +459,7 @@ class ComposerPickerState extends State<ComposerPicker> {
 
   /// As upstream's action widget, its pickers' menu.
   static BoxDecoration get _panel => BoxDecoration(
-    color: CursorColors.surfaceRaised,
+    color: AppColors.surfaceRaised,
     borderRadius: BorderRadius.circular(8),
     border: Border.all(color: themeColors['editorHoverWidget.border']),
     boxShadow: [
@@ -531,10 +531,7 @@ class ComposerPickerState extends State<ComposerPicker> {
                         context.l10n.composerSettingEffort,
                       _ => '',
                     },
-                    style: TextStyle(
-                      color: CursorColors.textFaint,
-                      fontSize: 11,
-                    ),
+                    style: TextStyle(color: AppColors.textFaint, fontSize: 11),
                   ),
                 ),
               ),
@@ -572,7 +569,7 @@ class ComposerPickerState extends State<ComposerPicker> {
               padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
               child: Text(
                 title,
-                style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
+                style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
               ),
             ),
           for (var i = 0; i < widget.options.length; i++)
@@ -654,7 +651,7 @@ class _PickerRow extends StatelessWidget {
           height: height,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color: highlighted ? CursorColors.hover : Colors.transparent,
+            color: highlighted ? AppColors.hover : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
           ),
           foregroundDecoration: _highlightOutline(highlighted),
@@ -663,7 +660,7 @@ class _PickerRow extends StatelessWidget {
               Icon(
                 option.icon,
                 size: 15,
-                color: caution ? CursorColors.caution : CursorColors.textMuted,
+                color: caution ? AppColors.caution : AppColors.textMuted,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -680,8 +677,8 @@ class _PickerRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: caution
-                            ? CursorColors.caution
-                            : CursorColors.textPrimary,
+                            ? AppColors.caution
+                            : AppColors.textPrimary,
                         fontSize: 12.5,
                       ),
                     ),
@@ -692,8 +689,8 @@ class _PickerRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: caution
-                              ? CursorColors.caution.withValues(alpha: 0.8)
-                              : CursorColors.textFaint,
+                              ? AppColors.caution.withValues(alpha: 0.8)
+                              : AppColors.textFaint,
                           fontSize: 11,
                         ),
                       ),
@@ -704,7 +701,7 @@ class _PickerRow extends StatelessWidget {
                 Icon(
                   Icons.check_rounded,
                   size: 15,
-                  color: caution ? CursorColors.caution : CursorColors.text,
+                  color: caution ? AppColors.caution : AppColors.text,
                 ),
               if (hasSettings)
                 Padding(
@@ -712,7 +709,7 @@ class _PickerRow extends StatelessWidget {
                   child: Icon(
                     Icons.chevron_right_rounded,
                     size: 15,
-                    color: CursorColors.textFaint,
+                    color: AppColors.textFaint,
                   ),
                 ),
             ],
@@ -763,7 +760,7 @@ class _SettingRow extends StatelessWidget {
           height: ComposerPickerState._settingRowHeight,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color: highlighted ? CursorColors.hover : Colors.transparent,
+            color: highlighted ? AppColors.hover : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
           ),
           foregroundDecoration: _highlightOutline(highlighted),
@@ -775,13 +772,13 @@ class _SettingRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: CursorColors.textPrimary,
+                    color: AppColors.textPrimary,
                     fontSize: 12.5,
                   ),
                 ),
               ),
               if (selected)
-                Icon(Icons.check_rounded, size: 15, color: CursorColors.text),
+                Icon(Icons.check_rounded, size: 15, color: AppColors.text),
             ],
           ),
         ),

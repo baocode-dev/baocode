@@ -5,7 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill/quill_delta.dart';
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../widgets/file_label.dart';
@@ -245,7 +245,7 @@ class ComposerTokenChip extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isCommand
                     ? themeColors['chat.slashCommandBackground']
-                    : CursorColors.surface,
+                    : AppColors.surface,
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(
                   color: isCommand
@@ -272,12 +272,12 @@ class ComposerTokenChip extends StatelessWidget {
                       Icon(
                         Icons.alternate_email_rounded,
                         size: 13,
-                        color: CursorColors.textMuted,
+                        color: AppColors.textMuted,
                       ),
                     const SizedBox(width: 4),
                     Text(
                       token.label,
-                      style: TextStyle(color: CursorColors.text, fontSize: 12),
+                      style: TextStyle(color: AppColors.text, fontSize: 12),
                     ),
                   ],
                 ),

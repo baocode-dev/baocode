@@ -14,7 +14,7 @@ import 'package:monad/ide/terminal/terminal_instance.dart';
 import 'package:monad/main.dart';
 import 'package:monad/sidebar/sidebar.dart';
 import 'package:monad/theme/codicons.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 import 'package:monad/workspace/back_to_chat_button.dart';
 import 'package:monad/workspace/editor_launcher.dart';
 import 'package:monad/workspace/open_in_editor_button.dart';
@@ -314,9 +314,9 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildCursorTheme(),
+        theme: buildAppTheme(),
         home: const Scaffold(
-          body: Text('x', style: TextStyle(fontFamily: CursorFonts.mono)),
+          body: Text('x', style: TextStyle(fontFamily: AppFonts.mono)),
         ),
       ),
     );
@@ -324,7 +324,7 @@ void main() {
         .renderObject<RenderParagraph>(find.text('x'))
         .text
         .style!;
-    expect(style.fontFamily, CursorFonts.mono);
+    expect(style.fontFamily, AppFonts.mono);
     expect(style.fontFamilyFallback, contains('Consolas'));
   }, variant: _windows);
 
@@ -333,7 +333,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildCursorTheme(),
+        theme: buildAppTheme(),
         home: const Scaffold(body: Text('x')),
       ),
     );

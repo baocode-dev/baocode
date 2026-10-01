@@ -5,7 +5,7 @@ import 'package:monad/ide/ide_editor.dart';
 import 'package:monad/ide/ide_find_widget.dart';
 import 'package:monad/ide/ide_status_bar.dart';
 import 'package:monad/theme/codicons.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 import 'package:monad/workspace/back_to_chat_button.dart';
 import 'package:monad/workspace/pin_window_button.dart';
 
@@ -167,7 +167,7 @@ void main() {
     final workspace = await pumpWorkbench(tester, const {'a.dart': 'a'});
     expect(find.text('Fast Ide'), findsNothing);
     final toggle = find.byTooltip('Toggle Primary Side Bar (Ctrl+B)');
-    expect(tester.getRect(toggle).left, CursorMetrics.trafficLightsWidth + 8);
+    expect(tester.getRect(toggle).left, AppMetrics.trafficLightsWidth + 8);
     IconData icon() => tester
         .widget<Icon>(find.descendant(of: toggle, matching: find.byType(Icon)))
         .icon!;

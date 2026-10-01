@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 
 /// Claude's spark while it thinks, as Claude Code draws it: a star that
 /// blooms from a dot and folds back (· ✢ ✳ ✶ ✻ ✽ ✻ ✶ ✳ ✢), a shape every
@@ -13,7 +13,7 @@ class ThinkingSpark extends StatefulWidget {
   const ThinkingSpark({
     super.key,
     this.size = 14,
-    this.color = CursorColors.claude,
+    this.color = AppColors.claude,
   });
 
   final double size;

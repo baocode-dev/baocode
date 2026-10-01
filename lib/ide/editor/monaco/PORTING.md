@@ -719,8 +719,8 @@ Deviations:
   `onDidChangeActive` previews after 200ms; the service implements its
   `IdeColorThemeController`. The workbench resolves two-key chords as
   `abstractKeybindingService.ts` does (see that file's header).
-- Widgets read `themeColors[id]` (`IColorTheme.getColor`). `CursorColors`
-  (lib/theme/cursor_theme.dart) and `IdeModernUI` are getters over color
+- Widgets read `themeColors[id]` (`IColorTheme.getColor`). `AppColors`
+  (lib/theme/app_theme.dart) and `IdeModernUI` are getters over color
   ids (`sideBar.background`, `editorWidget.background`, `menu.background`,
   `panel.border`, `foreground`, `descriptionForeground`,
   `disabledForeground`, `textLink.foreground`, `surface.*`,

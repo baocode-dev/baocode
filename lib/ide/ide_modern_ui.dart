@@ -22,7 +22,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart';
 
 /// The Modern UI's sizes, and its colors in the workbench's color theme.
@@ -30,9 +30,9 @@ abstract final class IdeModernUI {
   static WorkbenchColors get _colors => WorkbenchThemeService.instance.colors;
 
   /// Around the cards: the agent sidebar's color
-  /// ([CursorColors.sidebarSurface]), so the system material shows through
+  /// ([AppColors.sidebarSurface]), so the system material shows through
   /// as it does beside the chat. On Windows 11 that tint is 96%.
-  static Color get shell => CursorColors.sidebarSurface;
+  static Color get shell => AppColors.sidebarSurface;
 
   /// `surface.background`: the side bars' cards.
   static Color get surface => _colors['surface.background'];

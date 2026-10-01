@@ -28,7 +28,7 @@ import 'settings/jsonc_file.dart';
 import 'settings/settings_dialog.dart';
 import 'sidebar/sidebar.dart';
 import 'theme/codicons.dart';
-import 'theme/cursor_theme.dart';
+import 'theme/app_theme.dart';
 import 'theme/workbench_theme.dart' show WorkbenchThemeService, themeColors;
 import 'workspace/chat_drag.dart';
 import 'workspace/chat_grid_view.dart';
@@ -529,7 +529,7 @@ class _WorkbenchState extends State<Workbench> {
           _drawerClosing = false;
         }
         return ColoredBox(
-          color: CursorColors.windowCanvas,
+          color: AppColors.windowCanvas,
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -735,13 +735,13 @@ class _WorkbenchState extends State<Workbench> {
   );
 
   /// On the window's own color: over the system's material (see
-  /// [CursorColors.windowCanvas]), opaque.
+  /// [AppColors.windowCanvas]), opaque.
   static Widget _opaque(Widget child) =>
-      ColoredBox(color: CursorColors.background, child: child);
+      ColoredBox(color: AppColors.background, child: child);
 
   /// On the conversation's color: over the material, a tint of it.
   static Widget _conversation(Widget child) =>
-      ColoredBox(color: CursorColors.conversationSurface, child: child);
+      ColoredBox(color: AppColors.conversationSurface, child: child);
 
   Widget _buildSidebar({VoidCallback? onOpened}) {
     return Sidebar(
@@ -836,7 +836,7 @@ class _WorkbenchState extends State<Workbench> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 100),
             width: _dragging ? IdeModernUI.gap : 1,
-            color: _dragging ? IdeModernUI.sashHover : CursorColors.border,
+            color: _dragging ? IdeModernUI.sashHover : AppColors.border,
           ),
         ),
       ),
@@ -918,7 +918,7 @@ class _WorkbenchState extends State<Workbench> {
     final titleBarInset = header
         ? 12.0
         : showToggle
-        ? CursorMetrics.trafficLightsWidth + 8
+        ? AppMetrics.trafficLightsWidth + 8
         : 12.0;
     if (thread == null) {
       return _EmptyWorkspace(
@@ -1014,7 +1014,7 @@ class _EmptyWorkspace extends StatelessWidget {
         if (leading case final leading?)
           TitleBarDoubleClick(
             child: SizedBox(
-              height: CursorMetrics.titleBarHeight,
+              height: AppMetrics.titleBarHeight,
               child: Padding(
                 padding: EdgeInsets.only(left: titleBarInset),
                 child: Row(children: [leading]),
@@ -1029,22 +1029,19 @@ class _EmptyWorkspace extends StatelessWidget {
                 Icon(
                   Icons.folder_open_outlined,
                   size: 26,
-                  color: CursorColors.textFaint,
+                  color: AppColors.textFaint,
                 ),
                 const SizedBox(height: 12),
                 Text(
                   title,
-                  style: TextStyle(color: CursorColors.textMuted, fontSize: 14),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 14),
                 ),
                 if (detail.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     detail,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: CursorColors.textFaint,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: AppColors.textFaint, fontSize: 12),
                   ),
                 ],
                 if (onOpenFolder case final open? when !loading) ...[

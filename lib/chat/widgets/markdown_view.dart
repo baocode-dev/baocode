@@ -2,7 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:markdown/markdown.dart' as md;
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../workspace/editor_launcher.dart';
 import 'markdown_math.dart';
@@ -20,13 +20,13 @@ class MarkdownView extends StatelessWidget {
   final TextStyle? style;
 
   static TextStyle get baseStyle =>
-      TextStyle(color: CursorColors.text, fontSize: 13.5, height: 1.6);
+      TextStyle(color: AppColors.text, fontSize: 13.5, height: 1.6);
 
   static TextStyle get codeStyle => TextStyle(
-    color: CursorColors.inlineCode,
-    fontFamily: CursorFonts.mono,
+    color: AppColors.inlineCode,
+    fontFamily: AppFonts.mono,
     fontSize: 12.5,
-    backgroundColor: CursorColors.inlineCodeBackground,
+    backgroundColor: AppColors.inlineCodeBackground,
   );
 
   static final _document = md.Document(
@@ -95,7 +95,7 @@ Widget? _block(md.Node node, TextStyle style) {
           _inlines(
             node.children ?? const [],
             style.copyWith(
-              color: CursorColors.textPrimary,
+              color: AppColors.textPrimary,
               fontSize: size,
               fontWeight: FontWeight.w600,
               height: 1.4,
@@ -129,7 +129,7 @@ Widget? _block(md.Node node, TextStyle style) {
         ),
         child: _Blocks(
           nodes: node.children ?? const [],
-          style: style.copyWith(color: CursorColors.textMuted),
+          style: style.copyWith(color: AppColors.textMuted),
         ),
       );
     case 'hr':
@@ -195,11 +195,11 @@ class _List extends StatelessWidget {
         child: Icon(
           checked ? Icons.check_box_rounded : Icons.check_box_outline_blank,
           size: 14,
-          color: checked ? CursorColors.added : CursorColors.textMuted,
+          color: checked ? AppColors.added : AppColors.textMuted,
         ),
       );
     }
-    return Text(text, style: style.copyWith(color: CursorColors.textMuted));
+    return Text(text, style: style.copyWith(color: AppColors.textMuted));
   }
 
   /// An item's text and blocks: a tight item's text is inline children, a
@@ -309,7 +309,7 @@ class _TableState extends State<_Table> {
         for (final (header, cells) in rows)
           TableRow(
             decoration: header
-                ? BoxDecoration(color: CursorColors.surfaceRaised)
+                ? BoxDecoration(color: AppColors.surfaceRaised)
                 : null,
             children: [
               for (var i = 0; i < columns; i++)
@@ -325,7 +325,7 @@ class _TableState extends State<_Table> {
                             header
                                 ? style.copyWith(
                                     fontWeight: FontWeight.w600,
-                                    color: CursorColors.textPrimary,
+                                    color: AppColors.textPrimary,
                                   )
                                 : style,
                           ),
@@ -390,7 +390,7 @@ class MarkdownCodeBlock extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
               child: Text(
                 language,
-                style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
+                style: TextStyle(color: AppColors.textFaint, fontSize: 11),
               ),
             ),
           SingleChildScrollView(
@@ -400,7 +400,7 @@ class MarkdownCodeBlock extends StatelessWidget {
               code,
               style: TextStyle(
                 color: colors['editor.foreground'],
-                fontFamily: CursorFonts.mono,
+                fontFamily: AppFonts.mono,
                 fontSize: 12,
                 height: 1.5,
               ),
@@ -424,7 +424,7 @@ InlineSpan _inline(md.Node node) {
     'strong' || 'b' => TextSpan(
       style: TextStyle(
         fontWeight: FontWeight.w600,
-        color: CursorColors.textPrimary,
+        color: AppColors.textPrimary,
       ),
       children: inner(),
     ),
@@ -442,11 +442,11 @@ InlineSpan _inline(md.Node node) {
     ),
     'a' => switch (_linkRecognizer(node.attributes['href'])) {
       final recognizer? => TextSpan(
-        style: TextStyle(color: CursorColors.accent),
+        style: TextStyle(color: AppColors.accent),
         children: [for (final span in inner()) _linked(span, recognizer)],
       ),
       null => TextSpan(
-        style: TextStyle(color: CursorColors.accent),
+        style: TextStyle(color: AppColors.accent),
         children: inner(),
       ),
     },

@@ -11,7 +11,7 @@ import '../../keybindings/default_keybindings.dart' show openSettingsCommandId;
 import '../../l10n/l10n.dart';
 import '../../sidebar/sidebar.dart';
 import '../../theme/codicons.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../back_to_chat_button.dart';
 import '../open_in_editor_button.dart';
@@ -139,19 +139,19 @@ class _WindowHeaderState extends State<WindowHeader> {
     // way back to the chat on the right, as on macOS.
     final colors = themeColors;
     return Material(
-      color: ide ? IdeModernUI.shell : CursorColors.sidebarSurface,
+      color: ide ? IdeModernUI.shell : AppColors.sidebarSurface,
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: ide
               ? null
               : Border(
                   bottom: BorderSide(
-                    color: colors.get('titleBar.border') ?? CursorColors.border,
+                    color: colors.get('titleBar.border') ?? AppColors.border,
                   ),
                 ),
         ),
         child: SizedBox(
-          height: CursorMetrics.headerHeight,
+          height: AppMetrics.headerHeight,
           child: Row(
             children: [
               const SizedBox(width: 6),
@@ -250,7 +250,7 @@ class _WindowHeaderState extends State<WindowHeader> {
     if (listEquals(_reported, [minimize, maximize, close, ...controls])) return;
     _reported = [minimize, maximize, close, ...controls];
     WindowControls.setHitTestAreas(
-      height: CursorMetrics.headerHeight,
+      height: AppMetrics.headerHeight,
       controls: controls,
       minimize: minimize,
       maximize: maximize,

@@ -4,7 +4,7 @@ import 'package:monad/chat/chat_models.dart';
 import 'package:monad/chat/widgets/chat_item_view.dart';
 import 'package:monad/chat/widgets/terminal_output.dart';
 import 'package:monad/ide/terminal/terminal_colors.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 
 const _red = Color(0xFFCD3131);
 const _brightGreen = Color(0xFF23D18B);
@@ -58,10 +58,10 @@ void main() {
       expect(shown.runs, [
         TerminalRun(
           'A',
-          foreground: CursorColors.code,
-          background: CursorColors.textMuted,
+          foreground: AppColors.code,
+          background: AppColors.textMuted,
         ),
-        TerminalRun('B', foreground: CursorColors.code, background: _red),
+        TerminalRun('B', foreground: AppColors.code, background: _red),
       ]);
     });
 
@@ -74,7 +74,7 @@ void main() {
       expect(shown.runs, [
         TerminalRun(
           'dim',
-          foreground: CursorColors.textMuted.withValues(alpha: 0.5),
+          foreground: AppColors.textMuted.withValues(alpha: 0.5),
         ),
         const TerminalRun(' '),
         const TerminalRun('it', italic: true),

@@ -8,7 +8,7 @@ import 'package:monad/chat/chat_history_view.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
 import 'package:monad/main.dart';
 import 'package:monad/sidebar/sidebar.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 import 'package:monad/workspace/workspace.dart';
 
 import 'first_frame_test.dart' show LongTurnFeed;
@@ -53,9 +53,9 @@ void main() {
         child: MaterialApp(
           // Its ribbon is in the top corner, over what is measured.
           debugShowCheckedModeBanner: false,
-          theme: buildCursorTheme(),
+          theme: buildAppTheme(),
           home: ColoredBox(
-            color: CursorColors.conversationSurface,
+            color: AppColors.conversationSurface,
             child: ChatHistoryView(feed: feed),
           ),
         ),
@@ -65,7 +65,7 @@ void main() {
     final position = tester
         .state<ScrollableState>(find.byType(Scrollable).first)
         .position;
-    final tint = (CursorColors.conversationSurface.a * 255).round();
+    final tint = (AppColors.conversationSurface.a * 255).round();
     for (var step = 0; step < 8; step++) {
       position.jumpTo(position.pixels - 3);
       await tester.pump();
@@ -112,7 +112,7 @@ void main() {
     // Past the border's line, into the chat.
     expect(
       await alphaAcross(tester, 400, right + 2, right + 40),
-      everyElement((CursorColors.conversationSurface.a * 255).round()),
+      everyElement((AppColors.conversationSurface.a * 255).round()),
     );
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
@@ -123,10 +123,10 @@ void main() {
     expect(colorsUnder(tester, find.byType(Sidebar)), [Colors.transparent]);
     expect(sidebarColor(tester).a, lessThan(0.85));
     expect(colorsUnder(tester, find.byType(ChatScreen)), [
-      CursorColors.conversationSurface,
+      AppColors.conversationSurface,
       Colors.transparent,
     ]);
-    expect(CursorColors.conversationSurface.a, lessThan(1));
+    expect(AppColors.conversationSurface.a, lessThan(1));
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('on macOS the sidebar as a drawer is opaque: over the chat, '
@@ -144,13 +144,13 @@ void main() {
       await pumpMacApp(tester);
       expect(colorsUnder(tester, find.byType(Sidebar)), [Colors.transparent]);
       // Acrylic is a thinner blur than macOS's sidebar material: 96% over
-      // the sidebar, 98% over the conversation (see CursorColors).
+      // the sidebar, 98% over the conversation (see AppColors).
       expect(sidebarColor(tester).a, closeTo(0.96, 0.001));
       expect(colorsUnder(tester, find.byType(ChatScreen)), [
-        CursorColors.conversationSurface,
+        AppColors.conversationSurface,
         Colors.transparent,
       ]);
-      expect(CursorColors.conversationSurface.a, closeTo(0.98, 0.001));
+      expect(AppColors.conversationSurface.a, closeTo(0.98, 0.001));
     },
     variant: TargetPlatformVariant.only(TargetPlatform.windows),
     skip: _hostIsWindows10,

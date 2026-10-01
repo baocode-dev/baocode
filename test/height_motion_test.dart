@@ -11,7 +11,7 @@ import 'package:monad/chat/widgets/fold_line.dart';
 import 'package:monad/chat/widgets/image_thumbnails.dart';
 import 'package:monad/chat/widgets/tool_call_row.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 Future<void> pumpScreen(WidgetTester tester) async {
@@ -19,7 +19,7 @@ Future<void> pumpScreen(WidgetTester tester) async {
   addTearDown(session.dispose);
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildCursorTheme(),
+      theme: buildAppTheme(),
       localizationsDelegates: const [FlutterQuillLocalizations.delegate],
       home: ChatScreen(session: session),
     ),
@@ -218,7 +218,7 @@ void main() {
     addTearDown(session.dispose);
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildCursorTheme(),
+        theme: buildAppTheme(),
         localizationsDelegates: const [FlutterQuillLocalizations.delegate],
         home: ChatScreen(session: session),
       ),

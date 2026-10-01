@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../kernel/kernel_types.dart';
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../widgets/hover_builder.dart';
 import 'interaction_panel.dart';
@@ -40,7 +40,7 @@ class McpServersPanel extends StatelessWidget {
           Text(
             context.l10n.mcpServers,
             style: TextStyle(
-              color: CursorColors.text,
+              color: AppColors.text,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -49,7 +49,7 @@ class McpServersPanel extends StatelessWidget {
           if (servers.isNotEmpty)
             Text(
               context.l10n.mcpConnectedOf(connected, servers.length),
-              style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
+              style: TextStyle(color: AppColors.textFaint, fontSize: 11),
             ),
           const Spacer(),
           _HeaderIcon(
@@ -70,7 +70,7 @@ class McpServersPanel extends StatelessWidget {
               padding: EdgeInsets.fromLTRB(4, 4, 4, 2),
               child: Text(
                 context.l10n.mcpNoServers,
-                style: TextStyle(color: CursorColors.textFaint, fontSize: 12),
+                style: TextStyle(color: AppColors.textFaint, fontSize: 12),
               ),
             )
           : Column(
@@ -118,7 +118,7 @@ class _ServerRow extends StatelessWidget {
         colors['list.warningForeground'],
         l10n.mcpNeedsSignIn,
       ),
-      McpServerStatus.disabled => (CursorColors.textFaint, l10n.mcpDisabled),
+      McpServerStatus.disabled => (AppColors.textFaint, l10n.mcpDisabled),
     };
     final details = [
       ?server.scope,
@@ -162,10 +162,7 @@ class _ServerRow extends StatelessWidget {
                         server.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: CursorColors.text,
-                          fontSize: 13,
-                        ),
+                        style: TextStyle(color: AppColors.text, fontSize: 13),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -176,7 +173,7 @@ class _ServerRow extends StatelessWidget {
                   Text(
                     details,
                     style: TextStyle(
-                      color: CursorColors.textFaint,
+                      color: AppColors.textFaint,
                       fontSize: 11.5,
                     ),
                   ),
@@ -189,8 +186,8 @@ class _ServerRow extends StatelessWidget {
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: CursorColors.textMuted,
-                        fontFamily: CursorFonts.mono,
+                        color: AppColors.textMuted,
+                        fontFamily: AppFonts.mono,
                         fontSize: 11,
                       ),
                     ),
@@ -211,10 +208,10 @@ class _ServerRow extends StatelessWidget {
                 onChanged: server.status == McpServerStatus.pending
                     ? null
                     : onSetEnabled,
-                activeThumbColor: CursorColors.textPrimary,
-                activeTrackColor: CursorColors.accent,
-                inactiveThumbColor: CursorColors.textMuted,
-                inactiveTrackColor: CursorColors.border,
+                activeThumbColor: AppColors.textPrimary,
+                activeTrackColor: AppColors.accent,
+                inactiveThumbColor: AppColors.textMuted,
+                inactiveTrackColor: AppColors.border,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
@@ -247,7 +244,7 @@ class _HeaderIcon extends StatelessWidget {
           child: Icon(
             icon,
             size: 15,
-            color: hovered ? CursorColors.text : CursorColors.textMuted,
+            color: hovered ? AppColors.text : AppColors.textMuted,
           ),
         ),
       ),

@@ -6,7 +6,7 @@ import 'package:flutter/rendering.dart';
 import '../kernel/kernel_types.dart';
 import '../keybindings/chat_keybindings.dart';
 import '../l10n/l10n.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../workspace/title_bar_double_click.dart';
 import 'agent_view.dart';
 import 'chat_feed.dart';
@@ -272,19 +272,19 @@ class _ChatScreenState extends State<ChatScreen>
 
   Widget _buildTitleBar() {
     final style = TextStyle(
-      color: widget.focused ? CursorColors.textMuted : CursorColors.textFaint,
+      color: widget.focused ? AppColors.textMuted : AppColors.textFaint,
       fontSize: 12.5,
       fontWeight: FontWeight.w500,
     );
     final onRename = widget.onRename;
-    final inset = widget.titleBarInset ?? CursorMetrics.trafficLightsWidth + 12;
+    final inset = widget.titleBarInset ?? AppMetrics.trafficLightsWidth + 12;
     final Widget title;
     if (_renaming && onRename != null) {
       title = SizedBox(
         width: 320,
         child: InlineRenameField(
           initial: widget.title,
-          style: style.copyWith(color: CursorColors.textPrimary),
+          style: style.copyWith(color: AppColors.textPrimary),
           onDone: (text) {
             if (text != null) onRename(text);
             setState(() => _renaming = false);
@@ -305,7 +305,7 @@ class _ChatScreenState extends State<ChatScreen>
       );
     }
     final bar = SizedBox(
-      height: CursorMetrics.titleBarHeight,
+      height: AppMetrics.titleBarHeight,
       child: CustomMultiChildLayout(
         delegate: _TitleBarLayout(inset: inset),
         children: [
@@ -408,7 +408,7 @@ class _ChatScreenState extends State<ChatScreen>
       body: Column(
         children: [
           // The session's title, in the row the window's header leaves it
-          // (macOS draws a title bar of its own over it; see CursorMetrics).
+          // (macOS draws a title bar of its own over it; see AppMetrics).
           if (!widget.embedded) _buildTitleBar(),
           // Esc goes back from a subagent: a keybinding of the chat's
           // (closeSubagent).
@@ -818,17 +818,17 @@ class _EmptyHint extends StatelessWidget {
             Icon(
               Icons.auto_awesome_outlined,
               size: 22,
-              color: CursorColors.textFaint,
+              color: AppColors.textFaint,
             ),
             SizedBox(height: 10),
             Text(
               context.l10n.chatEmptyTitle,
-              style: TextStyle(color: CursorColors.textMuted, fontSize: 14),
+              style: TextStyle(color: AppColors.textMuted, fontSize: 14),
             ),
             SizedBox(height: 4),
             Text(
               context.l10n.chatEmptyHint,
-              style: TextStyle(color: CursorColors.textFaint, fontSize: 12),
+              style: TextStyle(color: AppColors.textFaint, fontSize: 12),
             ),
           ],
         ),

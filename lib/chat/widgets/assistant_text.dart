@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import 'markdown_view.dart';
 
 TextStyle get _codeStyle => TextStyle(
-  color: CursorColors.inlineCode,
-  fontFamily: CursorFonts.mono,
+  color: AppColors.inlineCode,
+  fontFamily: AppFonts.mono,
   fontSize: 12.5,
-  backgroundColor: CursorColors.inlineCodeBackground,
+  backgroundColor: AppColors.inlineCodeBackground,
 );
 
 /// Splits [text] on backticks, rendering odd segments as inline code.

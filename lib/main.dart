@@ -24,7 +24,7 @@ import 'settings/app_locale.dart';
 import 'settings/app_settings.dart';
 import 'settings/data_dir_startup.dart';
 import 'settings/user_settings.dart';
-import 'theme/cursor_theme.dart';
+import 'theme/app_theme.dart';
 import 'theme/workbench_theme.dart';
 import 'workbench.dart';
 import 'workspace/preference_store.dart';
@@ -209,7 +209,7 @@ class _MonadAppState extends State<MonadApp> {
           builder: (context, _) => MaterialApp(
             title: 'Monad',
             debugShowCheckedModeBanner: false,
-            theme: buildCursorTheme(),
+            theme: buildAppTheme(),
             locale: _locale.locale,
             supportedLocales: AppLocale.supportedLocales,
             localizationsDelegates: const [

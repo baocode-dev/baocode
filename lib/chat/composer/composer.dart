@@ -12,7 +12,7 @@ import '../../kernel/agent_kernel.dart';
 import '../../kernel/kernel_types.dart';
 import '../../keybindings/chat_keybindings.dart';
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
 import '../chat_keys.dart';
 import '../chat_models.dart';
@@ -45,7 +45,7 @@ class _Trigger {
       other != null && other.kind == kind && other.start == start;
 }
 
-/// Cursor-style chat input built on flutter_quill.
+/// The chat input, built on flutter_quill.
 ///
 /// The dock's composer sends to [session]. With [onSubmit] it edits instead
 /// (e.g. a sent message reopened in the history): it starts from
@@ -96,7 +96,7 @@ class ChatComposer extends StatefulWidget {
 class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
   static const _fontSize = 13.5;
   static TextStyle get _textStyle => TextStyle(
-    color: CursorColors.textPrimary,
+    color: AppColors.textPrimary,
     fontSize: _fontSize,
     height: 1.5,
     // Center glyphs in the line box so the custom caret lines up with them.
@@ -1345,7 +1345,7 @@ class _SendButton extends StatelessWidget {
                       key: const ValueKey('send'),
                       Icons.arrow_upward_rounded,
                       size: 15,
-                      color: active ? foreground : CursorColors.textFaint,
+                      color: active ? foreground : AppColors.textFaint,
                     ),
             ),
           ),

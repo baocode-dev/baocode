@@ -10,7 +10,7 @@ import 'package:monad/ide/editor/textmate/textmate_worker.dart';
 import 'package:monad/ide/file_service.dart';
 import 'package:monad/ide/ide_editor.dart';
 import 'package:monad/ide/ide_workspace.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 import 'package:path/path.dart' as p;
 
 import '../../workbench/fake_files.dart';
@@ -196,6 +196,6 @@ void main() {
     final spans = await _line(tester, 1);
     // Monaco's vs-dark keyword color.
     expect(_colorOf(spans, 'class'), const Color(0xff569cd6));
-    expect(_surface(tester).backgroundColor, CursorColors.code);
+    expect(_surface(tester).backgroundColor, AppColors.code);
   });
 }

@@ -86,8 +86,8 @@ Terminal).
 
 ## Fonts
 
-`CursorFonts.mono` is still Menlo; Windows falls back to Consolas /
-Cascadia Mono via `fontFamilyFallback` (`CursorFonts.windowsFallbacks`).
+`AppFonts.mono` is still Menlo; Windows falls back to Consolas /
+Cascadia Mono via `fontFamilyFallback` (`AppFonts.windowsFallbacks`).
 
 Chinese is the other half of that chain. Segoe UI (the theme's family on
 Windows) and both monospaced families carry no Han glyphs, and where they run

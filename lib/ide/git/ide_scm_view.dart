@@ -37,7 +37,7 @@ import 'package:path/path.dart' as p;
 import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
 import '../../workspace/window_controls.dart';
@@ -276,7 +276,7 @@ class IdeScmViewState extends State<IdeScmView>
   Widget build(BuildContext context) {
     final git = _git;
     return ColoredBox(
-      color: CursorColors.sidebarSurface,
+      color: AppColors.sidebarSurface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

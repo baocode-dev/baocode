@@ -11,7 +11,7 @@ import 'package:monad/chat/chat_session.dart';
 import 'package:monad/chat/composer/composer_draft.dart';
 import 'package:monad/chat/widgets/activity_row.dart';
 import 'package:monad/chat/widgets/thinking_section.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 
 /// A turn under way: its items, then the status row while it streams.
 class _LiveFeed extends ChangeNotifier implements ChatFeed {
@@ -70,7 +70,7 @@ Future<_LiveFeed> _pump(WidgetTester tester, {bool still = false}) async {
   addTearDown(feed.dispose);
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildCursorTheme(),
+      theme: buildAppTheme(),
       home: MediaQuery(
         data: MediaQueryData(disableAnimations: still),
         child: Scaffold(body: ChatHistoryView(feed: feed)),

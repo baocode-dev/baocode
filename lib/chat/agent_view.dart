@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../keybindings/chat_keybindings.dart';
 import '../l10n/l10n.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'chat_feed.dart';
 import 'chat_keys.dart';
@@ -118,7 +118,7 @@ class SubagentHeader extends StatelessWidget {
                     child: Icon(
                       Icons.chevron_right_rounded,
                       size: 15,
-                      color: CursorColors.textFaint,
+                      color: AppColors.textFaint,
                     ),
                   ),
                   if (i == trail.length - 1)
@@ -128,7 +128,7 @@ class SubagentHeader extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: CursorColors.textPrimary,
+                          color: AppColors.textPrimary,
                           fontSize: 12.5,
                           fontWeight: FontWeight.w500,
                         ),
@@ -173,8 +173,8 @@ class _BackButton extends StatelessWidget {
         padding: const EdgeInsets.all(4),
         constraints: const BoxConstraints.tightFor(width: 26, height: 26),
         style: IconButton.styleFrom(
-          hoverColor: CursorColors.hover,
-          foregroundColor: CursorColors.textMuted,
+          hoverColor: AppColors.hover,
+          foregroundColor: AppColors.textMuted,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         ),
         icon: Semantics(
@@ -205,7 +205,7 @@ class _Crumb extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: hovered ? CursorColors.text : CursorColors.textMuted,
+              color: hovered ? AppColors.text : AppColors.textMuted,
               fontSize: 12.5,
             ),
           ),
@@ -262,9 +262,9 @@ class _SubagentStatusBarState extends State<SubagentStatusBar> {
         final (word, color) = switch (agent?.status) {
           CommandStatus.running when agent!.background => (
             l10n.statusRunningInBackground,
-            CursorColors.text,
+            AppColors.text,
           ),
-          CommandStatus.running => (l10n.statusRunning, CursorColors.text),
+          CommandStatus.running => (l10n.statusRunning, AppColors.text),
           CommandStatus.succeeded => (
             l10n.statusDone,
             themeColors['testing.iconPassed'],
@@ -273,7 +273,7 @@ class _SubagentStatusBarState extends State<SubagentStatusBar> {
             l10n.statusFailed,
             themeColors['testing.iconFailed'],
           ),
-          null => (l10n.statusGone, CursorColors.textMuted),
+          null => (l10n.statusGone, AppColors.textMuted),
         };
         final meta = agent == null ? '' : AgentStep.meta(agent, l10n: l10n);
         return Semantics(
@@ -283,9 +283,9 @@ class _SubagentStatusBarState extends State<SubagentStatusBar> {
           child: Container(
             padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
             decoration: BoxDecoration(
-              color: CursorColors.surface,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: CursorColors.borderStrong),
+              border: Border.all(color: AppColors.borderStrong),
             ),
             child: Row(
               children: [
@@ -312,7 +312,7 @@ class _SubagentStatusBarState extends State<SubagentStatusBar> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: CursorColors.textMuted,
+                          color: AppColors.textMuted,
                           fontSize: 12.5,
                         ),
                       ),
@@ -322,7 +322,7 @@ class _SubagentStatusBarState extends State<SubagentStatusBar> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: CursorColors.textFaint,
+                          color: AppColors.textFaint,
                           fontSize: 11,
                         ),
                       ),

@@ -5,7 +5,7 @@ import '../../ide/ide_hover.dart';
 import '../../kernel/kernel_types.dart';
 import '../../keybindings/chat_keybindings.dart';
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_keys.dart';
 import 'panel_card.dart';
@@ -72,7 +72,7 @@ class ContextUsagePanel extends StatelessWidget {
           Text(
             l10n.usageContextWindow,
             style: TextStyle(
-              color: CursorColors.text,
+              color: AppColors.text,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -87,7 +87,7 @@ class ContextUsagePanel extends StatelessWidget {
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
+              style: TextStyle(color: AppColors.textFaint, fontSize: 11),
             ),
           ),
           const SizedBox(width: 8),
@@ -106,7 +106,7 @@ class ContextUsagePanel extends StatelessWidget {
                 child: Icon(
                   Icons.close_rounded,
                   size: 15,
-                  color: CursorColors.textMuted,
+                  color: AppColors.textMuted,
                 ),
               ),
             ),
@@ -158,7 +158,7 @@ class ContextUsagePanel extends StatelessWidget {
                     stats.limits.isNotEmpty ||
                     stats.limitsState != LimitsState.idle)) ...[
               const SizedBox(height: 12),
-              Divider(height: 1, color: CursorColors.border),
+              Divider(height: 1, color: AppColors.border),
               const SizedBox(height: 10),
               _PlanUsage(stats: stats),
             ],
@@ -186,7 +186,7 @@ class _PlanUsage extends StatelessWidget {
               child: Text(
                 context.l10n.usagePlanUsage,
                 style: TextStyle(
-                  color: CursorColors.text,
+                  color: AppColors.text,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
@@ -215,7 +215,7 @@ class _PlanUsage extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               note,
-              style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
+              style: TextStyle(color: AppColors.textFaint, fontSize: 11),
             ),
           ],
       ],
@@ -249,14 +249,14 @@ class _Legend extends StatelessWidget {
         ],
         Text(
           label,
-          style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
+          style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
         ),
         const SizedBox(width: 4),
         Text(
           value,
           style: TextStyle(
-            color: CursorColors.text,
-            fontFamily: CursorFonts.mono,
+            color: AppColors.text,
+            fontFamily: AppFonts.mono,
             fontSize: 11,
           ),
         ),
@@ -278,14 +278,14 @@ class _Stat extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
+          style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
         ),
         const SizedBox(width: 6),
         Text(
           value,
           style: TextStyle(
-            color: CursorColors.text,
-            fontFamily: CursorFonts.mono,
+            color: AppColors.text,
+            fontFamily: AppFonts.mono,
             fontSize: 11.5,
           ),
         ),
@@ -320,7 +320,7 @@ class _LimitMeter extends StatelessWidget {
             limit.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
+            style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
           ),
         ),
         Expanded(
@@ -342,8 +342,8 @@ class _LimitMeter extends StatelessWidget {
             '${(fraction * 100).round()}%',
             textAlign: TextAlign.right,
             style: TextStyle(
-              color: fraction >= 0.9 ? color : CursorColors.text,
-              fontFamily: CursorFonts.mono,
+              color: fraction >= 0.9 ? color : AppColors.text,
+              fontFamily: AppFonts.mono,
               fontSize: 11,
             ),
           ),
@@ -358,7 +358,7 @@ class _LimitMeter extends StatelessWidget {
                   ),
             textAlign: TextAlign.right,
             maxLines: 1,
-            style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
+            style: TextStyle(color: AppColors.textFaint, fontSize: 11),
           ),
         ),
       ],

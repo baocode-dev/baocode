@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../kernel/kernel_types.dart';
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'interaction_panel.dart';
 
@@ -58,7 +58,7 @@ class _HealthBannerState extends State<HealthBanner> {
                   health.message ??
                       context.l10n.healthStopped(widget.kernelName),
                   style: TextStyle(
-                    color: CursorColors.textPrimary,
+                    color: AppColors.textPrimary,
                     fontSize: 12.5,
                   ),
                 ),
@@ -85,15 +85,15 @@ class _HealthBannerState extends State<HealthBanner> {
               constraints: const BoxConstraints(maxHeight: 160),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: CursorColors.code,
+                color: AppColors.code,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: SingleChildScrollView(
                 child: SelectableText(
                   detail,
                   style: TextStyle(
-                    color: CursorColors.textMuted,
-                    fontFamily: CursorFonts.mono,
+                    color: AppColors.textMuted,
+                    fontFamily: AppFonts.mono,
                     fontSize: 11.5,
                     height: 1.45,
                   ),

@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import '../ide/ide_modern_ui.dart';
 import '../l10n/l10n.dart';
 import '../sidebar/sidebar.dart' show StatusIndicator;
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'chat_drag.dart';
 import 'chat_grid.dart';
@@ -418,7 +418,7 @@ class _DropBox extends StatelessWidget {
                 note,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: drop.fits ? CursorColors.textPrimary : color,
+                  color: drop.fits ? AppColors.textPrimary : color,
                   fontSize: 12.5,
                 ),
               ),
@@ -521,7 +521,7 @@ class _GridSashState extends State<_GridSash> {
             duration: const Duration(milliseconds: 100),
             width: _horizontal ? (_dragging ? IdeModernUI.gap : 1) : null,
             height: _horizontal ? null : (_dragging ? IdeModernUI.gap : 1),
-            color: _dragging ? IdeModernUI.sashHover : CursorColors.border,
+            color: _dragging ? IdeModernUI.sashHover : AppColors.border,
           ),
         ),
       ),
@@ -577,8 +577,8 @@ class _DragChip extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 260),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: CursorColors.surfaceRaised,
-        border: Border.all(color: CursorColors.border),
+        color: AppColors.surfaceRaised,
+        border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(6),
         boxShadow: [
           BoxShadow(color: themeColors['widget.shadow'], blurRadius: 12),
@@ -597,7 +597,7 @@ class _DragChip extends StatelessWidget {
               thread.localizedTitle(context.l10n),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: CursorColors.textPrimary, fontSize: 12.5),
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 12.5),
             ),
           ),
         ],

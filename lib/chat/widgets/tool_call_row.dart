@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../chat_models.dart';
 import '../floating/hover_tooltip.dart';
 import 'step_header.dart';
@@ -56,7 +56,7 @@ class ToolCallRow extends StatelessWidget {
           ? Icon(
               Icons.swap_horiz_rounded,
               size: 15,
-              color: CursorColors.syntaxCommand,
+              color: AppColors.syntaxCommand,
             )
           : null,
     );
@@ -92,12 +92,12 @@ class ToolCallRow extends StatelessWidget {
       children: [
         Text(
           path!,
-          style: const TextStyle(fontFamily: CursorFonts.mono, fontSize: 12),
+          style: const TextStyle(fontFamily: AppFonts.mono, fontSize: 12),
         ),
         if (lines != null)
           Text(
             lines,
-            style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
+            style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
           ),
       ],
     );

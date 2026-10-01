@@ -15,7 +15,7 @@
 import 'dart:ui' show Color;
 
 import '../../platform/app_platform.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import 'terminal_colors.dart';
 import 'xterm/common/color.dart';
 import 'xterm/common/data/escape_sequences.dart';
@@ -413,14 +413,14 @@ ITheme vscodeTerminalTheme([TerminalColorTheme? theme]) =>
 
 /// The terminal font, as VS Code's `getFont` resolves it without a
 /// `terminal.integrated.fontFamily`: the editor's family (this app's editor
-/// draws in [CursorFonts.mono]), then `monospace` and, on macOS,
+/// draws in [AppFonts.mono]), then `monospace` and, on macOS,
 /// AppleBraille. On Windows, where Menlo is missing, the app's fallbacks
-/// ([CursorFonts.windowsFallbacks], ending in `monospace`) follow it as the
+/// ([AppFonts.windowsFallbacks], ending in `monospace`) follow it as the
 /// theme puts them.
 String vscodeTerminalFontFamily() {
   final families = [
-    CursorFonts.mono,
-    if (AppPlatform.isWindows) ...CursorFonts.windowsFallbacks else 'monospace',
+    AppFonts.mono,
+    if (AppPlatform.isWindows) ...AppFonts.windowsFallbacks else 'monospace',
     if (AppPlatform.isMacOS) 'AppleBraille',
   ];
   return families.map((f) => f.contains(' ') ? "'$f'" : f).join(', ');

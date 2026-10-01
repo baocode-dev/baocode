@@ -4,7 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../chat_models.dart';
 import '../composer/composer_embeds.dart';
 import 'assistant_text.dart';
@@ -56,7 +56,7 @@ const _collapsedLines = 3;
 const _lineHeight = 13.5 * 1.5;
 
 TextStyle get _messageStyle => TextStyle(
-  color: CursorColors.textPrimary,
+  color: AppColors.textPrimary,
   fontSize: 13.5,
   height: 1.5,
   // Centers glyphs in the line box, which the inline tags center on.
@@ -131,12 +131,12 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
               Icon(
                 Icons.schedule_rounded,
                 size: 12,
-                color: CursorColors.textFaint,
+                color: AppColors.textFaint,
               ),
               const SizedBox(width: 4),
               Text(
                 context.l10n.messageQueued,
-                style: TextStyle(color: CursorColors.textFaint, fontSize: 11.5),
+                style: TextStyle(color: AppColors.textFaint, fontSize: 11.5),
               ),
               if (widget.onCancel case final cancel?) ...[
                 const SizedBox(width: 8),
@@ -146,10 +146,7 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
                     cursor: SystemMouseCursors.click,
                     child: Text(
                       context.l10n.commonCancel,
-                      style: TextStyle(
-                        color: CursorColors.accent,
-                        fontSize: 11.5,
-                      ),
+                      style: TextStyle(color: AppColors.accent, fontSize: 11.5),
                     ),
                   ),
                 ),
@@ -170,9 +167,9 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
         decoration: BoxDecoration(
-          color: CursorColors.surfaceRaised,
+          color: AppColors.surfaceRaised,
           borderRadius: BorderRadius.circular(UserMessageBubble.radius),
-          border: Border.all(color: CursorColors.borderStrong),
+          border: Border.all(color: AppColors.borderStrong),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -214,7 +211,7 @@ class _CollapsedOverlay extends StatelessWidget {
         child: Icon(
           Icons.keyboard_arrow_down_rounded,
           size: 18,
-          color: CursorColors.textMuted,
+          color: AppColors.textMuted,
         ),
       ),
     );

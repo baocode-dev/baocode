@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../chat/panels/interaction_panel.dart';
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
 /// The version this build is of, as pubspec.yaml says; kept here rather than
@@ -32,7 +32,7 @@ class _AboutMonadDialog extends StatelessWidget {
         width: 360,
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
         decoration: BoxDecoration(
-          color: CursorColors.surface,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(10),
           border: switch (colors.get('contrastBorder')) {
             final border? => Border.all(color: border),
@@ -55,13 +55,13 @@ class _AboutMonadDialog extends StatelessWidget {
                 Icon(
                   Icons.auto_awesome_outlined,
                   size: 18,
-                  color: CursorColors.accent,
+                  color: AppColors.accent,
                 ),
                 SizedBox(width: 9),
                 Text(
                   'Monad',
                   style: TextStyle(
-                    color: CursorColors.textPrimary,
+                    color: AppColors.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
@@ -70,9 +70,9 @@ class _AboutMonadDialog extends StatelessWidget {
                 Text(
                   monadVersion,
                   style: TextStyle(
-                    color: CursorColors.textFaint,
+                    color: AppColors.textFaint,
                     fontSize: 12,
-                    fontFamily: CursorFonts.mono,
+                    fontFamily: AppFonts.mono,
                   ),
                 ),
               ],
@@ -81,7 +81,7 @@ class _AboutMonadDialog extends StatelessWidget {
             Text(
               context.l10n.aboutDescription,
               style: TextStyle(
-                color: CursorColors.textMuted,
+                color: AppColors.textMuted,
                 fontSize: 12,
                 height: 1.5,
               ),

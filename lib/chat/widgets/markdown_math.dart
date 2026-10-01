@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:markdown/markdown.dart' as md;
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 
 /// TeX in markdown, as `math` elements (their `display` attribute `block`
 /// or `inline`), for [MathView] to render.
@@ -72,7 +72,7 @@ class MathView extends StatelessWidget {
   final bool display;
 
   static TextStyle get _style =>
-      TextStyle(color: CursorColors.textPrimary, fontSize: 14.5);
+      TextStyle(color: AppColors.textPrimary, fontSize: 14.5);
 
   @override
   Widget build(BuildContext context) {
@@ -83,8 +83,8 @@ class MathView extends StatelessWidget {
       onErrorFallback: (_) => Text(
         display ? tex : '\$$tex\$',
         style: TextStyle(
-          color: CursorColors.inlineCode,
-          fontFamily: CursorFonts.mono,
+          color: AppColors.inlineCode,
+          fontFamily: AppFonts.mono,
           fontSize: 12.5,
         ),
       ),

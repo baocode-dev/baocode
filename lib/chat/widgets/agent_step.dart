@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import 'hover_builder.dart';
@@ -130,9 +130,7 @@ class _AgentStepState extends State<AgentStep> {
                     item.description,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: _titleStyle.copyWith(
-                      color: CursorColors.textPrimary,
-                    ),
+                    style: _titleStyle.copyWith(color: AppColors.textPrimary),
                   ),
           ),
           if (tools != null)
@@ -140,7 +138,7 @@ class _AgentStepState extends State<AgentStep> {
               padding: const EdgeInsets.only(left: 12),
               child: Text(
                 tools,
-                style: TextStyle(color: CursorColors.textFaint, fontSize: 12),
+                style: TextStyle(color: AppColors.textFaint, fontSize: 12),
               ),
             ),
           // Its buttons take their own presses (see _down).
@@ -157,7 +155,7 @@ class _AgentStepState extends State<AgentStep> {
               child: Icon(
                 Icons.chevron_right_rounded,
                 size: 18,
-                color: CursorColors.textMuted,
+                color: AppColors.textMuted,
               ),
             ),
         ],
@@ -220,15 +218,15 @@ class _AgentStepState extends State<AgentStep> {
                 duration: const Duration(milliseconds: 120),
                 decoration: BoxDecoration(
                   color: hovered && open != null
-                      ? CursorColors.surfaceRaised
-                      : CursorColors.surface,
+                      ? AppColors.surfaceRaised
+                      : AppColors.surface,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: _focused
                         ? themeColors['focusBorder']
                         : hovered && open != null
-                        ? CursorColors.borderStrong
-                        : CursorColors.border,
+                        ? AppColors.borderStrong
+                        : AppColors.border,
                   ),
                 ),
                 child: content,
@@ -262,7 +260,7 @@ class AgentStatusIcon extends StatelessWidget {
           padding: EdgeInsets.all(1.5),
           child: CircularProgressIndicator(
             strokeWidth: 1.6,
-            color: CursorColors.textMuted,
+            color: AppColors.textMuted,
           ),
         ),
         // As upstream's session status.
@@ -328,7 +326,7 @@ class StopButton extends StatelessWidget {
             child: Icon(
               Icons.stop_rounded,
               size: 15,
-              color: hovered ? CursorColors.text : CursorColors.textMuted,
+              color: hovered ? AppColors.text : AppColors.textMuted,
             ),
           ),
         ),
@@ -358,13 +356,13 @@ class BackgroundButton extends StatelessWidget {
               Icon(
                 Icons.move_down_rounded,
                 size: 13,
-                color: hovered ? CursorColors.text : CursorColors.textMuted,
+                color: hovered ? AppColors.text : AppColors.textMuted,
               ),
               const SizedBox(width: 4),
               Text(
                 context.l10n.chatBackground,
                 style: TextStyle(
-                  color: hovered ? CursorColors.text : CursorColors.textMuted,
+                  color: hovered ? AppColors.text : AppColors.textMuted,
                   fontSize: 11.5,
                 ),
               ),

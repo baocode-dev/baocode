@@ -9,7 +9,7 @@ import '../../ide/terminal/xterm/common/buffer/constants.dart';
 import '../../ide/terminal/xterm/common/buffer/types.dart';
 import '../../ide/terminal/xterm/common/types.dart';
 import '../../ide/terminal/xterm/headless/terminal.dart' as xterm;
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
 
 /// What a command printed, as a terminal shows it: in color, and with what
@@ -71,8 +71,8 @@ const _maxCells = 1 << 20;
 
 /// The step's own colors stand for the terminal's default ones: its text on
 /// its box.
-Color get _foreground => CursorColors.textMuted;
-Color get _background => CursorColors.code;
+Color get _foreground => AppColors.textMuted;
+Color get _background => AppColors.code;
 
 /// The terminal's palette, the color theme's ([terminalColorTheme]).
 List<Color> get _palette => terminalColorTheme.value.palette;

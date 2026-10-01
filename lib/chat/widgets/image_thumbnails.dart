@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../chat_models.dart';
 import 'hover_builder.dart';
 import '../../ide/ide_hover.dart';
@@ -68,7 +68,7 @@ class _Thumbnail extends StatelessWidget {
                 height: size,
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  color: CursorColors.surface,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 // Over the picture, which is clipped to the same corners:
@@ -77,8 +77,8 @@ class _Thumbnail extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
                     color: hovered
-                        ? CursorColors.textFaint
-                        : CursorColors.borderStrong,
+                        ? AppColors.textFaint
+                        : AppColors.borderStrong,
                   ),
                 ),
                 child: Image.memory(
@@ -89,7 +89,7 @@ class _Thumbnail extends StatelessWidget {
                   errorBuilder: (context, error, stack) => Icon(
                     Icons.broken_image_outlined,
                     size: 16,
-                    color: CursorColors.textFaint,
+                    color: AppColors.textFaint,
                   ),
                 ),
               ),
@@ -105,14 +105,14 @@ class _Thumbnail extends StatelessWidget {
                   width: 16,
                   height: 16,
                   decoration: BoxDecoration(
-                    color: CursorColors.surfaceRaised,
+                    color: AppColors.surfaceRaised,
                     shape: BoxShape.circle,
-                    border: Border.all(color: CursorColors.borderStrong),
+                    border: Border.all(color: AppColors.borderStrong),
                   ),
                   child: Icon(
                     Icons.close_rounded,
                     size: 11,
-                    color: CursorColors.text,
+                    color: AppColors.text,
                   ),
                 ),
               ),

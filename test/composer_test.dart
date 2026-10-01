@@ -36,7 +36,7 @@ import 'package:monad/chat/composer/suggestion_menu.dart';
 import 'package:monad/chat/panels/activity_strip.dart';
 import 'package:monad/chat/panels/interaction_panel.dart';
 import 'package:monad/chat/panels/context_usage_panel.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 
 Future<ChatSession> pumpScreen(
   WidgetTester tester, {
@@ -46,7 +46,7 @@ Future<ChatSession> pumpScreen(
   addTearDown(session.dispose);
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildCursorTheme(),
+      theme: buildAppTheme(),
       localizationsDelegates: const [FlutterQuillLocalizations.delegate],
       home: ChatScreen(session: session),
     ),
@@ -965,7 +965,7 @@ void main() {
     Future<void> show(ChatSession session) async {
       await tester.pumpWidget(
         MaterialApp(
-          theme: buildCursorTheme(),
+          theme: buildAppTheme(),
           localizationsDelegates: const [FlutterQuillLocalizations.delegate],
           home: ChatScreen(key: ObjectKey(session), session: session),
         ),

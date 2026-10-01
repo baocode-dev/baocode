@@ -25,7 +25,7 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
 import '../ide_hover.dart';
@@ -257,7 +257,7 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
             _ => l10n.extTitleMarketplace,
           };
     return ColoredBox(
-      color: CursorColors.sidebarSurface,
+      color: AppColors.sidebarSurface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

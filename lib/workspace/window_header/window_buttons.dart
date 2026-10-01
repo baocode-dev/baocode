@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../window_controls.dart';
 
@@ -75,7 +75,7 @@ class WindowButtons extends StatelessWidget {
 
 /// What each button shows, as the system's own icon font has it: the four
 /// glyphs the Windows title bar is drawn with, whose shapes and weights go
-/// together (the app's Material icons do not; see [CursorFonts.icons]).
+/// together (the app's Material icons do not; see [AppFonts.icons]).
 abstract final class Glyph {
   static const minimize = '\uE921';
   static const maximize = '\uE922';
@@ -120,8 +120,8 @@ class _WindowButton extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           onTap: onPressed,
           child: Container(
-            width: CursorMetrics.windowButtonWidth,
-            height: CursorMetrics.headerHeight,
+            width: AppMetrics.windowButtonWidth,
+            height: AppMetrics.headerHeight,
             alignment: Alignment.center,
             color: !hovered
                 ? Colors.transparent
@@ -133,9 +133,9 @@ class _WindowButton extends StatelessWidget {
             child: Text(
               glyph,
               style: TextStyle(
-                fontFamily: CursorFonts.icons,
-                fontFamilyFallback: CursorFonts.iconFallbacks,
-                fontSize: CursorMetrics.windowButtonGlyph,
+                fontFamily: AppFonts.icons,
+                fontFamilyFallback: AppFonts.iconFallbacks,
+                fontSize: AppMetrics.windowButtonGlyph,
                 height: 1,
                 color: hovered && closes
                     ? Colors.white

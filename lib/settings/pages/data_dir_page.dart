@@ -9,7 +9,7 @@ import '../../ide/ide_dialog.dart';
 import '../../l10n/l10n.dart';
 import '../../platform/app_platform.dart';
 import '../../platform/data_dir.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../workspace/window_controls.dart';
 import '../data_dir_service.dart';
@@ -191,14 +191,14 @@ class _DataDirectoryPageState extends State<DataDirectoryPage> {
       ),
     };
     TextStyle muted() =>
-        TextStyle(color: CursorColors.textMuted, fontSize: 12, height: 1.5);
+        TextStyle(color: AppColors.textMuted, fontSize: 12, height: 1.5);
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
       children: [
         Text(
           l10n.dataDirTitle,
           style: TextStyle(
-            color: CursorColors.textPrimary,
+            color: AppColors.textPrimary,
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
@@ -209,9 +209,9 @@ class _DataDirectoryPageState extends State<DataDirectoryPage> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: CursorColors.surface,
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: CursorColors.border),
+            border: Border.all(color: AppColors.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -219,7 +219,7 @@ class _DataDirectoryPageState extends State<DataDirectoryPage> {
               Text(
                 l10n.dataDirCurrentFolder,
                 style: TextStyle(
-                  color: CursorColors.textPrimary,
+                  color: AppColors.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -228,10 +228,10 @@ class _DataDirectoryPageState extends State<DataDirectoryPage> {
               SelectableText(
                 current.path,
                 style: TextStyle(
-                  color: CursorColors.text,
+                  color: AppColors.text,
                   fontSize: 12,
                   height: 1.5,
-                  fontFamily: CursorFonts.mono,
+                  fontFamily: AppFonts.mono,
                 ),
               ),
               Text(source, style: muted()),

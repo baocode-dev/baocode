@@ -8,7 +8,7 @@ import '../ide/ide_hover.dart';
 import '../keybindings/chat_keybindings.dart';
 import '../l10n/l10n.dart';
 import '../sidebar/sidebar_menu.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'editor_launcher.dart';
 import 'workspace.dart';
@@ -67,7 +67,7 @@ class OpenInEditorButton extends StatelessWidget {
         height: 22,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: CursorColors.border),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -91,16 +91,16 @@ class OpenInEditorButton extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(editor.icon, size: 13, color: CursorColors.textMuted),
+                  Icon(editor.icon, size: 13, color: AppColors.textMuted),
                   const SizedBox(width: 5),
                   Text(
                     editor.localizedPlatformLabel(context.l10n),
-                    style: TextStyle(color: CursorColors.text, fontSize: 12),
+                    style: TextStyle(color: AppColors.text, fontSize: 12),
                   ),
                 ],
               ),
             ),
-            Container(width: 1, color: CursorColors.border),
+            Container(width: 1, color: AppColors.border),
             _Segment(
               semanticsLabel: context.l10n.workspaceChooseEditor,
               active: menu.isOpen,
@@ -112,7 +112,7 @@ class OpenInEditorButton extends StatelessWidget {
               child: Icon(
                 Icons.keyboard_arrow_down_rounded,
                 size: 15,
-                color: CursorColors.textMuted,
+                color: AppColors.textMuted,
               ),
             ),
           ],

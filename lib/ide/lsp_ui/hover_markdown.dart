@@ -24,7 +24,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:markdown/markdown.dart' as md;
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart';
 import '../../workspace/editor_launcher.dart';
 
@@ -39,7 +39,7 @@ typedef IdeCodeColorizer = Future<List<List<TextSpan>>?> Function(
 /// The editor's font for code in hovers (`applyFontInfo`), and the size
 /// the hover's text takes from it (`contentHoverWidget.ts`).
 const ideHoverCodeStyle = TextStyle(
-  fontFamily: CursorFonts.mono,
+  fontFamily: AppFonts.mono,
   fontSize: 13,
   height: 1.45,
 );

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../chat/floating/floating_layer.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/floating/floating_registry.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 
 class SidebarMenuItem {
@@ -190,7 +190,7 @@ class _MenuRowState extends State<_MenuRow> {
                 Icon(
                   icon,
                   size: 14,
-                  color: item.destructive ? color : CursorColors.textMuted,
+                  color: item.destructive ? color : AppColors.textMuted,
                 ),
                 const SizedBox(width: 8),
               ],

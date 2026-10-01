@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
 import '../../sidebar/sidebar_menu.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../chat_models.dart';
 import '../floating/floating_placement.dart';
 import 'hover_builder.dart';
@@ -98,7 +98,7 @@ class CommandStep extends StatelessWidget {
                     children: [
                       TextSpan(
                         text: '\$ ',
-                        style: TextStyle(color: CursorColors.textFaint),
+                        style: TextStyle(color: AppColors.textFaint),
                       ),
                       ...highlightShell(command),
                     ],
@@ -172,7 +172,7 @@ class _CommandMenu extends StatelessWidget {
               height: 22,
               decoration: BoxDecoration(
                 color: hovered || menu.isOpen
-                    ? CursorColors.hover
+                    ? AppColors.hover
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(5),
               ),
@@ -180,8 +180,8 @@ class _CommandMenu extends StatelessWidget {
                 Icons.more_horiz_rounded,
                 size: 16,
                 color: hovered || menu.isOpen
-                    ? CursorColors.text
-                    : CursorColors.textMuted,
+                    ? AppColors.text
+                    : AppColors.textMuted,
               ),
             ),
           ),

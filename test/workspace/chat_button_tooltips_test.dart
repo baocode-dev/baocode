@@ -18,7 +18,7 @@ import 'package:monad/keybindings/chat_keybindings.dart';
 import 'package:monad/keybindings/keybinding_entry.dart';
 import 'package:monad/keybindings/keybinding_service.dart';
 import 'package:monad/main.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 import 'package:monad/workspace/back_to_chat_button.dart';
 import 'package:monad/workspace/chat_grid.dart';
 import 'package:monad/workspace/editor_launcher.dart';
@@ -202,7 +202,7 @@ void main() {
     ) async {
       await tester.pumpWidget(
         MaterialApp(
-          theme: buildCursorTheme(),
+          theme: buildAppTheme(),
           home: Scaffold(
             body: InteractionPanel(request: request, onAnswer: (_) {}),
           ),
@@ -248,7 +248,7 @@ void main() {
     addTearDown(session.dispose);
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildCursorTheme(),
+        theme: buildAppTheme(),
         localizationsDelegates: const [FlutterQuillLocalizations.delegate],
         home: ChatScreen(session: session),
       ),

@@ -11,7 +11,7 @@ import 'package:monad/chat/widgets/step_header.dart';
 import 'package:monad/chat/widgets/wheel_latch.dart';
 import 'package:monad/ide/terminal/terminal_colors.dart';
 import 'package:monad/kernel/kernel_types.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 
 /// [item] as the history shows it, opened or not; taps toggle it.
 Future<void> pumpStep(WidgetTester tester, ChatItem item) async {
@@ -375,11 +375,11 @@ void main() {
       );
       Color? colorOf(String text) =>
           spans.firstWhere((span) => span.text!.trim() == text).style?.color;
-      expect(colorOf('cd'), CursorColors.syntaxCommand);
-      expect(colorOf('grep'), CursorColors.syntaxCommand);
-      expect(colorOf('head'), CursorColors.syntaxCommand);
-      expect(colorOf('"metadata"'), CursorColors.syntaxString);
-      expect(colorOf('-rn'), CursorColors.syntaxOption);
+      expect(colorOf('cd'), AppColors.syntaxCommand);
+      expect(colorOf('grep'), AppColors.syntaxCommand);
+      expect(colorOf('head'), AppColors.syntaxCommand);
+      expect(colorOf('"metadata"'), AppColors.syntaxString);
+      expect(colorOf('-rn'), AppColors.syntaxOption);
       expect(
         spans.map((span) => span.text).join(),
         'cd /tmp && grep -rn "metadata" .gitignore | head -5',

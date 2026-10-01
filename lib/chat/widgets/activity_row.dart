@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import 'markdown_view.dart';
 import 'step_header.dart';
 import 'thinking_spark.dart';
@@ -352,7 +352,7 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
       );
     }
     final scaler = MediaQuery.textScalerOf(context);
-    final color = style.color ?? CursorColors.text;
+    final color = style.color ?? AppColors.text;
     return LayoutBuilder(
       builder: (context, constraints) {
         final text = '$_phrase$_dots';

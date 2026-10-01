@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
 /// Inline editor for a title, with it all selected: Enter or leaving it
@@ -19,7 +19,7 @@ class InlineRenameField extends StatefulWidget {
   /// The new text, or null when cancelled.
   final ValueChanged<String?> onDone;
 
-  /// [CursorColors.textPrimary] at 12.5 when null.
+  /// [AppColors.textPrimary] at 12.5 when null.
   final TextStyle? style;
 
   @override
@@ -77,8 +77,8 @@ class _InlineRenameFieldState extends State<InlineRenameField> {
         onSubmitted: _finish,
         style:
             widget.style ??
-            TextStyle(color: CursorColors.textPrimary, fontSize: 12.5),
-        cursorColor: CursorColors.text,
+            TextStyle(color: AppColors.textPrimary, fontSize: 12.5),
+        cursorColor: AppColors.text,
         cursorHeight: 14,
         decoration: InputDecoration(
           isDense: true,

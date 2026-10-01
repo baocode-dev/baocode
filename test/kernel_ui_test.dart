@@ -25,7 +25,7 @@ import 'package:monad/kernel/kernel_types.dart';
 import 'package:monad/kernel/mock/mock_kernels.dart';
 import 'package:monad/main.dart';
 import 'package:monad/sidebar/sidebar.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 import 'package:monad/workspace/workspace.dart';
 import 'package:monad/chat/agent_view.dart';
 import 'package:monad/kernel/claude_code/claude_code_kernel.dart';
@@ -40,7 +40,7 @@ Future<ChatSession> pumpSession(
   addTearDown(session.dispose);
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildCursorTheme(),
+      theme: buildAppTheme(),
       localizationsDelegates: const [FlutterQuillLocalizations.delegate],
       home: ChatScreen(session: session),
     ),
@@ -85,7 +85,7 @@ Future<({ChatSession session, FakeCli cli})> pumpScripted(
   addTearDown(session.dispose);
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildCursorTheme(),
+      theme: buildAppTheme(),
       localizationsDelegates: const [FlutterQuillLocalizations.delegate],
       home: ChatScreen(session: session),
     ),
@@ -325,7 +325,7 @@ void main() {
     addTearDown(session.dispose);
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildCursorTheme(),
+        theme: buildAppTheme(),
         home: Scaffold(
           body: ListenableBuilder(
             listenable: session,
@@ -778,7 +778,7 @@ void main() {
         .map((c) => (c.decoration as BoxDecoration?)?.color)
         .whereType<Color>()
         .first;
-    expect(highlighted, CursorColors.hover);
+    expect(highlighted, AppColors.hover);
   });
 
   testWidgets('Ask only discusses; approvals are picked apart from the mode', (
@@ -795,7 +795,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('How should Claude Code get approval?'), findsOneWidget);
     final fullAccess = tester.widget<Text>(find.text('Full access'));
-    expect(fullAccess.style?.color, CursorColors.caution);
+    expect(fullAccess.style?.color, AppColors.caution);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -872,7 +872,7 @@ void main() {
 
     // Away to another conversation and back: still open, as it was.
     Widget screen(Widget home) => MaterialApp(
-      theme: buildCursorTheme(),
+      theme: buildAppTheme(),
       localizationsDelegates: const [FlutterQuillLocalizations.delegate],
       home: home,
     );

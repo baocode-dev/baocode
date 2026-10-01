@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 
 /// Something running in the background, as a dot circling a faint ring:
 /// out there, on its own. Still where motion is turned down.
@@ -11,7 +11,7 @@ class OrbitIndicator extends StatefulWidget {
 
   final double size;
 
-  /// [CursorColors.textMuted] when null.
+  /// [AppColors.textMuted] when null.
   final Color? color;
 
   /// Once round.
@@ -51,7 +51,7 @@ class _OrbitIndicatorState extends State<OrbitIndicator>
       child: CustomPaint(
         painter: _OrbitPainter(
           _controller,
-          widget.color ?? CursorColors.textMuted,
+          widget.color ?? AppColors.textMuted,
         ),
       ),
     );

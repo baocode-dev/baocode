@@ -6,7 +6,7 @@ import 'workbench_theme.dart' hide ColorScheme;
 /// The app's colors, from the workbench's color theme: each is a VS Code
 /// color id's (see [WorkbenchThemeService]), so they follow the theme the
 /// user picks as VS Code's workbench does.
-abstract final class CursorColors {
+abstract final class AppColors {
   static WorkbenchColors get _colors => WorkbenchThemeService.instance.colors;
 
   /// The first of [ids] the theme or the registry gives a color.
@@ -131,7 +131,7 @@ abstract final class CursorColors {
 }
 
 /// Window chrome shared by the sidebar and the chat, so their edges line up.
-abstract final class CursorMetrics {
+abstract final class AppMetrics {
   /// The Flutter-drawn title bar, level with the native traffic lights.
   static const titleBarHeight = 30.0;
 
@@ -153,16 +153,16 @@ abstract final class CursorMetrics {
   static const windowButtonWidth = 46.0;
 
   /// The glyph one of those buttons shows, at the size Windows draws it (the
-  /// system's own font; see [CursorFonts.icons]).
+  /// system's own font; see [AppFonts.icons]).
   static const windowButtonGlyph = 10.0;
 }
 
-abstract final class CursorFonts {
+abstract final class AppFonts {
   /// The font code, paths and commands are drawn in, as macOS has it.
   static const mono = 'Menlo';
 
   /// What Windows falls back on. Set once, for all text, by the theme there
-  /// (see [buildCursorTheme]): a family the text names comes first, so this
+  /// (see [buildAppTheme]): a family the text names comes first, so this
   /// catches only what that family has not got.
   ///
   /// The monospaced families come first for [mono], which is Menlo, and which
@@ -197,22 +197,22 @@ abstract final class CursorFonts {
   static const iconFallbacks = <String>['Segoe MDL2 Assets'];
 }
 
-ThemeData buildCursorTheme() {
+ThemeData buildAppTheme() {
   final colors = WorkbenchThemeService.instance.colors;
   final brightness = colors.dark ? Brightness.dark : Brightness.light;
   return ThemeData(
     brightness: brightness,
     fontFamilyFallback: AppPlatform.isWindows
-        ? CursorFonts.windowsFallbacks
+        ? AppFonts.windowsFallbacks
         : null,
     // The conversation's own color is under it (see Workbench).
-    scaffoldBackgroundColor: CursorColors.windowCanvas,
+    scaffoldBackgroundColor: AppColors.windowCanvas,
     colorScheme: ColorScheme.fromSeed(
       seedColor: colors['button.background'],
       brightness: brightness,
-      surface: CursorColors.surface,
+      surface: AppColors.surface,
     ),
-    dividerColor: CursorColors.border,
+    dividerColor: AppColors.border,
     visualDensity: VisualDensity.compact,
     textSelectionTheme: TextSelectionThemeData(
       selectionColor: colors['editor.selectionBackground'],

@@ -10,7 +10,7 @@ import '../keybindings/key_chord.dart';
 import '../keybindings/keybinding_service.dart';
 import '../l10n/command_titles.dart';
 import '../l10n/l10n.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' hide ColorScheme;
 import 'editor/monaco/flutter/diff_editor.dart';
 import 'editor/monaco/flutter/diff_editor_model.dart';
@@ -1777,7 +1777,7 @@ class IdeEditorState extends State<IdeEditor> {
 
   TextStyle _editorStyle(WorkbenchColors colors) => TextStyle(
     color: colors['editor.foreground'],
-    fontFamily: CursorFonts.mono,
+    fontFamily: AppFonts.mono,
     fontSize: 13,
     height: 1.45,
   );
@@ -1920,7 +1920,7 @@ class IdeEditorState extends State<IdeEditor> {
                         onChanged: _changed,
                         style: TextStyle(
                           color: colors['editor.foreground'],
-                          fontFamily: CursorFonts.mono,
+                          fontFamily: AppFonts.mono,
                           fontSize: 13,
                           height: 1.45,
                         ),

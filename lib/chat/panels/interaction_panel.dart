@@ -5,7 +5,7 @@ import '../../ide/ide_hover.dart';
 import '../../kernel/kernel_types.dart';
 import '../../keybindings/chat_keybindings.dart';
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_keys.dart';
 import '../chat_models.dart';
@@ -283,13 +283,13 @@ class _InteractionPanelState extends State<InteractionPanel>
   // --- Building -----------------------------------------------------------------------
 
   (IconData, Color) get _icon => switch (widget.request) {
-    QuestionRequest() => (Icons.help_outline_rounded, CursorColors.accent),
+    QuestionRequest() => (Icons.help_outline_rounded, AppColors.accent),
     // Waiting on the user, as the agent sessions list shows it.
     ApprovalRequest() => (
       Icons.shield_outlined,
       themeColors['list.warningForeground'],
     ),
-    PlanReviewRequest() => (Icons.checklist_rounded, CursorColors.accent),
+    PlanReviewRequest() => (Icons.checklist_rounded, AppColors.accent),
   };
 
   /// The context keys where the options' keys apply: they have the focus.
@@ -363,7 +363,7 @@ class _InteractionPanelState extends State<InteractionPanel>
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: CursorColors.text,
+                          color: AppColors.text,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -379,8 +379,8 @@ class _InteractionPanelState extends State<InteractionPanel>
                           height: 5,
                           decoration: BoxDecoration(
                             color: i <= _step
-                                ? CursorColors.accent
-                                : CursorColors.borderStrong,
+                                ? AppColors.accent
+                                : AppColors.borderStrong,
                             borderRadius: BorderRadius.circular(3),
                           ),
                         ),
@@ -392,7 +392,7 @@ class _InteractionPanelState extends State<InteractionPanel>
                 const SizedBox(width: 8),
                 Text(
                   context.l10n.interactionStepOf(_step + 1, total),
-                  style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
+                  style: TextStyle(color: AppColors.textFaint, fontSize: 11),
                 ),
               ],
             ],
@@ -432,7 +432,7 @@ class _InteractionPanelState extends State<InteractionPanel>
                               ],
                             ),
                             style: TextStyle(
-                              color: CursorColors.textPrimary,
+                              color: AppColors.textPrimary,
                               fontSize: 13.5,
                               height: 1.45,
                             ),
@@ -468,7 +468,7 @@ class _InteractionPanelState extends State<InteractionPanel>
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: CursorColors.textFaint,
+                          color: AppColors.textFaint,
                           fontSize: 11,
                         ),
                       ),
@@ -592,7 +592,7 @@ class _OptionRow extends StatelessWidget {
             color: selected
                 ? colors['list.activeSelectionBackground']
                 : highlighted
-                ? CursorColors.hover
+                ? AppColors.hover
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
@@ -619,8 +619,8 @@ class _OptionRow extends StatelessWidget {
                             color: selected
                                 ? colors['list.activeSelectionForeground']
                                 : highlighted
-                                ? CursorColors.textPrimary
-                                : CursorColors.text,
+                                ? AppColors.textPrimary
+                                : AppColors.text,
                             fontSize: 13,
                           ),
                         ),
@@ -629,7 +629,7 @@ class _OptionRow extends StatelessWidget {
                           Text(
                             row.description,
                             style: TextStyle(
-                              color: CursorColors.textMuted,
+                              color: AppColors.textMuted,
                               fontSize: 12,
                               height: 1.4,
                             ),
@@ -673,15 +673,11 @@ class _OptionRow extends StatelessWidget {
                         fillColor: colors['input.background'],
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
-                          borderSide: BorderSide(
-                            color: CursorColors.borderStrong,
-                          ),
+                          borderSide: BorderSide(color: AppColors.borderStrong),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
-                          borderSide: BorderSide(
-                            color: CursorColors.borderStrong,
-                          ),
+                          borderSide: BorderSide(color: AppColors.borderStrong),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
@@ -755,7 +751,7 @@ class _ApprovalPreview extends StatelessWidget {
   final ApprovalPreview? preview;
 
   static const _mono = TextStyle(
-    fontFamily: CursorFonts.mono,
+    fontFamily: AppFonts.mono,
     fontSize: 12,
     height: 1.5,
   );
@@ -772,7 +768,7 @@ class _ApprovalPreview extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 6),
               child: Text(
                 description,
-                style: TextStyle(color: CursorColors.textMuted, fontSize: 12.5),
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12.5),
               ),
             ),
           _Box(
@@ -782,11 +778,11 @@ class _ApprovalPreview extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: '\$ ',
-                    style: TextStyle(color: CursorColors.textFaint),
+                    style: TextStyle(color: AppColors.textFaint),
                   ),
                   TextSpan(
                     text: command,
-                    style: TextStyle(color: CursorColors.textPrimary),
+                    style: TextStyle(color: AppColors.textPrimary),
                   ),
                 ],
               ),
@@ -801,7 +797,7 @@ class _ApprovalPreview extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
               path,
-              style: _mono.copyWith(color: CursorColors.textMuted),
+              style: _mono.copyWith(color: AppColors.textMuted),
             ),
           ),
           _Box(
@@ -811,8 +807,8 @@ class _ApprovalPreview extends StatelessWidget {
                 for (final line in lines.take(80))
                   Container(
                     color: switch (line.type) {
-                      DiffLineType.added => CursorColors.addedBackground,
-                      DiffLineType.removed => CursorColors.removedBackground,
+                      DiffLineType.added => AppColors.addedBackground,
+                      DiffLineType.removed => AppColors.removedBackground,
                       DiffLineType.context => null,
                     },
                     child: Text(
@@ -823,9 +819,9 @@ class _ApprovalPreview extends StatelessWidget {
                       }} ${line.text}',
                       style: _mono.copyWith(
                         color: switch (line.type) {
-                          DiffLineType.added => CursorColors.added,
-                          DiffLineType.removed => CursorColors.removed,
-                          DiffLineType.context => CursorColors.text,
+                          DiffLineType.added => AppColors.added,
+                          DiffLineType.removed => AppColors.removed,
+                          DiffLineType.context => AppColors.text,
                         },
                       ),
                     ),
@@ -833,7 +829,7 @@ class _ApprovalPreview extends StatelessWidget {
                 if (lines.length > 80)
                   Text(
                     context.l10n.interactionMoreLines(lines.length - 80),
-                    style: _mono.copyWith(color: CursorColors.textFaint),
+                    style: _mono.copyWith(color: AppColors.textFaint),
                   ),
               ],
             ),
@@ -841,7 +837,7 @@ class _ApprovalPreview extends StatelessWidget {
         ],
       ),
       TextPreview(:final text) => _Box(
-        child: Text(text, style: _mono.copyWith(color: CursorColors.text)),
+        child: Text(text, style: _mono.copyWith(color: AppColors.text)),
       ),
     };
   }
@@ -857,7 +853,7 @@ class _PlanPreview extends StatelessWidget {
     return _Box(
       maxHeight: 200,
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      color: CursorColors.background,
+      color: AppColors.background,
       child: MarkdownView(plan),
     );
   }
@@ -875,7 +871,7 @@ class _Box extends StatelessWidget {
   final double maxHeight;
   final EdgeInsets padding;
 
-  /// [CursorColors.code] when null.
+  /// [AppColors.code] when null.
   final Color? color;
 
   @override
@@ -883,9 +879,9 @@ class _Box extends StatelessWidget {
     return Container(
       constraints: BoxConstraints(maxHeight: maxHeight),
       decoration: BoxDecoration(
-        color: color ?? CursorColors.code,
+        color: color ?? AppColors.code,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: CursorColors.border),
+        border: Border.all(color: AppColors.border),
       ),
       child: SingleChildScrollView(padding: padding, child: child),
     );

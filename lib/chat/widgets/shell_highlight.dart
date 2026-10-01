@@ -1,15 +1,15 @@
 import 'package:flutter/painting.dart';
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 
 /// [command] colored as a shell reads it: the program each pipeline stage
 /// runs, quoted strings, options. A light tokenizer, not a parser: anything
 /// it does not know stays plain.
 List<TextSpan> highlightShell(String command) {
-  final plain = TextStyle(color: CursorColors.textPrimary);
-  final program = TextStyle(color: CursorColors.syntaxCommand);
-  final string = TextStyle(color: CursorColors.syntaxString);
-  final option = TextStyle(color: CursorColors.syntaxOption);
+  final plain = TextStyle(color: AppColors.textPrimary);
+  final program = TextStyle(color: AppColors.syntaxCommand);
+  final string = TextStyle(color: AppColors.syntaxString);
+  final option = TextStyle(color: AppColors.syntaxOption);
 
   final spans = <TextSpan>[];
   void add(String text, TextStyle style) {

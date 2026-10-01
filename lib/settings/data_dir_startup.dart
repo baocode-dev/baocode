@@ -9,7 +9,7 @@ import '../ide/ide_dialog.dart';
 import '../l10n/l10n.dart';
 import '../platform/data_dir.dart';
 import '../theme/codicons.dart';
-import '../theme/cursor_theme.dart';
+import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/window_controls.dart';
 import 'app_locale.dart';
@@ -57,7 +57,7 @@ class DataDirectoryRecoveryApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Monad',
     debugShowCheckedModeBanner: false,
-    theme: buildCursorTheme(),
+    theme: buildAppTheme(),
     // The display language setting is in the folder that is not there:
     // the system's language.
     supportedLocales: AppLocale.supportedLocales,
@@ -206,13 +206,13 @@ class _DataDirectoryRecoveryState extends State<DataDirectoryRecovery> {
     };
     TextStyle text({Color? color, double size = 13, FontWeight? weight}) =>
         TextStyle(
-          color: color ?? CursorColors.text,
+          color: color ?? AppColors.text,
           fontSize: size,
           height: 1.5,
           fontWeight: weight,
         );
     return Scaffold(
-      backgroundColor: CursorColors.background,
+      backgroundColor: AppColors.background,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -220,9 +220,9 @@ class _DataDirectoryRecoveryState extends State<DataDirectoryRecovery> {
             constraints: const BoxConstraints(maxWidth: 560),
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
             decoration: BoxDecoration(
-              color: CursorColors.surface,
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: CursorColors.border),
+              border: Border.all(color: AppColors.border),
               boxShadow: [
                 BoxShadow(
                   color: colors['widget.shadow'],
@@ -251,7 +251,7 @@ class _DataDirectoryRecoveryState extends State<DataDirectoryRecovery> {
                       child: Text(
                         title,
                         style: text(
-                          color: CursorColors.textPrimary,
+                          color: AppColors.textPrimary,
                           size: 15,
                           weight: FontWeight.w600,
                         ),
@@ -263,19 +263,15 @@ class _DataDirectoryRecoveryState extends State<DataDirectoryRecovery> {
                 if (problem.problem != DataDirectoryProblem.invalidPointer)
                   SelectableText(
                     problem.path,
-                    style: text(size: 12)
-                        .copyWith(fontFamily: CursorFonts.mono),
+                    style: text(size: 12).copyWith(fontFamily: AppFonts.mono),
                   ),
                 SelectableText(error, style: text()),
                 const SizedBox(height: 6),
-                Text(
-                  where,
-                  style: text(color: CursorColors.textMuted, size: 12),
-                ),
+                Text(where, style: text(color: AppColors.textMuted, size: 12)),
                 const SizedBox(height: 6),
                 Text(
                   l10n.dataDirDefaultIs(problem.defaultPath),
-                  style: text(color: CursorColors.textMuted, size: 12),
+                  style: text(color: AppColors.textMuted, size: 12),
                 ),
                 if (_choiceError case final error?) ...[
                   const SizedBox(height: 10),

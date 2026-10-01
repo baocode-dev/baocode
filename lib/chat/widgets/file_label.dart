@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 
 /// The file's Material Icon Theme icon, followed by the file name.
@@ -22,7 +22,7 @@ class FileLabel extends StatelessWidget {
             fileName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: CursorColors.text, fontSize: fontSize),
+            style: TextStyle(color: AppColors.text, fontSize: fontSize),
           ),
         ),
       ],

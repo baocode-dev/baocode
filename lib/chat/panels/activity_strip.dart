@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../ide/ide_hover.dart';
 import '../../kernel/kernel_types.dart';
@@ -91,12 +91,12 @@ class _ActivityStripState extends State<ActivityStrip> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: CursorColors.surface,
+        color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
         border: Border(
-          top: BorderSide(color: CursorColors.borderStrong),
-          left: BorderSide(color: CursorColors.borderStrong),
-          right: BorderSide(color: CursorColors.borderStrong),
+          top: BorderSide(color: AppColors.borderStrong),
+          left: BorderSide(color: AppColors.borderStrong),
+          right: BorderSide(color: AppColors.borderStrong),
         ),
       ),
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -178,7 +178,7 @@ class _StripRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 7),
           decoration: BoxDecoration(
             color: hovered && onTap != null
-                ? CursorColors.hover
+                ? AppColors.hover
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
           ),
@@ -219,13 +219,13 @@ class _TaskRow extends StatelessWidget {
                   padding: EdgeInsets.all(1.5),
                   child: CircularProgressIndicator(
                     strokeWidth: 1.6,
-                    color: CursorColors.textMuted,
+                    color: AppColors.textMuted,
                   ),
                 ),
         ),
         const SizedBox(width: 8),
         if (task.kind != KernelTaskKind.agent) ...[
-          Icon(Icons.terminal_rounded, size: 13, color: CursorColors.textFaint),
+          Icon(Icons.terminal_rounded, size: 13, color: AppColors.textFaint),
           const SizedBox(width: 5),
         ],
         // All the room there is, so the action sits at the end (a Flexible
@@ -239,9 +239,9 @@ class _TaskRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: CursorColors.text,
+                    color: AppColors.text,
                     fontFamily: task.kind == KernelTaskKind.command
-                        ? CursorFonts.mono
+                        ? AppFonts.mono
                         : null,
                     fontSize: 11.5,
                   ),
@@ -250,7 +250,7 @@ class _TaskRow extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 context.l10n.stripRunningElapsed(elapsed),
-                style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
+                style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
               ),
             ],
           ),
@@ -290,7 +290,7 @@ class _IconAction extends StatelessWidget {
           onTap: onTap,
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
-            child: Icon(icon, size: 14, color: CursorColors.textFaint),
+            child: Icon(icon, size: 14, color: AppColors.textFaint),
           ),
         ),
       ),
@@ -330,7 +330,7 @@ class _FilesHeader extends StatelessWidget {
                 child: Icon(
                   Icons.chevron_right_rounded,
                   size: 16,
-                  color: CursorColors.textMuted,
+                  color: AppColors.textMuted,
                 ),
               ),
               const SizedBox(width: 4),
@@ -340,7 +340,7 @@ class _FilesHeader extends StatelessWidget {
                   maxLines: 1,
                   softWrap: false,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: CursorColors.text, fontSize: 12),
+                  style: TextStyle(color: AppColors.text, fontSize: 12),
                 ),
               ),
               const SizedBox(width: 8),
@@ -348,7 +348,7 @@ class _FilesHeader extends StatelessWidget {
                 '+$added',
                 style: TextStyle(
                   color: themeColors['chat.linesAddedForeground'],
-                  fontFamily: CursorFonts.mono,
+                  fontFamily: AppFonts.mono,
                   fontSize: 11.5,
                 ),
               ),
@@ -357,7 +357,7 @@ class _FilesHeader extends StatelessWidget {
                 '-$removed',
                 style: TextStyle(
                   color: themeColors['chat.linesRemovedForeground'],
-                  fontFamily: CursorFonts.mono,
+                  fontFamily: AppFonts.mono,
                   fontSize: 11.5,
                 ),
               ),
@@ -410,7 +410,7 @@ class _FileRow extends StatelessWidget {
             change.directory,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: CursorColors.textFaint, fontSize: 11.5),
+            style: TextStyle(color: AppColors.textFaint, fontSize: 11.5),
           ),
         ),
         // A count of none is left out.
@@ -419,7 +419,7 @@ class _FileRow extends StatelessWidget {
             '+${change.added}',
             style: TextStyle(
               color: themeColors['chat.linesAddedForeground'],
-              fontFamily: CursorFonts.mono,
+              fontFamily: AppFonts.mono,
               fontSize: 11,
             ),
           ),
@@ -429,7 +429,7 @@ class _FileRow extends StatelessWidget {
             '-${change.removed}',
             style: TextStyle(
               color: themeColors['chat.linesRemovedForeground'],
-              fontFamily: CursorFonts.mono,
+              fontFamily: AppFonts.mono,
               fontSize: 11,
             ),
           ),

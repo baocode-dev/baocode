@@ -10,7 +10,7 @@ import 'package:monad/keybindings/keybindings_editing.dart';
 import 'package:monad/settings/jsonc.dart';
 import 'package:monad/settings/jsonc_file.dart';
 import 'package:monad/settings/pages/keybindings_page.dart';
-import 'package:monad/theme/cursor_theme.dart';
+import 'package:monad/theme/app_theme.dart';
 
 const _toggleSidebar = 'workbench.action.toggleSidebarVisibility';
 const _toggleSidebarTitle = 'View: Toggle Primary Side Bar Visibility';
@@ -343,7 +343,7 @@ void main() {
     final id = find.text('workbench.action.toggleAgentsFromKeyboard');
     expect(id, findsOneWidget);
     expect(find.text('Not supported'), findsOneWidget);
-    expect(tester.widget<Text>(id).style?.color, CursorColors.textFaint);
+    expect(tester.widget<Text>(id).style?.color, AppColors.textFaint);
     expect(find.text('User'), findsOneWidget);
 
     Finder warning(String containing) => find.byWidgetPredicate(

@@ -42,7 +42,7 @@ namespace {
 
 /// Which system backdrop DWM draws in the frame extended into the client.
 /// Windows 11 build 22523. Acrylic blurs what is behind the window, which
-/// is the material the sidebar tints (see CursorColors.sidebarSurface).
+/// is the material the sidebar tints (see AppColors.sidebarSurface).
 #ifndef DWMWA_SYSTEMBACKDROP_TYPE
 #define DWMWA_SYSTEMBACKDROP_TYPE 38
 #endif
@@ -152,7 +152,7 @@ void AskForAccentAcrylic(HWND window) {
 //
 // On Windows 11 the frame is the whole client, a sheet of glass, and the
 // backdrop behind it is acrylic: what the sidebar and the conversation tint
-// (see CursorColors). Elsewhere it is one pixel of each side, the window's
+// (see AppColors). Elsewhere it is one pixel of each side, the window's
 // own edge and nothing the app paints under.
 void AskForSystemFrame(HWND window) {
   const DWORD build = WindowsBuild();

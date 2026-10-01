@@ -62,7 +62,7 @@ abstract final class ComposerMockData {
     ),
     Suggestion(
       kind: SuggestionKind.file,
-      label: 'cursor_theme.dart',
+      label: 'app_theme.dart',
       detail: 'lib/theme',
     ),
     Suggestion(kind: SuggestionKind.file, label: 'main.dart', detail: 'lib'),

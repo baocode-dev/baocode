@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import '../step_folds.dart';
@@ -71,11 +71,8 @@ class StepsFoldLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final count = TextStyle(
-      color: CursorColors.text,
-      fontWeight: FontWeight.w600,
-    );
-    final faint = TextStyle(color: CursorColors.textFaint);
+    final count = TextStyle(color: AppColors.text, fontWeight: FontWeight.w600);
+    final faint = TextStyle(color: AppColors.textFaint);
     final actions = _actions(tally, l10n);
     return _FoldSemantics(
       expanded: expanded,
@@ -156,8 +153,8 @@ class WorkFoldLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final faint = TextStyle(color: CursorColors.textFaint);
-    const count = TextStyle(fontFamily: CursorFonts.mono, fontSize: 11.5);
+    final faint = TextStyle(color: AppColors.textFaint);
+    const count = TextStyle(fontFamily: AppFonts.mono, fontSize: 11.5);
     final header = StepHeader(
       verb: text(worked, edits, l10n: l10n),
       expanded: expanded,
@@ -199,7 +196,7 @@ class WorkFoldLine extends StatelessWidget {
               child: header,
             ),
             const SizedBox(width: 10),
-            Expanded(child: Container(height: 1, color: CursorColors.border)),
+            Expanded(child: Container(height: 1, color: AppColors.border)),
           ],
         ),
       ),

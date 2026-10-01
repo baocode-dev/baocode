@@ -57,7 +57,7 @@ import '../../keybindings/keybindings_editing.dart';
 import '../../l10n/command_titles.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../jsonc_file.dart' show JsoncFileException;
 
@@ -796,7 +796,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
             child: Text(
               context.l10n.settingsSectionKeyboard,
               style: TextStyle(
-                color: CursorColors.textPrimary,
+                color: AppColors.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
@@ -849,7 +849,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
           children: [
             Text(
               l10n.kbKeymap,
-              style: TextStyle(color: CursorColors.textMuted, fontSize: 12),
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
             ),
             const SizedBox(width: 8),
             _KeymapPicker(
@@ -919,7 +919,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: CursorColors.textMuted,
+          color: AppColors.textMuted,
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
@@ -928,7 +928,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
     return Container(
       height: 26,
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: CursorColors.border)),
+        border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Row(
         children: [
@@ -961,7 +961,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
         padding: const EdgeInsets.all(_inset),
         child: Text(
           context.l10n.kbNoneFound,
-          style: TextStyle(color: CursorColors.textMuted, fontSize: 12),
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
         ),
       );
     }
@@ -1068,7 +1068,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: faint ? CursorColors.textFaint : foreground,
+                    color: faint ? AppColors.textFaint : foreground,
                     fontSize: 13,
                     height: 17 / 13,
                   ),
@@ -1086,9 +1086,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: faint
-                    ? CursorColors.textFaint
-                    : IdeListColors.description,
+                color: faint ? AppColors.textFaint : IdeListColors.description,
                 fontSize: 11,
                 height: 14 / 11,
               ),
@@ -1179,7 +1177,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: row.supported ? foreground : CursorColors.textFaint,
+                color: row.supported ? foreground : AppColors.textFaint,
                 fontSize: 12,
               ),
             ),
@@ -1259,7 +1257,7 @@ class _KeymapPickerState extends State<_KeymapPicker> {
               border: Border.all(
                 color: _hover
                     ? colors['focusBorder']
-                    : colors.get('dropdown.border') ?? CursorColors.border,
+                    : colors.get('dropdown.border') ?? AppColors.border,
               ),
             ),
             child: Row(
@@ -1324,12 +1322,12 @@ class _NotSupportedTag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: CursorColors.border),
+        border: Border.all(color: AppColors.border),
       ),
       child: Text(
         context.l10n.kbNotSupported,
         style: TextStyle(
-          color: CursorColors.textMuted,
+          color: AppColors.textMuted,
           fontSize: 10.5,
           height: 15 / 10.5,
         ),
@@ -1492,7 +1490,7 @@ class _DefineKeybindingDialogState extends State<DefineKeybindingDialog> {
               color: colors['editorWidget.background'],
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: colors.get('editorWidget.border') ?? CursorColors.border,
+                color: colors.get('editorWidget.border') ?? AppColors.border,
               ),
               boxShadow: [
                 BoxShadow(
@@ -1560,7 +1558,7 @@ class _DefineKeybindingDialogState extends State<DefineKeybindingDialog> {
                         child: Text(
                           context.l10n.kbExistingCommands(existing),
                           style: TextStyle(
-                            color: CursorColors.accent,
+                            color: AppColors.accent,
                             fontSize: 12,
                           ),
                         ),

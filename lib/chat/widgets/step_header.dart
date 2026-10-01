@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import 'hover_builder.dart';
 import 'shimmer_text.dart';
 import 'wheel_latch.dart';
@@ -65,7 +65,7 @@ class StepHeader extends StatelessWidget {
             TextSpan(children: spans),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: CursorColors.textMuted, fontSize: fontSize),
+            style: TextStyle(color: AppColors.textMuted, fontSize: fontSize),
           )
         : running
         ? ShimmerText(
@@ -78,19 +78,19 @@ class StepHeader extends StatelessWidget {
               children: [
                 TextSpan(
                   text: verb,
-                  style: TextStyle(color: CursorColors.text),
+                  style: TextStyle(color: AppColors.text),
                 ),
                 if (object.isNotEmpty) TextSpan(text: ' $object'),
                 if (detail case final detail? when detail.isNotEmpty)
                   TextSpan(
                     text: ' $detail',
-                    style: TextStyle(color: CursorColors.textFaint),
+                    style: TextStyle(color: AppColors.textFaint),
                   ),
               ],
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: CursorColors.textMuted, fontSize: fontSize),
+            style: TextStyle(color: AppColors.textMuted, fontSize: fontSize),
           );
     final header = HoverBuilder(
       cursor: toggle == null ? MouseCursor.defer : SystemMouseCursors.click,
@@ -120,7 +120,7 @@ class StepHeader extends StatelessWidget {
                   child: Icon(
                     Icons.chevron_right_rounded,
                     size: 16,
-                    color: hovered ? CursorColors.text : CursorColors.textMuted,
+                    color: hovered ? AppColors.text : AppColors.textMuted,
                   ),
                 ),
               ),
@@ -211,9 +211,9 @@ class StepBody extends StatelessWidget {
       width: double.infinity,
       margin: const EdgeInsets.only(top: 2, bottom: 6),
       decoration: BoxDecoration(
-        color: CursorColors.code,
+        color: AppColors.code,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: CursorColors.border),
+        border: Border.all(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -238,8 +238,8 @@ class StepBody extends StatelessWidget {
 
 /// Monospaced text as steps show it: commands, output, matches.
 TextStyle get stepMono => TextStyle(
-  fontFamily: CursorFonts.mono,
+  fontFamily: AppFonts.mono,
   fontSize: 12,
   height: 1.5,
-  color: CursorColors.textMuted,
+  color: AppColors.textMuted,
 );

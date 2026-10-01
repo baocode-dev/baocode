@@ -6,7 +6,7 @@ import '../../chat/floating/floating_placement.dart';
 import '../../chat/floating/floating_registry.dart';
 import '../../chat/widgets/hover_builder.dart';
 import '../../l10n/l10n.dart';
-import '../../theme/cursor_theme.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'header_menu.dart';
 
@@ -223,7 +223,7 @@ class _MenuRow extends StatelessWidget {
                   Text(
                     shortcut,
                     style: TextStyle(
-                      color: CursorColors.textFaint,
+                      color: AppColors.textFaint,
                       fontSize: 11.5,
                     ),
                   ),
