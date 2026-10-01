@@ -8,7 +8,9 @@ import 'system_sounds_stub.dart'
 
 /// The sounds `notifications.sound` can name, and playing them.
 abstract final class NotificationSound {
-  /// The app's own "ding" (tool/generate_notification_sound.dart).
+  /// The default: a microwave timer's bell, "Microwave Timer" by
+  /// Universfield (Pixabay, Pixabay Content License), as a WAV file, which
+  /// Windows plays from memory as it is.
   static const microwaveAsset = 'assets/sounds/microwave.wav';
 
   static Future<Uint8List>? _microwave;

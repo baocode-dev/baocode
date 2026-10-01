@@ -93,7 +93,7 @@ class AttentionSettings {
 /// What `notifications.sound` holds: [microwave], [none], a system sound
 /// ([system]) or a sound file's path.
 abstract final class NotificationSoundValue {
-  /// The app's own "ding" (assets/sounds/microwave.wav).
+  /// The app's own, a microwave timer's "ding" (assets/sounds/microwave.wav).
   static const microwave = 'microwave';
 
   /// No sound.
