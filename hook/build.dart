@@ -2,6 +2,8 @@ import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
 import 'package:native_toolchain_c/native_toolchain_c.dart';
 
+import 'windows_vswhere.dart';
+
 /// Builds the native code, for the app and for `flutter test` alike: the
 /// pseudo terminal's native half (native/pty) for macOS and Linux (Windows
 /// needs none: its ConPTY is in kernel32), and Oniguruma with its scanner
@@ -20,6 +22,9 @@ void main(List<String> arguments) async {
       ).run(input: input, output: output);
     }
     if (os == OS.macOS || os == OS.linux || os == OS.windows) {
+      if (os == OS.windows) {
+        await configureWindowsCompiler(input.config);
+      }
       await CBuilder.library(
         name: 'monad_onig',
         assetName: 'ide/editor/textmate/oniguruma/onig_native.dart',
