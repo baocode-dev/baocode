@@ -114,6 +114,15 @@ class MainFlutterWindow: NSWindow {
         }
       case "readPasteboardImages":
         result(Self.pasteboardImages())
+      case "writePasteboardImage":
+        guard let arguments = call.arguments as? [String: Any],
+              let bytes = arguments["bytes"] as? FlutterStandardTypedData
+        else {
+          result(false)
+          return
+        }
+        result(Self.writePasteboardImage(
+          bytes.data, png: arguments["type"] as? String == "image/png"))
       case "canPaste":
         let pasteboard = NSPasteboard.general
         result(pasteboard.canReadObject(
@@ -254,6 +263,20 @@ class MainFlutterWindow: NSWindow {
 
   private static func pngData(_ data: Data) -> Data? {
     NSBitmapImageRep(data: data)?.representation(using: .png, properties: [:])
+  }
+
+  /// Puts an image's [data] on the clipboard, as PNG and TIFF: what apps
+  /// paste a picture from. False when it is no image.
+  private static func writePasteboardImage(_ data: Data, png: Bool) -> Bool {
+    guard let tiff = NSImage(data: data)?.tiffRepresentation,
+          let png = png ? data : pngData(tiff)
+    else { return false }
+    let item = NSPasteboardItem()
+    item.setData(png, forType: .png)
+    item.setData(tiff, forType: .tiff)
+    let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    return pasteboard.writeObjects([item])
   }
 
   /// Images on the clipboard: copied image files, or, when there is no

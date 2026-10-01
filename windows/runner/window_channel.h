@@ -23,6 +23,7 @@
 //   pickDirectory                 the folder the user chose, or null
 //   canPaste                      whether the clipboard holds anything
 //   readPasteboardImages          the images on the clipboard
+//   writePasteboardImage (…)      put an image on the clipboard
 //   showContextMenu (x, y, items) the item chosen from the system's menu
 //   open (target, app?, …)        the system opens it, in the app's own way
 //   setHitTestAreas (…)           where the header Flutter draws is, so the

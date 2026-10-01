@@ -1,6 +1,8 @@
 #ifndef RUNNER_CLIPBOARD_IMAGES_H_
 #define RUNNER_CLIPBOARD_IMAGES_H_
 
+#include <windows.h>
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -22,5 +24,12 @@ bool ClipboardHasContent();
 // wins over image data: apps put a picture of copied text (e.g. cells) beside
 // it.
 std::vector<ClipboardImage> ClipboardImages();
+
+// Puts the image in |bytes| (of |media_type|) on the clipboard, owned by
+// |owner|: as a bitmap with alpha (CF_DIBV5, which Windows offers as CF_DIB
+// too) and as PNG, what apps paste a picture from. False when it is no image
+// WIC can read, or the clipboard is not to be had.
+bool WriteClipboardImage(HWND owner, const std::vector<uint8_t>& bytes,
+                         const std::string& media_type);
 
 #endif  // RUNNER_CLIPBOARD_IMAGES_H_

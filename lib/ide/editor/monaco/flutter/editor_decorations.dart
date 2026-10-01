@@ -63,6 +63,9 @@ class EditorDecoration {
     this.lineDecorationColor,
     this.fillsLineOnLineBreak = false,
     this.marksEmpty = false,
+    this.afterText,
+    this.afterColor,
+    this.afterMargin = 0,
   });
 
   const EditorDecoration.findMatch(this.start, this.end)
@@ -79,7 +82,10 @@ class EditorDecoration {
       lineDecorationIcon = null,
       lineDecorationColor = null,
       fillsLineOnLineBreak = false,
-      marksEmpty = false;
+      marksEmpty = false,
+      afterText = null,
+      afterColor = null,
+      afterMargin = 0;
 
   const EditorDecoration.currentFindMatch(this.start, this.end)
     : kind = EditorDecorationKind.currentFindMatch,
@@ -95,7 +101,10 @@ class EditorDecoration {
       lineDecorationIcon = null,
       lineDecorationColor = null,
       fillsLineOnLineBreak = false,
-      marksEmpty = false;
+      marksEmpty = false,
+      afterText = null,
+      afterColor = null,
+      afterMargin = 0;
 
   final int start;
   final int end;
@@ -139,6 +148,14 @@ class EditorDecoration {
   /// An empty range shows as a 3px bar of the background (a diff's
   /// `diff-range-empty`).
   final bool marksEmpty;
+
+  /// Text painted [afterMargin] past the end of the line [end] is on, in
+  /// [afterColor] (VS Code's `renderOptions.after` with `contentText` on a
+  /// range at the line's end, e.g. Git blame): it takes no room in the
+  /// line, and the caret and the pointer do not see it.
+  final String? afterText;
+  final Color? afterColor;
+  final double afterMargin;
 
   EditorUnderlineStyle get resolvedUnderlineStyle =>
       underlineStyle ??
@@ -205,7 +222,10 @@ class EditorDecoration {
       other.lineDecorationIcon == lineDecorationIcon &&
       other.lineDecorationColor == lineDecorationColor &&
       other.fillsLineOnLineBreak == fillsLineOnLineBreak &&
-      other.marksEmpty == marksEmpty;
+      other.marksEmpty == marksEmpty &&
+      other.afterText == afterText &&
+      other.afterColor == afterColor &&
+      other.afterMargin == afterMargin;
 
   @override
   int get hashCode => Object.hash(
@@ -225,6 +245,9 @@ class EditorDecoration {
     lineDecorationColor,
     fillsLineOnLineBreak,
     marksEmpty,
+    afterText,
+    afterColor,
+    afterMargin,
   );
 }
 

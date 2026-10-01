@@ -1456,6 +1456,64 @@ void main() {
       kernel.dispose();
     });
 
+    test('a numbered image goes named, and comes back numbered', () async {
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(cli);
+      final image = ImageAttachment(
+        bytes: Uint8List.fromList(const [0x89, 0x50, 0x4E, 0x47, 1, 2, 3]),
+        mediaType: 'image/png',
+        number: 3,
+      );
+      kernel.send(
+        KernelTurn(id: 'u1', text: '[Image #3] 是什么', images: [image]),
+      );
+      await pumpEventQueue();
+      final content = ((cli.users.single['message'] as Map)['content'] as List)
+          .cast<Map<Object?, Object?>>();
+      expect(content.map((block) => block['type']), ['text', 'image', 'text']);
+      expect(content.first['text'], '[Image #3]');
+
+      cli.push({...cli.users.single, 'isReplay': true});
+      await pumpEventQueue();
+      final echoed = transcript.itemAt(0) as UserMessageItem;
+      expect(echoed.text, '[Image #3] 是什么', reason: 'its name is not text');
+      expect(echoed.images.single.number, 3);
+      kernel.dispose();
+    });
+
+    test('images pasted in Claude Code are numbered as it numbered them', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      )..replaying = true;
+      final picture = {
+        'type': 'image',
+        'source': {
+          'type': 'base64',
+          'media_type': 'image/png',
+          'data': base64Encode(const [0x89, 0x50, 0x4E, 0x47]),
+        },
+      };
+      translator.translate({
+        'type': 'user',
+        'uuid': 'p',
+        'imagePasteIds': [2, 3],
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': '[Image #3] 比 [Image #2] 好'},
+            picture,
+            picture,
+          ],
+        },
+      });
+      final message = transcript.itemAt(0) as UserMessageItem;
+      expect(message.text, '[Image #3] 比 [Image #2] 好');
+      expect(message.images.map((image) => image.number), [2, 3]);
+    });
+
     test(
       'suggests the next prompt once a turn ends, until one is sent',
       () async {

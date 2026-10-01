@@ -3278,6 +3278,12 @@ abstract class AppLocalizations {
   /// **'[Image {number}]'**
   String imageReferenceRemoved(int number);
 
+  /// Context menu item of an enlarged image: copies the image to the clipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Image'**
+  String get imageCopy;
+
   /// Part of a folded run of steps' line, e.g. "Read 3 files, ran 2 commands".
   ///
   /// In en, this message translates to:
@@ -4519,6 +4525,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Ignored in Git'**
   String get gitIgnoredInGit;
+
+  /// No description provided for @gitBlameNotCommittedYet.
+  ///
+  /// In en, this message translates to:
+  /// **'Not Committed Yet'**
+  String get gitBlameNotCommittedYet;
 
   /// No description provided for @gitContainsEmphasizedItems.
   ///
@@ -6182,6 +6194,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Toggle Format on Save'**
   String get cmdToggleFormatOnSave;
+
+  /// No description provided for @cmdToggleGitBlameEditorDecoration.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Git Blame Editor Decoration'**
+  String get cmdToggleGitBlameEditorDecoration;
 
   /// No description provided for @kbSourceDefault.
   ///

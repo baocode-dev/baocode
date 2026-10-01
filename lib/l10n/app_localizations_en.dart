@@ -1722,6 +1722,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get imageCopy => 'Copy Image';
+
+  @override
   String stepsRead(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2652,6 +2655,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get gitIgnoredInGit => 'Ignored in Git';
+
+  @override
+  String get gitBlameNotCommittedYet => 'Not Committed Yet';
 
   @override
   String get gitContainsEmphasizedItems => 'Contains emphasized items';
@@ -3741,6 +3747,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdToggleFormatOnSave => 'Toggle Format on Save';
+
+  @override
+  String get cmdToggleGitBlameEditorDecoration =>
+      'Toggle Git Blame Editor Decoration';
 
   @override
   String get kbSourceDefault => 'Default';

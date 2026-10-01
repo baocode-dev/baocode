@@ -532,6 +532,11 @@ final List<CommandInfo> workbenchExtraCommands = [
   // package.json).
   const CommandInfo('git.commit', 'Commit', category: _gitCategory),
   const CommandInfo(
+    'git.blame.toggleEditorDecoration',
+    'Toggle Git Blame Editor Decoration',
+    category: _gitCategory,
+  ),
+  const CommandInfo(
     'workbench.scm.focus',
     'Focus on Changes View',
     category: _sourceControl,

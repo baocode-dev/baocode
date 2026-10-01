@@ -131,6 +131,8 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'scm.clearValidation' => l10n.cmdScmClearValidation,
     'scm.clearInput' => l10n.cmdScmClearInput,
     'git.commit' => l10n.scmCommit,
+    'git.blame.toggleEditorDecoration' =>
+      l10n.cmdToggleGitBlameEditorDecoration,
     'workbench.action.problems.focus' => l10n.cmdProblemsFocus,
     'problems.action.open' => l10n.cmdProblemsOpen,
     'problems.action.copyMessage' => l10n.cmdProblemsCopyMessage,

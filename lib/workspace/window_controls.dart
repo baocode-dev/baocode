@@ -333,6 +333,21 @@ abstract final class WindowControls {
   static Future<List<ImageAttachment>> readPasteboardImages() =>
       _images('readPasteboardImages');
 
+  /// Puts [image] on the clipboard, as other apps paste a picture; whether
+  /// it could.
+  static Future<bool> writePasteboardImage(ImageAttachment image) async {
+    if (!isDesktop) return false;
+    try {
+      return await _channel.invokeMethod<bool>('writePasteboardImage', {
+            'bytes': image.bytes,
+            'type': image.mediaType,
+          }) ??
+          false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   static Future<List<ImageAttachment>> _images(String method) async {
     if (!isDesktop) return const [];
     try {

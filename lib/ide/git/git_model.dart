@@ -11,8 +11,9 @@
 // strike-through, priority, propagation; the status-to-group mapping),
 // extensions/git/src/decorationProvider.ts (later groups override earlier
 // ones; ignored files are dimmed), extensions/git/src/historyProvider.ts
-// (`_resolveHistoryItemRefs`) and src/vs/workbench/contrib/scm/browser/
-// scmHistory.ts (`toISCMHistoryItemViewModelArray`, swimlane colors).
+// (`_resolveHistoryItemRefs`), extensions/git/src/git.ts (`parseGitBlame`)
+// and src/vs/workbench/contrib/scm/browser/scmHistory.ts
+// (`toISCMHistoryItemViewModelArray`, swimlane colors).
 //
 // Deviations: untracked changes are always `mixed` into Changes (VS Code's
 // default); no submodule or worktree decorations.
@@ -634,6 +635,107 @@ List<IdeGitRef> _parseRefs(String decorations) {
   }
   refs.sort((a, b) => a.kind.index - b.kind.index);
   return refs;
+}
+
+/// The commit `git blame` gives the working tree's lines no commit has.
+const ideGitUncommittedHash = '0000000000000000000000000000000000000000';
+
+/// A commit's lines in a file's `git blame` (`BlameInformation`).
+class IdeGitBlameInformation {
+  IdeGitBlameInformation({
+    required this.hash,
+    required this.ranges,
+    this.subject,
+    this.authorName,
+    this.authorEmail,
+    this.authorDate,
+  });
+
+  final String hash;
+  final String? subject;
+  final String? authorName;
+  final String? authorEmail;
+  final DateTime? authorDate;
+
+  /// One-based, the end included.
+  final List<({int startLineNumber, int endLineNumber})> ranges;
+
+  /// Lines not committed yet ([ideGitUncommittedHash]).
+  bool get uncommitted => hash == ideGitUncommittedHash;
+}
+
+/// Parses `git blame --incremental` (`parseGitBlame`): a commit's
+/// properties come with its first range only.
+List<IdeGitBlameInformation> parseGitBlame(String data) {
+  final commitRegex = RegExp('^[0-9a-f]{40}');
+  final blameInformation = <String, IdeGitBlameInformation>{};
+
+  String? commitHash;
+  String? authorName;
+  String? authorEmail;
+  DateTime? authorTime;
+  String? message;
+  int? startLineNumber;
+  int? endLineNumber;
+
+  for (final line in data.split(RegExp(r'\r?\n'))) {
+    // Commit
+    if (commitHash == null && commitRegex.hasMatch(line)) {
+      final segments = line.split(' ');
+      commitHash = line.substring(0, 40);
+      final start = segments.length > 3 ? int.tryParse(segments[2]) : null;
+      final count = segments.length > 3 ? int.tryParse(segments[3]) : null;
+      startLineNumber = start;
+      endLineNumber = start == null || count == null ? null : start + count - 1;
+    }
+    if (commitHash == null) continue;
+
+    // Commit properties
+    if (line.startsWith('author ')) {
+      authorName = line.substring('author '.length);
+    } else if (line.startsWith('author-mail ')) {
+      final mail = line.substring('author-mail '.length);
+      authorEmail = mail.startsWith('<') && mail.endsWith('>')
+          ? mail.substring(1, mail.length - 1)
+          : mail;
+    } else if (line.startsWith('author-time ')) {
+      final seconds = int.tryParse(line.substring('author-time '.length));
+      authorTime = seconds == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+    } else if (line.startsWith('summary ')) {
+      message = line.substring('summary '.length);
+    }
+
+    // Commit end
+    if (startLineNumber != null &&
+        startLineNumber > 0 &&
+        endLineNumber != null &&
+        endLineNumber >= startLineNumber &&
+        line.startsWith('filename ')) {
+      final range = (
+        startLineNumber: startLineNumber,
+        endLineNumber: endLineNumber,
+      );
+      if (blameInformation[commitHash] case final existing?) {
+        existing.ranges.add(range);
+      } else {
+        blameInformation[commitHash] = IdeGitBlameInformation(
+          hash: commitHash,
+          authorName: authorName,
+          authorEmail: authorEmail,
+          authorDate: authorTime,
+          subject: message,
+          ranges: [range],
+        );
+      }
+      commitHash = authorName = authorEmail = message = null;
+      authorTime = null;
+      startLineNumber = endLineNumber = null;
+    }
+  }
+
+  return blameInformation.values.toList();
 }
 
 /// The graph's color ids (`ColorIdentifier`s), resolved when drawn.

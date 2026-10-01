@@ -32,6 +32,7 @@ import 'editor/monaco/vs/editor/common/languages/language_configuration_registry
     show plainTextLanguageConfiguration;
 import 'editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
 import 'editor/textmate/textmate_syntax.dart';
+import 'git/git_blame.dart';
 import 'ide_commands.dart';
 import 'ide_find_widget.dart';
 import 'ide_menu.dart';
@@ -76,6 +77,7 @@ class IdeEditor extends StatefulWidget {
     this.onShowReferences,
     this.onShowCommands,
     this.formatOnSave = false,
+    this.gitBlame = true,
     this.keyResolver,
   });
 
@@ -104,6 +106,10 @@ class IdeEditor extends StatefulWidget {
   /// Formats the document before saving (`editor.formatOnSave`, off by
   /// default) when a language server can.
   final bool formatOnSave;
+
+  /// Shows who last changed each line with a caret, when, and why, after
+  /// its end (`git.blame.editorDecoration.enabled`), in a repository.
+  final bool gitBlame;
 
   /// The app's keybindings (the workbench resolves them with its context):
   /// which command a key runs, the editor's own included. Without it the
@@ -158,6 +164,13 @@ class IdeEditorState extends State<IdeEditor> {
 
   /// Each open diff tab's diff and original side.
   final Map<IdeDocument, _DiffOriginal> _diffs = {};
+
+  /// The Git blame shown after the lines with a caret.
+  late final IdeGitBlameController _blame = IdeGitBlameController()
+    ..addListener(_rebuildSoon);
+
+  /// The carets last moved without an edit ([IdeGitBlameController.update]).
+  bool _caretsNavigated = false;
   EditorKeyChord? _pendingChord;
   bool _languageRebuildScheduled = false;
 
@@ -222,9 +235,28 @@ class IdeEditorState extends State<IdeEditor> {
     _themes.addListener(_colorThemeChanged);
     if (widget.nativeEditorEnabled) _activateNativeController();
     _selectionChanged();
+    _updateBlame(navigated: false);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.onLspStatus(_editorStatus);
     });
+  }
+
+  /// Shows [_blame] for the active document's carets, where it can be.
+  void _updateBlame({bool? navigated}) {
+    if (navigated != null) _caretsNavigated = navigated;
+    final controller = _nativeController;
+    final doc = widget.active;
+    if (!widget.gitBlame || controller == null || !doc.isFile) {
+      _blame.clear();
+      return;
+    }
+    _blame.update(
+      repository: widget.workspace.git,
+      path: doc.path,
+      model: doc.model,
+      selections: controller.selections,
+      navigated: _caretsNavigated,
+    );
   }
 
   void _activateNativeController() {
@@ -246,6 +278,7 @@ class IdeEditorState extends State<IdeEditor> {
           _snapshot = doc.model.snapshot;
           _selectionChanged();
           if (textChanged) _refreshFindResults();
+          _updateBlame(navigated: !textChanged);
         }
         if (textChanged) {
           widget.workspace.notifyDocumentChanged(doc);
@@ -933,6 +966,8 @@ class IdeEditorState extends State<IdeEditor> {
       _selectionChanged();
       _scheduleFindRefresh();
     }
+    // A save changes what is blamed.
+    _updateBlame(navigated: activeChanged ? false : null);
   }
 
   void _disposeNativeControllers() {
@@ -1052,6 +1087,9 @@ class IdeEditorState extends State<IdeEditor> {
     }
     _path = widget.active.path;
     if (changed) _scheduleFindRefresh();
+    if (changed || oldWidget.gitBlame != widget.gitBlame) {
+      _updateBlame(navigated: changed ? false : null);
+    }
     if (oldWidget.nativeEditorEnabled != widget.nativeEditorEnabled) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) widget.onLspStatus(_editorStatus);
@@ -1063,6 +1101,7 @@ class IdeEditorState extends State<IdeEditor> {
   void dispose() {
     widget.workspace.removeListener(_workspaceChanged);
     _themes.removeListener(_colorThemeChanged);
+    _blame.dispose();
     _disposeNativeControllers();
     _textMate.dispose();
     _findController.dispose();
@@ -1800,6 +1839,7 @@ class IdeEditorState extends State<IdeEditor> {
           ...?_language?.decorations,
           ..._snippetDecorations(_nativeController!, colors),
           ..._findDecorations,
+          ..._blameDecorations(colors),
         ],
         // A diff editor's editors fold nothing and have no minimap.
         viewZones: side?.zones ?? const [],
@@ -1819,6 +1859,32 @@ class IdeEditorState extends State<IdeEditor> {
             : SystemMouseCursors.click,
         style: _editorStyle(colors),
       );
+
+  /// [_blame]'s lines, each after its end (`GitBlameEditorDecoration`).
+  List<EditorDecoration> _blameDecorations(WorkbenchColors colors) {
+    final lines = _blame.lines;
+    if (lines.isEmpty) return const [];
+    final snapshot = widget.active.model.snapshot;
+    final color = colors['git.blame.editorDecorationForeground'];
+    return [
+      for (final line in lines)
+        if (line.lineNumber <= snapshot.lineCount)
+          EditorDecoration(
+            start: snapshot.contentEnds[line.lineNumber - 1],
+            end: snapshot.contentEnds[line.lineNumber - 1],
+            afterText: switch (line.commit) {
+              final commit? => formatGitBlame(
+                ideGitBlameTemplate,
+                commit,
+                l10n: _l10n,
+              ),
+              null => _l10n.gitBlameNotCommittedYet,
+            },
+            afterColor: color,
+            afterMargin: ideGitBlameMargin,
+          ),
+    ];
+  }
 
   /// A diff tab's editors: the original, read-only, and the document.
   Widget _diffEditor(WorkbenchColors colors, _DiffOriginal diff) {

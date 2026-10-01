@@ -275,6 +275,18 @@ void WindowChannel::HandleMethodCall(
     return;
   }
 
+  if (method == "writePasteboardImage") {
+    const auto found = arguments.find(flutter::EncodableValue("bytes"));
+    const auto* bytes =
+        found == arguments.end()
+            ? nullptr
+            : std::get_if<std::vector<uint8_t>>(&found->second);
+    result->Success(flutter::EncodableValue(
+        bytes != nullptr &&
+        WriteClipboardImage(window_, *bytes, String(arguments, "type"))));
+    return;
+  }
+
   if (method == "showContextMenu") {
     std::vector<ContextMenuItem> items;
     const auto found = arguments.find(flutter::EncodableValue("items"));

@@ -525,6 +525,27 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   final Map<Symbol, Object> _cache = {};
   int _cacheVersion = -1;
 
+  /// The number of the last image in the conversation (0 before any): a
+  /// new one is numbered on from it, as Claude Code numbers what is pasted.
+  /// Counts what its messages say (`[Image #3]`) too, as Claude Code does.
+  int get lastImageNumber => _cached(#lastImageNumber, () {
+    var last = 0;
+    for (var i = 0; i < _transcript.length; i++) {
+      if (_transcript.itemAt(i) case UserMessageItem(
+        :final text,
+        :final images,
+      )) {
+        for (final image in images) {
+          last = math.max(last, image.number ?? 0);
+        }
+        for (final match in imageReferencePattern.allMatches(text)) {
+          last = math.max(last, int.parse(match[1]!));
+        }
+      }
+    }
+    return last;
+  });
+
   T _cached<T extends Object>(Symbol key, T Function() compute) {
     if (_cacheVersion != _transcript.version) {
       _cache.clear();

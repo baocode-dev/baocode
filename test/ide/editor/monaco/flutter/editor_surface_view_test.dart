@@ -592,6 +592,45 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('after text is painted past the end of its line', (tester) async {
+    final controller = _controller('abc\nlonger line\nend');
+    controller.select(0, 0);
+    await _mount(
+      tester,
+      controller,
+      decorations: const [
+        EditorDecoration(
+          start: 15,
+          end: 15,
+          afterText: 'Ada, 2 days ago',
+          afterColor: Color(0xff808080),
+          afterMargin: 50,
+        ),
+      ],
+    );
+    final end = _painter<EditorTextPainter>(tester).layout
+        .caretRect(15, affinity: TextAffinity.upstream);
+    RenderObject text() => tester.renderObject(
+      find.descendant(
+        of: find.byType(EditorSurface),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is CustomPaint && widget.painter is EditorTextPainter,
+        ),
+      ),
+    );
+    bool afterText(Symbol method, List<dynamic> arguments) {
+      if (method != #drawParagraph) return false;
+      final at = arguments[1] as Offset;
+      return at.dx == end.left + 50 && at.dy >= end.top && at.dy < end.bottom;
+    }
+
+    expect(text(), paints..something(afterText));
+    await _mount(tester, controller);
+    expect(text(), isNot(paints..something(afterText)));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('50k-line typing reshapes only visible lines', (tester) async {
     final controller = _controller(
       List.generate(50000, (i) => '  value_$i = $i;').join('\n'),

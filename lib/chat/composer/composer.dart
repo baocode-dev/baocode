@@ -119,16 +119,42 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
   final GlobalKey<ComposerPickerState> _modelPickerKey = GlobalKey();
 
   bool _hasContent = false;
-  late final List<ImageAttachment> _images = [
-    ...(widget.draft?.saved ?? false)
-        ? widget.draft!.images
-        : widget.initialImages,
-  ];
+
+  /// Every image put in, by number, kept until sent: the text's references
+  /// pick which go (see [_images]), so one taken out and brought back by
+  /// undo is still there. Replaced, not changed, for the references
+  /// showing them to see it.
+  late Map<int, ImageAttachment> _pool = _initialPool();
+
+  /// The images that go: those the text refers to, in its order, once
+  /// each. Derived from the text alone, as it changes.
+  List<ImageAttachment> _images = const [];
   _Trigger? _trigger;
   _Trigger? _dismissedTrigger;
   List<SuggestionMatch> _matches = const [];
   int _highlighted = 0;
   double _menuX = 0;
+
+  Map<int, ImageAttachment> _initialPool() {
+    if (widget.draft case final draft? when draft.saved) {
+      return {for (final image in draft.images) ?image.number: image};
+    }
+    final pool = <int, ImageAttachment>{};
+    var next = widget.session.lastImageNumber + 1;
+    for (final image in widget.initialImages) {
+      if (image.number case final number?) {
+        pool[number] = image;
+        next = math.max(next, number + 1);
+      }
+    }
+    // Sent before images were numbered: numbered now.
+    for (final image in widget.initialImages) {
+      if (image.number != null) continue;
+      pool[next] = image.withNumber(next);
+      next++;
+    }
+    return pool;
+  }
 
   QuillController _createController() {
     final config = QuillControllerConfig(
@@ -148,12 +174,24 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
         config: config,
       );
     }
-    final text = widget.initialText;
-    if (text == null || text.isEmpty) {
-      return QuillController.basic(config: config);
+    var text = widget.initialText ?? '';
+    final numbers = _pool.keys.toSet();
+    // Every image referred to: those the text does not, at its start.
+    final referred = {
+      for (final match in imageReferencePattern.allMatches(text))
+        int.parse(match[1]!),
+    };
+    final unreferred = numbers.where((n) => !referred.contains(n)).toList();
+    if (unreferred.isNotEmpty) {
+      text = [unreferred.map(imageReference).join(' '), text].join(' ');
     }
+    if (text.isEmpty) return QuillController.basic(config: config);
     final document = Document.fromDelta(
-      composerDeltaFromText(text, ComposerVocabulary.read(context)),
+      composerDeltaFromText(
+        text,
+        ComposerVocabulary.read(context),
+        images: numbers,
+      ),
     );
     return QuillController(
       document: document,
@@ -183,6 +221,7 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
       text.replaceAll('\r\n', '\n'),
       ComposerVocabulary.read(context),
       atStart: start == 0,
+      images: _pool.keys.toSet(),
     );
     final delta =
         (Delta()
@@ -208,6 +247,7 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
   void initState() {
     super.initState();
     _padTrailingTokens();
+    _images = _referredImages();
     _hasContent = _controller.document.toPlainText().trim().isNotEmpty;
     _controller.addListener(_handleEditorChanged);
     _focusNode.addListener(_handleFocusChanged);
@@ -232,21 +272,88 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
   /// At most this many per message.
   static const _maxImages = 20;
 
+  /// The numbers of the images the text refers to, in its order, with
+  /// where each reference is.
+  Iterable<({int number, int offset})> _references() sync* {
+    var offset = 0;
+    for (final op in _controller.document.toDelta().toList()) {
+      if (op.data case {ComposerImageEmbed.type: final data}) {
+        yield (number: ComposerImageEmbed.decode(data), offset: offset);
+      }
+      offset += op.length!;
+    }
+  }
+
+  List<ImageAttachment> _referredImages() => [
+    for (final number in {for (final r in _references()) r.number})
+      ?_pool[number],
+  ];
+
+  /// Puts [images] in at the caret, each as a reference in the text,
+  /// numbered on from the conversation's last.
   Future<void> _addImages(List<ImageAttachment> images) async {
     final prepared = [
       for (final image in await Future.wait(images.map(prepareImage))) ?image,
     ];
     if (!mounted || prepared.isEmpty) return;
-    setState(() {
-      _images.addAll(prepared.take(_maxImages - _images.length));
-    });
-    _saveDraft();
+    var next =
+        math.max(widget.session.lastImageNumber, _pool.keys.fold(0, math.max)) +
+        1;
+    final added = [
+      for (final image in prepared.take(_maxImages - _images.length))
+        image.withNumber(next++),
+    ];
+    if (added.isEmpty) return;
+    _pool = {..._pool, for (final image in added) image.number!: image};
+    final selection = _controller.selection;
+    final start = math.max(0, selection.start);
+    final plain = _controller.document.toPlainText();
+    final content = Delta();
+    // Apart from a word before it.
+    if (start > 0 && plain[start - 1].trim().isNotEmpty) content.insert(' ');
+    for (final image in added) {
+      // Never last on its line (see [_padTrailingTokens]).
+      content
+        ..insert(ComposerImageEmbed.of(image.number!).toJson())
+        ..insert(' ');
+    }
+    _controller
+      ..compose(
+        (Delta()
+              ..retain(start)
+              ..delete(math.max(0, selection.end - start)))
+            .concat(content),
+        selection,
+        ChangeSource.local,
+      )
+      ..updateSelection(
+        TextSelection.collapsed(
+          offset:
+              start + content.toList().fold(0, (sum, op) => sum + op.length!),
+        ),
+        ChangeSource.local,
+      );
     _focusNode.requestFocus();
   }
 
+  /// Takes the image at [index] out: its references in the text become
+  /// words (`[Image 2]`), the text otherwise as it was. One edit, undone
+  /// as one, the image coming back with its references.
   void _removeImage(int index) {
-    setState(() => _images.removeAt(index));
-    _saveDraft();
+    final number = _images[index].number;
+    final words = context.l10n.imageReferenceRemoved(number ?? 0);
+    final delta = Delta();
+    var at = 0;
+    for (final reference in _references()) {
+      if (reference.number != number) continue;
+      delta
+        ..retain(reference.offset - at)
+        ..delete(1)
+        ..insert(words);
+      at = reference.offset + 1;
+    }
+    if (delta.isEmpty) return;
+    _controller.compose(delta, _controller.selection, ChangeSource.local);
     _focusNode.requestFocus();
   }
 
@@ -317,11 +424,12 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
   void _saveDraft() => widget.draft?.save(
     _controller.document.toDelta(),
     _controller.selection,
-    _images,
+    _pool.values.toList(),
   );
 
   void _handleEditorChanged() {
     if (_padTrailingTokens()) return; // Re-entered with the fixed document.
+    _images = _referredImages();
     _saveDraft();
     final plain = _controller.document.toPlainText();
     // Edited, a message recalled from the history is the one typed.
@@ -712,6 +820,8 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
       final data = op.data;
       if (data is String) {
         text.write(data);
+      } else if (data case {ComposerImageEmbed.type: final image}) {
+        text.write(ComposerImageEmbed.plainText(image));
       } else if (data is Map && data.containsKey(ComposerTokenEmbed.type)) {
         final raw = data[ComposerTokenEmbed.type];
         text.write(ComposerTokenEmbed.plainText(raw));
@@ -745,9 +855,9 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
       return;
     }
     widget.session.send(message);
+    _pool = {};
     _controller.clear();
     _leaveHistory();
-    setState(_images.clear);
     _saveDraft();
     _dismissedTrigger = null;
   }
@@ -823,7 +933,10 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
                     onRemove: _removeImage,
                   ),
                 ),
-              _editor ??= _buildEditor(context),
+              ComposerImages(
+                images: _pool,
+                child: _editor ??= _buildEditor(context),
+              ),
               _buildToolbar(),
             ],
           ),
@@ -1023,7 +1136,10 @@ class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
         maxHeight: _maxEditorHeight(context),
         textCapitalization: TextCapitalization.none,
         enableSelectionToolbar: false,
-        embedBuilders: const [ComposerTokenEmbedBuilder()],
+        embedBuilders: const [
+          ComposerTokenEmbedBuilder(),
+          ComposerImageEmbedBuilder(),
+        ],
         // ignore: experimental_member_use
         onKeyPressed: _handleKey,
         onTapOutside: (event, focusNode) {},

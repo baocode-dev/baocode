@@ -334,6 +334,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   final List<_NavigationEntry> _forwardStack = [];
   bool _formatOnSave = false;
 
+  /// The editor's Git blame (`git.blame.editorDecoration.enabled`).
+  bool _gitBlame = true;
+
   static const _sashWidth = IdeModernUI.gap;
 
   IdeEditorState? get _editor => _editorKey.currentState;
@@ -2106,6 +2109,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         enabled: _languages != null,
         run: () => setState(() => _formatOnSave = !_formatOnSave),
       ),
+      _catalogCommand(
+        'git.blame.toggleEditorDecoration',
+        () => setState(() => _gitBlame = !_gitBlame),
+        enabled: widget.workspace.git != null,
+      ),
       IdeCommand(
         id: 'monad.ide.retryLanguageServices',
         category: 'Developer',
@@ -2510,6 +2518,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         onShowReferences: _showReferences,
                         onShowCommands: () => _showQuickInput('>'),
                         formatOnSave: _formatOnSave,
+                        gitBlame: _gitBlame,
                         keyResolver: _resolveEditorKey,
                       ),
           ),

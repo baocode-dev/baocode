@@ -7,8 +7,8 @@
 // them (extensions/git/src/git.ts at 6a598d4a13031703d483d103c1d934a36ad27971):
 // status with the branch and ignored paths, add, restore, checkout, clean,
 // commit, log for the graph and the timeline, show for the texts a diff
-// editor compares (`buffer`), and pull and push for Sync Changes and
-// Publish Branch.
+// editor compares (`buffer`), blame for the editor's blame (`blame2`), and
+// pull and push for Sync Changes and Publish Branch.
 //
 // Deviations: no fetch, no stash or branch commands, and no credential
 // prompts (`GIT_TERMINAL_PROMPT=0`: a remote that asks for a password
@@ -271,6 +271,29 @@ class IdeGitService {
       await _git(['show', '--textconv', '$ref:$relative']),
       'Could not show object.',
     ).stdout;
+  }
+
+  /// `git blame --root --incremental` of [path] as it is on disk (`blame2`);
+  /// null where Git cannot blame it: untracked, outside the repository, or
+  /// before the first commit.
+  Future<List<IdeGitBlameInformation>?> blame(String path) async {
+    try {
+      final top = await repositoryRoot();
+      if (top == null) return null;
+      final output = await _git([
+        '-c',
+        'i18n.logOutputEncoding=UTF-8',
+        'blame',
+        '--root',
+        '--incremental',
+        '--',
+        ..._relative(top, [path]),
+      ]);
+      if (output.exitCode != 0) return null;
+      return parseGitBlame(output.stdout.trim());
+    } on IdeGitException {
+      return null;
+    }
   }
 
   /// The remotes' names (`git remote`).

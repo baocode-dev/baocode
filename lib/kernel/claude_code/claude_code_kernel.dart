@@ -391,7 +391,11 @@ class ClaudeCodeKernel
         'message': {
           'role': 'user',
           'content': [
-            for (final image in turn.images)
+            for (final image in turn.images) ...[
+              // Its name, for the model to tell which the text means (and
+              // this client, reading it back).
+              if (image.number case final number?)
+                {'type': 'text', 'text': imageReference(number)},
               {
                 'type': 'image',
                 'source': {
@@ -400,6 +404,7 @@ class ClaudeCodeKernel
                   'data': base64Encode(image.bytes),
                 },
               },
+            ],
             if (turn.text.isNotEmpty) {'type': 'text', 'text': turn.text},
             if (_work == 'ask') {'type': 'text', 'text': _askNote},
           ],

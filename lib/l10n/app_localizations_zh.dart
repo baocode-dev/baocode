@@ -1667,6 +1667,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get imageCopy => '复制图片';
+
+  @override
   String stepsRead(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2465,6 +2468,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get gitIgnoredInGit => '已在 Git 中忽略';
+
+  @override
+  String get gitBlameNotCommittedYet => '尚未提交';
 
   @override
   String get gitContainsEmphasizedItems => '包含强调项';
@@ -3475,6 +3481,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdToggleFormatOnSave => '切换保存时格式化';
+
+  @override
+  String get cmdToggleGitBlameEditorDecoration => '切换 Git 追溯编辑器修饰';
 
   @override
   String get kbSourceDefault => '默认';

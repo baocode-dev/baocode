@@ -698,6 +698,7 @@ class EditorTextPainter extends CustomPainter {
       final start = snapshot.lineStarts[visible.first - 1];
       final end = snapshot.contentEnds[visible.last - 1];
       for (final decoration in decorations.intersecting(start, end)) {
+        if (decoration.afterText != null) _paintAfterText(canvas, decoration);
         final overlay = decoration.overlayColor;
         if (overlay != null && decoration.end > decoration.start) {
           final fill = Paint()..color = overlay;
@@ -758,6 +759,38 @@ class EditorTextPainter extends CustomPainter {
       }
     }
     canvas.restore();
+  }
+
+  /// [decoration]'s [EditorDecoration.afterText] after the end of its line
+  /// (after the fold placeholder of a collapsed one), in the text's style.
+  void _paintAfterText(Canvas canvas, EditorDecoration decoration) {
+    final snapshot = layout.snapshot;
+    final lineNumber = snapshot.positionAtOffset(decoration.end).lineNumber;
+    if (layout.hiddenLines.isHidden(lineNumber)) return;
+    final row = layout.caretRect(
+      snapshot.contentEnds[lineNumber - 1],
+      affinity: TextAffinity.upstream,
+    );
+    final left = folding.isCollapsedAt(lineNumber)
+        ? placeholderRect(layout, glyphs, lineNumber).right
+        : row.left;
+    final painter = TextPainter(
+      text: TextSpan(
+        text: decoration.afterText,
+        style: layout.style.copyWith(color: decoration.afterColor),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: layout.textScaler,
+      maxLines: 1,
+    )..layout();
+    painter.paint(
+      canvas,
+      Offset(
+        left + decoration.afterMargin,
+        row.top + (layout.lineHeight - painter.height) / 2,
+      ),
+    );
+    painter.dispose();
   }
 
   void _paintWhitespace(Canvas canvas, List<int> visible) {

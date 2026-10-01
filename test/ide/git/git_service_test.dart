@@ -132,4 +132,22 @@ void main() {
     final log = await repository.service.log();
     expect(log.first.subject, 'Everything');
   }, skip: hasGit ? false : 'Git is not installed');
+
+  test('blame gives the commits of the lines on disk', () async {
+    final service = IdeGitService(root);
+    await write('lib/a.dart', 'a\nb\n');
+    final blame = (await service.blame(p.join(root, 'lib/a.dart')))!;
+    final commit = blame.singleWhere((b) => !b.uncommitted);
+    expect(commit.subject, 'Initial commit');
+    expect(commit.authorName, 'Ada');
+    expect(commit.authorEmail, 'ada@example.com');
+    expect(commit.hash, (await service.revParse('HEAD'))!);
+    expect(commit.ranges, [(startLineNumber: 1, endLineNumber: 1)]);
+    expect(blame.singleWhere((b) => b.uncommitted).ranges, [
+      (startLineNumber: 2, endLineNumber: 2),
+    ]);
+
+    await write('lib/new.dart', 'new\n');
+    expect(await service.blame(p.join(root, 'lib/new.dart')), isNull);
+  }, skip: hasGit ? false : 'Git is not installed');
 }

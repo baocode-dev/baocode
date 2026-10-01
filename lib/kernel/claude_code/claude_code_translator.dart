@@ -339,8 +339,12 @@ class ClaudeTranslator {
     }
     final texts = <String>[];
     final images = <ImageAttachment>[];
-    for (final raw in _list(content)) {
-      final block = _map(raw);
+    final blocks = [for (final raw in _list(content)) _map(raw)];
+    // Numbered as Claude Code numbered them when pasted in it.
+    final pasted = _list(message['imagePasteIds']);
+    int? label;
+    var pictures = 0;
+    for (final (index, block) in blocks.indexed) {
       switch (block['type']) {
         case 'tool_result':
           _toolResult(block, result);
@@ -348,10 +352,26 @@ class ClaudeTranslator {
           final text = block['text'] as String? ?? '';
           // A note for the model sent along (e.g. by the host), not typed.
           if (text.trimLeft().startsWith('<system-reminder>')) continue;
+          // An image's name before it (as this client sends them).
+          if (imageReferencePattern.matchAsPrefix(text.trim()) case final match?
+              when match.end == text.trim().length &&
+                  index + 1 < blocks.length &&
+                  blocks[index + 1]['type'] == 'image') {
+            label = int.parse(match[1]!);
+            continue;
+          }
           texts.add(text);
         case 'image':
+          final number =
+              label ??
+              switch (pasted.elementAtOrNull(pictures)) {
+                final int id => id,
+                _ => null,
+              };
+          pictures++;
+          label = null;
           if (_image(_map(block['source'])) case final image?) {
-            images.add(image);
+            images.add(number == null ? image : image.withNumber(number));
           }
       }
     }

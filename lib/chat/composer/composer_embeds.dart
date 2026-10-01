@@ -12,6 +12,7 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import '../floating/hover_tooltip.dart';
 import '../widgets/file_label.dart';
+import '../widgets/image_thumbnails.dart';
 import '../../kernel/kernel_types.dart';
 import 'composer_mock_data.dart';
 
@@ -374,7 +375,8 @@ class ComposerImageEmbedBuilder extends EmbedBuilder {
 
 /// The inline reference to image [number] of a message, centered on text
 /// of [textStyle]: a small picture of it and its name, the picture shown
-/// larger on hover. In the composer and in sent messages alike.
+/// larger on hover and whole on a click. In the composer and in sent
+/// messages alike.
 ///
 /// Inside a selectable area it copies as its message text (`[Image #3]`).
 class ComposerImageChip extends StatelessWidget {
@@ -463,6 +465,7 @@ class ComposerImageChip extends StatelessWidget {
       ),
     );
     if (image != null) {
+      chip = ImagePreviewClick(image: image, child: chip);
       chip = HoverTooltip(
         content: (context) => ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 240, maxHeight: 180),

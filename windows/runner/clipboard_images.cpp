@@ -153,33 +153,131 @@ std::vector<uint8_t> PngFrom(IWICImagingFactory* factory,
   return BytesFromStream(stream.Get());
 }
 
-// Any image WIC can read, as PNG.
-std::vector<uint8_t> PngFromBytes(const std::vector<uint8_t>& bytes) {
-  if (bytes.empty()) {
-    return {};
-  }
-  ComPtr<IWICImagingFactory> factory = ImagingFactory();
+// The (first) picture in |bytes|, for any image WIC can read; null for
+// anything else. It reads |bytes| as it is used: they must outlive it.
+ComPtr<IWICBitmapFrameDecode> FrameFromBytes(
+    IWICImagingFactory* factory, const std::vector<uint8_t>& bytes) {
   ComPtr<IWICStream> stream;
-  if (factory == nullptr || FAILED(factory->CreateStream(&stream))) {
-    return {};
+  if (factory == nullptr || bytes.empty() ||
+      bytes.size() > static_cast<size_t>(kMaxImageBytes) ||
+      FAILED(factory->CreateStream(&stream))) {
+    return nullptr;
   }
   // The decoder reads under it, which is why the bytes are not const.
   auto* data = const_cast<BYTE*>(bytes.data());
   if (FAILED(stream->InitializeFromMemory(data,
                                           static_cast<DWORD>(bytes.size())))) {
-    return {};
+    return nullptr;
   }
   ComPtr<IWICBitmapDecoder> decoder;
   if (FAILED(factory->CreateDecoderFromStream(stream.Get(), nullptr,
                                               WICDecodeMetadataCacheOnDemand,
                                               &decoder))) {
-    return {};
+    return nullptr;
   }
   ComPtr<IWICBitmapFrameDecode> frame;
   if (FAILED(decoder->GetFrame(0, &frame))) {
+    return nullptr;
+  }
+  return frame;
+}
+
+// Any image WIC can read, as PNG.
+std::vector<uint8_t> PngFromBytes(const std::vector<uint8_t>& bytes) {
+  ComPtr<IWICImagingFactory> factory = ImagingFactory();
+  ComPtr<IWICBitmapFrameDecode> frame = FrameFromBytes(factory.Get(), bytes);
+  if (frame == nullptr) {
     return {};
   }
   return PngFrom(factory.Get(), frame.Get());
+}
+
+// |source| as a device-independent bitmap with alpha, what CF_DIBV5 holds:
+// a BITMAPV5HEADER, then 32-bit BGRA rows, the bottom one first, as readers
+// of the clipboard expect. Empty when it cannot be converted.
+std::vector<uint8_t> DibV5From(IWICImagingFactory* factory,
+                               IWICBitmapSource* source) {
+  if (factory == nullptr) {
+    return {};
+  }
+  ComPtr<IWICFormatConverter> converted;
+  if (FAILED(factory->CreateFormatConverter(&converted)) ||
+      FAILED(converted->Initialize(source, GUID_WICPixelFormat32bppBGRA,
+                                    WICBitmapDitherTypeNone, nullptr, 0.0,
+                                    WICBitmapPaletteTypeCustom))) {
+    return {};
+  }
+  UINT width = 0;
+  UINT height = 0;
+  if (FAILED(converted->GetSize(&width, &height)) || width == 0 ||
+      height == 0) {
+    return {};
+  }
+  const UINT stride = width * 4;
+  const ULONGLONG size = static_cast<ULONGLONG>(stride) * height;
+  if (size > static_cast<ULONGLONG>(kMaxImageBytes)) {
+    return {};
+  }
+  // Read top row first, as WIC gives them, then laid in bottom up.
+  std::vector<uint8_t> rows(static_cast<size_t>(size));
+  if (FAILED(converted->CopyPixels(nullptr, stride,
+                                   static_cast<UINT>(size), rows.data()))) {
+    return {};
+  }
+
+  std::vector<uint8_t> dib(sizeof(BITMAPV5HEADER) + rows.size());
+  BITMAPV5HEADER header = {};
+  header.bV5Size = sizeof(BITMAPV5HEADER);
+  header.bV5Width = static_cast<LONG>(width);
+  header.bV5Height = static_cast<LONG>(height);
+  header.bV5Planes = 1;
+  header.bV5BitCount = 32;
+  header.bV5Compression = BI_BITFIELDS;
+  header.bV5SizeImage = static_cast<DWORD>(size);
+  header.bV5RedMask = 0x00FF0000;
+  header.bV5GreenMask = 0x0000FF00;
+  header.bV5BlueMask = 0x000000FF;
+  header.bV5AlphaMask = 0xFF000000;
+  header.bV5CSType = LCS_sRGB;
+  header.bV5Intent = LCS_GM_IMAGES;
+  std::memcpy(dib.data(), &header, sizeof(header));
+  uint8_t* pixels = dib.data() + sizeof(header);
+  for (UINT row = 0; row < height; row++) {
+    std::memcpy(pixels + static_cast<size_t>(height - 1 - row) * stride,
+                rows.data() + static_cast<size_t>(row) * stride, stride);
+  }
+  return dib;
+}
+
+// |bytes| in movable global memory, for SetClipboardData; null when there is
+// no memory for them.
+HGLOBAL GlobalFrom(const std::vector<uint8_t>& bytes) {
+  HGLOBAL global = ::GlobalAlloc(GMEM_MOVEABLE, bytes.size());
+  if (global == nullptr) {
+    return nullptr;
+  }
+  void* data = ::GlobalLock(global);
+  if (data == nullptr) {
+    ::GlobalFree(global);
+    return nullptr;
+  }
+  std::memcpy(data, bytes.data(), bytes.size());
+  ::GlobalUnlock(global);
+  return global;
+}
+
+// Puts |bytes| on the open clipboard as |format|; whether it took them (it
+// owns them then).
+bool SetClipboardBytes(UINT format, const std::vector<uint8_t>& bytes) {
+  HGLOBAL global = GlobalFrom(bytes);
+  if (global == nullptr) {
+    return false;
+  }
+  if (::SetClipboardData(format, global) == nullptr) {
+    ::GlobalFree(global);
+    return false;
+  }
+  return true;
 }
 
 // The image data the clipboard holds as a bitmap, wrapped in the file
@@ -310,4 +408,32 @@ std::vector<ClipboardImage> ClipboardImages() {
   }
   ::CloseClipboard();
   return images;
+}
+
+bool WriteClipboardImage(HWND owner, const std::vector<uint8_t>& bytes,
+                         const std::string& media_type) {
+  ComPtr<IWICImagingFactory> factory = ImagingFactory();
+  ComPtr<IWICBitmapFrameDecode> frame = FrameFromBytes(factory.Get(), bytes);
+  if (frame == nullptr) {
+    return false;
+  }
+  const std::vector<uint8_t> dib = DibV5From(factory.Get(), frame.Get());
+  if (dib.empty()) {
+    return false;
+  }
+  const std::vector<uint8_t> png =
+      media_type == "image/png" ? bytes : PngFrom(factory.Get(), frame.Get());
+  // Owned by a window: with none, EmptyClipboard leaves it to no one and
+  // SetClipboardData fails.
+  if (!::OpenClipboard(owner)) {
+    return false;
+  }
+  ::EmptyClipboard();
+  const bool written = SetClipboardBytes(CF_DIBV5, dib);
+  if (!png.empty()) {
+    static const UINT kPng = ::RegisterClipboardFormatW(L"PNG");
+    SetClipboardBytes(kPng, png);
+  }
+  ::CloseClipboard();
+  return written;
 }

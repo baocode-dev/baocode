@@ -31,6 +31,10 @@ class FakeGit {
   /// `git remote` output.
   String remotes = 'origin\n';
 
+  /// `git blame --incremental` output, by relative path (which, not there,
+  /// fails as an untracked path does).
+  final Map<String, String> blame = {};
+
   /// Resolved refs (`rev-parse --verify -q <ref>`).
   final Map<String, String> refs = {};
 
@@ -89,6 +93,12 @@ class FakeGit {
         return IdeGitOutput(0, show[commit] ?? '');
       case ['remote']:
         return IdeGitOutput(0, remotes);
+      case [..., 'blame', '--root', '--incremental', '--', final path]:
+        final output = blame[path];
+        if (output == null) {
+          return IdeGitOutput(128, '', "fatal: no such path '$path' in HEAD");
+        }
+        return IdeGitOutput(0, output);
       case ['init']:
         isRepository = true;
         return const IdeGitOutput(0, '');
@@ -101,6 +111,33 @@ class FakeGit {
     refreshDelay: Duration.zero,
   );
 }
+
+/// A `git blame --incremental` entry: [count] lines from [line] last
+/// changed by [hash]; with [author] and [summary], the commit's first.
+String gitBlameEntry(
+  String hash,
+  int line,
+  int count, {
+  String path = 'a.dart',
+  String? author,
+  String? summary,
+  int time = 1767225600,
+}) => [
+  '$hash $line $line $count',
+  if (author != null) ...[
+    'author $author',
+    'author-mail <${author.toLowerCase()}@example.com>',
+    'author-time $time',
+    'author-tz +0000',
+    'committer $author',
+    'committer-mail <${author.toLowerCase()}@example.com>',
+    'committer-time $time',
+    'committer-tz +0000',
+  ],
+  if (summary != null) 'summary $summary',
+  'filename $path',
+  '',
+].join('\n');
 
 /// A [ideGitLogFormat] record.
 String gitLogRecord(

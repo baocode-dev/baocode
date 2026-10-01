@@ -920,6 +920,10 @@
       }
     }
   },
+  "imageCopy": "Copy Image",
+  "@imageCopy": {
+    "description": "Context menu item of an enlarged image: copies the image to the clipboard."
+  },
   "stepsRead": "{count, plural, =1{read 1 file} other{read {count} files}}",
   "@stepsRead": {
     "description": "Part of a folded run of steps' line, e.g. \"Read 3 files, ran 2 commands\".",
@@ -1652,6 +1656,7 @@
   "gitStatusBothAdded": "Conflict: Both Added",
   "gitStatusBothModified": "Conflict: Both Modified",
   "gitIgnoredInGit": "Ignored in Git",
+  "gitBlameNotCommittedYet": "Not Committed Yet",
   "gitContainsEmphasizedItems": "Contains emphasized items",
   "gitChangeIndex": "Index",
   "@gitChangeIndex": {
@@ -2568,6 +2573,7 @@
   },
   "cmdLastEditorInGroup": "Open Last Editor in Group",
   "cmdToggleFormatOnSave": "Toggle Format on Save",
+  "cmdToggleGitBlameEditorDecoration": "Toggle Git Blame Editor Decoration",
   "kbSourceDefault": "Default",
   "kbSourceUser": "User",
   "kbKeymap": "Keymap",

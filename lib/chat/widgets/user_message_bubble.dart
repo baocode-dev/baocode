@@ -63,8 +63,18 @@ TextStyle get _messageStyle => TextStyle(
   leadingDistribution: TextLeadingDistribution.even,
 );
 
-TextSpan _messageSpan(String text, ComposerVocabulary vocabulary) {
-  final ops = composerDeltaFromText(text, vocabulary).toList();
+/// [text], its tokens and references to its [images] as tags.
+TextSpan _messageSpan(
+  String text,
+  ComposerVocabulary vocabulary,
+  List<ImageAttachment> images,
+) {
+  final byNumber = {for (final image in images) ?image.number: image};
+  final ops = composerDeltaFromText(
+    text,
+    vocabulary,
+    images: byNumber.keys.toSet(),
+  ).toList();
   return TextSpan(
     style: _messageStyle,
     children: [
@@ -76,6 +86,11 @@ TextSpan _messageSpan(String text, ComposerVocabulary vocabulary) {
             _messageStyle,
           ),
           final String data => inlineCodeSpan(data, _messageStyle),
+          {ComposerImageEmbed.type: final data} => ComposerImageChip.span(
+            ComposerImageEmbed.decode(data),
+            byNumber[ComposerImageEmbed.decode(data)],
+            _messageStyle,
+          ),
           final Map<dynamic, dynamic> data => ComposerTokenChip.span(
             data[ComposerTokenEmbed.type],
             _messageStyle,
@@ -89,8 +104,8 @@ TextSpan _messageSpan(String text, ComposerVocabulary vocabulary) {
 class _UserMessageBubbleState extends State<UserMessageBubble> {
   Offset? _pressedAt;
 
-  /// The press went to an image (which opens its preview instead). Its
-  /// listener, deeper, hears the press first.
+  /// The press went to an image (which opens its preview instead). It
+  /// hears the press first, being deeper (see [ImagePressScope]).
   bool _pressOnImage = false;
 
   void _handleDown(PointerDownEvent event) {
@@ -163,35 +178,39 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
       onPointerDown: _handleDown,
       onPointerUp: _handleUp,
       onPointerCancel: (_) => _pressedAt = null,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceRaised,
-          borderRadius: BorderRadius.circular(UserMessageBubble.radius),
-          border: Border.all(color: AppColors.borderStrong),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.images.isNotEmpty)
-              Listener(
-                onPointerDown: (_) => _pressOnImage = true,
-                child: ImageThumbnails(images: widget.images),
-              ),
-            // As in its editor (the composer), so editing moves nothing.
-            if (widget.images.isNotEmpty && widget.text.isNotEmpty)
-              const SizedBox(height: 10),
-            if (widget.text.isNotEmpty || widget.images.isEmpty)
-              _Collapsed(
-                collapsedHeight: _lineHeight * _collapsedLines,
-                collapseAbove: _lineHeight * (_collapsedLines + 1),
-                content: Text.rich(
-                  _messageSpan(widget.text, ComposerVocabulary.of(context)),
+      child: ImagePressScope(
+        onPress: () => _pressOnImage = true,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(UserMessageBubble.radius),
+            border: Border.all(color: AppColors.borderStrong),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.images.isNotEmpty)
+                ImageThumbnails(images: widget.images),
+              // As in its editor (the composer), so editing moves nothing.
+              if (widget.images.isNotEmpty && widget.text.isNotEmpty)
+                const SizedBox(height: 10),
+              if (widget.text.isNotEmpty || widget.images.isEmpty)
+                _Collapsed(
+                  collapsedHeight: _lineHeight * _collapsedLines,
+                  collapseAbove: _lineHeight * (_collapsedLines + 1),
+                  content: Text.rich(
+                    _messageSpan(
+                      widget.text,
+                      ComposerVocabulary.of(context),
+                      widget.images,
+                    ),
+                  ),
+                  overlay: const _CollapsedOverlay(),
                 ),
-                overlay: const _CollapsedOverlay(),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
