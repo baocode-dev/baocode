@@ -235,7 +235,7 @@ final class Attention: NSObject, UNUserNotificationCenterDelegate {
   }
 
   /// The logo in the menu bar, a template the system draws light or dark
-  /// as the bar is: the 56×42 pixel face of bao.svg, 16pt wide, its cells
+  /// as the bar is: the 56×42 pixel face of Subtract.svg, 16pt wide, its cells
   /// on whole pixels; with [dot], a dot at its top right, cut out of it.
   static func trayImage(dot: Bool) -> NSImage {
     let size = NSSize(width: 18, height: 18)
@@ -261,16 +261,17 @@ final class Attention: NSObject, UNUserNotificationCenterDelegate {
     return image
   }
 
-  /// The logo's cells, in its own 56×42 units (bao.svg).
-  static let logoCells: [CGRect] = [
+  /// The logo, filled, in its own 56×42 units (Subtract.svg): its rows,
+  /// then its eyes, which are cut out of them.
+  static let logoRows: [CGRect] = [
     CGRect(x: 14, y: 0, width: 28, height: 7),
-    CGRect(x: 7, y: 7, width: 7, height: 7),
-    CGRect(x: 42, y: 7, width: 7, height: 7),
-    CGRect(x: 0, y: 14, width: 7, height: 21),
-    CGRect(x: 49, y: 14, width: 7, height: 21),
+    CGRect(x: 7, y: 7, width: 42, height: 7),
+    CGRect(x: 0, y: 14, width: 56, height: 21),
+    CGRect(x: 7, y: 35, width: 42, height: 7),
+  ]
+  static let logoEyes: [CGRect] = [
     CGRect(x: 14, y: 21, width: 8, height: 7),
     CGRect(x: 35, y: 21, width: 8, height: 7),
-    CGRect(x: 7, y: 35, width: 42, height: 7),
   ]
 
   /// Draws the tray icon into a square of [pixels] (18pt of them), from its
@@ -284,13 +285,15 @@ final class Attention: NSObject, UNUserNotificationCenterDelegate {
     // 16pt wide from 1pt in, 12pt high from 3pt down: centered, on whole
     // pixels.
     let k = 16 * unit / 56
-    for cell in logoCells {
+    func snapped(_ cell: CGRect) -> CGRect {
       let x0 = (unit + cell.minX * k).rounded()
       let y0 = (3 * unit + cell.minY * k).rounded()
       let x1 = (unit + cell.maxX * k).rounded()
       let y1 = (3 * unit + cell.maxY * k).rounded()
-      context.fill(CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0))
+      return CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
     }
+    context.fill(logoRows.map(snapped))
+    for eye in logoEyes { context.clear(snapped(eye)) }
     guard dot else { return }
     let center = CGPoint(x: 15.5 * unit, y: 2.5 * unit)
     context.setBlendMode(.clear)
