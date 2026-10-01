@@ -28,10 +28,19 @@ final class ActivityReported extends KernelEvent {
 }
 
 final class TurnEnded extends KernelEvent {
-  const TurnEnded(super.seq, this.turnId, {this.interrupted = false});
+  const TurnEnded(
+    super.seq,
+    this.turnId, {
+    this.interrupted = false,
+    this.worked,
+  });
 
   final String turnId;
   final bool interrupted;
+
+  /// How long the turn took, when known: kept on the message that began
+  /// it, unless it was [interrupted].
+  final Duration? worked;
 }
 
 /// Adds the item [id], or replaces it. A [streaming] item is still being

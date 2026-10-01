@@ -1,19 +1,42 @@
 import 'package:monad/ide/terminal/pty.dart';
 import 'package:monad/ide/terminal/terminal_instance.dart';
+import 'package:monad/ide/terminal/terminal_profiles.dart';
+import 'package:monad/ide/terminal/terminal_shell.dart';
 
 import 'fake_pty.dart';
 
-/// What a test's terminal runs: a login zsh, as on macOS, on a [FakePty].
+/// What a test's terminal runs: [shell] (a profile's), else a login zsh,
+/// as on macOS, on a [FakePty].
 Future<PtyLaunch> fakeTerminalLaunch(
   String root, {
   int columns = 80,
   int rows = 24,
+  TerminalShell? shell,
 }) async => PtyLaunch(
-  executable: '/bin/zsh',
-  arguments: const ['-l'],
+  executable: shell?.executable ?? '/bin/zsh',
+  arguments: shell?.arguments ?? const ['-l'],
   workingDirectory: root,
   columns: columns,
   rows: rows,
+);
+
+/// A test system's profiles: zsh (the user's shell), bash and fish, and sh
+/// from /etc/shells; never the disk's.
+Future<TerminalProfiles> fakeTerminalProfiles({Object? configured}) async => (
+  profiles: detectTerminalProfiles(
+    TerminalOs.macOS,
+    const {'PATH': '/opt/homebrew/bin:/usr/bin:/bin', 'SHELL': '/bin/zsh'},
+    exists: const {
+      '/bin/zsh',
+      '/bin/bash',
+      '/bin/sh',
+      '/opt/homebrew/bin/fish',
+    }.contains,
+    list: (_) => const [],
+    etcShells: '# List of acceptable shells\n/bin/bash\n/bin/sh\n/bin/zsh\n',
+    configured: configured,
+  ),
+  systemShell: (executable: '/bin/zsh', arguments: const ['-l']),
 );
 
 /// Terminals on fakes: each one started is added to [started]. Links'
@@ -26,6 +49,7 @@ TerminalBackend fakeTerminalBackend(
 }) => TerminalBackend(
   launch: fakeTerminalLaunch,
   start: FakePty.starter(started),
+  detectProfiles: fakeTerminalProfiles,
   linkStat: (path) async => files[path],
   supported: supported,
 );

@@ -902,6 +902,94 @@
   "toolSent": "Sent",
   "toolUsing": "Using",
   "toolUsed": "Used",
+  "stepsRead": "{count, plural, =1{read 1 file} other{read {count} files}}",
+  "@stepsRead": {
+    "description": "Part of a folded run of steps' line, e.g. \"Read 3 files, ran 2 commands\".",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "stepsSearched": "{count, plural, =1{searched 1 pattern} other{searched {count} patterns}}",
+  "@stepsSearched": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "stepsListed": "{count, plural, =1{listed 1 directory} other{listed {count} directories}}",
+  "@stepsListed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "stepsFetched": "{count, plural, =1{fetched 1 page} other{fetched {count} pages}}",
+  "@stepsFetched": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "stepsRan": "{count, plural, =1{ran 1 command} other{ran {count} commands}}",
+  "@stepsRan": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "stepsUsed": "{count, plural, =1{used 1 tool} other{used {count} tools}}",
+  "@stepsUsed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "stepsSeparator": ", ",
+  "@stepsSeparator": {
+    "description": "Between the parts of a folded run of steps' line."
+  },
+  "stepsThought": "thought {duration}",
+  "@stepsThought": {
+    "description": "How long a folded run of steps spent thinking, e.g. \"thought 52s\".",
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "stepsFailed": "{count} failed",
+  "@stepsFailed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "turnWorked": "Worked for {duration}",
+  "@turnWorked": {
+    "description": "A finished turn's work, folded before its answer, e.g. \"Worked for 4m 32s\".",
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "turnFiles": "{count, plural, =1{1 file} other{{count} files}}",
+  "@turnFiles": {
+    "description": "How many files a folded turn edited.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "toolLines": "Lines {range}",
   "@toolLines": {
     "description": "A file's line range, e.g. 1–40.",
@@ -2268,6 +2356,21 @@
       }
     }
   },
+  "termLaunchProfile": "Launch Profile...",
+  "termProfileDefault": "{name} (Default)",
+  "@termProfileDefault": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "termSelectDefaultProfile": "Select Default Profile",
+  "termSelectProfileToCreate": "Select the terminal profile to create",
+  "termChooseDefaultProfile": "Select your default terminal profile",
+  "termProfilesGroup": "profiles",
+  "termProfilesDetected": "detected",
+  "cmdTerminalNewWithProfile": "Create New Terminal (With Profile)",
   "termKill": "Kill",
   "termKillKeys": "Kill ({keybinding})",
   "@termKillKeys": {

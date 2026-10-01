@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'pty_stub.dart' if (dart.library.io) 'pty_io.dart' as platform;
+import 'terminal_profiles.dart';
+import 'terminal_shell.dart';
 
 /// Whether processes can run on a pseudo terminal here: on the desktop, not
 /// in the browser.
@@ -87,9 +89,10 @@ typedef PtyStarter = Future<Pty> Function(PtyLaunch launch);
 /// [PtyException] (always on the web).
 Future<Pty> startPty(PtyLaunch launch) => platform.PtyProcesses.start(launch);
 
-/// What a new terminal runs in [root]: the user's shell, in the
-/// environment a terminal gives (see terminal_shell.dart), with VS Code's
-/// shell integration injected unless [shellIntegration] is off (its
+/// What a new terminal runs in [root]: [shell] (a profile's), else the
+/// user's shell, in the environment a terminal gives (see
+/// terminal_shell.dart), with VS Code's shell integration injected unless
+/// [shellIntegration] is off (its
 /// `terminal.integrated.shellIntegration.enabled`; see
 /// shell_integration/shell_integration_files.dart); fails with
 /// [PtyException] on the web.
@@ -98,12 +101,21 @@ Future<PtyLaunch> terminalLaunch(
   int columns = 80,
   int rows = 24,
   bool shellIntegration = true,
+  TerminalShell? shell,
 }) => platform.PtyProcesses.terminalLaunch(
   root,
   columns: columns,
   rows: rows,
   shellIntegration: shellIntegration,
+  shell: shell,
 );
+
+/// The terminal profiles of this system, [configured] (the user's
+/// `terminal.integrated.profiles.<os>`) over VS Code's defaults, and the
+/// shell a terminal starts with none set (see terminal_profiles.dart); none
+/// on the web.
+Future<TerminalProfiles> terminalProfiles({Object? configured}) =>
+    platform.PtyProcesses.terminalProfiles(configured: configured);
 
 /// Hangs up every terminal the app started, and waits for their processes
 /// to end: for when the app quits.

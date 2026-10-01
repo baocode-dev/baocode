@@ -29,6 +29,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
+import '../../settings/user_settings.dart';
 import 'pty.dart';
 import 'shell_integration/shell_integration.dart';
 import 'shell_integration/shell_integration_injection.dart';
@@ -42,16 +43,27 @@ import 'links/terminal_link_resolver.dart';
 import 'links/terminal_links.dart';
 import 'terminal_colors.dart';
 import 'terminal_find.dart';
+import 'terminal_profiles.dart';
+import 'terminal_shell.dart';
 import 'terminal_xterm.dart';
 import 'xterm/common/platform.dart';
 import 'xterm/common/services/decoration_service.dart';
 import 'xterm/headless/terminal.dart' as internal;
 
-/// What a new terminal runs in [root]: [terminalLaunch] in the app.
+/// What a new terminal runs in [root]: [terminalLaunch] in the app;
+/// [shell] when a profile names it, else the user's shell.
 typedef TerminalLauncher = Future<PtyLaunch> Function(
   String root, {
   int columns,
   int rows,
+  TerminalShell? shell,
+});
+
+/// The terminal profiles there are, [configured] (the user's
+/// `terminal.integrated.profiles.<os>`) over VS Code's defaults:
+/// [terminalProfiles] in the app.
+typedef TerminalProfileDetector = Future<TerminalProfiles> Function({
+  Object? configured,
 });
 
 /// Where terminals' processes come from, as VS Code's terminal backend:
@@ -62,12 +74,23 @@ class TerminalBackend {
   const TerminalBackend({
     this.launch = terminalLaunch,
     this.start = startPty,
+    this.detectProfiles = terminalProfiles,
+    this.settings,
     this.linkStat,
     this._supported,
   });
 
   final TerminalLauncher launch;
   final PtyStarter start;
+
+  /// Lists the shells a terminal can start, when the profiles are asked
+  /// for (a dropdown opened), not before: the app's reads the disk.
+  final TerminalProfileDetector detectProfiles;
+
+  /// settings.json, with the default profile and the user's profiles
+  /// (`terminal.integrated.defaultProfile.<os>`, `.profiles.<os>`); none:
+  /// the user's shell, VS Code's default profiles, and no default to set.
+  final UserSettings? settings;
 
   /// Null checks the disk ([TerminalFileLinkResolver]'s default).
   final TerminalLinkStat? linkStat;
@@ -86,6 +109,7 @@ class TerminalInstance extends ChangeNotifier {
     this._columns = 80,
     this._rows = 24,
     this.onExit,
+    this.shell,
   }) {
     _initPlatform();
     xterm = TerminalXterm(
@@ -324,9 +348,20 @@ class TerminalInstance extends ChangeNotifier {
     terminal.onRenderEmitter.fire((start: y, end: y));
   }
 
+  /// The shell it starts, a profile's, once known; null (or none) starts
+  /// the user's.
+  final Future<TerminalShell?>? shell;
+
   Future<void> _start() async {
     try {
-      final launch = await backend.launch(root, columns: _columns, rows: _rows);
+      final shell = this.shell == null ? null : await this.shell;
+      if (_disposed) return;
+      final launch = await backend.launch(
+        root,
+        columns: _columns,
+        rows: _rows,
+        shell: shell,
+      );
       if (_disposed) return;
       _launch = launch;
       _shellIntegration = ShellIntegration(

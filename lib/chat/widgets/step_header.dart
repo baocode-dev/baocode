@@ -23,6 +23,7 @@ class StepHeader extends StatelessWidget {
     this.icon,
     this.trailing,
     this.action,
+    this.spans,
   });
 
   final String verb;
@@ -43,6 +44,10 @@ class StepHeader extends StatelessWidget {
   /// A button after it all, apart from the click that opens it.
   final Widget? action;
 
+  /// The line in parts, in place of [verb], [object] and [detail]: e.g. a
+  /// fold's counts, standing out of its words.
+  final List<InlineSpan>? spans;
+
   /// Its text's size, as steps read.
   static const fontSize = 13.0;
 
@@ -55,7 +60,14 @@ class StepHeader extends StatelessWidget {
     final toggle = onToggle;
     // Built once: hovering must not rebuild the text, or a selection in it
     // would be lost.
-    final line = running
+    final line = spans != null
+        ? Text.rich(
+            TextSpan(children: spans),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: CursorColors.textMuted, fontSize: fontSize),
+          )
+        : running
         ? ShimmerText(
             text(verb, object, detail),
             ellipsis: false,

@@ -20,8 +20,10 @@ import 'chat_models.dart';
 import 'chat_session.dart';
 import 'composer/composer.dart';
 import 'composer/composer_draft.dart';
+import 'step_folds.dart';
 import 'widgets/chat_item_view.dart';
 import 'widgets/edge_fade_mask.dart';
+import 'widgets/fold_line.dart';
 import 'widgets/user_message_bubble.dart';
 
 /// Virtualized, selectable conversation history followed by the live turn.
@@ -67,6 +69,80 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// Steps the user opened (true) or closed (false). Others follow
   /// [defaultExpanded]: open while they stream or run, closed once done.
   final Map<int, bool> _expanded = {};
+
+  // --- Folds ---------------------------------------------------------------
+  //
+  // Runs of quick steps fold into one line each, and a finished turn's work
+  // into one line before its answer (see [StepFolds]). Every item keeps its
+  // row: one a closed fold hides is laid out at no height.
+
+  StepFolds _folds = StepFolds.none;
+
+  /// Folds the user opened (true) or closed (false); others are closed.
+  final Map<(StepFoldKind, int), bool> _foldOpen = {};
+
+  /// Where the work of the turn that ended while the user read further up
+  /// starts: it stays open, not to fold the history away under them, until
+  /// they are back at the bottom or send again.
+  int? _unfoldedTurn;
+
+  /// Whether a turn was under way, as last seen: to tell when it ends.
+  bool _wasLive = false;
+
+  void _refold() => _folds = StepFolds.of(
+    _feed.itemCount,
+    _feed.itemAt,
+    live: _feed.isStreaming,
+  );
+
+  bool _isFoldOpen(StepFold fold) =>
+      _foldOpen[fold.key] ??
+      (fold.kind == StepFoldKind.work && fold.start == _unfoldedTurn);
+
+  void _toggleFold(StepFold fold) {
+    for (var index = fold.start; index < fold.end; index++) {
+      _animateItem(index);
+    }
+    setState(() => _foldOpen[fold.key] = !_isFoldOpen(fold));
+  }
+
+  StepRow _rowAt(int index) =>
+      _folds.rowAt(index, _feed.itemAt(index), _isFoldOpen);
+
+  /// Whether row [index] shows nothing: a closed fold hides its item.
+  bool _isHidden(int index) => switch (_rowAt(index)) {
+    (work: null, steps: null, item: false) => true,
+    _ => false,
+  };
+
+  Iterable<ChatItem> _itemsIn(StepFold fold) => [
+    for (var index = fold.start; index < fold.end; index++) _feed.itemAt(index),
+  ];
+
+  /// The work fold of the last turn, if it folds.
+  StepFold? _lastTurnWork() {
+    for (var index = _feed.itemCount - 1; index >= 0; index--) {
+      if (_folds.workAt(index) case final fold?) return fold;
+      if (_feed.itemAt(index) is UserMessageItem) return null;
+    }
+    return null;
+  }
+
+  /// Row [index] as text, as it shows: the lines of the folds it begins,
+  /// and its item unless folded away.
+  String _plainTextOf(int index) {
+    final item = _feed.itemAt(index);
+    final row = _folds.rowAt(index, item, _isFoldOpen);
+    final l10n = context.l10n;
+    return [
+      if (row.work case StepFold(:final worked?) && final fold)
+        WorkFoldLine.text(worked, turnEdits(_itemsIn(fold)), l10n: l10n),
+      if (row.steps case final fold?)
+        StepsFoldLine.text(StepTally(_itemsIn(fold)), l10n: l10n),
+      if (row.item)
+        chatItemPlainText(item, expanded: _isExpanded(index), l10n: l10n),
+    ].join('\n');
+  }
 
   // --- Motion --------------------------------------------------------------
   //
@@ -185,7 +261,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         // The user's own messages are in place as they are sent.
         if (_feed.itemAt(index) is! UserMessageItem) _appearing.add(index);
       }
-      if (_statusShown && !statusShown && _appearing.contains(_seenItems)) {
+      if (_statusShown &&
+          !statusShown &&
+          _appearing.contains(_seenItems) &&
+          !_isHidden(_seenItems)) {
         _handoffIndex = _seenItems;
         _handoff.forward(from: 0);
       }
@@ -234,11 +313,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     locate: _locateItemPoint,
     resolve: _resolveItemPoint,
     beyondBuilt: _beyondBuiltItems,
-    plainTextOf: (index) => chatItemPlainText(
-      _feed.itemAt(index),
-      expanded: _isExpanded(index),
-      l10n: context.l10n,
-    ),
+    plainTextOf: _plainTextOf,
     onDragEdge: _autoScrollToward,
   );
   bool _reselectScheduled = false;
@@ -256,6 +331,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     super.initState();
     _scrollController.addListener(_handleScroll);
     _feed.addListener(_handleSessionChanged);
+    _wasLive = _feed.isStreaming;
+    _refold();
     _seeItems();
     _resumeEditing();
   }
@@ -285,6 +362,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _stickyKeys.clear();
       _stickyIndices = const {};
       _editingIndex = null;
+      _foldOpen.clear();
+      _unfoldedTurn = null;
+      _wasLive = widget.feed.isStreaming;
+      _refold();
       _seeItems();
       _resumeEditing();
     }
@@ -386,6 +467,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
     if (_shownAtBottom != _atBottom) {
       setState(() => _shownAtBottom = _atBottom);
+    }
+    // Back at the bottom: the turn read meanwhile folds.
+    if (_atBottom && _unfoldedTurn != null) {
+      setState(() => _unfoldedTurn = null);
     }
     _syncEdgeFades();
     _scheduleStickyUpdate();
@@ -608,6 +693,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     // Sending a message always brings the live turn into view.
     final startedStreaming = _feed.isStreaming && !_wasStreaming;
     _wasStreaming = _feed.isStreaming;
+    final ended = _wasLive && !_feed.isStreaming;
+    _wasLive = _feed.isStreaming;
+    _refold();
+    if (_feed.isStreaming) _unfoldedTurn = null;
+    if (ended && !_atBottom) _unfoldedTurn = _lastTurnWork()?.start;
     final editing = _editingIndex;
     if (startedStreaming ||
         (editing != null &&
@@ -1063,6 +1153,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _editingIndex = null;
       // Everything after the message is replaced; so are its steps.
       _expanded.removeWhere((i, _) => i > index);
+      _foldOpen.removeWhere((key, _) => key.$2 > index);
+      _unfoldedTurn = null;
     });
     _feed.editMessage(index, message);
   }
@@ -1079,27 +1171,32 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
             SizedBox(key: _editorPlaceholderKey, height: _editorShownHeight),
       );
     }
-    final view = ChatItemView(
-      key: item is LiveStatusItem ? _statusKey : ValueKey(index),
-      item: item,
-      expanded: _isExpanded(index),
-      onToggle: () => _toggle(index),
-      onEdit: item is UserMessageItem && _feed.canEditMessages
-          ? () => _startEditing(index)
-          : null,
-      onCancelQueued: () => _feed.cancelQueued(index),
-      onMoveToBackground: _feed.moveToBackgroundAt(index),
-      onStop: _feed.stopAt(index),
-      onOpen: switch ((item, widget.onOpenAgent)) {
-        (final AgentItem agent, final open?) when agent.id != null =>
-          () => open(agent),
-        _ => null,
-      },
-    );
-    return _ItemSelectionScope(
-      index: index,
-      delegate: _selectionDelegate,
-      child: switch (item) {
+    final row = _folds.rowAt(index, item, _isFoldOpen);
+    final folds = [?row.work, ?row.steps];
+    // Folded away.
+    if (folds.isEmpty && !row.item) {
+      return const SizedBox(width: double.infinity);
+    }
+    Widget? shown;
+    if (row.item) {
+      final view = ChatItemView(
+        key: item is LiveStatusItem ? _statusKey : ValueKey(index),
+        item: item,
+        expanded: _isExpanded(index),
+        onToggle: () => _toggle(index),
+        onEdit: item is UserMessageItem && _feed.canEditMessages
+            ? () => _startEditing(index)
+            : null,
+        onCancelQueued: () => _feed.cancelQueued(index),
+        onMoveToBackground: _feed.moveToBackgroundAt(index),
+        onStop: _feed.stopAt(index),
+        onOpen: switch ((item, widget.onOpenAgent)) {
+          (final AgentItem agent, final open?) when agent.id != null =>
+            () => open(agent),
+          _ => null,
+        },
+      );
+      shown = switch (item) {
         // Meanwhile over the item it gave way to.
         LiveStatusItem() when _handoffIndex != null => const SizedBox(
           width: double.infinity,
@@ -1112,7 +1209,40 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
           ghost: index == _handoffIndex ? _statusGhost(index) : null,
           child: view,
         ),
-      },
+      };
+    }
+    return _ItemSelectionScope(
+      index: index,
+      delegate: _selectionDelegate,
+      child: folds.isEmpty
+          ? shown!
+          // Steps line up on the left, folds' lines too.
+          : SizedBox(
+              width: double.infinity,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (row.work case StepFold(:final worked?) && final fold) ...[
+                    WorkFoldLine(
+                      worked: worked,
+                      edits: turnEdits(_itemsIn(fold)),
+                      expanded: _isFoldOpen(fold),
+                      onToggle: () => _toggleFold(fold),
+                    ),
+                    // Words under it stand apart, as under any step.
+                    if (row.steps == null && row.item && !isStep(item))
+                      const SizedBox(height: 10),
+                  ],
+                  if (row.steps case final fold?)
+                    StepsFoldLine(
+                      tally: StepTally(_itemsIn(fold)),
+                      expanded: _isFoldOpen(fold),
+                      onToggle: () => _toggleFold(fold),
+                    ),
+                  ?shown,
+                ],
+              ),
+            ),
     );
   }
 
@@ -1295,7 +1425,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                         // All but the user's messages a
                                         // little narrower than those.
                                         padding: EdgeInsets.only(
-                                          top: _gapBefore(index),
+                                          top: _isHidden(index)
+                                              ? 0
+                                              : _gapBefore(index),
                                           left: _insetOf(index),
                                           right: _insetOf(index),
                                         ),

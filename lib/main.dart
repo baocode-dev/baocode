@@ -13,6 +13,7 @@ import 'ide/lsp/language_features.dart';
 import 'ide/lsp/lsp_process.dart';
 import 'ide/terminal/pty.dart';
 import 'ide/terminal/terminal_colors.dart';
+import 'ide/terminal/terminal_instance.dart';
 import 'kernel/claude_code/process_transport.dart';
 import 'keybindings/keybindings_sync.dart';
 import 'keybindings/keymap.dart';
@@ -75,9 +76,7 @@ Future<void> main() async {
   final locale = AppLocale(storage: files?.argv);
   AppSettings? settings;
   if (files != null) {
-    final catalog = KeymapCatalog(
-      keymapsDir: DataDirectory.current.keymapsDir,
-    );
+    final catalog = KeymapCatalog(keymapsDir: DataDirectory.current.keymapsDir);
     final sync = KeybindingsSync(
       keybindings: files.keybindings,
       settings: files.settings,
@@ -99,6 +98,8 @@ Future<void> main() async {
       settings: settings,
       languagesFor: standardLspManager,
       gitFor: (root) => IdeGitRepository(IdeGitService(root)),
+      // The default profile and the user's profiles are settings.json's.
+      terminalBackend: TerminalBackend(settings: files?.settings),
     ),
   );
 }
@@ -109,6 +110,7 @@ class MonadApp extends StatefulWidget {
     this.workspace,
     this.languagesFor,
     this.gitFor,
+    this.terminalBackend,
     this.appLocale,
     this.settings,
   });
@@ -128,6 +130,9 @@ class MonadApp extends StatefulWidget {
 
   /// The Git repository of a project the IDE opens; none when null.
   final IdeGitRepository Function(String root)? gitFor;
+
+  /// What the IDE's terminals run on; none when null.
+  final TerminalBackend? terminalBackend;
 
   @override
   State<MonadApp> createState() => _MonadAppState();
@@ -218,6 +223,7 @@ class _MonadAppState extends State<MonadApp> {
               workspace: _workspace,
               languagesFor: widget.languagesFor,
               gitFor: widget.gitFor,
+              terminalBackend: widget.terminalBackend,
               settings: _settings,
             ),
           ),

@@ -74,7 +74,12 @@ class SubagentFeed extends ChangeNotifier implements ChatFeed {
         ? const []
         : [
             if (agent.prompt case final prompt? when prompt.isNotEmpty)
-              UserMessageItem(text: prompt),
+              UserMessageItem(
+                text: prompt,
+                worked: agent.status == CommandStatus.succeeded
+                    ? agent.duration
+                    : null,
+              ),
             ...agent.children,
             if (agent.result case final result? when result.isNotEmpty)
               AssistantTextItem(result),

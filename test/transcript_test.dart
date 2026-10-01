@@ -174,6 +174,24 @@ void main() {
     expect(describe(transcript), startsWith('text:one\ntext:TWO\n'));
   });
 
+  test('a turn done is timed on its message; a stopped one is not', () {
+    const worked = Duration(minutes: 4, seconds: 32);
+    Duration? workedOn(Transcript transcript) =>
+        (transcript.itemAt(0) as UserMessageItem).worked;
+    final done = Transcript()
+      ..apply(const TurnStarted(1, 'u'))
+      ..apply(const ItemUpserted(2, 'u', UserMessageItem(text: 'hi')))
+      ..apply(const TurnEnded(3, 'u', worked: worked));
+    expect(workedOn(done), worked);
+    expect((done.itemAt(0) as UserMessageItem).text, 'hi');
+
+    final stopped = Transcript()
+      ..apply(const TurnStarted(1, 'u'))
+      ..apply(const ItemUpserted(2, 'u', UserMessageItem(text: 'hi')))
+      ..apply(const TurnEnded(3, 'u', interrupted: true, worked: worked));
+    expect(workedOn(stopped), isNull);
+  });
+
   test('tasks and todos are replaced whole', () {
     final started = DateTime(2026);
     final transcript = Transcript()

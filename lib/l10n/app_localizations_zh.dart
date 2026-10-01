@@ -1657,6 +1657,94 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toolUsed => '已使用';
 
   @override
+  String stepsRead(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '读取 $count 个文件',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String stepsSearched(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '搜索 $count 次',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String stepsListed(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '列出 $count 个目录',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String stepsFetched(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '获取 $count 个网页',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String stepsRan(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '运行 $count 条命令',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String stepsUsed(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '使用 $count 个工具',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get stepsSeparator => '，';
+
+  @override
+  String stepsThought(String duration) {
+    return '思考 $duration';
+  }
+
+  @override
+  String stepsFailed(int count) {
+    return '$count 个失败';
+  }
+
+  @override
+  String turnWorked(String duration) {
+    return '已处理 $duration';
+  }
+
+  @override
+  String turnFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个文件',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String toolLines(String range) {
     return '第 $range 行';
   }
@@ -3152,6 +3240,32 @@ class AppLocalizationsZh extends AppLocalizations {
   String termNewTerminalKeys(String keybinding) {
     return '新建终端($keybinding)';
   }
+
+  @override
+  String get termLaunchProfile => '启动配置文件...';
+
+  @override
+  String termProfileDefault(String name) {
+    return '$name (默认)';
+  }
+
+  @override
+  String get termSelectDefaultProfile => '选择默认配置文件';
+
+  @override
+  String get termSelectProfileToCreate => '选择要创建的终端配置文件';
+
+  @override
+  String get termChooseDefaultProfile => '选择默认终端配置文件';
+
+  @override
+  String get termProfilesGroup => '配置文件';
+
+  @override
+  String get termProfilesDetected => '已检测到';
+
+  @override
+  String get cmdTerminalNewWithProfile => '创建新终端(使用配置文件)';
 
   @override
   String get termKill => '终止';

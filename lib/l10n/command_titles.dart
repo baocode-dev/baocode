@@ -169,6 +169,10 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'workbench.action.terminal.scrollToTop' => l10n.cmdTerminalScrollToTop,
     'workbench.action.terminal.sendSequence' => l10n.cmdTerminalSendSequence,
     'workbench.action.terminal.killAll' => l10n.cmdTerminalKillAll,
+    'workbench.action.terminal.newWithProfile' =>
+      l10n.cmdTerminalNewWithProfile,
+    'workbench.action.terminal.selectDefaultShell' =>
+      l10n.termSelectDefaultProfile,
     'workbench.action.terminal.selectAll' => l10n.commonSelectAll,
     'workbench.action.terminal.clear' => l10n.termClear,
     'workbench.action.findInFiles' => l10n.cmdFindInFiles,

@@ -12,6 +12,7 @@ import 'package:monad/ide/lsp/language_features.dart';
 import 'package:monad/ide/search/text_search.dart';
 import 'package:monad/ide/terminal/pty.dart';
 import 'package:monad/ide/terminal/terminal_instance.dart';
+import 'package:monad/settings/user_settings.dart';
 import 'package:monad/workspace/workspace.dart';
 import 'package:path/path.dart' as p;
 
@@ -166,6 +167,7 @@ Future<IdeWorkspace> pumpWorkbench(
   IdeColorThemeController? colorThemes,
   VoidCallback? onBack,
   Widget chat = const SizedBox.expand(key: chatKey),
+  UserSettings? settings,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -206,6 +208,8 @@ Future<IdeWorkspace> pumpWorkbench(
         terminalBackend: TerminalBackend(
           launch: fakeTerminalLaunch,
           start: startPty ?? FakePty.starter([]),
+          detectProfiles: fakeTerminalProfiles,
+          settings: settings,
           // Links name the fake files (and their folders), not the disk's.
           linkStat: (path) async =>
               files.containsKey(

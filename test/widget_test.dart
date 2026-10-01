@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import 'package:monad/chat/mock_conversation.dart';
+import 'package:monad/chat/widgets/fold_line.dart';
 import 'package:monad/chat/composer/composer.dart';
 import 'package:monad/chat/widgets/edge_fade_mask.dart';
 import 'package:monad/main.dart';
@@ -159,6 +160,9 @@ void main() {
         .jumpTo(0);
     await tester.pump();
 
+    // The turn's thought is folded with its read and search: open them.
+    await tester.tap(find.byType(StepsFoldLine).first);
+    await tester.pumpAndSettle();
     final thinking = find.textContaining('Thought ', findRichText: true).first;
     await tester.tap(thinking);
     await tester.pumpAndSettle();
@@ -516,10 +520,11 @@ void main() {
 
     // Every message between the two ends is selected: whole turns, in order.
     final text = copied ?? '';
-    final thoughts = RegExp(r'Thought \d+s').allMatches(text).length;
+    // A turn's thought, read and search copy as their folded line.
+    final thoughts = _foldedSteps.allMatches(text).length;
     expect(thoughts, greaterThanOrEqualTo(3));
     // Whole turns, except that the first may start partway (after its
-    // thinking block, before its edit and command).
+    // folded steps, before its edit and command).
     expect(
       'Edited main.dart'.allMatches(text).length - thoughts,
       inInclusiveRange(0, 1),
@@ -630,7 +635,7 @@ void main() {
         // From the clicked command down to the anchor: whole turns.
         expect(text, startsWith('Ran flutter test'));
         expect(text, endsWith('Ran flutter test'));
-        final thoughts = RegExp(r'Thought \d+s').allMatches(text).length;
+        final thoughts = _foldedSteps.allMatches(text).length;
         expect(thoughts, greaterThanOrEqualTo(3));
         expect('flutter test'.allMatches(text).length, thoughts + 1);
         expect('Edited main.dart'.allMatches(text).length, thoughts);
@@ -717,7 +722,7 @@ void main() {
     expect(turns.length, turnCount);
     expect(turns.last, turnCount);
     expect(turns.indexed.every((entry) => entry.$2 == entry.$1 + 1), isTrue);
-    expect(RegExp(r'Thought \d+s').allMatches(text).length, turnCount);
+    expect(_foldedSteps.allMatches(text).length, turnCount);
     // Copying builds the text of every item from the model: no freeze.
     expect(stopwatch.elapsed, lessThan(const Duration(seconds: 2)));
 
@@ -766,3 +771,6 @@ void main() {
     await mouse.removePointer();
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 }
+
+/// A mock turn's thought, read and search, folded into one line.
+final _foldedSteps = RegExp(r'Read 1 file, searched 1 pattern');

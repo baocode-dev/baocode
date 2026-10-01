@@ -681,13 +681,14 @@ void main() {
       await menu('copy');
       expect(copied, 'hello world');
 
-      // In the conversation, once clicked: all of it.
+      // In the conversation, once clicked: all of it. (Its last reply: in
+      // view, clear of the message stuck to the top.)
       final reply = find
           .descendant(
             of: find.byType(MarkdownView),
             matching: find.byType(RichText),
           )
-          .first;
+          .last;
       final click = await tester.startGesture(
         tester.getCenter(reply),
         kind: PointerDeviceKind.mouse,
@@ -1348,7 +1349,8 @@ void main() {
     testWidgets('the editor sticks to the top while scrolled past', (
       tester,
     ) async {
-      await pumpScreen(tester);
+      // Turns enough to scroll the message far past (their steps fold).
+      await pumpScreen(tester, historyCount: 32);
       await reveal(tester, '第 2 轮');
       await tester.tap(bubble('第 2 轮'));
       await tester.pump();

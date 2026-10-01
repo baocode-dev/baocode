@@ -10,6 +10,7 @@ import 'package:monad/chat/panels/context_usage_panel.dart';
 import 'package:monad/ide/ide_layout.dart';
 import 'package:monad/ide/ide_workbench.dart';
 import 'package:monad/ide/lsp_ui/problems_panel.dart';
+import 'package:monad/ide/terminal/terminal_instance.dart';
 import 'package:monad/main.dart';
 import 'package:monad/sidebar/sidebar.dart';
 import 'package:monad/theme/codicons.dart';
@@ -23,12 +24,16 @@ import 'package:monad/workspace/window_header/header_menu_bar.dart';
 import 'package:monad/workspace/window_header/window_header.dart';
 import 'package:monad/workspace/workspace.dart';
 
+import 'ide/terminal/fake_pty.dart';
+import 'ide/terminal/fake_terminal.dart';
+
 const _window = MethodChannel('monad/window');
 
 /// The app with the header Windows draws, and what it tells the window.
 Future<(Workspace, List<MethodCall>)> pumpWindowsApp(
-  WidgetTester tester,
-) async {
+  WidgetTester tester, {
+  TerminalBackend? terminalBackend,
+}) async {
   tester.view.physicalSize = const Size(1400, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -46,7 +51,9 @@ Future<(Workspace, List<MethodCall>)> pumpWindowsApp(
     ),
   );
   final workspace = Workspace.mock();
-  await tester.pumpWidget(MonadApp(workspace: workspace));
+  await tester.pumpWidget(
+    MonadApp(workspace: workspace, terminalBackend: terminalBackend),
+  );
   await tester.pump();
   return (workspace, calls);
 }
@@ -257,6 +264,36 @@ void main() {
         ),
       );
     }
+  }, variant: _windows);
+
+  testWidgets('with terminals, the panel toggles open on TERMINAL, a '
+      'terminal of its own made; the app has none unless given them', (
+    tester,
+  ) async {
+    final ptys = <FakePty>[];
+    final (workspace, _) = await pumpWindowsApp(
+      tester,
+      terminalBackend: fakeTerminalBackend(ptys),
+    );
+    workspace.layout = WorkspaceLayout.ide;
+    await tester.pump();
+    await tester.pump();
+    final layout = tester
+        .widget<IdeWorkbench>(find.byType(IdeWorkbench))
+        .workspace
+        .layout;
+    await tester.tap(
+      find.descendant(
+        of: find.byType(WindowHeader),
+        matching: find.byTooltip('Toggle Panel (Ctrl+`)'),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(layout.panel, IdePanelTab.terminal);
+    expect(find.text('TERMINAL'), findsOneWidget);
+    expect(ptys, hasLength(1));
+    expect(ptys.single.launch!.executable, '/bin/zsh');
   }, variant: _windows);
 
   testWidgets('View → Context Panel opens the chat\'s, wherever the focus '

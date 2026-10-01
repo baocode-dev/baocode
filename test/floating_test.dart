@@ -11,6 +11,7 @@ import 'package:monad/chat/composer/suggestion_menu.dart';
 import 'package:monad/chat/floating/floating_placement.dart';
 import 'package:monad/chat/floating/hover_tooltip.dart';
 import 'package:monad/chat/floating/floating_registry.dart';
+import 'package:monad/chat/widgets/fold_line.dart';
 import 'package:monad/chat/widgets/tool_call_row.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
 
@@ -293,6 +294,11 @@ void main() {
 
     Future<void> setUpScreen(WidgetTester tester) async {
       await pumpScreen(tester);
+      // The last turn's read is folded with its thought and search: open it.
+      await tester.tap(find.byType(StepsFoldLine).last);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       // Mid-view: the top is under the turn's message, stuck there.
       await Scrollable.ensureVisible(
         tester.element(reads(skipOffstage: false).last),

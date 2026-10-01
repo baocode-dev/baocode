@@ -16,6 +16,7 @@ import 'ide/ide_notifications.dart';
 import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
 import 'ide/lsp/language_features.dart';
+import 'ide/terminal/terminal_instance.dart';
 import 'keybindings/chat_keybindings.dart';
 import 'keybindings/default_keybindings.dart';
 import 'keybindings/key_chord.dart';
@@ -52,6 +53,7 @@ class Workbench extends StatefulWidget {
     this.ideEditorBuilder,
     this.languagesFor,
     this.gitFor,
+    this.terminalBackend,
     this.settings,
   });
 
@@ -68,6 +70,10 @@ class Workbench extends StatefulWidget {
   /// The Git repository of the project at a root, when the IDE opens it;
   /// none when null.
   final IdeGitRepository Function(String root)? gitFor;
+
+  /// What the IDE's terminals run on (with settings.json's profiles); none
+  /// when null.
+  final TerminalBackend? terminalBackend;
 
   @visibleForTesting
   final Widget Function(BuildContext, IdeWorkspace)? ideEditorBuilder;
@@ -587,6 +593,9 @@ class _WorkbenchState extends State<Workbench> {
                   onIgnoreRecommendation: _workspace.ignoreServerRecommendation,
                   colorThemes: WorkbenchThemeService.instance,
                   commands: _settingsCommands,
+                  terminalBackend:
+                      widget.terminalBackend ??
+                      const TerminalBackend(supported: false),
                   chat: ide && project.path == entry.key
                       ? _conversation(
                           _buildChat(showToggle: false, embedded: true),

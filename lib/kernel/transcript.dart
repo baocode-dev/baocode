@@ -89,13 +89,14 @@ class Transcript {
       case TurnStarted(:final turnId):
         if (_endedTurns.contains(turnId)) return false;
         activeTurn = turnId;
-      case TurnEnded(:final turnId):
+      case TurnEnded(:final turnId, :final interrupted, :final worked):
         if (!_endedTurns.add(turnId)) return false;
         if (activeTurn == turnId) activeTurn = null;
         activity = null;
         lastTurnEndSeq = event.seq;
         _pending.clear();
         _settleStreaming();
+        if (!interrupted && worked != null) _timeTurn(turnId, worked);
       case ItemUpserted(:final id, :final item, :final streaming):
         _put(id, item);
         streaming ? _streaming.add(id) : _streaming.remove(id);
@@ -197,6 +198,15 @@ class Transcript {
       _ => AssistantTextItem(merged),
     };
     return true;
+  }
+
+  /// Keeps how long turn [id] took on the message that began it.
+  void _timeTurn(String id, Duration worked) {
+    final index = _indexOf[id];
+    if (index == null) return;
+    if (_items[index] case final UserMessageItem message) {
+      _items[index] = message.copyWith(worked: worked);
+    }
   }
 
   /// Settles whatever was left streaming when its turn ended: a thought

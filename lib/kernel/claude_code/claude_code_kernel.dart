@@ -100,6 +100,9 @@ class ClaudeCodeKernel
   bool _disposed = false;
 
   String? _turn;
+
+  /// When [_turn] began, to time it if the CLI does not.
+  DateTime? _turnStarted;
   final Map<String, KernelTurn> _sent = {};
   final Set<String> _queued = {};
 
@@ -407,21 +410,26 @@ class ClaudeCodeKernel
 
   void _beginTurn(String id) {
     _turn = id;
+    _turnStarted = DateTime.now();
     _translator.turnId = id;
     emit(TurnStarted(nextSeq, id));
     _translator.begin();
   }
 
-  void _endTurn({required bool interrupted}) {
+  void _endTurn({required bool interrupted, Duration? worked}) {
     final turn = _turn;
     if (turn == null) return;
     _turn = null;
+    worked ??= switch (_turnStarted) {
+      final started? => DateTime.now().difference(started),
+      null => null,
+    };
     _translator.settle();
     for (final id in _permissions.keys) {
       emit(InteractionResolved(nextSeq, id));
     }
     _permissions.clear();
-    emit(TurnEnded(nextSeq, turn, interrupted: interrupted));
+    emit(TurnEnded(nextSeq, turn, interrupted: interrupted, worked: worked));
   }
 
   @override
@@ -1027,7 +1035,13 @@ class ClaudeCodeKernel
         );
       }
     }
-    _endTurn(interrupted: message['subtype'] != 'success');
+    _endTurn(
+      interrupted: message['subtype'] != 'success',
+      worked: switch (message['duration_ms']) {
+        final num ms => Duration(milliseconds: ms.round()),
+        _ => null,
+      },
+    );
     unawaited(_refreshContext());
   }
 
@@ -1335,6 +1349,7 @@ class ClaudeCodeKernel
       for (final line in lines) {
         _translator.translate(line);
       }
+      _translator.endReplay();
     } on Object catch (error) {
       emit(
         ItemUpserted(

@@ -28,6 +28,8 @@ import '../ide_hover.dart';
 import '../ide_menu.dart';
 import 'links/terminal_links.dart';
 import 'terminal_instance.dart';
+import 'terminal_profile_service.dart';
+import 'terminal_profiles.dart';
 import 'terminal_service.dart';
 import 'terminal_tabs.dart';
 import 'terminal_view.dart';
@@ -226,16 +228,58 @@ class TerminalPanel extends StatelessWidget {
 }
 
 /// The panel title's actions while TERMINAL shows: with a single terminal,
-/// its tab (a click opens its menu) and Kill; New Terminal always.
+/// its tab (a click opens its menu) and Kill; New Terminal always, with
+/// its dropdown of profiles (`DropdownWithPrimaryActionViewItem`, the
+/// actions of terminalMenus.ts `getTerminalActionBarArgs`: the default
+/// profile first, the others by name, then Select Default Profile; no
+/// Split Terminal, Configure Terminal Settings or tasks here).
 class TerminalTitleActions extends StatelessWidget {
   const TerminalTitleActions({
     super.key,
     required this.terminals,
     required this.onNew,
+    this.onNewWithProfile,
+    this.onSelectDefaultProfile,
   });
 
   final TerminalService terminals;
   final VoidCallback onNew;
+
+  /// A new terminal on a profile picked in the dropdown; none: no dropdown.
+  final ValueChanged<TerminalProfile>? onNewWithProfile;
+
+  /// Select Default Profile, from the dropdown.
+  final VoidCallback? onSelectDefaultProfile;
+
+  Future<List<IdeMenuEntry>> _profileEntries(
+    AppLocalizations l10n,
+    ValueChanged<TerminalProfile> onNewWithProfile,
+  ) async {
+    final profiles = terminals.profiles;
+    await profiles.refresh();
+    final defaultName = profiles.defaultProfileName;
+    return ideMenuGroups([
+      [
+        for (final profile in terminalDropdownProfiles(
+          profiles.availableProfiles,
+          defaultName,
+        ))
+          IdeMenuAction(
+            profile.name == defaultName
+                ? l10n.termProfileDefault(profile.name)
+                : profile.name,
+            onSelected: () => onNewWithProfile(profile),
+          ),
+      ],
+      [
+        IdeMenuAction(
+          l10n.termSelectDefaultProfile,
+          enabled: onSelectDefaultProfile != null && profiles.canSetDefault,
+          onSelected: onSelectDefaultProfile,
+        ),
+      ],
+    ]);
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -271,6 +315,14 @@ class TerminalTitleActions extends StatelessWidget {
             },
             onPressed: onNew,
           ),
+          if (onNewWithProfile case final onNewWithProfile?)
+            IdeMenuButton(
+              icon: Codicons.chevronDown,
+              tooltip: context.l10n.termLaunchProfile,
+              width: 16,
+              iconSize: 12,
+              entries: () => _profileEntries(context.l10n, onNewWithProfile),
+            ),
           if (single != null) ...[
             const SizedBox(width: 2),
             IdeActionButton(

@@ -466,6 +466,16 @@ final List<CommandInfo> workbenchExtraCommands = [
     category: _terminal,
   ),
   const CommandInfo(
+    'workbench.action.terminal.newWithProfile',
+    'Create New Terminal (With Profile)',
+    category: _terminal,
+  ),
+  const CommandInfo(
+    'workbench.action.terminal.selectDefaultShell',
+    'Select Default Profile',
+    category: _terminal,
+  ),
+  const CommandInfo(
     'workbench.action.terminal.focusFind',
     'Focus Find',
     category: _terminal,

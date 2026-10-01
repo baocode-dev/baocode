@@ -7,6 +7,7 @@ import 'package:monad/chat/chat_models.dart';
 import 'package:monad/chat/chat_screen.dart';
 import 'package:monad/chat/chat_session.dart';
 import 'package:monad/chat/composer/composer.dart';
+import 'package:monad/chat/widgets/fold_line.dart';
 import 'package:monad/chat/widgets/image_thumbnails.dart';
 import 'package:monad/chat/widgets/tool_call_row.dart';
 import 'package:monad/chat/widgets/user_message_bubble.dart';
@@ -64,6 +65,22 @@ void main() {
     final message = tester.getRect(
       inList(find.textContaining('第 2 轮', findRichText: true)),
     );
+    // The search is folded with the thought and read before it: open them.
+    await tester.tap(
+      find
+          .byElementPredicate(
+            (element) =>
+                element.widget is StepsFoldLine &&
+                tester
+                        .getTopLeft(
+                          find.byElementPredicate((e) => e == element),
+                        )
+                        .dy >
+                    message.bottom,
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
     final row = find
         .byElementPredicate(
           (element) =>

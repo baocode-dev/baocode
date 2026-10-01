@@ -3266,6 +3266,72 @@ abstract class AppLocalizations {
   /// **'Used'**
   String get toolUsed;
 
+  /// Part of a folded run of steps' line, e.g. "Read 3 files, ran 2 commands".
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{read 1 file} other{read {count} files}}'**
+  String stepsRead(int count);
+
+  /// No description provided for @stepsSearched.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{searched 1 pattern} other{searched {count} patterns}}'**
+  String stepsSearched(int count);
+
+  /// No description provided for @stepsListed.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{listed 1 directory} other{listed {count} directories}}'**
+  String stepsListed(int count);
+
+  /// No description provided for @stepsFetched.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{fetched 1 page} other{fetched {count} pages}}'**
+  String stepsFetched(int count);
+
+  /// No description provided for @stepsRan.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{ran 1 command} other{ran {count} commands}}'**
+  String stepsRan(int count);
+
+  /// No description provided for @stepsUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{used 1 tool} other{used {count} tools}}'**
+  String stepsUsed(int count);
+
+  /// Between the parts of a folded run of steps' line.
+  ///
+  /// In en, this message translates to:
+  /// **', '**
+  String get stepsSeparator;
+
+  /// How long a folded run of steps spent thinking, e.g. "thought 52s".
+  ///
+  /// In en, this message translates to:
+  /// **'thought {duration}'**
+  String stepsThought(String duration);
+
+  /// No description provided for @stepsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} failed'**
+  String stepsFailed(int count);
+
+  /// A finished turn's work, folded before its answer, e.g. "Worked for 4m 32s".
+  ///
+  /// In en, this message translates to:
+  /// **'Worked for {duration}'**
+  String turnWorked(String duration);
+
+  /// How many files a folded turn edited.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 file} other{{count} files}}'**
+  String turnFiles(int count);
+
   /// A file's line range, e.g. 1–40.
   ///
   /// In en, this message translates to:
@@ -5720,6 +5786,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New Terminal ({keybinding})'**
   String termNewTerminalKeys(String keybinding);
+
+  /// No description provided for @termLaunchProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Launch Profile...'**
+  String get termLaunchProfile;
+
+  /// No description provided for @termProfileDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} (Default)'**
+  String termProfileDefault(String name);
+
+  /// No description provided for @termSelectDefaultProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Default Profile'**
+  String get termSelectDefaultProfile;
+
+  /// No description provided for @termSelectProfileToCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Select the terminal profile to create'**
+  String get termSelectProfileToCreate;
+
+  /// No description provided for @termChooseDefaultProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Select your default terminal profile'**
+  String get termChooseDefaultProfile;
+
+  /// No description provided for @termProfilesGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'profiles'**
+  String get termProfilesGroup;
+
+  /// No description provided for @termProfilesDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'detected'**
+  String get termProfilesDetected;
+
+  /// No description provided for @cmdTerminalNewWithProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Create New Terminal (With Profile)'**
+  String get cmdTerminalNewWithProfile;
 
   /// No description provided for @termKill.
   ///

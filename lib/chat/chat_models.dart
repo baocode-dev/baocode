@@ -12,6 +12,7 @@ class UserMessageItem extends ChatItem {
     required this.text,
     this.queued = false,
     this.images = const [],
+    this.worked,
   });
 
   final String text;
@@ -22,6 +23,17 @@ class UserMessageItem extends ChatItem {
   /// Sent while the agent was busy: waits for its turn, and can be taken
   /// back until then.
   final bool queued;
+
+  /// How long the agent worked on it, once its turn ended as it should
+  /// (not stopped): the work before its answer folds into that.
+  final Duration? worked;
+
+  UserMessageItem copyWith({Duration? worked}) => UserMessageItem(
+    text: text,
+    queued: queued,
+    images: images,
+    worked: worked ?? this.worked,
+  );
 }
 
 /// A picture sent with a message.

@@ -377,6 +377,49 @@ void main() {
       expect(run(kept, true), run(recorded('tasks'), false));
     });
 
+    test('replaying times each turn, from its prompt to its last line', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      )..replaying = true;
+      Map<String, Object?> line(
+        String type,
+        String uuid,
+        int second,
+        Object content,
+      ) => {
+        'type': type,
+        'uuid': uuid,
+        'timestamp': DateTime.utc(2026, 10, 1, 10, 0, second).toIso8601String(),
+        'message': {'role': type, 'id': 'm-$uuid', 'content': content},
+      };
+      Map<String, Object?> said(String uuid, int second) =>
+          line('assistant', uuid, second, [
+            {'type': 'text', 'text': 'Said $uuid'},
+          ]);
+      for (final message in [
+        line('user', 'p1', 0, 'Fix it'),
+        said('a1', 5),
+        said('a2', 45),
+        line('user', 'p2', 50, 'And this'),
+        said('a3', 52),
+        line('user', 'stop', 53, '[Request interrupted by user]'),
+        line('user', 'p3', 55, 'Then that'),
+        said('a4', 58),
+      ]) {
+        translator.translate(message);
+      }
+      translator.endReplay();
+      Duration? worked(String id) => (transcript.itemAt(
+        transcript.indexOf(id)!,
+      ) as UserMessageItem).worked;
+      expect(worked('p1'), const Duration(seconds: 45));
+      expect(worked('p2'), isNull, reason: 'stopped');
+      expect(worked('p3'), const Duration(seconds: 3));
+    });
+
     test('translating a message twice changes nothing', () {
       final once = Transcript();
       final twice = Transcript();
@@ -394,6 +437,24 @@ void main() {
   });
 
   group('Claude Code kernel', () {
+    test('a turn is timed as the CLI says it took', () async {
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      cli.push({
+        'type': 'result',
+        'subtype': 'success',
+        'is_error': false,
+        'duration_ms': 65400,
+      });
+      await pumpEventQueue();
+      final message = transcript.itemAt(0) as UserMessageItem;
+      expect(message.worked, const Duration(milliseconds: 65400));
+      expect(message.text, 'hi');
+      kernel.dispose();
+    });
+
     test('starts on first send, then writes the message', () async {
       final cli = FakeCli();
       final (:kernel, :transcript, events: _) = claude(cli);

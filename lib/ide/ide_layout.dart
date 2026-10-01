@@ -147,12 +147,20 @@ class IdeLayout extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// The tab the panel shows again when toggled back.
-  IdePanelTab get lastPanel => _lastPanel;
-  IdePanelTab _lastPanel = IdePanelTab.problems;
+  /// The tab the panel shows again when toggled back: TERMINAL at first,
+  /// the panel's default view (upstream registers the terminal's view
+  /// container with `isDefault: true`, terminal.contribution.ts); PROBLEMS
+  /// where there are no [terminals].
+  IdePanelTab get lastPanel => !terminals && _lastPanel == IdePanelTab.terminal
+      ? IdePanelTab.problems
+      : _lastPanel;
+  IdePanelTab _lastPanel = IdePanelTab.terminal;
+
+  /// Whether the panel has TERMINAL: terminals run here (not on the web).
+  bool terminals = true;
 
   /// VS Code's Toggle Panel: the panel as it was last, or hidden.
-  void togglePanel() => panel = panel == null ? _lastPanel : null;
+  void togglePanel() => panel = panel == null ? lastPanel : null;
 }
 
 enum _Part { sidebar, panel, chat }

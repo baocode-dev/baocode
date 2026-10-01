@@ -171,14 +171,20 @@ class IdeMenuButton extends StatefulWidget {
     required this.tooltip,
     required this.entries,
     this.size = 22,
+    this.width,
+    this.iconSize = 16,
   });
 
   final IconData icon;
   final String tooltip;
 
-  /// The menu, built when it opens.
-  final List<IdeMenuEntry> Function() entries;
+  /// The menu, built when it opens (once what it lists is known).
+  final FutureOr<List<IdeMenuEntry>> Function() entries;
   final double size;
+
+  /// See [IdeActionButton.width].
+  final double? width;
+  final double iconSize;
 
   @override
   State<IdeMenuButton> createState() => _IdeMenuButtonState();
@@ -197,14 +203,18 @@ class _IdeMenuButtonState extends State<IdeMenuButton> {
         icon: widget.icon,
         tooltip: widget.tooltip,
         size: widget.size,
+        width: widget.width,
+        iconSize: widget.iconSize,
         checked: _open,
-        onPressed: () {
+        onPressed: () async {
+          final entries = await widget.entries();
+          if (!context.mounted) return;
           final box = context.findRenderObject()! as RenderBox;
           unawaited(
             showIdeMenu(
               context,
               anchor: box.localToGlobal(Offset.zero) & box.size,
-              entries: widget.entries(),
+              entries: entries,
             ),
           );
         },

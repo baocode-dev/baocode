@@ -121,6 +121,9 @@ class CodexKernel
   /// Ours, and the server's for the same turn once it says.
   String? _turn;
   String? _serverTurn;
+
+  /// When [_turn] began, to time it.
+  DateTime? _turnStarted;
   final Set<String> _sentTurns = {};
 
   final Map<String, int> _textLength = {};
@@ -148,6 +151,7 @@ class CodexKernel
   void send(KernelTurn turn) {
     if (!_sentTurns.add(turn.id)) return;
     _turn = turn.id;
+    _turnStarted = DateTime.now();
     emit(TurnStarted(nextSeq, turn.id));
     emit(
       ItemUpserted(
@@ -507,6 +511,16 @@ class CodexKernel
       emit(InteractionResolved(nextSeq, id));
     }
     _approvals.clear();
-    emit(TurnEnded(nextSeq, turn, interrupted: interrupted));
+    emit(
+      TurnEnded(
+        nextSeq,
+        turn,
+        interrupted: interrupted,
+        worked: switch (_turnStarted) {
+          final started? => DateTime.now().difference(started),
+          null => null,
+        },
+      ),
+    );
   }
 }

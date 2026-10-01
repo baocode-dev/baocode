@@ -327,6 +327,7 @@ class IdeActionButton extends StatefulWidget {
     required this.tooltip,
     required this.onPressed,
     this.size = 22,
+    this.width,
     this.iconSize = 16,
     this.color,
     this.checked = false,
@@ -337,6 +338,10 @@ class IdeActionButton extends StatefulWidget {
   final String tooltip;
   final VoidCallback? onPressed;
   final double size;
+
+  /// [size] when null; narrower for a dropdown's chevron beside its
+  /// primary action (`.monaco-dropdown-with-primary`).
+  final double? width;
   final double iconSize;
 
   /// `icon.foreground` when null.
@@ -379,7 +384,7 @@ class _IdeActionButtonState extends State<IdeActionButton> {
             behavior: HitTestBehavior.opaque,
             onTap: widget.onPressed,
             child: Container(
-              width: widget.size,
+              width: widget.width ?? widget.size,
               height: widget.size,
               alignment: Alignment.center,
               decoration: BoxDecoration(

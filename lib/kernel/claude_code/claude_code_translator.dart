@@ -74,10 +74,63 @@ class ClaudeTranslator {
         _streamEvent(_map(message['event']));
       case 'assistant':
         _assistant(message, parent);
+        _replayedAt(message);
       case 'user':
         _user(message, parent);
+        _replayedAt(message);
       case 'system':
         _system(message);
+    }
+  }
+
+  // --- Turn times, replaying ------------------------------------------------------
+  //
+  // A kept session says nothing of its turns: one is timed from its prompt
+  // to the last thing it showed before the next one (or the end).
+
+  /// The prompt whose turn is being replayed, and when it was sent.
+  ({String id, UserMessageItem item, DateTime at})? _replayed;
+
+  /// When the replayed turn last showed anything.
+  DateTime? _replayedUntil;
+
+  /// The user stopped the replayed turn: it is not timed.
+  bool _replayedStopped = false;
+
+  /// The kept session is all replayed: times its last turn.
+  void endReplay() => _timeReplayed();
+
+  void _replayedAt(Map<String, Object?> message) {
+    if (!replaying || _replayed == null) return;
+    if (message['uuid'] == _replayed!.id) return;
+    if (DateTime.tryParse('${message['timestamp']}') case final at?) {
+      _replayedUntil = at;
+    }
+  }
+
+  /// Replaying [id], a prompt: times the turn before it.
+  void _replayPrompt(
+    String id,
+    UserMessageItem item,
+    Map<String, Object?> message,
+  ) {
+    _timeReplayed();
+    if (DateTime.tryParse('${message['timestamp']}') case final at?) {
+      _replayed = (id: id, item: item, at: at);
+    }
+  }
+
+  void _timeReplayed() {
+    final turn = _replayed;
+    final until = _replayedUntil;
+    final stopped = _replayedStopped;
+    _replayed = null;
+    _replayedUntil = null;
+    _replayedStopped = false;
+    if (turn == null || until == null || stopped) return;
+    final worked = until.difference(turn.at);
+    if (worked > Duration.zero) {
+      _put(turn.id, turn.item.copyWith(worked: worked));
     }
   }
 
@@ -331,6 +384,8 @@ class ClaudeTranslator {
     if (id == null) return;
     final trimmed = text.trim();
     if (trimmed.startsWith('<task-notification>')) {
+      // What the agent does about it is a turn of its own.
+      if (replaying) _timeReplayed();
       _agentNotified(trimmed);
       return;
     }
@@ -350,10 +405,11 @@ class ClaudeTranslator {
       final name = _tag(trimmed, 'command-name') ?? '';
       final args = _tag(trimmed, 'command-args') ?? '';
       final command = name.startsWith('/') ? name : '/$name';
-      _put(
-        id,
-        UserMessageItem(text: args.isEmpty ? command : '$command $args'),
+      final item = UserMessageItem(
+        text: args.isEmpty ? command : '$command $args',
       );
+      _put(id, item);
+      if (replaying) _replayPrompt(id, item, message);
       return;
     }
     if (_tag(trimmed, 'local-command-stdout') case final output?) {
@@ -363,8 +419,13 @@ class ClaudeTranslator {
       return;
     }
     // The CLI's note to the model that the user stopped it: not shown.
-    if (trimmed.startsWith('[Request interrupted by user')) return;
-    _put(id, UserMessageItem(text: trimmed, images: images));
+    if (trimmed.startsWith('[Request interrupted by user')) {
+      if (replaying) _replayedStopped = true;
+      return;
+    }
+    final item = UserMessageItem(text: trimmed, images: images);
+    _put(id, item);
+    if (replaying) _replayPrompt(id, item, message);
   }
 
   // --- Tools ----------------------------------------------------------------------

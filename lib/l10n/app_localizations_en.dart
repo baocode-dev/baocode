@@ -1712,6 +1712,101 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolUsed => 'Used';
 
   @override
+  String stepsRead(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'read $count files',
+      one: 'read 1 file',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String stepsSearched(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'searched $count patterns',
+      one: 'searched 1 pattern',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String stepsListed(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'listed $count directories',
+      one: 'listed 1 directory',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String stepsFetched(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'fetched $count pages',
+      one: 'fetched 1 page',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String stepsRan(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'ran $count commands',
+      one: 'ran 1 command',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String stepsUsed(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'used $count tools',
+      one: 'used 1 tool',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get stepsSeparator => ', ';
+
+  @override
+  String stepsThought(String duration) {
+    return 'thought $duration';
+  }
+
+  @override
+  String stepsFailed(int count) {
+    return '$count failed';
+  }
+
+  @override
+  String turnWorked(String duration) {
+    return 'Worked for $duration';
+  }
+
+  @override
+  String turnFiles(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count files',
+      one: '1 file',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String toolLines(String range) {
     return 'Lines $range';
   }
@@ -3405,6 +3500,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String termNewTerminalKeys(String keybinding) {
     return 'New Terminal ($keybinding)';
   }
+
+  @override
+  String get termLaunchProfile => 'Launch Profile...';
+
+  @override
+  String termProfileDefault(String name) {
+    return '$name (Default)';
+  }
+
+  @override
+  String get termSelectDefaultProfile => 'Select Default Profile';
+
+  @override
+  String get termSelectProfileToCreate =>
+      'Select the terminal profile to create';
+
+  @override
+  String get termChooseDefaultProfile => 'Select your default terminal profile';
+
+  @override
+  String get termProfilesGroup => 'profiles';
+
+  @override
+  String get termProfilesDetected => 'detected';
+
+  @override
+  String get cmdTerminalNewWithProfile => 'Create New Terminal (With Profile)';
 
   @override
   String get termKill => 'Kill';

@@ -16,6 +16,7 @@ import 'pty.dart';
 import 'pty_native.dart';
 import 'pty_windows.dart';
 import 'shell_integration/shell_integration_files.dart';
+import 'terminal_profiles.dart';
 import 'terminal_shell.dart';
 
 abstract final class PtyProcesses {
@@ -53,35 +54,37 @@ abstract final class PtyProcesses {
     return pty;
   }
 
+  static TerminalOs get _os => Platform.isWindows
+      ? TerminalOs.windows
+      : Platform.isMacOS
+      ? TerminalOs.macOS
+      : TerminalOs.linux;
+
+  static bool _exists(String path) => File(path).existsSync();
+
+  static List<String> _list(String directory) {
+    try {
+      return [
+        for (final entity in Directory(directory).listSync())
+          p.basename(entity.path),
+      ];
+    } on FileSystemException {
+      return const [];
+    }
+  }
+
   static Future<PtyLaunch> terminalLaunch(
     String root, {
     required int columns,
     required int rows,
     required bool shellIntegration,
+    TerminalShell? shell,
   }) async {
-    final os = Platform.isWindows
-        ? TerminalOs.windows
-        : Platform.isMacOS
-        ? TerminalOs.macOS
-        : TerminalOs.linux;
+    final os = _os;
     // As VS Code, whose terminals inherit the environment it resolved from
     // the login shell.
     final base = await ClaudeEnvironment.of();
-    final shell = defaultTerminalShell(
-      os,
-      base,
-      exists: (path) => File(path).existsSync(),
-      list: (directory) {
-        try {
-          return [
-            for (final entity in Directory(directory).listSync())
-              p.basename(entity.path),
-          ];
-        } on FileSystemException {
-          return const [];
-        }
-      },
-    );
+    shell ??= defaultTerminalShell(os, base, exists: _exists, list: _list);
     final launch = PtyLaunch(
       executable: shell.executable,
       arguments: shell.arguments,
@@ -95,6 +98,30 @@ abstract final class PtyProcesses {
       rows: rows,
     );
     return shellIntegration ? injectShellIntegration(launch, os: os) : launch;
+  }
+
+  static Future<TerminalProfiles> terminalProfiles({Object? configured}) async {
+    final os = _os;
+    final base = await ClaudeEnvironment.of();
+    String? shells;
+    if (os != TerminalOs.windows) {
+      try {
+        shells = await File('/etc/shells').readAsString();
+      } on FileSystemException {
+        shells = null;
+      }
+    }
+    return (
+      profiles: detectTerminalProfiles(
+        os,
+        base,
+        exists: _exists,
+        list: _list,
+        etcShells: shells,
+        configured: configured,
+      ),
+      systemShell: defaultTerminalShell(os, base, exists: _exists, list: _list),
+    );
   }
 
   /// Hangs up every terminal this run started, and waits (up to [timeout]

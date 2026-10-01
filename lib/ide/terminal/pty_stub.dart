@@ -1,4 +1,6 @@
 import 'pty.dart';
+import 'terminal_profiles.dart';
+import 'terminal_shell.dart';
 
 /// The web has no processes: terminals do not start there.
 abstract final class PtyProcesses {
@@ -16,7 +18,14 @@ abstract final class PtyProcesses {
     required int columns,
     required int rows,
     required bool shellIntegration,
+    TerminalShell? shell,
   }) async => throw _unsupported;
+
+  static Future<TerminalProfiles> terminalProfiles({
+    Object? configured,
+  }) async => (profiles: const <TerminalProfile>[], systemShell: _noShell);
+
+  static const TerminalShell _noShell = (executable: '', arguments: []);
 
   /// No processes to stop on the web.
   static Future<void> stopAll() async {}

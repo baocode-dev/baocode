@@ -71,6 +71,8 @@ import 'search/text_search.dart';
 import 'terminal/links/terminal_links.dart';
 import 'terminal/terminal_instance.dart';
 import 'terminal/terminal_panel.dart';
+import 'terminal/terminal_profile_service.dart';
+import 'terminal/terminal_profiles.dart';
 import 'terminal/terminal_service.dart';
 
 part 'ide_workbench_keys.dart';
@@ -375,6 +377,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _attach() {
     final workspace = widget.workspace;
+    workspace.layout.terminals = _terminals != null;
     _explorer = IdeExplorerController(
       files: workspace.files,
       root: workspace.root,
@@ -1091,10 +1094,55 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (_panel == IdePanelTab.terminal) _focusTerminalSoon();
   }
 
-  /// Create New Terminal (⌃⇧`), shown and focused.
-  void _newTerminal() {
-    _terminals?.create();
+  /// Create New Terminal (⌃⇧`), shown and focused: on [profile]'s shell,
+  /// else the default profile's.
+  void _newTerminal({TerminalProfile? profile}) {
+    _terminals?.create(profile: profile);
     _showTerminal();
+  }
+
+  /// Create New Terminal (With Profile): the profile [args] names
+  /// (`{"profileName": "bash"}`, upstream's keybinding argument), else the
+  /// one picked.
+  Future<void> _newTerminalWithProfile([Object? args]) async {
+    final profiles = _terminals?.profiles;
+    if (profiles == null) return;
+    await profiles.refresh();
+    if (!mounted) return;
+    if (args case {'profileName': final String name}) {
+      if (profiles.profileNamed(name) case final profile?) {
+        _newTerminal(profile: profile);
+      }
+      return;
+    }
+    _showQuickPick(
+      terminalProfilePick(
+        profiles: profiles.availableProfiles,
+        defaultName: profiles.defaultProfileName,
+        placeholder: context.l10n.termSelectProfileToCreate,
+        onPick: (profile) => _newTerminal(profile: profile),
+        l10n: context.l10n,
+      ),
+    );
+  }
+
+  /// Select Default Profile: the one picked is written to settings.json's
+  /// `terminal.integrated.defaultProfile.<os>`.
+  Future<void> _selectDefaultProfile() async {
+    final profiles = _terminals?.profiles;
+    if (profiles == null || !profiles.canSetDefault) return;
+    await profiles.refresh();
+    if (!mounted) return;
+    _showQuickPick(
+      terminalProfilePick(
+        profiles: profiles.availableProfiles,
+        defaultName: profiles.defaultProfileName,
+        placeholder: context.l10n.termChooseDefaultProfile,
+        onPick: (profile) =>
+            unawaited(profiles.setDefaultProfile(profile).catchError(_report)),
+        l10n: context.l10n,
+      ),
+    );
   }
 
   /// The panel on TERMINAL (a terminal made if there is none), the active
@@ -1885,6 +1933,21 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         label: 'Create New Terminal',
         enabled: terminals != null,
         run: _newTerminal,
+      ),
+      IdeCommand(
+        id: 'workbench.action.terminal.newWithProfile',
+        category: 'Terminal',
+        label: 'Create New Terminal (With Profile)',
+        enabled: terminals != null,
+        run: () => unawaited(_newTerminalWithProfile()),
+        runWithArgs: (args) => unawaited(_newTerminalWithProfile(args)),
+      ),
+      IdeCommand(
+        id: 'workbench.action.terminal.selectDefaultShell',
+        category: 'Terminal',
+        label: 'Select Default Profile',
+        enabled: terminals?.profiles.canSetDefault ?? false,
+        run: () => unawaited(_selectDefaultProfile()),
       ),
       IdeCommand(
         id: 'workbench.action.terminal.kill',
@@ -2825,6 +2888,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                       final terminals? => TerminalTitleActions(
                         terminals: terminals,
                         onNew: _newTerminal,
+                        onNewWithProfile: (profile) =>
+                            _newTerminal(profile: profile),
+                        onSelectDefaultProfile: () =>
+                            unawaited(_selectDefaultProfile()),
                       ),
                       null => null,
                     },

@@ -207,6 +207,13 @@ void main() {
     expect(find.text('Keep all'), findsOneWidget);
     expect(find.text('Undo all'), findsNothing);
     expect(find.textContaining('Running ·'), findsNothing);
+    // Done, its work folds before its answer: open it.
+    expect(find.byType(CommandStep), findsNothing);
+    await tester.tap(find.textContaining('Worked for', findRichText: true));
+    // It opens over a moment.
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     // Its command, one line until opened.
     final command = find.byType(CommandStep);
     expect(command, findsOneWidget);

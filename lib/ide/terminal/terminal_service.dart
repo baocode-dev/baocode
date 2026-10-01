@@ -9,13 +9,16 @@
 //
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/workbench/contrib/terminal/browser/{terminalService,
-// terminalGroupService,terminalEditingService}.ts.
+// terminalGroupService,terminalEditingService}.ts; its profiles are
+// terminal_profile_service.dart's.
 
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
 import 'terminal_instance.dart';
+import 'terminal_profile_service.dart';
+import 'terminal_profiles.dart';
 
 class TerminalService extends ChangeNotifier {
   TerminalService({required this.root, this.backend = const TerminalBackend()});
@@ -23,6 +26,9 @@ class TerminalService extends ChangeNotifier {
   /// Where new terminals start: the project's folder.
   String root;
   final TerminalBackend backend;
+
+  /// The shells a new terminal can start, and the default one.
+  late final TerminalProfileService profiles = TerminalProfileService(backend);
 
   final List<TerminalInstance> _instances = [];
   TerminalInstance? _active;
@@ -38,8 +44,10 @@ class TerminalService extends ChangeNotifier {
   /// panel's title when it is the only one).
   TerminalInstance? get editing => _editing;
 
-  /// A new terminal, made the active one, as big as the others are.
-  TerminalInstance create() {
+  /// A new terminal, made the active one, as big as the others are: on
+  /// [profile]'s shell, else the default profile's (see
+  /// [TerminalProfileService.defaultShell]).
+  TerminalInstance create({TerminalProfile? profile}) {
     final instance = TerminalInstance(
       id: _nextId++,
       root: root,
@@ -47,6 +55,9 @@ class TerminalService extends ChangeNotifier {
       columns: _active?.columns ?? 80,
       rows: _active?.rows ?? 24,
       onExit: _exited,
+      shell: profile != null
+          ? SynchronousFuture(profile.shell)
+          : profiles.defaultShell(),
     );
     _instances.add(instance);
     _active = instance;
@@ -130,6 +141,7 @@ class TerminalService extends ChangeNotifier {
   /// Hangs up every terminal.
   @override
   void dispose() {
+    profiles.dispose();
     for (final instance in _instances) {
       instance.dispose();
     }
