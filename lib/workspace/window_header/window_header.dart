@@ -4,6 +4,10 @@ import 'package:flutter/scheduler.dart';
 
 import '../../ide/ide_layout.dart';
 import '../../ide/ide_modern_ui.dart';
+import '../../keybindings/chat_keybindings.dart';
+import '../../keybindings/default_keybindings.dart' show openSettingsCommandId;
+import '../../keybindings/keybinding_service.dart';
+import '../../l10n/l10n.dart';
 import '../../sidebar/sidebar.dart';
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
@@ -38,6 +42,8 @@ class WindowHeader extends StatefulWidget {
     required this.onTogglePin,
     required this.onOpenFolder,
     required this.onToggleContextPanel,
+    this.onOpenSettings,
+    this.onCommand,
     this.project,
     this.ideLayout,
   });
@@ -65,6 +71,13 @@ class WindowHeader extends StatefulWidget {
 
   /// The View menu's Context Panel: the current chat's.
   final VoidCallback onToggleContextPanel;
+
+  /// The File menu's Settings…: opens the settings dialog.
+  final VoidCallback? onOpenSettings;
+
+  /// Runs a chat command (see [ChatCommandIds]): the menus' New Agent,
+  /// Search Agents… With none, they are not offered.
+  final ValueChanged<String>? onCommand;
 
   @override
   State<WindowHeader> createState() => _WindowHeaderState();
@@ -153,8 +166,8 @@ class _WindowHeaderState extends State<WindowHeader> {
                         ? Codicons.layoutSidebarLeft
                         : Codicons.layoutSidebarLeftOff,
                     tooltip: widget.sidebarShown
-                        ? 'Hide sidebar'
-                        : 'Show sidebar',
+                        ? context.l10n.windowHideSidebar
+                        : context.l10n.windowShowSidebar,
                     onTap: widget.onToggleSidebar,
                   ),
                 },
@@ -241,81 +254,126 @@ class _WindowHeaderState extends State<WindowHeader> {
   /// What a menu holds: this app's own commands, in the order such menus
   /// usually keep them. Read when the menu opens, so what is ticked and the
   /// recent projects are the ones there are now.
-  List<HeaderMenuItem> _items(HeaderMenu menu) => switch (menu) {
-    HeaderMenu.file => [
-      HeaderMenuItem('Open Folder…', onSelected: widget.onOpenFolder),
-      for (final (index, project) in _recent.indexed) ...[
-        if (index == 0) const HeaderMenuItem.rule(),
+  List<HeaderMenuItem> _items(HeaderMenu menu) {
+    final l10n = context.l10n;
+    final ide = widget.workspace.layout == WorkspaceLayout.ide;
+    // The chat's commands, with their keybindings (in the chat only).
+    final run = ide ? null : widget.onCommand;
+    HeaderMenuItem command(String label, String id) => HeaderMenuItem(
+      label,
+      shortcut: _shortcut(id),
+      onSelected: () => run!(id),
+    );
+    return switch (menu) {
+      HeaderMenu.file => [
+        if (run != null) ...[
+          command(l10n.sidebarNewAgent, ChatCommandIds.newChat),
+          const HeaderMenuItem.rule(),
+        ],
+        HeaderMenuItem(l10n.menuOpenFolder, onSelected: widget.onOpenFolder),
+        for (final (index, project) in _recent.indexed) ...[
+          if (index == 0) const HeaderMenuItem.rule(),
+          HeaderMenuItem(
+            project.name,
+            onSelected: () => widget.workspace.openFolder(project.path),
+          ),
+        ],
+        if (widget.onOpenSettings case final openSettings?) ...[
+          const HeaderMenuItem.rule(),
+          HeaderMenuItem(
+            '${l10n.settingsTitle}…',
+            shortcut: _shortcut(openSettingsCommandId),
+            onSelected: openSettings,
+          ),
+        ],
+        const HeaderMenuItem.rule(),
         HeaderMenuItem(
-          project.name,
-          onSelected: () => widget.workspace.openFolder(project.path),
+          l10n.menuCloseWindow,
+          shortcut: 'Alt+F4',
+          onSelected: () => WindowControls.windowCommand('close'),
         ),
       ],
-      const HeaderMenuItem.rule(),
-      HeaderMenuItem(
-        'Close Window',
-        shortcut: 'Alt+F4',
-        onSelected: () => WindowControls.windowCommand('close'),
-      ),
-    ],
-    HeaderMenu.edit => [
-      HeaderMenuItem(
-        'Undo',
-        shortcut: 'Ctrl+Z',
-        onSelected: () => WindowControls.runEditCommand('undo'),
-      ),
-      HeaderMenuItem(
-        'Redo',
-        shortcut: 'Ctrl+Y',
-        onSelected: () => WindowControls.runEditCommand('redo'),
-      ),
-      const HeaderMenuItem.rule(),
-      HeaderMenuItem(
-        'Cut',
-        shortcut: 'Ctrl+X',
-        onSelected: () => WindowControls.runEditCommand('cut'),
-      ),
-      HeaderMenuItem(
-        'Copy',
-        shortcut: 'Ctrl+C',
-        onSelected: () => WindowControls.runEditCommand('copy'),
-      ),
-      HeaderMenuItem(
-        'Paste',
-        shortcut: 'Ctrl+V',
-        onSelected: () => WindowControls.runEditCommand('paste'),
-      ),
-      const HeaderMenuItem.rule(),
-      HeaderMenuItem(
-        'Select All',
-        shortcut: 'Ctrl+A',
-        onSelected: () => WindowControls.runEditCommand('selectAll'),
-      ),
-    ],
-    HeaderMenu.view => [
-      if (widget.workspace.layout == WorkspaceLayout.ide)
+      HeaderMenu.edit => [
         HeaderMenuItem(
-          'Back to Chat',
-          onSelected: () => widget.workspace.layout = WorkspaceLayout.chat,
-        )
-      else
-        HeaderMenuItem(
-          widget.sidebarShown ? 'Hide Sidebar' : 'Show Sidebar',
-          shortcut: 'Ctrl+B',
-          onSelected: widget.onToggleSidebar,
+          l10n.commonUndo,
+          shortcut: 'Ctrl+Z',
+          onSelected: () => WindowControls.runEditCommand('undo'),
         ),
-      HeaderMenuItem(
-        'Keep on Top',
-        checked: widget.pinned,
-        onSelected: () => widget.onTogglePin(!widget.pinned),
-      ),
-      const HeaderMenuItem.rule(),
-      HeaderMenuItem('Context Panel', onSelected: widget.onToggleContextPanel),
-    ],
-    HeaderMenu.help => [
-      HeaderMenuItem('About Monad', onSelected: () => showAboutMonad(context)),
-    ],
-  };
+        HeaderMenuItem(
+          l10n.commonRedo,
+          shortcut: 'Ctrl+Y',
+          onSelected: () => WindowControls.runEditCommand('redo'),
+        ),
+        const HeaderMenuItem.rule(),
+        HeaderMenuItem(
+          l10n.commonCut,
+          shortcut: 'Ctrl+X',
+          onSelected: () => WindowControls.runEditCommand('cut'),
+        ),
+        HeaderMenuItem(
+          l10n.commonCopy,
+          shortcut: 'Ctrl+C',
+          onSelected: () => WindowControls.runEditCommand('copy'),
+        ),
+        HeaderMenuItem(
+          l10n.commonPaste,
+          shortcut: 'Ctrl+V',
+          onSelected: () => WindowControls.runEditCommand('paste'),
+        ),
+        const HeaderMenuItem.rule(),
+        HeaderMenuItem(
+          l10n.commonSelectAll,
+          shortcut: 'Ctrl+A',
+          onSelected: () => WindowControls.runEditCommand('selectAll'),
+        ),
+      ],
+      HeaderMenu.view => [
+        if (widget.workspace.layout == WorkspaceLayout.ide)
+          HeaderMenuItem(
+            l10n.menuBackToChat,
+            onSelected: () => widget.workspace.layout = WorkspaceLayout.chat,
+          )
+        else
+          HeaderMenuItem(
+            widget.sidebarShown ? l10n.menuHideSidebar : l10n.menuShowSidebar,
+            shortcut: _shortcut('workbench.action.toggleSidebarVisibility'),
+            onSelected: widget.onToggleSidebar,
+          ),
+        if (run != null) ...[
+          command(l10n.cmdChatSearchAgents, ChatCommandIds.searchAgents),
+          if (widget.project != null)
+            command(l10n.cmdChatOpenIde, ChatCommandIds.openIde),
+        ],
+        HeaderMenuItem(
+          l10n.menuKeepOnTop,
+          checked: widget.pinned,
+          onSelected: () => widget.onTogglePin(!widget.pinned),
+        ),
+        const HeaderMenuItem.rule(),
+        HeaderMenuItem(
+          l10n.menuContextPanel,
+          shortcut: _shortcut(ChatCommandIds.toggleContextPanel),
+          onSelected: widget.onToggleContextPanel,
+        ),
+      ],
+      HeaderMenu.help => [
+        HeaderMenuItem(
+          l10n.menuAboutMonad,
+          onSelected: () => showAboutMonad(context),
+        ),
+      ],
+    };
+  }
+
+  /// [command]'s keybinding in the chat, as the keybindings have it now.
+  String? _shortcut(String command) => KeybindingService.instance.labelFor(
+    command,
+    context: (key) => switch (key) {
+      'chatMode' => true,
+      'ideMode' => false,
+      _ => null,
+    },
+  );
 
   /// The projects File offers under the folder picker: the most recent ones,
   /// as the workspace keeps them.

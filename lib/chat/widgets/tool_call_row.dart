@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../chat_models.dart';
 import '../floating/hover_tooltip.dart';
@@ -45,7 +46,7 @@ class ToolCallRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget header = StepHeader(
-      verb: label ?? toolVerb(kind, running: _running),
+      verb: label ?? toolVerb(kind, running: _running, l10n: context.l10n),
       object: target,
       detail: detail,
       running: _running,
@@ -79,7 +80,12 @@ class ToolCallRow extends StatelessWidget {
   }
 
   Widget _pathTooltip(BuildContext context) {
-    final lines = detail?.replaceFirst('L', 'Lines ').replaceAll('-', '–');
+    final lines = switch (detail) {
+      final detail? when detail.startsWith('L') => context.l10n.toolLines(
+        detail.substring(1).replaceAll('-', '–'),
+      ),
+      final detail => detail?.replaceAll('-', '–'),
+    };
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -98,18 +104,22 @@ class ToolCallRow extends StatelessWidget {
   }
 }
 
-/// What a kind of tool call did, or does while [running].
-String toolVerb(ToolKind kind, {bool running = false}) => switch (kind) {
-  ToolKind.read => running ? 'Reading' : 'Read',
-  ToolKind.grep => running ? 'Grepping' : 'Grepped',
-  ToolKind.listDir => running ? 'Listing' : 'Listed',
-  ToolKind.search => running ? 'Searching' : 'Searched',
-  ToolKind.edit => running ? 'Editing' : 'Edited',
-  ToolKind.command => running ? 'Running' : 'Ran',
-  ToolKind.web => running ? 'Fetching' : 'Fetched',
-  ToolKind.agent => 'Agent',
-  ToolKind.mcp => 'MCP',
-  ToolKind.todo => running ? 'Updating todos' : 'Updated todos',
-  ToolKind.message => running ? 'Sending' : 'Sent',
-  ToolKind.other => running ? 'Using' : 'Used',
-};
+/// What a kind of tool call did, or does while [running]; in [l10n]'s
+/// language (English when null).
+String toolVerb(ToolKind kind, {bool running = false, AppLocalizations? l10n}) {
+  final s = l10n ?? englishLocalizations;
+  return switch (kind) {
+    ToolKind.read => running ? s.toolReading : s.toolRead,
+    ToolKind.grep => running ? s.toolGrepping : s.toolGrepped,
+    ToolKind.listDir => running ? s.toolListing : s.toolListed,
+    ToolKind.search => running ? s.toolSearching : s.toolSearched,
+    ToolKind.edit => running ? s.toolEditing : s.toolEdited,
+    ToolKind.command => running ? s.toolRunning : s.toolRan,
+    ToolKind.web => running ? s.toolFetching : s.toolFetched,
+    ToolKind.agent => s.toolAgent,
+    ToolKind.mcp => 'MCP',
+    ToolKind.todo => running ? s.toolUpdatingTodos : s.toolUpdatedTodos,
+    ToolKind.message => running ? s.toolSending : s.toolSent,
+    ToolKind.other => running ? s.toolUsing : s.toolUsed,
+  };
+}

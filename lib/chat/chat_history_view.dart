@@ -10,9 +10,11 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
+import '../l10n/l10n.dart';
 import '../theme/cursor_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'chat_feed.dart';
+import 'chat_keys.dart';
 import 'chat_models.dart';
 import 'chat_session.dart';
 import 'composer/composer.dart';
@@ -45,10 +47,16 @@ class ChatHistoryView extends StatefulWidget {
 
   @override
   State<ChatHistoryView> createState() => _ChatHistoryViewState();
+
+  /// Focuses the history [key] is on, for its keys (the list's: ↑/↓,
+  /// Page Up/Down, Home/End) to scroll it.
+  static void focus(GlobalKey key) =>
+      (key.currentState as _ChatHistoryViewState?)?._selectionFocusNode
+          .requestFocus();
 }
 
 class _ChatHistoryViewState extends State<ChatHistoryView>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, ChatKeyTarget {
   final _BottomAnchoredScrollController _scrollController =
       _BottomAnchoredScrollController();
   final FocusNode _selectionFocusNode = FocusNode(
@@ -225,8 +233,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     locate: _locateItemPoint,
     resolve: _resolveItemPoint,
     beyondBuilt: _beyondBuiltItems,
-    plainTextOf: (index) =>
-        chatItemPlainText(_feed.itemAt(index), expanded: _isExpanded(index)),
+    plainTextOf: (index) => chatItemPlainText(
+      _feed.itemAt(index),
+      expanded: _isExpanded(index),
+      l10n: context.l10n,
+    ),
     onDragEdge: _autoScrollToward,
   );
   bool _reselectScheduled = false;
@@ -276,6 +287,48 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _seeItems();
       _resumeEditing();
     }
+  }
+
+  // --- Keys ------------------------------------------------------------------
+  //
+  // Focused (a click in it, or Focus Chat List), the list's keybindings
+  // scroll it: by the steps Flutter's own scroll keys take.
+
+  @override
+  Object? chatContextKey(String key) => switch (key) {
+    'listFocus' => _selectionFocusNode.hasPrimaryFocus,
+    _ => null,
+  };
+
+  @override
+  Map<String, VoidCallback> get chatCommands => {
+    'list.focusDown': () => _scrollBy(_lineStep),
+    'list.focusUp': () => _scrollBy(-_lineStep),
+    'list.focusPageDown': () => _scrollBy(_pageStep),
+    'list.focusPageUp': () => _scrollBy(-_pageStep),
+    'list.focusFirst': () => _scrollBy(double.negativeInfinity),
+    'list.focusLast': _jumpToBottom,
+  };
+
+  static const _lineStep = 50.0;
+  double get _pageStep => _scrollController.hasClients
+      ? _scrollController.position.viewportDimension * 0.8
+      : 0;
+
+  /// Scrolls by [delta], to either end at most: held to the bottom there.
+  void _scrollBy(double delta) {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final target = (position.pixels + delta).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (target >= position.maxScrollExtent - 1) {
+      _jumpToBottom();
+      return;
+    }
+    _setAnchored(false);
+    position.jumpTo(target);
   }
 
   static const Map<ShortcutActivator, Intent> _selectionShortcuts = {

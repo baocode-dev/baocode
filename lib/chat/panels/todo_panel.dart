@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../kernel/kernel_types.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
@@ -57,7 +58,7 @@ class _TodoPanelState extends State<TodoPanel> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Todos $done/${todos.length}',
+                      context.l10n.todoCount(done, todos.length),
                       style: TextStyle(
                         color: CursorColors.text,
                         fontSize: 12,

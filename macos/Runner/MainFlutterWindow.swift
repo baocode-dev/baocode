@@ -228,6 +228,12 @@ class MainFlutterWindow: NSWindow {
     channel?.invokeMethod("editCommand", arguments: command)
   }
 
+  // The app menu's Preferences… (⌘,): the app's settings, which ⌘, opens
+  // too while Flutter takes the key (it comes here when Flutter did not).
+  @objc func monadPreferences(_ sender: Any?) {
+    channel?.invokeMethod("menuCommand", arguments: "workbench.action.openSettings")
+  }
+
   /// Types sent as they are; others are converted to PNG.
   private static let sentAsIs: [UTType: String] = [
     .png: "image/png", .jpeg: "image/jpeg", .gif: "image/gif", .webP: "image/webp",

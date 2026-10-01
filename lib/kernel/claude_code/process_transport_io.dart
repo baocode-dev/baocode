@@ -3,9 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:path/path.dart' as p;
 
-import '../../platform/app_paths.dart';
+import '../../platform/data_dir.dart';
 import '../../platform/child_process_registry.dart';
 import 'claude_code_transport.dart';
 import 'claude_environment.dart';
@@ -35,9 +34,7 @@ class ProcessTransport implements ClaudeCodeTransport {
   /// Where the running processes are kept track of across runs.
   @visibleForTesting
   static ClaudeProcessRegistry registry = ClaudeProcessRegistry(
-    file: File(
-      p.join(AppPaths.dataDir(Platform.environment), 'claude-processes.json'),
-    ),
+    file: File(DataDirectory.current.processRegistryFile('claude')),
   );
 
   /// The processes this run of the app started and that still run.
@@ -48,9 +45,13 @@ class ProcessTransport implements ClaudeCodeTransport {
   /// way does not go on unseen, spending tokens, after the app is gone.
   static Future<void> stopAll({
     Duration timeout = const Duration(seconds: 3),
-  }) => Future.wait([
-    for (final transport in [..._live]) transport._stop(timeout),
-  ]);
+  }) async {
+    await Future.wait([
+      for (final transport in [..._live]) transport._stop(timeout),
+    ]);
+    // Their entries gone from the list before the app is.
+    await registry.flush();
+  }
 
   /// Ends the processes an earlier run left behind; see
   /// [ClaudeProcessRegistry].

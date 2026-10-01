@@ -553,6 +553,16 @@ abstract final class TypeOperations {
       ),
   ];
 
+  /// lineBreakInsert (upstream `EnterOperation.lineBreakInsert`): an enter
+  /// at each selection that keeps the cursor before the break.
+  static List<CursorCommand> lineBreakInsert(
+    CursorConfiguration config,
+    ICursorSimpleModel model,
+    List<Selection> selections,
+  ) => [
+    for (final selection in selections) enter(config, model, true, selection),
+  ];
+
   // ---- typing --------------------------------------------------------------
 
   static EditOperationResult typeWithInterceptors(

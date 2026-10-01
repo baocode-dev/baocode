@@ -113,13 +113,20 @@ void main() {
       open: ['a.dart', 'b.dart', 'c.dart'],
     );
     expect(workspace.active!.path, inRoot('c.dart'));
+    // Ctrl+Tab picks the editor used before, Ctrl+Shift+Tab the least
+    // recently used one (released at once: they open).
     await chord(tester, LogicalKeyboardKey.tab, control: true);
-    expect(workspace.active!.path, inRoot('a.dart'));
+    expect(workspace.active!.path, inRoot('b.dart'));
     await chord(tester, LogicalKeyboardKey.tab, control: true, shift: true);
-    expect(workspace.active!.path, inRoot('c.dart'));
-    await chord(tester, LogicalKeyboardKey.digit1, alt: true);
     expect(workspace.active!.path, inRoot('a.dart'));
+    await chord(tester, LogicalKeyboardKey.digit2, alt: true);
+    expect(workspace.active!.path, inRoot('b.dart'));
     await chord(tester, LogicalKeyboardKey.digit9, alt: true);
+    expect(workspace.active!.path, inRoot('c.dart'));
+    // Ctrl+PageDown / Ctrl+PageUp cycle through the tabs.
+    await chord(tester, LogicalKeyboardKey.pageDown, control: true);
+    expect(workspace.active!.path, inRoot('a.dart'));
+    await chord(tester, LogicalKeyboardKey.pageUp, control: true);
     expect(workspace.active!.path, inRoot('c.dart'));
 
     await chord(tester, LogicalKeyboardKey.keyW, control: true);

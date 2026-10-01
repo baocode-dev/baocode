@@ -9,10 +9,12 @@
 //
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/workbench/contrib/timeline/browser/timelinePane.ts and
-// media/timelinePane.css; extensions/git/src/timelineProvider.ts.
+// media/timelinePane.css; extensions/git/src/timelineProvider.ts; the
+// keyboard's `list.*` (src/vs/workbench/browser/actions/listCommands.ts,
+// through [IdeKeyboardList]).
 //
 // Deviations: Git is the only source (no local history), and an item does
-// not open a diff editor.
+// not open a diff editor (Enter selects it; on Load more, loads more).
 
 import 'dart:async';
 
@@ -20,6 +22,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart';
 import '../ide_dates.dart';
@@ -96,7 +99,14 @@ class IdeTimelineView extends StatefulWidget {
   State<IdeTimelineView> createState() => _IdeTimelineViewState();
 }
 
-class _IdeTimelineViewState extends State<IdeTimelineView> {
+class _IdeTimelineViewState extends State<IdeTimelineView>
+    with IdeKeyboardList<IdeTimelineView> {
+  final _focus = FocusNode(debugLabel: 'timeline');
+  final _scroll = ScrollController();
+
+  /// [_selected] on Load more.
+  static const _loadMoreId = 'more';
+
   int _limit = IdeTimelineView.pageSize;
   Object? _key;
   String? _keyPath;
@@ -114,7 +124,12 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
     super.initState();
     widget.controller.addListener(_changed);
     widget.git?.addListener(_changed);
+    _focus.addListener(_focusChanged);
     _load();
+  }
+
+  void _focusChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -135,6 +150,8 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
   void dispose() {
     widget.controller.removeListener(_changed);
     widget.git?.removeListener(_changed);
+    _focus.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -208,6 +225,56 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
     _load();
   }
 
+  /// The items [build] lists: the file's staged change, then its commits;
+  /// none while there is no history.
+  List<_TimelineItem> _itemsOf(String path, List<IdeGitCommit> commits) {
+    final staged = _resources(path)
+        .where((resource) => resource.group == IdeGitGroup.staged)
+        .firstOrNull;
+    return [
+      if (staged != null) _TimelineItem.staged(staged.status),
+      for (final commit in commits) _TimelineItem.commit(commit),
+    ];
+  }
+
+  /// The rows' ids (Load more's last), as [_selected] holds them.
+  List<String> get _rowIds {
+    final path = _path;
+    final commits = _commits;
+    if (path == null || commits == null || widget.git == null) {
+      return const [];
+    }
+    final items = _itemsOf(path, commits);
+    return [
+      for (final item in items) item.commit?.id ?? '~',
+      if (_more && items.isNotEmpty) _loadMoreId,
+    ];
+  }
+
+  @override
+  bool get listHasFocus => _focus.hasFocus;
+
+  @override
+  int get listLength => _rowIds.length;
+
+  @override
+  int get listFocusedIndex =>
+      _selected == null ? -1 : _rowIds.indexOf(_selected!);
+
+  @override
+  int get listPageSize => ideRowsPerPage(_scroll);
+
+  @override
+  void listFocusAt(int index) {
+    setState(() => _selected = _rowIds[index]);
+    ideRevealRow(_scroll, index);
+  }
+
+  @override
+  void listSelect() {
+    if (_selected == _loadMoreId) _loadMore();
+  }
+
   Future<void> _showMenu(Offset position, IdeGitCommit commit) {
     setState(() => _selected = commit.id);
     return showIdeMenu(
@@ -215,12 +282,12 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
       position: position,
       entries: [
         IdeMenuAction(
-          'Copy Commit ID',
+          context.l10n.timelineCopyCommitId,
           onSelected: () =>
               unawaited(Clipboard.setData(ClipboardData(text: commit.id))),
         ),
         IdeMenuAction(
-          'Copy Commit Message',
+          context.l10n.scmCopyCommitMessage,
           onSelected: () =>
               unawaited(Clipboard.setData(ClipboardData(text: commit.message))),
         ),
@@ -246,37 +313,25 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
   Widget build(BuildContext context) {
     final path = _path;
     final git = widget.git;
-    if (path == null) {
-      return _message('The active editor cannot provide timeline information.');
-    }
+    final l10n = context.l10n;
+    if (path == null) return _message(l10n.timelineNoEditor);
     if (git == null || (git.loaded && !git.isRepository)) {
-      return _message(
-        'No timeline information was provided. Source Control has not been '
-        'configured.',
-      );
+      return _message(l10n.timelineNotConfigured);
     }
     final commits = _commits;
     if (commits == null) {
-      return _message('Loading timeline for ${p.basename(path)}...');
+      return _message(l10n.timelineLoading(p.basename(path)));
     }
-    final staged = _resources(path)
-        .where((resource) => resource.group == IdeGitGroup.staged)
-        .firstOrNull;
-    final items = [
-      if (staged != null) _TimelineItem.staged(staged.status),
-      for (final commit in commits) _TimelineItem.commit(commit),
-    ];
+    final items = _itemsOf(path, commits);
     if (items.isEmpty) {
-      return _message(
-        _error == null ? 'No timeline information was provided.' : '$_error',
-      );
+      return _message(_error == null ? l10n.timelineNone : '$_error');
     }
     final now = DateTime.now();
     String? previous;
     final rows = <Widget>[];
     for (final item in items) {
       final date = item.commit?.date ?? now;
-      final relative = ideFromNow(date, now: now);
+      final relative = ideFromNow(date, now: now, l10n: l10n);
       final duplicate = relative == previous;
       previous = relative;
       rows.add(_row(item, relative, duplicate: duplicate));
@@ -284,13 +339,18 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
     if (_more) {
       rows.add(
         IdeListRow(
-          onTap: _loadMore,
+          selected: _selected == _loadMoreId,
+          focused: _focus.hasFocus,
+          onTap: () {
+            _focus.requestFocus();
+            _loadMore();
+          },
           builder: (context, _) => Padding(
             padding: const EdgeInsets.only(left: 16),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Load more',
+                l10n.timelineLoadMore,
                 style: TextStyle(
                   fontSize: 13,
                   color: themeColors['sideBar.foreground'],
@@ -301,7 +361,14 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
         ),
       );
     }
-    return ListView(itemExtent: IdeListColors.rowHeight, children: rows);
+    return Focus(
+      focusNode: _focus,
+      child: ListView(
+        controller: _scroll,
+        itemExtent: IdeListColors.rowHeight,
+        children: rows,
+      ),
+    );
   }
 
   Widget _row(_TimelineItem item, String relative, {required bool duplicate}) {
@@ -313,7 +380,11 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
     final row = IdeListRow(
       key: ValueKey('timeline:$id'),
       selected: selected,
-      onTap: () => setState(() => _selected = id),
+      focused: _focus.hasFocus,
+      onTap: () {
+        _focus.requestFocus();
+        setState(() => _selected = id);
+      },
       onContextMenu: commit == null
           ? null
           : (position) => unawaited(_showMenu(position, commit)),
@@ -329,7 +400,9 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
               child: Text.rich(
                 TextSpan(
                   children: [
-                    TextSpan(text: commit?.subject ?? item.label),
+                    TextSpan(
+                      text: commit?.subject ?? context.l10n.scmGroupStaged,
+                    ),
                     if (commit != null)
                       TextSpan(
                         text: '  ${commit.author}',
@@ -386,8 +459,8 @@ class _IdeTimelineViewState extends State<IdeTimelineView> {
     if (commit == null) {
       return IdeHover(
         message:
-            'You, ${ideFromNow(DateTime.now(), ago: true, fullWords: true)}'
-            '\n\n${item.status?.label ?? ''}',
+            '${context.l10n.timelineYou(ideFromNow(DateTime.now(), ago: true, fullWords: true, l10n: context.l10n))}'
+            '\n\n${item.status?.localizedLabel(context.l10n) ?? ''}',
         child: row,
       );
     }

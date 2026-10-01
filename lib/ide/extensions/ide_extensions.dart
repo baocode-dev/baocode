@@ -1,6 +1,7 @@
 // The Extensions view's extensions: the language servers the catalog knows,
 // installed (on PATH, or installed here with mason) or installable.
 
+import '../../l10n/app_localizations.dart';
 import '../git/scm_tree.dart';
 import '../lsp/catalog/standard_lsp.dart';
 import '../lsp/lsp_server_definition.dart';
@@ -80,6 +81,20 @@ class IdeExtension {
     IdeExtensionState.installable => null,
     IdeExtensionState.unavailable =>
       "'$id' was not found on PATH and cannot be installed automatically.",
+  };
+
+  /// [description] in [l10n]'s language.
+  String localizedDescription(AppLocalizations l10n) => languages.isEmpty
+      ? l10n.extLanguageServer
+      : l10n.extLanguageServerFor(languages.join(', '));
+
+  /// [status] in [l10n]'s language.
+  String? localizedStatus(AppLocalizations l10n) => switch (state) {
+    IdeExtensionState.installed => null,
+    IdeExtensionState.installable when missingRuntime != null =>
+      l10n.extMissingRuntime(id, missingRuntime!),
+    IdeExtensionState.installable => null,
+    IdeExtensionState.unavailable => l10n.extUnavailable(id),
   };
 
   /// The Copy action's text.

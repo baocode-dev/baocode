@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart';
@@ -75,10 +76,14 @@ class IdeLanguageOverlay extends StatelessWidget {
     required this.view,
     this.colorize,
     this.language,
+    this.renameHandlesKeys = true,
   });
 
   final EditorLanguageSession session;
   final EditorSurfaceView? Function() view;
+
+  /// [IdeRenameInput.handleKeys].
+  final bool renameHandlesKeys;
 
   /// Colors code in hovers and documentation as the editor does.
   final IdeCodeColorizer? colorize;
@@ -218,6 +223,7 @@ class IdeLanguageOverlay extends StatelessWidget {
                   state: rename,
                   onAccept: () => unawaited(session.acceptRename()),
                   onCancel: session.cancelRename,
+                  handleKeys: renameHandlesKeys,
                 ),
                 key: const ValueKey('ide-rename'),
               ),
@@ -452,7 +458,7 @@ class IdeLightbulb extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: IdeHover(
-        message: 'Show Code Actions',
+        message: context.l10n.langShowCodeActions,
         child: Icon(
           autoFix ? Codicons.lightbulbAutofix : Codicons.lightBulb,
           size: 14,
@@ -536,7 +542,9 @@ class _IdeSuggestWidgetState extends State<IdeSuggestWidget> {
         alignment: Alignment.centerLeft,
         decoration: _suggestBox(),
         child: Text(
-          session.loading ? 'Loading...' : 'No suggestions.',
+          session.loading
+              ? context.l10n.langLoading
+              : context.l10n.langNoSuggestions,
           style: TextStyle(
             fontSize: 12.5,
             color: themeColors['editorSuggestWidget.foreground'],
@@ -1007,7 +1015,7 @@ class IdeCodeActionMenuWidget extends StatelessWidget {
               if (action.isPreferred && !disabled) ...[
                 const SizedBox(width: 6),
                 IdeHover(
-                  message: 'Preferred',
+                  message: context.l10n.langPreferred,
                   child: Icon(
                     Codicons.starFull,
                     size: 11,
@@ -1061,11 +1069,17 @@ class IdeRenameInput extends StatefulWidget {
     required this.state,
     required this.onAccept,
     required this.onCancel,
+    this.handleKeys = true,
   });
 
   final IdeRenameState state;
   final VoidCallback onAccept;
   final VoidCallback onCancel;
+
+  /// Whether Enter renames and Escape cancels by themselves; false when the
+  /// app's keybindings run `acceptRenameInput` and `cancelRenameInput` (the
+  /// host takes the keys as they bubble up).
+  final bool handleKeys;
 
   @override
   State<IdeRenameInput> createState() => _IdeRenameInputState();
@@ -1125,7 +1139,8 @@ class _IdeRenameInputState extends State<IdeRenameInput> {
         children: [
           Focus(
             onKeyEvent: (node, event) {
-              if (event is KeyDownEvent &&
+              if (widget.handleKeys &&
+                  event is KeyDownEvent &&
                   event.logicalKey == LogicalKeyboardKey.escape) {
                 _done = true;
                 widget.onCancel();
@@ -1153,17 +1168,19 @@ class _IdeRenameInputState extends State<IdeRenameInput> {
                 enabledBorder: border,
                 focusedBorder: border,
               ),
-              onSubmitted: (_) {
-                _done = true;
-                widget.onAccept();
-              },
+              onSubmitted: widget.handleKeys
+                  ? (_) {
+                      _done = true;
+                      widget.onAccept();
+                    }
+                  : null,
             ),
           ),
           // `.rename-label`.
           Padding(
             padding: const EdgeInsets.only(top: 3, left: 2),
             child: Text(
-              'Enter to Rename, Escape to Cancel',
+              context.l10n.langRenameHint,
               style: TextStyle(fontSize: 10.5, color: _faded(foreground, 0.8)),
             ),
           ),

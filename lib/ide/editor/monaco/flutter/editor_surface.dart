@@ -100,6 +100,7 @@ class EditorSurface extends StatefulWidget {
     this.scrollBeyondLastLine = true,
     this.stopRenderingLineAfter = ViewportLayout.defaultStopRenderingLineAfter,
     this.onKeyEvent,
+    this.keyResolver,
     this.onHover,
     this.onContentPointerDown,
     this.onContextMenu,
@@ -178,6 +179,10 @@ class EditorSurface extends StatefulWidget {
   /// Sees focused key events before the editor's own bindings; return
   /// [KeyEventResult.handled] to consume one (e.g. a suggest widget's arrows).
   final KeyEventResult Function(KeyEvent event)? onKeyEvent;
+
+  /// The app's keybindings, which pick the command a key runs instead of
+  /// the editor's defaults (see [handleEditorKeyEvent]).
+  final EditorKeyResolver? keyResolver;
 
   /// The text offset under the mouse (null once it leaves the text), with
   /// the pointer's surface-local position, for hovers and links.
@@ -611,7 +616,10 @@ class _EditorSurfaceState extends State<EditorSurface>
 
   @override
   void performSelector(String selectorName) {
-    if (!_focusNode.hasFocus) return;
+    // With the app's keybindings, keys run their commands and a key none
+    // has does nothing: the text system's editing selectors, which such
+    // keys still send, are not used.
+    if (!_focusNode.hasFocus || widget.keyResolver != null) return;
     handleEditorSelector(widget.controller, this, selectorName);
   }
 
@@ -622,6 +630,28 @@ class _EditorSurfaceState extends State<EditorSurface>
 
   @override
   void invokeTextAction(Intent intent) => _invokeTextAction(intent);
+
+  @override
+  void scrollByRows(int rows) {
+    final lineHeight = _layout?.lineHeight ?? 0;
+    if (rows == 0 || lineHeight <= 0) return;
+    _scrollBy(0, rows * lineHeight);
+  }
+
+  @override
+  EditorFoldingModel? get foldingModel => widget.folding ? _folding : null;
+
+  @override
+  void foldingChanged() {
+    if (!mounted) return;
+    setState(() => _foldingVersion++);
+    _moveCaretsOutOfFolds();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final start = widget.controller.value.selection.start;
+      if (start >= 0) revealRange(start, start);
+    });
+  }
 
   @override
   int get pageRowCount {
@@ -975,6 +1005,11 @@ class _EditorSurfaceState extends State<EditorSurface>
   void _toggleFold(int lineNumber) {
     if (!_folding.toggle(lineNumber)) return;
     setState(() => _foldingVersion++);
+    _moveCaretsOutOfFolds();
+  }
+
+  /// Moves cursors in hidden lines to the end of their fold's header line.
+  void _moveCaretsOutOfFolds() {
     final hidden = _folding.hiddenLines;
     if (hidden.isEmpty) return;
     final controller = widget.controller;
@@ -1526,7 +1561,12 @@ class _EditorSurfaceState extends State<EditorSurface>
     if (intercepted != null && intercepted != KeyEventResult.ignored) {
       return intercepted;
     }
-    return handleEditorKeyEvent(widget.controller, this, event);
+    return handleEditorKeyEvent(
+      widget.controller,
+      this,
+      event,
+      resolve: widget.keyResolver,
+    );
   }
 
   Widget _textSemantics(Widget child, TextDirection direction) {

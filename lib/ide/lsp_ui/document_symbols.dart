@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart';
@@ -144,31 +145,22 @@ List<(LspDocumentSymbol, String?)> ideFlattenSymbols(
   ],
 ];
 
-/// Rows for Go to Symbol in Editor (the `@` prefix).
+/// Rows for Go to Symbol in Editor (the `@` prefix); messages in [l10n]'s
+/// language (English when null).
 List<IdeQuickPickItem> symbolQuickPicks(
   String filter, {
   required List<LspDocumentSymbol> symbols,
   required bool loaded,
   required bool supported,
   required void Function(LspDocumentSymbol symbol) onGo,
+  AppLocalizations? l10n,
 }) {
-  if (!supported) {
-    return const [
-      IdeQuickPickItem(
-        label:
-            'To go to a symbol, first open a text editor with symbol '
-            'information.',
-      ),
-    ];
-  }
-  if (!loaded) {
-    return const [IdeQuickPickItem(label: 'Loading symbols…')];
-  }
+  final strings = l10n ?? englishLocalizations;
+  if (!supported) return [IdeQuickPickItem(label: strings.symbolsNoEditor)];
+  if (!loaded) return [IdeQuickPickItem(label: strings.symbolsLoading)];
   final query = filter.trim();
   final flat = ideFlattenSymbols(symbols);
-  if (flat.isEmpty) {
-    return const [IdeQuickPickItem(label: 'No editor symbols')];
-  }
+  if (flat.isEmpty) return [IdeQuickPickItem(label: strings.symbolsNone)];
   Widget icon(LspSymbolKind kind) {
     final kindIcon = ideSymbolKindIcon(kind);
     return Icon(kindIcon.icon, size: 15, color: kindIcon.color);
@@ -191,7 +183,7 @@ List<IdeQuickPickItem> symbolQuickPicks(
     if (match != null) scored.add((symbol, container, match));
   }
   if (scored.isEmpty) {
-    return const [IdeQuickPickItem(label: 'No matching editor symbols')];
+    return [IdeQuickPickItem(label: strings.symbolsNoMatching)];
   }
   scored.sort((a, b) => b.$3.score.compareTo(a.$3.score));
   return [
@@ -243,7 +235,7 @@ class _IdeOutlineViewState extends State<IdeOutlineView> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       alignment: Alignment.centerLeft,
       child: Text(
-        'OUTLINE',
+        context.l10n.outlineTitle,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
@@ -276,9 +268,7 @@ class _IdeOutlineViewState extends State<IdeOutlineView> {
                 if (model == null || model.path == null || !model.supported) {
                   return Align(
                     alignment: Alignment.topLeft,
-                    child: message(
-                      'The active editor cannot provide outline information.',
-                    ),
+                    child: message(context.l10n.outlineNoEditor),
                   );
                 }
                 if (model.symbols.isEmpty) {
@@ -286,8 +276,8 @@ class _IdeOutlineViewState extends State<IdeOutlineView> {
                     alignment: Alignment.topLeft,
                     child: message(
                       model.loaded
-                          ? 'No symbols found in document.'
-                          : 'Loading document symbols…',
+                          ? context.l10n.outlineNoSymbols
+                          : context.l10n.outlineLoading,
                     ),
                   );
                 }

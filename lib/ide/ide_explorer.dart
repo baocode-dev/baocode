@@ -11,6 +11,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../keybindings/keybinding_service.dart';
+import '../l10n/l10n.dart';
 import '../platform/app_paths.dart';
 import '../theme/codicons.dart';
 import '../theme/material_file_icons.dart';
@@ -44,8 +46,8 @@ class IdeExplorerRow {
   final bool isDirectory;
   final bool expanded;
 
-  /// A non-selectable note under a folder (e.g. a read error) instead of an
-  /// entry.
+  /// A non-selectable note under a folder instead of an entry: the error
+  /// reading it.
   final String? message;
 }
 
@@ -92,7 +94,7 @@ class IdeExplorerController extends ChangeNotifier {
             name: '',
             depth: depth,
             isDirectory: false,
-            message: 'Cannot read folder: $error',
+            message: '$error',
           ),
         );
         return;
@@ -243,6 +245,7 @@ class IdeExplorer extends StatefulWidget {
     this.trash,
     this.onError,
     this.onFindInFolder,
+    this.isBound,
   });
 
   final IdeExplorerController controller;
@@ -268,6 +271,10 @@ class IdeExplorer extends StatefulWidget {
 
   /// Find in Folder...: searches in a folder.
   final ValueChanged<String>? onFindInFolder;
+
+  /// Whether a keybinding has a key: the explorer leaves it to the
+  /// workbench, which runs its command (see [IdeExplorerState.contextKey]).
+  final bool Function(KeyEvent event)? isBound;
 
   static const rowHeight = 22.0;
   static const indent = 12.0;
@@ -393,102 +400,175 @@ class IdeExplorerState extends State<IdeExplorer> {
       ? row.path
       : p.dirname(row.path);
 
+  // --- Commands ------------------------------------------------------------
+  // What the explorer's keybindings run, under upstream's ids: the file
+  // operations of fileActions.contribution.ts (`explorer.newFile`,
+  // `renameFile`, `moveFileToTrash`, `filesExplorer.copy`…) and the list
+  // commands of listCommands.ts (`list.focusDown`, `list.expand`…). The
+  // workbench resolves the keys (default_keybindings.dart), so keymaps and
+  // keybindings.json decide them.
+
+  /// Whether a keybinding has [event]: it is left to the workbench, which
+  /// runs it. A navigation key none has is kept, as upstream's list keeps
+  /// it, rather than moving the focus out.
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent || _edit != null) return KeyEventResult.ignored;
-    final key = event.logicalKey;
-    final keys = HardwareKeyboard.instance;
-    final mac = ideUsesMacKeys;
-    final primary = mac ? keys.isMetaPressed : keys.isControlPressed;
-    final current = _selectedRow;
+    if (widget.isBound?.call(event) ?? false) return KeyEventResult.ignored;
+    return _listKeys.contains(event.logicalKey)
+        ? KeyEventResult.handled
+        : KeyEventResult.ignored;
+  }
 
-    // File operations (fileActions.contribution.ts's keybindings).
-    if (current != null && current.message == null) {
-      if ((mac && key == LogicalKeyboardKey.enter && !primary) ||
-          (!mac && key == LogicalKeyboardKey.f2)) {
-        startRename(current);
-        return KeyEventResult.handled;
-      }
-      if ((mac && primary && key == LogicalKeyboardKey.backspace) ||
-          (!mac && key == LogicalKeyboardKey.delete)) {
-        unawaited(_delete(current, permanently: keys.isAltPressed));
-        return KeyEventResult.handled;
-      }
-      if (primary && key == LogicalKeyboardKey.keyC && !keys.isAltPressed) {
-        _controller.clipboard = (paths: [current.path], cut: false);
-        return KeyEventResult.handled;
-      }
-      if (primary && key == LogicalKeyboardKey.keyX) {
-        _controller.clipboard = (paths: [current.path], cut: true);
-        return KeyEventResult.handled;
-      }
-    }
-    if (primary && key == LogicalKeyboardKey.keyV) {
-      unawaited(_paste(_folderOf(current)));
-      return KeyEventResult.handled;
-    }
-    if (mac && primary && key == LogicalKeyboardKey.arrowDown) {
-      if (current != null) _activate(current, keyboard: true);
-      return KeyEventResult.handled;
-    }
+  static final _listKeys = {
+    LogicalKeyboardKey.arrowDown,
+    LogicalKeyboardKey.arrowUp,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowRight,
+    LogicalKeyboardKey.home,
+    LogicalKeyboardKey.end,
+    LogicalKeyboardKey.pageDown,
+    LogicalKeyboardKey.pageUp,
+    LogicalKeyboardKey.enter,
+    LogicalKeyboardKey.numpadEnter,
+    LogicalKeyboardKey.space,
+  };
 
-    final rows = [
-      for (final row in _controller.rows)
-        if (row.message == null) row,
-    ];
-    if (rows.isEmpty) return KeyEventResult.ignored;
-    final index = rows.indexWhere((row) => row.path == _controller.selected);
-    void selectAt(int i) => _controller.select(
-      rows[i.clamp(0, rows.length - 1)].path,
+  /// The explorer's context keys for its selection (upstream's
+  /// `explorerResource*` and the tree's `treeElement*`); null for others.
+  Object? contextKey(String key) {
+    final row = _selectedRow;
+    final folder = row != null && row.isDirectory;
+    return switch (key) {
+      // None selected: the root folder's.
+      'explorerResourceIsRoot' => row == null,
+      'explorerResourceIsFolder' => row == null || folder,
+      'explorerResourceReadonly' => false,
+      'explorerResourceMoveableToTrash' => widget.trash != null,
+      'treeElementCanCollapse' => folder && row.expanded,
+      'treeElementCanExpand' => folder && !row.expanded,
+      'treeElementHasChild' => folder && row.expanded && _firstChild != null,
+      'treeElementHasParent' =>
+        row != null && p.dirname(row.path) != _controller.root,
+      _ => null,
+    };
+  }
+
+  /// The rows a keyboard moves over (not messages).
+  List<IdeExplorerRow> get _navigable => [
+    for (final row in _controller.rows)
+      if (row.message == null) row,
+  ];
+
+  int get _selectedIndex =>
+      _navigable.indexWhere((row) => row.path == _controller.selected);
+
+  IdeExplorerRow? get _firstChild {
+    final rows = _navigable;
+    final index = _selectedIndex;
+    if (index < 0 || index + 1 >= rows.length) return null;
+    final next = rows[index + 1];
+    return next.depth > rows[index].depth ? next : null;
+  }
+
+  void _selectAt(int index) {
+    final rows = _navigable;
+    if (rows.isEmpty) return;
+    _controller.select(
+      rows[index.clamp(0, rows.length - 1)].path,
       reveal: true,
     );
-
-    if (key == LogicalKeyboardKey.arrowDown) {
-      selectAt(index < 0 ? 0 : index + 1);
-    } else if (key == LogicalKeyboardKey.arrowUp) {
-      selectAt(index < 0 ? 0 : index - 1);
-    } else if (key == LogicalKeyboardKey.home) {
-      selectAt(0);
-    } else if (key == LogicalKeyboardKey.end) {
-      selectAt(rows.length - 1);
-    } else if (key == LogicalKeyboardKey.pageDown ||
-        key == LogicalKeyboardKey.pageUp) {
-      final page = _scroll.hasClients
-          ? (_scroll.position.viewportDimension ~/ IdeExplorer.rowHeight) - 1
-          : 10;
-      selectAt(
-        (index < 0 ? 0 : index) +
-            (key == LogicalKeyboardKey.pageDown ? page : -page),
-      );
-    } else if (key == LogicalKeyboardKey.arrowRight) {
-      if (current == null) {
-        selectAt(0);
-      } else if (current.isDirectory && !current.expanded) {
-        unawaited(_controller.expand(current.path));
-      } else if (current.isDirectory &&
-          index + 1 < rows.length &&
-          rows[index + 1].depth > current.depth) {
-        selectAt(index + 1);
-      }
-    } else if (key == LogicalKeyboardKey.arrowLeft) {
-      if (current == null) {
-        selectAt(0);
-      } else if (current.isDirectory && current.expanded) {
-        _controller.collapse(current.path);
-      } else {
-        final parent = p.dirname(current.path);
-        if (parent != _controller.root) {
-          _controller.select(parent, reveal: true);
-        }
-      }
-    } else if (key == LogicalKeyboardKey.enter ||
-        key == LogicalKeyboardKey.numpadEnter ||
-        key == LogicalKeyboardKey.space) {
-      if (current != null) _activate(current, keyboard: true);
-    } else {
-      return KeyEventResult.ignored;
-    }
-    return KeyEventResult.handled;
   }
+
+  /// `list.focusDown` (1) / `list.focusUp` (-1); the first row when none is
+  /// selected.
+  void focusNext(int delta) {
+    final index = _selectedIndex;
+    _selectAt(index < 0 ? 0 : index + delta);
+  }
+
+  /// `list.focusPageDown` (1) / `list.focusPageUp` (-1).
+  void focusPage(int direction) {
+    final page = _scroll.hasClients
+        ? (_scroll.position.viewportDimension ~/ IdeExplorer.rowHeight) - 1
+        : 10;
+    final index = _selectedIndex;
+    _selectAt((index < 0 ? 0 : index) + direction * page);
+  }
+
+  /// `list.focusFirst`.
+  void focusFirst() => _selectAt(0);
+
+  /// `list.focusLast`.
+  void focusLast() => _selectAt(_navigable.length - 1);
+
+  /// `list.expand`: opens the folder, or goes to its first child.
+  void expandSelected() {
+    final row = _selectedRow;
+    if (row == null) return _selectAt(0);
+    if (!row.isDirectory) return;
+    if (!row.expanded) {
+      unawaited(_controller.expand(row.path));
+    } else if (_firstChild case final child?) {
+      _controller.select(child.path, reveal: true);
+    }
+  }
+
+  /// `list.collapse`: closes the folder, or goes to the parent.
+  void collapseSelected() {
+    final row = _selectedRow;
+    if (row == null) return _selectAt(0);
+    if (row.isDirectory && row.expanded) {
+      _controller.collapse(row.path);
+      return;
+    }
+    final parent = p.dirname(row.path);
+    if (parent != _controller.root) _controller.select(parent, reveal: true);
+  }
+
+  /// `list.select`: opens the file, the editor focused, or toggles the
+  /// folder.
+  void openSelected() {
+    if (_selectedRow case final row?) _activate(row, keyboard: true);
+  }
+
+  /// `list.toggleExpand`: toggles the folder.
+  void toggleSelected() {
+    final row = _selectedRow;
+    if (row != null && row.isDirectory) unawaited(_controller.toggle(row.path));
+  }
+
+  /// `filesExplorer.openFilePreserveFocus`: opens the file, the focus kept
+  /// here.
+  void previewSelected() {
+    final row = _selectedRow;
+    if (row != null && !row.isDirectory) widget.onOpen(row.path, false);
+  }
+
+  /// `renameFile`.
+  void renameSelected() {
+    if (_selectedRow case final row?) startRename(row);
+  }
+
+  /// `moveFileToTrash`, or `deleteFile` ([permanently]).
+  Future<void> deleteSelected({bool permanently = false}) async {
+    if (_selectedRow case final row?) {
+      await _delete(row, permanently: permanently);
+    }
+  }
+
+  /// `filesExplorer.copy`, or `filesExplorer.cut`.
+  void copySelected({bool cut = false}) {
+    if (_selectedRow case final row?) {
+      _controller.clipboard = (paths: [row.path], cut: cut);
+    }
+  }
+
+  /// Whether there is something cut or copied.
+  bool get canPaste => _controller.clipboard != null;
+
+  /// `filesExplorer.paste`: into the selected folder, or the selected
+  /// file's.
+  Future<void> pasteSelected() => _paste(_folderOf(_selectedRow));
 
   // --- File operations -----------------------------------------------------
 
@@ -516,15 +596,12 @@ class IdeExplorerState extends State<IdeExplorer> {
 
   /// VS Code's `validateFileName`.
   IdeInputValidation? _validate(_ExplorerEdit edit, String name) {
+    final l10n = context.l10n;
     if (name.trim().isEmpty) {
-      return const IdeInputValidation(
-        'A file or folder name must be provided.',
-      );
+      return IdeInputValidation(l10n.explorerNameRequired);
     }
     if (name.startsWith('/') || name.startsWith(r'\')) {
-      return const IdeInputValidation(
-        'A file or folder name cannot start with a slash.',
-      );
+      return IdeInputValidation(l10n.explorerNameStartsWithSlash);
     }
     final names = name.split(RegExp(r'[\\/]')).where((n) => n.isNotEmpty);
     final original = edit.renaming == null ? null : p.basename(edit.renaming!);
@@ -538,21 +615,15 @@ class IdeExplorerState extends State<IdeExplorer> {
             p.join(edit.parent, entry.name) != edit.renaming,
       );
       if (exists) {
-        return IdeInputValidation(
-          'A file or folder $name already exists at this location. Please '
-          'choose a different name.',
-        );
+        return IdeInputValidation(l10n.explorerNameExists(name));
       }
     }
     if (names.any((n) => n == '.' || n == '..' || n.contains('\x00'))) {
-      return IdeInputValidation(
-        'The name $name is not valid as a file or folder name. Please '
-        'choose a different name.',
-      );
+      return IdeInputValidation(l10n.explorerNameInvalid(name));
     }
     if (names.any((n) => n.trim() != n)) {
-      return const IdeInputValidation(
-        'Leading or trailing whitespace detected in file or folder name.',
+      return IdeInputValidation(
+        l10n.explorerNameWhitespace,
         IdeValidationSeverity.warning,
       );
     }
@@ -610,21 +681,17 @@ class IdeExplorerState extends State<IdeExplorer> {
     if (row.path == _controller.root) return;
     final trash = permanently ? null : widget.trash;
     final useTrash = trash != null;
-    final primary = useTrash ? 'Move to Trash' : 'Delete';
+    final l10n = context.l10n;
+    final primary = useTrash ? l10n.explorerMoveToTrash : l10n.commonDelete;
     final unsaved = widget.unsavedIn?.call(row.path) ?? 0;
     final int? pick;
     if (unsaved > 0) {
       pick = await showIdeDialog(
         context,
         message: row.isDirectory
-            ? (unsaved == 1
-                  ? 'You are deleting a folder ${row.name} with unsaved '
-                        'changes in 1 file. Do you want to continue?'
-                  : 'You are deleting a folder ${row.name} with unsaved '
-                        'changes in $unsaved files. Do you want to continue?')
-            : 'You are deleting ${row.name} with unsaved changes. Do you '
-                  'want to continue?',
-        detail: "Your changes will be lost if you don't save them.",
+            ? l10n.explorerDeleteFolderUnsaved(unsaved, row.name)
+            : l10n.explorerDeleteFileUnsaved(row.name),
+        detail: l10n.explorerChangesLost,
         buttons: [primary],
       );
     } else if (useTrash) {
@@ -632,21 +699,20 @@ class IdeExplorerState extends State<IdeExplorer> {
         context,
         type: IdeDialogType.question,
         message: row.isDirectory
-            ? "Are you sure you want to delete '${row.name}' and its contents?"
-            : "Are you sure you want to delete '${row.name}'?",
-        detail: 'You can restore this file from the Trash.',
+            ? l10n.explorerConfirmDeleteFolder(row.name)
+            : l10n.explorerConfirmDeleteFile(row.name),
+        detail: l10n.explorerRestoreFromTrash,
         buttons: [primary],
       );
     } else {
       pick = await showIdeDialog(
         context,
         message: row.isDirectory
-            ? "Are you sure you want to permanently delete '${row.name}' and "
-                  'its contents?'
-            : "Are you sure you want to permanently delete '${row.name}'?",
+            ? l10n.explorerConfirmPermanentDeleteFolder(row.name)
+            : l10n.explorerConfirmPermanentDeleteFile(row.name),
         detail: row.isDirectory
-            ? 'This action is irreversible!'
-            : 'You can restore this file using the Undo command.',
+            ? l10n.explorerIrreversible
+            : l10n.explorerRestoreWithUndo,
         buttons: [primary],
       );
     }
@@ -660,13 +726,11 @@ class IdeExplorerState extends State<IdeExplorer> {
           if (!mounted) return;
           final again = await showIdeDialog(
             context,
-            message:
-                'Failed to delete using the Trash. Do you want to permanently '
-                'delete instead?',
+            message: l10n.explorerTrashFailed,
             detail: row.isDirectory
-                ? 'This action is irreversible!'
-                : 'You can restore this file using the Undo command.',
-            buttons: const ['Delete Permanently'],
+                ? l10n.explorerIrreversible
+                : l10n.explorerRestoreWithUndo,
+            buttons: [l10n.explorerDeletePermanently],
           );
           if (again != 0) return;
         }
@@ -686,6 +750,7 @@ class IdeExplorerState extends State<IdeExplorer> {
     final clipboard = _controller.clipboard;
     if (clipboard == null) return;
     final files = _controller.files;
+    final ancestor = context.l10n.explorerPasteIntoAncestor;
     String? last;
     try {
       await _controller.expand(folder);
@@ -694,7 +759,7 @@ class IdeExplorerState extends State<IdeExplorer> {
           final target = p.join(folder, p.basename(source));
           if (target == source) continue;
           if (p.isWithin(source, folder)) {
-            _report('File to paste is an ancestor of the destination folder');
+            _report(ancestor);
             break;
           }
           await files.rename(source, target);
@@ -731,6 +796,20 @@ class IdeExplorerState extends State<IdeExplorer> {
   String _relative(String path) =>
       p.relative(path, from: _controller.root).replaceAll(r'\', '/');
 
+  /// [command]'s keybinding, for the menu: the one that applies with the
+  /// focus here.
+  String? _keybinding(String command) => KeybindingService.instance.labelFor(
+    command,
+    context: (key) => switch (key) {
+      'filesExplorerFocus' ||
+      'foldersViewVisible' ||
+      'explorerViewletVisible' ||
+      'listFocus' => true,
+      'inputFocus' || 'textInputFocus' => false,
+      _ => contextKey(key),
+    },
+  );
+
   /// `MenuId.ExplorerContext`, for [row] or (null) the empty space below the
   /// rows, which is the root folder's.
   Future<void> _showMenu(Offset position, IdeExplorerRow? row) {
@@ -743,6 +822,7 @@ class IdeExplorerState extends State<IdeExplorer> {
       for (final binding in bindings)
         if (binding.appliesTo(mac: mac)) binding.label(),
     ].firstOrNull;
+    final l10n = context.l10n;
     return showIdeMenu(
       context,
       position: position,
@@ -750,19 +830,21 @@ class IdeExplorerState extends State<IdeExplorer> {
         [
           if (isFolder) ...[
             IdeMenuAction(
-              'New File...',
+              l10n.explorerNewFile,
+              keybinding: _keybinding('explorer.newFile'),
               onSelected: () =>
                   unawaited(startCreate(parent: path, directory: false)),
             ),
             IdeMenuAction(
-              'New Folder...',
+              l10n.explorerNewFolder,
+              keybinding: _keybinding('explorer.newFolder'),
               onSelected: () =>
                   unawaited(startCreate(parent: path, directory: true)),
             ),
           ],
           if (WindowControls.canRevealInFileManager)
             IdeMenuAction(
-              'Reveal in Finder',
+              l10n.explorerRevealInFinder,
               keybinding: keys(const [
                 IdeKeybinding(
                   LogicalKeyboardKey.keyR,
@@ -778,7 +860,7 @@ class IdeExplorerState extends State<IdeExplorer> {
         [
           if (isFolder && widget.onFindInFolder != null)
             IdeMenuAction(
-              'Find in Folder...',
+              l10n.explorerFindInFolder,
               keybinding: keys(const [
                 IdeKeybinding(LogicalKeyboardKey.keyF, shift: true, alt: true),
               ]),
@@ -788,35 +870,29 @@ class IdeExplorerState extends State<IdeExplorer> {
         [
           if (!isRoot) ...[
             IdeMenuAction(
-              'Cut',
-              keybinding: keys(const [
-                IdeKeybinding(LogicalKeyboardKey.keyX, primary: true),
-              ]),
+              l10n.commonCut,
+              keybinding: _keybinding('filesExplorer.cut'),
               onSelected: () =>
                   _controller.clipboard = (paths: [path], cut: true),
             ),
             IdeMenuAction(
-              'Copy',
-              keybinding: keys(const [
-                IdeKeybinding(LogicalKeyboardKey.keyC, primary: true),
-              ]),
+              l10n.commonCopy,
+              keybinding: _keybinding('filesExplorer.copy'),
               onSelected: () =>
                   _controller.clipboard = (paths: [path], cut: false),
             ),
           ],
           if (isFolder)
             IdeMenuAction(
-              'Paste',
-              keybinding: keys(const [
-                IdeKeybinding(LogicalKeyboardKey.keyV, primary: true),
-              ]),
+              l10n.commonPaste,
+              keybinding: _keybinding('filesExplorer.paste'),
               enabled: _controller.clipboard != null,
               onSelected: () => unawaited(_paste(path)),
             ),
         ],
         [
           IdeMenuAction(
-            'Copy Path',
+            l10n.tabCopyPath,
             keybinding: keys(const [
               IdeKeybinding(
                 LogicalKeyboardKey.keyC,
@@ -835,7 +911,7 @@ class IdeExplorerState extends State<IdeExplorer> {
                 unawaited(Clipboard.setData(ClipboardData(text: path))),
           ),
           IdeMenuAction(
-            'Copy Relative Path',
+            l10n.tabCopyRelativePath,
             keybinding: keys(const [
               IdeKeybinding(
                 LogicalKeyboardKey.keyC,
@@ -853,23 +929,15 @@ class IdeExplorerState extends State<IdeExplorer> {
         [
           if (!isRoot) ...[
             IdeMenuAction(
-              'Rename...',
-              keybinding: keys(const [
-                IdeKeybinding(LogicalKeyboardKey.enter, mac: true),
-                IdeKeybinding(LogicalKeyboardKey.f2, mac: false),
-              ]),
+              l10n.explorerRename,
+              keybinding: _keybinding('renameFile'),
               onSelected: () => startRename(row),
             ),
             IdeMenuAction(
-              'Delete',
-              keybinding: keys(const [
-                IdeKeybinding(
-                  LogicalKeyboardKey.backspace,
-                  primary: true,
-                  mac: true,
-                ),
-                IdeKeybinding(LogicalKeyboardKey.delete, mac: false),
-              ]),
+              l10n.commonDelete,
+              keybinding: _keybinding(
+                widget.trash == null ? 'deleteFile' : 'moveFileToTrash',
+              ),
               onSelected: () => unawaited(_delete(row)),
             ),
           ],
@@ -1025,7 +1093,7 @@ class _ExplorerRowView extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                message,
+                context.l10n.explorerCannotReadFolder(message),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -1048,7 +1116,7 @@ class _ExplorerRowView extends StatelessWidget {
       onContextMenu: onContextMenu,
       // ResourceLabel's title (labels.ts): the path label, tildified as
       // `labelService.getUriLabel` does, then the decoration's.
-      tooltip: switch (decoration?.tooltip) {
+      tooltip: switch (decoration?.localizedTooltip(context.l10n)) {
         final tooltip? => '${_pathLabel(row.path)} • $tooltip',
         null => _pathLabel(row.path),
       },

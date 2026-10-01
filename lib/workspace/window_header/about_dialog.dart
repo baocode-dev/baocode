@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../chat/panels/interaction_panel.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
@@ -78,8 +79,7 @@ class _AboutMonadDialog extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             Text(
-              'Agents run Claude Code as a local process; what they do — '
-              'messages, tools, diffs and panels — is shown here.',
+              context.l10n.aboutDescription,
               style: TextStyle(
                 color: CursorColors.textMuted,
                 fontSize: 12,
@@ -90,7 +90,7 @@ class _AboutMonadDialog extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: PanelButton(
-                label: 'Close',
+                label: context.l10n.commonClose,
                 primary: true,
                 onTap: () => Navigator.of(context).pop(),
               ),

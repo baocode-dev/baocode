@@ -5,14 +5,18 @@
 
 // What the side bar's lists share, as VS Code's list and tree draw them:
 // 22px rows, hover and selection colors, a label with its description and
-// decoration, actions shown on hover, and count badges.
+// decoration, actions shown on hover, count badges, and the keyboard's
+// `list.*` commands.
 //
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/base/browser/ui/list/list.css, iconLabel/iconlabel.css,
-// countBadge/countBadge.css with Modern UI's (contrib/modernUI), and the
+// countBadge/countBadge.css with Modern UI's (contrib/modernUI), the
 // color theme's `list.*`, `badge.*` and `descriptionForeground` colors
 // (platform/theme/browser/defaultStyles.ts `defaultListStyles`,
-// `defaultCountBadgeStyles`).
+// `defaultCountBadgeStyles`), and
+// src/vs/workbench/browser/actions/listCommands.ts ([IdeKeyboardList]).
+
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -302,3 +306,105 @@ class IdeResourceLabel extends StatelessWidget {
     );
   }
 }
+
+/// A list (or a two-level tree) the workbench's `list.*` commands move in
+/// while its rows have the keyboard: upstream's `WorkbenchListFocusContextKey`
+/// (`listFocus`), the `treeElement*` keys, and the commands of
+/// src/vs/workbench/browser/actions/listCommands.ts (`list.focusDown`,
+/// `list.select`, `list.expand`…), found from the primary focus.
+///
+/// Deviations: one row is both focused and selected (no multiple
+/// selection, no type to filter).
+mixin IdeKeyboardList<T extends StatefulWidget> on State<T> {
+  /// Whether its rows have the keyboard (`listFocus`).
+  bool get listHasFocus;
+
+  int get listLength;
+
+  /// The focused row; -1 when none is.
+  int get listFocusedIndex;
+
+  /// Focuses (and selects) the row at [index], and scrolls it into view.
+  void listFocusAt(int index);
+
+  /// How many rows a page moves.
+  int get listPageSize => 10;
+
+  /// `list.select` (Enter): opens the focused row, or a tree's parent row
+  /// toggles.
+  void listSelect();
+
+  /// `list.toggleExpand` (Space): a tree's parent row toggles; a list's
+  /// row is selected as by [listSelect].
+  void listToggleExpand() => listSelect();
+
+  /// `list.expand` (Right): a collapsed row expands, an expanded one
+  /// focuses its first child.
+  void listExpand() {}
+
+  /// `list.collapse` (Left): an expanded row collapses, a child focuses its
+  /// parent.
+  void listCollapse() {}
+
+  /// `list.collapseAll`.
+  void listCollapseAll() {}
+
+  /// `treeElementCanCollapse`, `treeElementCanExpand`,
+  /// `treeElementHasChild` and `treeElementHasParent` for the focused row.
+  bool listTreeKey(String key) => false;
+
+  /// `list.focusDown` / `list.focusUp` by [count] rows (negative: up), not
+  /// around the ends (upstream `focusNext(n, loop: false)`); the first row
+  /// when none is focused.
+  void listFocusNext(int count) {
+    final length = listLength;
+    if (length == 0) return;
+    final at = listFocusedIndex;
+    listFocusAt(at < 0 ? 0 : (at + count).clamp(0, length - 1));
+  }
+
+  /// `list.focusPageDown` / `list.focusPageUp`.
+  void listFocusPage(int direction) =>
+      listFocusNext(direction * math.max(1, listPageSize - 1));
+
+  void listFocusFirst() {
+    if (listLength > 0) listFocusAt(0);
+  }
+
+  void listFocusLast() {
+    if (listLength > 0) listFocusAt(listLength - 1);
+  }
+}
+
+/// Scrolls [controller] so that the row at [index] of a list of
+/// [rowHeight] rows, [top] below the list's start, shows (upstream
+/// `list.reveal`).
+void ideRevealRow(
+  ScrollController controller,
+  int index, {
+  double rowHeight = IdeListColors.rowHeight,
+  double top = 0,
+}) {
+  if (!controller.hasClients) return;
+  final position = controller.position;
+  top += index * rowHeight;
+  final bottom = top + rowHeight;
+  final view = position.viewportDimension;
+  final double? target = top < position.pixels
+      ? top
+      : bottom > position.pixels + view
+      ? bottom - view
+      : null;
+  if (target == null) return;
+  controller.jumpTo(
+    target.clamp(position.minScrollExtent, position.maxScrollExtent),
+  );
+}
+
+/// How many [rowHeight] rows [controller]'s view shows (a page).
+int ideRowsPerPage(
+  ScrollController controller, {
+  double rowHeight = IdeListColors.rowHeight,
+}) => controller.hasClients
+    ? math.max(1, (controller.position.viewportDimension / rowHeight).floor())
+    : 10;

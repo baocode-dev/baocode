@@ -5,7 +5,8 @@ import 'preference_store_stub.dart'
 /// Where what the user picks is kept between runs, e.g. the model new
 /// agents start with.
 abstract interface class PreferenceStore {
-  /// A file in the user's app data, or at [path] (none on the web).
+  /// `state/state.json` in the app's data folder, or at [path] (none on
+  /// the web).
   factory PreferenceStore.file([String? path]) = platform.FilePreferenceStore;
 
   /// What was kept; empty the first time, or when it cannot be read.

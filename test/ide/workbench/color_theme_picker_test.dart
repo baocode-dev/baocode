@@ -647,8 +647,8 @@ void main() {
       findsOneWidget,
     );
     await _key(tester, LogicalKeyboardKey.escape);
+    // Other commands start with Ctrl+K; Ctrl+K Ctrl+T runs none.
     await chord(tester, LogicalKeyboardKey.keyK, control: true);
-    expect(find.text(_waiting), findsNothing);
     await chord(tester, LogicalKeyboardKey.keyT, control: true);
     expect(_picker, findsNothing);
     expect(find.byType(IdeWorkbench), findsOneWidget);

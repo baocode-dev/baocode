@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/command_titles.dart';
+import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_commands.dart';
@@ -73,7 +75,11 @@ class _WelcomeEntryState extends State<_WelcomeEntry> {
               SizedBox(
                 width: 160,
                 child: Text(
-                  widget.command.label,
+                  localizedCommandLabel(
+                    context.l10n,
+                    widget.command.id,
+                    widget.command.label,
+                  ),
                   textAlign: TextAlign.right,
                   style: TextStyle(
                     fontSize: 12.5,

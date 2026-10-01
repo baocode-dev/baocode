@@ -166,7 +166,7 @@ void main() {
     expect(composerController(tester).document.toPlainText(), '\n');
     expect(session.isStreaming, isTrue);
 
-    await tester.tap(find.byTooltip('Stop'));
+    await tester.tap(find.byTooltip('Stop (Ctrl+Escape)'));
     await tester.pump(const Duration(seconds: 3));
     expect(session.isStreaming, isFalse);
   });

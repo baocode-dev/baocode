@@ -280,7 +280,8 @@ void main() {
     final field = find.byKey(const ValueKey('ide-rename-field'));
     expect(tester.widget<TextField>(field).controller!.text, 'foo');
     await tester.enterText(field, 'bar');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    // Enter runs acceptRenameInput (the input's submit action does not).
+    await press(tester, LogicalKeyboardKey.enter);
     await settle(tester);
     await settle(tester);
 

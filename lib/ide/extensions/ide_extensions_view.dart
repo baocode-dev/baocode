@@ -23,6 +23,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/material_file_icons.dart';
@@ -183,23 +184,21 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
       !extension.installed && widget.recommended.contains(extension.id);
 
   Future<void> _install(IdeExtension extension) async {
+    final l10n = context.l10n;
     try {
       await _session.install(extension);
       widget.onInstalled?.call(extension.id);
     } catch (error) {
-      widget.onError?.call(
-        "Error while installing '${extension.id}' extension. $error",
-      );
+      widget.onError?.call(l10n.extInstallError(extension.id, '$error'));
     }
   }
 
   Future<void> _uninstall(IdeExtension extension) async {
+    final l10n = context.l10n;
     try {
       await _session.uninstall(extension);
     } catch (error) {
-      widget.onError?.call(
-        "Error while uninstalling '${extension.id}' extension. $error",
-      );
+      widget.onError?.call(l10n.extUninstallError(extension.id, '$error'));
     }
   }
 
@@ -219,25 +218,25 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
     return [
       if (extension.state == IdeExtensionState.installable)
         IdeMenuAction(
-          'Install',
+          context.l10n.extInstall,
           enabled: !busy,
           onSelected: () => unawaited(_install(extension)),
         ),
       if (extension.managed)
         IdeMenuAction(
-          'Uninstall',
+          context.l10n.extUninstall,
           enabled: !busy,
           onSelected: () => unawaited(_uninstall(extension)),
         ),
       if (extension.state == IdeExtensionState.installable || extension.managed)
         const IdeMenuSeparator(),
       IdeMenuAction(
-        'Copy',
+        context.l10n.commonCopy,
         onSelected: () =>
             unawaited(Clipboard.setData(ClipboardData(text: extension.info))),
       ),
       IdeMenuAction(
-        'Copy Extension ID',
+        context.l10n.extCopyId,
         onSelected: () =>
             unawaited(Clipboard.setData(ClipboardData(text: extension.id))),
       ),
@@ -249,12 +248,13 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
     final session = _session;
     final query = ideParseExtensionsQuery(session.query.text);
     final searching = session.query.text.trim().isNotEmpty;
+    final l10n = context.l10n;
     final title = !searching
-        ? 'Extensions'
+        ? l10n.extTitle
         : switch (query.filter) {
-            'installed' => 'Extensions: Installed',
-            'recommended' => 'Extensions: Recommended',
-            _ => 'Extensions: Marketplace',
+            'installed' => l10n.extTitleInstalled,
+            'recommended' => l10n.extTitleRecommended,
+            _ => l10n.extTitleMarketplace,
           };
     return ColoredBox(
       color: CursorColors.sidebarSurface,
@@ -266,28 +266,28 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
             actions: [
               IdeMenuButton(
                 icon: Codicons.filter,
-                tooltip: 'Filter Extensions...',
+                tooltip: l10n.extFilter,
                 entries: () => [
                   IdeMenuAction(
-                    'Installed',
+                    l10n.extInstalled,
                     onSelected: () => _search('@installed '),
                   ),
                   IdeMenuAction(
-                    'Recommended',
+                    l10n.extRecommended,
                     onSelected: () => _search('@recommended '),
                   ),
                 ],
               ),
               IdePaneAction(
                 icon: Codicons.refresh,
-                tooltip: 'Refresh',
+                tooltip: l10n.commonRefresh,
                 onPressed: session.loading
                     ? null
                     : () => unawaited(session.refresh()),
               ),
               IdePaneAction(
                 icon: Codicons.clearAll,
-                tooltip: 'Clear Extensions Search Results',
+                tooltip: l10n.extClearSearch,
                 onPressed: searching ? () => _search('') : null,
               ),
             ],
@@ -308,8 +308,8 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
             child: IdeInputBox(
               controller: session.query,
               focusNode: _queryFocus,
-              placeholder: 'Search Extensions in Marketplace',
-              semanticsLabel: 'Search Extensions in Marketplace',
+              placeholder: l10n.extSearchPlaceholder,
+              semanticsLabel: l10n.extSearchPlaceholder,
               onChanged: (_) => session.notify(),
             ),
           ),
@@ -347,14 +347,14 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
       panes: [
         IdePane(
           id: 'installed',
-          title: 'Installed',
+          title: context.l10n.extInstalled,
           weight: 100,
           badge: IdeCountBadge(installed.length),
           body: _list(installed),
         ),
         IdePane(
           id: 'recommended',
-          title: 'Recommended',
+          title: context.l10n.extRecommended,
           weight: 40,
           badge: IdeCountBadge(recommended.length),
           body: _list(recommended),
@@ -395,7 +395,7 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
   );
 
   Widget _list(List<IdeExtension> extensions) {
-    if (extensions.isEmpty) return _message('No extensions found.');
+    if (extensions.isEmpty) return _message(context.l10n.extNoneFound);
     return ListView.builder(
       itemExtent: IdeExtensionRow.height,
       itemCount: extensions.length,
@@ -449,7 +449,8 @@ class IdeExtensionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final extension = this.extension;
     final fileType = extension.fileType;
-    final status = extension.status;
+    final l10n = context.l10n;
+    final status = extension.localizedStatus(l10n);
     final version = extension.version;
     // extension.css: the row's text, and `descriptionForeground` for the
     // description and publisher unless selected or in a high contrast
@@ -534,7 +535,7 @@ class IdeExtensionRow extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: Text(
-                      extension.description,
+                      extension.localizedDescription(l10n),
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
@@ -577,17 +578,23 @@ class IdeExtensionRow extends StatelessWidget {
                             ),
                           ),
                         if (busy case final busy?)
-                          _ExtensionButton(label: busy)
+                          _ExtensionButton(
+                            label: switch (busy) {
+                              'Installing' => l10n.extInstalling,
+                              'Uninstalling' => l10n.extUninstalling,
+                              _ => busy,
+                            },
+                          )
                         else if (extension.state ==
                             IdeExtensionState.installable)
                           _ExtensionButton(
-                            label: 'Install',
+                            label: l10n.extInstall,
                             onPressed: onInstall,
                           ),
                         if (extension.installed)
                           IdeMenuButton(
                             icon: Codicons.gear,
-                            tooltip: 'Manage',
+                            tooltip: l10n.extManage,
                             entries: menu,
                           ),
                         const SizedBox(width: 4),

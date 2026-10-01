@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../window_controls.dart';
@@ -38,7 +39,7 @@ class WindowButtons extends StatelessWidget {
             KeyedSubtree(
               key: minimizeKey,
               child: _WindowButton(
-                label: 'Minimize',
+                label: context.l10n.windowMinimize,
                 glyph: Glyph.minimize,
                 hovered: hovered == WindowButton.minimize,
                 onPressed: () => WindowControls.windowCommand('minimize'),
@@ -47,7 +48,9 @@ class WindowButtons extends StatelessWidget {
             KeyedSubtree(
               key: maximizeKey,
               child: _WindowButton(
-                label: maximized ? 'Restore' : 'Maximize',
+                label: maximized
+                    ? context.l10n.windowRestore
+                    : context.l10n.windowMaximize,
                 glyph: maximized ? Glyph.restore : Glyph.maximize,
                 hovered: hovered == WindowButton.maximize,
                 onPressed: () => WindowControls.windowCommand('maximize'),
@@ -56,7 +59,7 @@ class WindowButtons extends StatelessWidget {
             KeyedSubtree(
               key: closeKey,
               child: _WindowButton(
-                label: 'Close',
+                label: context.l10n.windowClose,
                 glyph: Glyph.close,
                 hovered: hovered == WindowButton.close,
                 onPressed: () => WindowControls.windowCommand('close'),

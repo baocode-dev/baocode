@@ -33,6 +33,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
+import '../l10n/l10n.dart';
 import 'editor/monaco/vs/platform/theme/common/theme.dart';
 import 'ide_commands.dart';
 import 'ide_quick_input.dart';
@@ -76,9 +77,9 @@ const _defaultDark = 'Dark 2026';
 const _defaultLight = 'Light 2026';
 
 /// `defaultThemeDescriptions`.
-const _defaultThemeDescriptions = {
-  _defaultLight: 'Default Light',
-  _defaultDark: 'Default Dark',
+Map<String, String> _defaultThemeDescriptions(AppLocalizations l10n) => {
+  _defaultLight: l10n.themeDefaultLight,
+  _defaultDark: l10n.themeDefaultDark,
 };
 
 /// The quick pick of [themes]' color themes (`SelectColorThemeAction.run`
@@ -86,10 +87,14 @@ const _defaultThemeDescriptions = {
 /// previews its theme 200ms later, accepting applies and persists it, and
 /// hiding otherwise applies the theme that was current again. [onError]
 /// reports a theme that failed to apply (upstream `onUnexpectedError`).
+/// Its own words are in [l10n]'s language (English when null).
 IdeQuickPick ideColorThemePick(
   IdeColorThemeController themes, {
   ValueChanged<Object>? onError,
+  AppLocalizations? l10n,
 }) {
+  final strings = l10n ?? englishLocalizations;
+  final descriptions = _defaultThemeDescriptions(strings);
   final currentId = themes.colorThemeId;
   final all = themes.colorThemes;
   final entries = Map<IdeQuickPickItem, IdeColorThemeEntry>.identity();
@@ -100,7 +105,7 @@ IdeQuickPick ideColorThemePick(
     final item = IdeQuickPickItem(
       label: theme.label,
       description:
-          _defaultThemeDescriptions[settingId] ??
+          descriptions[settingId] ??
           theme.description ??
           (theme.label == settingId ? null : settingId),
     );
@@ -132,15 +137,15 @@ IdeQuickPick ideColorThemePick(
   final picks = [
     ...toEntries(
       all.where((theme) => theme.type == ColorScheme.light),
-      'light themes',
+      strings.themeLightThemes,
     ),
     ...toEntries(
       all.where((theme) => theme.type == ColorScheme.dark),
-      'dark themes',
+      strings.themeDarkThemes,
     ),
     ...toEntries(
       all.where((theme) => isHighContrast(theme.type)),
-      'high contrast themes',
+      strings.themeHighContrastThemes,
     ),
   ];
 
@@ -183,7 +188,7 @@ IdeQuickPick ideColorThemePick(
   final active = entries.keys.where((item) => entries[item]!.id == currentId);
   return IdeQuickPick(
     items: picks,
-    placeholder: 'Select Color Theme (detect system color mode disabled)',
+    placeholder: strings.themeSelectPlaceholder,
     activeItems: active.take(1).toList(),
     matchOnDescription: true,
     onDidChangeActive: (item) => selectTheme(themeOf(item), false),

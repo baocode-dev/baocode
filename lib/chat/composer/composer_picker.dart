@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_session.dart';
@@ -66,10 +67,14 @@ class ComposerPicker extends StatefulWidget {
   final FocusNode? focusNode;
 
   @override
-  State<ComposerPicker> createState() => _ComposerPickerState();
+  State<ComposerPicker> createState() => ComposerPickerState();
 }
 
-class _ComposerPickerState extends State<ComposerPicker> {
+class ComposerPickerState extends State<ComposerPicker> {
+  /// Opens its menu, or closes it, as a press on it does (the mode and
+  /// model pickers' keybindings).
+  void toggle() => _setOpen(!_open);
+
   final Object _tapRegion = Object();
   late List<GlobalKey> _rowKeys = _keysFor(widget.options);
   bool _open = false;
@@ -509,8 +514,10 @@ class _ComposerPickerState extends State<ComposerPicker> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     switch (setting.kind) {
-                      KernelChoiceKind.context => 'Context',
-                      KernelChoiceKind.effort => 'Effort',
+                      KernelChoiceKind.context =>
+                        context.l10n.composerSettingContext,
+                      KernelChoiceKind.effort =>
+                        context.l10n.composerSettingEffort,
                       _ => '',
                     },
                     style: TextStyle(
@@ -742,7 +749,7 @@ class _SettingRow extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Container(
-          height: _ComposerPickerState._settingRowHeight,
+          height: ComposerPickerState._settingRowHeight,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             color: highlighted ? CursorColors.hover : Colors.transparent,

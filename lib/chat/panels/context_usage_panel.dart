@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../kernel/kernel_types.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'panel_card.dart';
@@ -45,6 +46,7 @@ class ContextUsagePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final used = usage.used;
     final total = usage.window;
     // Without a breakdown from the kernel, the bar shows the total alone.
@@ -55,7 +57,7 @@ class ContextUsagePanel extends StatelessWidget {
               if (segment.kind == ContextKind.used && segment.tokens > 0)
                 segment,
           ]
-        : [ContextSegment('Used', used)];
+        : [ContextSegment(l10n.usageUsed, used)];
     final reserved = usage.segments
         .where((s) => s.kind == ContextKind.buffer)
         .fold(0, (sum, s) => sum + s.tokens);
@@ -65,7 +67,7 @@ class ContextUsagePanel extends StatelessWidget {
       header: Row(
         children: [
           Text(
-            'Context window',
+            l10n.usageContextWindow,
             style: TextStyle(
               color: CursorColors.text,
               fontSize: 12,
@@ -75,8 +77,11 @@ class ContextUsagePanel extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '${_format(used)} / ${_format(total)} tokens · '
-              '${total == 0 ? 0 : (used / total * 100).toStringAsFixed(0)}%',
+              l10n.usageTokensSummary(
+                _format(used),
+                _format(total),
+                total == 0 ? '0' : (used / total * 100).toStringAsFixed(0),
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
@@ -130,7 +135,7 @@ class ContextUsagePanel extends StatelessWidget {
                   // Not in the bar: room kept free, not taken.
                   if (reserved > 0)
                     _Legend(
-                      label: 'Reserved for compaction',
+                      label: l10n.usageReservedForCompaction,
                       value: _format(reserved),
                     ),
                 ],
@@ -167,7 +172,7 @@ class _PlanUsage extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'Plan usage',
+                context.l10n.usagePlanUsage,
                 style: TextStyle(
                   color: CursorColors.text,
                   fontSize: 12,
@@ -177,7 +182,7 @@ class _PlanUsage extends StatelessWidget {
             ),
             if (stats.costUsd case final cost?)
               _Stat(
-                label: 'This session',
+                label: context.l10n.usageThisSession,
                 value: '\$${cost.toStringAsFixed(2)}',
               ),
           ],
@@ -189,9 +194,9 @@ class _PlanUsage extends StatelessWidget {
         // Nothing known yet: say why there are no rows.
         if (stats.limits.isEmpty)
           if (switch (stats.limitsState) {
-                LimitsState.checking => '正在获取额度…',
-                LimitsState.unavailable => '暂时获取不到额度，稍后重新打开再试。',
-                LimitsState.off => '额度随对话自动更新，对话后即可看到。',
+                LimitsState.checking => context.l10n.usageCheckingLimits,
+                LimitsState.unavailable => context.l10n.usageLimitsUnavailable,
+                LimitsState.off => context.l10n.usageLimitsAfterMessage,
                 LimitsState.idle => null,
               }
               case final note?) ...[
@@ -334,7 +339,11 @@ class _LimitMeter extends StatelessWidget {
         SizedBox(
           width: 104,
           child: Text(
-            resets == null || over ? '' : 'resets ${resetsIn(resets)}',
+            resets == null || over
+                ? ''
+                : context.l10n.usageResets(
+                    resetsIn(resets, l10n: context.l10n),
+                  ),
             textAlign: TextAlign.right,
             maxLines: 1,
             style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
@@ -345,19 +354,23 @@ class _LimitMeter extends StatelessWidget {
   }
 }
 
-/// How long until [time], e.g. "in 46m", "in 3h 20m", "in 2d 5h".
+/// How long until [time], e.g. "in 46m", "in 3h 20m", "in 2d 5h"; in
+/// [l10n]'s language (English when null).
 @visibleForTesting
-String resetsIn(DateTime time, {DateTime? now}) {
+String resetsIn(DateTime time, {DateTime? now, AppLocalizations? l10n}) {
+  final strings = l10n ?? englishLocalizations;
   final left = time.difference(now ?? DateTime.now());
   final minutes = left.inMinutes.clamp(0, 1 << 31);
-  if (minutes < 60) return 'in ${minutes}m';
+  if (minutes < 60) return strings.usageInMinutes(minutes);
   final hours = minutes ~/ 60;
   if (hours < 24) {
-    return minutes % 60 == 0 ? 'in ${hours}h' : 'in ${hours}h ${minutes % 60}m';
+    return minutes % 60 == 0
+        ? strings.usageInHours(hours)
+        : strings.usageInHoursMinutes(hours, minutes % 60);
   }
   return hours % 24 == 0
-      ? 'in ${hours ~/ 24}d'
-      : 'in ${hours ~/ 24}d ${hours % 24}h';
+      ? strings.usageInDays(hours ~/ 24)
+      : strings.usageInDaysHours(hours ~/ 24, hours % 24);
 }
 
 /// The window as one rounded strip: what is used from the left, one color

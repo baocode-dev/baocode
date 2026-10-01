@@ -5,7 +5,9 @@
 // Adapted from VS Code src/vs/editor/contrib/linesOperations/browser/
 // {linesOperations,moveLinesCommand,copyLinesCommand}.ts and
 // common/cursor/cursorMoveCommands.ts (expandLineSelection) at
-// 6a598d4a13031703d483d103c1d934a36ad27971.
+// 6a598d4a13031703d483d103c1d934a36ad27971. `joinLines` ports
+// `JoinLinesAction.run`; `CopyLineDownCommand` is `CopyLinesCommand`
+// copying an empty selection's line down (for `DuplicateSelectionAction`).
 //
 // Deviations:
 // - Every operation returns all edits plus the post-edit selections (like
@@ -243,6 +245,156 @@ abstract final class LinesOperations {
     return LinesEditResult(edits, cursorState);
   }
 
+  /// editor.action.joinLines: joins each selection's lines (an empty or
+  /// one-line selection's line with the next) into one, separated by a
+  /// space, without the joined lines' indentation. [selections] are primary
+  /// first; the result's selections are too.
+  static LinesEditResult? joinLines(
+    ICursorSimpleModel model,
+    List<Selection> selections,
+  ) {
+    if (selections.isEmpty) return null;
+    var primaryCursor = selections.first;
+    final sorted = [...selections]..sort(Range.compareRangesUsingStarts);
+    final reducedSelections = <Selection>[];
+    var previousValue = sorted.first;
+    for (final currentValue in sorted.skip(1)) {
+      if (previousValue.isEmpty()) {
+        if (previousValue.endLineNumber == currentValue.startLineNumber) {
+          if (primaryCursor.equalsSelection(previousValue)) {
+            primaryCursor = currentValue;
+          }
+          previousValue = currentValue;
+        } else if (currentValue.startLineNumber >
+            previousValue.endLineNumber + 1) {
+          reducedSelections.add(previousValue);
+          previousValue = currentValue;
+        } else {
+          previousValue = Selection(
+            previousValue.startLineNumber,
+            previousValue.startColumn,
+            currentValue.endLineNumber,
+            currentValue.endColumn,
+          );
+        }
+      } else if (currentValue.startLineNumber > previousValue.endLineNumber) {
+        reducedSelections.add(previousValue);
+        previousValue = currentValue;
+      } else {
+        previousValue = Selection(
+          previousValue.startLineNumber,
+          previousValue.startColumn,
+          currentValue.endLineNumber,
+          currentValue.endColumn,
+        );
+      }
+    }
+    reducedSelections.add(previousValue);
+
+    final edits = <CursorCommandEdit>[];
+    final endCursorState = <Selection>[];
+    var endPrimaryCursor = primaryCursor;
+    var lineOffset = 0;
+    for (final selection in reducedSelections) {
+      final startLineNumber = selection.startLineNumber;
+      const startColumn = 1;
+      var columnDeltaOffset = 0;
+      int endLineNumber;
+      int endColumn;
+      final selectionEndPositionOffset =
+          model.getLineMaxColumn(selection.endLineNumber) -
+          1 -
+          selection.endColumn;
+      if (selection.isEmpty() ||
+          selection.startLineNumber == selection.endLineNumber) {
+        final position = selection.getStartPosition();
+        if (position.lineNumber < model.getLineCount()) {
+          endLineNumber = startLineNumber + 1;
+          endColumn = model.getLineMaxColumn(endLineNumber);
+        } else {
+          endLineNumber = position.lineNumber;
+          endColumn = model.getLineMaxColumn(position.lineNumber);
+        }
+      } else {
+        endLineNumber = selection.endLineNumber;
+        endColumn = model.getLineMaxColumn(endLineNumber);
+      }
+
+      var trimmedLinesContent = model.getLineContent(startLineNumber);
+      for (var i = startLineNumber + 1; i <= endLineNumber; i++) {
+        final lineText = model.getLineContent(i);
+        final firstNonWhitespaceIdx = model.getLineFirstNonWhitespaceColumn(i);
+        if (firstNonWhitespaceIdx >= 1) {
+          var insertSpace = trimmedLinesContent.isNotEmpty;
+          if (insertSpace &&
+              (trimmedLinesContent.endsWith(' ') ||
+                  trimmedLinesContent.endsWith('\t'))) {
+            insertSpace = false;
+            trimmedLinesContent = trimmedLinesContent.replaceAll(
+              _trailingWhitespace,
+              ' ',
+            );
+          }
+          final lineTextWithoutIndent = lineText.substring(
+            firstNonWhitespaceIdx - 1,
+          );
+          trimmedLinesContent +=
+              (insertSpace ? ' ' : '') + lineTextWithoutIndent;
+          columnDeltaOffset = insertSpace
+              ? lineTextWithoutIndent.length + 1
+              : lineTextWithoutIndent.length;
+        } else {
+          columnDeltaOffset = 0;
+        }
+      }
+
+      final deleteSelection = Range(
+        startLineNumber,
+        startColumn,
+        endLineNumber,
+        endColumn,
+      );
+      if (!deleteSelection.isEmpty()) {
+        edits.add(CursorCommandEdit(deleteSelection, trimmedLinesContent));
+        final Selection resultSelection;
+        if (selection.isEmpty()) {
+          final column = trimmedLinesContent.length - columnDeltaOffset + 1;
+          resultSelection = Selection(
+            deleteSelection.startLineNumber - lineOffset,
+            column,
+            startLineNumber - lineOffset,
+            column,
+          );
+        } else if (selection.startLineNumber == selection.endLineNumber) {
+          resultSelection = Selection(
+            selection.startLineNumber - lineOffset,
+            selection.startColumn,
+            selection.endLineNumber - lineOffset,
+            selection.endColumn,
+          );
+        } else {
+          resultSelection = Selection(
+            selection.startLineNumber - lineOffset,
+            selection.startColumn,
+            selection.startLineNumber - lineOffset,
+            trimmedLinesContent.length - selectionEndPositionOffset,
+          );
+        }
+        if (Range.intersectTwoRanges(deleteSelection, primaryCursor) != null) {
+          endPrimaryCursor = resultSelection;
+        } else {
+          endCursorState.add(resultSelection);
+        }
+      }
+      lineOffset +=
+          deleteSelection.endLineNumber - deleteSelection.startLineNumber;
+    }
+    if (edits.isEmpty) return null;
+    return LinesEditResult(edits, [endPrimaryCursor, ...endCursorState]);
+  }
+
+  static final _trailingWhitespace = RegExp(r'[\s\uFEFF\xA0]+$');
+
   /// expandLineSelection: select the full lines of each selection, then one
   /// more line on every repeat.
   static List<Selection> expandLineSelection(
@@ -306,4 +458,33 @@ abstract final class LinesOperations {
           1,
         ),
   ];
+}
+
+/// `CopyLinesCommand` copying down for the empty [selection]: inserts a copy
+/// of its line above it; the cursor keeps its column on the lower copy.
+class CopyLineDownCommand extends CursorCommand {
+  CopyLineDownCommand(this.selection);
+
+  final Selection selection;
+
+  @override
+  List<CursorCommandEdit> getEditOperations(ICursorSimpleModel model) {
+    final line = selection.positionLineNumber;
+    return [
+      CursorCommandEdit(
+        Range(line, 1, line, 1),
+        '${model.getLineContent(line)}\n',
+      ),
+    ];
+  }
+
+  @override
+  Selection computeCursorState(
+    ICursorSimpleModel model,
+    CursorStateComputerData helper,
+  ) {
+    final line = helper.getInverseEditOperations().first.endLineNumber;
+    final column = selection.positionColumn;
+    return Selection(line, column, line, column);
+  }
 }

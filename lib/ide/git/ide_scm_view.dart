@@ -10,9 +10,12 @@
 // changes).
 //
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
-// src/vs/workbench/contrib/scm/browser/scmViewPane.ts, scmHistoryViewPane.ts
-// and media/scm.css; the Git extension's commands, menus and messages
-// (extensions/git/src/commands.ts, actionButton.ts and package.json).
+// src/vs/workbench/contrib/scm/browser/scmViewPane.ts, scmHistoryViewPane.ts,
+// scm.contribution.ts (`scm.acceptInput`, `scm.clearInput`, the focus
+// command) and media/scm.css; the Git extension's commands, menus and
+// messages (extensions/git/src/commands.ts, actionButton.ts and
+// package.json); src/vs/workbench/browser/actions/listCommands.ts (the
+// lists' keys, through [IdeKeyboardList]).
 //
 // Deviations: a commit's file in the graph opens the file, not a diff
 // editor; of push, pull
@@ -21,7 +24,9 @@
 // remote to publish to, where upstream has a quick pick; no stash, branch
 // or tag commands; the smart commit's Always and Never, and the sync's
 // Don't Show Again, last for the session; Generate Commit Message asks
-// Claude Haiku (see commit_message.dart), where VS Code asks Copilot.
+// Claude Haiku (see commit_message.dart), where VS Code asks Copilot. The
+// keyboard walks the graph's commits, not the files of an expanded one; the
+// commit input keeps no history of messages (`scm.viewPreviousCommit`).
 
 import 'dart:async';
 
@@ -29,6 +34,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../../keybindings/keybinding_service.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/material_file_icons.dart';
@@ -131,10 +138,60 @@ class IdeScmView extends StatefulWidget {
   final IdeCommitMessageModel? commitMessage;
 
   @override
-  State<IdeScmView> createState() => _IdeScmViewState();
+  State<IdeScmView> createState() => IdeScmViewState();
 }
 
-class _IdeScmViewState extends State<IdeScmView> {
+/// A row of the Changes list the keyboard walks: a resource group, a
+/// folder of the tree, or a change.
+sealed class _ScmRow {
+  /// What `_selected` holds for it.
+  String get key;
+
+  /// Its group's or folder's key; null for a group.
+  String? get parent;
+}
+
+final class _GroupRow implements _ScmRow {
+  _GroupRow(this.group, this.resources);
+
+  final IdeGitGroup group;
+  final List<IdeGitResource> resources;
+
+  @override
+  String get key => group.name;
+
+  @override
+  String? get parent => null;
+}
+
+final class _FolderRow implements _ScmRow {
+  _FolderRow(this.group, this.folder, this.depth, this.key, this.parent);
+
+  final IdeGitGroup group;
+  final IdeScmTreeFolder folder;
+  final int depth;
+  @override
+  final String key;
+  @override
+  final String parent;
+}
+
+final class _ResourceRow implements _ScmRow {
+  _ResourceRow(this.resource, this.treeDepth, this.parent);
+
+  final IdeGitResource resource;
+
+  /// Its depth in the tree; null in the list.
+  final int? treeDepth;
+  @override
+  final String parent;
+
+  @override
+  String get key => '${resource.group.name}:${resource.path}';
+}
+
+class IdeScmViewState extends State<IdeScmView>
+    with IdeKeyboardList<IdeScmView> {
   final FocusNode _inputFocus = FocusNode(debugLabel: 'scm input');
   final FocusNode _listFocus = FocusNode(debugLabel: 'scm list');
   final FocusNode _graphFocus = FocusNode(debugLabel: 'scm graph');
@@ -144,6 +201,12 @@ class _IdeScmViewState extends State<IdeScmView> {
   /// Publish Branch, where the menu of remotes opens.
   final GlobalKey _publishKey = GlobalKey();
   IdeInputValidation? _validation;
+
+  /// The rows above the changes (the input, the action button), measured
+  /// for revealing a row, and their last height.
+  final GlobalKey _inputKey = GlobalKey();
+  final GlobalKey _actionKey = GlobalKey();
+  double _headerHeight = 0;
 
   /// The selected resource (`group:path`) or group (`group`).
   String? _selected;
@@ -217,10 +280,10 @@ class _IdeScmViewState extends State<IdeScmView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const IdeViewTitle('Source Control'),
+          IdeViewTitle(context.l10n.scmTitle),
           Expanded(
             child: git == null
-                ? const _Welcome(['No source control providers registered.'])
+                ? _Welcome([context.l10n.scmNoProviders])
                 : ListenableBuilder(
                     listenable: git,
                     builder: (context, _) => _body(git),
@@ -232,6 +295,7 @@ class _IdeScmViewState extends State<IdeScmView> {
   }
 
   Widget _body(IdeGitRepository git) {
+    final l10n = context.l10n;
     final state = git.state;
     final Widget content;
     if (!git.loaded) {
@@ -239,18 +303,10 @@ class _IdeScmViewState extends State<IdeScmView> {
     } else if (state == null) {
       final error = git.error;
       content = error is IdeGitException && error.message.startsWith('Git is')
-          ? _Welcome([
-              'Install Git, a popular source control system, to track code '
-                  'changes and collaborate with others.',
-              error.message,
-            ])
+          ? _Welcome([l10n.scmInstallGit, error.message])
           : _Welcome(
-              const [
-                "The folder currently open doesn't have a Git repository. "
-                    'You can initialize a repository which will enable source '
-                    'control features powered by Git.',
-              ],
-              button: 'Initialize Repository',
+              [l10n.scmNoRepository],
+              button: l10n.scmInitializeRepository,
               onPressed: () => unawaited(_run(git.initialize)),
             );
     } else {
@@ -264,22 +320,22 @@ class _IdeScmViewState extends State<IdeScmView> {
         panes: [
           IdePane(
             id: 'changes',
-            title: 'Changes',
+            title: l10n.scmChanges,
             weight: 3,
             actions: [
               IdePaneAction(
                 icon: Codicons.check,
-                tooltip: 'Commit',
+                tooltip: l10n.scmCommit,
                 onPressed: () => unawaited(_commit()),
               ),
               IdePaneAction(
                 icon: Codicons.refresh,
-                tooltip: 'Refresh',
+                tooltip: l10n.commonRefresh,
                 onPressed: () => unawaited(git.refresh()),
               ),
               IdeMenuButton(
                 icon: Codicons.ellipsis,
-                tooltip: 'More Actions...',
+                tooltip: l10n.commonMoreActions,
                 entries: _moreActions,
               ),
             ],
@@ -287,17 +343,17 @@ class _IdeScmViewState extends State<IdeScmView> {
           ),
           IdePane(
             id: 'graph',
-            title: 'Graph',
+            title: l10n.scmGraph,
             weight: 2,
             actions: [
               IdePaneAction(
                 icon: Codicons.target,
-                tooltip: 'Go to Current History Item',
+                tooltip: l10n.scmGoToCurrent,
                 onPressed: () => _goToCurrent(git),
               ),
               IdePaneAction(
                 icon: Codicons.refresh,
-                tooltip: 'Refresh',
+                tooltip: l10n.commonRefresh,
                 onPressed: () => unawaited(git.refresh()),
               ),
             ],
@@ -325,30 +381,252 @@ class _IdeScmViewState extends State<IdeScmView> {
     );
   }
 
+  // --- Keyboard ------------------------------------------------------------
+
+  /// Whether the commit message input has the keyboard (upstream
+  /// `scmRepository`, which its editor sets).
+  bool get inputHasFocus => _inputFocus.hasFocus;
+
+  /// `scmInputHasValidationMessage`.
+  bool get hasValidation => _validation != null;
+
+  /// Whether the input's text has a selection (its
+  /// `editorHasSelection`).
+  bool get inputHasSelection {
+    final selection = _session.message.selection;
+    return selection.isValid && !selection.isCollapsed;
+  }
+
+  /// `scm.acceptInput`: the Git repository's `git.commit`.
+  Future<void> commit() => _commit();
+
+  /// `scm.clearInput`.
+  void clearInput() => _session.message.clear();
+
+  /// `scm.clearValidation`.
+  void clearValidation() {
+    if (_validation != null) setState(() => _validation = null);
+  }
+
+  /// `workbench.scm.focus` (upstream `SCMViewPane.focus`): the input, or
+  /// the list where a row is selected.
+  void focus() => (_selected == null ? _inputFocus : _listFocus).requestFocus();
+
+  bool get _graphHasFocus => _graphFocus.hasPrimaryFocus;
+
+  List<_ScmRow> get _rows => switch (_git?.state) {
+    final state? => _changeRows(state),
+    null => const [],
+  };
+
+  List<IdeGraphRow> get _commits => _git?.graph ?? const [];
+
+  _ScmRow? get _focusedRow {
+    final key = _selected;
+    return key == null
+        ? null
+        : _rows.where((row) => row.key == key).firstOrNull;
+  }
+
+  bool _isCollapsed(_ScmRow row) => switch (row) {
+    _GroupRow(:final group) => _session.collapsedGroups.contains(group),
+    _FolderRow(:final key) => _session.collapsedFolders.contains(key),
+    _ResourceRow() => false,
+  };
+
+  void _setCollapsed(_ScmRow row, bool collapsed) => setState(() {
+    switch (row) {
+      case _GroupRow(:final group):
+        collapsed
+            ? _session.collapsedGroups.add(group)
+            : _session.collapsedGroups.remove(group);
+      case _FolderRow(:final key):
+        collapsed
+            ? _session.collapsedFolders.add(key)
+            : _session.collapsedFolders.remove(key);
+      case _ResourceRow():
+    }
+  });
+
+  void _toggleCommit(IdeGraphRow row) {
+    final id = row.commit.id;
+    if (id == ideIncomingChangesId || id == ideOutgoingChangesId) return;
+    setState(() {
+      if (!_session.expandedCommits.remove(id)) {
+        _session.expandedCommits.add(id);
+      }
+    });
+  }
+
+  @override
+  bool get listHasFocus => _listFocus.hasPrimaryFocus || _graphHasFocus;
+
+  @override
+  int get listLength => _graphHasFocus ? _commits.length : _rows.length;
+
+  @override
+  int get listFocusedIndex => _graphHasFocus
+      ? _commits.indexWhere((row) => row.commit.id == _selectedCommit)
+      : _rows.indexWhere((row) => row.key == _selected);
+
+  @override
+  int get listPageSize =>
+      ideRowsPerPage(_graphHasFocus ? _graphScroll : _changesScroll);
+
+  @override
+  void listFocusAt(int index) {
+    if (_graphHasFocus) {
+      setState(() => _selectedCommit = _commits[index].commit.id);
+      ideRevealRow(_graphScroll, index);
+      return;
+    }
+    setState(() => _selected = _rows[index].key);
+    // Below the input and the action button.
+    final heights = [
+      for (final key in [_inputKey, _actionKey]) key.currentContext?.size,
+    ];
+    if (heights.every((size) => size != null)) {
+      _headerHeight = heights.fold(0.0, (sum, size) => sum + size!.height);
+    }
+    ideRevealRow(_changesScroll, index, top: _headerHeight);
+  }
+
+  @override
+  void listSelect() {
+    if (_graphHasFocus) {
+      final at = listFocusedIndex;
+      if (at >= 0) _toggleCommit(_commits[at]);
+      return;
+    }
+    switch (_focusedRow) {
+      case final _ResourceRow row:
+        unawaited(widget.onOpenChange(row.resource, focusEditor: true));
+      case final row?:
+        _setCollapsed(row, !_isCollapsed(row));
+      case null:
+    }
+  }
+
+  @override
+  void listToggleExpand() {
+    if (_graphHasFocus) return listSelect();
+    if (_focusedRow case final row? when row is! _ResourceRow) {
+      _setCollapsed(row, !_isCollapsed(row));
+    }
+  }
+
+  @override
+  void listExpand() {
+    if (_graphHasFocus) {
+      final at = listFocusedIndex;
+      if (at >= 0 &&
+          !_session.expandedCommits.contains(_commits[at].commit.id)) {
+        _toggleCommit(_commits[at]);
+      }
+      return;
+    }
+    final row = _focusedRow;
+    if (row == null || row is _ResourceRow) return;
+    if (_isCollapsed(row)) {
+      _setCollapsed(row, false);
+    } else {
+      listFocusNext(1);
+    }
+  }
+
+  @override
+  void listCollapse() {
+    if (_graphHasFocus) {
+      final at = listFocusedIndex;
+      if (at >= 0 &&
+          _session.expandedCommits.contains(_commits[at].commit.id)) {
+        _toggleCommit(_commits[at]);
+      }
+      return;
+    }
+    final row = _focusedRow;
+    if (row == null) return;
+    if (row is! _ResourceRow && !_isCollapsed(row)) {
+      _setCollapsed(row, true);
+    } else if (row.parent case final parent?) {
+      final at = _rows.indexWhere((row) => row.key == parent);
+      if (at >= 0) listFocusAt(at);
+    }
+  }
+
+  @override
+  void listCollapseAll() {
+    if (_graphHasFocus) {
+      setState(_session.expandedCommits.clear);
+      return;
+    }
+    final state = _git?.state;
+    if (state == null) return;
+    final focused = _focusedRow;
+    setState(() {
+      for (final group in IdeGitGroup.values) {
+        void collapse(List<IdeScmTreeNode> nodes) {
+          for (final node in nodes) {
+            if (node is! IdeScmTreeFolder) continue;
+            _session.collapsedFolders.add(_folderKey(group, node));
+            collapse(node.children);
+          }
+        }
+
+        collapse(ideScmTree(state.root, state.group(group)));
+        _session.collapsedGroups.add(group);
+      }
+      // The focus goes to its group.
+      if (focused != null) _selected = focused.key.split(':').first;
+    });
+  }
+
+  @override
+  bool listTreeKey(String key) {
+    if (_graphHasFocus) {
+      final at = listFocusedIndex;
+      final expanded =
+          at >= 0 && _session.expandedCommits.contains(_commits[at].commit.id);
+      return switch (key) {
+        'treeElementCanCollapse' => expanded,
+        'treeElementCanExpand' || 'treeElementHasChild' => at >= 0 && !expanded,
+        _ => false,
+      };
+    }
+    final row = _focusedRow;
+    final parent = row != null && row is! _ResourceRow;
+    return switch (key) {
+      'treeElementCanCollapse' => parent && !_isCollapsed(row),
+      'treeElementCanExpand' => parent && _isCollapsed(row),
+      'treeElementHasChild' => parent,
+      'treeElementHasParent' => row?.parent != null,
+      _ => false,
+    };
+  }
+
   // --- Changes -------------------------------------------------------------
 
   Widget _changesList(IdeGitRepository git, IdeGitState state) {
-    final items = <Widget>[_inputRow(state), _actionButtonRow(git, state)];
-    for (final group in IdeGitGroup.values) {
-      final resources = state.group(group);
-      // Merge and Staged Changes hide when empty; Changes does not.
-      if (resources.isEmpty && group != IdeGitGroup.workingTree) continue;
-      items.add(_groupRow(git, group, resources));
-      if (_session.collapsedGroups.contains(group)) continue;
-      if (_session.treeView) {
-        _addTreeRows(
-          items,
-          git,
-          state,
-          group,
-          ideScmTree(state.root, resources),
-        );
-      } else {
-        for (final resource in _sorted(resources)) {
-          items.add(_resourceRow(git, state, resource));
-        }
-      }
-    }
+    final items = <Widget>[
+      _inputRow(state),
+      _actionButtonRow(git, state),
+      for (final row in _changeRows(state))
+        switch (row) {
+          _GroupRow(:final group, :final resources) => _groupRow(
+            git,
+            group,
+            resources,
+          ),
+          _FolderRow(:final group, :final folder, :final depth, :final key) =>
+            _folderRow(git, state, group, folder, depth, key),
+          _ResourceRow(:final resource, :final treeDepth) => _resourceRow(
+            git,
+            state,
+            resource,
+            treeDepth: treeDepth,
+          ),
+        },
+    ];
     return Focus(
       focusNode: _listFocus,
       // The empty space's menu is View & Sort's.
@@ -385,28 +663,40 @@ class _IdeScmViewState extends State<IdeScmView> {
     });
   }
 
-  /// The tree's rows under a group (depth 1): folders, expanded or not,
-  /// and files.
-  void _addTreeRows(
-    List<Widget> items,
-    IdeGitRepository git,
-    IdeGitState state,
-    IdeGitGroup group,
-    List<IdeScmTreeNode> nodes, [
-    int depth = 2,
-  ]) {
-    for (final node in nodes) {
-      switch (node) {
-        case IdeScmTreeFolder():
-          final key = _folderKey(group, node);
-          items.add(_folderRow(git, state, group, node, depth, key));
-          if (!_session.collapsedFolders.contains(key)) {
-            _addTreeRows(items, git, state, group, node.children, depth + 1);
-          }
-        case IdeScmTreeFile(:final resource):
-          items.add(_resourceRow(git, state, resource, treeDepth: depth));
+  /// The Changes list's rows: each group shown (Merge and Staged Changes
+  /// hide when empty; Changes does not) and, unless collapsed, its tree's
+  /// folders (expanded or not) and files under it (depth 1), or its list.
+  List<_ScmRow> _changeRows(IdeGitState state) {
+    final rows = <_ScmRow>[];
+    for (final group in IdeGitGroup.values) {
+      final resources = state.group(group);
+      if (resources.isEmpty && group != IdeGitGroup.workingTree) continue;
+      rows.add(_GroupRow(group, resources));
+      if (_session.collapsedGroups.contains(group)) continue;
+      if (!_session.treeView) {
+        for (final resource in _sorted(resources)) {
+          rows.add(_ResourceRow(resource, null, group.name));
+        }
+        continue;
       }
+      void add(List<IdeScmTreeNode> nodes, int depth, String parent) {
+        for (final node in nodes) {
+          switch (node) {
+            case IdeScmTreeFolder():
+              final key = _folderKey(group, node);
+              rows.add(_FolderRow(group, node, depth, key, parent));
+              if (!_session.collapsedFolders.contains(key)) {
+                add(node.children, depth + 1, key);
+              }
+            case IdeScmTreeFile(:final resource):
+              rows.add(_ResourceRow(resource, depth, parent));
+          }
+        }
+      }
+
+      add(ideScmTree(state.root, resources), 2, group.name);
     }
+    return rows;
   }
 
   static String _folderKey(IdeGitGroup group, IdeScmTreeFolder folder) =>
@@ -416,21 +706,21 @@ class _IdeScmViewState extends State<IdeScmView> {
   List<IdeMenuEntry> _viewSortMenu() => ideMenuGroups([
     [
       IdeMenuAction(
-        'View as List',
+        context.l10n.scmViewAsList,
         checked: !_session.treeView,
         onSelected: () => setState(() => _session.treeView = false),
       ),
       IdeMenuAction(
-        'View as Tree',
+        context.l10n.scmViewAsTree,
         checked: _session.treeView,
         onSelected: () => setState(() => _session.treeView = true),
       ),
     ],
     [
-      for (final (sort, label) in const [
-        (IdeScmSort.name, 'Sort Changes by Name'),
-        (IdeScmSort.path, 'Sort Changes by Path'),
-        (IdeScmSort.status, 'Sort Changes by Status'),
+      for (final (sort, label) in [
+        (IdeScmSort.name, context.l10n.scmSortByName),
+        (IdeScmSort.path, context.l10n.scmSortByPath),
+        (IdeScmSort.status, context.l10n.scmSortByStatus),
       ])
         IdeMenuAction(
           label,
@@ -540,73 +830,73 @@ class _IdeScmViewState extends State<IdeScmView> {
   ) => switch (group) {
     IdeGitGroup.merge => [
       _Action(
-        'Stage Changes',
+        context.l10n.scmStageChanges,
         Codicons.add,
         () => unawaited(_run(() => git.stage(resources))),
       ),
     ],
     IdeGitGroup.staged => [
       _Action(
-        'Unstage Changes',
+        context.l10n.scmUnstageChanges,
         Codicons.remove,
         () => unawaited(_run(() => git.unstage(resources))),
       ),
     ],
     IdeGitGroup.workingTree => [
       _Action(
-        'Discard Changes',
+        context.l10n.scmDiscardChanges,
         Codicons.discard,
         () => unawaited(_discard(resources)),
       ),
       _Action(
-        'Stage Changes',
+        context.l10n.scmStageChanges,
         Codicons.add,
         () => unawaited(_run(() => git.stage(resources))),
       ),
     ],
   };
 
+  /// `scm.acceptInput`'s keybinding, else ⌘Enter / Ctrl+Enter (upstream's
+  /// placeholder).
   String get _commitKey =>
+      KeybindingService.instance.labelFor('scm.acceptInput') ??
       const IdeKeybinding(LogicalKeyboardKey.enter, primary: true).label();
 
   Widget _inputRow(IdeGitState state) {
     final branch = state.head.branch;
-    return Padding(
+    return KeyedSubtree(
       key: const ValueKey('input'),
-      padding: const EdgeInsets.fromLTRB(19, 5, 12, 5),
-      child: IdeInputBox(
-        controller: _session.message,
-        focusNode: _inputFocus,
-        semanticsLabel: 'Source Control Input',
-        placeholder: branch == null
-            ? 'Message ($_commitKey to commit)'
-            : 'Message ($_commitKey to commit on "$branch")',
-        minLines: 1,
-        maxLines: 10,
-        lineHeight: 20,
-        padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
-        validation: _validation,
-        // `.scm-editor-toolbar { padding: 1px 3px 1px 1px }`.
-        togglesInset: 3,
-        toggles: [
-          if (widget.commitMessage != null)
-            IdeActionButton(
-              icon: _session.generating == null
-                  ? Codicons.sparkle
-                  : Codicons.debugStop,
-              tooltip: _session.generating == null
-                  ? 'Generate Commit Message'
-                  : 'Cancel Generating Commit Message',
-              size: 20,
-              onPressed: () => unawaited(_generateCommitMessage(state)),
-            ),
-        ],
-        shortcuts: {
-          const SingleActivator(LogicalKeyboardKey.enter, meta: true): () =>
-              unawaited(_commit()),
-          const SingleActivator(LogicalKeyboardKey.enter, control: true): () =>
-              unawaited(_commit()),
-        },
+      child: Padding(
+        key: _inputKey,
+        padding: const EdgeInsets.fromLTRB(19, 5, 12, 5),
+        child: IdeInputBox(
+          controller: _session.message,
+          focusNode: _inputFocus,
+          semanticsLabel: context.l10n.scmInput,
+          placeholder: branch == null
+              ? context.l10n.scmMessagePlaceholder(_commitKey)
+              : context.l10n.scmMessagePlaceholderBranch(_commitKey, branch),
+          minLines: 1,
+          maxLines: 10,
+          lineHeight: 20,
+          padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
+          validation: _validation,
+          // `.scm-editor-toolbar { padding: 1px 3px 1px 1px }`.
+          togglesInset: 3,
+          toggles: [
+            if (widget.commitMessage != null)
+              IdeActionButton(
+                icon: _session.generating == null
+                    ? Codicons.sparkle
+                    : Codicons.debugStop,
+                tooltip: _session.generating == null
+                    ? context.l10n.scmGenerateCommitMessage
+                    : context.l10n.scmCancelGenerateCommitMessage,
+                size: 20,
+                onPressed: () => unawaited(_generateCommitMessage(state)),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -619,6 +909,7 @@ class _IdeScmViewState extends State<IdeScmView> {
     final model = widget.commitMessage;
     final git = widget.workspace.git;
     if (model == null || git == null) return;
+    final l10n = context.l10n;
     final session = _session;
     if (session.generating case final running?) {
       running.complete();
@@ -640,7 +931,7 @@ class _IdeScmViewState extends State<IdeScmView> {
       if (diff.trim().isEmpty) {
         widget.notifications.notify(
           IdeSeverity.info,
-          'There are no changes to generate a commit message for.',
+          l10n.scmNoChangesToGenerate,
         );
         return;
       }
@@ -686,14 +977,17 @@ class _IdeScmViewState extends State<IdeScmView> {
   /// Commit, disabled.
   Widget _actionButtonRow(IdeGitRepository git, IdeGitState state) {
     final changes = _hasChangesToCommit(state);
-    return Padding(
+    return KeyedSubtree(
       key: const ValueKey('commit-button'),
-      padding: const EdgeInsets.fromLTRB(19, 4, 12, 4),
-      child: changes
-          ? _commitButton(git, enabled: true)
-          : _publishButton(git, state.head) ??
-                _syncButton(git, state.head) ??
-                _commitButton(git, enabled: false),
+      child: Padding(
+        key: _actionKey,
+        padding: const EdgeInsets.fromLTRB(19, 4, 12, 4),
+        child: changes
+            ? _commitButton(git, enabled: true)
+            : _publishButton(git, state.head) ??
+                  _syncButton(git, state.head) ??
+                  _commitButton(git, enabled: false),
+      ),
     );
   }
 
@@ -706,10 +1000,10 @@ class _IdeScmViewState extends State<IdeScmView> {
       key: _publishKey,
       icon: syncing ? null : Codicons.cloudUpload,
       spinning: syncing,
-      label: 'Publish Branch',
+      label: context.l10n.scmPublishBranch,
       tooltip: syncing
-          ? 'Publishing Branch "$branch"...'
-          : 'Publish Branch "$branch"',
+          ? context.l10n.scmPublishingBranchNamed(branch)
+          : context.l10n.scmPublishBranchNamed(branch),
       enabled: !git.busy,
       onPressed: () => unawaited(_publish(branch)),
     );
@@ -726,32 +1020,31 @@ class _IdeScmViewState extends State<IdeScmView> {
     return _SplitButton(
       icon: syncing ? null : Codicons.sync,
       spinning: syncing,
-      label: 'Sync Changes',
+      label: context.l10n.scmSyncChanges,
       counts: [
         if (head.behind > 0) (head.behind, Codicons.arrowDown),
         if (head.ahead > 0) (head.ahead, Codicons.arrowUp),
       ],
-      tooltip: syncing ? 'Synchronizing Changes...' : _syncTooltip(head),
+      tooltip: syncing
+          ? context.l10n.scmSynchronizingChanges
+          : _syncTooltip(head, context.l10n),
       enabled: !git.busy,
       onPressed: () => unawaited(_sync(head)),
     );
   }
 
   /// `Repository.syncTooltip`.
-  static String _syncTooltip(IdeGitHead head) {
+  static String _syncTooltip(IdeGitHead head, AppLocalizations l10n) {
     final upstream = head.upstream;
     if (head.branch == null ||
         head.unborn ||
         upstream == null ||
         (head.ahead == 0 && head.behind == 0)) {
-      return 'Synchronize Changes';
+      return l10n.scmSynchronizeChanges;
     }
-    if (head.ahead == 0) {
-      return 'Pull ${head.behind} commits from $upstream';
-    }
-    if (head.behind == 0) return 'Push ${head.ahead} commits to $upstream';
-    return 'Pull ${head.behind} and push ${head.ahead} commits between '
-        '$upstream';
+    if (head.ahead == 0) return l10n.scmPullCommits(head.behind, upstream);
+    if (head.behind == 0) return l10n.scmPushCommits(head.ahead, upstream);
+    return l10n.scmPullPushCommits(head.behind, head.ahead, upstream);
   }
 
   /// `git.sync`: confirms (`git.confirmSync`), then pulls and pushes.
@@ -762,10 +1055,8 @@ class _IdeScmViewState extends State<IdeScmView> {
     if (_session.confirmSync) {
       final pick = await showIdeDialog(
         context,
-        message:
-            'This action will pull and push commits from and to '
-            '"$upstream".',
-        buttons: const ['OK', "OK, Don't Show Again"],
+        message: context.l10n.scmConfirmSync(upstream),
+        buttons: [context.l10n.commonOk, context.l10n.scmDontShowAgain],
       );
       if (pick == 1) {
         _session.confirmSync = false;
@@ -780,14 +1071,12 @@ class _IdeScmViewState extends State<IdeScmView> {
   Future<void> _publish(String branch) async {
     final git = _git;
     if (git == null) return;
+    final l10n = context.l10n;
     try {
       final remotes = await git.remotes();
       if (!mounted) return;
       if (remotes.isEmpty) {
-        widget.notifications.notify(
-          IdeSeverity.warning,
-          'Your repository has no remotes configured to publish to.',
-        );
+        widget.notifications.notify(IdeSeverity.warning, l10n.scmNoRemotes);
         return;
       }
       var remote = remotes.first;
@@ -816,21 +1105,26 @@ class _IdeScmViewState extends State<IdeScmView> {
   Widget _commitButton(IdeGitRepository git, {required bool enabled}) =>
       _SplitButton(
         icon: Codicons.check,
-        label: 'Commit',
-        tooltip: 'Commit Changes',
+        label: context.l10n.scmCommit,
+        tooltip: context.l10n.scmCommitChanges,
         enabled: enabled && !git.busy,
         onPressed: () => unawaited(_commit()),
-        dropdownTooltip: 'More Actions...',
+        dropdownTooltip: context.l10n.commonMoreActions,
         onDropdown: (anchor) => unawaited(
           showIdeMenu(
             context,
             anchor: anchor,
             alignRight: true,
             entries: ideMenuGroups([
-              [IdeMenuAction('Commit', onSelected: () => unawaited(_commit()))],
               [
                 IdeMenuAction(
-                  'Commit (Amend)',
+                  context.l10n.scmCommit,
+                  onSelected: () => unawaited(_commit()),
+                ),
+              ],
+              [
+                IdeMenuAction(
+                  context.l10n.scmCommitAmend,
                   onSelected: () => unawaited(_commit(amend: true)),
                 ),
               ],
@@ -873,7 +1167,7 @@ class _IdeScmViewState extends State<IdeScmView> {
             [
               if (_session.treeView)
                 IdeMenuAction(
-                  'Collapse All',
+                  context.l10n.commonCollapseAll,
                   onSelected: () => setState(() {
                     void collapse(List<IdeScmTreeNode> nodes) {
                       for (final node in nodes) {
@@ -907,7 +1201,7 @@ class _IdeScmViewState extends State<IdeScmView> {
             ),
             Expanded(
               child: Text(
-                group.label,
+                group.localizedLabel(context.l10n),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -938,26 +1232,26 @@ class _IdeScmViewState extends State<IdeScmView> {
   ) => switch (group) {
     IdeGitGroup.merge => [
       _Action(
-        'Stage All Merge Changes',
+        context.l10n.scmStageAllMerge,
         Codicons.add,
         () => unawaited(_run(() => git.stage(resources))),
       ),
     ],
     IdeGitGroup.staged => [
       _Action(
-        'Unstage All Changes',
+        context.l10n.scmUnstageAll,
         Codicons.remove,
         () => unawaited(_run(git.unstageAll)),
       ),
     ],
     IdeGitGroup.workingTree => [
       _Action(
-        'Discard All Changes',
+        context.l10n.scmDiscardAll,
         Codicons.discard,
         () => unawaited(_discard(resources)),
       ),
       _Action(
-        'Stage All Changes',
+        context.l10n.scmStageAll,
         Codicons.add,
         () => unawaited(_run(git.stageAll)),
       ),
@@ -970,33 +1264,33 @@ class _IdeScmViewState extends State<IdeScmView> {
   ) => [
     if (!_deleted(resource))
       _Action(
-        'Open File',
+        context.l10n.scmOpenFile,
         Codicons.goToFile,
         () => unawaited(widget.onOpen(resource.path, focusEditor: true)),
       ),
     ...switch (resource.group) {
       IdeGitGroup.merge => [
         _Action(
-          'Stage Changes',
+          context.l10n.scmStageChanges,
           Codicons.add,
           () => unawaited(_run(() => git.stage([resource]))),
         ),
       ],
       IdeGitGroup.staged => [
         _Action(
-          'Unstage Changes',
+          context.l10n.scmUnstageChanges,
           Codicons.remove,
           () => unawaited(_run(() => git.unstage([resource]))),
         ),
       ],
       IdeGitGroup.workingTree => [
         _Action(
-          'Discard Changes',
+          context.l10n.scmDiscardChanges,
           Codicons.discard,
           () => unawaited(_discard([resource])),
         ),
         _Action(
-          'Stage Changes',
+          context.l10n.scmStageChanges,
           Codicons.add,
           () => unawaited(_run(() => git.stage([resource]))),
         ),
@@ -1031,7 +1325,9 @@ class _IdeScmViewState extends State<IdeScmView> {
       key: ValueKey(key),
       selected: _selected == key,
       focused: _listFocus.hasFocus,
-      tooltip: '${p.join(state.root, relative)} • ${resource.status.label}',
+      tooltip:
+          '${p.join(state.root, relative)} • '
+          '${resource.status.localizedLabel(context.l10n)}',
       onTap: () {
         _listFocus.requestFocus();
         setState(() => _selected = key);
@@ -1084,6 +1380,7 @@ class _IdeScmViewState extends State<IdeScmView> {
     final working = resource.group == IdeGitGroup.workingTree;
     // The merge group's has Open File alone.
     final merge = resource.group == IdeGitGroup.merge;
+    final l10n = context.l10n;
     return showIdeMenu(
       context,
       position: position,
@@ -1091,19 +1388,19 @@ class _IdeScmViewState extends State<IdeScmView> {
         [
           if (!merge)
             IdeMenuAction(
-              'Open Changes',
+              l10n.scmOpenChanges,
               onSelected: () =>
                   unawaited(widget.onOpenChange(resource, focusEditor: true)),
             ),
           if (!_deleted(resource))
             IdeMenuAction(
-              'Open File',
+              l10n.scmOpenFile,
               onSelected: () =>
                   unawaited(widget.onOpen(resource.path, focusEditor: true)),
             ),
           if (!merge)
             IdeMenuAction(
-              'Open File (HEAD)',
+              l10n.scmOpenFileHead,
               onSelected: () => unawaited(
                 widget.onOpenChange(resource, head: true, focusEditor: true),
               ),
@@ -1112,21 +1409,21 @@ class _IdeScmViewState extends State<IdeScmView> {
         [
           if (resource.group == IdeGitGroup.staged)
             IdeMenuAction(
-              'Unstage Changes',
+              l10n.scmUnstageChanges,
               onSelected: () => unawaited(_run(() => git.unstage([resource]))),
             )
           else
             IdeMenuAction(
-              'Stage Changes',
+              l10n.scmStageChanges,
               onSelected: () => unawaited(_run(() => git.stage([resource]))),
             ),
           if (working) ...[
             IdeMenuAction(
-              'Discard Changes',
+              l10n.scmDiscardChanges,
               onSelected: () => unawaited(_discard([resource])),
             ),
             IdeMenuAction(
-              'Add to .gitignore',
+              l10n.scmAddToGitignore,
               onSelected: () => unawaited(_ignore(state, [resource.path])),
             ),
           ],
@@ -1134,13 +1431,13 @@ class _IdeScmViewState extends State<IdeScmView> {
         [
           if (WindowControls.canRevealInFileManager && !_deleted(resource))
             IdeMenuAction(
-              'Reveal in Finder',
+              l10n.explorerRevealInFinder,
               onSelected: () =>
                   unawaited(WindowControls.revealInFileManager(resource.path)),
             ),
           if (!_deleted(resource))
             IdeMenuAction(
-              'Reveal in Explorer View',
+              l10n.tabRevealInExplorerView,
               onSelected: () => widget.onRevealInExplorer(resource.path),
             ),
         ],
@@ -1152,56 +1449,60 @@ class _IdeScmViewState extends State<IdeScmView> {
   /// Changes submenus.
   List<IdeMenuEntry> _moreActions() {
     final git = _git!;
+    final l10n = context.l10n;
     return [
-      IdeMenuAction('View & Sort', submenu: _viewSortMenu()),
+      IdeMenuAction(l10n.scmViewAndSort, submenu: _viewSortMenu()),
       const IdeMenuSeparator(),
       IdeMenuAction(
-        'Commit',
+        l10n.scmCommit,
         submenu: ideMenuGroups([
           [
-            IdeMenuAction('Commit', onSelected: () => unawaited(_commit())),
             IdeMenuAction(
-              'Commit Staged',
+              l10n.scmCommit,
+              onSelected: () => unawaited(_commit()),
+            ),
+            IdeMenuAction(
+              l10n.scmCommitStaged,
               onSelected: () => unawaited(_commit(all: false)),
             ),
             IdeMenuAction(
-              'Commit All',
+              l10n.scmCommitAll,
               onSelected: () => unawaited(_commit(all: true)),
             ),
             IdeMenuAction(
-              'Undo Last Commit',
+              l10n.scmUndoLastCommit,
               onSelected: () => unawaited(_undoLastCommit()),
             ),
           ],
           [
             IdeMenuAction(
-              'Commit (Amend)',
+              l10n.scmCommitAmend,
               onSelected: () => unawaited(_commit(amend: true)),
             ),
             IdeMenuAction(
-              'Commit Staged (Amend)',
+              l10n.scmCommitStagedAmend,
               onSelected: () => unawaited(_commit(all: false, amend: true)),
             ),
             IdeMenuAction(
-              'Commit All (Amend)',
+              l10n.scmCommitAllAmend,
               onSelected: () => unawaited(_commit(all: true, amend: true)),
             ),
           ],
         ]),
       ),
       IdeMenuAction(
-        'Changes',
+        l10n.scmChanges,
         submenu: [
           IdeMenuAction(
-            'Stage All Changes',
+            l10n.scmStageAll,
             onSelected: () => unawaited(_run(git.stageAll)),
           ),
           IdeMenuAction(
-            'Unstage All Changes',
+            l10n.scmUnstageAll,
             onSelected: () => unawaited(_run(git.unstageAll)),
           ),
           IdeMenuAction(
-            'Discard All Changes',
+            l10n.scmDiscardAll,
             onSelected: () => unawaited(
               _discard(git.state?.group(IdeGitGroup.workingTree) ?? []),
             ),
@@ -1220,13 +1521,10 @@ class _IdeScmViewState extends State<IdeScmView> {
     final git = _git;
     final state = git?.state;
     if (git == null || state == null) return;
+    final l10n = context.l10n;
     final message = _session.message.text;
     if (message.trim().isEmpty && !amend) {
-      setState(
-        () => _validation = const IdeInputValidation(
-          'Please provide a commit message',
-        ),
-      );
+      setState(() => _validation = IdeInputValidation(l10n.scmProvideMessage));
       _inputFocus.requestFocus();
       return;
     }
@@ -1238,10 +1536,8 @@ class _IdeScmViewState extends State<IdeScmView> {
         if (!_session.suggestSmartCommit) return;
         final pick = await showIdeDialog(
           context,
-          message:
-              'There are no staged changes to commit.\n\nWould you like to '
-              'stage all your changes and commit them directly?',
-          buttons: const ['Yes', 'Always', 'Never'],
+          message: l10n.scmNoStagedChanges,
+          buttons: [l10n.commonYes, l10n.scmAlways, l10n.scmNever],
         );
         if (pick == 1) {
           _session.enableSmartCommit = true;
@@ -1260,10 +1556,10 @@ class _IdeScmViewState extends State<IdeScmView> {
         !merging) {
       widget.notifications.notify(
         IdeSeverity.info,
-        'There are no changes to commit.',
+        l10n.scmNoChangesToCommit,
         primary: [
           IdeNotificationAction(
-            'Create Empty Commit',
+            l10n.scmCreateEmptyCommit,
             () => unawaited(_runCommit(message, empty: true)),
           ),
         ],
@@ -1296,23 +1592,19 @@ class _IdeScmViewState extends State<IdeScmView> {
   Future<void> _undoLastCommit() async {
     final git = _git;
     if (git == null) return;
+    final l10n = context.l10n;
     try {
       final head = await git.headCommit();
       if (!mounted) return;
       if (head == null) {
-        widget.notifications.notify(
-          IdeSeverity.warning,
-          "Can't undo because HEAD doesn't point to any commit.",
-        );
+        widget.notifications.notify(IdeSeverity.warning, l10n.scmCantUndo);
         return;
       }
       if (head.parentIds.length > 1) {
         final pick = await showIdeDialog(
           context,
-          message:
-              'The last commit was a merge commit. Are you sure you want to '
-              'undo it?',
-          buttons: const ['Undo merge commit'],
+          message: l10n.scmConfirmUndoMerge,
+          buttons: [l10n.scmUndoMergeCommit],
         );
         if (pick != 0) return;
       }
@@ -1337,6 +1629,7 @@ class _IdeScmViewState extends State<IdeScmView> {
         if (r.status != IdeGitStatus.untracked) r,
     ];
     final toTrash = widget.trash != null;
+    final l10n = context.l10n;
     String name(IdeGitResource r) => p.basename(r.path);
 
     (String, String?, String) untrackedDialog(List<IdeGitResource> files) {
@@ -1344,26 +1637,22 @@ class _IdeScmViewState extends State<IdeScmView> {
       final warning = toTrash
           ? ''
           : one
-          ? '\n\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you '
-                'proceed.'
-          : '\n\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if '
-                'you proceed.';
+          ? '\n\n${l10n.scmIrreversibleFile}'
+          : '\n\n${l10n.scmIrreversibleFiles}';
       return (
         one
-            ? "Are you sure you want to DELETE the following untracked file: "
-                  "'${name(files.single)}'?$warning"
-            : 'Are you sure you want to DELETE the ${files.length} untracked '
-                  'files?$warning',
+            ? '${l10n.scmConfirmDeleteUntracked(name(files.single))}$warning'
+            : '${l10n.scmConfirmDeleteUntrackedCount(files.length)}$warning',
         toTrash
             ? (one
-                  ? 'You can restore this file from the Trash.'
-                  : 'You can restore these files from the Trash.')
+                  ? l10n.explorerRestoreFromTrash
+                  : l10n.scmRestoreFilesFromTrash)
             : null,
         toTrash
-            ? 'Move to Trash'
+            ? l10n.explorerMoveToTrash
             : one
-            ? 'Delete File'
-            : 'Delete All ${files.length} Files',
+            ? l10n.scmDeleteFile
+            : l10n.scmDeleteAllFiles(files.length),
       );
     }
 
@@ -1375,20 +1664,20 @@ class _IdeScmViewState extends State<IdeScmView> {
         context,
         message: allDeleted
             ? (one
-                  ? "Are you sure you want to restore '${name(tracked.single)}'?"
-                  : 'Are you sure you want to restore ALL ${tracked.length} '
-                        'files?')
+                  ? l10n.scmConfirmRestore(name(tracked.single))
+                  : l10n.scmConfirmRestoreAll(tracked.length))
             : (one
-                  ? "Are you sure you want to discard changes in "
-                        "'${name(tracked.single)}'?"
-                  : 'Are you sure you want to discard ALL changes in '
-                        '${tracked.length} files?\n\nThis is IRREVERSIBLE!\n'
-                        'Your current working set will be FOREVER LOST if you '
-                        'proceed.'),
+                  ? l10n.scmConfirmDiscard(name(tracked.single))
+                  : '${l10n.scmConfirmDiscardAll(tracked.length)}\n\n'
+                        '${l10n.scmIrreversibleWorkingSet}'),
         buttons: [
           allDeleted
-              ? (one ? 'Restore File' : 'Restore All ${tracked.length} Files')
-              : (one ? 'Discard File' : 'Discard All ${tracked.length} Files'),
+              ? (one
+                    ? l10n.scmRestoreFile
+                    : l10n.scmRestoreAllFiles(tracked.length))
+              : (one
+                    ? l10n.scmDiscardFile
+                    : l10n.scmDiscardAllFiles(tracked.length)),
         ],
       );
       if (pick != 0) return;
@@ -1404,21 +1693,16 @@ class _IdeScmViewState extends State<IdeScmView> {
     } else {
       final (untrackedMessage, untrackedDetail, _) = untrackedDialog(untracked);
       final trackedMessage = tracked.length == 1
-          ? "\n\nAre you sure you want to discard changes in "
-                "'${name(tracked.single)}'?"
-          : '\n\nAre you sure you want to discard ALL changes in '
-                '${tracked.length} files?';
+          ? '\n\n${l10n.scmConfirmDiscard(name(tracked.single))}'
+          : '\n\n${l10n.scmConfirmDiscardAll(tracked.length)}';
       final pick = await showIdeDialog(
         context,
         message:
             '$untrackedMessage ${untrackedDetail ?? ''}$trackedMessage\n\n'
-            'This is IRREVERSIBLE!\nYour current working set will be FOREVER '
-            'LOST if you proceed.',
+            '${l10n.scmIrreversibleWorkingSet}',
         buttons: [
-          tracked.length == 1
-              ? 'Discard 1 Tracked File'
-              : 'Discard All ${tracked.length} Tracked Files',
-          'Discard All ${resources.length} Files',
+          l10n.scmDiscardTrackedFiles(tracked.length),
+          l10n.scmDiscardAllFiles(resources.length),
         ],
       );
       if (pick == 0) {
@@ -1556,13 +1840,13 @@ class _IdeScmViewState extends State<IdeScmView> {
                     position: position,
                     entries: [
                       IdeMenuAction(
-                        'Copy Commit Hash',
+                        context.l10n.scmCopyCommitHash,
                         onSelected: () => unawaited(
                           Clipboard.setData(ClipboardData(text: commit.id)),
                         ),
                       ),
                       IdeMenuAction(
-                        'Copy Commit Message',
+                        context.l10n.scmCopyCommitMessage,
                         onSelected: () => unawaited(
                           Clipboard.setData(
                             ClipboardData(text: commit.message),
@@ -1605,7 +1889,7 @@ class _IdeScmViewState extends State<IdeScmView> {
                     TextSpan(
                       children: [
                         TextSpan(
-                          text: commit.subject,
+                          text: _subject(commit, context.l10n),
                           style: TextStyle(
                             fontWeight: current ? FontWeight.w600 : null,
                           ),
@@ -2143,7 +2427,7 @@ class IdeCommitHover extends StatelessWidget {
     final text = TextStyle(fontSize: 13, color: foreground);
     if (commit.id == ideIncomingChangesId ||
         commit.id == ideOutgoingChangesId) {
-      return Text(commit.subject, style: text);
+      return Text(_subject(commit, context.l10n), style: text);
     }
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 500),
@@ -2171,8 +2455,8 @@ class IdeCommitHover extends StatelessWidget {
                 ),
                 TextSpan(
                   text:
-                      ' ${ideFromNow(commit.date, ago: true, fullWords: true)} '
-                      '(${_formatDate(commit.date)})',
+                      ' ${ideFromNow(commit.date, ago: true, fullWords: true, l10n: context.l10n)} '
+                      '(${_formatDate(commit.date, context.l10n)})',
                 ),
               ],
             ),
@@ -2218,15 +2502,16 @@ class IdeCommitHover extends StatelessWidget {
     );
   }
 
-  static String _formatDate(DateTime date) {
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June', 'July', //
-      'August', 'September', 'October', 'November', 'December',
-    ];
+  static String _formatDate(DateTime date, AppLocalizations l10n) {
     final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
-    final minute = date.minute.toString().padLeft(2, '0');
-    return '${months[date.month - 1]} ${date.day}, ${date.year} at '
-        '$hour:$minute ${date.hour < 12 ? 'AM' : 'PM'}';
+    return l10n.scmCommitDate(
+      '${date.month}',
+      '${date.day}',
+      '${date.year}',
+      '$hour',
+      date.minute.toString().padLeft(2, '0'),
+      date.hour < 12 ? 'am' : 'pm',
+    );
   }
 }
 
@@ -2261,7 +2546,9 @@ class _CommitChangeRow extends StatelessWidget {
     final folder = p.dirname(p.relative(change.path, from: root));
     return IdeListRow(
       onTap: onOpen,
-      tooltip: '${p.relative(change.path, from: root)} • ${status.label}',
+      tooltip:
+          '${p.relative(change.path, from: root)} • '
+          '${status.localizedLabel(context.l10n)}',
       builder: (context, _) => Row(
         children: [
           const SizedBox(width: 4),
@@ -2329,4 +2616,12 @@ class _LoadMoreRowState extends State<_LoadMoreRow> {
       ],
     ),
   );
+}
+
+/// A graph commit's subject; the synthetic incoming and outgoing changes'
+/// in [l10n]'s language.
+String _subject(IdeGitCommit commit, AppLocalizations l10n) {
+  if (commit.id == ideIncomingChangesId) return l10n.scmIncomingChanges;
+  if (commit.id == ideOutgoingChangesId) return l10n.scmOutgoingChanges;
+  return commit.subject;
 }

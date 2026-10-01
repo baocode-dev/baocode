@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/floating/hover_tooltip.dart';
 import '../chat/widgets/hover_builder.dart';
+import '../l10n/l10n.dart';
 import '../theme/cursor_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'window_controls.dart';
@@ -26,10 +27,10 @@ class PinWindowButton extends StatelessWidget {
     final colors = themeColors;
     final activeBorder = pinned ? colors.get('inputOption.activeBorder') : null;
     final tooltip = !enabled
-        ? 'Keep on top is available in the desktop app'
+        ? context.l10n.workspaceKeepOnTopUnavailable
         : pinned
-        ? 'Unpin window'
-        : 'Pin window on top';
+        ? context.l10n.workspaceUnpinWindow
+        : context.l10n.workspacePinWindow;
     return HoverTooltip(
       placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
       content: (_) => Text(tooltip),

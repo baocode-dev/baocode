@@ -6,23 +6,45 @@
 // VS Code's quick input. [IdeQuickPick] is adapted from VS Code
 // 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/platform/quickinput/browser/quickInput.ts (`QuickPick`: its active
-// items, `onDidChangeActive`, `onDidAccept`, `onDidHide`) and
-// quickInputList.ts (`filter`, `compareEntries`, separators drawn with their
+// items, `onDidChangeActive`, `onDidAccept`, `onDidHide`, `itemActivation`,
+// `quickNavigate` and `hideInput` with `registerQuickNavigation`, `focus`
+// and `accept(inBackground)`) and quickInputList.ts (`filter`,
+// `compareEntries`, `focus(QuickPickFocus)`, separators drawn with their
 // items), with the filters and comparers ported at the end of this file.
+// Its keys are the workbench's keybindings (quickInputActions.ts: Down is
+// `quickInput.next`, Enter `quickInput.accept`…), which call [focus],
+// [accept] and [hide] here.
 //
 // Deviations: hiding has no reason; no `alwaysShow`, `matchOnDetail`,
 // `matchOnLabelMode`, `$(icon)` labels, buttons or multiple selection;
-// accepting always hides the pick; and a filter reports its first match
-// once, where upstream's list reports no active item and then the match.
+// accepting always hides the pick, but accepting in the background keeps
+// it; a page moves by the rows that show less one, where upstream's list
+// first goes to the last row in view; a filter reports its first match
+// once, where upstream's list reports no active item and then the match;
+// and a quick navigation whose modifier was let go before the quick input
+// showed (it shows a frame later) accepts as it shows.
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../keybindings/key_chord.dart';
 import '../theme/workbench_theme.dart'
     show ThemeTypeSelector, getThemeTypeSelector, themeColors;
 import 'ide_fuzzy.dart';
 import 'ide_input.dart';
+
+/// Where [IdeQuickInputState.focus] moves the active item (upstream
+/// `QuickPickFocus`, less the separators').
+enum IdeQuickPickFocus {
+  first,
+  second,
+  last,
+  next,
+  previous,
+  nextPage,
+  previousPage,
+}
 
 /// An entry of an [IdeQuickPick]'s list: an item or a separator (upstream
 /// `QuickPickInput`).
@@ -41,6 +63,7 @@ class IdeQuickPickItem extends IdeQuickPickEntry {
     this.keybinding,
     this.group,
     this.onAccept,
+    this.onAcceptInBackground,
   });
 
   final String label;
@@ -60,6 +83,11 @@ class IdeQuickPickItem extends IdeQuickPickEntry {
   /// Null makes the row an informational message that cannot be picked
   /// (in an [IdeQuickPick], every item can be picked).
   final VoidCallback? onAccept;
+
+  /// Accepts it with the quick input kept open, e.g. a file opened while
+  /// the focus stays here (upstream `accept(true)` of a pick that
+  /// `canAcceptInBackground`); null where it cannot be.
+  final VoidCallback? onAcceptInBackground;
 }
 
 /// A separator before the next item of an [IdeQuickPick] (upstream
@@ -124,6 +152,9 @@ class IdeQuickInput extends StatefulWidget {
     required this.onClose,
     this.placeholderFor,
     this.refresh,
+    this.itemActivation = IdeQuickPickFocus.first,
+    this.quickNavigate,
+    this.hideInput = false,
   }) : pick = null;
 
   /// Lists [pick]'s items, filtered by the input.
@@ -134,7 +165,10 @@ class IdeQuickInput extends StatefulWidget {
   }) : initialText = '',
        itemsFor = null,
        placeholderFor = null,
-       refresh = null;
+       refresh = null,
+       itemActivation = IdeQuickPickFocus.first,
+       quickNavigate = null,
+       hideInput = false;
 
   final String initialText;
   final List<IdeQuickPickItem> Function(String text)? itemsFor;
@@ -149,6 +183,19 @@ class IdeQuickInput extends StatefulWidget {
 
   /// Recomputes the rows when it notifies, e.g. when a file index loads.
   final Listenable? refresh;
+
+  /// The row active as it shows (upstream `itemActivation`: the first, the
+  /// second or the last).
+  final IdeQuickPickFocus itemActivation;
+
+  /// The chords of the keybindings that opened it to navigate quickly
+  /// (upstream `quickNavigate.keybindings`): releasing one of their
+  /// modifiers accepts the active row, as ⌃Tab's editor picker does.
+  final List<KeyChord>? quickNavigate;
+
+  /// Shows the list alone, the keyboard on it (upstream `hideInput`, set
+  /// when quick navigation opens it).
+  final bool hideInput;
 
   static const rowHeight = 24.0;
   static const maxVisibleRows = 14;
@@ -171,32 +218,67 @@ class IdeQuickInputState extends State<IdeQuickInput> {
     text: widget.initialText,
   );
   final FocusNode _focusNode = FocusNode(debugLabel: 'ide quick input');
+
+  /// Around it all: the keyboard's while the input is hidden (upstream
+  /// focuses the list then), and where the keys of either come by.
+  final FocusNode _listFocus = FocusNode(
+    debugLabel: 'ide quick input list',
+    skipTraversal: true,
+  );
   final ScrollController _scroll = ScrollController();
   List<_Row> _rows = const [];
 
   /// The selected (active) row; -1 when an [IdeQuickPick] has none.
   int _selected = 0;
 
+  /// See [IdeQuickInput.quickNavigate]: until a modifier is released.
+  List<KeyChord>? _quickNavigate;
+
+  /// See [IdeQuickInput.hideInput]: until the text is set.
+  late bool _inputHidden = widget.hideInput;
+
   String get text => _controller.text;
+
+  /// Whether the caret is at the end of the input, nothing selected
+  /// (upstream `cursorAtEndOfQuickInputBox`).
+  bool get cursorAtEnd {
+    final selection = _controller.selection;
+    return !_inputHidden &&
+        selection.isCollapsed &&
+        selection.baseOffset == _controller.text.length;
+  }
+
+  /// Whether a quick navigation (⌃Tab…) is on: releasing its modifier
+  /// accepts.
+  bool get quickNavigating => _quickNavigate != null;
 
   /// The active item of an [IdeQuickPick], for tests.
   @visibleForTesting
   IdeQuickPickItem? get activeItem => widget.pick == null ? null : _active;
 
+  /// The active row's item, whatever the quick input lists; null when none.
+  IdeQuickPickItem? get activeRow => _active;
+
   /// Replaces the text (e.g. switching mode while open) and selects it.
+  /// A hidden input shows (another quick access over quick navigation).
   void setText(String value, {bool selectAll = false}) {
+    if (_inputHidden) setState(() => _inputHidden = false);
     _controller.value = TextEditingValue(
       text: value,
       selection: selectAll
           ? TextSelection(baseOffset: 0, extentOffset: value.length)
           : TextSelection.collapsed(offset: value.length),
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
     _focusNode.requestFocus();
   }
 
   @override
   void initState() {
     super.initState();
+    _quickNavigate = widget.quickNavigate;
     _controller.selection = TextSelection.collapsed(
       offset: widget.initialText.length,
     );
@@ -214,13 +296,51 @@ class IdeQuickInputState extends State<IdeQuickInput> {
         pick.onDidChangeActive?.call(_active);
       });
     } else {
+      _lastText = _controller.text;
       _rows = _rowsFor(_controller.text);
       _selected = _firstSelectable();
+      _activate(widget.itemActivation);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focusNode.requestFocus();
+      if (!mounted) return;
+      _reveal();
+      (_inputHidden ? _listFocus : _focusNode).requestFocus();
+      // A modifier let go before this showed (a quick ⌃Tab) is released.
+      final chords = _quickNavigate;
+      if (chords != null && !_holds(chords)) {
+        _quickNavigate = null;
+        if (_active != null) _accept();
+      }
     });
   }
+
+  /// Whether a modifier of [chords] is held.
+  static bool _holds(List<KeyChord> chords) {
+    final keyboard = HardwareKeyboard.instance;
+    return chords.any(
+      (chord) =>
+          chord.ctrl && keyboard.isControlPressed ||
+          chord.alt && keyboard.isAltPressed ||
+          chord.meta && keyboard.isMetaPressed ||
+          chord.shift && keyboard.isShiftPressed,
+    );
+  }
+
+  /// Upstream `itemActivation` as the items show: only once.
+  void _activate(IdeQuickPickFocus activation) {
+    final selectable = _selectableRows();
+    if (selectable.isEmpty) return;
+    _selected = switch (activation) {
+      IdeQuickPickFocus.second when selectable.length > 1 => selectable[1],
+      IdeQuickPickFocus.last => selectable.last,
+      _ => selectable.first,
+    };
+  }
+
+  List<int> _selectableRows() => [
+    for (var i = 0; i < _rows.length; i++)
+      if (_selectable(_rows[i])) i,
+  ];
 
   @override
   void didUpdateWidget(IdeQuickInput oldWidget) {
@@ -236,6 +356,7 @@ class IdeQuickInputState extends State<IdeQuickInput> {
     widget.refresh?.removeListener(_recompute);
     _controller.dispose();
     _focusNode.dispose();
+    _listFocus.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -304,27 +425,62 @@ class IdeQuickInputState extends State<IdeQuickInput> {
     return -1;
   }
 
-  void _move(int delta) {
-    final selectable = [
-      for (var i = 0; i < _rows.length; i++)
-        if (_selectable(_rows[i])) i,
-    ];
+  /// Moves the active row (upstream `QuickPick.focus`): the next and the
+  /// previous loop around, a page stops at the ends.
+  void focus(IdeQuickPickFocus what) {
+    final selectable = _selectableRows();
     if (selectable.isEmpty) return;
     final previous = _selected;
+    const page = IdeQuickInput.maxVisibleRows - 1;
     var at = selectable.indexOf(_selected);
-    if (at < 0 && widget.pick != null) {
-      // Upstream's list focuses the first item when none is focused.
-      at = 0;
-    } else {
-      if (at < 0) at = 0;
-      at = delta.abs() == 1
-          ? (at + delta) % selectable.length
-          : (at + delta).clamp(0, selectable.length - 1);
+    switch (what) {
+      case IdeQuickPickFocus.first:
+        at = 0;
+      case IdeQuickPickFocus.second:
+        at = selectable.length > 1 ? 1 : 0;
+      case IdeQuickPickFocus.last:
+        at = selectable.length - 1;
+      case IdeQuickPickFocus.next || IdeQuickPickFocus.previous
+          when at < 0 && widget.pick != null:
+        // Upstream's list focuses the first item when none is focused.
+        at = 0;
+      case IdeQuickPickFocus.next:
+        at = (math.max(at, 0) + 1) % selectable.length;
+      case IdeQuickPickFocus.previous:
+        at = (math.max(at, 0) - 1) % selectable.length;
+      case IdeQuickPickFocus.nextPage:
+        at = (math.max(at, 0) + page).clamp(0, selectable.length - 1);
+      case IdeQuickPickFocus.previousPage:
+        at = (math.max(at, 0) - page).clamp(0, selectable.length - 1);
     }
     setState(() => _selected = selectable[at]);
     _reveal();
     if (_selected != previous) widget.pick?.onDidChangeActive?.call(_active);
   }
+
+  /// Upstream `quickInputService.navigate`: the next or previous row, and
+  /// from now on, [quickNavigate]'s modifier released accepts it.
+  void navigate({required bool next, List<KeyChord>? quickNavigate}) {
+    focus(next ? IdeQuickPickFocus.next : IdeQuickPickFocus.previous);
+    if (quickNavigate != null) _quickNavigate = quickNavigate;
+  }
+
+  /// Accepts the active row (upstream `accept`), or with [inBackground]
+  /// has it act while the quick input stays, where the row can.
+  void accept({bool inBackground = false}) {
+    if (!inBackground) {
+      _accept();
+      return;
+    }
+    if (_active?.onAcceptInBackground case final action?) action();
+  }
+
+  /// Hides it without accepting anything (upstream `hide`).
+  void hide() => widget.onClose();
+
+  /// Gives the input the keyboard (upstream `QuickInputController.focus`),
+  /// or the list while the input is hidden.
+  void focusInput() => (_inputHidden ? _listFocus : _focusNode).requestFocus();
 
   void _reveal() {
     if (!_scroll.hasClients || _selected < 0) return;
@@ -358,31 +514,69 @@ class IdeQuickInputState extends State<IdeQuickInput> {
     action();
   }
 
+  /// The keys the keybindings leave (the arrows, Enter and Escape are
+  /// theirs: `quickInput.next`, `quickInput.accept`…): Tab stays in the
+  /// input, and the release of a quick navigation's modifier accepts
+  /// (upstream `registerQuickNavigation`).
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (event is KeyUpEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.escape) {
-      widget.onClose();
-      return KeyEventResult.handled;
-    }
-    if (key == LogicalKeyboardKey.arrowDown) {
-      _move(1);
-    } else if (key == LogicalKeyboardKey.arrowUp) {
-      _move(-1);
-    } else if (key == LogicalKeyboardKey.pageDown) {
-      _move(IdeQuickInput.maxVisibleRows - 1);
-    } else if (key == LogicalKeyboardKey.pageUp) {
-      _move(-(IdeQuickInput.maxVisibleRows - 1));
-    } else if (key == LogicalKeyboardKey.enter ||
-        key == LogicalKeyboardKey.numpadEnter) {
-      if (event is KeyDownEvent) _accept();
-    } else if (key == LogicalKeyboardKey.tab) {
-      // Keep focus in the input, as VS Code does.
-    } else {
+    if (event is KeyUpEvent) {
+      final chords = _quickNavigate;
+      if (chords != null && _releases(chords, key)) {
+        // Only once: the pick stays when nothing was active.
+        _quickNavigate = null;
+        if (_active != null) _accept();
+      }
       return KeyEventResult.ignored;
     }
-    return KeyEventResult.handled;
+    final keyboard = HardwareKeyboard.instance;
+    if (key == LogicalKeyboardKey.tab &&
+        !keyboard.isControlPressed &&
+        !keyboard.isAltPressed &&
+        !keyboard.isMetaPressed) {
+      // Keep focus in the input, as VS Code does (⌃Tab is a keybinding's).
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
+
+  /// Whether releasing [key] ends a quick navigation of [chords].
+  static bool _releases(List<KeyChord> chords, LogicalKeyboardKey key) {
+    final keyboard = HardwareKeyboard.instance;
+    bool isKey(Set<LogicalKeyboardKey> keys) => keys.contains(key);
+    return chords.any((chord) {
+      if (chord.shift && isKey(_shiftKeys)) {
+        // Optimistic: Shift alone navigates back.
+        return !keyboard.isControlPressed &&
+            !keyboard.isAltPressed &&
+            !keyboard.isMetaPressed;
+      }
+      return chord.alt && isKey(_altKeys) ||
+          chord.ctrl && isKey(_controlKeys) ||
+          chord.meta && isKey(_metaKeys);
+    });
+  }
+
+  static final _shiftKeys = {
+    LogicalKeyboardKey.shift,
+    LogicalKeyboardKey.shiftLeft,
+    LogicalKeyboardKey.shiftRight,
+  };
+  static final _altKeys = {
+    LogicalKeyboardKey.alt,
+    LogicalKeyboardKey.altLeft,
+    LogicalKeyboardKey.altRight,
+  };
+  static final _controlKeys = {
+    LogicalKeyboardKey.control,
+    LogicalKeyboardKey.controlLeft,
+    LogicalKeyboardKey.controlRight,
+  };
+  static final _metaKeys = {
+    LogicalKeyboardKey.meta,
+    LogicalKeyboardKey.metaLeft,
+    LogicalKeyboardKey.metaRight,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -391,119 +585,122 @@ class IdeQuickInputState extends State<IdeQuickInput> {
         widget.pick?.placeholder ??
         widget.placeholderFor?.call(_controller.text);
     final visibleRows = math.min(_rows.length, IdeQuickInput.maxVisibleRows);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = math.min(600.0, constraints.maxWidth - 32);
-        return Stack(
-          children: [
-            // A click outside dismisses, as focus loss does in VS Code.
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: widget.onClose,
-              ),
-            ),
-            Positioned(
-              top: 6,
-              left: (constraints.maxWidth - width) / 2,
-              width: width,
-              // `.quick-input-widget`: `quickInput.*`, `widget.border`
-              // and `widget.shadow` (quickInputService.ts).
-              child: Material(
-                color: colors['quickInput.background'],
-                elevation: 12,
-                shadowColor: colors['widget.shadow'],
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  side: switch (colors.get('widget.border')) {
-                    final border? => BorderSide(color: border),
-                    null => BorderSide.none,
-                  },
+    return Focus(
+      focusNode: _listFocus,
+      onKeyEvent: _onKey,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = math.min(600.0, constraints.maxWidth - 32);
+          return Stack(
+            children: [
+              // A click outside dismisses, as focus loss does in VS Code.
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: widget.onClose,
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
-                      child: Focus(
-                        canRequestFocus: false,
-                        skipTraversal: true,
-                        onKeyEvent: _onKey,
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          cursorColor: IdeInputColors.foreground,
-                          cursorWidth: 1.5,
-                          cursorHeight: ideCaretHeight(13),
-                          style: TextStyle(
-                            color: IdeInputColors.foreground,
-                            fontSize: 13,
-                          ),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            hintText: placeholder,
-                            hintStyle: TextStyle(
-                              color: IdeInputColors.placeholder,
+              ),
+              Positioned(
+                top: 6,
+                left: (constraints.maxWidth - width) / 2,
+                width: width,
+                // `.quick-input-widget`: `quickInput.*`, `widget.border`
+                // and `widget.shadow` (quickInputService.ts).
+                child: Material(
+                  color: colors['quickInput.background'],
+                  elevation: 12,
+                  shadowColor: colors['widget.shadow'],
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    side: switch (colors.get('widget.border')) {
+                      final border? => BorderSide(color: border),
+                      null => BorderSide.none,
+                    },
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_inputHidden)
+                        const SizedBox(height: 4)
+                      else
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            cursorColor: IdeInputColors.foreground,
+                            cursorWidth: 1.5,
+                            cursorHeight: ideCaretHeight(13),
+                            style: TextStyle(
+                              color: IdeInputColors.foreground,
                               fontSize: 13,
                             ),
-                            filled: true,
-                            fillColor: IdeInputColors.background,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 7,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(3),
-                              borderSide: BorderSide(
-                                color: IdeInputColors.border,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              hintText: placeholder,
+                              hintStyle: TextStyle(
+                                color: IdeInputColors.placeholder,
+                                fontSize: 13,
                               ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(3),
-                              borderSide: BorderSide(
-                                color: IdeInputColors.focusBorder,
+                              filled: true,
+                              fillColor: IdeInputColors.background,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 7,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(3),
+                                borderSide: BorderSide(
+                                  color: IdeInputColors.border,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(3),
+                                borderSide: BorderSide(
+                                  color: IdeInputColors.focusBorder,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                    if (_rows.isNotEmpty)
-                      SizedBox(
-                        height: visibleRows * IdeQuickInput.rowHeight,
-                        child: ListView.builder(
-                          controller: _scroll,
-                          padding: EdgeInsets.zero,
-                          itemExtent: IdeQuickInput.rowHeight,
-                          itemCount: _rows.length,
-                          itemBuilder: (context, index) {
-                            final row = _rows[index];
-                            return _QuickPickRow(
-                              item: row.item,
-                              labelMatches: row.label,
-                              descriptionMatches: row.description,
-                              group: row.separator?.label ?? row.item.group,
-                              // Upstream draws no line on the first row.
-                              separatorLine: row.separator != null && index > 0,
-                              message: !_selectable(row),
-                              selected: index == _selected,
-                              onTap: () => _accept(index),
-                            );
-                          },
+                      if (_rows.isNotEmpty)
+                        SizedBox(
+                          height: visibleRows * IdeQuickInput.rowHeight,
+                          child: ListView.builder(
+                            controller: _scroll,
+                            padding: EdgeInsets.zero,
+                            itemExtent: IdeQuickInput.rowHeight,
+                            itemCount: _rows.length,
+                            itemBuilder: (context, index) {
+                              final row = _rows[index];
+                              return _QuickPickRow(
+                                item: row.item,
+                                labelMatches: row.label,
+                                descriptionMatches: row.description,
+                                group: row.separator?.label ?? row.item.group,
+                                // Upstream draws no line on the first row.
+                                separatorLine:
+                                    row.separator != null && index > 0,
+                                message: !_selectable(row),
+                                selected: index == _selected,
+                                onTap: () => _accept(index),
+                              );
+                            },
+                          ),
                         ),
-                      ),
-                    const SizedBox(height: 4),
-                  ],
+                      const SizedBox(height: 4),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     );
   }
 }

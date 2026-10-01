@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../keybindings/chat_keybindings.dart';
+import '../l10n/l10n.dart';
 import '../theme/cursor_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'chat_feed.dart';
+import 'chat_keys.dart';
 import 'chat_models.dart';
 import 'widgets/agent_step.dart';
 import 'widgets/hover_builder.dart';
@@ -105,7 +108,10 @@ class SubagentHeader extends StatelessWidget {
                   onTap: () => onBack(trail.length - 1),
                 ),
                 const SizedBox(width: 4),
-                _Crumb(label: 'Conversation', onTap: () => onBack(0)),
+                _Crumb(
+                  label: context.l10n.chatConversation,
+                  onTap: () => onBack(0),
+                ),
                 for (final (i, label) in trail.indexed) ...[
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 2),
@@ -151,7 +157,12 @@ class _BackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IdeHover(
-      message: 'Back (Esc)',
+      // Esc, unless rebound (see ChatCommandIds.closeSubagent).
+      message: ChatKeys.titleWithKey(
+        context.l10n.chatBack,
+        ChatCommandIds.closeSubagent,
+        const {ChatContextKeys.subagentVisible: true},
+      ),
       child: IconButton(
         focusNode: focusNode,
         onPressed: onTap,
@@ -167,7 +178,7 @@ class _BackButton extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         ),
         icon: Semantics(
-          label: 'Back',
+          label: context.l10n.chatBack,
           child: const Icon(Icons.arrow_back_rounded),
         ),
       ),
@@ -245,26 +256,30 @@ class _SubagentStatusBarState extends State<SubagentStatusBar> {
     return ListenableBuilder(
       listenable: widget.feed,
       builder: (context, _) {
+        final l10n = context.l10n;
         final agent = widget.feed.agent;
         final running = agent?.status == CommandStatus.running;
         final (word, color) = switch (agent?.status) {
           CommandStatus.running when agent!.background => (
-            'Running in the background',
+            l10n.statusRunningInBackground,
             CursorColors.text,
           ),
-          CommandStatus.running => ('Running', CursorColors.text),
+          CommandStatus.running => (l10n.statusRunning, CursorColors.text),
           CommandStatus.succeeded => (
-            'Done',
+            l10n.statusDone,
             themeColors['testing.iconPassed'],
           ),
-          CommandStatus.failed => ('Failed', themeColors['testing.iconFailed']),
-          null => ('Gone', CursorColors.textMuted),
+          CommandStatus.failed => (
+            l10n.statusFailed,
+            themeColors['testing.iconFailed'],
+          ),
+          null => (l10n.statusGone, CursorColors.textMuted),
         };
-        final meta = agent == null ? '' : AgentStep.meta(agent);
+        final meta = agent == null ? '' : AgentStep.meta(agent, l10n: l10n);
         return Semantics(
           container: true,
           liveRegion: true,
-          label: 'Subagent $word',
+          label: l10n.chatSubagentStatus(word),
           child: Container(
             padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
             decoration: BoxDecoration(
@@ -303,8 +318,7 @@ class _SubagentStatusBarState extends State<SubagentStatusBar> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'A subagent works for the agent: messages go to the '
-                        'conversation.',
+                        l10n.chatSubagentExplainer,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

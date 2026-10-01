@@ -823,3 +823,26 @@ Deviations:
   differs from V8's `Math.pow` in the last bit for 32 of the 256 channel
   luminances, but `getRelativeLuminance` (rounded to 4 decimals) equals
   upstream's for all 2^24 RGB colors, which the test checks.
+
+## Editor keyboard commands (2026-10-01)
+
+Ported from VS Code `6a598d4a…` (headers record deviations):
+`contrib/smartSelect/browser/{smartSelect,bracketSelections,wordSelections}.ts`
+(`smart_select.dart`), `contrib/wordPartOperations/browser/wordPartOperations.ts`
+(in `cursor_word_operations.dart`), `JoinLinesAction` and
+`DuplicateSelectionAction` (`lines_operations.dart`),
+`InsertCursorAtEndOfEachLineSelected` (`multicursor.dart`), `lineBreakInsert`
+(`cursor_type_operations.dart`) and the folding actions' model calls
+(`editor_folding.dart`).
+
+`flutter/editor_keybindings.dart` has upstream's keyboard commands
+(`editorKeyboardCommandLabels`: cursor, selection, deletion, scrolling,
+snippet, find widget, suggest, parameter hints, rename and message commands)
+and their keybindings (`editorExtraKeybindings`, upstream's rules in
+`KeybindingsRegistry` order, `when` = `kbExpr && precondition`), and the
+context keys they read (`editorContextKeys`). With the app's keybindings
+(`IdeEditor.keyResolver`) every key goes through them: the IDE editor
+resolves a key in its own context (`IdeEditorState.contextKey`) and runs the
+editor's and its widgets' commands; a key no keybinding has does nothing when
+the editor would otherwise use it (Enter types a line break), and macOS
+selectors are not used. Without a resolver the built-in keys still apply.

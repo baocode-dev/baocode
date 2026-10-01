@@ -1,5 +1,7 @@
 import 'package:path/path.dart' as p;
 
+import '../l10n/app_localizations.dart';
+
 import 'file_service_stub.dart'
     if (dart.library.io) 'file_service_io.dart'
     as platform;
@@ -98,6 +100,20 @@ class IdeFileExistsException implements Exception {
   String toString() =>
       'A file or folder ${p.basename(path)} already exists at this location.';
 }
+
+/// [error] as a message in [l10n]'s language: the file service's own
+/// exceptions translated, others as they describe themselves.
+String localizedFileError(AppLocalizations l10n, Object error) =>
+    switch (error) {
+      IdeFileConflictException(:final path) => l10n.fileErrorConflict(path),
+      IdeFileNotFoundException(:final path) => l10n.fileErrorNotFound(path),
+      IdeBinaryFileException(:final path) => l10n.fileErrorBinary(path),
+      IdeFileTooLargeException(:final path) => l10n.fileErrorTooLarge(path),
+      IdeFileExistsException(:final path) => l10n.fileErrorExists(
+        p.basename(path),
+      ),
+      _ => '$error',
+    };
 
 /// Directory names never indexed for Quick Open: VCS metadata, dependency
 /// caches and build outputs.

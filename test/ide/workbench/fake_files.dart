@@ -164,6 +164,8 @@ Future<IdeWorkspace> pumpWorkbench(
   PtyStarter? startPty,
   bool terminals = true,
   IdeColorThemeController? colorThemes,
+  VoidCallback? onBack,
+  Widget chat = const SizedBox.expand(key: chatKey),
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -190,8 +192,8 @@ Future<IdeWorkspace> pumpWorkbench(
         workspace: workspace,
         project: Project.at(testRoot),
         visible: true,
-        chat: const SizedBox.expand(key: chatKey),
-        onBack: () {},
+        chat: chat,
+        onBack: onBack ?? () {},
         ignoredRecommendations: ignoredRecommendations,
         onIgnoreRecommendation: onIgnoreRecommendation,
         textSearch: textSearch ?? ideSearchText,

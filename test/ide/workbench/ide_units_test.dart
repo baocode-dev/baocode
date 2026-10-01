@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +12,7 @@ import 'package:monad/ide/ide_quick_open.dart';
 import 'package:monad/ide/ide_status_bar.dart';
 import 'package:monad/ide/ide_tab_bar.dart';
 import 'package:monad/ide/project_tools.dart';
+import 'package:monad/keybindings/keybinding_entry.dart';
 import 'package:path/path.dart' as p;
 
 import 'fake_files.dart';
@@ -117,17 +117,11 @@ void main() {
         ).shortcutLabel(),
         '⌘K ⌘W',
       );
-      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
-      addTearDown(() => debugDefaultTargetPlatformOverride = null);
-      expect(ideShortcutBindings([command]), hasLength(2));
-      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-      final other = ideShortcutBindings([command]).keys.single;
-      expect(
-        other,
-        isA<SingleActivator>()
-            .having((a) => a.trigger, 'trigger', LogicalKeyboardKey.keyH)
-            .having((a) => a.control, 'control', isTrue),
-      );
+      // As keybindings.json entries: one for macOS only, one for all.
+      expect(command.keybindingEntries, const [
+        KeybindingEntry(command: 'x', mac: 'alt+cmd+f'),
+        KeybindingEntry(command: 'x', key: 'ctrl+h', mac: 'cmd+h'),
+      ]);
     });
 
     test('palette lists recent commands first, then filters fuzzily', () {

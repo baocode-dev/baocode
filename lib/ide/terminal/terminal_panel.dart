@@ -13,15 +13,17 @@
 // terminalTabbedView.ts (`terminal.integrated.tabs.hideCondition`:
 // `singleTerminal`), terminalMenus.ts (the view title: New Terminal, and
 // Kill with a single terminal, `tabs.showActions`: `singleTerminalOrNarrow`)
-// and terminalActions.ts (the keybindings).
+// and src/vs/workbench/contrib/terminal/common/terminal.ts
+// (`DEFAULT_COMMANDS_TO_SKIP_SHELL`); the keys are the workbench's
+// keybindings (workbench_keybindings.dart).
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../../keybindings/keybinding_service.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
-import '../ide_commands.dart';
 import '../ide_hover.dart';
 import '../ide_menu.dart';
 import 'links/terminal_links.dart';
@@ -30,54 +32,136 @@ import 'terminal_service.dart';
 import 'terminal_tabs.dart';
 import 'terminal_view.dart';
 
-/// VS Code's terminal keybindings.
-abstract final class TerminalKeys {
-  /// Create New Terminal: ⌃⇧` everywhere.
-  static const create = IdeKeybinding(
-    LogicalKeyboardKey.backquote,
-    control: true,
-    shift: true,
-  );
-
-  /// Focus Next (Previous) Terminal Group, while a terminal has focus:
-  /// ⇧⌘] ([) on macOS, Ctrl+PageDown (PageUp) elsewhere. Elsewhere in the
-  /// workbench these switch editors.
-  static const focusNext = [
-    IdeKeybinding(
-      LogicalKeyboardKey.bracketRight,
-      primary: true,
-      shift: true,
-      mac: true,
-    ),
-    IdeKeybinding.character('}', primary: true, mac: true),
-    IdeKeybinding(LogicalKeyboardKey.pageDown, primary: true, mac: false),
-  ];
-  static const focusPrevious = [
-    IdeKeybinding(
-      LogicalKeyboardKey.bracketLeft,
-      primary: true,
-      shift: true,
-      mac: true,
-    ),
-    IdeKeybinding.character('{', primary: true, mac: true),
-    IdeKeybinding(LogicalKeyboardKey.pageUp, primary: true, mac: false),
-  ];
-}
-
-/// VS Code's `DEFAULT_COMMANDS_TO_SKIP_SHELL`, of the commands there are
-/// here: their keys go to the workbench while a terminal has focus.
+/// VS Code's `DEFAULT_COMMANDS_TO_SKIP_SHELL`
+/// (src/vs/workbench/contrib/terminal/common/terminal.ts): the keys of
+/// these commands go to the workbench while a terminal has focus, those of
+/// the others to the shell. Upstream's list with find's
+/// (`defaultTerminalFindCommandToSkipShell`), less its suggest,
+/// accessibility and chat commands, and with ⌘J / Ctrl+J, the chat's here
+/// where it is the panel's upstream.
 const terminalCommandsToSkipShell = {
+  'workbench.action.terminal.clearSelection',
+  'workbench.action.terminal.clear',
+  'workbench.action.terminal.copyAndClearSelection',
+  'workbench.action.terminal.copySelection',
+  'workbench.action.terminal.copySelectionAsHtml',
+  'workbench.action.terminal.copyLastCommand',
+  'workbench.action.terminal.copyLastCommandOutput',
+  'workbench.action.terminal.copyLastCommandAndLastCommandOutput',
+  'workbench.action.terminal.deleteToLineStart',
+  'workbench.action.terminal.deleteWordLeft',
+  'workbench.action.terminal.deleteWordRight',
+  'workbench.action.terminal.focusNextPane',
+  'workbench.action.terminal.focusNext',
+  'workbench.action.terminal.focusPreviousPane',
+  'workbench.action.terminal.focusPrevious',
+  'workbench.action.terminal.focus',
+  'workbench.action.terminal.sizeToContentWidth',
+  'workbench.action.terminal.kill',
+  'workbench.action.terminal.killEditor',
+  'workbench.action.terminal.moveToEditor',
+  'workbench.action.terminal.moveToLineEnd',
+  'workbench.action.terminal.moveToLineStart',
+  'workbench.action.terminal.moveToTerminalPanel',
+  'workbench.action.terminal.newInActiveWorkspace',
+  'workbench.action.terminal.new',
+  'workbench.action.terminal.newInNewWindow',
+  'workbench.action.terminal.paste',
+  'workbench.action.terminal.pastePwsh',
+  'workbench.action.terminal.pasteSelection',
+  'workbench.action.terminal.resizePaneDown',
+  'workbench.action.terminal.resizePaneLeft',
+  'workbench.action.terminal.resizePaneRight',
+  'workbench.action.terminal.resizePaneUp',
+  'workbench.action.terminal.runActiveFile',
+  'workbench.action.terminal.runSelectedText',
+  'workbench.action.terminal.scrollDown',
+  'workbench.action.terminal.scrollDownPage',
+  'workbench.action.terminal.scrollToBottom',
+  'workbench.action.terminal.scrollToNextCommand',
+  'workbench.action.terminal.scrollToPreviousCommand',
+  'workbench.action.terminal.scrollToTop',
+  'workbench.action.terminal.scrollUp',
+  'workbench.action.terminal.scrollUpPage',
+  'workbench.action.terminal.sendSequence',
+  'workbench.action.terminal.selectAll',
+  'workbench.action.terminal.selectToNextCommand',
+  'workbench.action.terminal.selectToNextLine',
+  'workbench.action.terminal.selectToPreviousCommand',
+  'workbench.action.terminal.selectToPreviousLine',
+  'workbench.action.terminal.splitInActiveWorkspace',
+  'workbench.action.terminal.split',
+  'workbench.action.terminal.toggleTerminal',
+  'workbench.action.terminal.focusHover',
+  'workbench.action.terminal.sendSignal',
+  'editor.action.toggleTabFocusMode',
+  'notifications.hideList',
+  'notifications.hideToasts',
+  'workbench.action.closeQuickOpen',
   'workbench.action.quickOpen',
+  'workbench.action.quickOpenPreviousEditor',
   'workbench.action.showCommands',
+  'workbench.action.toggleFullScreen',
+  'workbench.action.terminal.focusAtIndex1',
+  'workbench.action.terminal.focusAtIndex2',
+  'workbench.action.terminal.focusAtIndex3',
+  'workbench.action.terminal.focusAtIndex4',
+  'workbench.action.terminal.focusAtIndex5',
+  'workbench.action.terminal.focusAtIndex6',
+  'workbench.action.terminal.focusAtIndex7',
+  'workbench.action.terminal.focusAtIndex8',
+  'workbench.action.terminal.focusAtIndex9',
+  'workbench.action.focusSecondEditorGroup',
+  'workbench.action.focusThirdEditorGroup',
+  'workbench.action.focusFourthEditorGroup',
+  'workbench.action.focusFifthEditorGroup',
+  'workbench.action.focusSixthEditorGroup',
+  'workbench.action.focusSeventhEditorGroup',
+  'workbench.action.focusEighthEditorGroup',
+  'workbench.action.focusNextPart',
+  'workbench.action.focusPreviousPart',
+  'workbench.action.nextPanelView',
+  'workbench.action.previousPanelView',
+  'workbench.action.nextSideBarView',
+  'workbench.action.previousSideBarView',
   'workbench.action.nextEditor',
   'workbench.action.previousEditor',
+  'workbench.action.nextEditorInGroup',
+  'workbench.action.previousEditorInGroup',
+  'workbench.action.openNextRecentlyUsedEditor',
+  'workbench.action.openPreviousRecentlyUsedEditor',
+  'workbench.action.openNextRecentlyUsedEditorInGroup',
+  'workbench.action.openPreviousRecentlyUsedEditorInGroup',
+  'workbench.action.quickOpenPreviousRecentlyUsedEditor',
+  'workbench.action.quickOpenLeastRecentlyUsedEditor',
+  'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup',
+  'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup',
+  'workbench.action.focusActiveEditorGroup',
+  'workbench.action.focusFirstEditorGroup',
+  'workbench.action.focusLastEditorGroup',
+  'workbench.action.firstEditorInGroup',
+  'workbench.action.lastEditorInGroup',
+  'workbench.action.navigateUp',
+  'workbench.action.navigateDown',
+  'workbench.action.navigateRight',
+  'workbench.action.navigateLeft',
   'workbench.action.togglePanel',
-  'workbench.action.terminal.focus',
-  'workbench.action.terminal.focusNext',
-  'workbench.action.terminal.focusPrevious',
-  'workbench.action.terminal.kill',
-  'workbench.action.terminal.new',
-  'workbench.action.terminal.toggleTerminal',
+  'workbench.action.quickOpenView',
+  'workbench.action.toggleMaximizedPanel',
+  'workbench.action.zoomIn',
+  'workbench.action.zoomOut',
+  'workbench.action.zoomReset',
+  'notification.acceptPrimaryAction',
+  'runCommands',
+  // terminal.find.ts' `defaultTerminalFindCommandToSkipShell`.
+  'workbench.action.terminal.focusFind',
+  'workbench.action.terminal.hideFind',
+  'workbench.action.terminal.findNext',
+  'workbench.action.terminal.findPrevious',
+  'workbench.action.terminal.toggleFindRegex',
+  'workbench.action.terminal.toggleFindWholeWord',
+  'workbench.action.terminal.toggleFindCaseSensitive',
+  'workbench.action.terminal.searchWorkspace',
   // ⌘J, the chat's here where it is the panel's in VS Code.
   'workbench.action.toggleAuxiliaryBar',
 };
@@ -89,7 +173,8 @@ class TerminalPanel extends StatelessWidget {
     super.key,
     required this.terminals,
     required this.onNew,
-    this.skipShell = const [],
+    this.shouldSkipShell,
+    this.resolveKey,
     this.onOpenLink,
   });
 
@@ -98,73 +183,46 @@ class TerminalPanel extends StatelessWidget {
   /// New Terminal, from the tabs.
   final VoidCallback onNew;
 
-  /// The keybindings of the workbench's [terminalCommandsToSkipShell].
-  final List<IdeKeybinding> skipShell;
+  /// Whether the workbench takes a key rather than the shell (see
+  /// [TerminalView.shouldSkipShell]).
+  final bool Function(KeyEvent event)? shouldSkipShell;
+
+  /// The workbench's command for a key in a terminal's find widget (see
+  /// [TerminalView.resolveKey]).
+  final String? Function(KeyEvent event)? resolveKey;
 
   /// Opens a link ⌘-clicked in a terminal.
   final ValueChanged<TerminalLink>? onOpenLink;
 
   @override
-  Widget build(BuildContext context) {
-    final mac = ideUsesMacKeys;
-    Map<ShortcutActivator, VoidCallback> keys(
-      List<IdeKeybinding> bindings,
-      VoidCallback run,
-    ) => {
-      for (final binding in bindings)
-        if (binding.appliesTo(mac: mac)) binding.activator(mac: mac): run,
-    };
-    return CallbackShortcuts(
-      bindings: {
-        ...keys(TerminalKeys.focusNext, () => _step(terminals.focusNext)),
-        ...keys(
-          TerminalKeys.focusPrevious,
-          () => _step(terminals.focusPrevious),
-        ),
-      },
-      child: ListenableBuilder(
-        listenable: terminals,
-        builder: (context, _) {
-          final active = terminals.active;
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: active == null
-                    ? const SizedBox.shrink()
-                    : TerminalView(
-                        active,
-                        key: ObjectKey(active),
-                        skipShell: [
-                          for (final binding in [
-                            ...skipShell,
-                            ...TerminalKeys.focusNext,
-                            ...TerminalKeys.focusPrevious,
-                          ])
-                            if (binding.appliesTo(mac: mac))
-                              binding.activator(mac: mac),
-                        ],
-                        onKill: () => terminals.kill(active),
-                        onOpenLink: onOpenLink,
-                      ),
-              ),
-              if (terminals.instances.length > 1)
-                SizedBox(
-                  width: TerminalTabs.width,
-                  child: TerminalTabs(terminals: terminals, onNew: onNew),
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  /// Another terminal, which takes the keyboard.
-  void _step(VoidCallback step) {
-    step();
-    terminals.active?.focus();
-  }
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: terminals,
+    builder: (context, _) {
+      final active = terminals.active;
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: active == null
+                ? const SizedBox.shrink()
+                : TerminalView(
+                    active,
+                    key: ObjectKey(active),
+                    shouldSkipShell: shouldSkipShell,
+                    resolveKey: resolveKey,
+                    onKill: () => terminals.kill(active),
+                    onOpenLink: onOpenLink,
+                  ),
+          ),
+          if (terminals.instances.length > 1)
+            SizedBox(
+              width: TerminalTabs.width,
+              child: TerminalTabs(terminals: terminals, onNew: onNew),
+            ),
+        ],
+      );
+    },
+  );
 }
 
 /// The panel title's actions while TERMINAL shows: with a single terminal,
@@ -205,14 +263,19 @@ class TerminalTitleActions extends StatelessWidget {
           const SizedBox(width: 2),
           IdeActionButton(
             icon: Codicons.add,
-            tooltip: 'New Terminal (${TerminalKeys.create.label()})',
+            tooltip: switch (KeybindingService.instance.labelFor(
+              'workbench.action.terminal.new',
+            )) {
+              final keys? => context.l10n.termNewTerminalKeys(keys),
+              null => context.l10n.termNewTerminal,
+            },
             onPressed: onNew,
           ),
           if (single != null) ...[
             const SizedBox(width: 2),
             IdeActionButton(
               icon: Codicons.trash,
-              tooltip: 'Kill Terminal',
+              tooltip: context.l10n.termKillTerminal,
               onPressed: () => terminals.kill(single),
             ),
           ],
@@ -245,7 +308,11 @@ class _SingleTabState extends State<_SingleTab> {
       showIdeMenu(
         context,
         anchor: box.localToGlobal(Offset.zero) & box.size,
-        entries: terminalTabMenu(widget.terminals, widget.instance),
+        entries: terminalTabMenu(
+          widget.terminals,
+          widget.instance,
+          l10n: context.l10n,
+        ),
       ),
     );
   }

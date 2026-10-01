@@ -6,6 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../chat/chat_keys.dart';
+import '../keybindings/default_keybindings.dart'
+    show commandCatalog, openSettingsCommandId;
+import '../keybindings/key_chord.dart';
+import '../l10n/l10n.dart';
+import '../keybindings/keybinding_service.dart';
 import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
@@ -16,10 +22,14 @@ import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
 import 'editor/monaco/flutter/document_snapshot.dart';
+import 'editor/monaco/flutter/editor_document_model.dart'
+    show EditorContentChangeEvent, EditorDocumentModel;
+import 'editor/monaco/flutter/editor_keybindings.dart' show editorChordPrefix;
 import 'editor/monaco/vs/editor/common/core/position.dart';
 import 'editor/monaco/vs/editor/contrib/gotoError/browser/marker_navigation.dart';
 import 'extensions/ide_extensions.dart';
 import 'extensions/ide_extensions_view.dart';
+import 'file_service.dart' show localizedFileError;
 import 'git/commit_message.dart';
 import 'git/git_change_editor.dart';
 import 'git/git_model.dart';
@@ -37,6 +47,7 @@ import 'ide_editor_placeholder.dart';
 import 'ide_explorer.dart';
 import 'ide_hover.dart';
 import 'ide_layout.dart';
+import 'ide_list.dart' show IdeKeyboardList;
 import 'ide_modern_ui.dart';
 import 'ide_notifications.dart';
 import 'ide_panes.dart';
@@ -61,7 +72,8 @@ import 'terminal/links/terminal_links.dart';
 import 'terminal/terminal_instance.dart';
 import 'terminal/terminal_panel.dart';
 import 'terminal/terminal_service.dart';
-import 'terminal/terminal_tabs.dart';
+
+part 'ide_workbench_keys.dart';
 
 /// The IDE shell is kept mounted when the user returns to the conversation.
 class IdeWorkbench extends StatefulWidget {
@@ -145,13 +157,9 @@ enum IdeSideView { explorer, search, sourceControl, extensions }
 /// A navigation history entry (Go Back / Go Forward).
 typedef _NavigationEntry = ({String path, LspPosition position});
 
-/// A chord being typed (see [IdeWorkbenchState._chord]).
-typedef _Chord = ({
-  String label,
-  List<({IdeKeybinding binding, VoidCallback run})> candidates,
-  String message,
-  bool editor,
-});
+/// A chord being typed (see [IdeWorkbenchState._chord]): its label, the
+/// chords pressed and its status message.
+typedef _Chord = ({String label, List<KeyChord> chords, String message});
 
 class IdeWorkbenchState extends State<IdeWorkbench> {
   final _editorKey = GlobalKey<IdeEditorState>();
@@ -160,6 +168,41 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   late IdeExplorerController _explorer;
   late IdeFileIndex _fileIndex;
   final IdeRecentList _recentFiles = IdeRecentList();
+
+  /// The open editors' keys, the most recently active first.
+  final IdeRecentList _editorHistory = IdeRecentList();
+
+  /// Open Next / Previous Recently Used Editor's stack and where they are
+  /// in it (upstream `recentlyUsedEditorsStack`), while they run.
+  List<String>? _recentlyUsedStack;
+  int _recentlyUsedIndex = 0;
+  bool _navigatingRecentlyUsed = false;
+
+  /// The open files' changes, watched for [_lastEdit].
+  final Map<EditorDocumentModel, StreamSubscription<EditorContentChangeEvent>>
+  _editWatches = {};
+
+  /// Where the last edit of an open file ended (Go to Last Edit Location).
+  _NavigationEntry? _lastEdit;
+
+  /// Whether the last Go Back / Go Forward went back (for Go Previous).
+  bool _lastNavigationBack = false;
+
+  /// Whether the panel is maximized (Toggle Maximized Panel).
+  bool _panelMaximized = false;
+
+  /// Around the side bar and the chat, for `sideBarFocus` and
+  /// `auxiliaryBarFocus`.
+  final FocusNode _sidebarFocus = FocusNode(
+    debugLabel: 'ide side bar',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
+  final FocusNode _chatFocus = FocusNode(
+    debugLabel: 'ide chat',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
   final IdeRecentList _recentCommands = IdeRecentList();
   final List<String> _closedEditors = [];
 
@@ -213,6 +256,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   late final IdeSearchSession _search = IdeSearchSession(
     engine: widget.textSearch,
   );
+  final _searchKey = GlobalKey<IdeSearchViewState>();
+  final _scmKey = GlobalKey<IdeScmViewState>();
   IdeGitRepository? _git;
 
   /// The Extensions view's list and search, made when it first shows.
@@ -234,9 +279,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   GlobalKey<IdeQuickInputState> _quickInputKey = GlobalKey();
   FocusNode? _focusBeforeQuickInput;
 
-  /// The chord being typed (upstream `_currentChords`): its first key's
-  /// label, the keybindings it may complete, its status message, and
-  /// whether the editor, which started it, takes the next key.
+  /// How the quick input [_quickInput] shows opens (see
+  /// [IdeQuickInput.itemActivation], [IdeQuickInput.quickNavigate],
+  /// [IdeQuickInput.hideInput]).
+  IdeQuickPickFocus _quickActivation = IdeQuickPickFocus.first;
+  List<KeyChord>? _quickNavigateChords;
+  bool _quickHideInput = false;
+
+  /// The chord being typed (upstream `_currentChords`).
   _Chord? _chord;
   Timer? _chordChecker;
 
@@ -273,6 +323,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The panel's terminals; none where they cannot run (the web).
   TerminalService? _terminals;
   IdeReferences? _references;
+
+  /// The Problems and References lists' focused rows and collapsed files.
+  final _problemsList = IdePanelListModel();
+  final _referencesList = IdePanelListModel();
   MarkerList<LspDiagnostic>? _markers;
   final List<_NavigationEntry> _backStack = [];
   final List<_NavigationEntry> _forwardStack = [];
@@ -282,10 +336,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   IdeEditorState? get _editor => _editorKey.currentState;
 
+  /// [setState], for the commands of ide_workbench_keys.dart.
+  void _refresh(VoidCallback fn) => setState(fn);
+
   @override
   void initState() {
     super.initState();
     FocusManager.instance.addEarlyKeyEventHandler(_onChordKey);
+    FocusManager.instance.addLateKeyEventHandler(_onLateKey);
+    KeybindingService.instance.addListener(_keybindingsChanged);
+    _registerCommandKeybindings();
     _notifications.addListener(_notificationsChanged);
     if (widget.terminalBackend.supported) {
       _terminals = TerminalService(
@@ -299,6 +359,18 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     });
     _readBranch();
     if (widget.visible) _focusSoon();
+  }
+
+  /// Whether the display language can be read: the recommendations
+  /// [initState] would make wait for it.
+  bool _localized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_localized) return;
+    _localized = true;
+    _recommendServers();
   }
 
   void _attach() {
@@ -317,7 +389,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _markers = null;
     _backStack.clear();
     _forwardStack.clear();
+    _navigationHere = null;
+    _navigationFile = null;
     _references = null;
+    _problemsList.clear();
+    _referencesList.clear();
+    _lastEdit = null;
     workspace.addListener(_workspaceChanged);
     workspace.layout.addListener(_layoutChanged);
     _shownPanel = workspace.layout.panel;
@@ -331,6 +408,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _detach(IdeWorkspace workspace) {
     workspace.removeListener(_workspaceChanged);
+    for (final watch in _editWatches.values) {
+      unawaited(watch.cancel());
+    }
+    _editWatches.clear();
     workspace.layout.removeListener(_layoutChanged);
     _git?.removeListener(_gitChanged);
     _git = null;
@@ -410,9 +491,23 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
   }
 
+  /// The keybindings of [IdeWorkbench.commands] the defaults do not have.
+  void _registerCommandKeybindings() =>
+      KeybindingService.instance.registerExtraDefaults([
+        for (final command in widget.commands) ...command.keybindingEntries,
+      ]);
+
+  /// Labels (the palette's, the tooltips') follow the keybindings.
+  void _keybindingsChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void didUpdateWidget(IdeWorkbench oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.commands, widget.commands)) {
+      _registerCommandKeybindings();
+    }
     if (oldWidget.workspace != widget.workspace) {
       _detach(oldWidget.workspace);
       _attach();
@@ -427,6 +522,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   @override
   void dispose() {
     FocusManager.instance.removeEarlyKeyEventHandler(_onChordKey);
+    FocusManager.instance.removeLateKeyEventHandler(_onLateKey);
+    KeybindingService.instance.removeListener(_keybindingsChanged);
     _chordChecker?.cancel();
     _statusMessageTimer?.cancel();
     // A quick pick going with the workbench hides (the color themes one
@@ -444,6 +541,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       ?..removeListener(_terminalsChanged)
       ..dispose();
     _panelFocus.dispose();
+    _problemsList.dispose();
+    _referencesList.dispose();
+    _sidebarFocus.dispose();
+    _chatFocus.dispose();
     super.dispose();
   }
 
@@ -462,11 +563,21 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// in the explorer, as VS Code's `explorer.autoReveal` does.
   void _workspaceChanged() {
     _symbols?.update(widget.workspace.active);
+    _forgetClosedNavigation();
+    _watchEdits();
     final active = widget.workspace.active;
     if (active?.key == _activeKey) return;
     _activeKey = active?.key;
+    // Upstream resets the recently used stack when an editor comes to the
+    // front otherwise than from it.
+    if (!_navigatingRecentlyUsed) {
+      _recentlyUsedStack = null;
+      _recentlyUsedIndex = 0;
+    }
     if (active == null) return;
+    _editorHistory.add(active.key);
     final path = active.path;
+    _activeFileChanged(path);
     // Upstream's `showEditorIfHidden`: an editor opened ends the chat's
     // maximizing, and has the side bar give way to it rather than it to
     // the side bar.
@@ -504,7 +615,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// Errors are error notifications, as VS Code's are.
   void _report(Object error) {
-    if (mounted) _notifications.notify(IdeSeverity.error, '$error');
+    if (!mounted) return;
+    _notifications.notify(
+      IdeSeverity.error,
+      localizedFileError(context.l10n, error),
+    );
   }
 
   // --- Editors ---------------------------------------------------------------
@@ -558,6 +673,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final change = IdeGitChangeEditor.of(
       resource,
       staged: state.group(IdeGitGroup.staged),
+      l10n: context.l10n,
     );
     Future<String> Function() read(IdeGitSide side) =>
         () => git.service.show(side.ref!, side.path);
@@ -569,7 +685,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       if (left == null) {
         _notifications.notify(
           IdeSeverity.warning,
-          'HEAD version of "${p.basename(resource.path)}" is not available.',
+          context.l10n.wbHeadNotAvailable(p.basename(resource.path)),
         );
         return;
       }
@@ -630,11 +746,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// VS Code's save confirmation: Save, Don't Save or Cancel.
   Future<String?> _confirmClose(IdeDocument doc) async {
+    final l10n = context.l10n;
     final choice = await showIdeDialog(
       context,
-      message: 'Do you want to save the changes you made to ${doc.name}?',
-      detail: "Your changes will be lost if you don't save them.",
-      buttons: const ['Save', "Don't Save"],
+      message: l10n.wbConfirmSave(doc.name),
+      detail: l10n.explorerChangesLost,
+      buttons: [l10n.commonSave, l10n.commonDontSave],
     );
     return switch (choice) {
       0 => 'save',
@@ -781,9 +898,34 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   // --- Language features ---------------------------------------------------
 
+  // Navigation history (Go Back / Go Forward), after VS Code's
+  // `EditorNavigationStack` (src/vs/workbench/services/history/browser/
+  // historyService.ts at 6a598d4a13031703d483d103c1d934a36ad27971): where
+  // the caret was is recorded when another file comes to the front (from
+  // the explorer, Quick Open, search, a tab, a definition), and when the
+  // caret jumps more than [_navigationThreshold] lines in the same file
+  // (upstream `TEXT_EDITOR_SELECTION_THRESHOLD`); closer moves only update
+  // where it is. Entries of files that close go (upstream keeps closed
+  // editors; here their tabs are gone).
+
+  /// Lines a move must span to be a navigation of its own.
+  static const _navigationThreshold = 10;
+
+  /// Where the caret was last seen, in which file; null when the active
+  /// file's caret was not reported since it came to the front (it is where
+  /// the last one reported was: the editor reports changes only).
+  _NavigationEntry? _navigationHere;
+
+  /// The file at the front when [_navigationHere] was last reset.
+  String? _navigationFile;
+
+  /// Set while Go Back / Go Forward moves: that move records nothing.
+  bool _navigating = false;
+
   _NavigationEntry? _here() {
     final path = widget.workspace.active?.path;
     if (path == null) return null;
+    if (_navigationHere case final here? when here.path == path) return here;
     return (
       path: path,
       position: LspPosition(
@@ -791,6 +933,71 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         _caretPosition.column - 1,
       ),
     );
+  }
+
+  /// Records [entry] for Go Back, unless it is the last one; a new
+  /// navigation drops what Go Forward had.
+  void _recordNavigation(_NavigationEntry? entry) {
+    if (entry == null || _navigating) return;
+    _lastNavigationBack = false;
+    if (_backStack.isEmpty ||
+        _backStack.last.path != entry.path ||
+        _backStack.last.position != entry.position) {
+      _backStack.add(entry);
+      if (_backStack.length > 50) _backStack.removeAt(0);
+    }
+    _forwardStack.clear();
+  }
+
+  /// The caret moved to [position] in the active file.
+  void _caretMoved(Position position) {
+    final path = widget.workspace.active?.path;
+    if (path == null) return;
+    final now = (
+      path: path,
+      position: LspPosition(position.lineNumber - 1, position.column - 1),
+    );
+    final before = _navigationHere;
+    if (before != null &&
+        before.path == path &&
+        (before.position.line - now.position.line).abs() >
+            _navigationThreshold) {
+      _recordNavigation(before);
+    }
+    _navigationHere = now;
+  }
+
+  /// Another file came to the front: where the caret was in the one
+  /// before is recorded, if that one is still open.
+  void _activeFileChanged(String path) {
+    final previous = _navigationFile;
+    final before =
+        _navigationHere ??
+        (previous == null
+            ? null
+            : (
+                path: previous,
+                position: LspPosition(
+                  _caretPosition.lineNumber - 1,
+                  _caretPosition.column - 1,
+                ),
+              ));
+    if (before != null &&
+        before.path != path &&
+        widget.workspace.documents.any((doc) => doc.path == before.path)) {
+      _recordNavigation(before);
+    }
+    _navigationFile = path;
+    _navigationHere = null;
+  }
+
+  /// Drops the entries of files no longer open.
+  void _forgetClosedNavigation() {
+    final open = {for (final doc in widget.workspace.documents) doc.path};
+    bool closed(_NavigationEntry entry) => !open.contains(entry.path);
+    if (!_backStack.any(closed) && !_forwardStack.any(closed)) return;
+    _backStack.removeWhere(closed);
+    _forwardStack.removeWhere(closed);
   }
 
   /// Opens [location] (another file too), recording where the caret was
@@ -801,17 +1008,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     bool record = true,
     VoidCallback? afterReveal,
   }) async {
-    if (record) {
-      final here = _here();
-      if (here != null &&
-          (_backStack.isEmpty ||
-              _backStack.last.path != here.path ||
-              _backStack.last.position != here.position)) {
-        _backStack.add(here);
-        if (_backStack.length > 50) _backStack.removeAt(0);
-      }
-      _forwardStack.clear();
-    }
+    if (record) _recordNavigation(_here());
     if (widget.workspace.active?.path == location.path) {
       _editor?.revealRange(location.range, select: select);
       afterReveal?.call();
@@ -827,7 +1024,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
   }
 
-  /// Go Back (⌃-) / Go Forward (⌃⇧-).
+  /// Go Back (⌃-) / Go Forward (⌃⇧-), and the mouse's back and forward
+  /// buttons.
   void _navigate({required bool back}) {
     final from = back ? _backStack : _forwardStack;
     final to = back ? _forwardStack : _backStack;
@@ -835,12 +1033,22 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final here = _here();
     if (here != null) to.add(here);
     final entry = from.removeLast();
+    _lastNavigationBack = back;
+    _navigating = true;
     unawaited(
       _openLocation(
         IdeLocation(entry.path, LspRange(entry.position, entry.position)),
         record: false,
-      ),
+      ).whenComplete(() {
+        // The caret lands after a frame: that move is this navigation's.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _navigating = false;
+          _navigationHere = entry;
+        });
+        WidgetsBinding.instance.scheduleFrame();
+      }),
     );
+    if (mounted) setState(() {});
   }
 
   /// F8 / ⇧F8: the next or previous problem across files, with its hover.
@@ -862,6 +1070,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   void _showReferences(String title, List<IdeLocation> locations) {
+    _referencesList.clear();
     setState(() {
       _references = IdeReferences(title, locations);
       _panel = IdePanelTab.references;
@@ -951,7 +1160,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _recommendServers() {
     final languages = _languages;
     final path = widget.workspace.active?.path;
-    if (languages == null || path == null) return;
+    if (!_localized || languages == null || path == null) return;
     for (final status in languages.statusFor(path)) {
       if (status.state == LanguageServerState.missing &&
           status.installable &&
@@ -966,15 +1175,17 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _recommendServer(LanguageServerStatus status, String path) {
     final id = status.serverId;
     final language = IdeLanguageNames.forPath(path);
+    final l10n = context.l10n;
     _notifications.notify(
       IdeSeverity.info,
-      "Do you want to install the recommended '$id' language server for "
-      'the $language language?',
+      l10n.wbRecommendServer(id, language),
       sticky: true,
-      primary: [IdeNotificationAction('Install', () => _install(id, path))],
+      primary: [
+        IdeNotificationAction(l10n.extInstall, () => _install(id, path)),
+      ],
       secondary: [
         IdeNotificationAction(
-          "Don't Show Again for this Language Server",
+          l10n.wbDontShowAgainServer,
           () => widget.onIgnoreRecommendation?.call(id),
         ),
       ],
@@ -1002,11 +1213,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _notifications.notify(
       IdeSeverity.warning,
       runtime != null
-          ? "Installing '${status.serverId}' needs $runtime, which was not "
-                'found. Install $runtime, then try again.'
-          : (status.message ??
-                "'${status.serverId}' was not found on PATH and cannot be "
-                    'installed automatically.'),
+          ? context.l10n.extMissingRuntime(status.serverId, runtime)
+          : (status.message ?? context.l10n.extUnavailable(status.serverId)),
     );
   }
 
@@ -1031,6 +1239,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final panel = _layout.panel;
     if (panel != _shownPanel) {
       _shownPanel = panel;
+      // Upstream restores a maximized panel as it hides.
+      if (panel == null) _panelMaximized = false;
       // What had the keyboard there goes: it goes back to the editor.
       if (_panelFocus.hasFocus) _focusSoon();
       // VS Code makes a terminal when its view shows with none.
@@ -1047,15 +1257,38 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   // --- Quick input ---------------------------------------------------------
 
-  /// Opens the quick input with [prefix] (`>` commands, `:` go to line, none
-  /// for files), or switches the open one to it.
-  void _showQuickInput(String prefix) {
-    if (prefix.isEmpty) unawaited(_fileIndex.refresh());
-    if (_quickInput != null) {
+  /// Opens the quick input with [prefix] (`>` commands, `:` go to line,
+  /// `edt ` editors, none for files), or switches the open one to it.
+  ///
+  /// With [quickNavigate] (upstream `quickNavigateConfiguration`), releasing
+  /// a modifier of those chords accepts, and the input is hidden unless a
+  /// quick input shows already; [itemActivation] is the row active first
+  /// (the second by default with [quickNavigate]).
+  void _showQuickInput(
+    String prefix, {
+    IdeQuickPickFocus? itemActivation,
+    List<KeyChord>? quickNavigate,
+  }) {
+    if (_quickAccessOf(prefix).$1 == _QuickAccess.files) {
+      unawaited(_fileIndex.refresh());
+    }
+    final shown = _quickInput != null || _quickPick != null;
+    if (_quickInput != null &&
+        itemActivation == null &&
+        quickNavigate == null) {
       _quickInputKey.currentState?.setText(prefix);
       return;
     }
-    _openQuickInput(() => _quickInput = prefix);
+    _openQuickInput(() {
+      _quickInput = prefix;
+      _quickActivation =
+          itemActivation ??
+          (quickNavigate != null
+              ? IdeQuickPickFocus.second
+              : IdeQuickPickFocus.first);
+      _quickNavigateChords = quickNavigate;
+      _quickHideInput = quickNavigate != null && !shown;
+    });
   }
 
   /// Opens [pick] in the quick input, in place of what it shows.
@@ -1071,6 +1304,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       _quickInputKey = GlobalKey();
       _quickInput = null;
       _quickPick = null;
+      _quickActivation = IdeQuickPickFocus.first;
+      _quickNavigateChords = null;
+      _quickHideInput = false;
       open();
     });
     // Upstream hides the quick input that another one replaces.
@@ -1099,7 +1335,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Preferences: Color Theme (see [ideColorThemePick]).
   void _selectColorTheme() {
     if (widget.colorThemes case final themes?) {
-      _showQuickPick(ideColorThemePick(themes, onError: _report));
+      _showQuickPick(
+        ideColorThemePick(themes, onError: _report, l10n: context.l10n),
+      );
     }
   }
 
@@ -1109,6 +1347,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   List<IdeQuickPickItem> _quickItems(String text) {
+    final l10n = context.l10n;
     if (text.startsWith('@')) {
       final symbols = _symbols;
       final active = widget.workspace.active;
@@ -1120,6 +1359,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         loaded: symbols?.loaded ?? true,
         supported: symbols != null && active != null && symbols.supported,
         onGo: _revealSymbol,
+        l10n: l10n,
       );
     }
     if (text.startsWith('>')) {
@@ -1128,6 +1368,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         commands: _allCommands(),
         recent: _recentCommands,
         onRun: _runCommand,
+        l10n: l10n,
       );
     }
     if (text.startsWith(':')) {
@@ -1139,7 +1380,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         currentColumn: _statusColumn,
         onGo: (line, column) =>
             unawaited(_editor?.revealLine(line, column ?? 1)),
+        l10n: l10n,
       );
+    }
+    final (access, prefix) = _quickAccessOf(text);
+    if (access != _QuickAccess.files) {
+      return _editorPicks(access, text.substring(prefix.length));
     }
     return fileQuickPicks(
       text,
@@ -1147,24 +1393,33 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       recent: _recentFiles.items,
       onOpen: (path, line, column) =>
           unawaited(_open(path, line: line, column: column, focusEditor: true)),
+      onOpenInBackground: _openFileInBackground,
+      l10n: l10n,
     );
   }
 
   String _quickPlaceholder(String text) {
-    if (text.startsWith('>')) return 'Type the name of a command to run.';
+    final l10n = context.l10n;
+    if (text.startsWith('>')) return l10n.wbQuickCommands;
     if (text.startsWith(':')) return '';
-    if (text.startsWith('@')) return 'Type the name of a symbol to go to.';
-    return 'Search files by name (append : to go to a line or > to run a command)';
+    if (text.startsWith('@')) return l10n.wbQuickSymbols;
+    if (_quickAccessOf(text).$1 != _QuickAccess.files) {
+      return l10n.wbQuickEditors;
+    }
+    return l10n.wbQuickFiles;
   }
 
-  // --- Chords --------------------------------------------------------------
-  // Two-chord keybindings (⌘K ⌘T), ported from VS Code
+  // --- Keybindings ---------------------------------------------------------
+  // What a key press runs, as the keybindings resolve it (defaults, the
+  // keymap's, the user's; see KeybindingService), with two-chord
+  // keybindings (⌘K ⌘T) ported from VS Code
   // src/vs/platform/keybinding/common/abstractKeybindingService.ts at
   // 6a598d4a13031703d483d103c1d934a36ad27971 (`_doDispatch`,
   // `_expectAnotherChord`, `_scheduleLeaveChordMode`, `_leaveChordMode`),
-  // with the status bar messages of notificationsStatus.ts. A first chord
-  // counts when the focus lets it bubble here (a terminal keeps its keys);
-  // the editor reports its own through [_onEditorChordKey].
+  // with the status bar messages of notificationsStatus.ts. A key counts
+  // when the focus lets it bubble here (a terminal keeps its keys, the
+  // editor its own commands'); the key after a first chord is taken before
+  // the focus sees it.
 
   static final _modifierKeys = {
     LogicalKeyboardKey.meta,
@@ -1181,24 +1436,220 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     LogicalKeyboardKey.altRight,
   };
 
-  /// A key the focus let through: the first chord of a two-chord
-  /// keybinding starts chord mode (`ResultKind.MoreChordsNeeded`).
-  KeyEventResult _onWorkbenchKey(FocusNode node, KeyEvent event) {
-    if (_chord != null || event is KeyUpEvent) return KeyEventResult.ignored;
-    final candidates = _chordCandidates(event);
-    if (candidates.isEmpty) return KeyEventResult.ignored;
-    _expectAnotherChord(event, candidates, editor: false);
-    return KeyEventResult.handled;
+  /// The context keys a keybinding's `when` reads, as they are now.
+  @visibleForTesting
+  Object? keyContext(String key) {
+    final focus = FocusManager.instance.primaryFocus;
+    final editorFocus = _editor?.hasTextFocus ?? false;
+    // A text field, or the chat's input (a rich text editor of its own).
+    final textField =
+        focus?.context?.findAncestorStateOfType<EditableTextState>() != null ||
+        ChatKeys.focusedTargets().any(
+          (target) => target.chatContextKey('inputFocus') == true,
+        );
+    final terminalFocus =
+        _panel == IdePanelTab.terminal &&
+        (_terminals?.active?.focusNode.hasFocus ?? false);
+    return switch (key) {
+      'ideMode' => true,
+      'chatMode' => false,
+      'editorTextFocus' => editorFocus,
+      // The editor or one of its widgets (find, rename).
+      'editorFocus' => _editor?.hasFocus ?? false,
+      'editorHasSelection' => editorFocus && _selectionLength > 0,
+      'editorReadonly' => widget.workspace.active?.readOnly ?? false,
+      'editorHasFormattingProvider' => _languages != null,
+      'textInputFocus' => editorFocus || textField,
+      'inputFocus' => editorFocus || textField || terminalFocus,
+      'terminalFocus' => terminalFocus,
+      'filesExplorerFocus' => _explorerFocus.hasFocus,
+      'listFocus' || 'listSupportsKeyboardNavigation' =>
+        _explorerFocus.hasFocus || _focusedList != null,
+      'foldersViewVisible' || 'explorerViewletVisible' =>
+        _sidebarShown && _view == IdeSideView.explorer,
+      'treestickyScrollFocused' => false,
+      'canNavigateBack' => _backStack.isNotEmpty,
+      'canNavigateForward' => _forwardStack.isNotEmpty,
+      _ =>
+        _listContextKey(key) ??
+            _searchContextKey(key) ??
+            _terminalContextKey(key) ??
+            _panelContextKey(key) ??
+            _scmContextKey(key) ??
+            _quickInputContextKey(key) ??
+            _layoutContextKey(key) ??
+            _editor?.contextKey(key) ??
+            _explorerTree.currentState?.contextKey(key),
+    };
   }
 
-  /// A key of a chord the editor starts ([second] false) or does not bind.
-  void _onEditorChordKey(KeyEvent event, {required bool second}) {
-    if (!second) {
-      _leaveChordMode();
-      _expectAnotherChord(event, _chordCandidates(event), editor: true);
-    } else if (_chord case final chord? when chord.editor) {
-      _resolveChord(chord, event);
+  /// What [event] does after the chords [pending]: a command that is here
+  /// and enabled, among the palette's.
+  KeybindingResolution _resolveKey(
+    KeyEvent event, {
+    List<KeyChord> pending = const [],
+    Map<String, IdeCommand>? commands,
+  }) {
+    final byId = commands ?? _commandsById();
+    return KeybindingService.instance.resolveEvent(
+      event,
+      pending: pending,
+      context: keyContext,
+      canRun: (item) => byId[item.command]?.enabled ?? false,
+    );
+  }
+
+  Map<String, IdeCommand> _commandsById() {
+    final byId = <String, IdeCommand>{};
+    for (final command in [
+      ..._allCommands(),
+      ..._listCommands(),
+      ..._explorerCommands(),
+      ..._quickInputCommands(),
+      ..._keyboardCommands(),
+      ..._searchKeyboardCommands(),
+      ..._terminalKeyboardCommands(),
+      ..._panelKeyboardCommands(),
+      ..._scmKeyboardCommands(),
+    ]) {
+      byId.putIfAbsent(command.id, () => command);
     }
+    return byId;
+  }
+
+  /// The explorer's commands (see [IdeExplorerState.contextKey]): for its
+  /// keybindings, not the palette, as upstream's.
+  List<IdeCommand> _explorerCommands() {
+    final explorer = _explorerTree.currentState;
+    if (explorer == null) return const [];
+    final selected = explorer.contextKey('explorerResourceIsRoot') == false;
+    IdeCommand command(
+      String id,
+      VoidCallback run, {
+      bool enabled = true,
+      void Function(Object? args)? runWithArgs,
+    }) => IdeCommand(
+      id: id,
+      label: commandCatalog[id]?.title ?? id,
+      run: run,
+      runWithArgs: runWithArgs,
+      enabled: enabled,
+    );
+    // `list.focusDown` / `list.focusUp`'s argument: how many rows.
+    int rows(Object? args) => args is num ? args.toInt() : 1;
+    return [
+      command(
+        'explorer.newFile',
+        () => unawaited(explorer.startCreate(directory: false)),
+      ),
+      command(
+        'explorer.newFolder',
+        () => unawaited(explorer.startCreate(directory: true)),
+      ),
+      command('renameFile', explorer.renameSelected, enabled: selected),
+      command(
+        'moveFileToTrash',
+        () => unawaited(explorer.deleteSelected()),
+        enabled: selected,
+      ),
+      command(
+        'deleteFile',
+        () => unawaited(explorer.deleteSelected(permanently: true)),
+        enabled: selected,
+      ),
+      command('filesExplorer.copy', explorer.copySelected, enabled: selected),
+      command(
+        'filesExplorer.cut',
+        () => explorer.copySelected(cut: true),
+        enabled: selected,
+      ),
+      command(
+        'filesExplorer.paste',
+        () => unawaited(explorer.pasteSelected()),
+        enabled: explorer.canPaste,
+      ),
+      command(
+        'filesExplorer.openFilePreserveFocus',
+        explorer.previewSelected,
+        enabled: selected,
+      ),
+      command(
+        'list.focusDown',
+        () => explorer.focusNext(1),
+        runWithArgs: (args) => explorer.focusNext(rows(args)),
+      ),
+      command(
+        'list.focusUp',
+        () => explorer.focusNext(-1),
+        runWithArgs: (args) => explorer.focusNext(-rows(args)),
+      ),
+      command('list.focusPageDown', () => explorer.focusPage(1)),
+      command('list.focusPageUp', () => explorer.focusPage(-1)),
+      command('list.focusFirst', explorer.focusFirst),
+      command('list.focusLast', explorer.focusLast),
+      command('list.expand', explorer.expandSelected),
+      command('list.collapse', explorer.collapseSelected),
+      command('list.select', explorer.openSelected),
+      command('list.toggleExpand', explorer.toggleSelected),
+      command('list.collapseAll', _explorer.collapseAll),
+    ];
+  }
+
+  /// For the editor: the command a key runs, [editorChordPrefix] when it
+  /// starts a sequence, null when no keybinding has it.
+  String? _resolveEditorKey(KeyEvent event) => switch (_resolveKey(event)) {
+    KeybindingFound(:final command) => command,
+    MoreChordsNeeded() => editorChordPrefix,
+    NoKeybinding() => null,
+  };
+
+  /// A key the focus let through: the command its keybinding runs, or the
+  /// first chord of a two-chord keybinding, which starts chord mode
+  /// (`ResultKind.KbFound`, `ResultKind.MoreChordsNeeded`).
+  KeyEventResult _onWorkbenchKey(FocusNode node, KeyEvent event) {
+    _offeredKey = event;
+    // An input method composing text has its keys (Enter picks a
+    // candidate); upstream's keyboard events read as `KeyCode.Unknown`.
+    if (_chord != null || event is KeyUpEvent || ChatKeys.isComposing) {
+      return KeyEventResult.ignored;
+    }
+    final commands = _commandsById();
+    switch (_resolveKey(event, commands: commands)) {
+      case KeybindingFound(:final item):
+        commands[item.command]!.invoke(item.entry.args);
+        return KeyEventResult.handled;
+      case MoreChordsNeeded(:final chords):
+        _expectAnotherChord(chords);
+        return KeyEventResult.handled;
+      case NoKeybinding():
+        return KeyEventResult.ignored;
+    }
+  }
+
+  /// The last key [_onWorkbenchKey] was offered, which [_onLateKey]
+  /// leaves.
+  KeyEvent? _offeredKey;
+
+  /// A key that did not reach [_onWorkbenchKey]: one a widget in the
+  /// workbench stopped without handling it (the chat's input keeps its
+  /// rich text editor's shortcuts from it, `skipRemainingHandlers`), or one
+  /// pressed with the focus on none of the workbench's widgets but on the
+  /// window (the focused one went). Upstream's keybinding service listens
+  /// on the window, and hears both (`_registerKeyListeners`); a dialog
+  /// over the workbench, a menu in the overlay, or an input method
+  /// composing text keeps its keys.
+  KeyEventResult _onLateKey(KeyEvent event) {
+    if (identical(event, _offeredKey) || !widget.visible || !mounted) {
+      return KeyEventResult.ignored;
+    }
+    final focus = FocusManager.instance.primaryFocus;
+    if (focus == null ||
+        !(focus.ancestors.contains(_workbenchFocus) ||
+            _workbenchFocus.ancestors.contains(focus)) ||
+        !(ModalRoute.isCurrentOf(context) ?? true)) {
+      return KeyEventResult.ignored;
+    }
+    return _onWorkbenchKey(_workbenchFocus, event);
   }
 
   /// The key after a first chord, before the focus sees it: upstream's
@@ -1210,45 +1661,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         _modifierKeys.contains(event.logicalKey)) {
       return KeyEventResult.ignored;
     }
-    if (chord.editor) {
-      // The editor takes it, handing it to [_onEditorChordKey] unless it
-      // binds it; the chord ends either way.
-      _setStatusMessage(null);
-      scheduleMicrotask(() {
-        if (identical(_chord, chord)) _leaveChordMode();
-      });
-      return KeyEventResult.ignored;
-    }
     _resolveChord(chord, event);
     return KeyEventResult.handled;
   }
 
-  List<({IdeKeybinding binding, VoidCallback run})> _chordCandidates(
-    KeyEvent event,
-  ) {
-    final mac = ideUsesMacKeys;
-    return [
-      for (final chord in ideChordBindings(_allCommands()))
-        if (chord.binding
-            .activator(mac: mac)
-            .accepts(event, HardwareKeyboard.instance))
-          chord,
-    ];
-  }
-
-  void _expectAnotherChord(
-    KeyEvent event,
-    List<({IdeKeybinding binding, VoidCallback run})> candidates, {
-    required bool editor,
-  }) {
-    final label = IdeKeybinding.pressed(event).label();
-    final message = '($label) was pressed. Waiting for second key of chord...';
-    _chord = (
-      label: label,
-      candidates: candidates,
-      message: message,
-      editor: editor,
-    );
+  void _expectAnotherChord(List<KeyChord> chords) {
+    final platform = KeybindingService.instance.platform;
+    final label = chords.map((chord) => chord.label(platform)).join(' ');
+    final message = context.l10n.wbChordWaiting(label);
+    _chord = (label: label, chords: chords, message: message);
     _setStatusMessage(message);
     // `_scheduleLeaveChordMode`: out after 5 seconds, or once the window
     // is not the active one.
@@ -1265,18 +1686,20 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Runs the keybinding [event] completes, or says there is none.
   void _resolveChord(_Chord chord, KeyEvent event) {
     _leaveChordMode();
-    final mac = ideUsesMacKeys;
-    for (final candidate in chord.candidates) {
-      if (candidate.binding.second!
-          .activator(mac: mac)
-          .accepts(event, HardwareKeyboard.instance)) {
-        candidate.run();
-        return;
-      }
+    final commands = _commandsById();
+    final result = _resolveKey(
+      event,
+      pending: chord.chords,
+      commands: commands,
+    );
+    if (result case KeybindingFound(:final item)) {
+      commands[item.command]!.invoke(item.entry.args);
+      return;
     }
-    final keypress = IdeKeybinding.pressed(event).label();
+    final platform = KeybindingService.instance.platform;
+    final keypress = KeyChord.fromEvent(event)?.label(platform) ?? '';
     _setStatusMessage(
-      'The key combination (${chord.label}, $keypress) is not a command.',
+      context.l10n.wbChordNotCommand(chord.label, keypress),
       hideAfter: const Duration(seconds: 10),
     );
   }
@@ -1312,49 +1735,30 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       IdeCommand(
         id: 'workbench.action.showCommands',
         label: 'Show All Commands',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyP, primary: true, shift: true),
-          IdeKeybinding(LogicalKeyboardKey.f1),
-        ],
         run: () => _showQuickInput('>'),
       ),
+      // A keybinding's `args` is the text to open with (upstream's
+      // `prefix`: `"args": ">"` opens the commands).
       IdeCommand(
         id: 'workbench.action.quickOpen',
         label: 'Go to File…',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyP, primary: true),
-        ],
         run: () => _showQuickInput(''),
+        runWithArgs: (args) => _showQuickInput(args is String ? args : ''),
       ),
       IdeCommand(
         id: 'workbench.action.gotoLine',
         label: 'Go to Line/Column…',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyG, control: true),
-        ],
         run: () => _showQuickInput(':'),
       ),
       IdeCommand(
         id: 'actions.find',
         label: 'Find',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyF, primary: true),
-        ],
         enabled: active != null,
         run: () => _editor?.openFind(),
       ),
       IdeCommand(
         id: 'editor.action.startFindReplaceAction',
         label: 'Replace',
-        keybindings: const [
-          IdeKeybinding(
-            LogicalKeyboardKey.keyF,
-            primary: true,
-            alt: true,
-            mac: true,
-          ),
-          IdeKeybinding(LogicalKeyboardKey.keyH, primary: true),
-        ],
         enabled: active != null,
         run: () => _editor?.openReplace(),
       ),
@@ -1362,9 +1766,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.files.save',
         category: 'File',
         label: 'Save',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyS, primary: true),
-        ],
         enabled: active != null,
         run: () => unawaited(_editor?.save()),
       ),
@@ -1372,9 +1773,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.files.saveAll',
         category: 'File',
         label: 'Save All',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyS, primary: true, alt: true),
-        ],
         enabled: workspace.documents.any((doc) => doc.dirty),
         run: () => unawaited(_saveAll()),
       ),
@@ -1382,10 +1780,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.closeActiveEditor',
         category: 'View',
         label: 'Close Editor',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyW, primary: true),
-          IdeKeybinding(LogicalKeyboardKey.f4, control: true, mac: false),
-        ],
         enabled: active != null,
         run: _closeActive,
       ),
@@ -1426,9 +1820,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.reopenClosedEditor',
         category: 'View',
         label: 'Reopen Closed Editor',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyT, primary: true, shift: true),
-        ],
         enabled: _closedEditors.isNotEmpty,
         run: _reopenClosed,
       ),
@@ -1436,17 +1827,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.nextEditor',
         category: 'View',
         label: 'Open Next Editor',
-        keybindings: const [
-          IdeKeybinding(
-            LogicalKeyboardKey.bracketRight,
-            primary: true,
-            shift: true,
-            mac: true,
-          ),
-          IdeKeybinding.character('}', primary: true, mac: true),
-          IdeKeybinding(LogicalKeyboardKey.pageDown, control: true, mac: false),
-          IdeKeybinding(LogicalKeyboardKey.tab, control: true),
-        ],
         enabled: workspace.documents.length > 1,
         run: () => _cycleEditor(1),
       ),
@@ -1454,37 +1834,35 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.previousEditor',
         category: 'View',
         label: 'Open Previous Editor',
-        keybindings: const [
-          IdeKeybinding(
-            LogicalKeyboardKey.bracketLeft,
-            primary: true,
-            shift: true,
-            mac: true,
-          ),
-          IdeKeybinding.character('{', primary: true, mac: true),
-          IdeKeybinding(LogicalKeyboardKey.pageUp, control: true, mac: false),
-          IdeKeybinding(LogicalKeyboardKey.tab, control: true, shift: true),
-        ],
         enabled: workspace.documents.length > 1,
         run: () => _cycleEditor(-1),
+      ),
+      // ⌃9 / Alt+9 opens the last editor when there are fewer.
+      for (var i = 1; i <= 9; i++)
+        IdeCommand(
+          id: 'workbench.action.openEditorAtIndex$i',
+          category: 'View',
+          label: 'Open Editor at Index $i',
+          enabled: hasEditors,
+          run: () => _openEditorAt(i == 9 ? -1 : i - 1),
+        ),
+      IdeCommand(
+        id: 'workbench.action.lastEditorInGroup',
+        category: 'View',
+        label: 'Open Last Editor in Group',
+        enabled: hasEditors,
+        run: () => _openEditorAt(-1),
       ),
       IdeCommand(
         id: 'workbench.action.toggleSidebarVisibility',
         category: 'View',
         label: 'Toggle Primary Side Bar Visibility',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyB, primary: true),
-        ],
         run: _toggleSidebar,
       ),
       IdeCommand(
         id: 'workbench.action.toggleAuxiliaryBar',
         category: 'View',
         label: 'Toggle Chat',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyJ, primary: true),
-          IdeKeybinding(LogicalKeyboardKey.keyB, primary: true, alt: true),
-        ],
         run: _toggleChat,
       ),
       // VS Code's ⌘J toggles the panel; here it is the chat's.
@@ -1498,9 +1876,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.terminal.toggleTerminal',
         category: 'Terminal',
         label: 'Toggle Terminal',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.backquote, control: true),
-        ],
         enabled: terminals != null,
         run: _toggleTerminal,
       ),
@@ -1508,7 +1883,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.terminal.new',
         category: 'Terminal',
         label: 'Create New Terminal',
-        keybindings: const [TerminalKeys.create],
         enabled: terminals != null,
         run: _newTerminal,
       ),
@@ -1532,7 +1906,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.terminal.focusNext',
         category: 'Terminal',
         label: 'Focus Next Terminal Group',
-        keybindingLabel: terminalKeyLabel(TerminalKeys.focusNext),
         enabled: terminal != null,
         run: () => _cycleTerminal(true),
       ),
@@ -1540,7 +1913,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.terminal.focusPrevious',
         category: 'Terminal',
         label: 'Focus Previous Terminal Group',
-        keybindingLabel: terminalKeyLabel(TerminalKeys.focusPrevious),
         enabled: terminal != null,
         run: () => _cycleTerminal(false),
       ),
@@ -1555,36 +1927,24 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.view.explorer',
         category: 'View',
         label: 'Show Explorer',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyE, primary: true, shift: true),
-        ],
         run: () => _showView(IdeSideView.explorer),
       ),
       IdeCommand(
         id: 'workbench.view.search',
         category: 'View',
         label: 'Show Search',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyF, primary: true, shift: true),
-        ],
         run: () => _showView(IdeSideView.search),
       ),
       IdeCommand(
         id: 'workbench.view.scm',
         category: 'View',
         label: 'Show Source Control',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyG, control: true, shift: true),
-        ],
         run: () => _showView(IdeSideView.sourceControl),
       ),
       IdeCommand(
         id: 'workbench.view.extensions',
         category: 'View',
         label: 'Show Extensions',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyX, primary: true, shift: true),
-        ],
         run: () => _showView(IdeSideView.extensions),
       ),
       IdeCommand(
@@ -1610,20 +1970,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'copyFilePath',
         category: 'File',
         label: 'Copy Path of Active File',
-        keybindings: const [
-          IdeKeybinding(
-            LogicalKeyboardKey.keyC,
-            primary: true,
-            alt: true,
-            mac: true,
-          ),
-          IdeKeybinding(
-            LogicalKeyboardKey.keyC,
-            shift: true,
-            alt: true,
-            mac: false,
-          ),
-        ],
         enabled: active != null,
         run: () => _tabAction(active!, IdeTabAction.copyPath),
       ),
@@ -1631,24 +1977,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'copyRelativeFilePath',
         category: 'File',
         label: 'Copy Relative Path of Active File',
-        keybindings: const [
-          IdeKeybinding(
-            LogicalKeyboardKey.keyC,
-            primary: true,
-            alt: true,
-            shift: true,
-            mac: true,
-          ),
-        ],
         enabled: active != null,
         run: () => _tabAction(active!, IdeTabAction.copyRelativePath),
       ),
       IdeCommand(
         id: 'workbench.action.gotoSymbol',
         label: 'Go to Symbol in Editor...',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyO, primary: true, shift: true),
-        ],
         enabled: active != null,
         run: () => _showQuickInput('@'),
       ),
@@ -1656,10 +1990,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.actions.view.problems',
         category: 'View',
         label: 'Toggle Problems',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.keyM, primary: true, shift: true),
-        ],
-        run: () => _togglePanel(IdePanelTab.problems),
+        run: _toggleProblems,
       ),
       IdeCommand(
         id: 'outline.focus',
@@ -1673,14 +2004,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       IdeCommand(
         id: 'editor.action.marker.nextInFiles',
         label: 'Go to Next Problem in Files (Error, Warning, Info)',
-        keybindings: const [IdeKeybinding(LogicalKeyboardKey.f8)],
         enabled: _languages != null,
         run: () => _gotoProblem(next: true),
       ),
       IdeCommand(
         id: 'editor.action.marker.prevInFiles',
         label: 'Go to Previous Problem in Files (Error, Warning, Info)',
-        keybindings: const [IdeKeybinding(LogicalKeyboardKey.f8, shift: true)],
         enabled: _languages != null,
         run: () => _gotoProblem(next: false),
       ),
@@ -1688,10 +2017,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.navigateBack',
         category: 'Go',
         label: 'Go Back',
-        keybindings: const [
-          IdeKeybinding(LogicalKeyboardKey.minus, control: true, mac: true),
-          IdeKeybinding(LogicalKeyboardKey.arrowLeft, alt: true, mac: false),
-        ],
         enabled: _backStack.isNotEmpty,
         run: () => _navigate(back: true),
       ),
@@ -1699,15 +2024,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.navigateForward',
         category: 'Go',
         label: 'Go Forward',
-        keybindings: const [
-          IdeKeybinding(
-            LogicalKeyboardKey.minus,
-            control: true,
-            shift: true,
-            mac: true,
-          ),
-          IdeKeybinding(LogicalKeyboardKey.arrowRight, alt: true, mac: false),
-        ],
         enabled: _forwardStack.isNotEmpty,
         run: () => _navigate(back: false),
       ),
@@ -1715,7 +2031,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: ideSelectColorThemeCommandId,
         category: 'Preferences',
         label: 'Color Theme',
-        keybindings: const [ideSelectColorThemeKeybinding],
         enabled: widget.colorThemes != null,
         run: _selectColorTheme,
       ),
@@ -1747,6 +2062,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The workbench's commands, then the editor's, then [IdeWorkbench.commands].
   List<IdeCommand> _allCommands() => [
     ..._workbenchCommands(),
+    ..._editorCommands(),
+    ..._layoutCommands(),
+    ..._searchCommands(),
+    ..._terminalCommands(),
+    ..._panelCommands(),
+    ..._scmCommands(),
     ...?_editor?.editorCommands,
     ...widget.commands,
   ];
@@ -1755,20 +2076,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   @visibleForTesting
   List<IdeCommand> get commands => _allCommands();
 
-  Map<ShortcutActivator, VoidCallback> _shortcuts(List<IdeCommand> commands) {
-    final mac = ideUsesMacKeys;
-    return {
-      ...ideShortcutBindings(commands),
-      // Open Editor at Index: ⌃1…⌃9 on macOS, Alt+1…9 elsewhere (VS Code).
-      for (var i = 1; i <= 9; i++)
-        SingleActivator(
-          LogicalKeyboardKey(LogicalKeyboardKey.digit1.keyId + i - 1),
-          control: mac,
-          alt: !mac,
-        ): () =>
-            _openEditorAt(i == 9 ? -1 : i - 1),
-    };
-  }
+  /// Those and the keybinding-only ones (the lists', the quick input's…),
+  /// by id, for tests.
+  @visibleForTesting
+  Map<String, IdeCommand> get commandsById => _commandsById();
 
   // --- Widgets -------------------------------------------------------------
 
@@ -1794,13 +2105,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       );
     }
 
-    String shortcut(LogicalKeyboardKey key, {bool control = false}) {
-      final binding = control
-          ? IdeKeybinding(key, control: true, shift: true)
-          : IdeKeybinding(key, primary: true, shift: true);
-      return ' (${binding.label()})';
-    }
+    String shortcut(String command) =>
+        switch (KeybindingService.instance.labelFor(command)) {
+          final label? => ' ($label)',
+          null => '',
+        };
 
+    final l10n = context.l10n;
     const radius = Radius.circular(IdeModernUI.radius);
     // Half the lane each side, less the border already there.
     const inset = IdeModernUI.activityLane / 2 - 1;
@@ -1808,24 +2119,24 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       item(
         IdeSideView.explorer,
         Codicons.files,
-        'Explorer${shortcut(LogicalKeyboardKey.keyE)}',
+        '${l10n.wbExplorer}${shortcut('workbench.view.explorer')}',
       ),
       item(
         IdeSideView.search,
         Codicons.search,
-        'Search files${shortcut(LogicalKeyboardKey.keyF)}',
+        '${l10n.wbSearchFiles}${shortcut('workbench.action.findInFiles')}',
       ),
       item(
         IdeSideView.sourceControl,
         Codicons.sourceControl,
-        'Source Control${shortcut(LogicalKeyboardKey.keyG, control: true)}'
-        '${_gitCount > 0 ? ' - $_gitCount pending changes' : ''}',
+        '${l10n.scmTitle}${shortcut('workbench.view.scm')}'
+        '${_gitCount > 0 ? ' - ${l10n.wbPendingChanges(_gitCount)}' : ''}',
         badge: _gitCount,
       ),
       item(
         IdeSideView.extensions,
         Codicons.extensions,
-        'Extensions${shortcut(LogicalKeyboardKey.keyX)}',
+        '${l10n.extTitle}${shortcut('workbench.view.extensions')}',
       ),
     ];
     return SizedBox(
@@ -1862,12 +2173,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       right: BorderSide(color: IdeModernUI.border),
       bottom: BorderSide(color: IdeModernUI.border),
     ),
-    child: _sidePanel(),
+    child: Focus(focusNode: _sidebarFocus, child: _sidePanel()),
   );
 
   Widget _sidePanel() => switch (_view) {
     IdeSideView.explorer => _explorerView(),
     IdeSideView.search => IdeSearchView(
+      key: _searchKey,
       session: _search,
       workspace: widget.workspace,
       onOpen: (path, range, {required focusEditor}) =>
@@ -1875,6 +2187,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       onError: _report,
     ),
     IdeSideView.sourceControl => IdeScmView(
+      key: _scmKey,
       workspace: widget.workspace,
       session: _scm,
       notifications: _notifications,
@@ -1935,7 +2248,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const IdeViewTitle('Explorer'),
+          IdeViewTitle(context.l10n.wbExplorer),
           Expanded(
             child: IdePaneContainer(
               expanded: _explorerPanes,
@@ -1950,7 +2263,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   actions: [
                     IdePaneAction(
                       icon: Codicons.newFile,
-                      tooltip: 'New File...',
+                      tooltip: context.l10n.explorerNewFile,
                       onPressed: () => unawaited(
                         _explorerTree.currentState?.startCreate(
                           directory: false,
@@ -1959,7 +2272,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     ),
                     IdePaneAction(
                       icon: Codicons.newFolder,
-                      tooltip: 'New Folder...',
+                      tooltip: context.l10n.explorerNewFolder,
                       onPressed: () => unawaited(
                         _explorerTree.currentState?.startCreate(
                           directory: true,
@@ -1968,12 +2281,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     ),
                     IdePaneAction(
                       icon: Codicons.refresh,
-                      tooltip: 'Refresh Explorer',
+                      tooltip: context.l10n.cmdRefreshExplorer,
                       onPressed: () => unawaited(_explorer.refresh()),
                     ),
                     IdePaneAction(
                       icon: Codicons.collapseAll,
-                      tooltip: 'Collapse Folders in Explorer',
+                      tooltip: context.l10n.cmdCollapseExplorerFolders,
                       onPressed: _explorer.collapseAll,
                     ),
                   ],
@@ -1981,6 +2294,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     key: _explorerTree,
                     controller: _explorer,
                     focusNode: _explorerFocus,
+                    isBound: (event) => _resolveEditorKey(event) != null,
                     git: workspace.git,
                     onOpen: (path, focusEditor) =>
                         unawaited(_open(path, focusEditor: focusEditor)),
@@ -2005,7 +2319,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 ),
                 IdePane(
                   id: 'outline',
-                  title: 'Outline',
+                  title: context.l10n.wbOutline,
                   body: IdeOutlineView(
                     symbols: _symbols,
                     caret: workspace.active == null ? null : _caretLsp,
@@ -2015,7 +2329,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 ),
                 IdePane(
                   id: 'timeline',
-                  title: 'Timeline',
+                  title: context.l10n.wbTimeline,
                   description: timelinePath == null
                       ? null
                       : p.basename(timelinePath),
@@ -2025,14 +2339,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                           ? Codicons.pin
                           : Codicons.pinned,
                       tooltip: _timeline.pinned == null
-                          ? 'Pin the Current Timeline'
-                          : 'Unpin the Current Timeline',
+                          ? context.l10n.wbPinTimeline
+                          : context.l10n.wbUnpinTimeline,
                       onPressed: () =>
                           setState(() => _timeline.togglePin(activePath)),
                     ),
                     IdePaneAction(
                       icon: Codicons.refresh,
-                      tooltip: 'Refresh',
+                      tooltip: context.l10n.commonRefresh,
                       onPressed: _timeline.refresh,
                     ),
                   ],
@@ -2114,7 +2428,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         onShowReferences: _showReferences,
                         onShowCommands: () => _showQuickInput('>'),
                         formatOnSave: _formatOnSave,
-                        onChordKey: _onEditorChordKey,
+                        keyResolver: _resolveEditorKey,
                       ),
           ),
         ],
@@ -2123,6 +2437,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   void _positionChanged(IdeEditorPosition selection) {
+    _caretMoved(selection.position);
     if (mounted &&
         (!_caretPosition.equals(selection.position) ||
             _statusColumn != selection.statusColumn ||
@@ -2159,7 +2474,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The chat's card, which keeps its state as it moves to the editor's
   /// place, maximized, and back.
-  Widget _chatCard() => IdeCard(key: _chatKey, child: widget.chat);
+  Widget _chatCard() => IdeCard(
+    key: _chatKey,
+    child: Focus(focusNode: _chatFocus, child: widget.chat),
+  );
   final _chatKey = GlobalKey(debugLabel: 'ide chat');
 
   /// What [IdeLayout.roomForBoth] and [IdeLayout.roomForSides] are to be,
@@ -2324,7 +2642,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final room = height - _sashWidth - (shown ? IdeModernUI.gap : 0);
     final rows = IdeRows.fit(
       room,
-      panel: shown ? _panelHeight ?? IdeRows.defaultPanel(room) : null,
+      panel: !shown
+          ? null
+          : _panelMaximized
+          ? double.infinity
+          : _panelHeight ?? IdeRows.defaultPanel(room),
       minAbove: hidden ? IdeRows.minChat : IdeRows.minEditor,
     );
     final panelVisible = rows.panel > 0;
@@ -2375,7 +2697,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   _panelHeight = null;
                 }),
               ),
-              _panelSlot(rows.panel, commands),
+              _panelSlot(rows.panel),
               if (shown) const SizedBox(height: IdeModernUI.gap),
             ],
           ),
@@ -2419,6 +2741,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (start == null) return;
     final next = start.rows.drag(start.room, dy);
     setState(() {
+      _panelMaximized = false;
       if (next.panel > 0) {
         _panel ??= _lastPanel;
         _panelHeight = next.panel;
@@ -2430,7 +2753,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   /// The panel, kept mounted (and its terminals running) while hidden.
-  Widget _panelSlot(double height, List<IdeCommand> commands) {
+  Widget _panelSlot(double height) {
     final shown = height > 0;
     final laidOut = shown ? height : _panelHeight ?? IdeRows.minPanel;
     return SizedBox(
@@ -2464,19 +2787,18 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     onClose: () => setState(() => _panel = null),
                     onOpen: (location, {select = false}) =>
                         unawaited(_openLocation(location, select: select)),
+                    onOpenFocused: (location) =>
+                        unawaited(_openFocused(location)),
+                    problemsList: _problemsList,
+                    referencesList: _referencesList,
                     textOf: _textOf,
                     terminal: switch (_terminals) {
                       final terminals? => TerminalPanel(
                         terminals: terminals,
                         onNew: _newTerminal,
                         onOpenLink: _openTerminalLink,
-                        skipShell: [
-                          for (final command in commands)
-                            if (terminalCommandsToSkipShell.contains(
-                              command.id,
-                            ))
-                              ...command.keybindings,
-                        ],
+                        shouldSkipShell: _terminalSkipsShell,
+                        resolveKey: _terminalFindKey,
                       ),
                       null => null,
                     },
@@ -2536,10 +2858,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   Widget _titleBar() {
-    final quickOpen = const IdeKeybinding(
-      LogicalKeyboardKey.keyP,
-      primary: true,
-    ).label();
+    final quickOpen =
+        KeybindingService.instance.labelFor('workbench.action.quickOpen') ?? '';
     // A double click on its empty part zooms the window, as the system's
     // title bar does.
     return TitleBarDoubleClick(
@@ -2588,17 +2908,23 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   IdeStatusBar _statusBar() {
     final active = widget.workspace.active;
+    final l10n = context.l10n;
     final left = [
       if (_gitBranch ?? _branch case final branch?)
         IdeStatusBarItem(
           branch,
           icon: Codicons.gitBranch,
-          tooltip: 'Source Control',
+          tooltip: l10n.scmTitle,
           onTap: () => _showView(IdeSideView.sourceControl),
         ),
       IdeStatusBarItem(
-        _lspStatus,
-        tooltip: 'Retry language services',
+        switch (_lspStatus) {
+          'Language services' => l10n.wbLanguageServices,
+          'Monaco editor' => l10n.wbMonacoEditor,
+          'Text editor' => l10n.wbTextEditor,
+          final status => status,
+        },
+        tooltip: l10n.wbRetryLanguageServices,
         onTap: () => unawaited(_editor?.retryLanguageServer()),
       ),
       if (_languages case final languages?) ...[
@@ -2608,9 +2934,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             '\$(error) ${counts.errors} \$(warning) ${counts.warnings}'
             '${counts.infos > 0 ? ' \$(info) ${counts.infos}' : ''}',
             tooltip: counts.errors + counts.warnings + counts.infos == 0
-                ? 'No Problems'
-                : 'Errors: ${counts.errors}, Warnings: ${counts.warnings}'
-                      '${counts.infos > 0 ? ', Infos: ${counts.infos}' : ''}',
+                ? l10n.wbNoProblems
+                : counts.infos > 0
+                ? l10n.wbProblemCountsInfos(
+                    counts.errors,
+                    counts.warnings,
+                    counts.infos,
+                  )
+                : l10n.wbProblemCounts(counts.errors, counts.warnings),
             onTap: () => _togglePanel(IdePanelTab.problems),
           );
         }(),
@@ -2619,11 +2950,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             languages,
             doc.path,
             onInstall: _installServer,
+            l10n: l10n,
           ),
       ],
       if (_statusMessage case final message?) IdeStatusBarItem(message),
     ];
-    final bell = ideNotificationsStatusItem(_notifications);
+    final bell = ideNotificationsStatusItem(_notifications, l10n: l10n);
     if (active == null || active.openError != null) {
       return IdeStatusBar(left: left, right: [bell]);
     }
@@ -2636,20 +2968,28 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       left: left,
       right: [
         IdeStatusBarItem(
-          'Ln ${_caretPosition.lineNumber}, Col $_statusColumn'
-          '${_selectionLength > 0 ? ' ($_selectionLength selected)' : ''}',
-          tooltip: 'Go to Line/Column',
+          l10n.referencesPosition(_caretPosition.lineNumber, _statusColumn) +
+              (_selectionLength > 0
+                  ? ' ${l10n.wbSelectedCount(_selectionLength)}'
+                  : ''),
+          tooltip: l10n.wbGoToLineColumn,
           onTap: () => _showQuickInput(':'),
         ),
         IdeStatusBarItem(
-          _editor?.indentationLabel ?? 'Spaces: 4',
-          tooltip: 'Indentation',
+          _editor?.localizedIndentationLabel(l10n) ?? l10n.wbSpaces(4),
+          tooltip: l10n.wbIndentation,
         ),
-        IdeStatusBarItem(ideEncodingLabel(snapshot.text), tooltip: 'Encoding'),
-        IdeStatusBarItem(_eolLabel, tooltip: 'End of Line Sequence'),
+        IdeStatusBarItem(
+          ideEncodingLabel(snapshot.text),
+          tooltip: l10n.wbEncoding,
+        ),
+        IdeStatusBarItem(
+          _eolLabel == 'Mixed' ? l10n.wbEolMixed : _eolLabel,
+          tooltip: l10n.wbEndOfLine,
+        ),
         IdeStatusBarItem(
           IdeLanguageNames.forPath(active.path),
-          tooltip: 'Language Mode',
+          tooltip: l10n.wbLanguageMode,
         ),
         bell,
       ],
@@ -2662,77 +3002,88 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       listenable: widget.workspace,
       builder: (context, _) {
         final commands = _allCommands();
-        return CallbackShortcuts(
-          bindings: _shortcuts(commands),
-          child: Focus(
-            focusNode: _workbenchFocus,
-            onKeyEvent: _onWorkbenchKey,
-            child: Material(
-              color: IdeModernUI.shell,
-              child: Stack(
-                children: [
-                  Column(
-                    children: [
-                      if (!WindowControls.drawsHeader) _titleBar(),
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) =>
-                              _split(constraints.biggest, commands),
-                        ),
-                      ),
-                      _statusBar(),
-                    ],
-                  ),
-                  // VS Code's toasts and center: 8px from the right, 36px
-                  // from the bottom (`notificationsDialogs.css`).
-                  Positioned(
-                    right: 8,
-                    bottom: 36,
-                    top: CursorMetrics.titleBarHeight,
-                    left: 8,
-                    child: Align(
-                      alignment: Alignment.bottomRight,
-                      child: IdeNotificationsCenter(
-                        notifications: _notifications,
+        final focus = Focus(
+          focusNode: _workbenchFocus,
+          onKeyEvent: _onWorkbenchKey,
+          child: Material(
+            color: IdeModernUI.shell,
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    if (!WindowControls.drawsHeader) _titleBar(),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) =>
+                            _split(constraints.biggest, commands),
                       ),
                     ),
+                    _statusBar(),
+                  ],
+                ),
+                // VS Code's toasts and center: 8px from the right, 36px
+                // from the bottom (`notificationsDialogs.css`).
+                Positioned(
+                  right: 8,
+                  bottom: 36,
+                  top: CursorMetrics.titleBarHeight,
+                  left: 8,
+                  child: Align(
+                    alignment: Alignment.bottomRight,
+                    child: IdeNotificationsCenter(
+                      notifications: _notifications,
+                    ),
                   ),
-                  Positioned(
-                    right: 8,
-                    bottom: 36,
-                    left: 8,
-                    child: Align(
-                      alignment: Alignment.bottomRight,
-                      child: IdeNotificationToasts(
-                        notifications: _notifications,
+                ),
+                Positioned(
+                  right: 8,
+                  bottom: 36,
+                  left: 8,
+                  child: Align(
+                    alignment: Alignment.bottomRight,
+                    child: IdeNotificationToasts(notifications: _notifications),
+                  ),
+                ),
+                if (_quickPick != null || _quickInput != null)
+                  Positioned.fill(
+                    top: WindowControls.drawsHeader
+                        ? 0
+                        : CursorMetrics.titleBarHeight,
+                    child: switch (_quickPick) {
+                      final pick? => IdeQuickInput.pick(
+                        key: _quickInputKey,
+                        pick: pick,
+                        onClose: _closeQuickInput,
                       ),
-                    ),
+                      null => IdeQuickInput(
+                        key: _quickInputKey,
+                        initialText: _quickInput!,
+                        itemsFor: _quickItems,
+                        placeholderFor: _quickPlaceholder,
+                        onClose: _closeQuickInput,
+                        refresh: _quickRefresh,
+                        itemActivation: _quickActivation,
+                        quickNavigate: _quickNavigateChords,
+                        hideInput: _quickHideInput,
+                      ),
+                    },
                   ),
-                  if (_quickPick != null || _quickInput != null)
-                    Positioned.fill(
-                      top: WindowControls.drawsHeader
-                          ? 0
-                          : CursorMetrics.titleBarHeight,
-                      child: switch (_quickPick) {
-                        final pick? => IdeQuickInput.pick(
-                          key: _quickInputKey,
-                          pick: pick,
-                          onClose: _closeQuickInput,
-                        ),
-                        null => IdeQuickInput(
-                          key: _quickInputKey,
-                          initialText: _quickInput!,
-                          itemsFor: _quickItems,
-                          placeholderFor: _quickPlaceholder,
-                          onClose: _closeQuickInput,
-                          refresh: _quickRefresh,
-                        ),
-                      },
-                    ),
-                ],
-              ),
+              ],
             ),
           ),
+        );
+        // The mouse's back and forward buttons go back and forward, as
+        // upstream's `registerMouseNavigationListener` has them.
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (event) {
+            if (event.buttons & kBackMouseButton != 0) {
+              _navigate(back: true);
+            } else if (event.buttons & kForwardMouseButton != 0) {
+              _navigate(back: false);
+            }
+          },
+          child: focus,
         );
       },
     );

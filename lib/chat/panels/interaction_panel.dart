@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../kernel/kernel_types.dart';
+import '../../keybindings/chat_keybindings.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
+import '../chat_keys.dart';
 import '../chat_models.dart';
 import '../widgets/hover_builder.dart';
 import '../widgets/markdown_view.dart';
@@ -12,7 +15,8 @@ import 'panel_card.dart';
 /// The feedback area for what an agent waits on the user for: questions,
 /// leave to use a tool, a plan to approve. Each is a series of steps of
 /// options, driven alike: 1-9 pick, ↑/↓ move, Space toggles, Enter goes on,
-/// Esc dismisses. An option may take words of the user's own.
+/// Esc dismisses (keybindings but the digits: see [ChatCommandIds]). An
+/// option may take words of the user's own.
 class InteractionPanel extends StatefulWidget {
   const InteractionPanel({
     super.key,
@@ -56,10 +60,13 @@ class _Step {
   final Widget? detail;
 }
 
-class _InteractionPanelState extends State<InteractionPanel> {
+class _InteractionPanelState extends State<InteractionPanel>
+    with ChatKeyTarget {
   final FocusNode _focusNode = FocusNode(debugLabel: 'Interaction');
   final FocusNode _textFocus = FocusNode(debugLabel: 'Interaction text');
-  late final List<_Step> _steps = _stepsFor(widget.request);
+
+  /// In the display language: made again when it changes.
+  late List<_Step> _steps;
   late final List<Set<int>> _picks = [for (final _ in _steps) <int>{}];
   late final List<TextEditingController> _texts = [
     for (final _ in _steps) TextEditingController(),
@@ -79,6 +86,12 @@ class _InteractionPanelState extends State<InteractionPanel> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _steps = _stepsFor(widget.request, context.l10n);
+  }
+
+  @override
   void dispose() {
     _focusNode.dispose();
     _textFocus.dispose();
@@ -90,7 +103,10 @@ class _InteractionPanelState extends State<InteractionPanel> {
 
   // --- Steps, by request ------------------------------------------------------------
 
-  static List<_Step> _stepsFor(InteractionRequest request) => switch (request) {
+  static List<_Step> _stepsFor(
+    InteractionRequest request,
+    AppLocalizations l10n,
+  ) => switch (request) {
     QuestionRequest(:final questions) => [
       for (final question in questions)
         _Step(
@@ -105,7 +121,10 @@ class _InteractionPanelState extends State<InteractionPanel> {
                 preview: option.preview,
               ),
             if (question.allowOther)
-              const _Row('Other', textHint: 'Type your answer'),
+              _Row(
+                l10n.interactionOther,
+                textHint: l10n.interactionTypeYourAnswer,
+              ),
           ],
         ),
     ],
@@ -114,9 +133,9 @@ class _InteractionPanelState extends State<InteractionPanel> {
         prompt: reason ?? '',
         detail: _ApprovalPreview(preview),
         rows: [
-          const _Row('Allow once'),
+          _Row(l10n.interactionAllowOnce),
           if (alwaysAllowLabel != null) _Row(alwaysAllowLabel),
-          const _Row('Deny', textHint: 'Tell the agent what to do instead'),
+          _Row(l10n.interactionDeny, textHint: l10n.interactionDenyHint),
         ],
       ),
     ],
@@ -126,7 +145,10 @@ class _InteractionPanelState extends State<InteractionPanel> {
         detail: _PlanPreview(plan),
         rows: [
           _Row(approveLabel),
-          const _Row('No, keep planning', textHint: 'What should change?'),
+          _Row(
+            l10n.interactionKeepPlanningOption,
+            textHint: l10n.interactionWhatShouldChange,
+          ),
         ],
       ),
     ],
@@ -207,34 +229,54 @@ class _InteractionPanelState extends State<InteractionPanel> {
 
   void _dismiss() => widget.onAnswer(_answer(dismissed: true));
 
+  void _moveHighlight(int step) {
+    final count = _current.rows.length;
+    setState(() => _highlighted = (_highlighted + step + count) % count);
+  }
+
+  /// Enter: the highlighted option if none is picked, then on.
+  void _continue() {
+    if (_picks[_step].isEmpty) {
+      _pick(_highlighted);
+      if (_current.multiple) _advance();
+    } else {
+      _advance();
+    }
+  }
+
+  @override
+  Object? chatContextKey(String key) => switch (key) {
+    // The options, not the words of an option (its text field).
+    ChatContextKeys.inInteraction => _focusNode.hasPrimaryFocus,
+    _ => null,
+  };
+
+  @override
+  Map<String, VoidCallback> get chatCommands => {
+    ChatCommandIds.interactionFocusNext: () => _moveHighlight(1),
+    ChatCommandIds.interactionFocusPrevious: () => _moveHighlight(-1),
+    ChatCommandIds.interactionToggle: () => _pick(_highlighted),
+    ChatCommandIds.interactionAccept: _continue,
+    ChatCommandIds.interactionDismiss: _dismiss,
+  };
+
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
-    final key = event.logicalKey;
-    final count = _current.rows.length;
+    if (ChatKeys.isHandled(event)) return KeyEventResult.handled;
+    // 1-9 pick, on the options (the text field types them).
+    final keyboard = HardwareKeyboard.instance;
     final digit = int.tryParse(event.character ?? '');
-    if (digit != null && digit >= 1 && digit <= count) {
+    if (_focusNode.hasPrimaryFocus &&
+        digit != null &&
+        digit >= 1 &&
+        digit <= _current.rows.length &&
+        !keyboard.isControlPressed &&
+        !keyboard.isMetaPressed &&
+        !keyboard.isAltPressed) {
       _pick(digit - 1);
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.arrowDown) {
-      setState(() => _highlighted = (_highlighted + 1) % count);
-    } else if (key == LogicalKeyboardKey.arrowUp) {
-      setState(() => _highlighted = (_highlighted - 1 + count) % count);
-    } else if (key == LogicalKeyboardKey.space) {
-      _pick(_highlighted);
-    } else if (key == LogicalKeyboardKey.enter) {
-      if (_picks[_step].isEmpty) {
-        _pick(_highlighted);
-        if (_current.multiple) _advance();
-      } else {
-        _advance();
-      }
-    } else if (key == LogicalKeyboardKey.escape) {
-      _dismiss();
-    } else {
-      return KeyEventResult.ignored;
-    }
-    return KeyEventResult.handled;
+    return ChatKeys.dispatch(event) ?? KeyEventResult.ignored;
   }
 
   // --- Building -----------------------------------------------------------------------
@@ -304,7 +346,7 @@ class _InteractionPanelState extends State<InteractionPanel> {
               if (total > 1) ...[
                 const SizedBox(width: 8),
                 Text(
-                  '${_step + 1} / $total',
+                  context.l10n.interactionStepOf(_step + 1, total),
                   style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
                 ),
               ],
@@ -376,7 +418,7 @@ class _InteractionPanelState extends State<InteractionPanel> {
                   children: [
                     Expanded(
                       child: Text(
-                        '1-9 选择 · ↵ 继续 · esc 跳过',
+                        context.l10n.interactionKeysHint,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -388,15 +430,18 @@ class _InteractionPanelState extends State<InteractionPanel> {
                     const SizedBox(width: 8),
                     PanelButton(
                       label: switch (widget.request) {
-                        QuestionRequest() => 'Skip',
-                        ApprovalRequest() => 'Deny',
-                        PlanReviewRequest() => 'Keep planning',
+                        QuestionRequest() => context.l10n.interactionSkip,
+                        ApprovalRequest() => context.l10n.interactionDeny,
+                        PlanReviewRequest() =>
+                          context.l10n.interactionKeepPlanning,
                       },
                       onTap: _dismiss,
                     ),
                     const SizedBox(width: 6),
                     PanelButton(
-                      label: _isLast ? 'Submit' : 'Next',
+                      label: _isLast
+                          ? context.l10n.interactionSubmit
+                          : context.l10n.interactionNext,
                       primary: true,
                       onTap: _picks[_step].isEmpty ? null : _advance,
                     ),
@@ -723,7 +768,7 @@ class _ApprovalPreview extends StatelessWidget {
                   ),
                 if (lines.length > 80)
                   Text(
-                    '… ${lines.length - 80} more lines',
+                    context.l10n.interactionMoreLines(lines.length - 80),
                     style: _mono.copyWith(color: CursorColors.textFaint),
                   ),
               ],

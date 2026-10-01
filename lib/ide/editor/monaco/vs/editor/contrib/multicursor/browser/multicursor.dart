@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See ../../../../../LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 // Subset of VS Code src/vs/editor/contrib/multicursor/browser/multicursor.ts
-// (MultiCursorSession: addSelectionToNextFindMatch / selectAll) at
+// (MultiCursorSession: addSelectionToNextFindMatch / selectAll;
+// InsertCursorAtEndOfEachLineSelected) at
 // 6a598d4a13031703d483d103c1d934a36ad27971.
 // Deviations: there is no find widget/state; a session that starts from a
 // non-empty selection searches case-insensitively without whole-word, like
@@ -119,3 +120,25 @@ class MultiCursorSession {
     );
   }
 }
+
+/// editor.action.insertCursorAtEndOfEachLineSelected (upstream
+/// `InsertCursorAtEndOfEachLineSelected.getCursorsForSelection`): a cursor
+/// at the end of every line each non-empty selection spans, the last line's
+/// at the selection's end unless it ends at column 1.
+List<Selection> cursorsAtEndOfEachLineSelected(
+  ICursorSimpleModel model,
+  List<Selection> selections,
+) => [
+  for (final selection in selections)
+    if (!selection.isEmpty()) ...[
+      for (var i = selection.startLineNumber; i < selection.endLineNumber; i++)
+        Selection(i, model.getLineMaxColumn(i), i, model.getLineMaxColumn(i)),
+      if (selection.endColumn > 1)
+        Selection(
+          selection.endLineNumber,
+          selection.endColumn,
+          selection.endLineNumber,
+          selection.endColumn,
+        ),
+    ],
+];

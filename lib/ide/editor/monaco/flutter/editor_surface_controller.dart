@@ -21,7 +21,9 @@ import '../vs/editor/contrib/comment/browser/block_comment_command.dart';
 import '../vs/editor/contrib/comment/browser/line_comment_command.dart';
 import '../vs/editor/contrib/linesOperations/browser/lines_operations.dart';
 import '../vs/editor/contrib/multicursor/browser/multicursor.dart';
+import '../vs/editor/contrib/smartSelect/browser/smart_select.dart';
 import '../vs/editor/contrib/snippet/browser/snippet_session.dart';
+import 'bracket_matching.dart' show defaultBracketPairs;
 import 'document_snapshot.dart';
 import 'editor_document_model.dart';
 
@@ -465,6 +467,27 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
     return true;
   }
 
+  /// removeSecondaryCursors: keeps only the primary cursor, with its
+  /// selection. False when there was one cursor.
+  bool removeSecondaryCursors() {
+    if (_disposed || _secondary.isEmpty) return false;
+    _pushCursorUndo();
+    _setSelections([value.selection]);
+    return true;
+  }
+
+  /// cancelSelection: keeps only the primary cursor, collapsed to its
+  /// active end. False when there was no selection to cancel.
+  bool collapseSelection() {
+    if (_disposed) return false;
+    final s = value.selection;
+    if (_secondary.isEmpty && (!s.isValid || s.isCollapsed)) return false;
+    final offset = s.isValid ? s.extentOffset : 0;
+    _pushCursorUndo();
+    _setSelections([TextSelection.collapsed(offset: offset)]);
+    return true;
+  }
+
   /// Escape: removes secondary cursors, or else collapses the selection to
   /// its active end. Returns false when there was nothing to do.
   bool cancelSelection() {
@@ -843,8 +866,13 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
     return TextRange(start: start, end: iterator.offset);
   }
 
-  /// deleteWordLeft (Alt/Ctrl+Backspace).
-  void deleteWordLeft() => _deleteRanges((model, config, s, autoClosed) {
+  /// deleteWordLeft (Alt/Ctrl+Backspace); with [type] wordStart and no
+  /// [whitespaceHeuristics], deleteWordStartLeft; with wordEnd,
+  /// deleteWordEndLeft.
+  void deleteWordLeft({
+    WordNavigationType type = WordNavigationType.wordStart,
+    bool whitespaceHeuristics = true,
+  }) => _deleteRanges((model, config, s, autoClosed) {
     final isPairDelete = DeleteOperations.isAutoClosingPairDelete(
       config,
       model,
@@ -855,19 +883,49 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
       config.wordClassifier,
       model,
       s,
-      WordNavigationType.wordStart,
+      type,
+      whitespaceHeuristics: whitespaceHeuristics,
       isAutoClosingPairDelete: isPairDelete,
     );
   }, EditOperationType.deletingLeft);
 
-  /// deleteWordRight (Alt/Ctrl+Delete).
-  void deleteWordRight() => _deleteRanges(
+  /// deleteWordRight (Alt/Ctrl+Delete); deleteWordStartRight and
+  /// deleteWordEndRight as for [deleteWordLeft].
+  void deleteWordRight({
+    WordNavigationType type = WordNavigationType.wordEnd,
+    bool whitespaceHeuristics = true,
+  }) => _deleteRanges(
     (model, config, s, _) => WordOperations.deleteWordRight(
       config.wordClassifier,
       model,
       s,
-      WordNavigationType.wordEnd,
+      type,
+      whitespaceHeuristics: whitespaceHeuristics,
     ),
+    EditOperationType.deletingRight,
+  );
+
+  /// deleteWordPartLeft (⌃⌥Backspace on macOS): to the nearest word start,
+  /// word end or camelCase/snake_case boundary.
+  void deleteWordPartLeft() => _deleteRanges((model, config, s, autoClosed) {
+    final isPairDelete = DeleteOperations.isAutoClosingPairDelete(
+      config,
+      model,
+      [s],
+      autoClosed,
+    );
+    return WordPartOperations.deleteWordPartLeft(
+      config.wordClassifier,
+      model,
+      s,
+      isAutoClosingPairDelete: isPairDelete,
+    );
+  }, EditOperationType.deletingLeft);
+
+  /// deleteWordPartRight (⌃⌥Delete on macOS).
+  void deleteWordPartRight() => _deleteRanges(
+    (model, config, s, _) =>
+        WordPartOperations.deleteWordPartRight(config.wordClassifier, model, s),
     EditOperationType.deletingRight,
   );
 
@@ -951,6 +1009,23 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
 
   /// Cmd+Shift+Enter: inserts a line above each cursor's line.
   void insertLineBefore() => _lineInsert(before: true);
+
+  /// lineBreakInsert (⌃O on macOS): breaks the line at each cursor, keeping
+  /// the cursors before the break.
+  void lineBreakInsert() {
+    if (_disposed) return;
+    final snapshot = document.snapshot;
+    _executeCommands(
+      TypeOperations.lineBreakInsert(
+        cursorConfig,
+        DocumentCursorModel(snapshot),
+        _cursorSelections(snapshot),
+      ),
+      type: EditOperationType.other,
+      pushBefore: true,
+      pushAfter: true,
+    );
+  }
 
   void _lineInsert({required bool before}) {
     if (_disposed) return;
@@ -1042,6 +1117,37 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
 
   /// Cmd+Shift+K.
   void deleteLines() => _runLinesEdit(LinesOperations.deleteLines);
+
+  /// editor.action.joinLines (⌃J on macOS). False when there was no line to
+  /// join.
+  bool joinLines() {
+    if (_disposed) return false;
+    final version = document.version;
+    _runLinesEdit(LinesOperations.joinLines);
+    return document.version != version;
+  }
+
+  /// editor.action.duplicateSelection: a copy of each selection after it
+  /// (selected), or of an empty selection's line below it.
+  void duplicateSelection() {
+    if (_disposed) return;
+    final snapshot = document.snapshot;
+    _executeCommands(
+      [
+        for (final s in _cursorSelections(snapshot))
+          if (s.isEmpty())
+            CopyLineDownCommand(s)
+          else
+            ReplaceCommandThatSelectsText(
+              Range(s.endLineNumber, s.endColumn, s.endLineNumber, s.endColumn),
+              _valueInRange(snapshot, s),
+            ),
+      ],
+      type: EditOperationType.other,
+      pushBefore: true,
+      pushAfter: true,
+    );
+  }
 
   void _runLinesEdit(
     LinesEditResult? Function(ICursorSimpleModel, List<Selection>) operation,
@@ -1146,31 +1252,61 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
   }
 
   /// cursorWordLeft / cursorWordLeftSelect (Alt+Left on macOS, Ctrl+Left
-  /// elsewhere): moves to word starts.
-  void moveWordLeft({bool extend = false}) {
+  /// elsewhere): moves to word starts. With [type] wordStart,
+  /// cursorWordStartLeft; with wordEnd, cursorWordEndLeft.
+  void moveWordLeft({
+    bool extend = false,
+    WordNavigationType type = WordNavigationType.wordStartFast,
+  }) {
     final hasMulticursor = _secondary.isNotEmpty;
     _movePositions(
       (model, position) => WordOperations.moveWordLeft(
         cursorConfig.wordClassifier,
         model,
         position,
-        WordNavigationType.wordStartFast,
+        type,
         hasMulticursor,
       ),
       extend: extend,
     );
   }
 
-  /// cursorWordEndRight / cursorWordEndRightSelect: moves to word ends.
-  void moveWordRight({bool extend = false}) => _movePositions(
+  /// cursorWordEndRight / cursorWordEndRightSelect: moves to word ends. With
+  /// [type] wordStart, cursorWordStartRight (cursorWordRight is wordEnd).
+  void moveWordRight({
+    bool extend = false,
+    WordNavigationType type = WordNavigationType.wordEnd,
+  }) => _movePositions(
     (model, position) => WordOperations.moveWordRight(
       cursorConfig.wordClassifier,
       model,
       position,
-      WordNavigationType.wordEnd,
+      type,
     ),
     extend: extend,
   );
+
+  /// cursorWordPartLeft / cursorWordPartRight (+Select; ⌃⌥←/→ on macOS):
+  /// moves to the nearest word start, word end or camelCase/snake_case
+  /// boundary.
+  void moveWordPart({required bool left, bool extend = false}) {
+    final hasMulticursor = _secondary.isNotEmpty;
+    _movePositions(
+      (model, position) => left
+          ? WordPartOperations.moveWordPartLeft(
+              cursorConfig.wordClassifier,
+              model,
+              position,
+              hasMulticursor,
+            )
+          : WordPartOperations.moveWordPartRight(
+              cursorConfig.wordClassifier,
+              model,
+              position,
+            ),
+      extend: extend,
+    );
+  }
 
   /// cursorHome: toggles between the first non-whitespace character and the
   /// start of the line.
@@ -1184,7 +1320,14 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
     return Position(line, position.column == firstNonBlank ? 1 : firstNonBlank);
   }, extend: extend);
 
-  /// cursorEnd.
+  /// cursorLineStart (⌃A on macOS): column 1 (cursorHome alternates with
+  /// the first non-whitespace character).
+  void moveToLineFirstColumn({bool extend = false}) => _movePositions(
+    (model, position) => Position(position.lineNumber, 1),
+    extend: extend,
+  );
+
+  /// cursorEnd and cursorLineEnd.
   void moveToLineEnd({bool extend = false}) => _movePositions(
     (model, position) => Position(
       position.lineNumber,
@@ -1378,6 +1521,149 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
     _pushCursorUndo();
     _setSelections(ranges, reveal: ranges.first.extentOffset);
     return true;
+  }
+
+  /// editor.action.insertCursorAtEndOfEachLineSelected (Shift+Alt+I): a
+  /// cursor at the end of each selected line. False without a selection.
+  bool insertCursorAtEndOfEachLineSelected() {
+    if (_disposed || !value.selection.isValid) return false;
+    final snapshot = document.snapshot;
+    final cursors = cursorsAtEndOfEachLineSelected(
+      DocumentCursorModel(snapshot),
+      _cursorSelections(snapshot),
+    );
+    if (cursors.isEmpty) return false;
+    _pushCursorUndo();
+    _setSelections([for (final s in cursors) _toTextSelection(snapshot, s)]);
+    return true;
+  }
+
+  // Upstream SmartSelectController state: the ranges of each cursor, kept
+  // while the selections are the ones it set.
+  List<SelectionRanges>? _smartSelect;
+  List<TextSelection>? _smartSelectSelections;
+  int _smartSelectVersion = -1;
+
+  /// editor.action.smartSelect.expand / shrink: selects the next larger (or
+  /// smaller) syntactic range at each cursor (see [SmartSelect]).
+  bool smartSelect({required bool expand}) {
+    if (_disposed || !value.selection.isValid) return false;
+    final snapshot = document.snapshot;
+    var state = _smartSelect;
+    if (state == null ||
+        _smartSelectVersion != document.version ||
+        !listEquals(_smartSelectSelections, selections)) {
+      final sels = _cursorSelections(snapshot);
+      final ranges = SmartSelect.provideSelectionRanges(
+        DocumentCursorModel(snapshot),
+        cursorConfig.wordClassifier,
+        [for (final s in sels) s.getPosition()],
+        brackets: _languageConfiguration?.brackets ?? defaultBracketPairs,
+      );
+      state = [
+        for (var i = 0; i < sels.length; i++)
+          SelectionRanges(0, [
+            // prepend current selection
+            sels[i],
+            // filter ranges inside the selection
+            for (final range in ranges[i])
+              if (range.containsPosition(sels[i].getStartPosition()) &&
+                  range.containsPosition(sels[i].getEndPosition()))
+                range,
+          ]),
+      ];
+    }
+    state = [for (final ranges in state) ranges.mov(expand)];
+    _pushCursorUndo();
+    _setSelections([
+      for (final ranges in state)
+        TextSelection(
+          baseOffset: snapshot.offsetAtPosition(
+            ranges.current.getStartPosition(),
+          ),
+          extentOffset: snapshot.offsetAtPosition(
+            ranges.current.getEndPosition(),
+          ),
+        ),
+    ]);
+    _smartSelect = state;
+    _smartSelectSelections = selections;
+    _smartSelectVersion = document.version;
+    return true;
+  }
+
+  /// The occurrences of the word at the primary selection's start, in
+  /// document order (upstream `TextualOccurrences`: case-sensitive whole
+  /// words); empty when no word is there.
+  List<TextRange> wordHighlights() {
+    final selection = value.selection;
+    if (_disposed || !selection.isValid) return const [];
+    final snapshot = document.snapshot;
+    final word = WordOperations.getWordAtPosition(
+      DocumentCursorModel(snapshot),
+      cursorConfig.wordClassifier,
+      snapshot.positionAtOffset(selection.start),
+    );
+    if (word == null) return const [];
+    return [
+      for (final match in document.findMatches(
+        SearchParams(
+          word.word,
+          matchCase: true,
+          wordSeparators: cursorConfig.wordSeparators,
+        ),
+        limitResultCount: 1 << 30,
+      ))
+        TextRange(
+          start: snapshot.offsetAtPosition(match.range.getStartPosition()),
+          end: snapshot.offsetAtPosition(match.range.getEndPosition()),
+        ),
+    ];
+  }
+
+  /// The word touching [offset] (upstream `getWordAtPosition` with the
+  /// editor's word separators), or null.
+  String? wordAt(int offset) {
+    if (_disposed) return null;
+    final snapshot = document.snapshot;
+    return WordOperations.getWordAtPosition(
+      DocumentCursorModel(snapshot),
+      cursorConfig.wordClassifier,
+      snapshot.positionAtOffset(offset.clamp(0, snapshot.text.length)),
+    )?.word;
+  }
+
+  /// Whether the primary selection's start touches a word (upstream
+  /// `hasWordHighlights`).
+  bool get hasWordHighlights {
+    final selection = value.selection;
+    if (_disposed || !selection.isValid) return false;
+    final snapshot = document.snapshot;
+    return WordOperations.getWordAtPosition(
+          DocumentCursorModel(snapshot),
+          cursorConfig.wordClassifier,
+          snapshot.positionAtOffset(selection.start),
+        ) !=
+        null;
+  }
+
+  /// editor.action.wordHighlight.next / prev (upstream
+  /// `WordHighlighter.moveNext` / `moveBack`): puts the caret at the start of
+  /// the next (previous) occurrence of the word, wrapping around. Returns
+  /// that occurrence, or null when there is none.
+  TextRange? moveToWordHighlight({required bool next}) {
+    final highlights = wordHighlights();
+    if (highlights.isEmpty) return null;
+    final caret = value.selection.extentOffset;
+    final index = highlights.indexWhere(
+      (range) => range.start <= caret && caret <= range.end,
+    );
+    final length = highlights.length;
+    final dest =
+        highlights[next ? (index + 1) % length : (index - 1 + length) % length];
+    _pushCursorUndo();
+    _setSelections([TextSelection.collapsed(offset: dest.start)]);
+    return dest;
   }
 
   // ---- undo / clipboard ---------------------------------------------------------
@@ -2186,6 +2472,14 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
     if (_updateSnippetState(selections)) notifyListeners();
     return true;
   }
+
+  /// Whether Tab moves to another placeholder (upstream `hasNextTabstop`).
+  bool get snippetHasNextTabstop =>
+      _snippet != null && !_snippet!.isAtLastPlaceholder;
+
+  /// Whether Shift+Tab moves to another placeholder (`hasPrevTabstop`).
+  bool get snippetHasPrevTabstop =>
+      _snippet != null && !_snippet!.isAtFirstPlaceholder;
 
   /// Escape in snippet mode (`leaveSnippet`). With [resetSelection] the
   /// cursors collapse to the primary's extent.

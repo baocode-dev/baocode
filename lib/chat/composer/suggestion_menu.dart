@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
@@ -125,7 +126,7 @@ class _SuggestionMenuState extends State<SuggestionMenu> {
                 child: widget.matches.isEmpty
                     ? Center(
                         child: Text(
-                          'No results',
+                          context.l10n.composerNoResults,
                           style: TextStyle(
                             color: CursorColors.textFaint,
                             fontSize: 12.5,

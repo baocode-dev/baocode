@@ -608,7 +608,7 @@ void main() {
     await tester.pump();
     final box = tester.getRect(find.byType(ChatComposer));
     final first = tester.getRect(find.byType(ComposerPicker).first);
-    final send = tester.getRect(find.byTooltip('Send  ↵'));
+    final send = tester.getRect(find.byTooltip('Send (Enter)'));
     expect(first.left - box.left, lessThan(12));
     expect(box.right - send.right, lessThan(12));
   });

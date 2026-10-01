@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
 import '../../kernel/claude_code/claude_environment.dart';
-import '../../platform/app_paths.dart';
+import '../../platform/data_dir.dart';
 import '../../platform/child_process_registry.dart';
 import 'lsp_process.dart';
 
@@ -82,9 +82,7 @@ abstract final class LspProcesses {
   /// Where the running servers are kept track of across runs.
   @visibleForTesting
   static ChildProcessRegistry registry = ChildProcessRegistry(
-    file: File(
-      p.join(AppPaths.dataDir(Platform.environment), 'lsp-processes.json'),
-    ),
+    file: File(DataDirectory.current.processRegistryFile('lsp')),
   );
 
   static final Set<_IoLspProcess> _live = {};
@@ -128,9 +126,13 @@ abstract final class LspProcesses {
   /// polite first, then killed.
   static Future<void> stopAll({
     Duration timeout = const Duration(seconds: 2),
-  }) => Future.wait([
-    for (final process in [..._live]) process._stop(timeout),
-  ]);
+  }) async {
+    await Future.wait([
+      for (final process in [..._live]) process._stop(timeout),
+    ]);
+    // Their entries gone from the list before the app is.
+    await registry.flush();
+  }
 
   static Future<void> reapLeftovers() => registry.reaped;
 

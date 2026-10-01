@@ -17,6 +17,7 @@
 // a working tree change (its file is the resource's, as the index's rename
 // is).
 
+import '../../l10n/l10n.dart';
 import 'git_model.dart';
 
 /// One side of a change: [path]'s text at [ref], or, [ref] null, its file.
@@ -47,12 +48,14 @@ class IdeGitSide {
 class IdeGitChangeEditor {
   const IdeGitChangeEditor({required this.label, this.left, this.right});
 
-  /// [resource]'s, with [staged] the Staged Changes group's.
+  /// [resource]'s, with [staged] the Staged Changes group's; titled in
+  /// [l10n]'s language (English when null).
   factory IdeGitChangeEditor.of(
     IdeGitResource resource, {
     required Iterable<IdeGitResource> staged,
+    AppLocalizations? l10n,
   }) => IdeGitChangeEditor(
-    label: _label(resource.status),
+    label: _label(resource.status, l10n ?? englishLocalizations),
     left: _left(resource, staged),
     right: _right(resource),
   );
@@ -106,19 +109,22 @@ class IdeGitChangeEditor {
       };
 
   /// `getTitle`.
-  static String _label(IdeGitStatus status) => switch (status) {
-    IdeGitStatus.indexModified ||
-    IdeGitStatus.indexRenamed ||
-    IdeGitStatus.indexAdded => 'Index',
-    IdeGitStatus.modified ||
-    IdeGitStatus.bothAdded ||
-    IdeGitStatus.bothModified => 'Working Tree',
-    IdeGitStatus.indexDeleted || IdeGitStatus.deleted => 'Deleted',
-    IdeGitStatus.deletedByUs => 'Theirs',
-    IdeGitStatus.deletedByThem => 'Ours',
-    IdeGitStatus.untracked => 'Untracked',
-    IdeGitStatus.intentToAdd || IdeGitStatus.intentToRename => 'Intent to add',
-    IdeGitStatus.typeChanged => 'Type changed',
-    _ => '',
-  };
+  static String _label(IdeGitStatus status, AppLocalizations l10n) =>
+      switch (status) {
+        IdeGitStatus.indexModified ||
+        IdeGitStatus.indexRenamed ||
+        IdeGitStatus.indexAdded => l10n.gitChangeIndex,
+        IdeGitStatus.modified ||
+        IdeGitStatus.bothAdded ||
+        IdeGitStatus.bothModified => l10n.gitChangeWorkingTree,
+        IdeGitStatus.indexDeleted ||
+        IdeGitStatus.deleted => l10n.gitChangeDeleted,
+        IdeGitStatus.deletedByUs => l10n.gitChangeTheirs,
+        IdeGitStatus.deletedByThem => l10n.gitChangeOurs,
+        IdeGitStatus.untracked => l10n.gitChangeUntracked,
+        IdeGitStatus.intentToAdd ||
+        IdeGitStatus.intentToRename => l10n.gitChangeIntentToAdd,
+        IdeGitStatus.typeChanged => l10n.gitChangeTypeChanged,
+        _ => '',
+      };
 }

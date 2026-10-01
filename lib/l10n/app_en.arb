@@ -1,0 +1,2807 @@
+{
+  "@@locale": "en",
+  "commonCancel": "Cancel",
+  "commonClose": "Close",
+  "commonOk": "OK",
+  "commonDelete": "Delete",
+  "commonRename": "Rename",
+  "commonCopy": "Copy",
+  "commonCut": "Cut",
+  "commonPaste": "Paste",
+  "commonUndo": "Undo",
+  "commonRedo": "Redo",
+  "commonSelectAll": "Select All",
+  "languageSettingsTitle": "Region & Language",
+  "languageSettingsDisplayLanguage": "Display Language",
+  "languageSettingsDescription": "The language of Monad's menus, views and messages. Changes apply at once.",
+  "languageSettingsFollowSystem": "Follow System",
+  "languageSettingsFollowSystemDetail": "Currently {language}",
+  "@languageSettingsFollowSystemDetail": {
+    "description": "Under Follow System: the language the system's resolves to, named in its own language.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "languageSettingsEnglishName": "English",
+  "@languageSettingsEnglishName": {
+    "description": "English, named in the display language (shown under its own name, 'English')."
+  },
+  "languageSettingsSimplifiedChineseName": "Chinese (Simplified)",
+  "@languageSettingsSimplifiedChineseName": {
+    "description": "Simplified Chinese, named in the display language (shown under its own name, '简体中文')."
+  },
+  "cmdCategoryFile": "File",
+  "@cmdCategoryFile": {
+    "description": "Command category, as in 'File: Save'."
+  },
+  "cmdCategoryView": "View",
+  "@cmdCategoryView": {
+    "description": "Command category."
+  },
+  "cmdCategoryTerminal": "Terminal",
+  "@cmdCategoryTerminal": {
+    "description": "Command category."
+  },
+  "cmdCategoryGo": "Go",
+  "@cmdCategoryGo": {
+    "description": "Command category."
+  },
+  "cmdCategoryPreferences": "Preferences",
+  "@cmdCategoryPreferences": {
+    "description": "Command category."
+  },
+  "cmdCategoryDeveloper": "Developer",
+  "@cmdCategoryDeveloper": {
+    "description": "Command category."
+  },
+  "cmdCategoryEditor": "Editor",
+  "@cmdCategoryEditor": {
+    "description": "Command category."
+  },
+  "cmdCategoryHelp": "Help",
+  "@cmdCategoryHelp": {
+    "description": "Command category."
+  },
+  "cmdCategoryList": "List",
+  "@cmdCategoryList": {
+    "description": "Command category."
+  },
+  "cmdCategoryChat": "Chat",
+  "@cmdCategoryChat": {
+    "description": "Command category: the chat window's commands."
+  },
+  "cmdChatNewAgent": "New Agent",
+  "cmdChatClosePane": "Close Pane",
+  "cmdChatNextAgent": "Open Next Agent",
+  "cmdChatPreviousAgent": "Open Previous Agent",
+  "cmdChatOpenAgentAtIndex": "Open Agent at Index {index}",
+  "@cmdChatOpenAgentAtIndex": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "cmdChatFocusPane": "Focus Pane {index}",
+  "@cmdChatFocusPane": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "cmdChatFocusNextPane": "Focus Next Pane",
+  "cmdChatFocusPreviousPane": "Focus Previous Pane",
+  "cmdChatSearchAgents": "Search Agents",
+  "cmdChatOpenIde": "Open in Fast Ide",
+  "cmdChatFocusInput": "Focus Chat Input",
+  "cmdChatFocusList": "Focus Chat List",
+  "cmdChatCancel": "Cancel",
+  "cmdChatAcceptTool": "Accept",
+  "cmdChatSkipTool": "Skip",
+  "cmdChatToggleContextPanel": "Toggle Context Panel",
+  "cmdChatRenameAgent": "Rename Agent",
+  "cmdChatCloseSubagent": "Back from Subagent",
+  "cmdChatSubmit": "Send",
+  "cmdChatCancelEdit": "Cancel Edit",
+  "cmdChatShowPreviousPrompt": "Show Previous Prompt",
+  "cmdChatShowNextPrompt": "Show Next Prompt",
+  "cmdChatAcceptPromptSuggestion": "Accept Suggested Prompt",
+  "cmdChatOpenModePicker": "Open Mode Picker",
+  "cmdChatOpenModelPicker": "Open Model Picker",
+  "cmdChatAttachContext": "Add Context…",
+  "cmdChatSelectNextSuggestion": "Select Next Suggestion",
+  "cmdChatSelectPrevSuggestion": "Select Previous Suggestion",
+  "cmdChatAcceptSelectedSuggestion": "Accept Selected Suggestion",
+  "cmdChatHideSuggestWidget": "Hide Suggestions",
+  "cmdChatInteractionFocusNext": "Focus Next Option",
+  "cmdChatInteractionFocusPrevious": "Focus Previous Option",
+  "cmdChatInteractionToggle": "Toggle Option",
+  "cmdChatInteractionAccept": "Continue",
+  "cmdChatInteractionDismiss": "Dismiss",
+  "cmdOpenFilePreserveFocus": "Open File, Keeping the Focus",
+  "cmdScmFocus": "Focus on Changes View",
+  "cmdScmAcceptInput": "Accept Input",
+  "cmdScmClearValidation": "Clear Validation",
+  "cmdScmClearInput": "Clear Input",
+  "cmdCategoryGit": "Git",
+  "cmdProblemsFocus": "Focus Problems (Errors, Warnings, Infos)",
+  "cmdProblemsOpen": "Open",
+  "cmdProblemsCopyMessage": "Copy Message",
+  "cmdReferencesNext": "Go to Next Reference",
+  "cmdReferencesPrevious": "Go to Previous Reference",
+  "cmdCategoryReferences": "References",
+  "cmdTerminalFocusFind": "Focus Find",
+  "cmdTerminalHideFind": "Hide Find",
+  "cmdTerminalToggleFindRegex": "Toggle Find Using Regex",
+  "cmdTerminalToggleFindWholeWord": "Toggle Find Using Whole Word",
+  "cmdTerminalToggleFindCaseSensitive": "Toggle Find Using Case Sensitive",
+  "cmdTerminalSearchWorkspace": "Search Workspace",
+  "cmdTerminalCopySelection": "Copy Selection",
+  "cmdTerminalCopyAndClearSelection": "Copy and Clear Selection",
+  "cmdTerminalPaste": "Paste into Active Terminal",
+  "cmdTerminalPasteSelection": "Paste Selection into Active Terminal",
+  "cmdTerminalClearSelection": "Clear Selection",
+  "cmdTerminalScrollDown": "Scroll Down (Line)",
+  "cmdTerminalScrollDownPage": "Scroll Down (Page)",
+  "cmdTerminalScrollToBottom": "Scroll to Bottom",
+  "cmdTerminalScrollUp": "Scroll Up (Line)",
+  "cmdTerminalScrollUpPage": "Scroll Up (Page)",
+  "cmdTerminalScrollToTop": "Scroll to Top",
+  "cmdTerminalSendSequence": "Send Sequence",
+  "cmdTerminalKillAll": "Kill All Terminals",
+  "cmdFindInFiles": "Find in Files",
+  "cmdReplaceInFiles": "Replace in Files",
+  "cmdFocusNextSearchResult": "Focus Next Search Result",
+  "cmdFocusPreviousSearchResult": "Focus Previous Search Result",
+  "cmdToggleSearchCaseSensitive": "Toggle Case Sensitive",
+  "cmdToggleSearchWholeWord": "Toggle Whole Word",
+  "cmdToggleSearchRegex": "Toggle Regex",
+  "cmdToggleSearchPreserveCase": "Toggle Preserve Case",
+  "cmdSearchFocusNextInput": "Focus Next Input",
+  "cmdSearchFocusPreviousInput": "Focus Previous Input",
+  "cmdFocusSearchFromResults": "Focus Search From Results",
+  "cmdSearchFocusList": "Focus List",
+  "cmdSearchOpenMatch": "Open Match",
+  "cmdCloseReplaceWidget": "Close Replace Widget",
+  "cmdCancelSearch": "Cancel Search",
+  "cmdToggleQueryDetails": "Toggle Query Details",
+  "cmdCategoryQuickInput": "Quick Input",
+  "wbQuickEditors": "Type the name of an editor to open it.",
+  "quickOpenNoMatchingEditors": "No matching editors",
+  "cmdQuickInputFocusNext": "Focus Next",
+  "cmdQuickInputFocusPrevious": "Focus Previous",
+  "cmdQuickInputFocusNextPage": "Focus Next Page",
+  "cmdQuickInputFocusPreviousPage": "Focus Previous Page",
+  "cmdQuickInputAccept": "Accept",
+  "cmdQuickInputAcceptInBackground": "Accept in Background",
+  "cmdQuickInputHide": "Hide",
+  "cmdCloseQuickOpen": "Close Quick Open",
+  "cmdAcceptSelectedQuickOpenItem": "Accept Selected Quick Open Item",
+  "cmdFocusQuickOpen": "Focus Quick Open",
+  "cmdQuickOpenSelectNext": "Select Next in Quick Open",
+  "cmdQuickOpenSelectPrevious": "Select Previous in Quick Open",
+  "cmdQuickOpenNavigateNext": "Navigate Next in Quick Open",
+  "cmdQuickOpenNavigatePrevious": "Navigate Previous in Quick Open",
+  "cmdQuickOpenNavigateNextInFilePicker": "Navigate Next in File Picker",
+  "cmdQuickOpenNavigatePreviousInFilePicker": "Navigate Previous in File Picker",
+  "cmdQuickOpenNavigateNextInEditorPicker": "Navigate Next in Editor Picker",
+  "cmdQuickOpenNavigatePreviousInEditorPicker": "Navigate Previous in Editor Picker",
+  "cmdQuickOpenPreviousEditor": "Quick Open Previous Editor",
+  "cmdShowAllEditors": "Show All Editors By Appearance",
+  "cmdShowEditorsInActiveGroup": "Show Editors in Active Group By Most Recently Used",
+  "cmdShowAllEditorsByMostRecentlyUsed": "Show All Editors By Most Recently Used",
+  "cmdQuickOpenPreviousRecentlyUsedEditor": "Quick Open Previous Recently Used Editor",
+  "cmdQuickOpenLeastRecentlyUsedEditor": "Quick Open Least Recently Used Editor",
+  "cmdQuickOpenPreviousRecentlyUsedEditorInGroup": "Quick Open Previous Recently Used Editor in Group",
+  "cmdQuickOpenLeastRecentlyUsedEditorInGroup": "Quick Open Least Recently Used Editor in Group",
+  "cmdOpenPreviousEditorFromHistory": "Quick Open Previous Editor from History",
+  "cmdOpenNextRecentlyUsedEditor": "Open Next Recently Used Editor",
+  "cmdOpenPreviousRecentlyUsedEditor": "Open Previous Recently Used Editor",
+  "cmdOpenNextRecentlyUsedEditorInGroup": "Open Next Recently Used Editor In Group",
+  "cmdOpenPreviousRecentlyUsedEditorInGroup": "Open Previous Recently Used Editor In Group",
+  "cmdNextEditorInGroup": "Open Next Editor in Group",
+  "cmdPreviousEditorInGroup": "Open Previous Editor in Group",
+  "cmdFirstEditorInGroup": "Open First Editor in Group",
+  "cmdCloseEditorsInGroup": "Close All Editors in Group",
+  "cmdCloseEditorsToTheLeft": "Close Editors to the Left in Group",
+  "cmdNavigateToLastEditLocation": "Go to Last Edit Location",
+  "cmdNavigateLast": "Go Previous",
+  "cmdOpenUserSettings": "Open User Settings",
+  "cmdToggleMaximizedPanel": "Toggle Maximized Panel",
+  "cmdFocusPanel": "Focus into Panel",
+  "cmdClosePanel": "Hide Panel",
+  "cmdFocusSideBar": "Focus into Primary Side Bar",
+  "cmdCloseSidebar": "Hide Primary Side Bar",
+  "cmdCloseChat": "Hide Chat",
+  "cmdFocusActiveEditorGroup": "Focus Active Editor Group",
+  "cmdFocusFirstEditorGroup": "Focus First Editor Group",
+  "cmdFocusLastEditorGroup": "Focus Last Editor Group",
+  "cmdListFocusDown": "Focus Down",
+  "cmdListFocusUp": "Focus Up",
+  "cmdListFocusPageDown": "Focus Page Down",
+  "cmdListFocusPageUp": "Focus Page Up",
+  "cmdListFocusFirst": "Focus First",
+  "cmdListFocusLast": "Focus Last",
+  "cmdListExpand": "Expand",
+  "cmdListCollapse": "Collapse",
+  "cmdListSelect": "Select",
+  "cmdListToggleExpand": "Toggle Expand",
+  "cmdEditorCursorLeft": "Cursor Left",
+  "cmdEditorCursorLeftSelect": "Cursor Left Select",
+  "cmdEditorCursorRight": "Cursor Right",
+  "cmdEditorCursorRightSelect": "Cursor Right Select",
+  "cmdEditorCursorUp": "Cursor Up",
+  "cmdEditorCursorUpSelect": "Cursor Up Select",
+  "cmdEditorCursorDown": "Cursor Down",
+  "cmdEditorCursorDownSelect": "Cursor Down Select",
+  "cmdEditorCursorPageUp": "Cursor Page Up",
+  "cmdEditorCursorPageUpSelect": "Cursor Page Up Select",
+  "cmdEditorCursorPageDown": "Cursor Page Down",
+  "cmdEditorCursorPageDownSelect": "Cursor Page Down Select",
+  "cmdEditorCursorHome": "Cursor Home",
+  "cmdEditorCursorHomeSelect": "Cursor Home Select",
+  "cmdEditorCursorEnd": "Cursor End",
+  "cmdEditorCursorEndSelect": "Cursor End Select",
+  "cmdEditorCursorLineStart": "Cursor Line Start",
+  "cmdEditorCursorLineStartSelect": "Cursor Line Start Select",
+  "cmdEditorCursorLineEnd": "Cursor Line End",
+  "cmdEditorCursorLineEndSelect": "Cursor Line End Select",
+  "cmdEditorCursorTop": "Cursor Top",
+  "cmdEditorCursorTopSelect": "Cursor Top Select",
+  "cmdEditorCursorBottom": "Cursor Bottom",
+  "cmdEditorCursorBottomSelect": "Cursor Bottom Select",
+  "cmdEditorCursorColumnSelectLeft": "Column Select Left",
+  "cmdEditorCursorColumnSelectRight": "Column Select Right",
+  "cmdEditorCursorColumnSelectUp": "Column Select Up",
+  "cmdEditorCursorColumnSelectDown": "Column Select Down",
+  "cmdEditorCursorColumnSelectPageUp": "Column Select Page Up",
+  "cmdEditorCursorColumnSelectPageDown": "Column Select Page Down",
+  "cmdEditorScrollLineUp": "Scroll Line Up",
+  "cmdEditorScrollLineDown": "Scroll Line Down",
+  "cmdEditorScrollPageUp": "Scroll Page Up",
+  "cmdEditorScrollPageDown": "Scroll Page Down",
+  "cmdEditorCancelSelection": "Cancel Selection",
+  "cmdEditorLineBreakInsert": "Insert Line Break",
+  "cmdEditorTab": "Tab",
+  "cmdEditorOutdent": "Outdent",
+  "cmdEditorDeleteLeft": "Delete Left",
+  "cmdEditorDeleteRight": "Delete Right",
+  "cmdEditorCursorWordLeft": "Cursor Word Left",
+  "cmdEditorCursorWordLeftSelect": "Cursor Word Left Select",
+  "cmdEditorCursorWordStartLeft": "Cursor Word Start Left",
+  "cmdEditorCursorWordStartLeftSelect": "Cursor Word Start Left Select",
+  "cmdEditorCursorWordEndLeft": "Cursor Word End Left",
+  "cmdEditorCursorWordEndLeftSelect": "Cursor Word End Left Select",
+  "cmdEditorCursorWordRight": "Cursor Word Right",
+  "cmdEditorCursorWordRightSelect": "Cursor Word Right Select",
+  "cmdEditorCursorWordStartRight": "Cursor Word Start Right",
+  "cmdEditorCursorWordStartRightSelect": "Cursor Word Start Right Select",
+  "cmdEditorCursorWordEndRight": "Cursor Word End Right",
+  "cmdEditorCursorWordEndRightSelect": "Cursor Word End Right Select",
+  "cmdEditorCursorWordPartLeft": "Cursor Word Part Left",
+  "cmdEditorCursorWordPartLeftSelect": "Cursor Word Part Left Select",
+  "cmdEditorCursorWordPartStartLeft": "Cursor Word Part Start Left",
+  "cmdEditorCursorWordPartStartLeftSelect": "Cursor Word Part Start Left Select",
+  "cmdEditorCursorWordPartRight": "Cursor Word Part Right",
+  "cmdEditorCursorWordPartRightSelect": "Cursor Word Part Right Select",
+  "cmdEditorDeleteWordLeft": "Delete Word Left",
+  "cmdEditorDeleteWordRight": "Delete Word Right",
+  "cmdEditorDeleteWordStartLeft": "Delete Word Start Left",
+  "cmdEditorDeleteWordEndLeft": "Delete Word End Left",
+  "cmdEditorDeleteWordStartRight": "Delete Word Start Right",
+  "cmdEditorDeleteWordEndRight": "Delete Word End Right",
+  "cmdEditorDeleteWordPartLeft": "Delete Word Part Left",
+  "cmdEditorDeleteWordPartRight": "Delete Word Part Right",
+  "cmdEditorSmartSelectGrow": "Expand Selection",
+  "cmdEditorFormat": "Format Selection or Document",
+  "cmdEditorJumpToNextSnippetPlaceholder": "Go to Next Snippet Placeholder",
+  "cmdEditorJumpToPrevSnippetPlaceholder": "Go to Previous Snippet Placeholder",
+  "cmdEditorLeaveSnippet": "Leave Snippet",
+  "cmdEditorLeaveEditorMessage": "Dismiss Message",
+  "cmdEditorNextMatchFindAction": "Find Next",
+  "cmdEditorPreviousMatchFindAction": "Find Previous",
+  "cmdEditorNextSelectionMatchFindAction": "Find Next Selection",
+  "cmdEditorPreviousSelectionMatchFindAction": "Find Previous Selection",
+  "cmdEditorFindWithSelection": "Find with Selection",
+  "cmdEditorCloseFindWidget": "Close Find Widget",
+  "cmdEditorToggleFindCaseSensitive": "Toggle Match Case",
+  "cmdEditorToggleFindWholeWord": "Toggle Match Whole Word",
+  "cmdEditorToggleFindRegex": "Toggle Use Regular Expression",
+  "cmdEditorReplaceOne": "Replace One",
+  "cmdEditorReplaceAll": "Replace All",
+  "cmdEditorSelectAllMatches": "Select All Matches",
+  "cmdEditorMarkerNext": "Go to Next Problem (Error, Warning, Info)",
+  "cmdEditorMarkerPrev": "Go to Previous Problem (Error, Warning, Info)",
+  "cmdEditorShowContextMenu": "Show Editor Context Menu",
+  "cmdEditorAcceptSelectedSuggestion": "Accept Selected Suggestion",
+  "cmdEditorAcceptAlternativeSelectedSuggestion": "Accept Selected Suggestion (Alternative)",
+  "cmdEditorHideSuggestWidget": "Hide Suggest Widget",
+  "cmdEditorSelectNextSuggestion": "Select Next Suggestion",
+  "cmdEditorSelectPrevSuggestion": "Select Previous Suggestion",
+  "cmdEditorSelectNextPageSuggestion": "Select Next Page of Suggestions",
+  "cmdEditorSelectPrevPageSuggestion": "Select Previous Page of Suggestions",
+  "cmdEditorToggleSuggestionDetails": "Toggle Suggestion Details",
+  "cmdEditorCloseParameterHints": "Close Parameter Hints",
+  "cmdEditorShowPrevParameterHint": "Show Previous Parameter Hint",
+  "cmdEditorShowNextParameterHint": "Show Next Parameter Hint",
+  "cmdEditorAcceptRenameInput": "Accept Rename",
+  "cmdEditorCancelRenameInput": "Cancel Rename",
+  "cmdEditorJoinLines": "Join Lines",
+  "cmdEditorDuplicateSelection": "Duplicate Selection",
+  "cmdEditorInsertCursorAtEndOfEachLineSelected": "Add Cursors to Line Ends",
+  "cmdEditorSmartSelectExpand": "Expand Selection",
+  "cmdEditorSmartSelectShrink": "Shrink Selection",
+  "cmdEditorWordHighlightNext": "Go to Next Symbol Highlight",
+  "cmdEditorWordHighlightPrev": "Go to Previous Symbol Highlight",
+  "cmdEditorFold": "Fold",
+  "cmdEditorUnfold": "Unfold",
+  "cmdEditorToggleFold": "Toggle Fold",
+  "cmdEditorFoldRecursively": "Fold Recursively",
+  "cmdEditorUnfoldRecursively": "Unfold Recursively",
+  "cmdEditorToggleFoldRecursively": "Toggle Fold Recursively",
+  "cmdEditorFoldAll": "Fold All",
+  "cmdEditorUnfoldAll": "Unfold All",
+  "cmdEditorFoldAllBlockComments": "Fold All Block Comments",
+  "cmdEditorFoldAllMarkerRegions": "Fold All Regions",
+  "cmdEditorUnfoldAllMarkerRegions": "Unfold All Regions",
+  "cmdEditorFoldAllExcept": "Fold All Except Selected",
+  "cmdEditorUnfoldAllExcept": "Unfold All Except Selected",
+  "cmdEditorGoToDeclaration": "Go to Declaration",
+  "cmdEditorReferenceSearchTrigger": "Peek References",
+  "cmdEditorFoldLevel": "Fold Level {level}",
+  "@cmdEditorFoldLevel": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "cmdShowAllCommands": "Show All Commands",
+  "cmdQuickOpen": "Go to File…",
+  "cmdGotoLine": "Go to Line/Column…",
+  "cmdFind": "Find",
+  "cmdReplace": "Replace",
+  "cmdSave": "Save",
+  "cmdSaveAll": "Save All",
+  "cmdCloseEditor": "Close Editor",
+  "cmdCloseOtherEditors": "Close Other Editors",
+  "cmdCloseEditorsToTheRight": "Close Editors to the Right",
+  "cmdCloseSavedEditors": "Close Saved Editors",
+  "cmdCloseAllEditors": "Close All Editors",
+  "cmdReopenClosedEditor": "Reopen Closed Editor",
+  "cmdNextEditor": "Open Next Editor",
+  "cmdPreviousEditor": "Open Previous Editor",
+  "cmdOpenEditorAtIndex": "Open Editor at Index {index}",
+  "@cmdOpenEditorAtIndex": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "cmdToggleSidebar": "Toggle Primary Side Bar Visibility",
+  "cmdToggleChat": "Toggle Chat",
+  "cmdTogglePanel": "Toggle Panel Visibility",
+  "cmdToggleTerminal": "Toggle Terminal",
+  "cmdNewTerminal": "Create New Terminal",
+  "cmdKillTerminal": "Kill the Active Terminal Instance",
+  "cmdRenameTerminal": "Rename...",
+  "cmdFocusNextTerminal": "Focus Next Terminal Group",
+  "cmdFocusPreviousTerminal": "Focus Previous Terminal Group",
+  "cmdFocusTerminal": "Focus Terminal",
+  "cmdShowExplorer": "Show Explorer",
+  "cmdShowSearch": "Show Search",
+  "cmdShowSourceControl": "Show Source Control",
+  "cmdShowExtensions": "Show Extensions",
+  "cmdRevealActiveFileInExplorer": "Reveal Active File in Explorer View",
+  "cmdRefreshExplorer": "Refresh Explorer",
+  "cmdCollapseExplorerFolders": "Collapse Folders in Explorer",
+  "cmdCopyPathOfActiveFile": "Copy Path of Active File",
+  "cmdCopyRelativePathOfActiveFile": "Copy Relative Path of Active File",
+  "cmdGotoSymbol": "Go to Symbol in Editor...",
+  "cmdToggleProblems": "Toggle Problems",
+  "cmdShowOutline": "Show Outline",
+  "cmdNextProblemInFiles": "Go to Next Problem in Files (Error, Warning, Info)",
+  "cmdPreviousProblemInFiles": "Go to Previous Problem in Files (Error, Warning, Info)",
+  "cmdGoBack": "Go Back",
+  "cmdGoForward": "Go Forward",
+  "cmdColorTheme": "Color Theme",
+  "cmdTurnOnFormatOnSave": "Turn On Format on Save",
+  "cmdTurnOffFormatOnSave": "Turn Off Format on Save",
+  "cmdRetryLanguageServices": "Retry Language Services",
+  "cmdBackToChat": "Back to Chat",
+  "cmdOpenSettings": "Open Settings",
+  "cmdOpenKeyboardShortcuts": "Open Keyboard Shortcuts",
+  "cmdJumpToBracket": "Go to Bracket",
+  "cmdUndo": "Undo",
+  "cmdRedo": "Redo",
+  "cmdCut": "Cut",
+  "cmdCopy": "Copy",
+  "cmdPaste": "Paste",
+  "cmdSelectAll": "Select All",
+  "cmdToggleLineComment": "Toggle Line Comment",
+  "cmdToggleBlockComment": "Toggle Block Comment",
+  "cmdMoveLineUp": "Move Line Up",
+  "cmdMoveLineDown": "Move Line Down",
+  "cmdCopyLineUp": "Copy Line Up",
+  "cmdCopyLineDown": "Copy Line Down",
+  "cmdDeleteLine": "Delete Line",
+  "cmdInsertLineBelow": "Insert Line Below",
+  "cmdInsertLineAbove": "Insert Line Above",
+  "cmdIndentLine": "Indent Line",
+  "cmdOutdentLine": "Outdent Line",
+  "cmdExpandLineSelection": "Expand Line Selection",
+  "cmdDeleteAllLeft": "Delete All Left",
+  "cmdDeleteAllRight": "Delete All Right",
+  "cmdAddSelectionToNextFindMatch": "Add Selection to Next Find Match",
+  "cmdMoveSelectionToNextFindMatch": "Move Last Selection to Next Find Match",
+  "cmdSelectHighlights": "Select All Occurrences of Find Match",
+  "cmdChangeAll": "Change All Occurrences",
+  "cmdInsertCursorAbove": "Add Cursor Above",
+  "cmdInsertCursorBelow": "Add Cursor Below",
+  "cmdRemoveSecondaryCursors": "Remove Secondary Cursors",
+  "cmdCursorUndo": "Cursor Undo",
+  "cmdTransformToUppercase": "Transform to Uppercase",
+  "cmdTransformToLowercase": "Transform to Lowercase",
+  "cmdDetectIndentation": "Detect Indentation from Content",
+  "cmdGoToDefinition": "Go to Definition",
+  "cmdGoToTypeDefinition": "Go to Type Definition",
+  "cmdGoToImplementations": "Go to Implementations",
+  "cmdGoToReferences": "Go to References",
+  "cmdRenameSymbol": "Rename Symbol",
+  "cmdFormatDocument": "Format Document",
+  "cmdFormatSelection": "Format Selection",
+  "cmdQuickFix": "Quick Fix...",
+  "cmdRefactor": "Refactor...",
+  "cmdSourceAction": "Source Action...",
+  "cmdTriggerSuggest": "Trigger Suggest",
+  "cmdTriggerParameterHints": "Trigger Parameter Hints",
+  "cmdShowHover": "Show or Focus Hover",
+  "quickOpenRecentlyOpened": "recently opened",
+  "@quickOpenRecentlyOpened": {
+    "description": "Quick Open group label, shown at the right of the first recent file."
+  },
+  "quickOpenFiles": "files",
+  "@quickOpenFiles": {
+    "description": "Quick Open group label."
+  },
+  "quickOpenLoadingFiles": "Loading files…",
+  "quickOpenNoFiles": "No files in this project",
+  "quickOpenNoMatchingResults": "No matching results",
+  "quickOpenRecentlyUsed": "recently used",
+  "@quickOpenRecentlyUsed": {
+    "description": "Command palette group label."
+  },
+  "quickOpenOtherCommands": "other commands",
+  "@quickOpenOtherCommands": {
+    "description": "Command palette group label."
+  },
+  "quickOpenNoMatchingCommands": "No matching commands",
+  "gotoLineNoEditor": "Open a text editor first to go to a line.",
+  "gotoLineCurrent": "Current Line: {line}, Character: {character}. Type a line number between 1 and {lineCount} to navigate to.",
+  "@gotoLineCurrent": {
+    "placeholders": {
+      "line": {
+        "type": "int"
+      },
+      "character": {
+        "type": "int"
+      },
+      "lineCount": {
+        "type": "int"
+      }
+    }
+  },
+  "gotoLineLine": "Go to line {line}.",
+  "@gotoLineLine": {
+    "placeholders": {
+      "line": {
+        "type": "int"
+      }
+    }
+  },
+  "gotoLineLineAndCharacter": "Go to line {line} and character {character}.",
+  "@gotoLineLineAndCharacter": {
+    "placeholders": {
+      "line": {
+        "type": "int"
+      },
+      "character": {
+        "type": "int"
+      }
+    }
+  },
+  "menuFile": "File",
+  "@menuFile": {
+    "description": "Menu bar menu."
+  },
+  "menuEdit": "Edit",
+  "@menuEdit": {
+    "description": "Menu bar menu."
+  },
+  "menuView": "View",
+  "@menuView": {
+    "description": "Menu bar menu."
+  },
+  "menuHelp": "Help",
+  "@menuHelp": {
+    "description": "Menu bar menu."
+  },
+  "menuOpenFolder": "Open Folder…",
+  "menuCloseWindow": "Close Window",
+  "menuBackToChat": "Back to Chat",
+  "menuShowSidebar": "Show Sidebar",
+  "menuHideSidebar": "Hide Sidebar",
+  "menuKeepOnTop": "Keep on Top",
+  "menuContextPanel": "Context Panel",
+  "menuAboutMonad": "About Monad",
+  "windowShowSidebar": "Show sidebar",
+  "@windowShowSidebar": {
+    "description": "Tooltip."
+  },
+  "windowHideSidebar": "Hide sidebar",
+  "@windowHideSidebar": {
+    "description": "Tooltip."
+  },
+  "windowMinimize": "Minimize",
+  "windowMaximize": "Maximize",
+  "windowRestore": "Restore",
+  "@windowRestore": {
+    "description": "Window button: restores a maximized window."
+  },
+  "windowClose": "Close",
+  "@windowClose": {
+    "description": "Window button."
+  },
+  "aboutDescription": "Agents run Claude Code as a local process; what they do — messages, tools, diffs and panels — is shown here.",
+  "agentUntitled": "New Agent",
+  "@agentUntitled": {
+    "description": "The title of an agent before its first message names it."
+  },
+  "sidebarNewAgent": "New Agent",
+  "@sidebarNewAgent": {
+    "description": "Button that starts a new agent."
+  },
+  "sidebarGroupingProject": "Project",
+  "sidebarGroupingDate": "Date",
+  "sidebarGroupingStatus": "Status",
+  "sidebarByProject": "By project",
+  "sidebarByDate": "By date",
+  "sidebarByStatus": "By status",
+  "sidebarTimeNow": "now",
+  "@sidebarTimeNow": {
+    "description": "Compact relative time in the agents list."
+  },
+  "sidebarTimeMinutes": "{count}m",
+  "@sidebarTimeMinutes": {
+    "description": "Compact relative time: minutes ago.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sidebarTimeHours": "{count}h",
+  "@sidebarTimeHours": {
+    "description": "Compact relative time: hours ago.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sidebarTimeDays": "{count}d",
+  "@sidebarTimeDays": {
+    "description": "Compact relative time: days ago.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sidebarTimeWeeks": "{count}w",
+  "@sidebarTimeWeeks": {
+    "description": "Compact relative time: weeks ago.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sidebarMonthDay": "{month, select, 1{Jan {day}} 2{Feb {day}} 3{Mar {day}} 4{Apr {day}} 5{May {day}} 6{Jun {day}} 7{Jul {day}} 8{Aug {day}} 9{Sep {day}} 10{Oct {day}} 11{Nov {day}} 12{Dec {day}} other{{month}/{day}}}",
+  "@sidebarMonthDay": {
+    "description": "A short date: month is 1 to 12.",
+    "placeholders": {
+      "month": {
+        "type": "String"
+      },
+      "day": {
+        "type": "int"
+      }
+    }
+  },
+  "sidebarPinned": "Pinned",
+  "sidebarToday": "Today",
+  "sidebarYesterday": "Yesterday",
+  "sidebarPrevious7Days": "Previous 7 days",
+  "sidebarOlder": "Older",
+  "sidebarNeedsInput": "Needs input",
+  "sidebarRunning": "Running",
+  "sidebarUnread": "Unread",
+  "sidebarDone": "Done",
+  "sidebarArchived": "Archived",
+  "sidebarOpenFolder": "Open folder…",
+  "sidebarAgents": "Agents",
+  "sidebarNoMatchingAgents": "No matching agents",
+  "sidebarNoAgentsYet": "No agents yet",
+  "sidebarHideArchived": "Hide archived",
+  "sidebarArchivedCount": "Archived · {count}",
+  "@sidebarArchivedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sidebarDeleteAgentTitle": "Delete agent?",
+  "sidebarDeleteAgentMessage": "“{title}” and its conversation will be removed.",
+  "@sidebarDeleteAgentMessage": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "sidebarDeleteAgentMessageKernel": "“{title}” and its conversation will be deleted, from {kernel} too. This cannot be undone.",
+  "@sidebarDeleteAgentMessageKernel": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "kernel": {
+        "type": "String"
+      }
+    }
+  },
+  "sidebarSearchAgents": "Search agents…",
+  "sidebarNewAgentIn": "New agent in {project}",
+  "@sidebarNewAgentIn": {
+    "placeholders": {
+      "project": {
+        "type": "String"
+      }
+    }
+  },
+  "sidebarPin": "Pin",
+  "sidebarUnpin": "Unpin",
+  "sidebarArchive": "Archive",
+  "sidebarUnarchive": "Unarchive",
+  "workspaceBackToChat": "Back to chat",
+  "@workspaceBackToChat": {
+    "description": "Title bar button leaving the IDE layout."
+  },
+  "workspaceNotEnoughRoom": "Not enough room on this screen",
+  "@workspaceNotEnoughRoom": {
+    "description": "Shown while dropping a conversation where it does not fit."
+  },
+  "workspaceWindowGrows": "The window grows to fit",
+  "@workspaceWindowGrows": {
+    "description": "Shown while dropping a conversation."
+  },
+  "workspaceCopyPath": "Copy path",
+  "workspaceOpenIn": "Open in {app}",
+  "@workspaceOpenIn": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "workspaceChooseEditor": "Choose editor",
+  "workspaceFinder": "Finder",
+  "@workspaceFinder": {
+    "description": "The macOS file manager, as macOS names it."
+  },
+  "workspaceFileExplorer": "File Explorer",
+  "@workspaceFileExplorer": {
+    "description": "The Windows file manager, as Windows names it."
+  },
+  "workspaceTerminalApp": "Terminal",
+  "@workspaceTerminalApp": {
+    "description": "The macOS Terminal app, as macOS names it."
+  },
+  "workspaceWindowsTerminal": "Windows Terminal",
+  "@workspaceWindowsTerminal": {
+    "description": "As Windows names it."
+  },
+  "workspaceKeepOnTopUnavailable": "Keep on top is available in the desktop app",
+  "workspaceUnpinWindow": "Unpin window",
+  "workspacePinWindow": "Pin window on top",
+  "chatConversation": "Conversation",
+  "@chatConversation": {
+    "description": "Breadcrumb: the main conversation, above a subagent's."
+  },
+  "chatBackEsc": "Back (Esc)",
+  "chatBack": "Back",
+  "statusRunningInBackground": "Running in the background",
+  "statusRunning": "Running",
+  "statusDone": "Done",
+  "statusFailed": "Failed",
+  "statusGone": "Gone",
+  "@statusGone": {
+    "description": "A subagent that is no longer known."
+  },
+  "chatSubagentStatus": "Subagent {status}",
+  "@chatSubagentStatus": {
+    "description": "Accessibility label: status is e.g. 'Running'.",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSubagentExplainer": "A subagent works for the agent: messages go to the conversation.",
+  "chatToolCount": "{count, plural, =1{1 tool} other{{count} tools}}",
+  "@chatToolCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatTokens": "{tokens} tokens",
+  "@chatTokens": {
+    "description": "tokens is a formatted count, e.g. 8.2k.",
+    "placeholders": {
+      "tokens": {
+        "type": "String"
+      }
+    }
+  },
+  "durationSeconds": "{seconds}s",
+  "@durationSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "durationMinutesSeconds": "{minutes}m {seconds}s",
+  "@durationMinutesSeconds": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      },
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "durationHoursMinutes": "{hours}h {minutes}m",
+  "@durationHoursMinutes": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "agentStateRunningInBackground": "running in the background",
+  "@agentStateRunningInBackground": {
+    "description": "Lowercase, after a subagent's name."
+  },
+  "agentStateRunning": "running",
+  "@agentStateRunning": {
+    "description": "Lowercase, after a subagent's name."
+  },
+  "agentStateDone": "done",
+  "@agentStateDone": {
+    "description": "Lowercase, after a subagent's name."
+  },
+  "agentStateFailed": "failed",
+  "@agentStateFailed": {
+    "description": "Lowercase, after a subagent's name."
+  },
+  "chatSubagentSemantics": "Subagent {description}, {status}",
+  "@chatSubagentSemantics": {
+    "placeholders": {
+      "description": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "chatOpensItsConversation": "Opens its conversation",
+  "chatStop": "Stop",
+  "chatKeepRunningHint": "Keep it running and let the agent go on",
+  "chatBackground": "Background",
+  "@chatBackground": {
+    "description": "Button: moves a running command or subagent to the background."
+  },
+  "stepThinking": "Thinking",
+  "@stepThinking": {
+    "description": "Step header verb while the agent thinks, before its duration."
+  },
+  "stepThought": "Thought",
+  "@stepThought": {
+    "description": "Step header verb after the agent thought, before its duration."
+  },
+  "stepBriefly": "briefly",
+  "@stepBriefly": {
+    "description": "After 'Thought', for a thought under a second."
+  },
+  "toolReading": "Reading",
+  "toolRead": "Read",
+  "toolGrepping": "Grepping",
+  "toolGrepped": "Grepped",
+  "toolListing": "Listing",
+  "toolListed": "Listed",
+  "toolSearching": "Searching",
+  "toolSearched": "Searched",
+  "toolEditing": "Editing",
+  "toolEdited": "Edited",
+  "toolRunning": "Running",
+  "toolRan": "Ran",
+  "toolFetching": "Fetching",
+  "toolFetched": "Fetched",
+  "toolAgent": "Agent",
+  "toolUpdatingTodos": "Updating todos",
+  "toolUpdatedTodos": "Updated todos",
+  "toolSending": "Sending",
+  "toolSent": "Sent",
+  "toolUsing": "Using",
+  "toolUsed": "Used",
+  "toolLines": "Lines {range}",
+  "@toolLines": {
+    "description": "A file's line range, e.g. 1–40.",
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "commandStarted": "Started",
+  "@commandStarted": {
+    "description": "A command started in the background."
+  },
+  "commandInBackground": "in background",
+  "commandCopyCommand": "Copy command",
+  "commandCopyOutput": "Copy output",
+  "commandMoveToBackground": "Move to background",
+  "commandMore": "More",
+  "chatSubagent": "Subagent",
+  "@chatSubagent": {
+    "description": "Breadcrumb for a subagent without a description."
+  },
+  "chatEmptyTitle": "Plan, build, anything",
+  "@chatEmptyTitle": {
+    "description": "Shown in an empty conversation."
+  },
+  "chatEmptyHint": "@ to add context · / for commands",
+  "activityCompacting": "Compacting conversation",
+  "activityPlanning": "Planning next move",
+  "activityMusings": "Pondering\nNoodling\nPercolating\nCogitating\nSimmering\nMarinating\nTinkering\nGrokking\nMulling it over\nConnecting the dots\nChasing a hunch\nBrewing a plan\nHatching a plan\nWeighing the options\nUntangling threads\nHerding tokens\nSummoning context\nReticulating splines\nAsking the rubber duck\nReading the tea leaves\nSketching on a napkin\nDoodling in the margins\nSquinting at the diff\nCounting parentheses\nBefriending the compiler\nNegotiating with types\nWrangling edge cases\nTracing the stack\nFlipping through the docs\nSpelunking the codebase\nLining up the ducks\nShaking the magic 8-ball\nWarming up the neurons\nFolding thoughts\nTuning the vibes\nBinding the monad\nLifting into the monad\nAsking the oracle\nStirring the pot\nPolishing the plan",
+  "@activityMusings": {
+    "description": "What the agent 'does' while the model has yet to answer: whimsical phrases, one per line, shown one at a time with dots after them. Any number of lines."
+  },
+  "composerCommands": "Commands",
+  "@composerCommands": {
+    "description": "Suggestion menu title."
+  },
+  "composerFilesAndContext": "Files, folders & context",
+  "@composerFilesAndContext": {
+    "description": "Suggestion menu title."
+  },
+  "composerPlaceholder": "Plan, search, build anything  ·  @ to mention  / for commands",
+  "composerTabToAccept": "{suggestion}    ⇥ Tab",
+  "@composerTabToAccept": {
+    "description": "Placeholder showing an inline suggestion accepted with Tab.",
+    "placeholders": {
+      "suggestion": {
+        "type": "String"
+      }
+    }
+  },
+  "composerApprovalTitle": "How should {agent} get approval?",
+  "@composerApprovalTitle": {
+    "placeholders": {
+      "agent": {
+        "type": "String"
+      }
+    }
+  },
+  "composerContextUsage": "Context usage",
+  "composerSend": "Send  ↵",
+  "composerStop": "Stop",
+  "composerSettingContext": "Context",
+  "@composerSettingContext": {
+    "description": "Heading of the model's context window choices."
+  },
+  "composerSettingEffort": "Effort",
+  "@composerSettingEffort": {
+    "description": "Heading of the model's reasoning effort choices."
+  },
+  "composerNoResults": "No results",
+  "stripOpen": "Open {name}",
+  "@stripOpen": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "stripRunningElapsed": "Running · {seconds}s",
+  "@stripRunningElapsed": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "stripFilesChanged": "{count, plural, =1{1 file changed} other{{count} files changed}}",
+  "@stripFilesChanged": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "stripUndoAll": "Undo all",
+  "stripKeepAll": "Keep all",
+  "usageUsed": "Used",
+  "@usageUsed": {
+    "description": "The used part of the context window, without a breakdown."
+  },
+  "usageContextWindow": "Context window",
+  "usageTokensSummary": "{used} / {total} tokens · {percent}%",
+  "@usageTokensSummary": {
+    "description": "used and total are formatted counts (8.2k); percent a whole number.",
+    "placeholders": {
+      "used": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "usageReservedForCompaction": "Reserved for compaction",
+  "usagePlanUsage": "Plan usage",
+  "usageThisSession": "This session",
+  "usageCheckingLimits": "Checking limits…",
+  "usageLimitsUnavailable": "Limits are unavailable right now; reopen this later to try again.",
+  "usageLimitsAfterMessage": "Limits update with the conversation; they show after a message.",
+  "usageResets": "resets {when}",
+  "@usageResets": {
+    "description": "when is e.g. 'in 3h 20m'.",
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "usageInMinutes": "in {minutes}m",
+  "@usageInMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "usageInHours": "in {hours}h",
+  "@usageInHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "usageInHoursMinutes": "in {hours}h {minutes}m",
+  "@usageInHoursMinutes": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "usageInDays": "in {days}d",
+  "@usageInDays": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "usageInDaysHours": "in {days}d {hours}h",
+  "@usageInDaysHours": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      },
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "healthStopped": "{name} stopped",
+  "@healthStopped": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "healthHideDetails": "Hide details",
+  "healthDetails": "Details",
+  "healthRetry": "Retry",
+  "interactionOther": "Other",
+  "interactionTypeYourAnswer": "Type your answer",
+  "interactionAllowOnce": "Allow once",
+  "interactionDeny": "Deny",
+  "interactionDenyHint": "Tell the agent what to do instead",
+  "interactionKeepPlanningOption": "No, keep planning",
+  "interactionWhatShouldChange": "What should change?",
+  "interactionStepOf": "{step} / {total}",
+  "@interactionStepOf": {
+    "placeholders": {
+      "step": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "interactionKeysHint": "1-9 to choose · ↵ to continue · esc to skip",
+  "interactionSkip": "Skip",
+  "interactionKeepPlanning": "Keep planning",
+  "interactionSubmit": "Submit",
+  "interactionNext": "Next",
+  "interactionMoreLines": "{count, plural, =1{… 1 more line} other{… {count} more lines}}",
+  "@interactionMoreLines": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mcpServers": "MCP servers",
+  "mcpConnectedOf": "{connected} of {total} connected",
+  "@mcpConnectedOf": {
+    "placeholders": {
+      "connected": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "mcpRefresh": "Refresh",
+  "mcpNoServers": "No MCP servers configured for this project.",
+  "mcpConnected": "Connected",
+  "mcpConnecting": "Connecting…",
+  "mcpFailed": "Failed",
+  "mcpNeedsSignIn": "Needs sign-in",
+  "mcpDisabled": "Disabled",
+  "mcpReconnect": "Reconnect",
+  "mcpSignIn": "Sign in",
+  "mcpEnable": "Enable",
+  "mcpDisable": "Disable",
+  "todoCount": "Todos {done}/{total}",
+  "@todoCount": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "messageQueued": "Queued",
+  "tabClose": "Close",
+  "tabCloseOthers": "Close Others",
+  "tabCloseToTheRight": "Close to the Right",
+  "tabCloseSaved": "Close Saved",
+  "tabCloseAll": "Close All",
+  "tabCopyPath": "Copy Path",
+  "tabCopyRelativePath": "Copy Relative Path",
+  "tabRevealInExplorerView": "Reveal in Explorer View",
+  "tabMoreActions": "More Actions…",
+  "tabCloseNamed": "Close {name}",
+  "@tabCloseNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDismiss": "Dismiss",
+  "@commonDismiss": {
+    "description": "Accessibility label of the area around a dialog."
+  },
+  "layoutTogglePrimarySideBar": "Toggle Primary Side Bar ({keybinding})",
+  "@layoutTogglePrimarySideBar": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "layoutTogglePanel": "Toggle Panel ({keybinding})",
+  "@layoutTogglePanel": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "layoutToggleChat": "Toggle Chat ({keybinding})",
+  "@layoutToggleChat": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "dialogCloseDialog": "Close Dialog",
+  "menuDismissMenu": "Dismiss menu",
+  "@menuDismissMenu": {
+    "description": "Accessibility label of the area around a menu."
+  },
+  "notificationsHide": "Hide Notifications",
+  "notificationsNone": "No Notifications",
+  "notificationsNoNew": "No New Notifications",
+  "notificationsNew": "{count, plural, =1{1 New Notification} other{{count} New Notifications}}",
+  "@notificationsNew": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "notificationsCenterNoNew": "NO NEW NOTIFICATIONS",
+  "@notificationsCenterNoNew": {
+    "description": "Notification center header, upper case in English."
+  },
+  "notificationsCenterTitle": "NOTIFICATIONS",
+  "@notificationsCenterTitle": {
+    "description": "Notification center header, upper case in English."
+  },
+  "notificationsClearAll": "Clear All Notifications",
+  "notificationsCollapse": "Collapse Notification",
+  "notificationsExpand": "Expand Notification",
+  "notificationsMoreActions": "More Actions...",
+  "notificationsClear": "Clear Notification",
+  "notificationsSource": "Source: {source}",
+  "@notificationsSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "explorerCannotReadFolder": "Cannot read folder: {error}",
+  "@explorerCannotReadFolder": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "explorerNameRequired": "A file or folder name must be provided.",
+  "explorerNameStartsWithSlash": "A file or folder name cannot start with a slash.",
+  "explorerNameExists": "A file or folder {name} already exists at this location. Please choose a different name.",
+  "@explorerNameExists": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "explorerNameInvalid": "The name {name} is not valid as a file or folder name. Please choose a different name.",
+  "@explorerNameInvalid": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "explorerNameWhitespace": "Leading or trailing whitespace detected in file or folder name.",
+  "explorerMoveToTrash": "Move to Trash",
+  "explorerDeleteFolderUnsaved": "{count, plural, =1{You are deleting a folder {name} with unsaved changes in 1 file. Do you want to continue?} other{You are deleting a folder {name} with unsaved changes in {count} files. Do you want to continue?}}",
+  "@explorerDeleteFolderUnsaved": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "explorerDeleteFileUnsaved": "You are deleting {name} with unsaved changes. Do you want to continue?",
+  "@explorerDeleteFileUnsaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "explorerChangesLost": "Your changes will be lost if you don't save them.",
+  "explorerConfirmDeleteFolder": "Are you sure you want to delete '{name}' and its contents?",
+  "@explorerConfirmDeleteFolder": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "explorerConfirmDeleteFile": "Are you sure you want to delete '{name}'?",
+  "@explorerConfirmDeleteFile": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "explorerRestoreFromTrash": "You can restore this file from the Trash.",
+  "explorerConfirmPermanentDeleteFolder": "Are you sure you want to permanently delete '{name}' and its contents?",
+  "@explorerConfirmPermanentDeleteFolder": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "explorerConfirmPermanentDeleteFile": "Are you sure you want to permanently delete '{name}'?",
+  "@explorerConfirmPermanentDeleteFile": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "explorerIrreversible": "This action is irreversible!",
+  "explorerRestoreWithUndo": "You can restore this file using the Undo command.",
+  "explorerTrashFailed": "Failed to delete using the Trash. Do you want to permanently delete instead?",
+  "explorerDeletePermanently": "Delete Permanently",
+  "explorerPasteIntoAncestor": "File to paste is an ancestor of the destination folder",
+  "explorerNewFile": "New File...",
+  "explorerNewFolder": "New Folder...",
+  "explorerRevealInFinder": "Reveal in Finder",
+  "explorerFindInFolder": "Find in Folder...",
+  "explorerRename": "Rename...",
+  "findNoResults": "No results",
+  "findMatchOf": "{current} of {total}",
+  "@findMatchOf": {
+    "description": "current is a number or '?'; total a number, maybe with '+'.",
+    "placeholders": {
+      "current": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "findFind": "Find",
+  "findMatchCase": "Match case",
+  "findWholeWord": "Whole word",
+  "findRegularExpression": "Regular expression",
+  "findPreviousMatch": "Previous match",
+  "findNextMatch": "Next match",
+  "findClose": "Close find",
+  "findReplace": "Replace",
+  "findReplaceMatch": "Replace match",
+  "findReplaceAll": "Replace all",
+  "findToggleReplace": "Toggle replace",
+  "settingsTitle": "Settings",
+  "settingsSectionLanguage": "Region & Language",
+  "settingsSectionKeyboard": "Keyboard Shortcuts",
+  "settingsSectionDataDirectory": "Data Directory",
+  "placeholderBinary": "The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.",
+  "placeholderTooLarge": "The file is not displayed in the text editor because it is very large ({size}).",
+  "@placeholderTooLarge": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "placeholderNotFound": "The editor could not be opened because the file was not found.",
+  "placeholderUnexpected": "The editor could not be opened due to an unexpected error.",
+  "placeholderOpenAnyway": "Open Anyway",
+  "placeholderTryAgain": "Try Again",
+  "fileErrorConflict": "The file changed on disk. Reopen it before saving: {path}",
+  "@fileErrorConflict": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "fileErrorNotFound": "File not found: {path}",
+  "@fileErrorNotFound": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "fileErrorBinary": "Binary files cannot be edited: {path}",
+  "@fileErrorBinary": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "fileErrorTooLarge": "Files over 5 MB cannot be edited: {path}",
+  "@fileErrorTooLarge": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "fileErrorExists": "A file or folder {name} already exists at this location.",
+  "@fileErrorExists": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "themeDefaultLight": "Default Light",
+  "themeDefaultDark": "Default Dark",
+  "themeLightThemes": "light themes",
+  "@themeLightThemes": {
+    "description": "Separator in the color theme picker."
+  },
+  "themeDarkThemes": "dark themes",
+  "@themeDarkThemes": {
+    "description": "Separator in the color theme picker."
+  },
+  "themeHighContrastThemes": "high contrast themes",
+  "@themeHighContrastThemes": {
+    "description": "Separator in the color theme picker."
+  },
+  "themeSelectPlaceholder": "Select Color Theme (detect system color mode disabled)",
+  "dateNow": "now",
+  "@dateNow": {
+    "description": "A time within half a minute of now."
+  },
+  "dateAgo": "{time} ago",
+  "@dateAgo": {
+    "description": "time is e.g. '5 mins'.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "dateIn": "in {time}",
+  "@dateIn": {
+    "description": "time is e.g. '2 hrs'.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "dateSeconds": "{full, select, true{{count, plural, =1{{count} second} other{{count} seconds}}} other{{count, plural, =1{{count} sec} other{{count} secs}}}}",
+  "@dateSeconds": {
+    "description": "full is 'true' to spell the unit out (minutes rather than mins).",
+    "placeholders": {
+      "full": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dateMinutes": "{full, select, true{{count, plural, =1{{count} minute} other{{count} minutes}}} other{{count, plural, =1{{count} min} other{{count} mins}}}}",
+  "@dateMinutes": {
+    "description": "full is 'true' to spell the unit out (minutes rather than mins).",
+    "placeholders": {
+      "full": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dateHours": "{full, select, true{{count, plural, =1{{count} hour} other{{count} hours}}} other{{count, plural, =1{{count} hr} other{{count} hrs}}}}",
+  "@dateHours": {
+    "description": "full is 'true' to spell the unit out (minutes rather than mins).",
+    "placeholders": {
+      "full": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dateDays": "{full, select, true{{count, plural, =1{{count} day} other{{count} days}}} other{{count, plural, =1{{count} day} other{{count} days}}}}",
+  "@dateDays": {
+    "description": "full is 'true' to spell the unit out (minutes rather than mins).",
+    "placeholders": {
+      "full": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dateWeeks": "{full, select, true{{count, plural, =1{{count} week} other{{count} weeks}}} other{{count, plural, =1{{count} wk} other{{count} wks}}}}",
+  "@dateWeeks": {
+    "description": "full is 'true' to spell the unit out (minutes rather than mins).",
+    "placeholders": {
+      "full": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dateMonths": "{full, select, true{{count, plural, =1{{count} month} other{{count} months}}} other{{count, plural, =1{{count} mo} other{{count} mos}}}}",
+  "@dateMonths": {
+    "description": "full is 'true' to spell the unit out (minutes rather than mins).",
+    "placeholders": {
+      "full": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dateYears": "{full, select, true{{count, plural, =1{{count} year} other{{count} years}}} other{{count, plural, =1{{count} yr} other{{count} yrs}}}}",
+  "@dateYears": {
+    "description": "full is 'true' to spell the unit out (minutes rather than mins).",
+    "placeholders": {
+      "full": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "commonRefresh": "Refresh",
+  "commonMoreActions": "More Actions...",
+  "commonCollapseAll": "Collapse All",
+  "commonYes": "Yes",
+  "gitStatusIndexModified": "Index Modified",
+  "gitStatusModified": "Modified",
+  "gitStatusIndexAdded": "Index Added",
+  "gitStatusIndexDeleted": "Index Deleted",
+  "gitStatusDeleted": "Deleted",
+  "gitStatusIndexRenamed": "Index Renamed",
+  "gitStatusIndexCopied": "Index Copied",
+  "gitStatusUntracked": "Untracked",
+  "gitStatusIgnored": "Ignored",
+  "gitStatusIntentToAdd": "Intent to Add",
+  "gitStatusIntentToRename": "Intent to Rename",
+  "gitStatusTypeChanged": "Type Changed",
+  "gitStatusBothDeleted": "Conflict: Both Deleted",
+  "gitStatusAddedByUs": "Conflict: Added By Us",
+  "gitStatusDeletedByThem": "Conflict: Deleted By Them",
+  "gitStatusAddedByThem": "Conflict: Added By Them",
+  "gitStatusDeletedByUs": "Conflict: Deleted By Us",
+  "gitStatusBothAdded": "Conflict: Both Added",
+  "gitStatusBothModified": "Conflict: Both Modified",
+  "gitIgnoredInGit": "Ignored in Git",
+  "gitContainsEmphasizedItems": "Contains emphasized items",
+  "gitChangeIndex": "Index",
+  "@gitChangeIndex": {
+    "description": "A change editor's title suffix: the side shown."
+  },
+  "gitChangeWorkingTree": "Working Tree",
+  "gitChangeDeleted": "Deleted",
+  "gitChangeTheirs": "Theirs",
+  "gitChangeOurs": "Ours",
+  "gitChangeUntracked": "Untracked",
+  "gitChangeIntentToAdd": "Intent to add",
+  "gitChangeTypeChanged": "Type changed",
+  "scmTitle": "Source Control",
+  "scmNoProviders": "No source control providers registered.",
+  "scmInstallGit": "Install Git, a popular source control system, to track code changes and collaborate with others.",
+  "scmNoRepository": "The folder currently open doesn't have a Git repository. You can initialize a repository which will enable source control features powered by Git.",
+  "scmInitializeRepository": "Initialize Repository",
+  "scmChanges": "Changes",
+  "scmGroupMerge": "Merge Changes",
+  "scmGroupStaged": "Staged Changes",
+  "scmGraph": "Graph",
+  "scmCommit": "Commit",
+  "scmCommitChanges": "Commit Changes",
+  "scmCommitAmend": "Commit (Amend)",
+  "scmCommitStaged": "Commit Staged",
+  "scmCommitAll": "Commit All",
+  "scmCommitStagedAmend": "Commit Staged (Amend)",
+  "scmCommitAllAmend": "Commit All (Amend)",
+  "scmUndoLastCommit": "Undo Last Commit",
+  "scmGoToCurrent": "Go to Current History Item",
+  "scmViewAndSort": "View & Sort",
+  "scmViewAsList": "View as List",
+  "scmViewAsTree": "View as Tree",
+  "scmSortByName": "Sort Changes by Name",
+  "scmSortByPath": "Sort Changes by Path",
+  "scmSortByStatus": "Sort Changes by Status",
+  "scmStageChanges": "Stage Changes",
+  "scmUnstageChanges": "Unstage Changes",
+  "scmDiscardChanges": "Discard Changes",
+  "scmStageAllMerge": "Stage All Merge Changes",
+  "scmStageAll": "Stage All Changes",
+  "scmUnstageAll": "Unstage All Changes",
+  "scmDiscardAll": "Discard All Changes",
+  "scmOpenFile": "Open File",
+  "scmOpenChanges": "Open Changes",
+  "scmOpenFileHead": "Open File (HEAD)",
+  "scmAddToGitignore": "Add to .gitignore",
+  "scmInput": "Source Control Input",
+  "scmMessagePlaceholder": "Message ({keybinding} to commit)",
+  "@scmMessagePlaceholder": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "scmMessagePlaceholderBranch": "Message ({keybinding} to commit on \"{branch}\")",
+  "@scmMessagePlaceholderBranch": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      },
+      "branch": {
+        "type": "String"
+      }
+    }
+  },
+  "scmGenerateCommitMessage": "Generate Commit Message",
+  "scmCancelGenerateCommitMessage": "Cancel Generating Commit Message",
+  "scmNoChangesToGenerate": "There are no changes to generate a commit message for.",
+  "scmPublishBranch": "Publish Branch",
+  "scmPublishBranchNamed": "Publish Branch \"{branch}\"",
+  "@scmPublishBranchNamed": {
+    "placeholders": {
+      "branch": {
+        "type": "String"
+      }
+    }
+  },
+  "scmPublishingBranchNamed": "Publishing Branch \"{branch}\"...",
+  "@scmPublishingBranchNamed": {
+    "placeholders": {
+      "branch": {
+        "type": "String"
+      }
+    }
+  },
+  "scmSyncChanges": "Sync Changes",
+  "scmSynchronizeChanges": "Synchronize Changes",
+  "scmSynchronizingChanges": "Synchronizing Changes...",
+  "scmPullCommits": "Pull {count} commits from {upstream}",
+  "@scmPullCommits": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "upstream": {
+        "type": "String"
+      }
+    }
+  },
+  "scmPushCommits": "Push {count} commits to {upstream}",
+  "@scmPushCommits": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "upstream": {
+        "type": "String"
+      }
+    }
+  },
+  "scmPullPushCommits": "Pull {behind} and push {ahead} commits between {upstream}",
+  "@scmPullPushCommits": {
+    "placeholders": {
+      "behind": {
+        "type": "int"
+      },
+      "ahead": {
+        "type": "int"
+      },
+      "upstream": {
+        "type": "String"
+      }
+    }
+  },
+  "scmConfirmSync": "This action will pull and push commits from and to \"{upstream}\".",
+  "@scmConfirmSync": {
+    "placeholders": {
+      "upstream": {
+        "type": "String"
+      }
+    }
+  },
+  "scmDontShowAgain": "OK, Don't Show Again",
+  "scmNoRemotes": "Your repository has no remotes configured to publish to.",
+  "scmProvideMessage": "Please provide a commit message",
+  "scmNoStagedChanges": "There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?",
+  "scmAlways": "Always",
+  "scmNever": "Never",
+  "scmNoChangesToCommit": "There are no changes to commit.",
+  "scmCreateEmptyCommit": "Create Empty Commit",
+  "scmCantUndo": "Can't undo because HEAD doesn't point to any commit.",
+  "scmConfirmUndoMerge": "The last commit was a merge commit. Are you sure you want to undo it?",
+  "scmUndoMergeCommit": "Undo merge commit",
+  "scmIrreversibleFile": "This is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.",
+  "scmIrreversibleFiles": "This is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.",
+  "scmIrreversibleWorkingSet": "This is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.",
+  "scmConfirmDeleteUntracked": "Are you sure you want to DELETE the following untracked file: '{name}'?",
+  "@scmConfirmDeleteUntracked": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "scmConfirmDeleteUntrackedCount": "Are you sure you want to DELETE the {count} untracked files?",
+  "@scmConfirmDeleteUntrackedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scmRestoreFilesFromTrash": "You can restore these files from the Trash.",
+  "scmDeleteFile": "Delete File",
+  "scmDeleteAllFiles": "Delete All {count} Files",
+  "@scmDeleteAllFiles": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scmConfirmRestore": "Are you sure you want to restore '{name}'?",
+  "@scmConfirmRestore": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "scmConfirmRestoreAll": "Are you sure you want to restore ALL {count} files?",
+  "@scmConfirmRestoreAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scmConfirmDiscard": "Are you sure you want to discard changes in '{name}'?",
+  "@scmConfirmDiscard": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "scmConfirmDiscardAll": "Are you sure you want to discard ALL changes in {count} files?",
+  "@scmConfirmDiscardAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scmRestoreFile": "Restore File",
+  "scmRestoreAllFiles": "Restore All {count} Files",
+  "@scmRestoreAllFiles": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scmDiscardFile": "Discard File",
+  "scmDiscardAllFiles": "Discard All {count} Files",
+  "@scmDiscardAllFiles": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scmDiscardTrackedFiles": "{count, plural, =1{Discard 1 Tracked File} other{Discard All {count} Tracked Files}}",
+  "@scmDiscardTrackedFiles": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scmCopyCommitHash": "Copy Commit Hash",
+  "scmCopyCommitMessage": "Copy Commit Message",
+  "scmIncomingChanges": "Incoming Changes",
+  "scmOutgoingChanges": "Outgoing Changes",
+  "scmCommitDate": "{month, select, 1{January} 2{February} 3{March} 4{April} 5{May} 6{June} 7{July} 8{August} 9{September} 10{October} 11{November} 12{December} other{{month}}} {day}, {year} at {hour}:{minute} {period, select, am{AM} other{PM}}",
+  "@scmCommitDate": {
+    "description": "A commit's date: month is 1 to 12, hour 1 to 12, period am or pm.",
+    "placeholders": {
+      "month": {
+        "type": "String"
+      },
+      "day": {
+        "type": "String"
+      },
+      "year": {
+        "type": "String"
+      },
+      "hour": {
+        "type": "String"
+      },
+      "minute": {
+        "type": "String"
+      },
+      "period": {
+        "type": "String"
+      }
+    }
+  },
+  "timelineCopyCommitId": "Copy Commit ID",
+  "timelineNoEditor": "The active editor cannot provide timeline information.",
+  "timelineNotConfigured": "No timeline information was provided. Source Control has not been configured.",
+  "timelineLoading": "Loading timeline for {name}...",
+  "@timelineLoading": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "timelineNone": "No timeline information was provided.",
+  "timelineLoadMore": "Load more",
+  "timelineYou": "You, {time}",
+  "@timelineYou": {
+    "description": "time is e.g. '5 minutes ago'.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "commonExpandAll": "Expand All",
+  "searchTitle": "Search",
+  "searchClearResults": "Clear Search Results",
+  "searchMatchCase": "Match Case ({keybinding})",
+  "@searchMatchCase": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "searchMatchWholeWord": "Match Whole Word ({keybinding})",
+  "@searchMatchWholeWord": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "searchUseRegExp": "Use Regular Expression ({keybinding})",
+  "@searchUseRegExp": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "searchPreserveCase": "Preserve Case ({keybinding})",
+  "@searchPreserveCase": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "searchReplace": "Replace",
+  "searchReplaceAll": "Replace All",
+  "searchReplaceKeys": "Replace ({keybinding})",
+  "@searchReplaceKeys": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "searchReplaceAllKeys": "Replace All ({keybinding})",
+  "@searchReplaceAllKeys": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "searchDismiss": "Dismiss",
+  "searchDismissKeys": "Dismiss ({keybinding})",
+  "@searchDismissKeys": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "searchCopyAll": "Copy All",
+  "searchToggleReplace": "Toggle Replace",
+  "searchToggleDetails": "Toggle Search Details",
+  "searchFilesToInclude": "files to include",
+  "searchFilesToExclude": "files to exclude",
+  "searchIncludeExample": "e.g. *.ts, src/**/include",
+  "searchExcludeExample": "e.g. *.ts, src/**/exclude",
+  "searchUseExcludeSettings": "Use Exclude Settings and Ignore Files",
+  "searchLimitHit": "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.",
+  "searchResultCount": "{matches, plural, =1{1 result} other{{matches} results}} in {files, plural, =1{1 file} other{{files} files}}",
+  "@searchResultCount": {
+    "placeholders": {
+      "matches": {
+        "type": "int"
+      },
+      "files": {
+        "type": "int"
+      }
+    }
+  },
+  "searchNoResultsIncludeExclude": "No results found in '{include}' excluding '{exclude}'",
+  "@searchNoResultsIncludeExclude": {
+    "placeholders": {
+      "include": {
+        "type": "String"
+      },
+      "exclude": {
+        "type": "String"
+      }
+    }
+  },
+  "searchNoResultsInclude": "No results found in '{include}'",
+  "@searchNoResultsInclude": {
+    "placeholders": {
+      "include": {
+        "type": "String"
+      }
+    }
+  },
+  "searchNoResultsExclude": "No results found excluding '{exclude}'",
+  "@searchNoResultsExclude": {
+    "placeholders": {
+      "exclude": {
+        "type": "String"
+      }
+    }
+  },
+  "searchNoResults": "No results found. Review your settings for configured exclusions and check your gitignore files",
+  "searchOccurrences": "{occurrences, plural, =1{1 occurrence} other{{occurrences} occurrences}} across {files, plural, =1{1 file} other{{files} files}}",
+  "@searchOccurrences": {
+    "placeholders": {
+      "occurrences": {
+        "type": "int"
+      },
+      "files": {
+        "type": "int"
+      }
+    }
+  },
+  "searchConfirmReplace": "Replace {counts}?",
+  "@searchConfirmReplace": {
+    "description": "counts is searchOccurrences.",
+    "placeholders": {
+      "counts": {
+        "type": "String"
+      }
+    }
+  },
+  "searchConfirmReplaceWith": "Replace {counts} with '{value}'?",
+  "@searchConfirmReplaceWith": {
+    "description": "counts is searchOccurrences.",
+    "placeholders": {
+      "counts": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "searchReplaced": "Replaced {counts}.",
+  "@searchReplaced": {
+    "description": "counts is searchOccurrences.",
+    "placeholders": {
+      "counts": {
+        "type": "String"
+      }
+    }
+  },
+  "searchReplacedWith": "Replaced {counts} with '{value}'.",
+  "@searchReplacedWith": {
+    "description": "counts is searchOccurrences.",
+    "placeholders": {
+      "counts": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "extTitle": "Extensions",
+  "extTitleInstalled": "Extensions: Installed",
+  "extTitleRecommended": "Extensions: Recommended",
+  "extTitleMarketplace": "Extensions: Marketplace",
+  "extFilter": "Filter Extensions...",
+  "extInstalled": "Installed",
+  "extRecommended": "Recommended",
+  "extClearSearch": "Clear Extensions Search Results",
+  "extSearchPlaceholder": "Search Extensions in Marketplace",
+  "extNoneFound": "No extensions found.",
+  "extInstall": "Install",
+  "extUninstall": "Uninstall",
+  "extInstalling": "Installing",
+  "extUninstalling": "Uninstalling",
+  "extManage": "Manage",
+  "extCopyId": "Copy Extension ID",
+  "extInstallError": "Error while installing '{id}' extension. {error}",
+  "@extInstallError": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "extUninstallError": "Error while uninstalling '{id}' extension. {error}",
+  "@extUninstallError": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "extLanguageServer": "Language server",
+  "extLanguageServerFor": "Language server for {languages}",
+  "@extLanguageServerFor": {
+    "placeholders": {
+      "languages": {
+        "type": "String"
+      }
+    }
+  },
+  "extMissingRuntime": "Installing '{id}' needs {runtime}, which was not found. Install {runtime}, then try again.",
+  "@extMissingRuntime": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "runtime": {
+        "type": "String"
+      }
+    }
+  },
+  "extUnavailable": "'{id}' was not found on PATH and cannot be installed automatically.",
+  "@extUnavailable": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langStarting": "{id}: starting…",
+  "@langStarting": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langStartingTooltip": "Starting {id}",
+  "@langStartingTooltip": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langRunning": "{id} is running",
+  "@langRunning": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langRestarting": "{id}: restarting…",
+  "@langRestarting": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langClickToRestart": "Click to restart now",
+  "langFailed": "{id} failed",
+  "@langFailed": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langClickToRetry": "Click to retry",
+  "langNotInstalled": "{id} not installed",
+  "@langNotInstalled": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langNeedsRuntime": "Installing {id} needs {runtime}, which was not found",
+  "@langNeedsRuntime": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "runtime": {
+        "type": "String"
+      }
+    }
+  },
+  "langClickToInstall": "Click to install {id}",
+  "@langClickToInstall": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langNotOnPath": "{id} was not found on PATH",
+  "@langNotOnPath": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langInstallingItem": "Installing {id}…",
+  "@langInstallingItem": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langInstallingTooltip": "Installing {id}",
+  "@langInstallingTooltip": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langNoneFound": "{kind, select, definition{No definition found} typeDefinition{No type definition found} implementation{No implementation found} other{No references found}}",
+  "@langNoneFound": {
+    "description": "kind is definition, typeDefinition, implementation or references.",
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "langNoneFoundFor": "{kind, select, definition{No definition found for '{word}'} typeDefinition{No type definition found for '{word}'} implementation{No implementation found for '{word}'} other{No references found for '{word}'}}",
+  "@langNoneFoundFor": {
+    "description": "kind is definition, typeDefinition, implementation or references.",
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "langReferences": "References",
+  "langReferencesTo": "References to '{word}'",
+  "@langReferencesTo": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "langDefinitions": "Definitions",
+  "langTypeDefinitions": "Type Definitions",
+  "langImplementations": "Implementations",
+  "langCantRename": "The element can't be renamed.",
+  "langRenameFailed": "Rename failed: {error}",
+  "@langRenameFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "langNoResult": "No result.",
+  "langRenameCancelled": "Rename was cancelled because the document changed.",
+  "langRenameNotApplied": "Rename couldn't be applied.",
+  "langNoSelectionFormatter": "No formatter for selections in this file.",
+  "langNoFormatter": "No formatter for this file.",
+  "langNoRefactorings": "No refactorings available",
+  "langNoSourceActions": "No source actions available",
+  "langNoCodeActions": "No code actions available",
+  "langCodeActionNotApplied": "The code action couldn't be applied.",
+  "langShowCodeActions": "Show Code Actions",
+  "langLoading": "Loading...",
+  "langNoSuggestions": "No suggestions.",
+  "langPreferred": "Preferred",
+  "langRenameHint": "Enter to Rename, Escape to Cancel",
+  "symbolsNoEditor": "To go to a symbol, first open a text editor with symbol information.",
+  "symbolsLoading": "Loading symbols…",
+  "symbolsNone": "No editor symbols",
+  "symbolsNoMatching": "No matching editor symbols",
+  "outlineTitle": "OUTLINE",
+  "outlineNoEditor": "The active editor cannot provide outline information.",
+  "outlineNoSymbols": "No symbols found in document.",
+  "outlineLoading": "Loading document symbols…",
+  "panelProblems": "PROBLEMS",
+  "panelReferences": "REFERENCES",
+  "panelTerminal": "TERMINAL",
+  "panelClose": "Close Panel",
+  "panelTerminalUnavailable": "The terminal is not available.",
+  "problemsNone": "No problems have been detected in the workspace.",
+  "problemsPosition": "[Ln {line}, Col {column}]",
+  "@problemsPosition": {
+    "placeholders": {
+      "line": {
+        "type": "int"
+      },
+      "column": {
+        "type": "int"
+      }
+    }
+  },
+  "referencesPosition": "Ln {line}, Col {column}",
+  "@referencesPosition": {
+    "placeholders": {
+      "line": {
+        "type": "int"
+      },
+      "column": {
+        "type": "int"
+      }
+    }
+  },
+  "referencesNone": "No references yet: use Go to References (⇧F12).",
+  "referencesSummary": "{title} — {count, plural, =1{1 result} other{{count} results}} in {files, plural, =1{1 file} other{{files} files}}",
+  "@referencesSummary": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      },
+      "files": {
+        "type": "int"
+      }
+    }
+  },
+  "termRename": "Rename...",
+  "termKillTerminal": "Kill Terminal",
+  "termNewTerminal": "New Terminal",
+  "termNewTerminalKeys": "New Terminal ({keybinding})",
+  "@termNewTerminalKeys": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "termKill": "Kill",
+  "termKillKeys": "Kill ({keybinding})",
+  "@termKillKeys": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "termRenameEmpty": "Providing no name will reset it to the default value",
+  "termRenameLabel": "Type terminal name. Press Enter to confirm or Escape to cancel.",
+  "termRerunCommand": "Rerun Command",
+  "termCopyCommand": "Copy Command",
+  "termCopyOutput": "Copy Output",
+  "termClear": "Clear",
+  "termPasteAsOneLine": "Paste as one line",
+  "termPasteConfirm": "Are you sure you want to paste {count} lines of text into the terminal?",
+  "@termPasteConfirm": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "commonSave": "Save",
+  "commonDontSave": "Don't Save",
+  "wbConfirmSave": "Do you want to save the changes you made to {name}?",
+  "@wbConfirmSave": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wbHeadNotAvailable": "HEAD version of \"{name}\" is not available.",
+  "@wbHeadNotAvailable": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "wbRecommendServer": "Do you want to install the recommended '{id}' language server for the {language} language?",
+  "@wbRecommendServer": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "wbDontShowAgainServer": "Don't Show Again for this Language Server",
+  "wbQuickCommands": "Type the name of a command to run.",
+  "wbQuickSymbols": "Type the name of a symbol to go to.",
+  "wbQuickFiles": "Search files by name (append : to go to a line or > to run a command)",
+  "wbChordWaiting": "({chord}) was pressed. Waiting for second key of chord...",
+  "@wbChordWaiting": {
+    "placeholders": {
+      "chord": {
+        "type": "String"
+      }
+    }
+  },
+  "wbChordNotCommand": "The key combination ({chord}, {keypress}) is not a command.",
+  "@wbChordNotCommand": {
+    "placeholders": {
+      "chord": {
+        "type": "String"
+      },
+      "keypress": {
+        "type": "String"
+      }
+    }
+  },
+  "wbExplorer": "Explorer",
+  "wbSearchFiles": "Search files",
+  "wbPendingChanges": "{count} pending changes",
+  "@wbPendingChanges": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "wbOutline": "Outline",
+  "wbTimeline": "Timeline",
+  "wbPinTimeline": "Pin the Current Timeline",
+  "wbUnpinTimeline": "Unpin the Current Timeline",
+  "wbLanguageServices": "Language services",
+  "wbMonacoEditor": "Monaco editor",
+  "wbTextEditor": "Text editor",
+  "wbRetryLanguageServices": "Retry language services",
+  "wbNoProblems": "No Problems",
+  "wbProblemCounts": "Errors: {errors}, Warnings: {warnings}",
+  "@wbProblemCounts": {
+    "placeholders": {
+      "errors": {
+        "type": "int"
+      },
+      "warnings": {
+        "type": "int"
+      }
+    }
+  },
+  "wbProblemCountsInfos": "Errors: {errors}, Warnings: {warnings}, Infos: {infos}",
+  "@wbProblemCountsInfos": {
+    "placeholders": {
+      "errors": {
+        "type": "int"
+      },
+      "warnings": {
+        "type": "int"
+      },
+      "infos": {
+        "type": "int"
+      }
+    }
+  },
+  "wbSelectedCount": "({count} selected)",
+  "@wbSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "wbGoToLineColumn": "Go to Line/Column",
+  "wbSpaces": "Spaces: {size}",
+  "@wbSpaces": {
+    "placeholders": {
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "wbTabSize": "Tab Size: {size}",
+  "@wbTabSize": {
+    "placeholders": {
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "wbIndentation": "Indentation",
+  "wbEncoding": "Encoding",
+  "wbEndOfLine": "End of Line Sequence",
+  "wbEolMixed": "Mixed",
+  "wbLanguageMode": "Language Mode",
+  "editorCommandPalette": "Command Palette...",
+  "editorStartTyping": "Start typing…",
+  "editorEditLanguage": "Edit {language}…",
+  "@editorEditLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "workspaceClosePane": "Close pane",
+  "workspaceLoadingProjects": "Loading projects…",
+  "workspaceDesktopOnly": "Agents run in the desktop app",
+  "workspaceDesktopOnlyDetail": "Claude Code runs as a local process, which a browser cannot start.",
+  "workspaceOpenProjectFolder": "Open a project folder",
+  "workspaceOpenProjectFolderDetail": "Its Claude Code sessions show in the sidebar; new agents run in it.",
+  "settingsFileError": "{file} could not be applied: {error}. What was last read from it stays in effect until it is fixed.",
+  "@settingsFileError": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cmdLastEditorInGroup": "Open Last Editor in Group",
+  "cmdToggleFormatOnSave": "Toggle Format on Save",
+  "kbSourceDefault": "Default",
+  "kbSourceUser": "User",
+  "kbKeymap": "Keymap",
+  "kbKeymapLabel": "Keymap: {name}",
+  "@kbKeymapLabel": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "kbNone": "None",
+  "kbImport": "Import from VS Code/Cursor…",
+  "kbWhenNotParse": "The when clause does not parse ({error}): this keybinding never applies.",
+  "@kbWhenNotParse": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "kbUnknownContextKeys": "{count, plural, =1{Monad does not know the context key {keys}: this keybinding never applies.} other{Monad does not know the context keys {keys}: this keybinding never applies.}}",
+  "@kbUnknownContextKeys": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "keys": {
+        "type": "String"
+      }
+    }
+  },
+  "kbChangeFailed": "Could not change the keybindings ({error}). Please open keybindings.json and check it for errors.",
+  "@kbChangeFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "kbCopyCommandId": "Copy Command ID",
+  "kbCopyCommandTitle": "Copy Command Title",
+  "kbChangeKeybindingEllipsis": "Change Keybinding…",
+  "kbAddKeybindingEllipsis": "Add Keybinding…",
+  "kbChangeKeybinding": "Change Keybinding",
+  "kbAddKeybinding": "Add Keybinding",
+  "kbRemoveKeybinding": "Remove Keybinding",
+  "kbResetKeybinding": "Reset Keybinding",
+  "kbChangeWhen": "Change When Expression",
+  "kbShowSame": "Show Same Keybindings",
+  "kbRecordingPlaceholder": "Recording Keys. Press Escape to exit",
+  "kbSearchPlaceholder": "Type to search in keybindings",
+  "kbSearchLabel": "Search keybindings",
+  "kbRecordKeys": "Record Keys ({keybinding})",
+  "@kbRecordKeys": {
+    "placeholders": {
+      "keybinding": {
+        "type": "String"
+      }
+    }
+  },
+  "kbRecordingKeys": "Recording Keys",
+  "kbColumnCommand": "Command",
+  "kbColumnKeybinding": "Keybinding",
+  "kbColumnWhen": "When",
+  "kbColumnSource": "Source",
+  "kbWhenLabel": "When expression",
+  "kbNoneFound": "No keybindings found",
+  "kbCannotReadKey": "Monad cannot read the key “{key}”: this keybinding never applies.",
+  "@kbCannotReadKey": {
+    "placeholders": {
+      "key": {
+        "type": "String"
+      }
+    }
+  },
+  "kbNotSupported": "Not supported",
+  "kbNotSupportedHover": "Monad does not have this command: the keybinding is kept, but does nothing.",
+  "kbPressKeys": "Press desired key combination and then press Enter.",
+  "kbChordTo": "chord to",
+  "kbExistingCommands": "{count, plural, =1{1 existing command has this keybinding} other{{count} existing commands have this keybinding}}",
+  "@kbExistingCommands": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dataDirFullPath": "Choose a full path.",
+  "dataDirInUse": "This is the folder in use.",
+  "dataDirInsideCurrent": "The new folder cannot be inside the one in use.",
+  "dataDirContainsCurrent": "The new folder cannot contain the one in use.",
+  "dataDirCannotMake": "The folder cannot be made: {error}",
+  "@dataDirCannotMake": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirNotThere": "The folder {path} is not there.",
+  "@dataDirNotThere": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirNotFolder": "{path} is not a folder.",
+  "@dataDirNotFolder": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirNotWritable": "Files cannot be written in {path}.",
+  "@dataDirNotWritable": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirRevealInFileExplorer": "Reveal in File Explorer",
+  "dataDirChecking": "Checking the folder…",
+  "dataDirAlreadyHolds": "The folder already holds Monad data",
+  "dataDirMoveBack": "Move Monad's data back to the default folder?",
+  "dataDirMoveHere": "Move Monad's data to this folder?",
+  "dataDirUseAsIsDetail": "After a restart Monad uses the data there as it is; nothing is copied, and the current folder keeps yours.",
+  "dataDirCopyDetail": "Monad copies its settings, keybindings, language servers and state there, and uses that folder after a restart.",
+  "dataDirOtherFiles": "The folder holds other files: they stay, beside Monad's own.",
+  "dataDirUseItsData": "Use Its Data",
+  "dataDirCopyAndSwitch": "Copy and Switch",
+  "dataDirCopying": "Copying…",
+  "dataDirCopyingProgress": "Copying… {done} of {total} files",
+  "@dataDirCopyingProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "dataDirMoveFailed": "The data could not be moved: {error}",
+  "@dataDirMoveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirRestartTitle": "Restart Monad to use the new data folder",
+  "dataDirRestartDetail": "Monad keeps using {current} until it restarts. The next start uses {next}, and offers to remove what is left in the old one.",
+  "@dataDirRestartDetail": {
+    "placeholders": {
+      "current": {
+        "type": "String"
+      },
+      "next": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirTheNewFolder": "the new folder",
+  "dataDirQuitNow": "Quit Now",
+  "dataDirLater": "Later",
+  "dataDirSetByEnv": "Set by the {variable} environment variable.",
+  "@dataDirSetByEnv": {
+    "placeholders": {
+      "variable": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirSetIn": "Set in {file}.",
+  "@dataDirSetIn": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirDefaultLocation": "The default location.",
+  "dataDirTemporaryDefault": "The default location, this time only: the folder set in {file} is not available.",
+  "@dataDirTemporaryDefault": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirTitle": "Data Folder",
+  "dataDirDescription": "Where Monad keeps your settings, keybindings, language servers and its own state. Other programs keep files there too (the web view's caches); Monad never moves or removes those.",
+  "dataDirCurrentFolder": "Current folder",
+  "dataDirAfterRestart": "After a restart: {path}",
+  "@dataDirAfterRestart": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirChange": "Change…",
+  "dataDirResetDefault": "Reset to Default",
+  "dataDirEnvDecides": "{variable} decides the folder; unset it to choose one here.",
+  "@dataDirEnvDecides": {
+    "placeholders": {
+      "variable": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirCannotWritePointer": "Cannot write {file}: {error}",
+  "@dataDirCannotWritePointer": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirSettingUnreadable": "Monad's data folder setting cannot be read",
+  "dataDirCannotWrite": "Monad cannot write to its data folder",
+  "dataDirUnavailable": "Monad's data folder is not available",
+  "dataDirWhereEnv": "It is set by the {variable} environment variable.",
+  "@dataDirWhereEnv": {
+    "placeholders": {
+      "variable": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirWhereFixPointer": "Fix or delete {file} and try again; Monad changes it only if you choose another folder.",
+  "@dataDirWhereFixPointer": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirWherePointer": "It is set in {file}. If it is on a drive that is not connected, connect it and try again.",
+  "@dataDirWherePointer": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirDefaultIs": "The default folder is {path}.",
+  "@dataDirDefaultIs": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirRetry": "Retry",
+  "dataDirUseDefaultOnce": "Use the Default Folder This Time",
+  "dataDirChooseAnother": "Choose Another Folder…",
+  "dataDirRemoveOldTitle": "Remove the data Monad left in its previous folder?",
+  "dataDirRemoveOldDetail": "Monad now keeps its data in {current}. Only its own items are removed from the previous folder ({items}); the folder and everything else in it stay.",
+  "@dataDirRemoveOldDetail": {
+    "placeholders": {
+      "current": {
+        "type": "String"
+      },
+      "items": {
+        "type": "String"
+      }
+    }
+  },
+  "dataDirRemove": "Remove",
+  "dataDirKeep": "Keep",
+  "impTitle": "Import Keybindings",
+  "impImport": "Import",
+  "impNothingFound": "No keybindings or keymaps of Visual Studio Code, Cursor, Windsurf or VSCodium were found.",
+  "impKeybindingsFrom": "Keybindings from",
+  "impKeybindingCount": "{count, plural, =1{1 keybinding} other{{count} keybindings}}",
+  "@impKeybindingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "impImportAs": "Import as",
+  "impMerge": "Merge with my keybindings",
+  "impMergeDetail": "Adds the ones you do not have after yours.",
+  "impReplace": "Replace my keybindings",
+  "impReplaceDetail": "Copies the file as it is, comments too. Yours is kept as keybindings.json.bak.",
+  "impAlsoUse": "Also import and use {name}",
+  "@impAlsoUse": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "impInstalledIn": "Installed in {products}",
+  "@impInstalledIn": {
+    "placeholders": {
+      "products": {
+        "type": "String"
+      }
+    }
+  },
+  "impImportedFrom": "Imported from {source}",
+  "@impImportedFrom": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "impApplied": "{supported} applied",
+  "@impApplied": {
+    "placeholders": {
+      "supported": {
+        "type": "int"
+      }
+    }
+  },
+  "impAppliedUnsupported": "{supported} applied, {unsupported, plural, =1{1 command} other{{unsupported} commands}} not supported yet",
+  "@impAppliedUnsupported": {
+    "placeholders": {
+      "supported": {
+        "type": "int"
+      },
+      "unsupported": {
+        "type": "int"
+      }
+    }
+  },
+  "impDuplicates": "{count, plural, =1{1 keybinding you already had was skipped.} other{{count} keybindings you already had were skipped.}}",
+  "@impDuplicates": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "impBackup": "Your previous keybindings: {path}",
+  "@impBackup": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "impNotSupportedYet": "Not supported yet",
+  "impNotSupportedDetail": "These stay in keybindings.json, and work once the app has their commands.",
+  "impKeymapBuiltIn": "Keymap: {name} is built in, and now in use.",
+  "@impKeymapBuiltIn": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "impKeymapImported": "Keymap: {name} was imported, and is now in use.",
+  "@impKeymapImported": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "impKeybindingsError": "Could not import the keybindings: {error}",
+  "@impKeybindingsError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "impKeymapError": "Could not import the {name}: {error}",
+  "@impKeymapError": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  }
+}

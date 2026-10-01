@@ -23,6 +23,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_hover.dart';
@@ -112,6 +113,7 @@ Future<void> showIdeMenu(
     entries: entries,
     origin: origin,
     alignRight: alignRight,
+    barrierLabel: context.l10n.menuDismissMenu,
     capturedThemes: InheritedTheme.capture(
       from: context,
       to: navigator.context,
@@ -217,6 +219,7 @@ class _IdeMenuRoute extends PopupRoute<VoidCallback> {
     required this.origin,
     required this.alignRight,
     required this.capturedThemes,
+    required this.barrierLabel,
   });
 
   final List<IdeMenuEntry> entries;
@@ -231,7 +234,7 @@ class _IdeMenuRoute extends PopupRoute<VoidCallback> {
   bool get barrierDismissible => true;
 
   @override
-  String? get barrierLabel => 'Dismiss menu';
+  final String barrierLabel;
 
   // `animation: fadeIn 0.083s linear`; closing is immediate.
   @override

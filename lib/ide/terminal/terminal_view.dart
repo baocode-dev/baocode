@@ -24,6 +24,12 @@
 // src/vs/workbench/contrib/modernUI/browser/media/padding.css (the 8px
 // above and below); xterm.js' CoreBrowserTerminal (focus reports) and
 // CompositionHelper (composition, here in the text input connection).
+//
+// Deviations: with [TerminalView.shouldSkipShell] the IDE's keybindings run
+// the terminal's commands (copy, paste, select all, find…) as VS Code's do;
+// without it (a terminal on its own) the terminal's keyboard and this view
+// run VS Code's default keys for them. Escape in the find widget hides it
+// on key down (upstream SimpleFindWidget: on key up).
 
 import 'dart:async';
 
@@ -32,6 +38,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../keybindings/keybinding_service.dart';
+import '../../l10n/l10n.dart';
 import '../ide_commands.dart';
 import '../ide_dialog.dart';
 import '../ide_find_widget.dart';
@@ -57,6 +65,8 @@ class TerminalView extends StatefulWidget {
     this.instance, {
     super.key,
     this.skipShell = const [],
+    this.shouldSkipShell,
+    this.resolveKey,
     this.onKill,
     this.onOpenLink,
   });
@@ -66,6 +76,19 @@ class TerminalView extends StatefulWidget {
   /// Keys the workbench keeps while the terminal has focus: the
   /// keybindings of VS Code's `terminal.integrated.commandsToSkipShell`.
   final List<ShortcutActivator> skipShell;
+
+  /// Whether the workbench takes a key down rather than the shell (VS
+  /// Code's custom key event handler: the key resolves to a command of
+  /// `terminal.integrated.commandsToSkipShell`, or starts a chord). Given,
+  /// the terminal's keyboard leaves its own keybindings (copy, paste,
+  /// select all, the editing keys' sequences) to the workbench's commands.
+  final bool Function(KeyEvent event)? shouldSkipShell;
+
+  /// The workbench's command for a key in the find widget, in its context
+  /// (`terminalFindInputFocused`…); see [IdeFindWidget.resolveKey]. Given,
+  /// the widget runs [terminalFindCommandIds] for their keys and shows
+  /// their keybindings.
+  final String? Function(KeyEvent event)? resolveKey;
 
   /// Kill Terminal, from the context menu.
   final VoidCallback? onKill;
@@ -128,6 +151,8 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
     if (oldWidget.instance != widget.instance) {
       _detach(oldWidget.instance);
       _attach();
+    } else {
+      _instance.keyboard.runsKeybindings = widget.shouldSkipShell == null;
     }
   }
 
@@ -171,13 +196,16 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
         if (mounted) setState(() {});
       }),
     );
+    _subscriptions.add(instance.find.onDidReveal((_) => _focusFind()));
     _findText.text = instance.find.inputValue;
     _render.setSelection(
       selection.selectionStart,
       selection.selectionEnd,
       columnSelectMode: selection.isColumnSelectMode,
     );
-    instance.keyboard.customKeyEventHandler = _allowKey;
+    instance.keyboard
+      ..customKeyEventHandler = _allowKey
+      ..runsKeybindings = widget.shouldSkipShell == null;
     instance.clipboard.confirmPaste = _confirmPaste;
     instance.focusNode.addListener(_focusChanged);
     if (instance.focusNode.hasFocus) _focusChanged();
@@ -193,8 +221,11 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
     _link = null;
     _hover = null;
     instance.focusNode.removeListener(_focusChanged);
+    instance.find.focused = false;
     if (instance.keyboard.customKeyEventHandler == _allowKey) {
-      instance.keyboard.customKeyEventHandler = null;
+      instance.keyboard
+        ..customKeyEventHandler = null
+        ..runsKeybindings = true;
     }
     if (instance.clipboard.confirmPaste == _confirmPaste) {
       instance.clipboard.confirmPaste = null;
@@ -242,6 +273,7 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   bool _allowKey(TerminalKeyboardEvent event) {
     final key = _key;
     if (key == null || key is KeyUpEvent) return true;
+    if (widget.shouldSkipShell?.call(key) ?? false) return false;
     final keyboard = HardwareKeyboard.instance;
     return ![
       ...widget.skipShell,
@@ -398,8 +430,10 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   // --- Find -------------------------------------------------------------
 
   /// Find's keybindings while the terminal or its find has focus: Focus
-  /// Find, Find Next and Previous, and Hide Find while it shows.
+  /// Find, Find Next and Previous, and Hide Find while it shows; none with
+  /// the workbench's keybindings ([TerminalView.shouldSkipShell]).
   Map<ShortcutActivator, VoidCallback> get _findKeys {
+    if (widget.shouldSkipShell != null) return const {};
     final mac = ideUsesMacKeys;
     return {
       SingleActivator(LogicalKeyboardKey.keyF, meta: mac, control: !mac):
@@ -419,8 +453,11 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
     };
   }
 
-  void _revealFind() {
-    final find = _instance.find..reveal();
+  void _revealFind() => _instance.find.reveal();
+
+  /// Revealed, find selects its input's text and focuses it.
+  void _focusFind() {
+    final find = _instance.find;
     _findText.value = TextEditingValue(
       text: find.inputValue,
       selection: TextSelection(
@@ -448,33 +485,55 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   }
 
   void _findFocusChanged() {
+    _instance.find.focused = _findFocus.hasFocus;
     if (!_findFocus.hasFocus) _instance.find.clearActiveDecoration();
     if (mounted) setState(() {});
   }
 
   Widget _findWidget(BoxConstraints constraints) {
     final find = _instance.find;
+    final resolveKey = widget.resolveKey;
+    Widget child = IdeFindWidget(
+      findController: _findText,
+      findFocusNode: _findFocus,
+      matchCase: find.caseSensitive,
+      wholeWord: find.wholeWord,
+      regex: find.regex,
+      matchCount: find.resultCount,
+      currentIndex: find.resultIndex,
+      matchLimit: TerminalFind.searchHighlightLimit,
+      enterFindsPrevious: true,
+      commandIds: resolveKey == null ? null : terminalFindCommandIds,
+      resolveKey: resolveKey,
+      onToggleMatchCase: find.toggleCaseSensitive,
+      onToggleWholeWord: find.toggleWholeWord,
+      onToggleRegex: find.toggleRegex,
+      onPrevious: find.findPrevious,
+      onNext: find.findNext,
+      onClose: _hideFind,
+    );
+    if (resolveKey != null) {
+      // SimpleFindWidget's own Escape: Hide Find's rule reads
+      // `terminalFocusInAny`, which the find input does not set.
+      child = Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onKeyEvent: (node, event) {
+          if (event is! KeyDownEvent ||
+              event.logicalKey != LogicalKeyboardKey.escape) {
+            return KeyEventResult.ignored;
+          }
+          _hideFind();
+          return KeyEventResult.handled;
+        },
+        child: child,
+      );
+    }
     return Positioned(
       top: 0,
       right: 28,
       width: (constraints.maxWidth - 64).clamp(0, IdeFindWidget.width),
-      child: IdeFindWidget(
-        findController: _findText,
-        findFocusNode: _findFocus,
-        matchCase: find.caseSensitive,
-        wholeWord: find.wholeWord,
-        regex: find.regex,
-        matchCount: find.resultCount,
-        currentIndex: find.resultIndex,
-        matchLimit: TerminalFind.searchHighlightLimit,
-        enterFindsPrevious: true,
-        onToggleMatchCase: find.toggleCaseSensitive,
-        onToggleWholeWord: find.toggleWholeWord,
-        onToggleRegex: find.toggleRegex,
-        onPrevious: find.findPrevious,
-        onNext: find.findNext,
-        onClose: _hideFind,
-      ),
+      child: child,
     );
   }
 
@@ -577,7 +636,7 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
       entries: ideMenuGroups([
         [
           IdeMenuAction(
-            'Rerun Command',
+            context.l10n.termRerunCommand,
             onSelected: () {
               instance.writeText('$command\r');
               instance.focus();
@@ -586,13 +645,13 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
         ],
         [
           IdeMenuAction(
-            'Copy Command',
+            context.l10n.termCopyCommand,
             onSelected: () =>
                 unawaited(Clipboard.setData(ClipboardData(text: command))),
           ),
           if (output != null && output.isNotEmpty)
             IdeMenuAction(
-              'Copy Output',
+              context.l10n.termCopyOutput,
               onSelected: () =>
                   unawaited(Clipboard.setData(ClipboardData(text: output))),
             ),
@@ -710,40 +769,59 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
     final instance = _instance;
     final mac = defaultTargetPlatform == TargetPlatform.macOS;
     final windows = defaultTargetPlatform == TargetPlatform.windows;
+    // The workbench's keybindings for its commands, else the terminal's.
+    final workbench = widget.shouldSkipShell != null;
+    String? keys(String command, String? own) => workbench
+        ? KeybindingService.instance.labelFor(
+            'workbench.action.terminal.$command',
+          )
+        : own;
     return showIdeMenu(
       context,
       position: position,
       entries: ideMenuGroups([
         [
           IdeMenuAction(
-            'Copy',
-            keybinding: mac
-                ? '⌘C'
-                : windows
-                ? 'Ctrl+C'
-                : 'Ctrl+Shift+C',
+            context.l10n.commonCopy,
+            keybinding: keys(
+              windows ? 'copyAndClearSelection' : 'copySelection',
+              mac
+                  ? '⌘C'
+                  : windows
+                  ? 'Ctrl+C'
+                  : 'Ctrl+Shift+C',
+            ),
             enabled: instance.selection.hasSelection,
             onSelected: () => unawaited(instance.clipboard.copySelection()),
           ),
           IdeMenuAction(
-            'Paste',
-            keybinding: mac
-                ? '⌘V'
-                : windows
-                ? 'Ctrl+V'
-                : 'Ctrl+Shift+V',
+            context.l10n.commonPaste,
+            keybinding: keys(
+              'paste',
+              mac
+                  ? '⌘V'
+                  : windows
+                  ? 'Ctrl+V'
+                  : 'Ctrl+Shift+V',
+            ),
             onSelected: () => unawaited(instance.clipboard.paste()),
           ),
           IdeMenuAction(
-            'Select All',
-            keybinding: mac ? '⌘A' : null,
+            context.l10n.commonSelectAll,
+            keybinding: keys('selectAll', mac ? '⌘A' : null),
             onSelected: instance.selection.selectAll,
           ),
         ],
-        [IdeMenuAction('Clear', onSelected: instance.terminal.clear)],
+        [
+          IdeMenuAction(
+            context.l10n.termClear,
+            keybinding: keys('clear', null),
+            onSelected: instance.terminal.clear,
+          ),
+        ],
         [
           if (widget.onKill case final kill?)
-            IdeMenuAction('Kill Terminal', onSelected: kill),
+            IdeMenuAction(context.l10n.termKillTerminal, onSelected: kill),
         ],
       ]),
     );
@@ -757,9 +835,12 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
     final choice = mounted
         ? await showIdeDialog(
             context,
-            message: prompt.message,
+            message: context.l10n.termPasteConfirm(prompt.lineCount),
             detail: prompt.detail,
-            buttons: const ['Paste', 'Paste as one line'],
+            buttons: [
+              context.l10n.commonPaste,
+              context.l10n.termPasteAsOneLine,
+            ],
           )
         : null;
     _instance.focus();

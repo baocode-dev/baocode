@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../platform/app_platform.dart';
 
 import 'editor_launcher_stub.dart'
@@ -80,6 +81,16 @@ enum Editor {
   /// What the platform calls it.
   String get platformLabel =>
       AppPlatform.isWindows ? (windowsLabel ?? label) : label;
+
+  /// [platformLabel] in [l10n]'s language: the system's own apps are named
+  /// as the system names them there.
+  String localizedPlatformLabel(AppLocalizations l10n) => switch (this) {
+    folder when AppPlatform.isWindows => l10n.workspaceFileExplorer,
+    folder => l10n.workspaceFinder,
+    terminal when AppPlatform.isWindows => l10n.workspaceWindowsTerminal,
+    terminal => l10n.workspaceTerminalApp,
+    _ => platformLabel,
+  };
 
   /// Whether the platform has it at all.
   bool get available => !macOSOnly || !AppPlatform.isWindows;

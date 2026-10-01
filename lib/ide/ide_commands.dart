@@ -2,6 +2,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../keybindings/key_chord.dart';
+import '../keybindings/keybinding_entry.dart';
+import '../keybindings/keybinding_service.dart';
+
+/// The keys of the characters [IdeKeybinding.character] matches, as the US
+/// layout types them.
+const _characterKeys = <String?, LogicalKeyboardKey>{
+  '}': LogicalKeyboardKey.bracketRight,
+  '{': LogicalKeyboardKey.bracketLeft,
+  ']': LogicalKeyboardKey.bracketRight,
+  '[': LogicalKeyboardKey.bracketLeft,
+};
+const _shiftedCharacters = {'}', '{'};
+
 /// Whether keybindings use the macOS conventions (⌘ as the primary modifier
 /// and glyph labels). Read at call time so tests can override the platform.
 bool get ideUsesMacKeys =>
@@ -64,6 +78,47 @@ class IdeKeybinding {
   final IdeKeybinding? second;
 
   bool appliesTo({required bool mac}) => this.mac == null || this.mac == mac;
+
+  /// As a `keybindings.json` entry binding it to [command] (`cmd+k cmd+t`
+  /// on macOS, `ctrl+k ctrl+t` elsewhere); null for one [KeyChord] cannot
+  /// read.
+  KeybindingEntry? toEntry(String command) {
+    String? text({required bool mac}) {
+      final chords = <String>[];
+      for (IdeKeybinding? chord = this; chord != null; chord = chord.second) {
+        final key = chord.key ?? _characterKeys[chord.character];
+        if (key == null) return null;
+        final platform = mac
+            ? KeybindingPlatform.mac
+            : KeybindingPlatform.windows;
+        chords.add(
+          KeyChord(
+            key,
+            ctrl: chord.control || (chord.primary && !mac),
+            shift:
+                chord.shift ||
+                chord.character != null &&
+                    chord.key == null &&
+                    _shiftedCharacters.contains(chord.character),
+            alt: chord.alt,
+            meta: chord.primary && mac,
+          ).userSettingsLabel(platform),
+        );
+      }
+      return chords.join(' ');
+    }
+
+    final macKey = mac == false ? null : text(mac: true);
+    final otherKey = mac == true ? null : text(mac: false);
+    if (macKey == null && otherKey == null) return null;
+    return KeybindingEntry(
+      command: command,
+      key: macKey == null || otherKey == null ? null : otherKey,
+      mac: macKey,
+      win: macKey == null ? otherKey : null,
+      linux: macKey == null ? otherKey : null,
+    );
+  }
 
   /// For a two-chord keybinding, its first chord's.
   ShortcutActivator activator({bool? mac}) {
@@ -131,6 +186,14 @@ class IdeKeybinding {
   }
 }
 
+/// [withKeys]' text with [keys], a command's keybinding label, or without
+/// them and their parentheses when the command has none (a tooltip's
+/// `Toggle Panel (⌃`)`).
+String ideWithKeybinding(String Function(String keys) withKeys, String? keys) =>
+    keys != null
+    ? withKeys(keys)
+    : withKeys('\u0000').replaceAll(RegExp('\\s*[(（]\u0000[)）]'), '');
+
 /// One entry of the command palette and, for workbench commands, a shortcut.
 ///
 /// Keybindings of workbench-owned commands are registered at the workbench
@@ -142,6 +205,7 @@ class IdeCommand {
     required this.id,
     required this.label,
     required this.run,
+    this.runWithArgs,
     this.category,
     this.keybindings = const [],
     this.keybindingLabel,
@@ -156,20 +220,54 @@ class IdeCommand {
   /// Overrides the label derived from [keybindings] (e.g. for chords).
   final String? keybindingLabel;
   final VoidCallback run;
+
+  /// Runs it with a keybinding's `args` (upstream `executeCommand(id,
+  /// args)`, e.g. `workbench.action.terminal.sendSequence`'s `{"text":
+  /// …}`); [run] runs it without any. Null: it takes none.
+  final void Function(Object? args)? runWithArgs;
   final bool enabled;
+
+  /// Runs it with [args] (a keybinding's), as [runWithArgs] reads them;
+  /// [run] when it takes none, or there are none.
+  void invoke([Object? args]) {
+    final withArgs = runWithArgs;
+    if (withArgs != null && args != null) {
+      withArgs(args);
+    } else {
+      run();
+    }
+  }
 
   /// `Category: Label`, as the palette lists and matches it.
   String get title => category == null ? label : '$category: $label';
 
-  /// The first keybinding for the current platform, formatted for display.
+  /// Its keybinding for the current platform (or macOS's, or another's),
+  /// formatted for display: the one the app's keybindings show for it (see
+  /// [KeybindingService.labelFor]), the user's and the keymap's included.
   String? shortcutLabel({bool? mac}) {
     if (keybindingLabel != null) return keybindingLabel;
+    final service = KeybindingService.instance;
     final isMac = mac ?? ideUsesMacKeys;
+    if (service.isSupported(id)) {
+      final platform = isMac
+          ? KeybindingPlatform.mac
+          : service.platform == KeybindingPlatform.mac
+          ? KeybindingPlatform.windows
+          : service.platform;
+      return service.labelFor(id, platform: platform);
+    }
     for (final binding in keybindings) {
       if (binding.appliesTo(mac: isMac)) return binding.label(mac: isMac);
     }
     return null;
   }
+
+  /// [keybindings] as `keybindings.json` entries, for commands the app's
+  /// default keybindings do not have (see
+  /// [KeybindingService.registerExtraDefaults]).
+  List<KeybindingEntry> get keybindingEntries => [
+    for (final binding in keybindings) ?binding.toEntry(id),
+  ];
 }
 
 /// Most-recently-used ids, newest first, e.g. for commands or files.
@@ -191,34 +289,4 @@ class IdeRecentList {
 
   /// Position in the list (0 = most recent), or -1 when absent.
   int indexOf(String id) => _items.indexOf(id);
-}
-
-/// Builds the shortcut map for [commands] on the current platform, but for
-/// two-chord keybindings (see [ideChordBindings]).
-Map<ShortcutActivator, VoidCallback> ideShortcutBindings(
-  Iterable<IdeCommand> commands,
-) {
-  final mac = ideUsesMacKeys;
-  return {
-    for (final command in commands)
-      if (command.enabled)
-        for (final binding in command.keybindings)
-          if (binding.second == null && binding.appliesTo(mac: mac))
-            binding.activator(mac: mac): command.run,
-  };
-}
-
-/// The two-chord keybindings (⌘K ⌘T) of [commands] on the current platform,
-/// for the workbench's chord mode.
-List<({IdeKeybinding binding, VoidCallback run})> ideChordBindings(
-  Iterable<IdeCommand> commands,
-) {
-  final mac = ideUsesMacKeys;
-  return [
-    for (final command in commands)
-      if (command.enabled)
-        for (final binding in command.keybindings)
-          if (binding.second != null && binding.appliesTo(mac: mac))
-            (binding: binding, run: command.run),
-  ];
 }

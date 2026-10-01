@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
@@ -31,15 +32,19 @@ class AgentStep extends StatefulWidget {
   /// Lets the turn go on while the subagent keeps working.
   final VoidCallback? onMoveToBackground;
 
-  /// Its kind and progress, e.g. "Explore · 69s · 12 tools · 8.2k tokens".
-  static String meta(AgentItem item, {DateTime? now}) => [
-    ?item.agentType,
-    if (elapsed(item, now: now) case final time?) formatDuration(time),
-    if (item.toolUses case final uses? when uses > 0)
-      '$uses ${uses == 1 ? 'tool' : 'tools'}',
-    if (item.tokens case final tokens? when tokens > 0)
-      '${formatTokens(tokens)} tokens',
-  ].join(' · ');
+  /// Its kind and progress, e.g. "Explore · 69s · 12 tools · 8.2k tokens";
+  /// in [l10n]'s language (English when null).
+  static String meta(AgentItem item, {DateTime? now, AppLocalizations? l10n}) {
+    final strings = l10n ?? englishLocalizations;
+    return [
+      ?item.agentType,
+      if (elapsed(item, now: now) case final time?)
+        formatDuration(time, l10n: strings),
+      ?tools(item, l10n: strings),
+      if (item.tokens case final tokens? when tokens > 0)
+        strings.chatTokens(formatTokens(tokens)),
+    ].join(' · ');
+  }
 
   /// How long it ran, or has been running.
   static Duration? elapsed(AgentItem item, {DateTime? now}) =>
@@ -50,12 +55,15 @@ class AgentStep extends StatefulWidget {
         _ => null,
       };
 
-  /// "46s", "2m 14s", "1h 5m".
-  static String formatDuration(Duration time) {
+  /// "46s", "2m 14s", "1h 5m"; in [l10n]'s language (English when null).
+  static String formatDuration(Duration time, {AppLocalizations? l10n}) {
+    final strings = l10n ?? englishLocalizations;
     final seconds = time.inSeconds;
-    if (seconds < 60) return '${seconds}s';
-    if (seconds < 3600) return '${seconds ~/ 60}m ${seconds % 60}s';
-    return '${seconds ~/ 3600}h ${seconds % 3600 ~/ 60}m';
+    if (seconds < 60) return strings.durationSeconds(seconds);
+    if (seconds < 3600) {
+      return strings.durationMinutesSeconds(seconds ~/ 60, seconds % 60);
+    }
+    return strings.durationHoursMinutes(seconds ~/ 3600, seconds % 3600 ~/ 60);
   }
 
   /// "950", "8.2k", "1.4M".
@@ -65,15 +73,18 @@ class AgentStep extends StatefulWidget {
     _ => '${(tokens / 1000000).toStringAsFixed(1)}M',
   };
 
-  /// The tools it has used, e.g. "12 tools"; null before the first.
-  static String? tools(AgentItem item) => switch (item.toolUses) {
-    final uses? when uses > 0 => '$uses ${uses == 1 ? 'tool' : 'tools'}',
-    _ => null,
-  };
+  /// The tools it has used, e.g. "12 tools"; null before the first. In
+  /// [l10n]'s language (English when null).
+  static String? tools(AgentItem item, {AppLocalizations? l10n}) =>
+      switch (item.toolUses) {
+        final uses? when uses > 0 =>
+          (l10n ?? englishLocalizations).chatToolCount(uses),
+        _ => null,
+      };
 
   /// The card as text, for copying: as it reads.
-  static String plainText(AgentItem item) =>
-      [item.description, ?tools(item)].join(' ');
+  static String plainText(AgentItem item, {AppLocalizations? l10n}) =>
+      [item.description, ?tools(item, l10n: l10n)].join(' ');
 
   @override
   State<AgentStep> createState() => _AgentStepState();
@@ -97,7 +108,8 @@ class _AgentStepState extends State<AgentStep> {
   Widget build(BuildContext context) {
     final item = widget.item;
     final running = item.status == CommandStatus.running;
-    final tools = AgentStep.tools(item);
+    final l10n = context.l10n;
+    final tools = AgentStep.tools(item, l10n: l10n);
     final open = widget.onOpen;
     final content = Padding(
       padding: const EdgeInsets.fromLTRB(12, 9, 10, 9),
@@ -152,18 +164,19 @@ class _AgentStepState extends State<AgentStep> {
       ),
     );
     final status = switch (item.status) {
-      CommandStatus.running when item.background => 'running in the background',
-      CommandStatus.running => 'running',
-      CommandStatus.succeeded => 'done',
-      CommandStatus.failed => 'failed',
+      CommandStatus.running when item.background =>
+        l10n.agentStateRunningInBackground,
+      CommandStatus.running => l10n.agentStateRunning,
+      CommandStatus.succeeded => l10n.agentStateDone,
+      CommandStatus.failed => l10n.agentStateFailed,
     };
     return Padding(
       padding: const EdgeInsets.only(top: 2, bottom: 6),
       child: Semantics(
         container: true,
         button: open != null,
-        label: 'Subagent ${item.description}, $status',
-        hint: open == null ? null : 'Opens its conversation',
+        label: l10n.chatSubagentSemantics(item.description, status),
+        hint: open == null ? null : l10n.chatOpensItsConversation,
         child: FocusableActionDetector(
           enabled: open != null,
           onShowFocusHighlight: (value) => setState(() => _focused = value),
@@ -241,9 +254,9 @@ class AgentStatusIcon extends StatelessWidget {
     return SizedBox.square(
       dimension: 14,
       child: switch (status) {
-        CommandStatus.running when background => const IdeHover(
-          message: 'Running in the background',
-          child: OrbitIndicator(),
+        CommandStatus.running when background => IdeHover(
+          message: context.l10n.statusRunningInBackground,
+          child: const OrbitIndicator(),
         ),
         CommandStatus.running => Padding(
           padding: EdgeInsets.all(1.5),
@@ -304,10 +317,10 @@ class StopButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IdeHover(
-      message: 'Stop',
+      message: context.l10n.chatStop,
       child: Semantics(
         button: true,
-        label: 'Stop',
+        label: context.l10n.chatStop,
         child: HoverBuilder(
           cursor: SystemMouseCursors.click,
           builder: (context, hovered) => GestureDetector(
@@ -334,7 +347,7 @@ class BackgroundButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IdeHover(
-      message: 'Keep it running and let the agent go on',
+      message: context.l10n.chatKeepRunningHint,
       child: HoverBuilder(
         cursor: SystemMouseCursors.click,
         builder: (context, hovered) => GestureDetector(
@@ -349,7 +362,7 @@ class BackgroundButton extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               Text(
-                'Background',
+                context.l10n.chatBackground,
                 style: TextStyle(
                   color: hovered ? CursorColors.text : CursorColors.textMuted,
                   fontSize: 11.5,

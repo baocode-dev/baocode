@@ -1,18 +1,30 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
+import 'chat/chat_keys.dart';
 import 'chat/chat_screen.dart';
 import 'chat/panels/interaction_panel.dart';
 import 'ide/git/git_repository.dart';
+import 'ide/ide_commands.dart';
 import 'ide/ide_modern_ui.dart';
+import 'ide/ide_notifications.dart';
 import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
 import 'ide/lsp/language_features.dart';
+import 'keybindings/chat_keybindings.dart';
+import 'keybindings/default_keybindings.dart';
+import 'keybindings/key_chord.dart';
+import 'keybindings/keybinding_service.dart';
+import 'l10n/l10n.dart';
+import 'settings/app_settings.dart';
+import 'settings/data_dir_startup.dart';
+import 'settings/jsonc_file.dart';
+import 'settings/settings_dialog.dart';
 import 'sidebar/sidebar.dart';
 import 'theme/codicons.dart';
 import 'theme/cursor_theme.dart';
@@ -40,9 +52,14 @@ class Workbench extends StatefulWidget {
     this.ideEditorBuilder,
     this.languagesFor,
     this.gitFor,
+    this.settings,
   });
 
   final Workspace workspace;
+
+  /// What the settings dialog shows; without it, only what needs nothing
+  /// more (e.g. under test).
+  final AppSettings? settings;
 
   /// The language servers for the project at a root, when the IDE opens it;
   /// none when null.
@@ -126,15 +143,39 @@ class _WorkbenchState extends State<Workbench> {
   /// in a terminal) meanwhile.
   late final AppLifecycleListener _lifecycle;
 
+  /// The keybindings the buttons' tooltips show (`New Agent (⌘N)`): they
+  /// follow a keymap picked, keybindings.json edited.
+  late final KeybindingService _keybindings = KeybindingService.instance;
+
+  void _keybindingsChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKey);
+    _keybindings.addListener(_keybindingsChanged);
+    WindowControls.onMenuCommand = _runMenuCommand;
     WindowControls.handleEditCommands();
     WindowControls.handleWindowEvents();
     _lifecycle = AppLifecycleListener(
       onResume: () => unawaited(_workspace.refresh()),
     );
+    widget.settings?.files?.changes.addListener(_settingsFilesChanged);
+    _settingsFilesChanged();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _afterFirstFrame());
+  }
+
+  /// What the app asks once it shows: whether to remove what a move of
+  /// the data folder left behind, then (once ever) whether to import
+  /// another editor's keybindings; one after the other.
+  Future<void> _afterFirstFrame() async {
+    final settings = widget.settings;
+    if (settings?.files == null || !mounted) return;
+    await offerOldDataDirRemoval(context);
+    if (!mounted) return;
+    await settings!.offerImport(context);
   }
 
   @override
@@ -143,31 +184,311 @@ class _WorkbenchState extends State<Workbench> {
     _width.dispose();
     _lifecycle.dispose();
     HardwareKeyboard.instance.removeHandler(_handleKey);
+    _keybindings.removeListener(_keybindingsChanged);
+    if (WindowControls.onMenuCommand == _runMenuCommand) {
+      WindowControls.onMenuCommand = null;
+    }
+    _chordTimer?.cancel();
+    widget.settings?.files?.changes.removeListener(_settingsFilesChanged);
+    _notifications.dispose();
     for (final ide in _ideSpaces.values) {
       ide.dispose();
     }
     super.dispose();
   }
 
-  /// ⌘B (Ctrl+B elsewhere) from anywhere, including the composer, which
-  /// swallows other shortcuts: a keyboard handler sees every key first.
+  // --- Settings files ------------------------------------------------------
+
+  /// The workbench's own notifications, over both layouts: a settings file
+  /// that does not parse.
+  final IdeNotifications _notifications = IdeNotifications();
+
+  /// The error last told of, per file, whether its notification is still
+  /// open or not; and those open.
+  final Map<JsoncFile, String> _fileErrorsTold = {};
+  final Map<JsoncFile, IdeNotification> _fileErrorNotes = {};
+
+  /// A settings file that stops parsing is told of once per error (what
+  /// was last read from it stays in effect); fixed, its notification goes.
+  void _settingsFilesChanged() {
+    final files = widget.settings?.files;
+    if (files == null) return;
+    for (final file in files.userFiles) {
+      final error = file.error;
+      if (error == null) {
+        _fileErrorsTold.remove(file);
+        if (_fileErrorNotes.remove(file) case final note?) {
+          _notifications.close(note);
+        }
+        continue;
+      }
+      if (_fileErrorsTold[file] == error) continue;
+      _fileErrorsTold[file] = error;
+      late final IdeNotification note;
+      note = _notifications.notify(
+        IdeSeverity.error,
+        context.l10n.settingsFileError(p.basename(file.path), error),
+        source: file.path,
+        sticky: true,
+        onClose: () {
+          if (identical(_fileErrorNotes[file], note)) {
+            _fileErrorNotes.remove(file);
+          }
+        },
+      );
+      _fileErrorNotes[file] = note;
+    }
+  }
+
+  // --- Keybindings ---------------------------------------------------------
+
+  /// The commands the chat layout runs itself, those it can now (the IDE
+  /// runs its own, and [_settingsCommands] besides; a chat, its own: see
+  /// [ChatKeys]).
+  Map<String, VoidCallback> _chatCommands() {
+    final current = _workspace.current;
+    // One agent alone is the one pane.
+    final panes = _workspace.grid.isEmpty ? [?current] : _workspace.grid.panes;
+    final agents = _agentsInOrder();
+    return {
+      'workbench.action.toggleSidebarVisibility': _toggle,
+      openSettingsCommandId: () => unawaited(openSettings()),
+      openKeybindingsCommandId: () =>
+          unawaited(openSettings(SettingsSection.keyboard)),
+      // As the sidebar's New Agent button: a folder first, without one.
+      if (_workspace.projects.isNotEmpty)
+        ChatCommandIds.newChat: _newAgent
+      else if (WindowControls.canPickDirectory)
+        ChatCommandIds.newChat: () => unawaited(_openFolder()),
+      if (current != null && panes.length > 1)
+        ChatCommandIds.closePane: () => _workspace.closePane(current),
+      if (agents.isNotEmpty) ...{
+        ChatCommandIds.nextAgent: () => _openAgentBy(1),
+        ChatCommandIds.previousAgent: () => _openAgentBy(-1),
+      },
+      for (final (index, thread)
+          in agents.take(ChatCommandIds.agentIndexes).indexed)
+        '${ChatCommandIds.openAgentAtIndex}${index + 1}': () =>
+            _openAgent(thread),
+      for (final (index, thread) in panes.indexed)
+        '${ChatCommandIds.focusPane}${index + 1}': () => _openAgent(thread),
+      if (panes.length > 1) ...{
+        ChatCommandIds.focusNextPane: () => _focusPaneBy(1),
+        ChatCommandIds.focusPreviousPane: () => _focusPaneBy(-1),
+      },
+      ChatCommandIds.searchAgents: _searchAgents,
+      if (current != null)
+        ChatCommandIds.openIde: () => _workspace.layout = WorkspaceLayout.ide,
+    };
+  }
+
+  /// Reaches the sidebar, for the agents it lists and its search.
+  final SidebarLink _sidebarLink = SidebarLink();
+
+  /// The agents as the sidebar lists them, top to bottom; without it, as it
+  /// would by date (pinned ones first, no archived ones).
+  List<AgentThread> _agentsInOrder() {
+    if (_sidebarLink.visibleThreads case final threads?) return threads;
+    final threads = [
+      for (final thread in _workspace.threads)
+        if (!thread.archived) thread,
+    ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return [
+      ...threads.where((thread) => thread.pinned),
+      ...threads.where((thread) => !thread.pinned),
+    ];
+  }
+
+  /// Opens [thread] (in the focused pane, unless it is shown in one) and
+  /// focuses its input.
+  void _openAgent(AgentThread thread) {
+    _closeDrawer();
+    if (!identical(thread, _workspace.current)) _workspace.select(thread);
+    _focusChat(thread);
+  }
+
+  /// The agent [step] away from the current one in the sidebar's order,
+  /// round from the end.
+  void _openAgentBy(int step) {
+    final threads = _agentsInOrder();
+    if (threads.isEmpty) return;
+    final at = threads.indexWhere(
+      (thread) => identical(thread, _workspace.current),
+    );
+    final next = at < 0
+        ? (step > 0 ? 0 : threads.length - 1)
+        : (at + step) % threads.length;
+    _openAgent(threads[next]);
+  }
+
+  /// The pane [step] away from the focused one, row by row, round.
+  void _focusPaneBy(int step) {
+    final panes = _workspace.grid.panes;
+    if (panes.length < 2) return;
+    final at = panes.indexWhere(
+      (thread) => identical(thread, _workspace.current),
+    );
+    _openAgent(panes[((at < 0 ? 0 : at) + step) % panes.length]);
+  }
+
+  void _newAgent() {
+    _closeDrawer();
+    _focusChat(_workspace.create());
+  }
+
+  /// Shows the sidebar if hidden, and focuses its search.
+  void _searchAgents() {
+    final shown = _narrow ? _drawerOpen : _docked;
+    if (!shown) _toggle();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _sidebarLink.focusSearch();
+    });
+  }
+
+  /// Focuses [thread]'s input once its chat is built.
+  void _focusChat(AgentThread thread) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ChatScreen.focusInput(_chatKey(thread));
+    });
+  }
+
+  /// The settings' commands, for the IDE's palette and keybindings.
+  late final List<IdeCommand> _settingsCommands = [
+    IdeCommand(
+      id: openSettingsCommandId,
+      category: 'Preferences',
+      label: 'Open Settings',
+      run: () => unawaited(openSettings()),
+    ),
+    IdeCommand(
+      id: openKeybindingsCommandId,
+      category: 'Preferences',
+      label: 'Open Keyboard Shortcuts',
+      run: () => unawaited(openSettings(SettingsSection.keyboard)),
+    ),
+  ];
+
+  /// The chords of a sequence typed so far (⌘K of ⌘K ⌘S).
+  List<KeyChord>? _pendingChords;
+  Timer? _chordTimer;
+
+  /// A key in the chat layout, from anywhere, the composer included (which
+  /// swallows other shortcuts): a keyboard handler sees every key first.
+  /// It runs a window command its keybinding resolves to (see
+  /// [KeybindingService]), or a chat's: that of the focus (which runs it
+  /// itself, after an open menu has had the key), or the current agent's
+  /// where the focus is in none (the sidebar). The IDE resolves its own
+  /// keys.
   bool _handleKey(KeyEvent event) {
-    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.keyB) {
+    if (event is KeyUpEvent ||
+        _workspace.layout == WorkspaceLayout.ide ||
+        KeyChord.fromEvent(event) == null ||
+        !mounted) {
       return false;
     }
-    final keyboard = HardwareKeyboard.instance;
-    final mac =
-        defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.iOS;
-    final command = mac ? keyboard.isMetaPressed : keyboard.isControlPressed;
-    if (!command ||
-        keyboard.isShiftPressed ||
-        keyboard.isAltPressed ||
-        _workspace.layout == WorkspaceLayout.ide) {
+    // A dialog over the window (the settings' key recorder) keeps its keys.
+    if (!(ModalRoute.isCurrentOf(context) ?? true)) {
+      _leaveChord();
       return false;
     }
-    _toggle();
-    return true;
+    // So does an input method composing text.
+    if (ChatKeys.isComposing) return false;
+    final focused = ChatKeys.focusedTargets();
+    final chat = focused.isNotEmpty
+        ? focused
+        : switch (_workspace.current) {
+            final thread? => ChatKeys.targetsOf(
+              _chatKey(thread).currentContext,
+            ),
+            null => const <ChatKeyTarget>[],
+          };
+    final window = _chatCommands();
+    final chatCommands = ChatKeys.commandsOf(chat);
+    final pending = _pendingChords;
+    final result = KeybindingService.instance.resolveEvent(
+      event,
+      pending: pending ?? const [],
+      context: ChatKeys.lookupOf(chat, _chatKeyContext),
+      canRun: (item) =>
+          window.containsKey(item.command) ||
+          chatCommands.containsKey(item.command),
+    );
+    _leaveChord();
+    switch (result) {
+      case KeybindingFound(:final command):
+        if (window[command] case final run?) {
+          ChatKeys.markHandled(event);
+          run();
+          return true;
+        }
+        // The focused chat's own, after its open menu (see ChatKeys).
+        if (focused.isNotEmpty && pending == null) return false;
+        ChatKeys.markHandled(event);
+        chatCommands[command]!();
+        return true;
+      case MoreChordsNeeded(:final chords):
+        ChatKeys.markHandled(event);
+        _pendingChords = chords;
+        _chordTimer = Timer(const Duration(seconds: 5), _leaveChord);
+        return true;
+      case NoKeybinding():
+        // Upstream swallows a second key that completes nothing.
+        if (pending == null) return false;
+        ChatKeys.markHandled(event);
+        return true;
+    }
+  }
+
+  void _leaveChord() {
+    _pendingChords = null;
+    _chordTimer?.cancel();
+    _chordTimer = null;
+  }
+
+  /// The context keys of the chat layout.
+  Object? _chatKeyContext(String key) {
+    final focus = FocusManager.instance.primaryFocus;
+    return switch (key) {
+      'chatMode' => true,
+      'ideMode' => false,
+      'inputFocus' || 'textInputFocus' =>
+        focus?.context?.findAncestorStateOfType<EditableTextState>() != null,
+      _ => null,
+    };
+  }
+
+  /// Those of the IDE's chat.
+  static Object? _ideChatKeyContext(String key) => switch (key) {
+    'chatMode' => false,
+    'ideMode' => true,
+    _ => null,
+  };
+
+  /// A command of the system's menu bar (the app menu's Preferences…).
+  void _runMenuCommand(String command) {
+    if (command == openSettingsCommandId) unawaited(openSettings());
+  }
+
+  bool _settingsOpen = false;
+
+  /// Opens the settings dialog on [section].
+  Future<void> openSettings([
+    SettingsSection section = SettingsSection.language,
+  ]) async {
+    if (_settingsOpen || !mounted) return;
+    _settingsOpen = true;
+    _closeDrawer();
+    try {
+      await showSettingsDialog(
+        context,
+        section: section,
+        pageBuilder: (context, section) =>
+            widget.settings?.buildPage(context, section) ??
+            const SizedBox.shrink(),
+      );
+    } finally {
+      _settingsOpen = false;
+    }
   }
 
   void _toggle() {
@@ -220,6 +541,17 @@ class _WorkbenchState extends State<Workbench> {
                 ),
               ),
               ChatDragLayer(drag: _drag),
+              // As the IDE's toasts: above its status bar.
+              Positioned(
+                right: 8,
+                bottom: _workspace.layout == WorkspaceLayout.ide ? 36 : 12,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: math.max(0, constraints.maxWidth - 16),
+                  ),
+                  child: IdeNotificationToasts(notifications: _notifications),
+                ),
+              ),
             ],
           ),
         );
@@ -254,6 +586,7 @@ class _WorkbenchState extends State<Workbench> {
                       _workspace.ignoredServerRecommendations,
                   onIgnoreRecommendation: _workspace.ignoreServerRecommendation,
                   colorThemes: WorkbenchThemeService.instance,
+                  commands: _settingsCommands,
                   chat: ide && project.path == entry.key
                       ? _conversation(
                           _buildChat(showToggle: false, embedded: true),
@@ -404,9 +737,11 @@ class _WorkbenchState extends State<Workbench> {
   Widget _buildSidebar({VoidCallback? onOpened}) {
     return Sidebar(
       workspace: _workspace,
+      link: _sidebarLink,
       onCollapse: _toggle,
       onOpened: onOpened,
       onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
+      onOpenSettings: () => unawaited(openSettings()),
       drag: _drag,
     );
   }
@@ -439,11 +774,13 @@ class _WorkbenchState extends State<Workbench> {
       pinned: _pinned,
       onTogglePin: _setPinned,
       onOpenFolder: _openFolder,
+      onOpenSettings: () => unawaited(openSettings()),
       onToggleContextPanel: () {
         if (_workspace.current case final thread?) {
           ChatScreen.toggleContextPanel(_chatKey(thread));
         }
       },
+      onCommand: (command) => _chatCommands()[command]?.call(),
     );
   }
 
@@ -564,7 +901,7 @@ class _WorkbenchState extends State<Workbench> {
     final leading = !header && showToggle
         ? SidebarIconButton(
             icon: Codicons.layoutSidebarLeftOff,
-            tooltip: 'Show sidebar',
+            tooltip: context.l10n.windowShowSidebar,
             onTap: _toggle,
           )
         : null;
@@ -598,30 +935,34 @@ class _WorkbenchState extends State<Workbench> {
         if (windowTools) const SizedBox(width: 6),
         SidebarIconButton(
           icon: Codicons.close,
-          tooltip: 'Close pane',
+          tooltip: context.l10n.workspaceClosePane,
           onTap: () => _workspace.closePane(thread),
         ),
       ],
     ];
-    return ChatScreen(
-      key: _chatKey(thread),
-      embedded: embedded,
-      session: thread.session,
-      title: thread.title,
-      autofocus: thread.session.itemCount == 0,
-      onRename: (title) => _workspace.rename(thread, title),
-      // Files come from the agent's own lookup, not a fixed list.
-      mentions: const [],
-      // Beside the sidebar, the traffic lights are over it, not here.
-      titleBarInset: titleBarInset,
-      leading: leading,
-      trailing: tools.isEmpty
-          ? null
-          : KeepPaneFocus(
-              child: Row(mainAxisSize: MainAxisSize.min, children: tools),
-            ),
-      windowTitleBar: place.top,
-      focused: place.alone || identical(thread, _workspace.current),
+    // The layout's context keys, for the chat's keybindings (see ChatKeys).
+    return ChatKeyScope(
+      lookup: embedded ? _ideChatKeyContext : _chatKeyContext,
+      child: ChatScreen(
+        key: _chatKey(thread),
+        embedded: embedded,
+        session: thread.session,
+        title: thread.localizedTitle(context.l10n),
+        autofocus: thread.session.itemCount == 0,
+        onRename: (title) => _workspace.rename(thread, title),
+        // Files come from the agent's own lookup, not a fixed list.
+        mentions: const [],
+        // Beside the sidebar, the traffic lights are over it, not here.
+        titleBarInset: titleBarInset,
+        leading: leading,
+        trailing: tools.isEmpty
+            ? null
+            : KeepPaneFocus(
+                child: Row(mainAxisSize: MainAxisSize.min, children: tools),
+              ),
+        windowTitleBar: place.top,
+        focused: place.alone || identical(thread, _workspace.current),
+      ),
     );
   }
 }
@@ -643,16 +984,14 @@ class _EmptyWorkspace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final (title, detail) = loading
-        ? ('Loading projects…', '')
+        ? (l10n.workspaceLoadingProjects, '')
         : onOpenFolder == null
-        ? (
-            'Agents run in the desktop app',
-            'Claude Code runs as a local process, which a browser cannot start.',
-          )
+        ? (l10n.workspaceDesktopOnly, l10n.workspaceDesktopOnlyDetail)
         : (
-            'Open a project folder',
-            'Its Claude Code sessions show in the sidebar; new agents run in it.',
+            l10n.workspaceOpenProjectFolder,
+            l10n.workspaceOpenProjectFolderDetail,
           );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -698,7 +1037,7 @@ class _EmptyWorkspace extends StatelessWidget {
                 if (onOpenFolder case final open? when !loading) ...[
                   const SizedBox(height: 16),
                   PanelButton(
-                    label: 'Open folder…',
+                    label: l10n.sidebarOpenFolder,
                     primary: true,
                     onTap: open,
                   ),

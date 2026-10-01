@@ -6,11 +6,13 @@ from three layers; each overrides the one before:
 1. **Bundled**: `assets/lsp/languages.json`, generated from Helix's
    `languages.toml` (`tool/generate_lsp_languages.mjs`).
 2. **Language packs**: folders in `<data>/language-packs/`.
-3. **User settings**: `<data>/lsp.json`.
+3. **User settings**: `<data>/User/lsp.json` (comments and trailing commas
+   allowed).
 
-`<data>` is the app data folder (`AppPaths.dataDir`):
+`<data>` is the app data folder (`DataDirectory.current`): by default
 `~/Library/Application Support/monad` on macOS, `~/.config/monad` on Linux,
-`%APPDATA%\monad` on Windows. Installed servers go to `<data>/servers/`.
+`%APPDATA%\monad` on Windows; `MONAD_DATA_DIR` or `~/.monad/config-dir.json`
+may move it. Installed servers go to `<data>/servers/`.
 
 Entries that do not validate are skipped and reported
 (`BundledLspCatalog.problems`, `LanguagePackRegistry.problems`); the rest

@@ -15,7 +15,7 @@ abstract interface class LspFiles {
   Future<List<String>> directories(String path);
 }
 
-/// Where the app keeps its language settings, packs and installed servers
-/// (`AppPaths.dataDir`): null on the web and under `flutter test`, so tests
-/// never read the user's own.
+/// Where the app keeps its language packs and installed servers
+/// (`DataDirectory.current`): null on the web and under `flutter test`, so
+/// tests never read the user's own.
 String? lspDataDirectory() => platform.lspDataDirectory();

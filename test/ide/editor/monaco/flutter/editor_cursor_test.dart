@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:monad/ide/editor/monaco/flutter/editor_document_model.dart';
+import 'package:monad/ide/editor/monaco/flutter/editor_folding.dart';
 import 'package:monad/ide/editor/monaco/flutter/editor_keybindings.dart';
 import 'package:monad/ide/editor/monaco/flutter/editor_surface_controller.dart';
 import 'package:monad/ide/editor/monaco/flutter/language_assets.dart';
@@ -71,6 +72,23 @@ class _Host implements EditorViewHost {
 
   @override
   void invokeTextAction(Intent intent) => intents.add(intent);
+
+  int scrolledRows = 0;
+  final revealed = <(int, int)>[];
+  EditorFoldingModel? folding;
+  int foldingChanges = 0;
+
+  @override
+  void scrollByRows(int rows) => scrolledRows += rows;
+
+  @override
+  void revealRange(int start, int end) => revealed.add((start, end));
+
+  @override
+  EditorFoldingModel? get foldingModel => folding;
+
+  @override
+  void foldingChanged() => foldingChanges++;
 
   @override
   ({int offset, double x}) verticalTarget(
@@ -858,6 +876,242 @@ void main() {
       expect(c.value.text, 'foo ');
       handleEditorSelector(c, host, 'insertNewline:');
       expect(c.value.text, 'foo \n');
+    });
+  });
+
+  group('keybindings', () {
+    test('Go to Bracket jumps to the partner of the bracket at a caret', () {
+      final c = _controller('f(a[1], b) + x', selections: [_at(1), _at(13)]);
+      final host = _Host(c);
+      expect(runEditorCommand('editor.action.jumpToBracket', c, host), isTrue);
+      // The caret at `(` goes to `)`; the one touching no bracket stays.
+      expect(_show(c), 'f(a[1], b|) + |x');
+      expect(runEditorCommand('editor.action.jumpToBracket', c, host), isTrue);
+      expect(_show(c), 'f|(a[1], b) + |x');
+      final none = _controller('abc', selections: [_at(1)]);
+      expect(
+        runEditorCommand('editor.action.jumpToBracket', none, _Host(none)),
+        isFalse,
+      );
+      expect(
+        editorCommandKeybindingLabel(
+          'editor.action.jumpToBracket',
+          platform: TargetPlatform.macOS,
+        ),
+        '⇧⌘\\',
+      );
+    });
+
+    testWidgets('a resolver decides what a key runs', (tester) async {
+      final c = _controller('(a)', selections: [_at(0)]);
+      final host = _Host(c);
+      KeyEvent down(LogicalKeyboardKey key) => KeyDownEvent(
+        physicalKey: PhysicalKeyboardKey.keyA,
+        logicalKey: key,
+        timeStamp: Duration.zero,
+      );
+      String? resolved;
+      KeyEventResult press(LogicalKeyboardKey key) =>
+          handleEditorKeyEvent(c, host, down(key), resolve: (_) => resolved);
+      // An editor command runs.
+      resolved = 'editor.action.jumpToBracket';
+      expect(press(LogicalKeyboardKey.keyE), KeyEventResult.handled);
+      expect(_show(c), '(a|)');
+      // Another command is the workbench's: the key goes on to it.
+      resolved = 'workbench.action.navigateBack';
+      expect(press(LogicalKeyboardKey.keyE), KeyEventResult.ignored);
+      // No keybinding: a cursor key does nothing (its command is unbound,
+      // and the text system and focus traversal do not get it); typing is
+      // left alone, and Enter types a line break.
+      resolved = null;
+      expect(press(LogicalKeyboardKey.arrowLeft), KeyEventResult.handled);
+      expect(_show(c), '(a|)');
+      expect(press(LogicalKeyboardKey.keyE), KeyEventResult.ignored);
+      expect(c.value.text, '(a)');
+      expect(press(LogicalKeyboardKey.enter), KeyEventResult.handled);
+      expect(c.value.text, '(a\n)');
+      // The cursor keys are commands.
+      resolved = 'cursorLeft';
+      expect(press(LogicalKeyboardKey.arrowLeft), KeyEventResult.handled);
+      expect(_show(c), '(a|\n)');
+    });
+  });
+
+  group('keyboard commands', () {
+    bool run(String id, EditorSurfaceController c, [_Host? host]) =>
+        runEditorCommand(id, c, host ?? _Host(c));
+
+    test('cursor moves, with and without selecting', () {
+      final c = _controller('  foo bar\nbaz', selections: [_at(6)]);
+      expect(run('cursorLeft', c), isTrue);
+      expect(_show(c), '  foo| bar\nbaz');
+      expect(run('cursorRightSelect', c), isTrue);
+      expect(_show(c), '  foo[ ]bar\nbaz');
+      expect(run('cancelSelection', c), isTrue);
+      expect(_show(c), '  foo |bar\nbaz');
+      expect(run('cursorHome', c), isTrue);
+      expect(_show(c), '  |foo bar\nbaz');
+      expect(run('cursorLineStart', c), isTrue);
+      expect(_show(c), '|  foo bar\nbaz');
+      expect(run('cursorLineEndSelect', c), isTrue);
+      expect(_show(c), '[  foo bar]\nbaz');
+      expect(run('cursorBottom', c), isTrue);
+      expect(_show(c), '  foo bar\nbaz|');
+      expect(run('cursorUp', c), isTrue);
+      expect(_show(c), '  f|oo bar\nbaz');
+      expect(run('cursorWordLeft', c), isTrue);
+      expect(_show(c), '  |foo bar\nbaz');
+      expect(run('cursorWordRightSelect', c), isTrue);
+      expect(_show(c), '  [foo] bar\nbaz');
+      expect(run('cursorTopSelect', c), isTrue);
+      expect(c.value.selection, _range(2, 0));
+    });
+
+    test('deletion and line breaks', () {
+      final c = _controller('ab cd', selections: [_at(1)]);
+      expect(run('deleteRight', c), isTrue);
+      expect(_show(c), 'a| cd');
+      expect(run('deleteLeft', c), isTrue);
+      expect(_show(c), '| cd');
+      expect(run('lineBreakInsert', c), isTrue);
+      expect(_show(c), '|\n cd');
+      c.select(5, 5);
+      expect(run('deleteWordLeft', c), isTrue);
+      expect(_show(c), '\n |');
+      final readOnly = _Host(c)..editable = false;
+      expect(run('deleteLeft', c, readOnly), isFalse);
+      expect(c.value.text, '\n ');
+    });
+
+    test('scrolling moves the view, not the caret', () {
+      final c = _controller('a\nb\nc', selections: [_at(0)]);
+      final host = _Host(c);
+      expect(run('scrollLineDown', c, host), isTrue);
+      expect(run('scrollPageUp', c, host), isTrue);
+      expect(host.scrolledRows, 1 - host.pageRowCount);
+      expect(_show(c), '|a\nb\nc');
+    });
+
+    test('snippet placeholders: next, previous, leave', () {
+      final c = _controller('', selections: [_at(0)]);
+      c.insertSnippet(r'f(${1:a}, ${2:b})$0');
+      expect(_show(c), 'f([a], b)');
+      expect(run('jumpToNextSnippetPlaceholder', c), isTrue);
+      expect(_show(c), 'f(a, [b])');
+      expect(run('jumpToPrevSnippetPlaceholder', c), isTrue);
+      expect(_show(c), 'f([a], b)');
+      expect(run('leaveSnippet', c), isTrue);
+      expect(c.inSnippetMode, isFalse);
+    });
+
+    test('editor.action.joinLines', () {
+      final c = _controller('a\n  b\nc', selections: [_at(0)]);
+      expect(run('editor.action.joinLines', c), isTrue);
+      expect(c.value.text, 'a b\nc');
+      expect(_show(c), 'a| b\nc');
+      // A selection joins the lines it spans.
+      final d = _controller('a\nb\nc\nd', selections: [_range(0, 5)]);
+      expect(run('editor.action.joinLines', d), isTrue);
+      expect(d.value.text, 'a b c\nd');
+      expect(d.document.canUndo, isTrue);
+    });
+
+    test('editor.action.duplicateSelection', () {
+      final c = _controller('ab\ncd', selections: [_range(0, 1)]);
+      expect(run('editor.action.duplicateSelection', c), isTrue);
+      expect(_show(c), 'a[a]b\ncd');
+      // A caret duplicates its line.
+      final d = _controller('ab\ncd', selections: [_at(1)]);
+      expect(run('editor.action.duplicateSelection', d), isTrue);
+      expect(d.value.text, 'ab\nab\ncd');
+      expect(d.value.selection.baseOffset, 4);
+    });
+
+    test('editor.action.insertCursorAtEndOfEachLineSelected', () {
+      final c = _controller('ab\ncd\nef', selections: [_range(0, 7)]);
+      expect(
+        run('editor.action.insertCursorAtEndOfEachLineSelected', c),
+        isTrue,
+      );
+      expect(_show(c), 'ab|\ncd|\ne|f');
+    });
+
+    test('smart select expands and shrinks', () {
+      final c = _controller('foo(bar, baz)', selections: [_at(5)]);
+      expect(run('editor.action.smartSelect.expand', c), isTrue);
+      expect(_show(c), 'foo([bar], baz)');
+      expect(run('editor.action.smartSelect.grow', c), isTrue);
+      expect(_show(c), 'foo([bar, baz])');
+      expect(run('editor.action.smartSelect.shrink', c), isTrue);
+      expect(_show(c), 'foo([bar], baz)');
+    });
+
+    test('symbol highlights: next and previous, revealed', () {
+      final c = _controller('foo x foo y foo', selections: [_at(1)]);
+      final host = _Host(c);
+      expect(run('editor.action.wordHighlight.next', c, host), isTrue);
+      expect(c.value.selection, _at(6));
+      expect(host.revealed.last, (6, 9));
+      expect(run('editor.action.wordHighlight.prev', c, host), isTrue);
+      expect(c.value.selection, _at(0));
+    });
+
+    test('folding commands act on the view\'s folding model', () {
+      const text = 'a {\n  b\n  c\n}\nd {\n  e\n  f\n}';
+      final c = _controller(text, selections: [_at(6)]);
+      final host = _Host(c);
+      // Without folding there is nothing to fold.
+      expect(run('editor.fold', c, host), isFalse);
+      final model = host.folding = EditorFoldingModel()
+        ..updateSnapshot(c.document.snapshot)
+        ..recompute(tabSize: 4);
+      expect(model.regions.length, 2);
+      expect(run('editor.fold', c, host), isTrue);
+      expect(model.isCollapsedAt(1), isTrue);
+      expect(model.isCollapsedAt(5), isFalse);
+      expect(host.foldingChanges, 1);
+      expect(run('editor.unfold', c, host), isTrue);
+      expect(model.hasCollapsed, isFalse);
+      expect(run('editor.toggleFold', c, host), isTrue);
+      expect(model.isCollapsedAt(1), isTrue);
+      expect(run('editor.unfoldAll', c, host), isTrue);
+      expect(run('editor.foldAll', c, host), isTrue);
+      expect(model.isCollapsedAt(1) && model.isCollapsedAt(5), isTrue);
+      expect(run('editor.unfoldAll', c, host), isTrue);
+      expect(run('editor.foldAllExcept', c, host), isTrue);
+      expect(model.isCollapsedAt(1), isFalse);
+      expect(model.isCollapsedAt(5), isTrue);
+      expect(run('editor.unfoldAll', c, host), isTrue);
+      // Fold Level 1 leaves the region with the caret, as upstream.
+      expect(run('editor.foldLevel1', c, host), isTrue);
+      expect(model.isCollapsedAt(1), isFalse);
+      expect(model.isCollapsedAt(5), isTrue);
+      expect(run('editor.foldAll', c, host), isTrue);
+      // Nothing changes: false, and the view is left alone.
+      final changes = host.foldingChanges;
+      expect(run('editor.foldAll', c, host), isFalse);
+      expect(host.foldingChanges, changes);
+    });
+
+    test('marker regions and block comments fold by the language', () async {
+      final language = await _language('typescript');
+      const text =
+          '/*\n * doc\n */\n'
+          'function f() {\n  return 1;\n}\n'
+          '//#region r\nlet x;\n//#endregion\n';
+      final c = _controller(text, language: language, selections: [_at(0)]);
+      final host = _Host(c);
+      final model = host.folding = EditorFoldingModel()
+        ..updateSnapshot(c.document.snapshot)
+        ..recompute(tabSize: 4, rules: language.folding);
+      expect(run('editor.foldAllBlockComments', c, host), isTrue);
+      expect(model.isCollapsedAt(1), isTrue);
+      expect(model.isCollapsedAt(4), isFalse);
+      expect(run('editor.foldAllMarkerRegions', c, host), isTrue);
+      expect(model.isCollapsedAt(7), isTrue);
+      expect(run('editor.unfoldAllMarkerRegions', c, host), isTrue);
+      expect(model.isCollapsedAt(7), isFalse);
+      expect(model.isCollapsedAt(1), isTrue);
     });
   });
 }

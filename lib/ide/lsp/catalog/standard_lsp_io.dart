@@ -1,8 +1,6 @@
 import 'package:flutter/services.dart';
-import 'package:path/path.dart' as p;
 
-import '../../../kernel/claude_code/claude_environment.dart';
-import '../../../platform/app_paths.dart';
+import '../../../platform/data_dir.dart';
 import '../install/mason_registry.dart';
 import '../install/mason_server_provider.dart';
 import '../packs/language_packs.dart';
@@ -11,13 +9,13 @@ import 'bundled_lsp_catalog.dart';
 import 'standard_lsp.dart';
 
 Future<StandardLsp> loadStandardLsp({AssetBundle? bundle}) async {
-  final dataDirectory = AppPaths.dataDir(await ClaudeEnvironment.of());
+  final dataDirectory = DataDirectory.current;
   final packs = LanguagePackRegistry.instance;
   final catalog = BundledLspCatalog(
     bundle: bundle,
     overlays: [
       packs.catalogOverlay,
-      LspUserSettings.inDirectory(dataDirectory),
+      LspUserSettings(dataDirectory.lspSettingsFile),
     ],
   );
   await catalog.load();
@@ -25,9 +23,9 @@ Future<StandardLsp> loadStandardLsp({AssetBundle? bundle}) async {
     catalog: catalog,
     provider: MasonServerProvider(
       registry: await MasonRegistry.load(bundle: bundle),
-      installRoot: p.join(dataDirectory, MasonServerProvider.folderName),
+      installRoot: dataDirectory.serversDir,
     ),
     packs: packs,
-    dataDirectory: dataDirectory,
+    dataDirectory: dataDirectory.path,
   );
 }

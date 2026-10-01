@@ -25,6 +25,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../ide_commands.dart';
 import '../ide_hover.dart';
@@ -56,21 +57,23 @@ String? terminalKeyLabel(List<IdeKeybinding> bindings) {
   return null;
 }
 
-/// A tab's context menu: Rename..., then Kill Terminal.
+/// A tab's context menu: Rename..., then Kill Terminal; in [l10n]'s
+/// language (English when null).
 List<IdeMenuEntry> terminalTabMenu(
   TerminalService terminals,
-  TerminalInstance instance,
-) => ideMenuGroups([
+  TerminalInstance instance, {
+  AppLocalizations? l10n,
+}) => ideMenuGroups([
   [
     IdeMenuAction(
-      'Rename...',
+      (l10n ?? englishLocalizations).termRename,
       keybinding: terminalKeyLabel(TerminalTabKeys.rename),
       onSelected: () => terminals.startRename(instance),
     ),
   ],
   [
     IdeMenuAction(
-      'Kill Terminal',
+      (l10n ?? englishLocalizations).termKillTerminal,
       keybinding: terminalKeyLabel(TerminalTabKeys.kill),
       onSelected: () => terminals.kill(instance),
     ),
@@ -210,7 +213,11 @@ class _TerminalTabsState extends State<TerminalTabs> {
                           showIdeMenu(
                             context,
                             position: position,
-                            entries: terminalTabMenu(terminals, instance),
+                            entries: terminalTabMenu(
+                              terminals,
+                              instance,
+                              l10n: context.l10n,
+                            ),
                           ),
                         );
                       },
@@ -226,7 +233,10 @@ class _TerminalTabsState extends State<TerminalTabs> {
                     context,
                     position: position,
                     entries: [
-                      IdeMenuAction('New Terminal', onSelected: widget.onNew),
+                      IdeMenuAction(
+                        context.l10n.termNewTerminal,
+                        onSelected: widget.onNew,
+                      ),
                     ],
                   ),
                 ),
@@ -298,8 +308,8 @@ class _TabRow extends StatelessWidget {
                 IdeActionButton(
                   icon: Codicons.trash,
                   tooltip: switch (terminalKeyLabel(TerminalTabKeys.kill)) {
-                    final key? => 'Kill ($key)',
-                    null => 'Kill',
+                    final key? => context.l10n.termKillKeys(key),
+                    null => context.l10n.termKill,
                   },
                   size: 20,
                   onPressed: onKill,
@@ -366,11 +376,6 @@ class _TerminalRenameInputState extends State<TerminalRenameInput> {
   final FocusNode _focus = FocusNode(debugLabel: 'terminal rename');
   bool _done = false;
 
-  static const _empty = IdeInputValidation(
-    'Providing no name will reset it to the default value',
-    IdeValidationSeverity.info,
-  );
-
   @override
   void initState() {
     super.initState();
@@ -409,10 +414,14 @@ class _TerminalRenameInputState extends State<TerminalRenameInput> {
     fontSize: 13,
     lineHeight: 18,
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-    validation: _controller.text.trim().isEmpty ? _empty : null,
+    validation: _controller.text.trim().isEmpty
+        ? IdeInputValidation(
+            context.l10n.termRenameEmpty,
+            IdeValidationSeverity.info,
+          )
+        : null,
     floatingValidation: true,
-    semanticsLabel:
-        'Type terminal name. Press Enter to confirm or Escape to cancel.',
+    semanticsLabel: context.l10n.termRenameLabel,
     onChanged: (_) => setState(() {}),
     onSubmitted: _finish,
     shortcuts: {

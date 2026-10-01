@@ -1,11 +1,16 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import '../l10n/command_titles.dart';
+import '../l10n/l10n.dart';
 import 'file_service.dart';
 import 'ide_commands.dart';
 import '../theme/material_file_icons.dart';
 import 'ide_fuzzy.dart';
 import 'ide_quick_input.dart';
+import 'ide_workspace.dart';
 
 /// A cached listing of the project's files for Quick Open. The cache is shown
 /// at once and refreshed in the background each time Quick Open opens.
@@ -134,14 +139,20 @@ class IdeQuickOpenQuery {
 }
 
 /// Rows for Quick Open (no prefix). [recent] is most-recent-first absolute
-/// paths; [onOpen] opens a file at an optional one-based line and column.
+/// paths; [onOpen] opens a file at an optional one-based line and column,
+/// and [onOpenInBackground], if given, while Quick Open stays (upstream
+/// `quickInput.acceptInBackground`). Messages are in [l10n]'s language
+/// (English when null).
 List<IdeQuickPickItem> fileQuickPicks(
   String text, {
   required IdeFileIndex index,
   required List<String> recent,
   required void Function(String path, int? line, int? column) onOpen,
+  void Function(String path, int? line, int? column)? onOpenInBackground,
   int limit = 200,
+  AppLocalizations? l10n,
 }) {
+  final strings = l10n ?? englishLocalizations;
   final query = IdeQuickOpenQuery.parse(text);
   final root = index.root;
   String relativeOf(String path) =>
@@ -163,6 +174,9 @@ List<IdeQuickPickItem> fileQuickPicks(
       icon: FileIcon(path, size: 16),
       group: group,
       onAccept: () => onOpen(path, query.line, query.column),
+      onAcceptInBackground: onOpenInBackground == null
+          ? null
+          : () => onOpenInBackground(path, query.line, query.column),
     );
   }
 
@@ -175,7 +189,7 @@ List<IdeQuickPickItem> fileQuickPicks(
         item(
           path,
           relativeOf(path),
-          group: items.isEmpty ? 'recently opened' : null,
+          group: items.isEmpty ? strings.quickOpenRecentlyOpened : null,
         ),
       );
     }
@@ -186,7 +200,7 @@ List<IdeQuickPickItem> fileQuickPicks(
         item(
           index.paths[i],
           index.relativePaths[i],
-          group: first ? 'files' : null,
+          group: first ? strings.quickOpenFiles : null,
         ),
       );
       first = false;
@@ -194,7 +208,9 @@ List<IdeQuickPickItem> fileQuickPicks(
     if (items.isEmpty) {
       items.add(
         IdeQuickPickItem(
-          label: index.loading ? 'Loading files…' : 'No files in this project',
+          label: index.loading
+              ? strings.quickOpenLoadingFiles
+              : strings.quickOpenNoFiles,
         ),
       );
     }
@@ -254,37 +270,105 @@ List<IdeQuickPickItem> fileQuickPicks(
     items.add(
       IdeQuickPickItem(
         label: index.loading && !index.loaded
-            ? 'Loading files…'
-            : 'No matching results',
+            ? strings.quickOpenLoadingFiles
+            : strings.quickOpenNoMatchingResults,
       ),
     );
   }
   return items;
 }
 
+/// Rows for the editor pickers (the `edt ` prefixes; upstream
+/// editorQuickAccess.ts `BaseEditorQuickAccessProvider._getPicks`):
+/// [editors] in the order the picker lists them, those matching [filter]
+/// on their name and folder, best first. [onOpen] brings one to the front,
+/// with [inBackground] while the picker stays (upstream `accept` with
+/// `preserveFocus: event.inBackground`). Messages are in [l10n]'s language
+/// (English when null).
+///
+/// Deviations: no close buttons, dirty or preview marks, and no groups.
+List<IdeQuickPickItem> editorQuickPicks(
+  String filter, {
+  required List<IdeDocument> editors,
+  required String root,
+  required void Function(IdeDocument doc, {required bool inBackground}) onOpen,
+  AppLocalizations? l10n,
+}) {
+  final strings = l10n ?? englishLocalizations;
+  final query = IdeQuickOpenQuery._normalize(filter);
+  final scored =
+      <({IdeDocument doc, int score, List<int> label, List<int> folder})>[];
+  for (final doc in editors) {
+    final folder = _folderOf(doc.path, root);
+    if (query.isEmpty) {
+      scored.add((doc: doc, score: 0, label: const [], folder: const []));
+      continue;
+    }
+    final result = scoreFilePath(
+      query,
+      folder == null ? doc.title : '$folder/${doc.title}',
+    );
+    if (result == null) continue;
+    scored.add((
+      doc: doc,
+      score: result.score,
+      label: result.label,
+      folder: result.description,
+    ));
+  }
+  if (query.isNotEmpty) {
+    // Stable: equal scores keep the picker's order.
+    final order = {for (final (i, entry) in scored.indexed) entry.doc: i};
+    scored.sort((a, b) {
+      final byScore = b.score.compareTo(a.score);
+      return byScore != 0 ? byScore : order[a.doc]!.compareTo(order[b.doc]!);
+    });
+  }
+  if (scored.isEmpty) {
+    return [IdeQuickPickItem(label: strings.quickOpenNoMatchingEditors)];
+  }
+  return [
+    for (final entry in scored)
+      IdeQuickPickItem(
+        label: entry.doc.title,
+        labelMatches: entry.label,
+        description: _folderOf(entry.doc.path, root),
+        descriptionMatches: entry.folder,
+        icon: FileIcon(entry.doc.path, size: 16),
+        onAccept: () => onOpen(entry.doc, inBackground: false),
+        onAcceptInBackground: () => onOpen(entry.doc, inBackground: true),
+      ),
+  ];
+}
+
+/// [path]'s folder relative to [root], `/`-separated; null at the root.
+String? _folderOf(String path, String root) {
+  final folder = p.relative(p.dirname(path), from: root).replaceAll(r'\', '/');
+  return folder == '.' ? null : folder;
+}
+
 /// Rows for Go to Line (the `:` prefix), for a document of [lineCount] lines
 /// whose caret is at [currentLine]:[currentColumn]. Negative lines count from
-/// the end, as in VS Code.
+/// the end, as in VS Code. Messages are in [l10n]'s language (English when
+/// null).
 List<IdeQuickPickItem> gotoLineQuickPicks(
   String text, {
   required int? lineCount,
   int currentLine = 1,
   int currentColumn = 1,
   required void Function(int line, int? column) onGo,
+  AppLocalizations? l10n,
 }) {
+  final strings = l10n ?? englishLocalizations;
   if (lineCount == null) {
-    return const [
-      IdeQuickPickItem(label: 'Open a text editor first to go to a line.'),
-    ];
+    return [IdeQuickPickItem(label: strings.gotoLineNoEditor)];
   }
   final query = IdeQuickOpenQuery.parse(':$text');
   var line = query.line;
   if (line == null || line == 0) {
     return [
       IdeQuickPickItem(
-        label:
-            'Current Line: $currentLine, Character: $currentColumn. '
-            'Type a line number between 1 and $lineCount to navigate to.',
+        label: strings.gotoLineCurrent(currentLine, currentColumn, lineCount),
       ),
     ];
   }
@@ -295,8 +379,8 @@ List<IdeQuickPickItem> gotoLineQuickPicks(
   return [
     IdeQuickPickItem(
       label: column == null
-          ? 'Go to line $target.'
-          : 'Go to line $target and character $column.',
+          ? strings.gotoLineLine(target)
+          : strings.gotoLineLineAndCharacter(target, column),
       onAccept: () => onGo(target, column),
     ),
   ];
@@ -304,24 +388,42 @@ List<IdeQuickPickItem> gotoLineQuickPicks(
 
 /// Rows for the command palette (the `>` prefix). Recently run commands come
 /// first while the filter is empty; [onRun] records and runs a command.
+///
+/// Titles are in [l10n]'s language (English when null); a query matches the
+/// localized title or the English one, which is shown after it when it
+/// differs (upstream `commandAlias`).
 List<IdeQuickPickItem> commandQuickPicks(
   String filter, {
   required List<IdeCommand> commands,
   required IdeRecentList recent,
   required void Function(IdeCommand command) onRun,
+  AppLocalizations? l10n,
 }) {
+  final strings = l10n ?? englishLocalizations;
   final query = filter.trim();
   final enabled = [
     for (final command in commands)
       if (command.enabled) command,
   ];
+  final titles = {
+    for (final command in enabled)
+      command: l10n == null
+          ? command.title
+          : localizedCommandTitle(l10n, command),
+  };
+  String titleOf(IdeCommand command) => titles[command]!;
+  String? aliasOf(IdeCommand command) =>
+      titleOf(command) == command.title ? null : command.title;
   IdeQuickPickItem item(
     IdeCommand command, {
     List<int> matches = const [],
+    List<int> aliasMatches = const [],
     String? group,
   }) => IdeQuickPickItem(
-    label: command.title,
+    label: titleOf(command),
     labelMatches: matches,
+    description: aliasOf(command),
+    descriptionMatches: aliasMatches,
     keybinding: command.shortcutLabel(),
     group: group,
     onAccept: () => onRun(command),
@@ -331,22 +433,31 @@ List<IdeQuickPickItem> commandQuickPicks(
     final byId = {for (final command in enabled) command.id: command};
     final recents = [for (final id in recent.items) ?byId[id]];
     final rest = enabled.where((command) => !recents.contains(command)).toList()
-      ..sort((a, b) => a.title.compareTo(b.title));
+      ..sort((a, b) => titleOf(a).compareTo(titleOf(b)));
     return [
       for (final (i, command) in recents.indexed)
-        item(command, group: i == 0 ? 'recently used' : null),
+        item(command, group: i == 0 ? strings.quickOpenRecentlyUsed : null),
       for (final (i, command) in rest.indexed)
         item(
           command,
-          group: i == 0 && recents.isNotEmpty ? 'other commands' : null,
+          group: i == 0 && recents.isNotEmpty
+              ? strings.quickOpenOtherCommands
+              : null,
         ),
     ];
   }
 
-  final scored = <(IdeCommand, IdeFuzzyMatch)>[];
+  final scored = <(IdeCommand, int, IdeFuzzyMatch?, IdeFuzzyMatch?)>[];
   for (final command in enabled) {
-    final match = ideFuzzyMatch(query, command.title);
-    if (match != null) scored.add((command, match));
+    final match = ideFuzzyMatch(query, titleOf(command));
+    final alias = aliasOf(command);
+    final aliasMatch = alias == null ? null : ideFuzzyMatch(query, alias);
+    if (match == null && aliasMatch == null) continue;
+    final score = math.max(
+      match?.score ?? aliasMatch!.score,
+      aliasMatch?.score ?? match!.score,
+    );
+    scored.add((command, score, match, aliasMatch));
   }
   int recency(IdeCommand command) {
     final at = recent.indexOf(command.id);
@@ -354,16 +465,20 @@ List<IdeQuickPickItem> commandQuickPicks(
   }
 
   scored.sort((a, b) {
-    final byScore = b.$2.score.compareTo(a.$2.score);
+    final byScore = b.$2.compareTo(a.$2);
     if (byScore != 0) return byScore;
     final byRecent = recency(a.$1).compareTo(recency(b.$1));
-    return byRecent != 0 ? byRecent : a.$1.title.compareTo(b.$1.title);
+    return byRecent != 0 ? byRecent : titleOf(a.$1).compareTo(titleOf(b.$1));
   });
   if (scored.isEmpty) {
-    return const [IdeQuickPickItem(label: 'No matching commands')];
+    return [IdeQuickPickItem(label: strings.quickOpenNoMatchingCommands)];
   }
   return [
-    for (final (command, match) in scored)
-      item(command, matches: match.positions),
+    for (final (command, _, match, aliasMatch) in scored)
+      item(
+        command,
+        matches: match?.positions ?? const [],
+        aliasMatches: aliasMatch?.positions ?? const [],
+      ),
   ];
 }

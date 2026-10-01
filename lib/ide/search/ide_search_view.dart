@@ -10,23 +10,29 @@
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/workbench/contrib/search/browser/searchView.ts, searchWidget.ts,
 // patternInputWidget.ts, searchResultsView.ts, searchActions*.ts and
-// media/searchview.css.
+// media/searchview.css. What the keyboard does here are the workbench's
+// commands (ide_workbench_keys.dart), on [IdeSearchViewState]'s
+// `focusNextInputBox`, `moveFocusToResults`… as upstream's on `SearchView`.
 //
 // Deviations: results are a list of files (no tree of folders), there is
 // no search editor or search history, "Search only in Open Editors" is
-// not offered, and replacing does not preview a diff.
+// not offered, replacing does not preview a diff, and one row of the
+// results is both focused and selected.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../../keybindings/keybinding_service.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
-import '../ide_commands.dart';
+import '../ide_commands.dart' show ideWithKeybinding;
 import '../ide_dialog.dart';
 import '../ide_hover.dart';
 import '../ide_input.dart';
@@ -36,6 +42,12 @@ import '../ide_panes.dart';
 import '../ide_workspace.dart';
 import '../lsp/lsp_protocol.dart';
 import 'text_search.dart';
+
+/// The inputs of the Search view, for [IdeSearchSession.requestFocus].
+enum IdeSearchInput { query, replace }
+
+/// A row of the results: a file's, or one of its matches.
+typedef IdeSearchRow = (IdeSearchFileResult file, IdeTextMatch? match);
 
 /// A file's results: its matches, less those dismissed or replaced.
 class IdeSearchFileResult {
@@ -79,8 +91,16 @@ class IdeSearchSession extends ChangeNotifier {
   /// After Replace All: what was replaced.
   String? replaced;
 
-  /// Asks the view to focus the search input.
+  /// Asks the view to focus [focusInput] (see [requestFocus]), once it
+  /// shows if it does not: the view handles requests up to
+  /// [focusHandled].
   int focusRequest = 0;
+  int focusHandled = 0;
+  IdeSearchInput focusInput = IdeSearchInput.query;
+
+  /// The selected (focused) row of the results: a file's path, and one of
+  /// its matches or none for the file's row.
+  (String, IdeTextMatch?)? selected;
 
   StreamSubscription<Object>? _search;
   Timer? _debounce;
@@ -110,6 +130,83 @@ class IdeSearchSession extends ChangeNotifier {
 
   void _changed() {
     if (!_disposed) notifyListeners();
+  }
+
+  /// The rows the results show: each file's, then its matches unless it
+  /// is collapsed.
+  List<IdeSearchRow> get rows => [
+    for (final file in results) ...[
+      (file, null),
+      if (!collapsed.contains(file.path))
+        for (final match in file.matches) (file, match),
+    ],
+  ];
+
+  /// The [selected] row's index in [rows]; -1 when none shows.
+  int get selectedIndex {
+    final selected = this.selected;
+    if (selected == null) return -1;
+    return rows.indexWhere(
+      (row) => row.$1.path == selected.$1 && row.$2 == selected.$2,
+    );
+  }
+
+  /// Whether a file shows its matches (upstream
+  /// `viewHasSomeCollapsibleResult`).
+  bool get anyExpanded => collapsed.length < results.length;
+
+  /// Asks the view (shown, or once it shows) to focus [input].
+  void requestFocus([IdeSearchInput input = IdeSearchInput.query]) {
+    focusInput = input;
+    focusRequest++;
+    _changed();
+  }
+
+  /// Selects [row] (none: null).
+  void select(IdeSearchRow? row) {
+    selected = row == null ? null : (row.$1.path, row.$2);
+    _changed();
+  }
+
+  /// Selects the next (or previous) match, expanding its file, from the
+  /// selected row, around the ends (upstream `SearchView.selectNextMatch`
+  /// and `selectPreviousMatch`); null when there are none.
+  IdeSearchRow? selectMatch({required bool next}) {
+    final all = [
+      for (final file in results)
+        for (final match in file.matches) (file, match),
+    ];
+    if (all.isEmpty) return null;
+    final selected = this.selected;
+    var at = selected == null
+        ? -1
+        : all.indexWhere(
+            (row) => row.$1.path == selected.$1 && row.$2 == selected.$2,
+          );
+    if (at < 0 && selected != null) {
+      // A file's row: its first match is next, the match before it
+      // previous.
+      final first = all.indexWhere((row) => row.$1.path == selected.$1);
+      at = next ? first - 1 : first;
+    }
+    final index = next
+        ? (at + 1) % all.length
+        : (at < 0 ? all.length - 1 : (at - 1) % all.length);
+    final row = all[index];
+    collapsed.remove(row.$1.path);
+    this.selected = (row.$1.path, row.$2);
+    _changed();
+    return row;
+  }
+
+  /// Cancel Search: the search running stops, with the results so far.
+  void cancel() {
+    _debounce?.cancel();
+    unawaited(_search?.cancel());
+    _search = null;
+    if (!searching) return;
+    searching = false;
+    _changed();
   }
 
   /// `search.searchOnType`: searches 300ms after the last change.
@@ -201,6 +298,7 @@ class IdeSearchSession extends ChangeNotifier {
     replace.clear();
     results.clear();
     collapsed.clear();
+    selected = null;
     searched = null;
     searching = false;
     limitHit = false;
@@ -222,6 +320,7 @@ class IdeSearchSession extends ChangeNotifier {
   void findInFolder(String relativeFolder, String root) {
     includes.text = relativeFolder.isEmpty ? '' : './$relativeFolder';
     detailsShown = true;
+    focusInput = IdeSearchInput.query;
     focusRequest++;
     if (query.text.isNotEmpty) {
       search(root);
@@ -236,12 +335,17 @@ class IdeSearchSession extends ChangeNotifier {
   }
 
   /// Collapse All when anything is expanded, else Expand All.
-  void toggleCollapseAll() {
-    if (collapsed.length < results.length) {
-      collapsed.addAll(results.map((file) => file.path));
-    } else {
-      collapsed.clear();
-    }
+  void toggleCollapseAll() => anyExpanded ? collapseAll() : expandAll();
+
+  /// Collapse All: a match selected gives way to its file.
+  void collapseAll() {
+    collapsed.addAll(results.map((file) => file.path));
+    if (selected case (final path, _?)) selected = (path, null);
+    _changed();
+  }
+
+  void expandAll() {
+    collapsed.clear();
     _changed();
   }
 
@@ -295,25 +399,44 @@ class IdeSearchView extends StatefulWidget {
   final ValueChanged<Object>? onError;
 
   @override
-  State<IdeSearchView> createState() => _IdeSearchViewState();
+  State<IdeSearchView> createState() => IdeSearchViewState();
 }
 
-class _IdeSearchViewState extends State<IdeSearchView> {
+/// The Search view's keyboard (upstream `SearchView`'s): its inputs and
+/// its results, which the workbench's search commands and `list.*` move
+/// in (see [contextKey]).
+class IdeSearchViewState extends State<IdeSearchView>
+    with IdeKeyboardList<IdeSearchView> {
   final FocusNode _queryFocus = FocusNode(debugLabel: 'search');
+  final FocusNode _replaceFocus = FocusNode(debugLabel: 'search replace');
+  final FocusNode _includesFocus = FocusNode(debugLabel: 'search include');
+  final FocusNode _excludesFocus = FocusNode(debugLabel: 'search exclude');
   final FocusNode _resultsFocus = FocusNode(debugLabel: 'search results');
-  (String, IdeTextMatch?)? _selected;
-  int _focusRequest = 0;
+  final ScrollController _scroll = ScrollController();
+
+  /// The selection last scrolled into view.
+  (String, IdeTextMatch?)? _revealed;
 
   IdeSearchSession get _session => widget.session;
   String get _root => widget.workspace.root;
+
+  List<FocusNode> get _focusNodes => [
+    _queryFocus,
+    _replaceFocus,
+    _includesFocus,
+    _excludesFocus,
+    _resultsFocus,
+  ];
 
   @override
   void initState() {
     super.initState();
     _session.addListener(_changed);
-    _focusRequest = _session.focusRequest;
-    _queryFocus.addListener(_changed);
-    _resultsFocus.addListener(_changed);
+    for (final node in _focusNodes) {
+      node.addListener(_focusChanged);
+    }
+    _revealed = _session.selected;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _changed());
   }
 
   @override
@@ -328,18 +451,38 @@ class _IdeSearchViewState extends State<IdeSearchView> {
   @override
   void dispose() {
     _session.removeListener(_changed);
-    _queryFocus.dispose();
-    _resultsFocus.dispose();
+    for (final node in _focusNodes) {
+      node.dispose();
+    }
+    _scroll.dispose();
     super.dispose();
+  }
+
+  void _focusChanged() {
+    if (mounted) setState(() {});
   }
 
   void _changed() {
     if (!mounted) return;
     setState(() {});
-    if (_session.focusRequest != _focusRequest) {
-      _focusRequest = _session.focusRequest;
-      _queryFocus.requestFocus();
-    }
+    final session = _session;
+    final focus = session.focusRequest != session.focusHandled;
+    final reveal = session.selected != _revealed;
+    if (!focus && !reveal) return;
+    session.focusHandled = session.focusRequest;
+    _revealed = session.selected;
+    // After the rebuild: the replace input may show only then.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (focus) {
+        _focusSearchWidget(
+          replace: session.focusInput == IdeSearchInput.replace,
+        );
+      }
+      if (reveal && session.selectedIndex >= 0) {
+        ideRevealRow(_scroll, session.selectedIndex);
+      }
+    });
   }
 
   void _toggle(void Function() change) {
@@ -347,7 +490,290 @@ class _IdeSearchViewState extends State<IdeSearchView> {
     _session.search(_root);
   }
 
-  String _keys(String mac, String other) => ideUsesMacKeys ? mac : other;
+  /// [command]'s keybinding, for a tooltip or a menu.
+  String? _keybinding(String command) =>
+      KeybindingService.instance.labelFor(command);
+
+  /// [withKeys]' text with [command]'s keybinding, if it has one.
+  String _withKeys(String Function(String keys) withKeys, String command) =>
+      ideWithKeybinding(withKeys, _keybinding(command));
+
+  // --- Keyboard ------------------------------------------------------------
+
+  /// The focused row of the results, while they have the keyboard.
+  IdeSearchRow? get _focusedRow {
+    if (!_resultsFocus.hasFocus) return null;
+    final index = _session.selectedIndex;
+    return index < 0 ? null : _session.rows[index];
+  }
+
+  /// The view's context keys (upstream `Constants.SearchContext`'s that
+  /// follow the focus); null for others.
+  Object? contextKey(String key) {
+    final row = _focusedRow;
+    return switch (key) {
+      'inputBoxFocus' =>
+        _queryFocus.hasFocus ||
+            _replaceFocus.hasFocus ||
+            _includesFocus.hasFocus ||
+            _excludesFocus.hasFocus,
+      'searchInputBoxFocus' => _queryFocus.hasFocus,
+      'replaceInputBoxFocus' => _replaceFocus.hasFocus,
+      'patternIncludesInputBoxFocus' => _includesFocus.hasFocus,
+      'patternExcludesInputBoxFocus' => _excludesFocus.hasFocus,
+      'firstMatchFocus' => row != null && _session.selectedIndex == 0,
+      'fileMatchOrMatchFocus' => row != null,
+      'fileMatchOrFolderMatchFocus' ||
+      'fileMatchOrFolderMatchWithResourceFocus' ||
+      'fileMatchFocus' => row != null && row.$2 == null,
+      'matchFocus' => row?.$2 != null,
+      'folderMatchFocus' => false,
+      'isEditableItem' => true,
+      _ => null,
+    };
+  }
+
+  /// Focuses [node], its text selected (upstream `focus(select: true)`).
+  void _focusField(FocusNode node, TextEditingController controller) {
+    node.requestFocus();
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: controller.text.length,
+    );
+  }
+
+  /// The search input focused, or the replace input if [replace] and it
+  /// shows (upstream `SearchWidget.focus`).
+  void _focusSearchWidget({bool replace = false}) {
+    if (replace && _session.replaceShown) {
+      _focusField(_replaceFocus, _session.replace);
+    } else {
+      _focusField(_queryFocus, _session.query);
+    }
+  }
+
+  /// Focus Next Input: search, replace, files to include, files to exclude,
+  /// then the results (upstream `focusNextInputBox`).
+  void focusNextInputBox() {
+    if (_queryFocus.hasFocus) {
+      if (_session.replaceShown) {
+        _focusSearchWidget(replace: true);
+      } else {
+        _moveFocusFromSearchOrReplace();
+      }
+    } else if (_replaceFocus.hasFocus) {
+      _moveFocusFromSearchOrReplace();
+    } else if (_includesFocus.hasFocus) {
+      _focusField(_excludesFocus, _session.excludes);
+    } else if (_excludesFocus.hasFocus) {
+      moveFocusToResults(selectFirst: true);
+    }
+  }
+
+  void _moveFocusFromSearchOrReplace() {
+    if (_session.detailsShown) {
+      _focusField(_includesFocus, _session.includes);
+    } else {
+      moveFocusToResults(selectFirst: true);
+    }
+  }
+
+  /// Focus Previous Input, and Focus Search From Results (upstream
+  /// `focusPreviousInputBox`).
+  void focusPreviousInputBox() {
+    if (_replaceFocus.hasFocus) {
+      _focusSearchWidget();
+    } else if (_includesFocus.hasFocus) {
+      _focusSearchWidget(replace: true);
+    } else if (_excludesFocus.hasFocus) {
+      _focusField(_includesFocus, _session.includes);
+    } else if (_resultsFocus.hasFocus) {
+      if (_session.detailsShown) {
+        _focusField(_excludesFocus, _session.excludes);
+      } else {
+        _focusSearchWidget(replace: true);
+      }
+    }
+  }
+
+  /// Focus List: the results focused; with [selectFirst], their first row
+  /// when none is (upstream `moveFocusToResults`,
+  /// `selectTreeIfNotSelected`).
+  void moveFocusToResults({bool selectFirst = false}) {
+    _resultsFocus.requestFocus();
+    final rows = _session.rows;
+    if (selectFirst && _session.selectedIndex < 0 && rows.isNotEmpty) {
+      _session.select(rows.first);
+    }
+  }
+
+  /// Toggle Query Details: the files to include and exclude shown, the
+  /// first focused, or hidden, the search input focused.
+  void toggleQueryDetails({bool? show}) {
+    final session = _session;
+    session.detailsShown = show ?? !session.detailsShown;
+    session.notify();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (session.detailsShown) {
+        _focusField(_includesFocus, session.includes);
+      } else {
+        _focusSearchWidget();
+      }
+    });
+  }
+
+  /// Close Replace Widget: the replace input hidden, the search input
+  /// focused.
+  void closeReplace() {
+    _session.replaceShown = false;
+    _session.notify();
+    _focusSearchWidget();
+  }
+
+  /// Open Match: the focused match, or a file's first, opened in the
+  /// editor, which is focused.
+  void openFocused() {
+    final row = _focusedRow;
+    if (row == null) return;
+    final match = row.$2 ?? row.$1.matches.firstOrNull;
+    if (match != null) unawaited(_openMatch(row.$1, match, focusEditor: true));
+  }
+
+  /// Dismiss: the focused row's matches gone from the results, the row
+  /// now in its place focused.
+  void removeFocused() {
+    final index = _session.selectedIndex;
+    if (index < 0) return;
+    final (file, match) = _session.rows[index];
+    _session.dismiss(file, match);
+    _focusRowNear(index);
+  }
+
+  /// Replace, and Replace All in a file's row: the focused row's matches
+  /// replaced, the row now in its place focused.
+  void replaceFocused() {
+    final index = _session.selectedIndex;
+    if (index < 0 || !_session.replaceShown) return;
+    final (file, match) = _session.rows[index];
+    unawaited(
+      _replace({
+        file: match == null ? [...file.matches] : [match],
+      }).then((_) {
+        if (mounted) _focusRowNear(index);
+      }),
+    );
+  }
+
+  void _focusRowNear(int index) {
+    final rows = _session.rows;
+    _session.select(
+      rows.isEmpty ? null : rows[math.min(index, rows.length - 1)],
+    );
+    _resultsFocus.requestFocus();
+  }
+
+  /// Replace All, confirmed.
+  void replaceAll() => unawaited(_replaceAll());
+
+  /// Copy: the focused row's text; Copy Path: its file's path; Copy All.
+  void copyFocused({bool path = false}) {
+    final row = _focusedRow;
+    if (row == null) return;
+    unawaited(
+      Clipboard.setData(
+        ClipboardData(text: path ? row.$1.path : _copyText(row.$1, row.$2)),
+      ),
+    );
+  }
+
+  void copyAll() => unawaited(
+    Clipboard.setData(
+      ClipboardData(
+        text: [for (final file in _session.results) _copyText(file)]
+            .join('\n\n'),
+      ),
+    ),
+  );
+
+  // --- The results as a list (`list.*`) -------------------------------------
+
+  @override
+  bool get listHasFocus => _resultsFocus.hasFocus;
+
+  @override
+  int get listLength => _session.rows.length;
+
+  @override
+  int get listFocusedIndex => _session.selectedIndex;
+
+  @override
+  int get listPageSize => ideRowsPerPage(_scroll);
+
+  @override
+  void listFocusAt(int index) => _session.select(_session.rows[index]);
+
+  /// A file's row toggles, a match opens (upstream `selectElement`).
+  @override
+  void listSelect() {
+    final row = _focusedRow;
+    if (row == null) return;
+    if (row.$2 == null) {
+      _session.toggleCollapsed(row.$1.path);
+    } else {
+      openFocused();
+    }
+  }
+
+  @override
+  void listToggleExpand() {
+    final row = _focusedRow;
+    if (row != null && row.$2 == null) {
+      _session.toggleCollapsed(row.$1.path);
+    } else {
+      listSelect();
+    }
+  }
+
+  @override
+  void listExpand() {
+    final row = _focusedRow;
+    if (row == null || row.$2 != null) return;
+    if (_session.collapsed.contains(row.$1.path)) {
+      _session.toggleCollapsed(row.$1.path);
+    } else if (row.$1.matches.isNotEmpty) {
+      _session.select((row.$1, row.$1.matches.first));
+    }
+  }
+
+  @override
+  void listCollapse() {
+    final row = _focusedRow;
+    if (row == null) return;
+    if (row.$2 != null) {
+      _session.select((row.$1, null));
+    } else if (!_session.collapsed.contains(row.$1.path)) {
+      _session.toggleCollapsed(row.$1.path);
+    }
+  }
+
+  @override
+  void listCollapseAll() => _session.collapseAll();
+
+  @override
+  bool listTreeKey(String key) {
+    final row = _focusedRow;
+    if (row == null) return false;
+    final file = row.$2 == null;
+    final expanded = file && !_session.collapsed.contains(row.$1.path);
+    return switch (key) {
+      'treeElementCanCollapse' => expanded,
+      'treeElementCanExpand' => file && !expanded,
+      'treeElementHasChild' => expanded && row.$1.matches.isNotEmpty,
+      'treeElementHasParent' => !file,
+      _ => false,
+    };
+  }
 
   // --- Replace -------------------------------------------------------------
 
@@ -426,36 +852,31 @@ class _IdeSearchViewState extends State<IdeSearchView> {
     return (result, count);
   }
 
-  String _plural(int n, String one, String many) => n == 1 ? one : many;
-
   /// Replace All, confirmed as VS Code confirms it.
   Future<void> _replaceAll() async {
     final occurrences = _session.matchCount;
     final files = _session.results.length;
     if (occurrences == 0) return;
     final value = _session.replace.text;
-    final counts =
-        '$occurrences ${_plural(occurrences, 'occurrence', 'occurrences')} '
-        'across $files ${_plural(files, 'file', 'files')}';
+    final l10n = context.l10n;
+    final counts = l10n.searchOccurrences(occurrences, files);
     final pick = await showIdeDialog(
       context,
       type: IdeDialogType.question,
       message: value.isEmpty
-          ? 'Replace $counts?'
-          : "Replace $counts with '$value'?",
-      buttons: const ['Replace'],
+          ? l10n.searchConfirmReplace(counts)
+          : l10n.searchConfirmReplaceWith(counts, value),
+      buttons: [l10n.searchReplace],
     );
     if (pick != 0 || !mounted) return;
     final replaced = await _replace({
       for (final file in [..._session.results]) file: [...file.matches],
     });
     if (!mounted) return;
-    final done =
-        '$replaced ${_plural(replaced, 'occurrence', 'occurrences')} '
-        'across $files ${_plural(files, 'file', 'files')}';
+    final done = l10n.searchOccurrences(replaced, files);
     _session.replaced = value.isEmpty
-        ? 'Replaced $done.'
-        : "Replaced $done with '$value'.";
+        ? l10n.searchReplaced(done)
+        : l10n.searchReplacedWith(done, value);
     _session.notify();
   }
 
@@ -464,32 +885,34 @@ class _IdeSearchViewState extends State<IdeSearchView> {
   @override
   Widget build(BuildContext context) {
     final session = _session;
-    final anyExpanded = session.collapsed.length < session.results.length;
+    final anyExpanded = session.anyExpanded;
     return ColoredBox(
       color: CursorColors.sidebarSurface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           IdeViewTitle(
-            'Search',
+            context.l10n.searchTitle,
             actions: [
               IdePaneAction(
                 icon: Codicons.refresh,
-                tooltip: 'Refresh',
+                tooltip: context.l10n.commonRefresh,
                 onPressed: session.query.text.isEmpty
                     ? null
                     : () => session.search(_root),
               ),
               IdePaneAction(
                 icon: Codicons.clearAll,
-                tooltip: 'Clear Search Results',
+                tooltip: context.l10n.searchClearResults,
                 onPressed: session.query.text.isEmpty && session.results.isEmpty
                     ? null
                     : session.clear,
               ),
               IdePaneAction(
                 icon: anyExpanded ? Codicons.collapseAll : Codicons.expandAll,
-                tooltip: anyExpanded ? 'Collapse All' : 'Expand All',
+                tooltip: anyExpanded
+                    ? context.l10n.commonCollapseAll
+                    : context.l10n.commonExpandAll,
                 onPressed: session.results.isEmpty
                     ? null
                     : session.toggleCollapseAll,
@@ -546,8 +969,8 @@ class _IdeSearchViewState extends State<IdeSearchView> {
                     controller: session.query,
                     focusNode: _queryFocus,
                     autofocus: true,
-                    placeholder: 'Search',
-                    semanticsLabel: 'Search',
+                    placeholder: context.l10n.searchTitle,
+                    semanticsLabel: context.l10n.searchTitle,
                     padding: _widgetPadding,
                     validation: regExpError == null
                         ? null
@@ -557,22 +980,30 @@ class _IdeSearchViewState extends State<IdeSearchView> {
                     toggles: [
                       IdeInputToggle(
                         icon: Codicons.caseSensitive,
-                        tooltip: 'Match Case (${_keys('⌥⌘C', 'Alt+C')})',
+                        tooltip: _withKeys(
+                          context.l10n.searchMatchCase,
+                          'toggleSearchCaseSensitive',
+                        ),
                         checked: session.matchCase,
                         onChanged: (value) =>
                             _toggle(() => session.matchCase = value),
                       ),
                       IdeInputToggle(
                         icon: Codicons.wholeWord,
-                        tooltip: 'Match Whole Word (${_keys('⌥⌘W', 'Alt+W')})',
+                        tooltip: _withKeys(
+                          context.l10n.searchMatchWholeWord,
+                          'toggleSearchWholeWord',
+                        ),
                         checked: session.wholeWord,
                         onChanged: (value) =>
                             _toggle(() => session.wholeWord = value),
                       ),
                       IdeInputToggle(
                         icon: Codicons.regex,
-                        tooltip:
-                            'Use Regular Expression (${_keys('⌥⌘R', 'Alt+R')})',
+                        tooltip: _withKeys(
+                          context.l10n.searchUseRegExp,
+                          'toggleSearchRegex',
+                        ),
                         checked: session.useRegExp,
                         onChanged: (value) =>
                             _toggle(() => session.useRegExp = value),
@@ -586,15 +1017,18 @@ class _IdeSearchViewState extends State<IdeSearchView> {
                         Expanded(
                           child: IdeInputBox(
                             controller: session.replace,
-                            placeholder: 'Replace',
-                            semanticsLabel: 'Replace',
+                            focusNode: _replaceFocus,
+                            placeholder: context.l10n.searchReplace,
+                            semanticsLabel: context.l10n.searchReplace,
                             padding: _widgetPadding,
                             onChanged: (_) => session.notify(),
                             toggles: [
                               IdeInputToggle(
                                 icon: Codicons.preserveCase,
-                                tooltip:
-                                    'Preserve Case (${_keys('⌥⌘P', 'Alt+P')})',
+                                tooltip: _withKeys(
+                                  context.l10n.searchPreserveCase,
+                                  'toggleSearchPreserveCase',
+                                ),
                                 checked: session.preserveCase,
                                 onChanged: (value) {
                                   session.preserveCase = value;
@@ -607,9 +1041,10 @@ class _IdeSearchViewState extends State<IdeSearchView> {
                         const SizedBox(width: 2),
                         IdeActionButton(
                           icon: Codicons.replaceAll,
-                          tooltip:
-                              'Replace All '
-                              '(${_keys('⌥⌘Enter', 'Ctrl+Alt+Enter')})',
+                          tooltip: _withKeys(
+                            context.l10n.searchReplaceAllKeys,
+                            'search.action.replaceAll',
+                          ),
                           size: 22,
                           onPressed: session.results.isEmpty
                               ? null
@@ -658,29 +1093,31 @@ class _IdeSearchViewState extends State<IdeSearchView> {
           if (session.detailsShown) ...[
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 2),
-              child: Text('files to include', style: heading),
+              child: Text(context.l10n.searchFilesToInclude, style: heading),
             ),
             IdeInputBox(
               controller: session.includes,
-              placeholder: 'e.g. *.ts, src/**/include',
-              semanticsLabel: 'files to include',
+              focusNode: _includesFocus,
+              placeholder: context.l10n.searchIncludeExample,
+              semanticsLabel: context.l10n.searchFilesToInclude,
               onChanged: (_) => session.searchSoon(_root),
               onSubmitted: (_) => session.search(_root),
             ),
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 2),
-              child: Text('files to exclude', style: heading),
+              child: Text(context.l10n.searchFilesToExclude, style: heading),
             ),
             IdeInputBox(
               controller: session.excludes,
-              placeholder: 'e.g. *.ts, src/**/exclude',
-              semanticsLabel: 'files to exclude',
+              focusNode: _excludesFocus,
+              placeholder: context.l10n.searchExcludeExample,
+              semanticsLabel: context.l10n.searchFilesToExclude,
               onChanged: (_) => session.searchSoon(_root),
               onSubmitted: (_) => session.search(_root),
               toggles: [
                 IdeInputToggle(
                   icon: Codicons.exclude,
-                  tooltip: 'Use Exclude Settings and Ignore Files',
+                  tooltip: context.l10n.searchUseExcludeSettings,
                   checked: session.useExcludesAndIgnoreFiles,
                   onChanged: (value) =>
                       _toggle(() => session.useExcludesAndIgnoreFiles = value),
@@ -698,33 +1135,28 @@ class _IdeSearchViewState extends State<IdeSearchView> {
   Widget _messages() {
     final session = _session;
     final searched = session.searched;
+    final l10n = context.l10n;
     final lines = <String>[];
     if (session.replaced case final replaced?) lines.add(replaced);
     if (searched != null && !session.searching) {
       final matches = session.matchCount;
       final files = session.results.length;
       if (session.limitHit) {
-        lines.add(
-          'The result set only contains a subset of all matches. Be more '
-          'specific in your search to narrow down the results.',
-        );
+        lines.add(l10n.searchLimitHit);
       }
       if (matches > 0) {
-        lines.add(
-          '$matches ${_plural(matches, 'result', 'results')} in $files '
-          '${_plural(files, 'file', 'files')}',
-        );
+        lines.add(l10n.searchResultCount(matches, files));
       } else if (session.replaced == null) {
         final include = searched.includes.trim();
         final exclude = searched.excludes.trim();
         lines.add(switch ((include.isEmpty, exclude.isEmpty)) {
-          (false, false) =>
-            "No results found in '$include' excluding '$exclude'",
-          (false, true) => "No results found in '$include'",
-          (true, false) => "No results found excluding '$exclude'",
-          (true, true) =>
-            'No results found. Review your settings for configured '
-                'exclusions and check your gitignore files',
+          (false, false) => l10n.searchNoResultsIncludeExclude(
+            include,
+            exclude,
+          ),
+          (false, true) => l10n.searchNoResultsInclude(include),
+          (true, false) => l10n.searchNoResultsExclude(exclude),
+          (true, true) => l10n.searchNoResults,
         });
       }
     }
@@ -752,41 +1184,25 @@ class _IdeSearchViewState extends State<IdeSearchView> {
 
   Widget _results() {
     final session = _session;
-    final rows = <(IdeSearchFileResult, IdeTextMatch?)>[
-      for (final file in session.results) ...[
-        (file, null),
-        if (!session.collapsed.contains(file.path))
-          for (final match in file.matches) (file, match),
-      ],
-    ];
+    final rows = session.rows;
+    final selectedIndex = session.selectedIndex;
+    final focused = _resultsFocus.hasFocus;
     final regExp = session.regExp;
+    final replaceKeys = _keybinding('search.action.replace');
+    final replaceAllKeys = _keybinding('search.action.replaceAllInFile');
+    final dismissKeys = _keybinding('search.action.remove');
     return Focus(
       focusNode: _resultsFocus,
-      onKeyEvent: (node, event) {
-        if (event is KeyUpEvent) return KeyEventResult.ignored;
-        final selected = _selected;
-        if (selected == null) return KeyEventResult.ignored;
-        final key = event.logicalKey;
-        final keys = HardwareKeyboard.instance;
-        final remove = ideUsesMacKeys
-            ? key == LogicalKeyboardKey.backspace && keys.isMetaPressed
-            : key == LogicalKeyboardKey.delete;
-        if (!remove) return KeyEventResult.ignored;
-        final file = session.results
-            .where((file) => file.path == selected.$1)
-            .firstOrNull;
-        if (file != null) session.dismiss(file, selected.$2);
-        return KeyEventResult.handled;
-      },
       child: ListView.builder(
+        controller: _scroll,
         itemExtent: IdeListColors.rowHeight,
         itemCount: rows.length,
         itemBuilder: (context, index) {
           final (file, match) = rows[index];
-          final selected = _selected?.$1 == file.path && _selected?.$2 == match;
+          final selected = index == selectedIndex;
           void select() {
             _resultsFocus.requestFocus();
-            setState(() => _selected = (file.path, match));
+            session.select((file, match));
           }
 
           if (match == null) {
@@ -796,8 +1212,10 @@ class _IdeSearchViewState extends State<IdeSearchView> {
               file: file,
               expanded: !session.collapsed.contains(file.path),
               selected: selected,
-              focused: _resultsFocus.hasFocus,
+              focused: focused,
               replacing: session.replaceShown,
+              replaceAllKeys: replaceAllKeys,
+              dismissKeys: dismissKeys,
               onTap: () {
                 select();
                 session.toggleCollapsed(file.path);
@@ -827,9 +1245,9 @@ class _IdeSearchViewState extends State<IdeSearchView> {
                   )
                 : null,
             selected: selected,
-            focused: _resultsFocus.hasFocus,
-            replaceKeys: _keys('⇧⌘1', 'Ctrl+Shift+1'),
-            dismissKeys: _keys('⌘Backspace', 'Delete'),
+            focused: focused,
+            replaceKeys: replaceKeys,
+            dismissKeys: dismissKeys,
             onTap: () {
               select();
               unawaited(_openMatch(file, match, focusEditor: false));
@@ -886,34 +1304,35 @@ class _IdeSearchViewState extends State<IdeSearchView> {
     entries: ideMenuGroups([
       [
         IdeMenuAction(
-          'Copy',
-          keybinding: _keys('⌘C', 'Ctrl+C'),
+          context.l10n.commonCopy,
+          keybinding: _keybinding('search.action.copyMatch'),
           onSelected: () => unawaited(
             Clipboard.setData(ClipboardData(text: _copyText(file, match))),
           ),
         ),
         IdeMenuAction(
-          'Copy Path',
-          keybinding: _keys('⌥⌘C', 'Shift+Alt+C'),
+          context.l10n.tabCopyPath,
+          keybinding: _keybinding('search.action.copyPath'),
           onSelected: () =>
               unawaited(Clipboard.setData(ClipboardData(text: file.path))),
         ),
         IdeMenuAction(
-          'Copy All',
-          onSelected: () => unawaited(
-            Clipboard.setData(
-              ClipboardData(
-                text: [for (final file in _session.results) _copyText(file)]
-                    .join('\n\n'),
-              ),
-            ),
-          ),
+          context.l10n.searchCopyAll,
+          keybinding: _keybinding('search.action.copyAll'),
+          onSelected: copyAll,
         ),
       ],
       [
         if (_session.replaceShown)
           IdeMenuAction(
-            match == null ? 'Replace All' : 'Replace',
+            match == null
+                ? context.l10n.searchReplaceAll
+                : context.l10n.searchReplace,
+            keybinding: _keybinding(
+              match == null
+                  ? 'search.action.replaceAllInFile'
+                  : 'search.action.replace',
+            ),
             onSelected: () => unawaited(
               _replace({
                 file: match == null ? [...file.matches] : [match],
@@ -921,8 +1340,8 @@ class _IdeSearchViewState extends State<IdeSearchView> {
             ),
           ),
         IdeMenuAction(
-          'Dismiss',
-          keybinding: _keys('⌘Backspace', 'Delete'),
+          context.l10n.searchDismiss,
+          keybinding: _keybinding('search.action.remove'),
           onSelected: () => _session.dismiss(file, match),
         ),
       ],
@@ -946,11 +1365,11 @@ class _ToggleReplaceState extends State<_ToggleReplace> {
 
   @override
   Widget build(BuildContext context) => IdeHover(
-    message: 'Toggle Replace',
+    message: context.l10n.searchToggleReplace,
     child: Semantics(
       button: true,
       expanded: widget.expanded,
-      label: 'Toggle Replace',
+      label: context.l10n.searchToggleReplace,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hover = true),
@@ -985,11 +1404,11 @@ class _ToggleDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => IdeHover(
-    message: 'Toggle Search Details',
+    message: context.l10n.searchToggleDetails,
     child: Semantics(
       button: true,
       expanded: expanded,
-      label: 'Toggle Search Details',
+      label: context.l10n.searchToggleDetails,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
@@ -1019,6 +1438,8 @@ class _FileRow extends StatelessWidget {
     required this.selected,
     required this.focused,
     required this.replacing,
+    required this.replaceAllKeys,
+    required this.dismissKeys,
     required this.onTap,
     required this.onReplaceAll,
     required this.onDismiss,
@@ -1031,6 +1452,10 @@ class _FileRow extends StatelessWidget {
   final bool selected;
   final bool focused;
   final bool replacing;
+
+  /// Replace All's and Dismiss's keybindings, for their tooltips.
+  final String? replaceAllKeys;
+  final String? dismissKeys;
   final VoidCallback onTap;
   final VoidCallback onReplaceAll;
   final VoidCallback onDismiss;
@@ -1070,15 +1495,19 @@ class _FileRow extends StatelessWidget {
               if (replacing)
                 IdeActionButton(
                   icon: Codicons.replaceAll,
-                  tooltip:
-                      'Replace All (${ideUsesMacKeys ? '⇧⌘1' : 'Ctrl+Shift+1'})',
+                  tooltip: ideWithKeybinding(
+                    context.l10n.searchReplaceAllKeys,
+                    replaceAllKeys,
+                  ),
                   size: 20,
                   onPressed: onReplaceAll,
                 ),
               IdeActionButton(
                 icon: Codicons.close,
-                tooltip:
-                    'Dismiss (${ideUsesMacKeys ? '⌘Backspace' : 'Delete'})',
+                tooltip: ideWithKeybinding(
+                  context.l10n.searchDismissKeys,
+                  dismissKeys,
+                ),
                 size: 20,
                 onPressed: onDismiss,
               ),
@@ -1117,8 +1546,10 @@ class _MatchRow extends StatelessWidget {
   final String? replacement;
   final bool selected;
   final bool focused;
-  final String replaceKeys;
-  final String dismissKeys;
+
+  /// Replace's and Dismiss's keybindings, for their tooltips.
+  final String? replaceKeys;
+  final String? dismissKeys;
   final VoidCallback onTap;
   final VoidCallback onDoubleTap;
   final VoidCallback onReplace;
@@ -1189,13 +1620,19 @@ class _MatchRow extends StatelessWidget {
               if (replacement != null)
                 IdeActionButton(
                   icon: Codicons.replace,
-                  tooltip: 'Replace ($replaceKeys)',
+                  tooltip: ideWithKeybinding(
+                    context.l10n.searchReplaceKeys,
+                    replaceKeys,
+                  ),
                   size: 20,
                   onPressed: onReplace,
                 ),
               IdeActionButton(
                 icon: Codicons.close,
-                tooltip: 'Dismiss ($dismissKeys)',
+                tooltip: ideWithKeybinding(
+                  context.l10n.searchDismissKeys,
+                  dismissKeys,
+                ),
                 size: 20,
                 onPressed: onDismiss,
               ),

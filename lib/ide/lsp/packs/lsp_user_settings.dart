@@ -1,14 +1,15 @@
-import 'dart:convert';
-
 import 'package:path/path.dart' as p;
 
+import '../../../settings/jsonc.dart';
 import '../catalog/lsp_catalog_overlay.dart';
 import 'lsp_files.dart';
 
-/// The user's `lsp.json` in the app's data folder: servers and languages
-/// that override or extend the bundled catalog and language packs (see
-/// README.md). A missing file changes nothing; entries that do not
-/// validate are reported, not fatal.
+/// The user's `lsp.json` (`User/lsp.json` in the app's data folder, see
+/// `DataDirectory.lspSettingsFile`): servers and languages that override or
+/// extend the bundled catalog and language packs (see README.md). Comments
+/// and trailing commas are fine, as in the other settings files. A missing
+/// file changes nothing; entries that do not validate are reported, not
+/// fatal.
 class LspUserSettings implements LspCatalogOverlay {
   LspUserSettings(this.path, {LspFiles? files})
     : _files = files ?? LspFiles.local();
@@ -29,12 +30,16 @@ class LspUserSettings implements LspCatalogOverlay {
   Future<LspCatalogPatch> read() async {
     final text = await _files.readString(path);
     if (text == null || text.trim().isEmpty) return const LspCatalogPatch();
-    final Object? json;
-    try {
-      json = jsonDecode(text);
-    } on FormatException catch (error) {
+    final errors = <JsoncParseError>[];
+    final json = parseJsonc(text, errors: errors);
+    if (errors.isNotEmpty) {
       return LspCatalogPatch(
-        problems: [LspCatalogProblem(path, 'invalid JSON: ${error.message}')],
+        problems: [
+          LspCatalogProblem(
+            path,
+            'invalid JSON: ${errors.first.describe(text)}',
+          ),
+        ],
       );
     }
     return lspCatalogPatchFromJson(path, json);

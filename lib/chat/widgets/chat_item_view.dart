@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
 import '../chat_models.dart';
 import 'activity_row.dart';
 import 'agent_step.dart';
@@ -133,8 +134,14 @@ class ChatItemView extends StatelessWidget {
 /// The text of [item] as the history shows it, for copying items that are
 /// wholly inside a selection (built or not). Mirrors the widgets above: one
 /// line per text block, blocks on the same row joined by a space, so it
-/// matches what copying the rendered item yields.
-String chatItemPlainText(ChatItem item, {bool expanded = false}) {
+/// matches what copying the rendered item yields. In [l10n]'s language
+/// (English when null), as the widgets are.
+String chatItemPlainText(
+  ChatItem item, {
+  bool expanded = false,
+  AppLocalizations? l10n,
+}) {
+  final strings = l10n ?? englishLocalizations;
   String inline(String text) {
     final parts = text.split('`');
     return [
@@ -153,7 +160,7 @@ String chatItemPlainText(ChatItem item, {bool expanded = false}) {
           inline(line),
     ].join('\n'),
     ThinkingItem(:final text, :final seconds) => [
-      thinkingTitle(seconds: seconds),
+      thinkingTitle(seconds: seconds, l10n: strings),
       if (expanded) text.trimRight(),
     ].join('\n'),
     ToolCallItem(
@@ -167,7 +174,12 @@ String chatItemPlainText(ChatItem item, {bool expanded = false}) {
     ) =>
       [
         StepHeader.text(
-          label ?? toolVerb(kind, running: status == ToolStatus.running),
+          label ??
+              toolVerb(
+                kind,
+                running: status == ToolStatus.running,
+                l10n: strings,
+              ),
           target,
           detail,
         ),
@@ -178,7 +190,7 @@ String chatItemPlainText(ChatItem item, {bool expanded = false}) {
               when output.isNotEmpty)
             output,
       ].join('\n'),
-    final AgentItem agent => AgentStep.plainText(agent),
+    final AgentItem agent => AgentStep.plainText(agent, l10n: strings),
     NoticeItem(:final text) => text,
     TerminalItem(
       :final command,
@@ -189,9 +201,9 @@ String chatItemPlainText(ChatItem item, {bool expanded = false}) {
     ) =>
       [
         StepHeader.text(
-          CommandStep.verb(status, background: background),
+          CommandStep.verb(status, background: background, l10n: strings),
           CommandStep.title(command, description),
-          background ? 'in background' : null,
+          background ? strings.commandInBackground : null,
         ),
         if (expanded) ...[
           '\$ $command',
@@ -202,7 +214,7 @@ String chatItemPlainText(ChatItem item, {bool expanded = false}) {
       ].join('\n'),
     CodeDiffItem(:final fileName, :final lines) => [
       [
-        StepHeader.text('Edited', fileName),
+        StepHeader.text(strings.toolEdited, fileName),
         if (item.added > 0) '+${item.added}',
         if (item.removed > 0) '-${item.removed}',
       ].join(' '),
@@ -214,7 +226,8 @@ String chatItemPlainText(ChatItem item, {bool expanded = false}) {
             DiffLineType.context => ' ',
           }} ${line.text}',
     ].join('\n'),
-    LiveStatusItem(:final label, :final visible) => visible ? label : '',
+    LiveStatusItem(:final label, :final visible) =>
+      visible ? localizedActivityLabel(label, strings) : '',
   };
 }
 

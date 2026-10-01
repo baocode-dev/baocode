@@ -39,6 +39,7 @@ class TerminalFind extends Disposable {
   /// the matches (VS Code's `_updateFindColors`).
   TerminalFind(this._terminal, {required this.decorations}) {
     _onDidChange = register(Emitter<void>());
+    _onDidReveal = register(Emitter<void>());
     _selectionDisposable = register(MutableDisposable<IDisposable>());
     _searchAddon = register(
       SearchAddon(ISearchAddonOptions(highlightLimit: searchHighlightLimit)),
@@ -63,6 +64,7 @@ class TerminalFind extends Disposable {
   late final SearchAddon _searchAddon;
   late final MutableDisposable<IDisposable> _selectionDisposable;
   late final Emitter<void> _onDidChange;
+  late final Emitter<void> _onDidReveal;
 
   bool _isVisible = false;
   String _inputValue = '';
@@ -75,6 +77,15 @@ class TerminalFind extends Disposable {
 
   /// Fires when anything the widget shows changes.
   IEvent<void> get onDidChange => _onDidChange.event;
+
+  /// Fires when [reveal] has shown the widget: the view selects its input's
+  /// text and focuses it (SimpleFindWidget.reveal).
+  IEvent<void> get onDidReveal => _onDidReveal.event;
+
+  /// Whether the widget's input has the keyboard, as the view sets it
+  /// (TerminalFindWidget's `terminalFindFocused` and
+  /// `terminalFindInputFocused`).
+  bool focused = false;
 
   /// Fires before each search: VS Code turns copy on selection off until
   /// [onAfterSearch], so that selecting a match does not copy it.
@@ -168,6 +179,7 @@ class TerminalFind extends Disposable {
     }
     _isVisible = true;
     _updateResultCount();
+    _onDidReveal.fire(null);
   }
 
   /// Shows the widget, as the find commands do first: a one-line selection

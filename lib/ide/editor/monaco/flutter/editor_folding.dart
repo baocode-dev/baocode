@@ -256,4 +256,200 @@ class EditorFoldingModel {
     }
     return _updateHidden();
   }
+
+  // The folding actions' helpers, ported from VS Code
+  // src/vs/editor/contrib/folding/browser/foldingModel.ts at
+  // 6a598d4a13031703d483d103c1d934a36ad27971 (`FoldingModel.
+  // getAllRegionsAtLine`, `getRegionAtLine`, `getRegionsInside`,
+  // `toggleCollapseState` and the `setCollapseState*` functions). Each
+  // returns whether a region's state changed. Deviation: toggling does not
+  // update decorations (the hidden lines are recomputed instead).
+
+  /// The innermost region containing [lineNumber], then its ancestors, that
+  /// pass [filter] (given the region's level, 1 for the innermost).
+  List<FoldingRegion> _allRegionsAtLine(
+    int lineNumber, [
+    bool Function(FoldingRegion region, int level)? filter,
+  ]) {
+    final result = <FoldingRegion>[];
+    var index = _regions.findRange(lineNumber);
+    var level = 1;
+    while (index >= 0) {
+      final current = _regions.toRegion(index);
+      if (filter == null || filter(current, level)) result.add(current);
+      level++;
+      index = current.parentIndex;
+    }
+    return result;
+  }
+
+  FoldingRegion? _regionAtLine(int lineNumber) {
+    final index = _regions.findRange(lineNumber);
+    return index >= 0 ? _regions.toRegion(index) : null;
+  }
+
+  /// The regions inside [region] (every region when null) that pass
+  /// [filter], given their nesting level (1 for the outermost).
+  List<FoldingRegion> _regionsInside(
+    FoldingRegion? region,
+    bool Function(FoldingRegion region, int level) filter,
+  ) {
+    final result = <FoldingRegion>[];
+    final start = region == null ? 0 : region.regionIndex + 1;
+    final endLineNumber = region?.endLineNumber;
+    final levelStack = <FoldingRegion>[];
+    for (var i = start; i < _regions.length; i++) {
+      if (endLineNumber != null &&
+          _regions.getStartLineNumber(i) >= endLineNumber) {
+        break;
+      }
+      final current = _regions.toRegion(i);
+      while (levelStack.isNotEmpty && !current.containedBy(levelStack.last)) {
+        levelStack.removeLast();
+      }
+      levelStack.add(current);
+      if (filter(current, levelStack.length)) result.add(current);
+    }
+    return result;
+  }
+
+  bool _toggleCollapseState(List<FoldingRegion> regions) {
+    if (regions.isEmpty) return false;
+    final indexes = {for (final region in regions) region.regionIndex};
+    for (final index in indexes) {
+      _regions.setCollapsed(index, !_regions.isCollapsed(index));
+    }
+    _updateHidden();
+    return true;
+  }
+
+  /// Toggles the innermost region at each of [lineNumbers], and with
+  /// [levels] > 1 the regions inside it (upstream `toggleCollapseState`).
+  bool toggleCollapseState(int levels, List<int> lineNumbers) {
+    final toToggle = <FoldingRegion>[];
+    for (final lineNumber in lineNumbers) {
+      final region = _regionAtLine(lineNumber);
+      if (region == null) continue;
+      final doCollapse = !region.isCollapsed;
+      toToggle.add(region);
+      if (levels > 1) {
+        toToggle.addAll(
+          _regionsInside(
+            region,
+            (r, level) => r.isCollapsed != doCollapse && level < levels,
+          ),
+        );
+      }
+    }
+    return _toggleCollapseState(toToggle);
+  }
+
+  /// Collapses or expands the regions at [lineNumbers] (every region when
+  /// null or empty) and [levels] - 1 levels of their children.
+  bool setCollapseStateLevelsDown(
+    bool doCollapse, {
+    int levels = 1 << 30,
+    List<int>? lineNumbers,
+  }) {
+    final toToggle = <FoldingRegion>[];
+    if (lineNumbers != null && lineNumbers.isNotEmpty) {
+      for (final lineNumber in lineNumbers) {
+        final region = _regionAtLine(lineNumber);
+        if (region == null) continue;
+        if (region.isCollapsed != doCollapse) toToggle.add(region);
+        if (levels > 1) {
+          toToggle.addAll(
+            _regionsInside(
+              region,
+              (r, level) => r.isCollapsed != doCollapse && level < levels,
+            ),
+          );
+        }
+      }
+    } else {
+      toToggle.addAll(
+        _regionsInside(
+          null,
+          (r, level) => r.isCollapsed != doCollapse && level < levels,
+        ),
+      );
+    }
+    return _toggleCollapseState(toToggle);
+  }
+
+  /// Collapses or expands the regions at [lineNumbers] and [levels] - 1
+  /// levels of their parents.
+  bool setCollapseStateLevelsUp(
+    bool doCollapse,
+    int levels,
+    List<int> lineNumbers,
+  ) => _toggleCollapseState([
+    for (final lineNumber in lineNumbers)
+      ..._allRegionsAtLine(
+        lineNumber,
+        (region, level) => region.isCollapsed != doCollapse && level <= levels,
+      ),
+  ]);
+
+  /// Collapses or expands the innermost region at each of [lineNumbers], or
+  /// its first parent when that one already is.
+  bool setCollapseStateUp(bool doCollapse, List<int> lineNumbers) =>
+      _toggleCollapseState([
+        for (final lineNumber in lineNumbers)
+          ?_allRegionsAtLine(
+            lineNumber,
+            (region, _) => region.isCollapsed != doCollapse,
+          ).firstOrNull,
+      ]);
+
+  /// Collapses or expands the regions of level [foldLevel] (1 is the top
+  /// level) that contain none of [blockedLineNumbers].
+  bool setCollapseStateAtLevel(
+    int foldLevel,
+    bool doCollapse,
+    List<int> blockedLineNumbers,
+  ) => _toggleCollapseState(
+    _regionsInside(
+      null,
+      (region, level) =>
+          level == foldLevel &&
+          region.isCollapsed != doCollapse &&
+          !blockedLineNumbers.any(region.containsLine),
+    ),
+  );
+
+  /// Collapses or expands every region that neither contains nor is
+  /// contained by the innermost region of one of [blockedLineNumbers].
+  bool setCollapseStateForRest(bool doCollapse, List<int> blockedLineNumbers) {
+    final blocked = [
+      for (final lineNumber in blockedLineNumbers)
+        ?_allRegionsAtLine(lineNumber).firstOrNull,
+    ];
+    return _toggleCollapseState(
+      _regionsInside(
+        null,
+        (region, _) =>
+            blocked.every(
+              (b) => !b.containedBy(region) && !region.containedBy(b),
+            ) &&
+            region.isCollapsed != doCollapse,
+      ),
+    );
+  }
+
+  /// Collapses or expands the regions whose header line matches [regExp].
+  bool setCollapseStateForMatchingLines(RegExp regExp, bool doCollapse) {
+    final snapshot = _snapshot;
+    if (snapshot == null) return false;
+    final lines = _SnapshotLines(snapshot);
+    return _toggleCollapseState([
+      for (var i = _regions.length - 1; i >= 0; i--)
+        if (doCollapse != _regions.isCollapsed(i) &&
+            _regions.getStartLineNumber(i) <= snapshot.lineCount &&
+            regExp.hasMatch(
+              lines.getLineContent(_regions.getStartLineNumber(i)),
+            ))
+          _regions.toRegion(i),
+    ]);
+  }
 }

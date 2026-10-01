@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
 import '../editor/monaco/flutter/document_snapshot.dart';
 import '../editor/monaco/flutter/editor_decorations.dart';
@@ -161,6 +162,9 @@ class EditorLanguageSession extends ChangeNotifier
   static const semanticTokensDelay = Duration(milliseconds: 300);
   static const signatureHelpDelay = Duration(milliseconds: 120);
   static const messageDuration = Duration(seconds: 3);
+
+  /// The language of its messages; the editor sets it from its context.
+  AppLocalizations l10n = englishLocalizations;
 
   @override
   final LanguageFeatures languages;
@@ -427,6 +431,15 @@ class EditorLanguageSession extends ChangeNotifier
     changed();
   }
 
+  /// leaveEditorMessage: hides the message. False when none shows.
+  bool hideMessage() {
+    if (_message == null) return false;
+    _messageTimer?.cancel();
+    _message = null;
+    changed();
+    return true;
+  }
+
   // ---- hover -----------------------------------------------------------------
 
   IdeHoverState? _hover;
@@ -601,12 +614,9 @@ class EditorLanguageSession extends ChangeNotifier
     IdeGoToKind.references: LanguageRequest.references,
   };
 
-  static const _goToNames = {
-    IdeGoToKind.definition: 'definition',
-    IdeGoToKind.typeDefinition: 'type definition',
-    IdeGoToKind.implementation: 'implementation',
-    IdeGoToKind.references: 'references',
-  };
+  String _noneFound(IdeGoToKind kind, String word) => word.isEmpty
+      ? l10n.langNoneFound(kind.name)
+      : l10n.langNoneFoundFor(kind.name, word);
 
   /// Go to Definition (and friends) at [offset] or the caret: one target
   /// opens, several also list in the references panel, references always
@@ -618,10 +628,7 @@ class EditorLanguageSession extends ChangeNotifier
     final (wordStart, wordEnd) = lspWordAt(snapshot, at);
     final word = snapshot.text.substring(wordStart, wordEnd);
     if (!supports(_goToLanguage[kind]!)) {
-      showMessage(
-        "No ${_goToNames[kind]} found${word.isEmpty ? '' : " for '$word'"}",
-        offset: at,
-      );
+      showMessage(_noneFound(kind, word), offset: at);
       return;
     }
     final request = ++_goToRequest;
@@ -650,24 +657,21 @@ class EditorLanguageSession extends ChangeNotifier
       if (target != null && !targets.contains(target)) targets.add(target);
     }
     if (targets.isEmpty) {
-      showMessage(
-        "No ${_goToNames[kind]} found${word.isEmpty ? '' : " for '$word'"}",
-        offset: at,
-      );
+      showMessage(_noneFound(kind, word), offset: at);
       return;
     }
     if (kind == IdeGoToKind.references) {
       onShowReferences(
-        word.isEmpty ? 'References' : "References to '$word'",
+        word.isEmpty ? l10n.langReferences : l10n.langReferencesTo(word),
         targets,
       );
       return;
     }
     if (targets.length > 1) {
       onShowReferences(switch (kind) {
-        IdeGoToKind.typeDefinition => 'Type Definitions',
-        IdeGoToKind.implementation => 'Implementations',
-        _ => 'Definitions',
+        IdeGoToKind.typeDefinition => l10n.langTypeDefinitions,
+        IdeGoToKind.implementation => l10n.langImplementations,
+        _ => l10n.langDefinitions,
       }, targets);
     }
     await onOpenLocation(targets.first);
@@ -780,7 +784,7 @@ class EditorLanguageSession extends ChangeNotifier
     if (_disposed) return;
     final at = _caret;
     if (!supports(LanguageRequest.rename)) {
-      showMessage("The element can't be renamed.", offset: at);
+      showMessage(l10n.langCantRename, offset: at);
       return;
     }
     final request = ++_renameRequest;
@@ -803,7 +807,7 @@ class EditorLanguageSession extends ChangeNotifier
         ? lspWordAt(snapshot, at)
         : lspOffsetsOf(snapshot, prepared.range);
     if (start == end) {
-      showMessage("The element can't be renamed.", offset: at);
+      showMessage(l10n.langCantRename, offset: at);
       return;
     }
     _rename?.dispose();
@@ -839,24 +843,21 @@ class EditorLanguageSession extends ChangeNotifier
     try {
       edit = await languages.rename(path, state.position, newName);
     } catch (error) {
-      showMessage('Rename failed: $error', offset: state.start);
+      showMessage(l10n.langRenameFailed('$error'), offset: state.start);
       return;
     }
     if (_disposed) return;
     if (edit == null || edit.isEmpty) {
-      showMessage('No result.', offset: state.start);
+      showMessage(l10n.langNoResult, offset: state.start);
       return;
     }
     if (document.model.version != state.version) {
-      showMessage(
-        'Rename was cancelled because the document changed.',
-        offset: state.start,
-      );
+      showMessage(l10n.langRenameCancelled, offset: state.start);
       return;
     }
     final applied = await onApplyWorkspaceEdit(edit);
     if (!applied && !_disposed) {
-      showMessage("Rename couldn't be applied.", offset: state.start);
+      showMessage(l10n.langRenameNotApplied, offset: state.start);
     }
   }
 
@@ -883,9 +884,7 @@ class EditorLanguageSession extends ChangeNotifier
         : LanguageRequest.format;
     if (!supports(request)) {
       showMessage(
-        selection
-            ? 'No formatter for selections in this file.'
-            : 'No formatter for this file.',
+        selection ? l10n.langNoSelectionFormatter : l10n.langNoFormatter,
       );
       return false;
     }
@@ -1015,9 +1014,9 @@ class EditorLanguageSession extends ChangeNotifier
     if (_disposed) return;
     final at = _caret;
     final none = switch (only) {
-      'refactor' => 'No refactorings available',
-      'source' => 'No source actions available',
-      _ => 'No code actions available',
+      'refactor' => l10n.langNoRefactorings,
+      'source' => l10n.langNoSourceActions,
+      _ => l10n.langNoCodeActions,
     };
     if (!supports(LanguageRequest.codeActions)) {
       showMessage(none, offset: at);
@@ -1076,7 +1075,7 @@ class EditorLanguageSession extends ChangeNotifier
     if (resolved.edit case final edit?) {
       final applied = await onApplyWorkspaceEdit(edit);
       if (!applied) {
-        showMessage("The code action couldn't be applied.");
+        showMessage(l10n.langCodeActionNotApplied);
         return;
       }
     }
@@ -1090,8 +1089,12 @@ class EditorLanguageSession extends ChangeNotifier
 
   // ---- keys and commands -------------------------------------------------------
 
-  /// Keys for the language widgets, before the editor's own bindings.
-  KeyEventResult handleKey(KeyEvent event) {
+  /// Keys for the language widgets, before the editor's own bindings. With
+  /// [commandKeys] false the app's keybindings run the widgets' commands
+  /// (suggest, parameter hints, messages): this only takes the keys that
+  /// are not commands upstream either (link modifiers, the code action
+  /// menu, suggest commit characters, Escape over a hover).
+  KeyEventResult handleKey(KeyEvent event, {bool commandKeys = true}) {
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.metaLeft ||
         key == LogicalKeyboardKey.metaRight ||
@@ -1132,9 +1135,15 @@ class EditorLanguageSession extends ChangeNotifier
       }
       return KeyEventResult.handled;
     }
-    final suggested = suggest.handleKey(event);
-    if (suggested != KeyEventResult.ignored || suggest.visible) {
-      if (suggested != KeyEventResult.ignored) return suggested;
+    final suggested = suggest.handleKey(event, commandKeys: commandKeys);
+    if (suggested != KeyEventResult.ignored) return suggested;
+    if (!commandKeys) {
+      // Upstream's hover hides on the key and lets it run its command.
+      if (key == LogicalKeyboardKey.escape && plain && _hover != null) {
+        _hideHover();
+        changed();
+      }
+      return KeyEventResult.ignored;
     }
     if (_signature case final state?) {
       if (key == LogicalKeyboardKey.escape && plain) {
@@ -1175,8 +1184,13 @@ class EditorLanguageSession extends ChangeNotifier
         unawaited(goTo(IdeGoToKind.typeDefinition));
       case 'editor.action.goToImplementation':
         unawaited(goTo(IdeGoToKind.implementation));
-      case 'editor.action.goToReferences':
+      case 'editor.action.goToReferences' ||
+          'editor.action.referenceSearch.trigger':
+        // Deviation: no peek view; references go to the panel.
         unawaited(goTo(IdeGoToKind.references));
+      case 'editor.action.goToDeclaration':
+        // Deviation: the language services have no declaration request.
+        unawaited(goTo(IdeGoToKind.definition));
       case 'editor.action.rename':
         unawaited(startRename());
       case 'editor.action.formatDocument':

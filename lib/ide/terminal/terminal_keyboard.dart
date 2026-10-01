@@ -201,6 +201,11 @@ class TerminalKeyboard extends Disposable {
   /// menu bar off macOS.
   bool allowMnemonics = false;
 
+  /// Whether the terminal's keybindings (copy, paste, select all, the
+  /// sequences sent for editing keys) run here; off where the IDE's
+  /// keybindings run them as its commands, as VS Code's do.
+  bool runsKeybindings = true;
+
   // Whether the keypress sent the key (the input event then does not).
   bool _keyPressHandled = false;
 
@@ -265,7 +270,7 @@ class TerminalKeyboard extends Disposable {
   /// Runs VS Code's terminal keybindings: copy and paste, select all, and
   /// the sequences sent for editing keys.
   TerminalKeyResult? _runKeybinding(TerminalKeyboardEvent event) {
-    if (sendKeybindingsToShell) {
+    if (sendKeybindingsToShell || !runsKeybindings) {
       return null;
     }
     final clipboard = this.clipboard;

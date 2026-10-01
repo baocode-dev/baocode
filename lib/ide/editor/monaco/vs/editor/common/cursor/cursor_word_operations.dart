@@ -8,9 +8,11 @@
 // `deleteWordLeft`/`deleteWordRight` take the auto-closing-pair check as a
 // precomputed flag instead of a DeleteWordContext; `word` returns a Range for
 // the first (non-drag) word selection and `wordDrag` the dragged position,
-// instead of SingleCursorState. `deleteInsideWord` and the word-part
-// operations are ported without their EditorCommand wrappers.
+// instead of SingleCursorState. The word-part operations
+// (`WordPartOperations`) take the same flags as `deleteWordLeft` and
+// `deleteWordRight`; `deleteInsideWord` is not ported.
 
+import '../../../base/common/strings.dart' as strings;
 import '../core/position.dart';
 import '../core/range.dart';
 import '../core/selection.dart';
@@ -684,5 +686,193 @@ abstract final class WordOperations {
       }
     }
     return Position(lineNumber, column);
+  }
+
+  static bool _isLowerOrDigit(int code) =>
+      strings.isLowerAsciiLetter(code) || (code >= 0x30 && code <= 0x39);
+
+  static Position _moveWordPartLeft(
+    ICursorSimpleModel model,
+    Position position,
+  ) {
+    final lineNumber = position.lineNumber;
+    final maxColumn = model.getLineMaxColumn(lineNumber);
+    if (position.column == 1) {
+      return lineNumber > 1
+          ? Position(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1))
+          : position;
+    }
+    final lineContent = model.getLineContent(lineNumber);
+    for (var column = position.column - 1; column > 1; column--) {
+      final left = lineContent.codeUnitAt(column - 2);
+      final right = lineContent.codeUnitAt(column - 1);
+      // snake_case_variables
+      if (left == 0x5F && right != 0x5F) return Position(lineNumber, column);
+      // kebab-case-variables
+      if (left == 0x2D && right != 0x2D) return Position(lineNumber, column);
+      // camelCaseVariables
+      if (_isLowerOrDigit(left) && strings.isUpperAsciiLetter(right)) {
+        return Position(lineNumber, column);
+      }
+      // thisIsACamelCaseWithOneLetterWords
+      if (strings.isUpperAsciiLetter(left) &&
+          strings.isUpperAsciiLetter(right) &&
+          column + 1 < maxColumn &&
+          _isLowerOrDigit(lineContent.codeUnitAt(column))) {
+        return Position(lineNumber, column);
+      }
+    }
+    return Position(lineNumber, 1);
+  }
+
+  static Position _moveWordPartRight(
+    ICursorSimpleModel model,
+    Position position,
+  ) {
+    final lineNumber = position.lineNumber;
+    final maxColumn = model.getLineMaxColumn(lineNumber);
+    if (position.column == maxColumn) {
+      return lineNumber < model.getLineCount()
+          ? Position(lineNumber + 1, 1)
+          : position;
+    }
+    final lineContent = model.getLineContent(lineNumber);
+    for (var column = position.column + 1; column < maxColumn; column++) {
+      final left = lineContent.codeUnitAt(column - 2);
+      final right = lineContent.codeUnitAt(column - 1);
+      // snake_case_variables
+      if (left != 0x5F && right == 0x5F) return Position(lineNumber, column);
+      // kebab-case-variables
+      if (left != 0x2D && right == 0x2D) return Position(lineNumber, column);
+      // camelCaseVariables
+      if (_isLowerOrDigit(left) && strings.isUpperAsciiLetter(right)) {
+        return Position(lineNumber, column);
+      }
+      // thisIsACamelCaseWithOneLetterWords
+      if (strings.isUpperAsciiLetter(left) &&
+          strings.isUpperAsciiLetter(right) &&
+          column + 1 < maxColumn &&
+          _isLowerOrDigit(lineContent.codeUnitAt(column))) {
+        return Position(lineNumber, column);
+      }
+    }
+    return Position(lineNumber, maxColumn);
+  }
+
+  static Range _deleteWordPartLeft(
+    ICursorSimpleModel model,
+    Selection selection,
+  ) {
+    if (!selection.isEmpty()) return selection;
+    final pos = selection.getPosition();
+    final to = _moveWordPartLeft(model, pos);
+    return Range(pos.lineNumber, pos.column, to.lineNumber, to.column);
+  }
+
+  static Range _deleteWordPartRight(
+    ICursorSimpleModel model,
+    Selection selection,
+  ) {
+    if (!selection.isEmpty()) return selection;
+    final pos = selection.getPosition();
+    final to = _moveWordPartRight(model, pos);
+    return Range(pos.lineNumber, pos.column, to.lineNumber, to.column);
+  }
+}
+
+/// Word-part (camelCase, snake_case, kebab-case) navigation: the nearest of
+/// the word starts, the word ends and the word-part boundaries.
+abstract final class WordPartOperations {
+  static Range deleteWordPartLeft(
+    WordCharacterClassifier wordSeparators,
+    ICursorSimpleModel model,
+    Selection selection, {
+    bool whitespaceHeuristics = true,
+    bool isAutoClosingPairDelete = false,
+  }) {
+    Range? delete(WordNavigationType type) => WordOperations.deleteWordLeft(
+      wordSeparators,
+      model,
+      selection,
+      type,
+      whitespaceHeuristics: whitespaceHeuristics,
+      isAutoClosingPairDelete: isAutoClosingPairDelete,
+    );
+    final candidates = [
+      ?delete(WordNavigationType.wordStart),
+      ?delete(WordNavigationType.wordEnd),
+      WordOperations._deleteWordPartLeft(model, selection),
+    ]..sort(Range.compareRangesUsingEnds);
+    return candidates.last;
+  }
+
+  static Range deleteWordPartRight(
+    WordCharacterClassifier wordSeparators,
+    ICursorSimpleModel model,
+    Selection selection, {
+    bool whitespaceHeuristics = true,
+  }) {
+    Range? delete(WordNavigationType type) => WordOperations.deleteWordRight(
+      wordSeparators,
+      model,
+      selection,
+      type,
+      whitespaceHeuristics: whitespaceHeuristics,
+    );
+    final candidates = [
+      ?delete(WordNavigationType.wordStart),
+      ?delete(WordNavigationType.wordEnd),
+      WordOperations._deleteWordPartRight(model, selection),
+    ]..sort(Range.compareRangesUsingStarts);
+    return candidates.first;
+  }
+
+  static Position moveWordPartLeft(
+    WordCharacterClassifier wordSeparators,
+    ICursorSimpleModel model,
+    Position position,
+    bool hasMulticursor,
+  ) {
+    final candidates = [
+      WordOperations.moveWordLeft(
+        wordSeparators,
+        model,
+        position,
+        WordNavigationType.wordStart,
+        hasMulticursor,
+      ),
+      WordOperations.moveWordLeft(
+        wordSeparators,
+        model,
+        position,
+        WordNavigationType.wordEnd,
+        hasMulticursor,
+      ),
+      WordOperations._moveWordPartLeft(model, position),
+    ]..sort(Position.compare);
+    return candidates.last;
+  }
+
+  static Position moveWordPartRight(
+    WordCharacterClassifier wordSeparators,
+    ICursorSimpleModel model,
+    Position position,
+  ) {
+    final candidates = [
+      WordOperations.moveWordRight(
+        wordSeparators,
+        model,
+        position,
+        WordNavigationType.wordStart,
+      ),
+      WordOperations.moveWordRight(
+        wordSeparators,
+        model,
+        position,
+        WordNavigationType.wordEnd,
+      ),
+      WordOperations._moveWordPartRight(model, position),
+    ]..sort(Position.compare);
+    return candidates.first;
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../ide/ide_button.dart';
+import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 
 /// The title bar's way from the IDE layout back to the chat, filled in the
@@ -15,7 +16,7 @@ class BackToChatButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => IdeButton(
     icon: Codicons.commentDiscussion,
-    label: 'Back to chat',
+    label: context.l10n.workspaceBackToChat,
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     onPressed: onPressed,
   );

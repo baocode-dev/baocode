@@ -17,6 +17,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'file_service.dart';
@@ -34,35 +35,36 @@ abstract final class IdePlaceholderColors {
 /// An action of a placeholder: its first is the primary button.
 typedef IdePlaceholderAction = ({String label, VoidCallback run});
 
-/// What the placeholder for [error] says, and the icon it shows.
+/// What the placeholder for [error] says, in [l10n]'s language (English
+/// when null), and the icon it shows.
 ({IconData icon, Color color, String label}) idePlaceholderContents(
-  Object error,
-) => switch (error) {
-  IdeBinaryFileException() => (
-    icon: Codicons.warning,
-    color: IdePlaceholderColors.warning,
-    label:
-        'The file is not displayed in the text editor because it is either '
-        'binary or uses an unsupported text encoding.',
-  ),
-  IdeFileTooLargeException(:final size) => (
-    icon: Codicons.warning,
-    color: IdePlaceholderColors.warning,
-    label:
-        'The file is not displayed in the text editor because it is very '
-        'large (${ideFormatSize(size)}).',
-  ),
-  IdeFileNotFoundException() => (
-    icon: Codicons.error,
-    color: IdePlaceholderColors.error,
-    label: 'The editor could not be opened because the file was not found.',
-  ),
-  _ => (
-    icon: Codicons.error,
-    color: IdePlaceholderColors.error,
-    label: 'The editor could not be opened due to an unexpected error.',
-  ),
-};
+  Object error, {
+  AppLocalizations? l10n,
+}) {
+  final strings = l10n ?? englishLocalizations;
+  return switch (error) {
+    IdeBinaryFileException() => (
+      icon: Codicons.warning,
+      color: IdePlaceholderColors.warning,
+      label: strings.placeholderBinary,
+    ),
+    IdeFileTooLargeException(:final size) => (
+      icon: Codicons.warning,
+      color: IdePlaceholderColors.warning,
+      label: strings.placeholderTooLarge(ideFormatSize(size)),
+    ),
+    IdeFileNotFoundException() => (
+      icon: Codicons.error,
+      color: IdePlaceholderColors.error,
+      label: strings.placeholderNotFound,
+    ),
+    _ => (
+      icon: Codicons.error,
+      color: IdePlaceholderColors.error,
+      label: strings.placeholderUnexpected,
+    ),
+  };
+}
 
 /// `ByteSize.formatSize`: bytes whole, larger units to two places.
 String ideFormatSize(int size) {
@@ -95,11 +97,13 @@ class IdeEditorPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final contents = idePlaceholderContents(error);
+    final l10n = context.l10n;
+    final contents = idePlaceholderContents(error, l10n: l10n);
     final List<IdePlaceholderAction> actions = switch (error) {
-      IdeBinaryFileException() ||
-      IdeFileTooLargeException() => [(label: 'Open Anyway', run: onOpenAnyway)],
-      _ => [(label: 'Try Again', run: onRetry)],
+      IdeBinaryFileException() || IdeFileTooLargeException() => [
+        (label: l10n.placeholderOpenAnyway, run: onOpenAnyway),
+      ],
+      _ => [(label: l10n.placeholderTryAgain, run: onRetry)],
     };
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(

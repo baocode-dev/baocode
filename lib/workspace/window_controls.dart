@@ -259,10 +259,19 @@ abstract final class WindowControls {
   static void handleEditCommands() {
     if (!hasEditMenu) return;
     _channel.setMethodCallHandler((call) async {
-      if (call.method == 'editCommand') runEditCommand('${call.arguments}');
+      switch (call.method) {
+        case 'editCommand':
+          runEditCommand('${call.arguments}');
+        case 'menuCommand':
+          onMenuCommand?.call('${call.arguments}');
+      }
       return null;
     });
   }
+
+  /// Runs a command the system's menu bar picked (the app menu's
+  /// Preferences…: `workbench.action.openSettings`); set by the workbench.
+  static void Function(String command)? onMenuCommand;
 
   /// Whether the OS has a menu bar of its own to carry the Edit commands
   /// (macOS), where the engine's own handling of them falls short.

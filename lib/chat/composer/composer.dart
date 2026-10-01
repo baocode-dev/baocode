@@ -10,8 +10,11 @@ import 'package:flutter_quill/quill_delta.dart';
 
 import '../../kernel/agent_kernel.dart';
 import '../../kernel/kernel_types.dart';
+import '../../keybindings/chat_keybindings.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
+import '../chat_keys.dart';
 import '../chat_models.dart';
 import '../chat_session.dart';
 import '../floating/floating_layer.dart';
@@ -48,6 +51,9 @@ class _Trigger {
 /// (e.g. a sent message reopened in the history): it starts from
 /// [initialText], shows no stop button or context ring, and Esc calls
 /// [onCancel].
+///
+/// Its keys are keybindings (see [ChatCommandIds]): Enter sends, ↑ at its
+/// start shows the messages sent before, the @ and / menu's keys…
 class ChatComposer extends StatefulWidget {
   const ChatComposer({
     super.key,
@@ -87,7 +93,7 @@ class ChatComposer extends StatefulWidget {
   State<ChatComposer> createState() => ChatComposerState();
 }
 
-class ChatComposerState extends State<ChatComposer> {
+class ChatComposerState extends State<ChatComposer> with ChatKeyTarget {
   static const _fontSize = 13.5;
   static TextStyle get _textStyle => TextStyle(
     color: CursorColors.textPrimary,
@@ -109,6 +115,8 @@ class ChatComposerState extends State<ChatComposer> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<EditorState> _editorKey = GlobalKey();
   final GlobalKey _boxKey = GlobalKey();
+  final GlobalKey<ComposerPickerState> _modePickerKey = GlobalKey();
+  final GlobalKey<ComposerPickerState> _modelPickerKey = GlobalKey();
 
   bool _hasContent = false;
   late final List<ImageAttachment> _images = [
@@ -305,6 +313,10 @@ class ChatComposerState extends State<ChatComposer> {
     if (_padTrailingTokens()) return; // Re-entered with the fixed document.
     _saveDraft();
     final plain = _controller.document.toPlainText();
+    // Edited, a message recalled from the history is the one typed.
+    if (_historyAt != null && !_recalling && plain != _historyShown) {
+      _leaveHistory();
+    }
     final hasContent = plain.trim().isNotEmpty;
     final trigger = _findTrigger(plain);
 
@@ -496,48 +508,14 @@ class ChatComposerState extends State<ChatComposer> {
 
   KeyEventResult? _handleKey(KeyEvent event, Node? node) {
     if (event is KeyUpEvent || _isComposing) return null;
+    // Run by the window's keybindings (it sees keys first).
+    if (ChatKeys.isHandled(event)) return KeyEventResult.handled;
     // An open picker menu (or tooltip) takes arrows, Enter and Esc first.
     if (FloatingRegistry.handleKey(event) case final result?) return result;
+    // Then the keybindings: Enter sends, the menu's keys…
+    if (ChatKeys.dispatch(event) case final result?) return result;
     final key = event.logicalKey;
     final keyboard = HardwareKeyboard.instance;
-
-    if (_trigger != null) {
-      if (key == LogicalKeyboardKey.arrowDown) {
-        _moveHighlight(1);
-        return KeyEventResult.handled;
-      }
-      if (key == LogicalKeyboardKey.arrowUp) {
-        _moveHighlight(-1);
-        return KeyEventResult.handled;
-      }
-      if ((key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.tab) &&
-          _matches.isNotEmpty) {
-        _accept(_highlighted);
-        return KeyEventResult.handled;
-      }
-      if (key == LogicalKeyboardKey.escape) {
-        setState(_closeMenu);
-        return KeyEventResult.handled;
-      }
-    }
-
-    if (key == LogicalKeyboardKey.tab &&
-        _suggestion != null &&
-        !_hasContent &&
-        !keyboard.isShiftPressed) {
-      _acceptSuggestion();
-      return KeyEventResult.handled;
-    }
-
-    if (key == LogicalKeyboardKey.escape && widget.onCancel != null) {
-      widget.onCancel!();
-      return KeyEventResult.handled;
-    }
-
-    if (key == LogicalKeyboardKey.enter && !keyboard.isShiftPressed) {
-      _submit();
-      return KeyEventResult.handled;
-    }
 
     // This is a plain-text input: swallow Quill's rich-text shortcuts
     // (bold, headers, lists, links…) without triggering anything else.
@@ -550,6 +528,168 @@ class ChatComposerState extends State<ChatComposer> {
       return KeyEventResult.skipRemainingHandlers;
     }
     return null;
+  }
+
+  bool get _caretAtStart {
+    final selection = _controller.selection;
+    return selection.isCollapsed && selection.baseOffset <= 0;
+  }
+
+  bool get _caretAtEnd {
+    final selection = _controller.selection;
+    return selection.isCollapsed &&
+        selection.baseOffset >= _controller.document.length - 1;
+  }
+
+  @override
+  Object? chatContextKey(String key) => switch (key) {
+    ChatContextKeys.inChatInput ||
+    'inputFocus' ||
+    'textInputFocus' => _focusNode.hasFocus,
+    ChatContextKeys.inputHasText => _hasContent,
+    // As upstream: at the very start, and the very end.
+    ChatContextKeys.cursorAtTop => _caretAtStart,
+    ChatContextKeys.cursorAtBottom => _caretAtEnd,
+    ChatContextKeys.suggestWidgetVisible => _trigger != null,
+    ChatContextKeys.hasPromptSuggestion => _suggestion != null,
+    ChatContextKeys.currentlyEditing => widget.onSubmit != null,
+    _ => null,
+  };
+
+  @override
+  Map<String, VoidCallback> get chatCommands {
+    final menu = _trigger != null;
+    final history = widget.onSubmit == null;
+    return {
+      // Always: with nothing to send, Enter does nothing (no new line).
+      ChatCommandIds.submit: _submit,
+      ChatCommandIds.cancelEdit: ?widget.onCancel,
+      if (history && (_historyAt ?? _sentPrompts().length) > 0)
+        ChatCommandIds.showPreviousPrompt: () => _showPrompt(-1),
+      if (history && _historyAt != null)
+        ChatCommandIds.showNextPrompt: () => _showPrompt(1),
+      if (_suggestion != null)
+        ChatCommandIds.acceptPromptSuggestion: _acceptSuggestion,
+      if (_modePickerKey.currentState case final picker?)
+        ChatCommandIds.openModePicker: picker.toggle,
+      if (_modelPickerKey.currentState case final picker?)
+        ChatCommandIds.openModelPicker: picker.toggle,
+      ChatCommandIds.attachContext: _attachContext,
+      if (menu) ...{
+        ChatCommandIds.selectNextSuggestion: () => _moveHighlight(1),
+        ChatCommandIds.selectPrevSuggestion: () => _moveHighlight(-1),
+        if (_matches.isNotEmpty)
+          ChatCommandIds.acceptSelectedSuggestion: () => _accept(_highlighted),
+        ChatCommandIds.hideSuggestWidget: () => setState(_closeMenu),
+      },
+    };
+  }
+
+  @override
+  bool get chatComposing => _isComposing;
+
+  /// Types `@` at the caret, which opens the files and context to mention
+  /// (upstream's Add Context… picks them in a picker of its own).
+  void _attachContext() {
+    final selection = _controller.selection;
+    final start = selection.start < 0 ? 0 : selection.start;
+    final end = selection.end < 0 ? start : selection.end;
+    final plain = _controller.document.toPlainText();
+    final before = start == 0 ? '' : plain[start - 1];
+    // A mention starts a word.
+    final text = before.trim().isEmpty ? '@' : ' @';
+    _controller.replaceText(
+      start,
+      end - start,
+      text,
+      TextSelection.collapsed(offset: start + text.length),
+    );
+    _focusNode.requestFocus();
+  }
+
+  // --- Prompt history ------------------------------------------------------
+  //
+  // As upstream's chat input history: ↑ at the start of the input shows
+  // the message sent before, ↓ at its end the one after, and past the last,
+  // what was being typed.
+
+  /// Where in [_sentPrompts] the history shows (their count: what was
+  /// being typed); null when it does not.
+  int? _historyAt;
+
+  /// What was being typed when the history was opened.
+  Delta? _historyDraft;
+
+  /// The text the history put in: once it is edited, it is the message
+  /// typed, and the history closes.
+  String? _historyShown;
+  bool _recalling = false;
+
+  /// The messages sent in this conversation, oldest first, a message sent
+  /// again in a row once.
+  List<String> _sentPrompts() {
+    final session = widget.session;
+    final prompts = <String>[];
+    for (var i = 0; i < session.itemCount; i++) {
+      if (session.itemAt(i) case UserMessageItem(:final text)
+          when text.trim().isNotEmpty &&
+              (prompts.isEmpty || prompts.last != text)) {
+        prompts.add(text);
+      }
+    }
+    return prompts;
+  }
+
+  void _leaveHistory() {
+    _historyAt = null;
+    _historyDraft = null;
+    _historyShown = null;
+  }
+
+  /// Shows the message [step] from the one shown (-1: the one before).
+  void _showPrompt(int step) {
+    final prompts = _sentPrompts();
+    final document = _controller.document;
+    final from = _historyAt ?? prompts.length;
+    final at = from + step;
+    if (at < 0 || at > prompts.length) return;
+    _historyDraft ??= document.toDelta().slice(0, document.length - 1);
+    final Delta content;
+    if (at == prompts.length) {
+      content = _historyDraft!;
+    } else {
+      content = composerDeltaFromPaste(
+        prompts[at],
+        ComposerVocabulary.read(context),
+        atStart: true,
+      );
+    }
+    _recalling = true;
+    try {
+      final length = document.length - 1;
+      final delta = Delta();
+      if (length > 0) delta.delete(length);
+      _controller.compose(
+        delta.concat(content),
+        _controller.selection,
+        ChangeSource.local,
+      );
+      // Going back, at the start: ↑ goes on back; going on, at the end.
+      _controller.updateSelection(
+        TextSelection.collapsed(
+          offset: step < 0 ? 0 : _controller.document.length - 1,
+        ),
+        ChangeSource.local,
+      );
+    } finally {
+      _recalling = false;
+    }
+    if (at == prompts.length) {
+      _leaveHistory();
+    } else {
+      _historyAt = at;
+      _historyShown = _controller.document.toPlainText();
+    }
   }
 
   // --- Submit --------------------------------------------------------------
@@ -595,6 +735,7 @@ class ChatComposerState extends State<ChatComposer> {
     }
     widget.session.send(message);
     _controller.clear();
+    _leaveHistory();
     setState(_images.clear);
     _saveDraft();
     _dismissedTrigger = null;
@@ -675,8 +816,8 @@ class ChatComposerState extends State<ChatComposer> {
     final trigger = _trigger!;
     return SuggestionMenu(
       title: trigger.kind == SuggestionKind.command
-          ? 'Commands'
-          : 'Files, folders & context',
+          ? context.l10n.composerCommands
+          : context.l10n.composerFilesAndContext,
       matches: _matches,
       highlighted: _highlighted,
       onHighlight: (index) => setState(() => _highlighted = index),
@@ -763,14 +904,15 @@ class ChatComposerState extends State<ChatComposer> {
     final selected = !_controller.selection.isCollapsed;
     final canPaste = await WindowControls.canPaste();
     if (!mounted) return;
+    final l10n = context.l10n;
     final chosen = await WindowControls.showContextMenu(position, [
-      NativeMenuItem('cut', 'Cut', key: 'x', enabled: selected),
-      NativeMenuItem('copy', 'Copy', key: 'c', enabled: selected),
-      NativeMenuItem('paste', 'Paste', key: 'v', enabled: canPaste),
+      NativeMenuItem('cut', l10n.commonCut, key: 'x', enabled: selected),
+      NativeMenuItem('copy', l10n.commonCopy, key: 'c', enabled: selected),
+      NativeMenuItem('paste', l10n.commonPaste, key: 'v', enabled: canPaste),
       const NativeMenuItem.separator(),
       NativeMenuItem(
         'selectAll',
-        'Select All',
+        l10n.commonSelectAll,
         key: 'a',
         enabled: _controller.document.length > 1,
       ),
@@ -851,8 +993,8 @@ class ChatComposerState extends State<ChatComposer> {
       config: QuillEditorConfig(
         editorKey: _editorKey,
         placeholder: switch (_suggestion) {
-          final suggestion? => '$suggestion    ⇥ Tab',
-          null => 'Plan, search, build anything  ·  @ 提及  / 命令',
+          final suggestion? => context.l10n.composerTabToAccept(suggestion),
+          null => context.l10n.composerPlaceholder,
         },
         minHeight: _minEditorHeight,
         maxHeight: _maxEditorHeight(context),
@@ -931,6 +1073,7 @@ class ChatComposerState extends State<ChatComposer> {
                   ],
                   if (mode != null) ...[
                     ComposerPicker(
+                      key: _modePickerKey,
                       options: mode.options,
                       selected: mode.selected,
                       emphasized: true,
@@ -944,7 +1087,10 @@ class ChatComposerState extends State<ChatComposer> {
                     ComposerPicker(
                       options: permission.options,
                       selected: permission.selected,
-                      title: 'How should ${session.kernel.label} get approval?',
+                      // `context` is the session's here.
+                      title: this.context.l10n.composerApprovalTitle(
+                        session.kernel.label,
+                      ),
                       menuWidth: 290,
                       tapRegionGroupId: widget.tapRegionGroupId,
                       focusNode: _focusNode,
@@ -954,6 +1100,7 @@ class ChatComposerState extends State<ChatComposer> {
                   ],
                   if (model != null)
                     ComposerPicker(
+                      key: _modelPickerKey,
                       options: model.options,
                       selected: model.selected,
                       label: _modelLabel(model.selected),
@@ -1008,7 +1155,7 @@ class _ContextRing extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = themeColors;
     return IdeHover(
-      message: 'Context usage',
+      message: context.l10n.composerContextUsage,
       child: HoverBuilder(
         cursor: SystemMouseCursors.click,
         builder: (context, hovered) => GestureDetector(
@@ -1107,8 +1254,20 @@ class _SendButton extends StatelessWidget {
     // As upstream's submit button: the primary button's colors; disabled,
     // none but the disabled icon.
     final foreground = colors['button.foreground'];
+    // With the keys that do the same, as the keybindings have them.
+    const input = {ChatContextKeys.inChatInput: true};
     return IdeHover(
-      message: streaming ? 'Stop' : 'Send  ↵',
+      message: streaming
+          ? ChatKeys.titleWithKey(
+              context.l10n.composerStop,
+              ChatCommandIds.cancel,
+              {...input, ChatContextKeys.requestInProgress: true},
+            )
+          : ChatKeys.titleWithKey(
+              context.l10n.cmdChatSubmit,
+              ChatCommandIds.submit,
+              input,
+            ),
       child: HoverBuilder(
         cursor: active ? SystemMouseCursors.click : SystemMouseCursors.basic,
         builder: (context, hovered) => GestureDetector(

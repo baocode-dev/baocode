@@ -15,7 +15,7 @@ import 'mason_registry.dart';
 
 /// Finds language servers on the login shell's PATH or among those it
 /// installed, and installs mason-registry packages into
-/// `<installRoot>/<package>/` (by default `AppPaths.dataDir/servers`).
+/// `<installRoot>/<package>/` (by default `DataDirectory.serversDir`).
 ///
 /// Supported sources: GitHub release assets and generic downloads
 /// (unpacked in Dart), npm, PyPI (a venv), Go and Cargo. Each install is

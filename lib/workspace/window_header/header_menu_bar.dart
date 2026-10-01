@@ -5,6 +5,7 @@ import '../../chat/floating/floating_layer.dart';
 import '../../chat/floating/floating_placement.dart';
 import '../../chat/floating/floating_registry.dart';
 import '../../chat/widgets/hover_builder.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'header_menu.dart';
@@ -103,7 +104,7 @@ class _HeaderMenuBarState extends State<HeaderMenuBar> {
                           borderRadius: BorderRadius.circular(5),
                         ),
                   child: Text(
-                    menu.label,
+                    menu.localizedLabel(context.l10n),
                     style: TextStyle(
                       color:
                           colors[selected

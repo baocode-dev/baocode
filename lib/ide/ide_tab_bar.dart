@@ -1,12 +1,12 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../keybindings/keybinding_service.dart';
+import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import '../theme/material_file_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
-import 'ide_commands.dart';
 import 'ide_hover.dart';
 import 'ide_menu.dart';
 import 'ide_workspace.dart';
@@ -167,17 +167,19 @@ class _IdeTabBarState extends State<IdeTabBar> {
   Future<void> _showMenu(IdeDocument doc, {Offset? position, Rect? anchor}) {
     final docs = widget.documents;
     final index = docs.indexOf(doc);
+    final l10n = context.l10n;
     IdeMenuAction item(
       IdeTabAction action,
       String label, {
-      List<IdeKeybinding> keybindings = const [],
+      String? command,
       bool enabled = true,
     }) => IdeMenuAction(
       label,
-      keybinding: [
-        for (final binding in keybindings)
-          if (binding.appliesTo(mac: ideUsesMacKeys)) binding.label(),
-      ].firstOrNull,
+      // The keybinding of the command the action is (upstream's menu
+      // items are commands).
+      keybinding: command == null
+          ? null
+          : KeybindingService.instance.labelFor(command),
       enabled: enabled,
       onSelected: () {
         if (mounted) widget.onAction(doc, action);
@@ -192,62 +194,39 @@ class _IdeTabBarState extends State<IdeTabBar> {
         [
           item(
             IdeTabAction.close,
-            'Close',
-            keybindings: const [
-              IdeKeybinding(LogicalKeyboardKey.keyW, primary: true),
-            ],
+            l10n.tabClose,
+            command: 'workbench.action.closeActiveEditor',
           ),
           item(
             IdeTabAction.closeOthers,
-            'Close Others',
+            l10n.tabCloseOthers,
             enabled: docs.length > 1,
           ),
           item(
             IdeTabAction.closeToTheRight,
-            'Close to the Right',
+            l10n.tabCloseToTheRight,
             enabled: index >= 0 && index < docs.length - 1,
           ),
           item(
             IdeTabAction.closeSaved,
-            'Close Saved',
+            l10n.tabCloseSaved,
             enabled: docs.any((d) => !d.dirty),
           ),
-          item(IdeTabAction.closeAll, 'Close All'),
+          item(IdeTabAction.closeAll, l10n.tabCloseAll),
         ],
         [
           item(
             IdeTabAction.copyPath,
-            'Copy Path',
-            keybindings: const [
-              IdeKeybinding(
-                LogicalKeyboardKey.keyC,
-                primary: true,
-                alt: true,
-                mac: true,
-              ),
-              IdeKeybinding(
-                LogicalKeyboardKey.keyC,
-                shift: true,
-                alt: true,
-                mac: false,
-              ),
-            ],
+            l10n.tabCopyPath,
+            command: 'copyFilePath',
           ),
           item(
             IdeTabAction.copyRelativePath,
-            'Copy Relative Path',
-            keybindings: const [
-              IdeKeybinding(
-                LogicalKeyboardKey.keyC,
-                primary: true,
-                alt: true,
-                shift: true,
-                mac: true,
-              ),
-            ],
+            l10n.tabCopyRelativePath,
+            command: 'copyRelativeFilePath',
           ),
         ],
-        [item(IdeTabAction.revealInExplorer, 'Reveal in Explorer View')],
+        [item(IdeTabAction.revealInExplorer, l10n.tabRevealInExplorerView)],
       ]),
     );
   }
@@ -294,7 +273,7 @@ class _IdeTabBarState extends State<IdeTabBar> {
             Builder(
               builder: (context) => _TabBarAction(
                 icon: Codicons.ellipsis,
-                tooltip: 'More Actions…',
+                tooltip: context.l10n.tabMoreActions,
                 onTap: () {
                   final box = context.findRenderObject()! as RenderBox;
                   _showMenu(
@@ -450,7 +429,7 @@ class _TabState extends State<_Tab> {
                           onEnter: (_) => setState(() => _closeHover = true),
                           onExit: (_) => setState(() => _closeHover = false),
                           child: IdeHover(
-                            message: 'Close ${doc.title}',
+                            message: context.l10n.tabCloseNamed(doc.title),
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
                               onTap: widget.onClose,

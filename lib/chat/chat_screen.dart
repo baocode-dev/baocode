@@ -2,14 +2,16 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 
 import '../kernel/kernel_types.dart';
+import '../keybindings/chat_keybindings.dart';
+import '../l10n/l10n.dart';
 import '../theme/cursor_theme.dart';
 import '../workspace/title_bar_double_click.dart';
 import 'agent_view.dart';
 import 'chat_feed.dart';
 import 'chat_history_view.dart';
+import 'chat_keys.dart';
 import 'chat_models.dart';
 import 'chat_session.dart';
 import 'composer/composer.dart';
@@ -84,15 +86,30 @@ class ChatScreen extends StatefulWidget {
   /// window's View menu asks (see window_header/), wherever the focus is.
   static void toggleContextPanel(GlobalKey key) =>
       (key.currentState as _ChatScreenState?)?._toggleContextPanel();
+
+  /// Focuses the input of the chat [key] is on (e.g. an agent just opened
+  /// by its keybinding).
+  static void focusInput(GlobalKey key) =>
+      (key.currentState as _ChatScreenState?)?._focusInput();
 }
 
-class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
+class _ChatScreenState extends State<ChatScreen>
+    with TickerProviderStateMixin, ChatKeyTarget {
   static const _maxContentWidth = 720.0;
 
   late final ChatSession _session = widget.session ?? ChatSession();
   final GlobalKey<ChatComposerState> _composerKey = GlobalKey();
+  final GlobalKey _historyKey = GlobalKey();
   bool _contextPanelOpen = false;
   bool _renaming = false;
+
+  /// Around the chat: has the focus while anything in it does, and sees
+  /// the keys it lets through (see [ChatKeys.dispatch]).
+  final FocusNode _keyScope = FocusNode(
+    debugLabel: 'Chat',
+    canRequestFocus: false,
+    skipTraversal: true,
+  );
 
   /// The subagents opened, one in the other, innermost last: each shows
   /// over the conversation under it. One going back stays until it is out.
@@ -190,6 +207,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _keyScope.dispose();
     for (final layer in _layers) {
       layer.dispose();
     }
@@ -207,6 +225,50 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _session.answer(answer);
     _composerKey.currentState?.focus();
   }
+
+  // --- Keys ------------------------------------------------------------------
+
+  /// The input, back from the subagents shown (they have none).
+  void _focusInput() {
+    if (_agentShown != null) {
+      _back(0);
+    } else {
+      _composerKey.currentState?.focus();
+    }
+  }
+
+  /// The conversation shown, for its keys to scroll it.
+  void _focusList() =>
+      ChatHistoryView.focus(_agentShown?.historyKey ?? _historyKey);
+
+  bool get _renames => widget.onRename != null && !widget.embedded;
+
+  @override
+  Object? chatContextKey(String key) => switch (key) {
+    ChatContextKeys.inChat => _keyScope.hasFocus,
+    ChatContextKeys.requestInProgress => _session.isStreaming,
+    ChatContextKeys.hasToolConfirmation =>
+      _session.pendingInteraction is ApprovalRequest,
+    ChatContextKeys.subagentVisible => _agentShown != null,
+    _ => null,
+  };
+
+  @override
+  Map<String, VoidCallback> get chatCommands => {
+    ChatCommandIds.focusInput: _focusInput,
+    ChatCommandIds.focusList: _focusList,
+    if (_session.isStreaming) ChatCommandIds.cancel: _session.stop,
+    if (_session.pendingInteraction is ApprovalRequest) ...{
+      ChatCommandIds.acceptTool: () =>
+          _answer(const ApprovalAnswer(ApprovalDecision.allowOnce)),
+      ChatCommandIds.skipTool: () =>
+          _answer(const ApprovalAnswer(ApprovalDecision.deny)),
+    },
+    ChatCommandIds.toggleContextPanel: _toggleContextPanel,
+    if (_renames)
+      ChatCommandIds.renameAgent: () => setState(() => _renaming = true),
+    if (_agentShown != null) ChatCommandIds.closeSubagent: _back,
+  };
 
   Widget _buildTitleBar() {
     final style = TextStyle(
@@ -330,52 +392,61 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildBody() {
+    // The keys the focus in it lets through: the chat's keybindings.
+    return Focus(
+      focusNode: _keyScope,
+      // Never focused itself: nothing for assistive technologies.
+      includeSemantics: false,
+      onKeyEvent: (node, event) =>
+          ChatKeys.dispatch(event) ?? KeyEventResult.ignored,
+      child: _buildScaffold(),
+    );
+  }
+
+  Widget _buildScaffold() {
     return Scaffold(
       body: Column(
         children: [
           // The session's title, in the row the window's header leaves it
           // (macOS draws a title bar of its own over it; see CursorMetrics).
           if (!widget.embedded) _buildTitleBar(),
+          // Esc goes back from a subagent: a keybinding of the chat's
+          // (closeSubagent).
           Expanded(
-            child: CallbackShortcuts(
-              bindings: {
-                if (_agentShown != null)
-                  const SingleActivator(LogicalKeyboardKey.escape): _back,
-              },
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ConversationLayer(
-                    entrance: kAlwaysCompleteAnimation,
-                    cover: _layers.firstOrNull?.animation,
-                    interactive: _agentShown == null,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ChatHistoryView(
-                          feed: _session,
-                          maxContentWidth: _maxContentWidth,
-                          onOpenAgent: _openAgent,
-                        ),
-                        ListenableBuilder(
-                          listenable: _session,
-                          builder: (context, _) => _session.itemCount == 0
-                              ? const _EmptyHint()
-                              : const SizedBox.shrink(),
-                        ),
-                      ],
-                    ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ConversationLayer(
+                  entrance: kAlwaysCompleteAnimation,
+                  cover: _layers.firstOrNull?.animation,
+                  interactive: _agentShown == null,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ChatHistoryView(
+                        key: _historyKey,
+                        feed: _session,
+                        maxContentWidth: _maxContentWidth,
+                        onOpenAgent: _openAgent,
+                      ),
+                      ListenableBuilder(
+                        listenable: _session,
+                        builder: (context, _) => _session.itemCount == 0
+                            ? const _EmptyHint()
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
                   ),
-                  for (final (i, layer) in _layers.indexed)
-                    ConversationLayer(
-                      key: ObjectKey(layer),
-                      entrance: layer.animation,
-                      cover: _layers.elementAtOrNull(i + 1)?.animation,
-                      interactive: identical(layer, _agentShown),
-                      child: _buildAgentPage(i, layer),
-                    ),
-                ],
-              ),
+                ),
+                for (final (i, layer) in _layers.indexed)
+                  ConversationLayer(
+                    key: ObjectKey(layer),
+                    entrance: layer.animation,
+                    cover: _layers.elementAtOrNull(i + 1)?.animation,
+                    interactive: identical(layer, _agentShown),
+                    child: _buildAgentPage(i, layer),
+                  ),
+              ],
             ),
           ),
           ListenableBuilder(
@@ -433,7 +504,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           builder: (context, _) => SubagentHeader(
             trail: [
               for (final open in _layers.take(index + 1))
-                open.feed.agent?.description ?? 'Subagent',
+                open.feed.agent?.description ?? context.l10n.chatSubagent,
             ],
             onBack: _back,
             backFocusNode: layer.backFocus,
@@ -442,6 +513,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         ),
         Expanded(
           child: ChatHistoryView(
+            key: layer.historyKey,
             feed: layer.feed,
             maxContentWidth: _maxContentWidth,
             onOpenAgent: _openAgent,
@@ -647,6 +719,7 @@ class _AgentLayer {
   final AnimationController controller;
   final CurvedAnimation animation;
   final FocusNode backFocus = FocusNode(debugLabel: 'Subagent back');
+  final GlobalKey historyKey = GlobalKey();
 
   /// Going back: sliding out, no longer the one shown.
   bool leaving = false;
@@ -749,12 +822,12 @@ class _EmptyHint extends StatelessWidget {
             ),
             SizedBox(height: 10),
             Text(
-              'Plan, build, anything',
+              context.l10n.chatEmptyTitle,
               style: TextStyle(color: CursorColors.textMuted, fontSize: 14),
             ),
             SizedBox(height: 4),
             Text(
-              '@ to add context · / for commands',
+              context.l10n.chatEmptyHint,
               style: TextStyle(color: CursorColors.textFaint, fontSize: 12),
             ),
           ],

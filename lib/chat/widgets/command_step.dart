@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/l10n.dart';
 import '../../sidebar/sidebar_menu.dart';
 import '../../theme/cursor_theme.dart';
 import '../chat_models.dart';
@@ -50,12 +51,19 @@ class CommandStep extends StatelessWidget {
         _ => command.trim().split('\n').first,
       };
 
-  static String verb(CommandStatus status, {required bool background}) =>
-      background
-      ? 'Started'
-      : status == CommandStatus.running
-      ? 'Running'
-      : 'Ran';
+  /// In [l10n]'s language (English when null).
+  static String verb(
+    CommandStatus status, {
+    required bool background,
+    AppLocalizations? l10n,
+  }) {
+    final strings = l10n ?? englishLocalizations;
+    return background
+        ? strings.commandStarted
+        : status == CommandStatus.running
+        ? strings.toolRunning
+        : strings.toolRan;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,9 +73,9 @@ class CommandStep extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         StepHeader(
-          verb: verb(status, background: background),
+          verb: verb(status, background: background, l10n: context.l10n),
           object: title(command, description),
-          detail: background ? 'in background' : null,
+          detail: background ? context.l10n.commandInBackground : null,
           running: _running,
           expanded: expanded,
           onToggle: _opens ? onToggle : null,
@@ -134,27 +142,27 @@ class _CommandMenu extends StatelessWidget {
       placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
       items: () => [
         SidebarMenuItem(
-          'Copy command',
+          context.l10n.commandCopyCommand,
           icon: Icons.content_copy_rounded,
           onSelected: () => _copy(command),
         ),
         if (terminalOutput(output).text case final printed
             when printed.isNotEmpty)
           SidebarMenuItem(
-            'Copy output',
+            context.l10n.commandCopyOutput,
             icon: Icons.notes_rounded,
             onSelected: () => _copy(printed),
           ),
         if (onMoveToBackground case final move?)
           SidebarMenuItem(
-            'Move to background',
+            context.l10n.commandMoveToBackground,
             icon: Icons.move_down_rounded,
             onSelected: move,
           ),
       ],
       builder: (context, menu) => Semantics(
         button: true,
-        label: 'More',
+        label: context.l10n.commandMore,
         child: HoverBuilder(
           cursor: SystemMouseCursors.click,
           builder: (context, hovered) => GestureDetector(

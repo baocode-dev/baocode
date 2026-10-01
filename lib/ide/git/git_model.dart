@@ -21,6 +21,7 @@ import 'dart:ui' show Color;
 
 import 'package:path/path.dart' as p;
 
+import '../../l10n/app_localizations.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
 /// `Status` of the Git extension.
@@ -92,6 +93,29 @@ enum IdeGitStatus {
     bothModified => 'Conflict: Both Modified',
   };
 
+  /// [label] in [l10n]'s language.
+  String localizedLabel(AppLocalizations l10n) => switch (this) {
+    indexModified => l10n.gitStatusIndexModified,
+    modified => l10n.gitStatusModified,
+    indexAdded => l10n.gitStatusIndexAdded,
+    indexDeleted => l10n.gitStatusIndexDeleted,
+    deleted => l10n.gitStatusDeleted,
+    indexRenamed => l10n.gitStatusIndexRenamed,
+    indexCopied => l10n.gitStatusIndexCopied,
+    untracked => l10n.gitStatusUntracked,
+    ignored => l10n.gitStatusIgnored,
+    intentToAdd => l10n.gitStatusIntentToAdd,
+    intentToRename => l10n.gitStatusIntentToRename,
+    typeChanged => l10n.gitStatusTypeChanged,
+    bothDeleted => l10n.gitStatusBothDeleted,
+    addedByUs => l10n.gitStatusAddedByUs,
+    deletedByThem => l10n.gitStatusDeletedByThem,
+    addedByThem => l10n.gitStatusAddedByThem,
+    deletedByUs => l10n.gitStatusDeletedByUs,
+    bothAdded => l10n.gitStatusBothAdded,
+    bothModified => l10n.gitStatusBothModified,
+  };
+
   /// `getStatusColor`: the `gitDecoration.*` color's id.
   String get colorId => switch (this) {
     indexModified => 'gitDecoration.stageModifiedResourceForeground',
@@ -145,6 +169,13 @@ enum IdeGitGroup {
   const IdeGitGroup(this.label);
 
   final String label;
+
+  /// [label] in [l10n]'s language.
+  String localizedLabel(AppLocalizations l10n) => switch (this) {
+    merge => l10n.scmGroupMerge,
+    staged => l10n.scmGroupStaged,
+    workingTree => l10n.scmChanges,
+  };
 }
 
 /// A changed file in a group.
@@ -247,6 +278,20 @@ class IdeGitDecoration {
 
   /// [colorId] in the current color theme.
   Color get color => themeColors[colorId];
+
+  /// [tooltip] in [l10n]'s language.
+  String localizedTooltip(AppLocalizations l10n) {
+    if (tooltip == IdeGitDecorations._ignoredDecoration.tooltip) {
+      return l10n.gitIgnoredInGit;
+    }
+    if (tooltip == IdeGitDecorations._folderTooltip) {
+      return l10n.gitContainsEmphasizedItems;
+    }
+    for (final status in IdeGitStatus.values) {
+      if (status.label == tooltip) return status.localizedLabel(l10n);
+    }
+    return tooltip;
+  }
 }
 
 /// The decorations of a repository's paths: a changed file's letter and
@@ -290,6 +335,8 @@ class IdeGitDecorations {
     tooltip: 'Ignored in Git',
   );
 
+  static const _folderTooltip = 'Contains emphasized items';
+
   bool _isIgnored(String path) {
     var current = path;
     while (true) {
@@ -323,7 +370,7 @@ class IdeGitDecorations {
     if (status == null) return null;
     return IdeGitDecoration(
       colorId: status.colorId,
-      tooltip: 'Contains emphasized items',
+      tooltip: _folderTooltip,
       letter: '•',
     );
   }

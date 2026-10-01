@@ -10,7 +10,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
 import '../../kernel/claude_code/claude_environment.dart';
-import '../../platform/app_paths.dart';
+import '../../platform/data_dir.dart';
 import '../../platform/child_process_registry.dart';
 import 'pty.dart';
 import 'pty_native.dart';
@@ -23,9 +23,7 @@ abstract final class PtyProcesses {
   /// leftover is hung up, as closing its terminal would have.
   @visibleForTesting
   static ChildProcessRegistry registry = ChildProcessRegistry(
-    file: File(
-      p.join(AppPaths.dataDir(Platform.environment), 'pty-processes.json'),
-    ),
+    file: File(DataDirectory.current.processRegistryFile('pty')),
     signal: (pid) => Process.killPid(pid, ProcessSignal.sighup),
   );
 
@@ -103,9 +101,13 @@ abstract final class PtyProcesses {
   /// each) for its process to end: killed if it does not.
   static Future<void> stopAll({
     Duration timeout = const Duration(seconds: 2),
-  }) => Future.wait([
-    for (final pty in [..._live]) _stop(pty, timeout),
-  ]);
+  }) async {
+    await Future.wait([
+      for (final pty in [..._live]) _stop(pty, timeout),
+    ]);
+    // Their entries gone from the list before the app is.
+    await registry.flush();
+  }
 
   static Future<void> _stop(Pty pty, Duration timeout) async {
     pty.kill();

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../chat_models.dart';
 import '../composer/composer_embeds.dart';
@@ -134,7 +135,7 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
               ),
               const SizedBox(width: 4),
               Text(
-                'Queued',
+                context.l10n.messageQueued,
                 style: TextStyle(color: CursorColors.textFaint, fontSize: 11.5),
               ),
               if (widget.onCancel case final cancel?) ...[
@@ -144,7 +145,7 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: Text(
-                      'Cancel',
+                      context.l10n.commonCancel,
                       style: TextStyle(
                         color: CursorColors.accent,
                         fontSize: 11.5,

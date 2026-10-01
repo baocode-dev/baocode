@@ -47,8 +47,10 @@ void main() {
     await chord(tester, LogicalKeyboardKey.keyP, control: true, shift: true);
     expect(find.byType(IdeQuickInput), findsOneWidget);
     expect(_inputText(tester), '>');
-    expect(_row('Show All Commands'), findsOneWidget);
     // Keybinding labels are listed with the commands.
+    await tester.enterText(_input, '>show all com');
+    await tester.pump();
+    expect(_row('Show All Commands'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byType(IdeQuickInput),

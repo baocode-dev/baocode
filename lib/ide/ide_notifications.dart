@@ -25,6 +25,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_button.dart';
@@ -282,21 +283,24 @@ class IdeNotifications extends ChangeNotifier {
 }
 
 /// The status bar's bell: `bell-dot` with unread notifications; opens and
-/// closes the center.
-IdeStatusBarItem ideNotificationsStatusItem(IdeNotifications notifications) {
+/// closes the center. Its tooltip is in [l10n]'s language (English when
+/// null).
+IdeStatusBarItem ideNotificationsStatusItem(
+  IdeNotifications notifications, {
+  AppLocalizations? l10n,
+}) {
+  final strings = l10n ?? englishLocalizations;
   final count = notifications.unread;
   return IdeStatusBarItem(
     '',
     icon: count > 0 ? Codicons.bellDot : Codicons.bell,
     tooltip: notifications.centerVisible
-        ? 'Hide Notifications'
+        ? strings.notificationsHide
         : notifications.notifications.isEmpty
-        ? 'No Notifications'
+        ? strings.notificationsNone
         : count == 0
-        ? 'No New Notifications'
-        : count == 1
-        ? '1 New Notification'
-        : '$count New Notifications',
+        ? strings.notificationsNoNew
+        : strings.notificationsNew(count),
     onTap: notifications.toggleCenter,
   );
 }
@@ -476,8 +480,8 @@ class _IdeNotificationsCenterState extends State<IdeNotificationsCenter> {
                           Expanded(
                             child: Text(
                               all.isEmpty
-                                  ? 'NO NEW NOTIFICATIONS'
-                                  : 'NOTIFICATIONS',
+                                  ? context.l10n.notificationsCenterNoNew
+                                  : context.l10n.notificationsCenterTitle,
                               style: TextStyle(
                                 fontSize: 11,
                                 color: IdeNotificationColors
@@ -487,14 +491,14 @@ class _IdeNotificationsCenterState extends State<IdeNotificationsCenter> {
                           ),
                           IdeActionButton(
                             icon: Codicons.clearAll,
-                            tooltip: 'Clear All Notifications',
+                            tooltip: context.l10n.notificationsClearAll,
                             onPressed: all.isEmpty
                                 ? null
                                 : notifications.clearAll,
                           ),
                           IdeActionButton(
                             icon: Codicons.chevronDown,
-                            tooltip: 'Hide Notifications',
+                            tooltip: context.l10n.notificationsHide,
                             onPressed: notifications.hideCenter,
                           ),
                         ],
@@ -631,8 +635,8 @@ class _NotificationItemState extends State<_NotificationItem> {
                                   ? Codicons.chevronDown
                                   : Codicons.chevronUp,
                               tooltip: expanded
-                                  ? 'Collapse Notification'
-                                  : 'Expand Notification',
+                                  ? context.l10n.notificationsCollapse
+                                  : context.l10n.notificationsExpand,
                               onPressed: () => widget.notifications
                                   .toggleExpanded(notification),
                             ),
@@ -640,13 +644,13 @@ class _NotificationItemState extends State<_NotificationItem> {
                             Builder(
                               builder: (context) => IdeActionButton(
                                 icon: Codicons.gear,
-                                tooltip: 'More Actions...',
+                                tooltip: context.l10n.notificationsMoreActions,
                                 onPressed: () => _secondaryMenu(context),
                               ),
                             ),
                           IdeActionButton(
                             icon: Codicons.close,
-                            tooltip: 'Clear Notification',
+                            tooltip: context.l10n.notificationsClear,
                             onPressed: () =>
                                 widget.notifications.close(notification),
                           ),
@@ -668,7 +672,9 @@ class _NotificationItemState extends State<_NotificationItem> {
                             child: Text(
                               notification.source == null
                                   ? ''
-                                  : 'Source: ${notification.source}',
+                                  : context.l10n.notificationsSource(
+                                      notification.source!,
+                                    ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(

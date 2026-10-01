@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import '../../../platform/app_paths.dart';
+import '../../../platform/data_dir.dart';
 import 'lsp_files.dart';
 
 class LocalLspFiles implements LspFiles {
@@ -29,8 +29,6 @@ class LocalLspFiles implements LspFiles {
 }
 
 String? lspDataDirectory() {
-  final environment = Platform.environment;
-  if (environment.containsKey('FLUTTER_TEST')) return null;
-  final home = AppPaths.home(environment);
-  return home.isEmpty ? null : AppPaths.dataDir(environment);
+  if (Platform.environment.containsKey('FLUTTER_TEST')) return null;
+  return DataDirectory.current.path;
 }

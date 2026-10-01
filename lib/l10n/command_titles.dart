@@ -1,0 +1,526 @@
+// Command titles in the display language, by command id, as VS Code's
+// `localize2` titles: the palette lists the localized `Category: Title` and
+// also matches the English one (upstream `commandAlias`).
+import '../ide/ide_commands.dart';
+import '../keybindings/chat_keybindings.dart';
+import 'app_localizations.dart';
+
+/// [id]'s title (without its category) in [l10n]'s language; [english], the
+/// title the command was registered with, for commands without one.
+String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
+  if (id.startsWith(_openEditorAtIndex)) {
+    final index = int.tryParse(id.substring(_openEditorAtIndex.length));
+    if (index != null) return l10n.cmdOpenEditorAtIndex(index);
+  }
+  return switch (id) {
+    'workbench.action.showCommands' => l10n.cmdShowAllCommands,
+    'workbench.action.quickOpen' => l10n.cmdQuickOpen,
+    'workbench.action.gotoLine' => l10n.cmdGotoLine,
+    'actions.find' => l10n.cmdFind,
+    'editor.action.startFindReplaceAction' => l10n.cmdReplace,
+    'workbench.action.files.save' => l10n.cmdSave,
+    'workbench.action.files.saveAll' => l10n.cmdSaveAll,
+    'workbench.action.closeActiveEditor' => l10n.cmdCloseEditor,
+    'workbench.action.closeOtherEditors' => l10n.cmdCloseOtherEditors,
+    'workbench.action.closeEditorsToTheRight' => l10n.cmdCloseEditorsToTheRight,
+    'workbench.action.closeUnmodifiedEditors' => l10n.cmdCloseSavedEditors,
+    'workbench.action.closeAllEditors' => l10n.cmdCloseAllEditors,
+    'workbench.action.reopenClosedEditor' => l10n.cmdReopenClosedEditor,
+    'workbench.action.nextEditor' => l10n.cmdNextEditor,
+    'workbench.action.previousEditor' => l10n.cmdPreviousEditor,
+    'workbench.action.lastEditorInGroup' => l10n.cmdLastEditorInGroup,
+    'workbench.action.toggleSidebarVisibility' => l10n.cmdToggleSidebar,
+    'workbench.action.toggleAuxiliaryBar' => l10n.cmdToggleChat,
+    'workbench.action.togglePanel' => l10n.cmdTogglePanel,
+    'workbench.action.terminal.toggleTerminal' => l10n.cmdToggleTerminal,
+    'workbench.action.terminal.new' => l10n.cmdNewTerminal,
+    'workbench.action.terminal.kill' => l10n.cmdKillTerminal,
+    'workbench.action.terminal.rename' => l10n.cmdRenameTerminal,
+    'workbench.action.terminal.focusNext' => l10n.cmdFocusNextTerminal,
+    'workbench.action.terminal.focusPrevious' => l10n.cmdFocusPreviousTerminal,
+    'workbench.action.terminal.focus' => l10n.cmdFocusTerminal,
+    'workbench.view.explorer' => l10n.cmdShowExplorer,
+    'workbench.view.search' => l10n.cmdShowSearch,
+    'workbench.view.scm' => l10n.cmdShowSourceControl,
+    'workbench.view.extensions' => l10n.cmdShowExtensions,
+    'workbench.files.action.showActiveFileInExplorer' =>
+      l10n.cmdRevealActiveFileInExplorer,
+    'workbench.files.action.refreshFilesExplorer' => l10n.cmdRefreshExplorer,
+    'workbench.files.action.collapseExplorerFolders' =>
+      l10n.cmdCollapseExplorerFolders,
+    'copyFilePath' => l10n.cmdCopyPathOfActiveFile,
+    'copyRelativeFilePath' => l10n.cmdCopyRelativePathOfActiveFile,
+    'workbench.action.gotoSymbol' => l10n.cmdGotoSymbol,
+    'workbench.actions.view.problems' => l10n.cmdToggleProblems,
+    'outline.focus' => l10n.cmdShowOutline,
+    'editor.action.marker.nextInFiles' => l10n.cmdNextProblemInFiles,
+    'editor.action.marker.prevInFiles' => l10n.cmdPreviousProblemInFiles,
+    'workbench.action.navigateBack' => l10n.cmdGoBack,
+    'workbench.action.navigateForward' => l10n.cmdGoForward,
+    'workbench.action.selectTheme' => l10n.cmdColorTheme,
+    // Its title says what running it does.
+    'monad.ide.toggleFormatOnSave' =>
+      english.startsWith('Turn Off')
+          ? l10n.cmdTurnOffFormatOnSave
+          : english.startsWith('Turn On')
+          ? l10n.cmdTurnOnFormatOnSave
+          : l10n.cmdToggleFormatOnSave,
+    'monad.ide.retryLanguageServices' => l10n.cmdRetryLanguageServices,
+    'monad.ide.backToChat' => l10n.cmdBackToChat,
+    'workbench.action.openSettings' => l10n.cmdOpenSettings,
+    'workbench.action.openGlobalKeybindings' => l10n.cmdOpenKeyboardShortcuts,
+    // The chat's (chatExtraCommands).
+    ChatCommandIds.newChat => l10n.cmdChatNewAgent,
+    ChatCommandIds.closePane => l10n.cmdChatClosePane,
+    ChatCommandIds.nextAgent => l10n.cmdChatNextAgent,
+    ChatCommandIds.previousAgent => l10n.cmdChatPreviousAgent,
+    final String agent
+        when ChatCommandIds.indexOf(agent, ChatCommandIds.openAgentAtIndex) !=
+            null =>
+      l10n.cmdChatOpenAgentAtIndex(
+        ChatCommandIds.indexOf(agent, ChatCommandIds.openAgentAtIndex)!,
+      ),
+    final String pane
+        when ChatCommandIds.indexOf(pane, ChatCommandIds.focusPane) != null =>
+      l10n.cmdChatFocusPane(
+        ChatCommandIds.indexOf(pane, ChatCommandIds.focusPane)!,
+      ),
+    ChatCommandIds.focusNextPane => l10n.cmdChatFocusNextPane,
+    ChatCommandIds.focusPreviousPane => l10n.cmdChatFocusPreviousPane,
+    ChatCommandIds.searchAgents => l10n.cmdChatSearchAgents,
+    ChatCommandIds.openIde => l10n.cmdChatOpenIde,
+    ChatCommandIds.focusInput => l10n.cmdChatFocusInput,
+    ChatCommandIds.focusList => l10n.cmdChatFocusList,
+    ChatCommandIds.cancel => l10n.cmdChatCancel,
+    ChatCommandIds.acceptTool => l10n.cmdChatAcceptTool,
+    ChatCommandIds.skipTool => l10n.cmdChatSkipTool,
+    ChatCommandIds.toggleContextPanel => l10n.cmdChatToggleContextPanel,
+    ChatCommandIds.renameAgent => l10n.cmdChatRenameAgent,
+    ChatCommandIds.closeSubagent => l10n.cmdChatCloseSubagent,
+    ChatCommandIds.submit => l10n.cmdChatSubmit,
+    ChatCommandIds.cancelEdit => l10n.cmdChatCancelEdit,
+    ChatCommandIds.showPreviousPrompt => l10n.cmdChatShowPreviousPrompt,
+    ChatCommandIds.showNextPrompt => l10n.cmdChatShowNextPrompt,
+    ChatCommandIds.acceptPromptSuggestion => l10n.cmdChatAcceptPromptSuggestion,
+    ChatCommandIds.openModePicker => l10n.cmdChatOpenModePicker,
+    ChatCommandIds.openModelPicker => l10n.cmdChatOpenModelPicker,
+    ChatCommandIds.attachContext => l10n.cmdChatAttachContext,
+    ChatCommandIds.selectNextSuggestion => l10n.cmdChatSelectNextSuggestion,
+    ChatCommandIds.selectPrevSuggestion => l10n.cmdChatSelectPrevSuggestion,
+    ChatCommandIds.acceptSelectedSuggestion =>
+      l10n.cmdChatAcceptSelectedSuggestion,
+    ChatCommandIds.hideSuggestWidget => l10n.cmdChatHideSuggestWidget,
+    ChatCommandIds.interactionFocusNext => l10n.cmdChatInteractionFocusNext,
+    ChatCommandIds.interactionFocusPrevious =>
+      l10n.cmdChatInteractionFocusPrevious,
+    ChatCommandIds.interactionToggle => l10n.cmdChatInteractionToggle,
+    ChatCommandIds.interactionAccept => l10n.cmdChatInteractionAccept,
+    ChatCommandIds.interactionDismiss => l10n.cmdChatInteractionDismiss,
+    // The explorer's and its tree's.
+    'explorer.newFile' => l10n.explorerNewFile,
+    'explorer.newFolder' => l10n.explorerNewFolder,
+    'renameFile' => l10n.explorerRename,
+    'moveFileToTrash' => l10n.explorerMoveToTrash,
+    'deleteFile' => l10n.explorerDeletePermanently,
+    'filesExplorer.copy' => l10n.commonCopy,
+    'filesExplorer.cut' => l10n.commonCut,
+    'filesExplorer.paste' => l10n.commonPaste,
+    'filesExplorer.openFilePreserveFocus' => l10n.cmdOpenFilePreserveFocus,
+    'workbench.scm.focus' => l10n.cmdScmFocus,
+    'scm.acceptInput' => l10n.cmdScmAcceptInput,
+    'scm.clearValidation' => l10n.cmdScmClearValidation,
+    'scm.clearInput' => l10n.cmdScmClearInput,
+    'git.commit' => l10n.scmCommit,
+    'workbench.action.problems.focus' => l10n.cmdProblemsFocus,
+    'problems.action.open' => l10n.cmdProblemsOpen,
+    'problems.action.copyMessage' => l10n.cmdProblemsCopyMessage,
+    'references-view.next' => l10n.cmdReferencesNext,
+    'references-view.prev' => l10n.cmdReferencesPrevious,
+    'problems.action.copy' => l10n.commonCopy,
+    'references-view.clear' => l10n.termClear,
+    'workbench.action.terminal.focusFind' => l10n.cmdTerminalFocusFind,
+    'workbench.action.terminal.hideFind' => l10n.cmdTerminalHideFind,
+    'workbench.action.terminal.toggleFindRegex' =>
+      l10n.cmdTerminalToggleFindRegex,
+    'workbench.action.terminal.toggleFindWholeWord' =>
+      l10n.cmdTerminalToggleFindWholeWord,
+    'workbench.action.terminal.toggleFindCaseSensitive' =>
+      l10n.cmdTerminalToggleFindCaseSensitive,
+    'workbench.action.terminal.searchWorkspace' =>
+      l10n.cmdTerminalSearchWorkspace,
+    'workbench.action.terminal.findNext' => l10n.cmdEditorNextMatchFindAction,
+    'workbench.action.terminal.findPrevious' =>
+      l10n.cmdEditorPreviousMatchFindAction,
+    'workbench.action.terminal.copySelection' => l10n.cmdTerminalCopySelection,
+    'workbench.action.terminal.copyAndClearSelection' =>
+      l10n.cmdTerminalCopyAndClearSelection,
+    'workbench.action.terminal.paste' => l10n.cmdTerminalPaste,
+    'workbench.action.terminal.pasteSelection' =>
+      l10n.cmdTerminalPasteSelection,
+    'workbench.action.terminal.clearSelection' =>
+      l10n.cmdTerminalClearSelection,
+    'workbench.action.terminal.scrollDown' => l10n.cmdTerminalScrollDown,
+    'workbench.action.terminal.scrollDownPage' =>
+      l10n.cmdTerminalScrollDownPage,
+    'workbench.action.terminal.scrollToBottom' =>
+      l10n.cmdTerminalScrollToBottom,
+    'workbench.action.terminal.scrollUp' => l10n.cmdTerminalScrollUp,
+    'workbench.action.terminal.scrollUpPage' => l10n.cmdTerminalScrollUpPage,
+    'workbench.action.terminal.scrollToTop' => l10n.cmdTerminalScrollToTop,
+    'workbench.action.terminal.sendSequence' => l10n.cmdTerminalSendSequence,
+    'workbench.action.terminal.killAll' => l10n.cmdTerminalKillAll,
+    'workbench.action.terminal.selectAll' => l10n.commonSelectAll,
+    'workbench.action.terminal.clear' => l10n.termClear,
+    'workbench.action.findInFiles' => l10n.cmdFindInFiles,
+    'workbench.action.replaceInFiles' => l10n.cmdReplaceInFiles,
+    'search.action.focusNextSearchResult' => l10n.cmdFocusNextSearchResult,
+    'search.action.focusPreviousSearchResult' =>
+      l10n.cmdFocusPreviousSearchResult,
+    'toggleSearchCaseSensitive' => l10n.cmdToggleSearchCaseSensitive,
+    'toggleSearchWholeWord' => l10n.cmdToggleSearchWholeWord,
+    'toggleSearchRegex' => l10n.cmdToggleSearchRegex,
+    'toggleSearchPreserveCase' => l10n.cmdToggleSearchPreserveCase,
+    'search.focus.nextInputBox' => l10n.cmdSearchFocusNextInput,
+    'search.focus.previousInputBox' => l10n.cmdSearchFocusPreviousInput,
+    'search.action.focusSearchFromResults' => l10n.cmdFocusSearchFromResults,
+    'search.action.focusSearchList' => l10n.cmdSearchFocusList,
+    'search.action.openResult' => l10n.cmdSearchOpenMatch,
+    'closeReplaceInFilesWidget' => l10n.cmdCloseReplaceWidget,
+    'search.action.cancel' => l10n.cmdCancelSearch,
+    'workbench.action.search.toggleQueryDetails' => l10n.cmdToggleQueryDetails,
+    'search.action.remove' => l10n.searchDismiss,
+    'search.action.replace' => l10n.searchReplace,
+    'search.action.replaceAllInFile' => l10n.searchReplaceAll,
+    'search.action.replaceAll' => l10n.searchReplaceAll,
+    'search.action.refreshSearchResults' => l10n.commonRefresh,
+    'search.action.clearSearchResults' => l10n.searchClearResults,
+    'search.action.collapseSearchResults' => l10n.commonCollapseAll,
+    'search.action.expandSearchResults' => l10n.commonExpandAll,
+    'search.action.copyMatch' => l10n.commonCopy,
+    'search.action.copyPath' => l10n.tabCopyPath,
+    'search.action.copyAll' => l10n.searchCopyAll,
+    'list.collapseAll' => l10n.commonCollapseAll,
+    'quickInput.next' => l10n.cmdQuickInputFocusNext,
+    'quickInput.previous' => l10n.cmdQuickInputFocusPrevious,
+    'quickInput.pageNext' => l10n.cmdQuickInputFocusNextPage,
+    'quickInput.pagePrevious' => l10n.cmdQuickInputFocusPreviousPage,
+    'quickInput.accept' => l10n.cmdQuickInputAccept,
+    'quickInput.acceptInBackground' => l10n.cmdQuickInputAcceptInBackground,
+    'quickInput.hide' => l10n.cmdQuickInputHide,
+    'workbench.action.closeQuickOpen' => l10n.cmdCloseQuickOpen,
+    'workbench.action.acceptSelectedQuickOpenItem' =>
+      l10n.cmdAcceptSelectedQuickOpenItem,
+    'workbench.action.focusQuickOpen' => l10n.cmdFocusQuickOpen,
+    'workbench.action.quickOpenSelectNext' => l10n.cmdQuickOpenSelectNext,
+    'workbench.action.quickOpenSelectPrevious' =>
+      l10n.cmdQuickOpenSelectPrevious,
+    'workbench.action.quickOpenNavigateNext' => l10n.cmdQuickOpenNavigateNext,
+    'workbench.action.quickOpenNavigatePrevious' =>
+      l10n.cmdQuickOpenNavigatePrevious,
+    'workbench.action.quickOpenNavigateNextInFilePicker' =>
+      l10n.cmdQuickOpenNavigateNextInFilePicker,
+    'workbench.action.quickOpenNavigatePreviousInFilePicker' =>
+      l10n.cmdQuickOpenNavigatePreviousInFilePicker,
+    'workbench.action.quickOpenNavigateNextInEditorPicker' =>
+      l10n.cmdQuickOpenNavigateNextInEditorPicker,
+    'workbench.action.quickOpenNavigatePreviousInEditorPicker' =>
+      l10n.cmdQuickOpenNavigatePreviousInEditorPicker,
+    'workbench.action.quickOpenPreviousEditor' =>
+      l10n.cmdQuickOpenPreviousEditor,
+    'workbench.action.showAllEditors' => l10n.cmdShowAllEditors,
+    'workbench.action.showEditorsInActiveGroup' =>
+      l10n.cmdShowEditorsInActiveGroup,
+    'workbench.action.showAllEditorsByMostRecentlyUsed' =>
+      l10n.cmdShowAllEditorsByMostRecentlyUsed,
+    'workbench.action.quickOpenPreviousRecentlyUsedEditor' =>
+      l10n.cmdQuickOpenPreviousRecentlyUsedEditor,
+    'workbench.action.quickOpenLeastRecentlyUsedEditor' =>
+      l10n.cmdQuickOpenLeastRecentlyUsedEditor,
+    'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup' =>
+      l10n.cmdQuickOpenPreviousRecentlyUsedEditorInGroup,
+    'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup' =>
+      l10n.cmdQuickOpenLeastRecentlyUsedEditorInGroup,
+    'workbench.action.openPreviousEditorFromHistory' =>
+      l10n.cmdOpenPreviousEditorFromHistory,
+    'workbench.action.openNextRecentlyUsedEditor' =>
+      l10n.cmdOpenNextRecentlyUsedEditor,
+    'workbench.action.openPreviousRecentlyUsedEditor' =>
+      l10n.cmdOpenPreviousRecentlyUsedEditor,
+    'workbench.action.openNextRecentlyUsedEditorInGroup' =>
+      l10n.cmdOpenNextRecentlyUsedEditorInGroup,
+    'workbench.action.openPreviousRecentlyUsedEditorInGroup' =>
+      l10n.cmdOpenPreviousRecentlyUsedEditorInGroup,
+    'workbench.action.nextEditorInGroup' => l10n.cmdNextEditorInGroup,
+    'workbench.action.previousEditorInGroup' => l10n.cmdPreviousEditorInGroup,
+    'workbench.action.firstEditorInGroup' => l10n.cmdFirstEditorInGroup,
+    'workbench.action.closeEditorsInGroup' => l10n.cmdCloseEditorsInGroup,
+    'workbench.action.closeEditorsToTheLeft' => l10n.cmdCloseEditorsToTheLeft,
+    'workbench.action.navigateToLastEditLocation' =>
+      l10n.cmdNavigateToLastEditLocation,
+    'workbench.action.navigateLast' => l10n.cmdNavigateLast,
+    'workbench.action.openGlobalSettings' => l10n.cmdOpenUserSettings,
+    'workbench.action.toggleMaximizedPanel' => l10n.cmdToggleMaximizedPanel,
+    'workbench.action.focusPanel' => l10n.cmdFocusPanel,
+    'workbench.action.closePanel' => l10n.cmdClosePanel,
+    'workbench.action.focusSideBar' => l10n.cmdFocusSideBar,
+    'workbench.action.closeSidebar' => l10n.cmdCloseSidebar,
+    'workbench.action.closeAuxiliaryBar' => l10n.cmdCloseChat,
+    'workbench.action.focusActiveEditorGroup' => l10n.cmdFocusActiveEditorGroup,
+    'workbench.action.focusFirstEditorGroup' => l10n.cmdFocusFirstEditorGroup,
+    'workbench.action.focusLastEditorGroup' => l10n.cmdFocusLastEditorGroup,
+    'quickInput.first' => l10n.cmdListFocusFirst,
+    'quickInput.last' => l10n.cmdListFocusLast,
+    'workbench.action.files.copyPathOfActiveFile' =>
+      l10n.cmdCopyPathOfActiveFile,
+    'revealFileInOS' => l10n.explorerRevealInFinder,
+    'list.focusDown' => l10n.cmdListFocusDown,
+    'list.focusUp' => l10n.cmdListFocusUp,
+    'list.focusPageDown' => l10n.cmdListFocusPageDown,
+    'list.focusPageUp' => l10n.cmdListFocusPageUp,
+    'list.focusFirst' => l10n.cmdListFocusFirst,
+    'list.focusLast' => l10n.cmdListFocusLast,
+    'list.expand' => l10n.cmdListExpand,
+    'list.collapse' => l10n.cmdListCollapse,
+    'list.select' => l10n.cmdListSelect,
+    'list.toggleExpand' => l10n.cmdListToggleExpand,
+    // The editor's keyboard commands (editorKeyboardCommandLabels), then
+    // more of editorCommandLabels and editorLanguageCommandLabels.
+    'cursorLeft' => l10n.cmdEditorCursorLeft,
+    'cursorLeftSelect' => l10n.cmdEditorCursorLeftSelect,
+    'cursorRight' => l10n.cmdEditorCursorRight,
+    'cursorRightSelect' => l10n.cmdEditorCursorRightSelect,
+    'cursorUp' => l10n.cmdEditorCursorUp,
+    'cursorUpSelect' => l10n.cmdEditorCursorUpSelect,
+    'cursorDown' => l10n.cmdEditorCursorDown,
+    'cursorDownSelect' => l10n.cmdEditorCursorDownSelect,
+    'cursorPageUp' => l10n.cmdEditorCursorPageUp,
+    'cursorPageUpSelect' => l10n.cmdEditorCursorPageUpSelect,
+    'cursorPageDown' => l10n.cmdEditorCursorPageDown,
+    'cursorPageDownSelect' => l10n.cmdEditorCursorPageDownSelect,
+    'cursorHome' => l10n.cmdEditorCursorHome,
+    'cursorHomeSelect' => l10n.cmdEditorCursorHomeSelect,
+    'cursorEnd' => l10n.cmdEditorCursorEnd,
+    'cursorEndSelect' => l10n.cmdEditorCursorEndSelect,
+    'cursorLineStart' => l10n.cmdEditorCursorLineStart,
+    'cursorLineStartSelect' => l10n.cmdEditorCursorLineStartSelect,
+    'cursorLineEnd' => l10n.cmdEditorCursorLineEnd,
+    'cursorLineEndSelect' => l10n.cmdEditorCursorLineEndSelect,
+    'cursorTop' => l10n.cmdEditorCursorTop,
+    'cursorTopSelect' => l10n.cmdEditorCursorTopSelect,
+    'cursorBottom' => l10n.cmdEditorCursorBottom,
+    'cursorBottomSelect' => l10n.cmdEditorCursorBottomSelect,
+    'cursorColumnSelectLeft' => l10n.cmdEditorCursorColumnSelectLeft,
+    'cursorColumnSelectRight' => l10n.cmdEditorCursorColumnSelectRight,
+    'cursorColumnSelectUp' => l10n.cmdEditorCursorColumnSelectUp,
+    'cursorColumnSelectDown' => l10n.cmdEditorCursorColumnSelectDown,
+    'cursorColumnSelectPageUp' => l10n.cmdEditorCursorColumnSelectPageUp,
+    'cursorColumnSelectPageDown' => l10n.cmdEditorCursorColumnSelectPageDown,
+    'scrollLineUp' => l10n.cmdEditorScrollLineUp,
+    'scrollLineDown' => l10n.cmdEditorScrollLineDown,
+    'scrollPageUp' => l10n.cmdEditorScrollPageUp,
+    'scrollPageDown' => l10n.cmdEditorScrollPageDown,
+    'cancelSelection' => l10n.cmdEditorCancelSelection,
+    'lineBreakInsert' => l10n.cmdEditorLineBreakInsert,
+    'tab' => l10n.cmdEditorTab,
+    'outdent' => l10n.cmdEditorOutdent,
+    'deleteLeft' => l10n.cmdEditorDeleteLeft,
+    'deleteRight' => l10n.cmdEditorDeleteRight,
+    'cursorWordLeft' => l10n.cmdEditorCursorWordLeft,
+    'cursorWordLeftSelect' => l10n.cmdEditorCursorWordLeftSelect,
+    'cursorWordStartLeft' => l10n.cmdEditorCursorWordStartLeft,
+    'cursorWordStartLeftSelect' => l10n.cmdEditorCursorWordStartLeftSelect,
+    'cursorWordEndLeft' => l10n.cmdEditorCursorWordEndLeft,
+    'cursorWordEndLeftSelect' => l10n.cmdEditorCursorWordEndLeftSelect,
+    'cursorWordRight' => l10n.cmdEditorCursorWordRight,
+    'cursorWordRightSelect' => l10n.cmdEditorCursorWordRightSelect,
+    'cursorWordStartRight' => l10n.cmdEditorCursorWordStartRight,
+    'cursorWordStartRightSelect' => l10n.cmdEditorCursorWordStartRightSelect,
+    'cursorWordEndRight' => l10n.cmdEditorCursorWordEndRight,
+    'cursorWordEndRightSelect' => l10n.cmdEditorCursorWordEndRightSelect,
+    'cursorWordPartLeft' => l10n.cmdEditorCursorWordPartLeft,
+    'cursorWordPartLeftSelect' => l10n.cmdEditorCursorWordPartLeftSelect,
+    'cursorWordPartStartLeft' => l10n.cmdEditorCursorWordPartStartLeft,
+    'cursorWordPartStartLeftSelect' =>
+      l10n.cmdEditorCursorWordPartStartLeftSelect,
+    'cursorWordPartRight' => l10n.cmdEditorCursorWordPartRight,
+    'cursorWordPartRightSelect' => l10n.cmdEditorCursorWordPartRightSelect,
+    'deleteWordLeft' => l10n.cmdEditorDeleteWordLeft,
+    'deleteWordRight' => l10n.cmdEditorDeleteWordRight,
+    'deleteWordStartLeft' => l10n.cmdEditorDeleteWordStartLeft,
+    'deleteWordEndLeft' => l10n.cmdEditorDeleteWordEndLeft,
+    'deleteWordStartRight' => l10n.cmdEditorDeleteWordStartRight,
+    'deleteWordEndRight' => l10n.cmdEditorDeleteWordEndRight,
+    'deleteWordPartLeft' => l10n.cmdEditorDeleteWordPartLeft,
+    'deleteWordPartRight' => l10n.cmdEditorDeleteWordPartRight,
+    'editor.action.smartSelect.grow' => l10n.cmdEditorSmartSelectGrow,
+    'editor.action.format' => l10n.cmdEditorFormat,
+    'jumpToNextSnippetPlaceholder' =>
+      l10n.cmdEditorJumpToNextSnippetPlaceholder,
+    'jumpToPrevSnippetPlaceholder' =>
+      l10n.cmdEditorJumpToPrevSnippetPlaceholder,
+    'leaveSnippet' => l10n.cmdEditorLeaveSnippet,
+    'leaveEditorMessage' => l10n.cmdEditorLeaveEditorMessage,
+    'editor.action.nextMatchFindAction' => l10n.cmdEditorNextMatchFindAction,
+    'editor.action.previousMatchFindAction' =>
+      l10n.cmdEditorPreviousMatchFindAction,
+    'editor.action.nextSelectionMatchFindAction' =>
+      l10n.cmdEditorNextSelectionMatchFindAction,
+    'editor.action.previousSelectionMatchFindAction' =>
+      l10n.cmdEditorPreviousSelectionMatchFindAction,
+    'actions.findWithSelection' => l10n.cmdEditorFindWithSelection,
+    'closeFindWidget' => l10n.cmdEditorCloseFindWidget,
+    'toggleFindCaseSensitive' => l10n.cmdEditorToggleFindCaseSensitive,
+    'toggleFindWholeWord' => l10n.cmdEditorToggleFindWholeWord,
+    'toggleFindRegex' => l10n.cmdEditorToggleFindRegex,
+    'editor.action.replaceOne' => l10n.cmdEditorReplaceOne,
+    'editor.action.replaceAll' => l10n.cmdEditorReplaceAll,
+    'editor.action.selectAllMatches' => l10n.cmdEditorSelectAllMatches,
+    'editor.action.marker.next' => l10n.cmdEditorMarkerNext,
+    'editor.action.marker.prev' => l10n.cmdEditorMarkerPrev,
+    'editor.action.showContextMenu' => l10n.cmdEditorShowContextMenu,
+    'acceptSelectedSuggestion' => l10n.cmdEditorAcceptSelectedSuggestion,
+    'acceptAlternativeSelectedSuggestion' =>
+      l10n.cmdEditorAcceptAlternativeSelectedSuggestion,
+    'hideSuggestWidget' => l10n.cmdEditorHideSuggestWidget,
+    'selectNextSuggestion' => l10n.cmdEditorSelectNextSuggestion,
+    'selectPrevSuggestion' => l10n.cmdEditorSelectPrevSuggestion,
+    'selectNextPageSuggestion' => l10n.cmdEditorSelectNextPageSuggestion,
+    'selectPrevPageSuggestion' => l10n.cmdEditorSelectPrevPageSuggestion,
+    'toggleSuggestionDetails' => l10n.cmdEditorToggleSuggestionDetails,
+    'closeParameterHints' => l10n.cmdEditorCloseParameterHints,
+    'showPrevParameterHint' => l10n.cmdEditorShowPrevParameterHint,
+    'showNextParameterHint' => l10n.cmdEditorShowNextParameterHint,
+    'acceptRenameInput' => l10n.cmdEditorAcceptRenameInput,
+    'cancelRenameInput' => l10n.cmdEditorCancelRenameInput,
+    'editor.action.joinLines' => l10n.cmdEditorJoinLines,
+    'editor.action.duplicateSelection' => l10n.cmdEditorDuplicateSelection,
+    'editor.action.insertCursorAtEndOfEachLineSelected' =>
+      l10n.cmdEditorInsertCursorAtEndOfEachLineSelected,
+    'editor.action.smartSelect.expand' => l10n.cmdEditorSmartSelectExpand,
+    'editor.action.smartSelect.shrink' => l10n.cmdEditorSmartSelectShrink,
+    'editor.action.wordHighlight.next' => l10n.cmdEditorWordHighlightNext,
+    'editor.action.wordHighlight.prev' => l10n.cmdEditorWordHighlightPrev,
+    'editor.fold' => l10n.cmdEditorFold,
+    'editor.unfold' => l10n.cmdEditorUnfold,
+    'editor.toggleFold' => l10n.cmdEditorToggleFold,
+    'editor.foldRecursively' => l10n.cmdEditorFoldRecursively,
+    'editor.unfoldRecursively' => l10n.cmdEditorUnfoldRecursively,
+    'editor.toggleFoldRecursively' => l10n.cmdEditorToggleFoldRecursively,
+    'editor.foldAll' => l10n.cmdEditorFoldAll,
+    'editor.unfoldAll' => l10n.cmdEditorUnfoldAll,
+    'editor.foldAllBlockComments' => l10n.cmdEditorFoldAllBlockComments,
+    'editor.foldAllMarkerRegions' => l10n.cmdEditorFoldAllMarkerRegions,
+    'editor.unfoldAllMarkerRegions' => l10n.cmdEditorUnfoldAllMarkerRegions,
+    'editor.foldAllExcept' => l10n.cmdEditorFoldAllExcept,
+    'editor.unfoldAllExcept' => l10n.cmdEditorUnfoldAllExcept,
+    'editor.action.goToDeclaration' => l10n.cmdEditorGoToDeclaration,
+    'editor.action.referenceSearch.trigger' =>
+      l10n.cmdEditorReferenceSearchTrigger,
+    'editor.foldLevel1' => l10n.cmdEditorFoldLevel(1),
+    'editor.foldLevel2' => l10n.cmdEditorFoldLevel(2),
+    'editor.foldLevel3' => l10n.cmdEditorFoldLevel(3),
+    'editor.foldLevel4' => l10n.cmdEditorFoldLevel(4),
+    'editor.foldLevel5' => l10n.cmdEditorFoldLevel(5),
+    'editor.foldLevel6' => l10n.cmdEditorFoldLevel(6),
+    'editor.foldLevel7' => l10n.cmdEditorFoldLevel(7),
+    // The editor's (editorCommandLabels).
+    'undo' => l10n.cmdUndo,
+    'redo' => l10n.cmdRedo,
+    'editor.action.clipboardCutAction' => l10n.cmdCut,
+    'editor.action.clipboardCopyAction' => l10n.cmdCopy,
+    'editor.action.clipboardPasteAction' => l10n.cmdPaste,
+    'editor.action.selectAll' => l10n.cmdSelectAll,
+    'editor.action.commentLine' => l10n.cmdToggleLineComment,
+    'editor.action.blockComment' => l10n.cmdToggleBlockComment,
+    'editor.action.moveLinesUpAction' => l10n.cmdMoveLineUp,
+    'editor.action.moveLinesDownAction' => l10n.cmdMoveLineDown,
+    'editor.action.copyLinesUpAction' => l10n.cmdCopyLineUp,
+    'editor.action.copyLinesDownAction' => l10n.cmdCopyLineDown,
+    'editor.action.deleteLines' => l10n.cmdDeleteLine,
+    'editor.action.insertLineAfter' => l10n.cmdInsertLineBelow,
+    'editor.action.insertLineBefore' => l10n.cmdInsertLineAbove,
+    'editor.action.indentLines' => l10n.cmdIndentLine,
+    'editor.action.outdentLines' => l10n.cmdOutdentLine,
+    'expandLineSelection' => l10n.cmdExpandLineSelection,
+    'deleteAllLeft' => l10n.cmdDeleteAllLeft,
+    'deleteAllRight' => l10n.cmdDeleteAllRight,
+    'editor.action.addSelectionToNextFindMatch' =>
+      l10n.cmdAddSelectionToNextFindMatch,
+    'editor.action.moveSelectionToNextFindMatch' =>
+      l10n.cmdMoveSelectionToNextFindMatch,
+    'editor.action.selectHighlights' => l10n.cmdSelectHighlights,
+    'editor.action.changeAll' => l10n.cmdChangeAll,
+    'editor.action.insertCursorAbove' => l10n.cmdInsertCursorAbove,
+    'editor.action.insertCursorBelow' => l10n.cmdInsertCursorBelow,
+    'removeSecondaryCursors' => l10n.cmdRemoveSecondaryCursors,
+    'cursorUndo' => l10n.cmdCursorUndo,
+    'editor.action.transformToUppercase' => l10n.cmdTransformToUppercase,
+    'editor.action.transformToLowercase' => l10n.cmdTransformToLowercase,
+    'editor.action.detectIndentation' => l10n.cmdDetectIndentation,
+    'editor.action.jumpToBracket' => l10n.cmdJumpToBracket,
+    // The language services' (editorLanguageCommandLabels).
+    'editor.action.revealDefinition' => l10n.cmdGoToDefinition,
+    'editor.action.goToTypeDefinition' => l10n.cmdGoToTypeDefinition,
+    'editor.action.goToImplementation' => l10n.cmdGoToImplementations,
+    'editor.action.goToReferences' => l10n.cmdGoToReferences,
+    'editor.action.rename' => l10n.cmdRenameSymbol,
+    'editor.action.formatDocument' => l10n.cmdFormatDocument,
+    'editor.action.formatSelection' => l10n.cmdFormatSelection,
+    'editor.action.quickFix' => l10n.cmdQuickFix,
+    'editor.action.refactor' => l10n.cmdRefactor,
+    'editor.action.sourceAction' => l10n.cmdSourceAction,
+    'editor.action.triggerSuggest' => l10n.cmdTriggerSuggest,
+    'editor.action.triggerParameterHints' => l10n.cmdTriggerParameterHints,
+    'editor.action.showHover' => l10n.cmdShowHover,
+    _ => english,
+  };
+}
+
+const _openEditorAtIndex = 'workbench.action.openEditorAtIndex';
+
+/// A command category (upstream `Categories`) in [l10n]'s language; others
+/// as given.
+String localizedCommandCategory(AppLocalizations l10n, String english) =>
+    switch (english) {
+      'File' => l10n.cmdCategoryFile,
+      'View' => l10n.cmdCategoryView,
+      'Terminal' => l10n.cmdCategoryTerminal,
+      'Go' => l10n.cmdCategoryGo,
+      'Preferences' => l10n.cmdCategoryPreferences,
+      'Developer' => l10n.cmdCategoryDeveloper,
+      'Editor' => l10n.cmdCategoryEditor,
+      'Help' => l10n.cmdCategoryHelp,
+      'List' => l10n.cmdCategoryList,
+      'Git' => l10n.cmdCategoryGit,
+      'Source Control' => l10n.scmTitle,
+      'References' => l10n.cmdCategoryReferences,
+      'Search' => l10n.searchTitle,
+      'Quick Input' => l10n.cmdCategoryQuickInput,
+      'Chat' => l10n.cmdCategoryChat,
+      _ => english,
+    };
+
+/// [command]'s `Category: Title` in [l10n]'s language, as the palette lists
+/// it ([IdeCommand.title] is the English).
+String localizedCommandTitle(AppLocalizations l10n, IdeCommand command) =>
+    localizedCommandTitleOf(
+      l10n,
+      command.id,
+      command.label,
+      category: command.category,
+    );
+
+/// The `Category: Title` of command [id], registered with the English
+/// [label] and [category], in [l10n]'s language.
+String localizedCommandTitleOf(
+  AppLocalizations l10n,
+  String id,
+  String label, {
+  String? category,
+}) {
+  final title = localizedCommandLabel(l10n, id, label);
+  return switch (category) {
+    final category? => '${localizedCommandCategory(l10n, category)}: $title',
+    null => title,
+  };
+}

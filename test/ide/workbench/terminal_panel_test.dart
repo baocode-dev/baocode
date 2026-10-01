@@ -306,7 +306,7 @@ void main() {
     };
     expect(
       commands['workbench.action.terminal.focusNext']!.shortcutLabel(),
-      'Ctrl+Page Down',
+      'Ctrl+PageDown',
     );
     commands['workbench.action.terminal.focusPrevious']!.run();
     await tester.pump();

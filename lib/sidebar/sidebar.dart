@@ -8,6 +8,9 @@ import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../chat/widgets/inline_rename_field.dart';
 import '../ide/ide_hover.dart';
+import '../l10n/l10n.dart';
+import '../keybindings/default_keybindings.dart' show openSettingsCommandId;
+import '../keybindings/keybinding_service.dart';
 import '../theme/codicons.dart';
 import '../theme/cursor_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
@@ -24,23 +27,35 @@ enum SidebarGrouping {
 
   const SidebarGrouping(this.label, this.icon);
 
+  /// In English; see [localizedLabel].
   final String label;
   final IconData icon;
+
+  String localizedLabel(AppLocalizations l10n) => switch (this) {
+    project => l10n.sidebarGroupingProject,
+    time => l10n.sidebarGroupingDate,
+    status => l10n.sidebarGroupingStatus,
+  };
+
+  /// `By project`, as the list's heading says how it is grouped.
+  String localizedBy(AppLocalizations l10n) => switch (this) {
+    project => l10n.sidebarByProject,
+    time => l10n.sidebarByDate,
+    status => l10n.sidebarByStatus,
+  };
 }
 
-/// `now`, `5m`, `3h`, `2d`, `3w`, then the date.
-String relativeTime(DateTime time, DateTime now) {
+/// `now`, `5m`, `3h`, `2d`, `3w`, then the date; in [l10n]'s language
+/// (English when null).
+String relativeTime(DateTime time, DateTime now, [AppLocalizations? l10n]) {
+  final strings = l10n ?? englishLocalizations;
   final elapsed = now.difference(time);
-  if (elapsed.inMinutes < 1) return 'now';
-  if (elapsed.inHours < 1) return '${elapsed.inMinutes}m';
-  if (elapsed.inDays < 1) return '${elapsed.inHours}h';
-  if (elapsed.inDays < 7) return '${elapsed.inDays}d';
-  if (elapsed.inDays < 35) return '${elapsed.inDays ~/ 7}w';
-  const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-  return '${months[time.month - 1]} ${time.day}';
+  if (elapsed.inMinutes < 1) return strings.sidebarTimeNow;
+  if (elapsed.inHours < 1) return strings.sidebarTimeMinutes(elapsed.inMinutes);
+  if (elapsed.inDays < 1) return strings.sidebarTimeHours(elapsed.inHours);
+  if (elapsed.inDays < 7) return strings.sidebarTimeDays(elapsed.inDays);
+  if (elapsed.inDays < 35) return strings.sidebarTimeWeeks(elapsed.inDays ~/ 7);
+  return strings.sidebarMonthDay('${time.month}', time.day);
 }
 
 /// A heading and the agents under it.
@@ -55,6 +70,22 @@ class _Group {
   final Project? project;
 }
 
+/// What the window asks of its sidebar, for the chat's keybindings: the
+/// agents in the order it lists them, and its search.
+class SidebarLink {
+  _SidebarState? _state;
+
+  /// Whether a sidebar is built (shown, or tucked away beside the chat).
+  bool get attached => _state != null;
+
+  /// The agents listed, top to bottom (not those of collapsed groups, but
+  /// while searching); null without a sidebar.
+  List<AgentThread>? get visibleThreads => _state?._visibleThreads();
+
+  /// Focuses the search field, its text selected.
+  void focusSearch() => _state?._focusSearch();
+}
+
 /// Agents list: new agent, search, grouped by project, date or status,
 /// pinned ones on top and archived ones tucked away at the bottom.
 class Sidebar extends StatefulWidget {
@@ -64,7 +95,9 @@ class Sidebar extends StatefulWidget {
     required this.onCollapse,
     this.onOpened,
     this.onOpenFolder,
+    this.onOpenSettings,
     this.drag,
+    this.link,
   });
 
   final Workspace workspace;
@@ -77,8 +110,14 @@ class Sidebar extends StatefulWidget {
   /// ask (the web).
   final VoidCallback? onOpenFolder;
 
+  /// Opens the settings: the gear at the bottom; none without it.
+  final VoidCallback? onOpenSettings;
+
   /// An agent was opened or created from here (the drawer closes).
   final VoidCallback? onOpened;
+
+  /// Reaches this sidebar from the window.
+  final SidebarLink? link;
 
   @override
   State<Sidebar> createState() => _SidebarState();
@@ -104,14 +143,42 @@ class _SidebarState extends State<Sidebar> {
     super.initState();
     _clock = Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
     _search.addListener(() => setState(() {}));
+    widget.link?._state = this;
+  }
+
+  @override
+  void didUpdateWidget(Sidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.link != widget.link) {
+      if (oldWidget.link?._state == this) oldWidget.link!._state = null;
+      widget.link?._state = this;
+    }
   }
 
   @override
   void dispose() {
+    if (widget.link?._state == this) widget.link!._state = null;
     _clock.cancel();
     _search.dispose();
     _searchFocus.dispose();
     super.dispose();
+  }
+
+  /// The agents listed, top to bottom (see [_buildList]).
+  List<AgentThread> _visibleThreads() {
+    final searching = _search.text.trim().isNotEmpty;
+    return [
+      for (final group in _groups())
+        if (!_collapsed.contains(group.id) || searching) ...group.threads,
+    ];
+  }
+
+  void _focusSearch() {
+    _search.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _search.text.length,
+    );
+    _searchFocus.requestFocus();
   }
 
   void _open(AgentThread thread) {
@@ -146,11 +213,12 @@ class _SidebarState extends State<Sidebar> {
   bool _matches(AgentThread thread) {
     final query = _search.text.trim().toLowerCase();
     if (query.isEmpty) return true;
-    return thread.title.toLowerCase().contains(query) ||
+    return thread.localizedTitle(context.l10n).toLowerCase().contains(query) ||
         thread.project.name.toLowerCase().contains(query);
   }
 
   List<_Group> _groups() {
+    final l10n = context.l10n;
     final threads = [
       for (final thread in _workspace.threads)
         if (_matches(thread)) thread,
@@ -178,7 +246,7 @@ class _SidebarState extends State<Sidebar> {
     }
 
     return [
-      if (pinned.isNotEmpty) _Group('pinned', 'Pinned', pinned),
+      if (pinned.isNotEmpty) _Group('pinned', l10n.sidebarPinned, pinned),
       ...switch (_grouping) {
         SidebarGrouping.project => [
           for (final project in _workspace.projects)
@@ -190,36 +258,44 @@ class _SidebarState extends State<Sidebar> {
             ),
         ],
         SidebarGrouping.time => [
-          _Group('today', 'Today', where((t) => daysAgo(t) <= 0)),
-          _Group('yesterday', 'Yesterday', where((t) => daysAgo(t) == 1)),
+          _Group('today', l10n.sidebarToday, where((t) => daysAgo(t) <= 0)),
+          _Group(
+            'yesterday',
+            l10n.sidebarYesterday,
+            where((t) => daysAgo(t) == 1),
+          ),
           _Group(
             'week',
-            'Previous 7 days',
+            l10n.sidebarPrevious7Days,
             where((t) => daysAgo(t) > 1 && daysAgo(t) <= 7),
           ),
-          _Group('older', 'Older', where((t) => daysAgo(t) > 7)),
+          _Group('older', l10n.sidebarOlder, where((t) => daysAgo(t) > 7)),
         ],
         SidebarGrouping.status => [
           _Group(
             'needsInput',
-            'Needs input',
+            l10n.sidebarNeedsInput,
             where((t) => t.status == ThreadStatus.needsInput),
           ),
           _Group(
             'running',
-            'Running',
+            l10n.sidebarRunning,
             where((t) => t.status == ThreadStatus.running),
           ),
           _Group(
             'unread',
-            'Unread',
+            l10n.sidebarUnread,
             where((t) => t.status == ThreadStatus.unread),
           ),
-          _Group('idle', 'Done', where((t) => t.status == ThreadStatus.idle)),
+          _Group(
+            'idle',
+            l10n.sidebarDone,
+            where((t) => t.status == ThreadStatus.idle),
+          ),
         ],
       },
       if (_showArchived)
-        _Group('archived', 'Archived', [
+        _Group('archived', l10n.sidebarArchived, [
           for (final thread in threads)
             if (thread.archived) thread,
         ]),
@@ -258,7 +334,7 @@ class _SidebarState extends State<Sidebar> {
                     const SizedBox(width: 4),
                     SidebarIconButton(
                       icon: Icons.create_new_folder_outlined,
-                      tooltip: 'Open folder…',
+                      tooltip: context.l10n.sidebarOpenFolder,
                       size: 30,
                       onTap: open,
                     ),
@@ -272,7 +348,7 @@ class _SidebarState extends State<Sidebar> {
             ),
             _buildGroupingBar(),
             Expanded(child: _buildList()),
-            _buildArchivedToggle(),
+            _buildFooter(),
           ],
         ),
       ),
@@ -289,7 +365,7 @@ class _SidebarState extends State<Sidebar> {
             const Spacer(),
             SidebarIconButton(
               icon: Codicons.layoutSidebarLeft,
-              tooltip: 'Hide sidebar',
+              tooltip: context.l10n.windowHideSidebar,
               onTap: widget.onCollapse,
             ),
             const SizedBox(width: 6),
@@ -306,7 +382,7 @@ class _SidebarState extends State<Sidebar> {
         children: [
           Expanded(
             child: Text(
-              'Agents',
+              context.l10n.sidebarAgents,
               style: TextStyle(
                 color: CursorColors.textFaint,
                 fontSize: 11.5,
@@ -320,7 +396,7 @@ class _SidebarState extends State<Sidebar> {
             items: () => [
               for (final grouping in SidebarGrouping.values)
                 SidebarMenuItem(
-                  grouping.label,
+                  grouping.localizedLabel(context.l10n),
                   icon: grouping.icon,
                   checked: grouping == _grouping,
                   onSelected: () => setState(() => _grouping = grouping),
@@ -343,7 +419,7 @@ class _SidebarState extends State<Sidebar> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'By ${_grouping.label.toLowerCase()}',
+                        _grouping.localizedBy(context.l10n),
                         style: TextStyle(
                           color: CursorColors.textMuted,
                           fontSize: 11.5,
@@ -377,7 +453,9 @@ class _SidebarState extends State<Sidebar> {
       return Padding(
         padding: const EdgeInsets.all(16),
         child: Text(
-          searching ? 'No matching agents' : 'No agents yet',
+          searching
+              ? context.l10n.sidebarNoMatchingAgents
+              : context.l10n.sidebarNoAgentsYet,
           textAlign: TextAlign.center,
           style: TextStyle(color: CursorColors.textFaint, fontSize: 12),
         ),
@@ -431,44 +509,71 @@ class _SidebarState extends State<Sidebar> {
   /// Project names are worth showing on rows only when there are several.
   bool get _projectsShown => _workspace.projects.length > 1;
 
-  Widget _buildArchivedToggle() {
+  /// The archived toggle, when there are archived agents, and the
+  /// settings' gear.
+  Widget _buildFooter() {
     final count = _workspace.threads.where((t) => t.archived).length;
-    if (count == 0) return const SizedBox.shrink();
+    final settings = widget.onOpenSettings;
+    if (count == 0 && settings == null) return const SizedBox.shrink();
     return Container(
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: CursorColors.border)),
       ),
       padding: const EdgeInsets.all(6),
-      child: HoverBuilder(
-        cursor: SystemMouseCursors.click,
-        builder: (context, hovered) => GestureDetector(
-          onTap: () => setState(() => _showArchived = !_showArchived),
-          child: Container(
-            height: 26,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: hovered ? CursorColors.hover : Colors.transparent,
-              borderRadius: BorderRadius.circular(5),
+      child: Row(
+        children: [
+          Expanded(
+            child: count == 0
+                ? const SizedBox.shrink()
+                : _buildArchivedToggle(count),
+          ),
+          if (settings != null) ...[
+            const SizedBox(width: 4),
+            SidebarIconButton(
+              icon: Codicons.settingsGear,
+              tooltip: switch (KeybindingService.instance.labelFor(
+                openSettingsCommandId,
+              )) {
+                final shortcut? => '${context.l10n.settingsTitle} ($shortcut)',
+                null => context.l10n.settingsTitle,
+              },
+              onTap: settings,
             ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.inventory_2_outlined,
-                  size: 13,
-                  color: CursorColors.textMuted,
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildArchivedToggle(int count) {
+    return HoverBuilder(
+      cursor: SystemMouseCursors.click,
+      builder: (context, hovered) => GestureDetector(
+        onTap: () => setState(() => _showArchived = !_showArchived),
+        child: Container(
+          height: 26,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: hovered ? CursorColors.hover : Colors.transparent,
+            borderRadius: BorderRadius.circular(5),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.inventory_2_outlined,
+                size: 13,
+                color: CursorColors.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _showArchived
+                      ? context.l10n.sidebarHideArchived
+                      : context.l10n.sidebarArchivedCount(count),
+                  style: TextStyle(color: CursorColors.textMuted, fontSize: 12),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _showArchived ? 'Hide archived' : 'Archived · $count',
-                    style: TextStyle(
-                      color: CursorColors.textMuted,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -480,14 +585,20 @@ class _SidebarState extends State<Sidebar> {
       context: context,
       // Black, not the theme's: as upstream's dialogs dim the window.
       barrierColor: const Color(0x99000000),
-      builder: (context) => _ConfirmDialog(
-        title: 'Delete agent?',
-        message: thread.kernel.catalog == null
-            ? '“${thread.title}” and its conversation will be removed.'
-            : '“${thread.title}” and its conversation will be deleted, '
-                  'from ${thread.kernel.label} too. This cannot be undone.',
-        action: 'Delete',
-      ),
+      builder: (context) {
+        final l10n = context.l10n;
+        final title = thread.localizedTitle(l10n);
+        return _ConfirmDialog(
+          title: l10n.sidebarDeleteAgentTitle,
+          message: thread.kernel.catalog == null
+              ? l10n.sidebarDeleteAgentMessage(title)
+              : l10n.sidebarDeleteAgentMessageKernel(
+                  title,
+                  thread.kernel.label,
+                ),
+          action: l10n.commonDelete,
+        );
+      },
     );
     if (confirmed ?? false) _workspace.delete(thread);
   }
@@ -525,7 +636,7 @@ class _NewAgentButton extends StatelessWidget {
               SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'New Agent',
+                  context.l10n.sidebarNewAgent,
                   style: TextStyle(color: foreground, fontSize: 12.5),
                 ),
               ),
@@ -564,7 +675,7 @@ class _SearchField extends StatelessWidget {
           cursorHeight: 14,
           decoration: InputDecoration(
             isDense: true,
-            hintText: 'Search agents…',
+            hintText: context.l10n.sidebarSearchAgents,
             hintStyle: TextStyle(
               color: colors['input.placeholderForeground'],
               fontSize: 12.5,
@@ -688,7 +799,7 @@ class _GroupHeader extends StatelessWidget {
               if (onCreate case final onCreate? when hovered)
                 SidebarIconButton(
                   icon: Icons.add_rounded,
-                  tooltip: 'New agent in ${group.label}',
+                  tooltip: context.l10n.sidebarNewAgentIn(group.label),
                   size: 20,
                   onTap: onCreate,
                 ),
@@ -736,21 +847,25 @@ class _ThreadRow extends StatelessWidget {
   final VoidCallback onArchive;
   final VoidCallback onDelete;
 
-  List<SidebarMenuItem> _items() => [
-    SidebarMenuItem('Rename', icon: Icons.edit_outlined, onSelected: onRename),
+  List<SidebarMenuItem> _items(AppLocalizations l10n) => [
+    SidebarMenuItem(
+      l10n.commonRename,
+      icon: Icons.edit_outlined,
+      onSelected: onRename,
+    ),
     if (!thread.archived)
       SidebarMenuItem(
-        thread.pinned ? 'Unpin' : 'Pin',
+        thread.pinned ? l10n.sidebarUnpin : l10n.sidebarPin,
         icon: thread.pinned ? Icons.push_pin : Icons.push_pin_outlined,
         onSelected: onPin,
       ),
     SidebarMenuItem(
-      thread.archived ? 'Unarchive' : 'Archive',
+      thread.archived ? l10n.sidebarUnarchive : l10n.sidebarArchive,
       icon: Icons.inventory_2_outlined,
       onSelected: onArchive,
     ),
     SidebarMenuItem(
-      'Delete',
+      l10n.commonDelete,
       icon: Icons.delete_outline_rounded,
       destructive: true,
       onSelected: onDelete,
@@ -760,7 +875,7 @@ class _ThreadRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final row = SidebarMenu(
-      items: _items,
+      items: () => _items(context.l10n),
       placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
       builder: (context, menu) => HoverBuilder(
         cursor: SystemMouseCursors.click,
@@ -805,12 +920,12 @@ class _ThreadRow extends StatelessWidget {
                   Expanded(
                     child: renaming
                         ? InlineRenameField(
-                            initial: thread.title,
+                            initial: thread.localizedTitle(context.l10n),
                             onDone: onRenamed,
                           )
-                        : _buildTitle(),
+                        : _buildTitle(context.l10n),
                   ),
-                  if (!renaming) ..._buildTrailing(active),
+                  if (!renaming) ..._buildTrailing(active, context.l10n),
                 ],
               ),
             ),
@@ -826,13 +941,13 @@ class _ThreadRow extends StatelessWidget {
     );
   }
 
-  Widget _buildTitle() {
+  Widget _buildTitle(AppLocalizations l10n) {
     final status = thread.status;
     final emphasized = selected || status == ThreadStatus.unread;
     return Text.rich(
       TextSpan(
         children: [
-          TextSpan(text: thread.title),
+          TextSpan(text: thread.localizedTitle(l10n)),
           if (showProject)
             TextSpan(
               text: '  ${thread.project.name}',
@@ -860,7 +975,7 @@ class _ThreadRow extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildTrailing(bool active) {
+  List<Widget> _buildTrailing(bool active, AppLocalizations l10n) {
     final diff = thread.diff;
     return [
       if (diff != null && !active) ...[
@@ -895,7 +1010,7 @@ class _ThreadRow extends StatelessWidget {
         if (!thread.archived)
           SidebarIconButton(
             icon: thread.pinned ? Icons.push_pin : Icons.push_pin_outlined,
-            tooltip: thread.pinned ? 'Unpin' : 'Pin',
+            tooltip: thread.pinned ? l10n.sidebarUnpin : l10n.sidebarPin,
             size: 20,
             onTap: onPin,
           ),
@@ -903,17 +1018,20 @@ class _ThreadRow extends StatelessWidget {
           icon: thread.archived
               ? Icons.unarchive_outlined
               : Icons.inventory_2_outlined,
-          tooltip: thread.archived ? 'Unarchive' : 'Archive',
+          tooltip: thread.archived
+              ? l10n.sidebarUnarchive
+              : l10n.sidebarArchive,
           size: 20,
           onTap: onArchive,
         ),
       ] else
-        SizedBox(
-          width: 26,
+        // Wider where the language's times are.
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 26),
           child: Text(
             thread.status == ThreadStatus.needsInput
                 ? ''
-                : relativeTime(thread.updatedAt, DateTime.now()),
+                : relativeTime(thread.updatedAt, DateTime.now(), l10n),
             textAlign: TextAlign.right,
             maxLines: 1,
             style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
@@ -1070,7 +1188,7 @@ class _ConfirmDialog extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   _DialogButton(
-                    label: 'Cancel',
+                    label: context.l10n.commonCancel,
                     onTap: () => Navigator.pop(context, false),
                   ),
                   const SizedBox(width: 8),

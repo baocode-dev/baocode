@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
@@ -25,7 +26,7 @@ class EditStep extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         StepHeader(
-          verb: 'Edited',
+          verb: context.l10n.toolEdited,
           object: item.fileName,
           expanded: expanded,
           onToggle: onToggle,

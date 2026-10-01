@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../ide/ide_hover.dart';
+import '../l10n/l10n.dart';
 import '../sidebar/sidebar_menu.dart';
 import '../theme/cursor_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
@@ -45,13 +46,13 @@ class OpenInEditorButton extends StatelessWidget {
       items: () => [
         for (final option in Editor.availableEditors)
           SidebarMenuItem(
-            option.platformLabel,
+            option.localizedPlatformLabel(context.l10n),
             icon: option.icon,
             checked: option == workspace.preferredEditor,
             onSelected: () => workspace.preferredEditor = option,
           ),
         SidebarMenuItem(
-          'Copy path',
+          context.l10n.workspaceCopyPath,
           icon: Icons.content_copy_rounded,
           onSelected: () =>
               Clipboard.setData(ClipboardData(text: project.path)),
@@ -67,7 +68,9 @@ class OpenInEditorButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _Segment(
-              semanticsLabel: 'Open in ${editor.platformLabel}',
+              semanticsLabel: context.l10n.workspaceOpenIn(
+                editor.localizedPlatformLabel(context.l10n),
+              ),
               onTap: () => _open(editor),
               padding: const EdgeInsets.only(left: 7, right: 7),
               borderRadius: const BorderRadius.horizontal(
@@ -79,7 +82,7 @@ class OpenInEditorButton extends StatelessWidget {
                   Icon(editor.icon, size: 13, color: CursorColors.textMuted),
                   const SizedBox(width: 5),
                   Text(
-                    editor.platformLabel,
+                    editor.localizedPlatformLabel(context.l10n),
                     style: TextStyle(color: CursorColors.text, fontSize: 12),
                   ),
                 ],
@@ -87,7 +90,7 @@ class OpenInEditorButton extends StatelessWidget {
             ),
             Container(width: 1, color: CursorColors.border),
             _Segment(
-              semanticsLabel: 'Choose editor',
+              semanticsLabel: context.l10n.workspaceChooseEditor,
               active: menu.isOpen,
               onTap: menu.open,
               padding: const EdgeInsets.symmetric(horizontal: 2),

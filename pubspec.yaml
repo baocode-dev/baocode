@@ -31,10 +31,14 @@ dependencies:
   code_assets: ^1.2.1
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   flutter_math_fork: ^0.7.4
   flutter_quill: ^11.6.0
   flutter_svg: ^2.3.0
   hooks: ^2.0.2
+  # Imported by the gen-l10n output (lib/l10n/app_localizations*.dart).
+  intl: any
   markdown: ^7.3.1
   native_toolchain_c: ^0.19.2
   path: ^1.9.1
@@ -56,6 +60,9 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  # gen-l10n: lib/l10n/*.arb -> lib/l10n/app_localizations*.dart (l10n.yaml).
+  generate: true
+
   assets:
     - assets/monaco/LICENSE.txt
     - assets/monaco/themes.json
@@ -64,6 +71,9 @@ flutter:
     - assets/material_icons/
     - assets/material_icons/icons/
     - assets/codicons/LICENSE
+    # Built-in keymaps: VS Code keymap extensions' keybindings (lib/keybindings/keymap.dart).
+    - assets/keymaps/
+    - assets/keymaps/LICENSES/
     # VS Code TextMate grammars and color themes (tool/generate_textmate_assets.mjs).
     - assets/textmate/
     - assets/textmate/grammars/bat/

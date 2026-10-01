@@ -17,9 +17,10 @@ abstract final class AppPaths {
     return '';
   }
 
-  /// Where the app keeps what it does not show (its preferences):
-  /// `%APPDATA%\monad` on Windows, `~/Library/Application Support/monad` on
-  /// macOS, `~/.config/monad` elsewhere.
+  /// The platform's place for the app's data: `%APPDATA%\monad` on
+  /// Windows, `~/Library/Application Support/monad` on macOS,
+  /// `~/.config/monad` elsewhere. The user may move it: the folder in use is
+  /// `DataDirectory.current`.
   static String dataDir(Map<String, String> environment) {
     final homeDir = home(environment);
     if (Platform.isWindows) {

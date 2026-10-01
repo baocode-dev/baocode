@@ -361,15 +361,17 @@ class IdeSuggestSession {
   }
 
   /// Keys while the widget shows. Commit characters accept the selection
-  /// and still type (the result is then [KeyEventResult.ignored]).
-  KeyEventResult handleKey(KeyEvent event) {
+  /// and still type (the result is then [KeyEventResult.ignored]). With
+  /// [commandKeys] false only those: the app's keybindings run the
+  /// widget's commands ([selectNext], [acceptSelected], [cancel], ...).
+  KeyEventResult handleKey(KeyEvent event, {bool commandKeys = true}) {
     if (!visible || event is KeyUpEvent) return KeyEventResult.ignored;
     final keyboard = HardwareKeyboard.instance;
     final chord = editorKeyChordOf(event);
-    if (chord != null &&
+    if (commandKeys &&
+        chord != null &&
         matchEditorLanguageKey(chord) == 'editor.action.triggerSuggest') {
-      detailsExpanded = !detailsExpanded;
-      _editor.changed();
+      toggleDetails();
       return KeyEventResult.handled;
     }
     final modified =
@@ -377,7 +379,7 @@ class IdeSuggestSession {
         keyboard.isControlPressed ||
         keyboard.isAltPressed;
     final key = event.logicalKey;
-    if (!modified) {
+    if (!modified && commandKeys) {
       if (key == LogicalKeyboardKey.arrowDown) {
         _move(1);
         return KeyEventResult.handled;
@@ -410,6 +412,8 @@ class IdeSuggestSession {
         accept(item);
         return KeyEventResult.handled;
       }
+    }
+    if (!modified) {
       if (event.character case final character?
           when character.length == 1 && selected != null) {
         final item = selected!;
@@ -423,8 +427,38 @@ class IdeSuggestSession {
     return KeyEventResult.ignored;
   }
 
-  /// Inserts [item] (upstream SuggestController._insertSuggestion).
-  void accept(IdeSuggestItem item) {
+  /// selectNextSuggestion: the next item, after the last the first.
+  void selectNext() => _move(1);
+
+  /// selectPrevSuggestion: the previous item, before the first the last.
+  void selectPrevious() => _move(-1);
+
+  /// selectNextPageSuggestion.
+  void selectNextPage() => _move(pageSize - 1, wrap: false);
+
+  /// selectPrevPageSuggestion.
+  void selectPreviousPage() => _move(-(pageSize - 1), wrap: false);
+
+  /// toggleSuggestionDetails: expands or collapses the details panel.
+  void toggleDetails() {
+    detailsExpanded = !detailsExpanded;
+    _editor.changed();
+  }
+
+  /// acceptSelectedSuggestion, or with [alternative]
+  /// acceptAlternativeSelectedSuggestion (the other `insertMode`: the item
+  /// replaces the rest of the word too). False when no item is selected.
+  bool acceptSelected({bool alternative = false}) {
+    final item = selected;
+    if (!visible || item == null) return false;
+    accept(item, replace: alternative);
+    return true;
+  }
+
+  /// Inserts [item] (upstream SuggestController._insertSuggestion); with
+  /// [replace], over its replace range (to the end of the word) rather
+  /// than its insert range.
+  void accept(IdeSuggestItem item, {bool replace = false}) {
     final controller = _editor.controller;
     final original = item.completion;
     final completion = resolvedOf(original);
@@ -436,7 +470,8 @@ class IdeSuggestSession {
     final overwriteBefore = math.max(0, column - item.editStart.column);
     final overwriteAfter = math.max(
       0,
-      item.editInsertEnd.column - item.position.column,
+      (replace ? item.editReplaceEnd : item.editInsertEnd).column -
+          item.position.column,
     );
     final text = original.isSnippet
         ? original.text

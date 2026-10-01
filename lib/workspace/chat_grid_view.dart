@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../ide/ide_modern_ui.dart';
+import '../l10n/l10n.dart';
 import '../sidebar/sidebar.dart' show StatusIndicator;
 import '../theme/cursor_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
@@ -400,9 +401,9 @@ class _DropBox extends StatelessWidget {
         ? themeColors['focusBorder']
         : themeColors['errorForeground'];
     final note = !drop.fits
-        ? 'Not enough room on this screen'
+        ? context.l10n.workspaceNotEnoughRoom
         : drop.growth != Size.zero
-        ? 'The window grows to fit'
+        ? context.l10n.workspaceWindowGrows
         : null;
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -593,7 +594,7 @@ class _DragChip extends StatelessWidget {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              thread.title,
+              thread.localizedTitle(context.l10n),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: CursorColors.textPrimary, fontSize: 12.5),

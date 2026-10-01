@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import 'edge_fade_mask.dart';
 import 'live_selectable_text.dart';
@@ -11,21 +12,37 @@ import 'wheel_latch.dart';
 
 /// Header of a thought: while it streams, how long so far ([elapsed], at
 /// least "Thinking 1s"); then how long it took, "Thought 2s" or, under a
-/// second, "Thought briefly".
-String thinkingTitle({required int? seconds, Duration? elapsed}) =>
-    switch (thinkingParts(seconds, elapsed: elapsed)) {
-      (final verb, final object) => StepHeader.text(verb, object),
-    };
-
-(String, String) thinkingParts(int? seconds, {Duration? elapsed}) => switch ((
-  seconds,
-  elapsed,
-)) {
-  (null, final elapsed?) => ('Thinking', '${math.max(1, elapsed.inSeconds)}s'),
-  (null, null) => ('Thinking', ''),
-  (final int seconds, _) when seconds < 1 => ('Thought', 'briefly'),
-  (final seconds, _) => ('Thought', '${seconds}s'),
+/// second, "Thought briefly". In [l10n]'s language (English when null).
+String thinkingTitle({
+  required int? seconds,
+  Duration? elapsed,
+  AppLocalizations? l10n,
+}) => switch (thinkingParts(seconds, elapsed: elapsed, l10n: l10n)) {
+  (final verb, final object) => StepHeader.text(verb, object),
 };
+
+(String, String) thinkingParts(
+  int? seconds, {
+  Duration? elapsed,
+  AppLocalizations? l10n,
+}) {
+  final strings = l10n ?? englishLocalizations;
+  return switch ((seconds, elapsed)) {
+    (null, final elapsed?) => (
+      strings.stepThinking,
+      strings.durationSeconds(math.max(1, elapsed.inSeconds)),
+    ),
+    (null, null) => (strings.stepThinking, ''),
+    (final int seconds, _) when seconds < 1 => (
+      strings.stepThought,
+      strings.stepBriefly,
+    ),
+    (final int seconds, _) => (
+      strings.stepThought,
+      strings.durationSeconds(seconds),
+    ),
+  };
+}
 
 /// Collapsible thought. While it streams ([seconds] is null) its text sits
 /// in a box of limited height that follows the newest lines, fading out at
@@ -158,6 +175,7 @@ class _ThinkingSectionState extends State<ThinkingSection> {
         final start? when _streaming => DateTime.now().difference(start),
         _ => null,
       },
+      l10n: context.l10n,
     );
     return StepHeader(
       verb: verb,

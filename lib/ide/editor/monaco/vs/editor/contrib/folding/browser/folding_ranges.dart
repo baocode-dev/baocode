@@ -373,13 +373,15 @@ class FoldingRegions {
   }
 }
 
-class FoldingRegion {
+class FoldingRegion implements ILineRange {
   FoldingRegion(this._ranges, this._index);
 
   final FoldingRegions _ranges;
   final int _index;
 
+  @override
   int get startLineNumber => _ranges.getStartLineNumber(_index);
+  @override
   int get endLineNumber => _ranges.getEndLineNumber(_index);
   int get regionIndex => _index;
   int get parentIndex => _ranges.getParentIndex(_index);

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../ide/ide_hover.dart';
@@ -205,7 +206,9 @@ class _TaskRow extends StatelessWidget {
     final elapsed = DateTime.now().difference(task.startedAt).inSeconds;
     return _StripRow(
       onTap: onOpen,
-      semanticLabel: onOpen == null ? null : 'Open ${task.description}',
+      semanticLabel: onOpen == null
+          ? null
+          : context.l10n.stripOpen(task.description),
       children: [
         SizedBox.square(
           dimension: 14,
@@ -246,7 +249,7 @@ class _TaskRow extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                'Running · ${elapsed}s',
+                context.l10n.stripRunningElapsed(elapsed),
                 style: TextStyle(color: CursorColors.textMuted, fontSize: 11.5),
               ),
             ],
@@ -254,7 +257,11 @@ class _TaskRow extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         if (onStop case final stop?)
-          _IconAction(icon: Icons.stop_rounded, tooltip: 'Stop', onTap: stop),
+          _IconAction(
+            icon: Icons.stop_rounded,
+            tooltip: context.l10n.chatStop,
+            onTap: stop,
+          ),
       ],
     );
   }
@@ -329,7 +336,7 @@ class _FilesHeader extends StatelessWidget {
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
-                  '${changes.length} ${changes.length == 1 ? 'file' : 'files'} changed',
+                  context.l10n.stripFilesChanged(changes.length),
                   maxLines: 1,
                   softWrap: false,
                   overflow: TextOverflow.ellipsis,
@@ -362,7 +369,10 @@ class _FilesHeader extends StatelessWidget {
           SizedBox(
             height: 20,
             child: FittedBox(
-              child: PanelButton(label: 'Undo all', onTap: onUndo),
+              child: PanelButton(
+                label: context.l10n.stripUndoAll,
+                onTap: onUndo,
+              ),
             ),
           ),
           const SizedBox(width: 4),
@@ -370,7 +380,11 @@ class _FilesHeader extends StatelessWidget {
         SizedBox(
           height: 20,
           child: FittedBox(
-            child: PanelButton(label: 'Keep all', primary: true, onTap: onKeep),
+            child: PanelButton(
+              label: context.l10n.stripKeepAll,
+              primary: true,
+              onTap: onKeep,
+            ),
           ),
         ),
       ],

@@ -1,3 +1,4 @@
+import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../ide_status_bar.dart';
 import '../lsp/language_features.dart';
@@ -10,13 +11,16 @@ import 'diagnostics.dart';
 /// Deviation: upstream shows warning and error entries in the status bar's
 /// `statusBarItem.warning*` and `error*` kinds; an item here has only a
 /// foreground, the severity icon's color.
+///
+/// In [l10n]'s language; English when null.
 List<IdeStatusBarItem> ideLanguageStatusItems(
   LanguageFeatures languages,
   String path, {
   required void Function(LanguageServerStatus status) onInstall,
+  AppLocalizations? l10n,
 }) => [
   for (final status in languages.statusFor(path))
-    ?_item(languages, path, status, onInstall),
+    ?_item(languages, path, status, onInstall, l10n ?? englishLocalizations),
 ];
 
 IdeStatusBarItem? _item(
@@ -24,6 +28,7 @@ IdeStatusBarItem? _item(
   String path,
   LanguageServerStatus status,
   void Function(LanguageServerStatus status) onInstall,
+  AppLocalizations l10n,
 ) {
   final id = status.serverId;
   final message = status.message;
@@ -32,9 +37,9 @@ IdeStatusBarItem? _item(
       return null;
     case LanguageServerState.starting:
       return IdeStatusBarItem(
-        '$id: starting…',
+        l10n.langStarting(id),
         icon: Codicons.sync,
-        tooltip: message ?? 'Starting $id',
+        tooltip: message ?? l10n.langStartingTooltip(id),
       );
     case LanguageServerState.running:
       if (status.progress case final progress?) {
@@ -47,42 +52,41 @@ IdeStatusBarItem? _item(
       return IdeStatusBarItem(
         id,
         icon: Codicons.json,
-        tooltip: '$id is running',
+        tooltip: l10n.langRunning(id),
       );
     case LanguageServerState.restarting:
       return IdeStatusBarItem(
-        '$id: restarting…',
+        l10n.langRestarting(id),
         icon: Codicons.sync,
-        tooltip: [?message, 'Click to restart now'].join('\n'),
+        tooltip: [?message, l10n.langClickToRestart].join('\n'),
         color: IdeDiagnosticColors.warning,
         onTap: () => languages.retry(id, path: path),
       );
     case LanguageServerState.failed:
       return IdeStatusBarItem(
-        '$id failed',
+        l10n.langFailed(id),
         icon: Codicons.error,
-        tooltip: [?message, 'Click to retry'].join('\n'),
+        tooltip: [?message, l10n.langClickToRetry].join('\n'),
         color: IdeDiagnosticColors.error,
         onTap: () => languages.retry(id, path: path),
       );
     case LanguageServerState.missing:
       return IdeStatusBarItem(
-        '$id not installed',
+        l10n.langNotInstalled(id),
         icon: Codicons.cloudDownload,
-        tooltip: status.missingRuntime != null
-            ? 'Installing $id needs ${status.missingRuntime}, '
-                  'which was not found'
-            : status.installable
-            ? 'Click to install $id'
-            : (message ?? '$id was not found on PATH'),
+        tooltip: switch (status.missingRuntime) {
+          final runtime? => l10n.langNeedsRuntime(id, runtime),
+          null when status.installable => l10n.langClickToInstall(id),
+          null => message ?? l10n.langNotOnPath(id),
+        },
         color: IdeDiagnosticColors.warning,
         onTap: () => onInstall(status),
       );
     case LanguageServerState.installing:
       return IdeStatusBarItem(
-        'Installing $id…',
+        l10n.langInstallingItem(id),
         icon: Codicons.cloudDownload,
-        tooltip: message ?? 'Installing $id',
+        tooltip: message ?? l10n.langInstallingTooltip(id),
       );
   }
 }

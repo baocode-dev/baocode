@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import 'markdown_view.dart';
 import 'step_header.dart';
@@ -74,12 +75,16 @@ class ActivityRow extends StatelessWidget {
     'Polishing the plan',
   ];
 
+  /// [musings] in [l10n]'s language.
+  static List<String> musingsFor(AppLocalizations l10n) =>
+      l10n.activityMusings.split('\n');
+
   @override
   Widget build(BuildContext context) {
-    return _Reveal(visible: visible, child: _row());
+    return _Reveal(visible: visible, child: _row(context.l10n));
   }
 
-  Widget _row() {
+  Widget _row(AppLocalizations l10n) {
     return Align(
       alignment: Alignment.centerLeft,
       // Lined up with the steps around it.
@@ -91,7 +96,12 @@ class ActivityRow extends StatelessWidget {
             const SelectionContainer.disabled(child: ThinkingSpark(size: 15)),
             const SizedBox(width: 6),
             Flexible(
-              child: _Musing(whimsical ? musings : [label], random: random),
+              child: _Musing(
+                whimsical
+                    ? musingsFor(l10n)
+                    : [localizedActivityLabel(label, l10n)],
+                random: random,
+              ),
             ),
           ],
         ),
@@ -444,3 +454,12 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
     );
   }
 }
+
+/// A session's activity label (chat_session.dart names them in English) in
+/// [l10n]'s language; others as given.
+String localizedActivityLabel(String label, AppLocalizations l10n) =>
+    switch (label) {
+      'Compacting conversation' => l10n.activityCompacting,
+      'Planning next move' => l10n.activityPlanning,
+      _ => label,
+    };

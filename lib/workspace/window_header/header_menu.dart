@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import '../../l10n/l10n.dart';
+
 /// The header's menus (see window_header.dart): what this app can do, not
 /// the whole of an editor's bar — File, Edit, View and Help.
 enum HeaderMenu {
@@ -10,7 +12,15 @@ enum HeaderMenu {
 
   const HeaderMenu(this.label);
 
+  /// In English; see [localizedLabel].
   final String label;
+
+  String localizedLabel(AppLocalizations l10n) => switch (this) {
+    file => l10n.menuFile,
+    edit => l10n.menuEdit,
+    view => l10n.menuView,
+    help => l10n.menuHelp,
+  };
 }
 
 /// An entry of one of them: a rule between groups of commands, or a command.

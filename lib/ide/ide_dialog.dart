@@ -19,6 +19,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_button.dart';
@@ -27,27 +28,34 @@ import 'ide_hover.dart';
 /// The dialog's icon (`Severity`, or a question).
 enum IdeDialogType { info, warning, error, question }
 
+/// [showIdeDialog]'s default `cancel`: Cancel, in the display language.
+const ideDialogCancel = '\u0000cancel';
+
 /// Shows a modal dialog; completes with the index of the chosen button, or
 /// null when it was dismissed (the [cancel] button, which VS Code adds to
 /// every confirmation, Escape, the close button or a click outside).
+/// [cancel] is Cancel in the display language unless given; null for none.
 Future<int?> showIdeDialog(
   BuildContext context, {
   required String message,
   String? detail,
   required List<String> buttons,
-  String? cancel = 'Cancel',
+  String? cancel = ideDialogCancel,
   IdeDialogType type = IdeDialogType.warning,
 }) => showGeneralDialog<int>(
   context: context,
   barrierDismissible: true,
-  barrierLabel: 'Dismiss',
+  barrierLabel: context.l10n.commonDismiss,
   // `.monaco-dialog-modal-block.dimmed`: the same in every theme.
   barrierColor: const Color(0x80000000),
   transitionDuration: Duration.zero,
   pageBuilder: (context, _, _) => _IdeDialog(
     message: message,
     detail: detail,
-    buttons: [...buttons, ?cancel],
+    buttons: [
+      ...buttons,
+      ?(cancel == ideDialogCancel ? context.l10n.commonCancel : cancel),
+    ],
     cancels: cancel != null,
     type: type,
   ),
@@ -134,7 +142,7 @@ class _IdeDialog extends StatelessWidget {
                       alignment: Alignment.topRight,
                       child: IdeActionButton(
                         icon: Codicons.close,
-                        tooltip: 'Close Dialog',
+                        tooltip: context.l10n.dialogCloseDialog,
                         onPressed: () => Navigator.pop(context),
                       ),
                     ),

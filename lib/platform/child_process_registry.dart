@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
+import 'data_dir.dart' show writeFileAtomically;
+
 /// The parent and command line of a running process.
 typedef RunningProcess = ({int parent, String command});
 
@@ -45,9 +49,11 @@ class ChildProcessRegistry {
   Future<void> _writes = Future.value();
 
   /// Completes once what a previous run left is ended; started on first use.
-  late final Future<void> reaped = _reap();
+  Future<void> get reaped => _reaped ??= _reap();
+  Future<void>? _reaped;
 
   Future<void> _reap() async {
+    await _sweepAsides();
     if (Platform.isWindows) return; // No `ps` to tell a reused pid apart.
     try {
       if (!await file.exists()) return;
@@ -107,18 +113,66 @@ class ChildProcessRegistry {
       await file.parent.create(recursive: true);
       // Written aside, then renamed over: a reader (the next run, reaping)
       // never sees half a file.
-      final written = await File('${file.path}.$ownPid.tmp').writeAsString(
+      await writeFileAtomically(
+        file,
         jsonEncode([
           ..._others,
           for (final MapEntry(key: child, value: command) in _children.entries)
             {'pid': child, 'parent': ownPid, 'command': ?command},
         ]),
       );
-      await written.rename(file.path);
     } on FileSystemException {
       // Best effort: at worst a leftover is not found next time.
     }
   });
+
+  /// Completes once every change made so far is written: awaited as the
+  /// app quits, so that it does not end mid-write (leaving the file aside
+  /// behind, and the list out of date).
+  Future<void> flush() async {
+    final reaped = _reaped;
+    if (reaped == null) return; // Never used: nothing to write.
+    await reaped;
+    // A removal under way (past its own wait for [reaped]) is chained on
+    // first.
+    await Future<void>.value();
+    Future<void> writes;
+    do {
+      writes = _writes;
+      await writes;
+    } while (!identical(writes, _writes));
+  }
+
+  /// How long a file written aside may be left before [_sweepAsides] takes
+  /// it for one a run left behind (writing it takes milliseconds).
+  static const staleAside = Duration(minutes: 1);
+
+  /// Removes the files written aside (`<file>.<pid>[.<n>].tmp`) that runs
+  /// ended before renaming: this process's, and any older than
+  /// [staleAside] (another copy of the app may be writing its own now).
+  Future<void> _sweepAsides() async {
+    final aside = RegExp(
+      '^${RegExp.escape(p.basename(file.path))}\\.(\\d+)(?:\\.\\d+)?\\.tmp\$',
+    );
+    final staleBefore = DateTime.now().subtract(staleAside);
+    try {
+      await for (final entity in file.parent.list(followLinks: false)) {
+        if (entity is! File) continue;
+        final match = aside.firstMatch(p.basename(entity.path));
+        if (match == null) continue;
+        try {
+          if (int.parse(match[1]!) == ownPid ||
+              (await entity.lastModified()).isBefore(staleBefore)) {
+            await entity.delete();
+          }
+        } on FileSystemException {
+          // Gone already, or not ours to remove.
+        }
+      }
+    } on FileSystemException {
+      // No folder yet: nothing left aside.
+    }
+  }
 
   /// [lookup] by `ps`.
   static Future<RunningProcess?> psLookup(int child) async {

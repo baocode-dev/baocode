@@ -9,6 +9,7 @@ import '../chat/mock_conversation.dart';
 import '../kernel/agent_kernel.dart';
 import '../kernel/kernel_registry.dart';
 import '../kernel/kernel_types.dart';
+import '../l10n/l10n.dart';
 import '../theme/workbench_theme.dart' show ColorThemeStorage;
 import 'chat_grid.dart';
 import 'editor_launcher.dart';
@@ -87,6 +88,10 @@ class AgentThread {
   /// Empty until the first message names it (or the user does).
   String _title;
   String get title => _title.isEmpty ? 'New Agent' : _title;
+
+  /// [title] as shown: an untitled agent's in [l10n]'s language.
+  String localizedTitle(AppLocalizations l10n) =>
+      _title.isEmpty ? l10n.agentUntitled : _title;
 
   /// Last time it started, stopped, or asked something.
   DateTime updatedAt;

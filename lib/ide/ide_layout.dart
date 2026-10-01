@@ -1,6 +1,7 @@
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../keybindings/keybinding_service.dart';
+import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import 'ide_commands.dart';
 import 'ide_hover.dart';
@@ -171,24 +172,38 @@ class IdeLayoutToggle extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: layout,
     builder: (context, _) {
+      final l10n = context.l10n;
+      String? keys(String command) =>
+          KeybindingService.instance.labelFor(command);
       final (icon, tooltip, toggle) = switch (_part) {
         _Part.sidebar => (
           layout.sidebarVisible
               ? Codicons.layoutSidebarLeft
               : Codicons.layoutSidebarLeftOff,
-          'Toggle Primary Side Bar (${const IdeKeybinding(LogicalKeyboardKey.keyB, primary: true).label()})',
+          ideWithKeybinding(
+            l10n.layoutTogglePrimarySideBar,
+            keys('workbench.action.toggleSidebarVisibility'),
+          ),
           layout.toggleSidebar,
         ),
         _Part.panel => (
           layout.panel != null ? Codicons.layoutPanel : Codicons.layoutPanelOff,
-          'Toggle Panel (${const IdeKeybinding(LogicalKeyboardKey.backquote, control: true).label()})',
+          // Toggle Panel's, else Toggle Terminal's (⌃`), which it is here.
+          ideWithKeybinding(
+            l10n.layoutTogglePanel,
+            keys('workbench.action.togglePanel') ??
+                keys('workbench.action.terminal.toggleTerminal'),
+          ),
           layout.togglePanel,
         ),
         _Part.chat => (
           layout.chat
               ? Codicons.layoutSidebarRight
               : Codicons.layoutSidebarRightOff,
-          'Toggle Chat (${const IdeKeybinding(LogicalKeyboardKey.keyJ, primary: true).label()})',
+          ideWithKeybinding(
+            l10n.layoutToggleChat,
+            keys('workbench.action.toggleAuxiliaryBar'),
+          ),
           layout.toggleChat,
         ),
       };

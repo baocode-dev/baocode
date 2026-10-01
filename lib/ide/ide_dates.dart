@@ -9,6 +9,8 @@
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/base/common/date.ts (`fromNow`).
 
+import '../l10n/l10n.dart';
+
 const _minute = 60;
 const _hour = _minute * 60;
 const _day = _hour * 24;
@@ -17,32 +19,46 @@ const _month = _day * 30;
 const _year = _day * 365;
 
 /// How long ago [date] was: "now", "5 mins", "1 day" ([ago] adds " ago";
-/// [fullWords] spells "minutes" out).
+/// [fullWords] spells "minutes" out); in [l10n]'s language (English when
+/// null).
 String ideFromNow(
   DateTime date, {
   bool ago = false,
   bool fullWords = false,
   DateTime? now,
+  AppLocalizations? l10n,
 }) {
+  final strings = l10n ?? englishLocalizations;
   final seconds =
       ((now ?? DateTime.now()).difference(date).inMilliseconds / 1000).round();
   if (seconds < -30) {
-    return 'in ${ideFromNow(date, now: date.add(Duration(seconds: seconds.abs())))}';
+    return strings.dateIn(
+      ideFromNow(
+        date,
+        now: date.add(Duration(seconds: seconds.abs())),
+        l10n: strings,
+      ),
+    );
   }
-  if (seconds < 30) return 'now';
+  if (seconds < 30) return strings.dateNow;
 
-  String unit(int value, String short, String full) {
-    final word = '${fullWords ? full : short}${value == 1 ? '' : 's'}';
-    return '$value $word${ago ? ' ago' : ''}';
+  final full = '$fullWords';
+  String unit(String Function(String full, int count) message, int value) {
+    final time = message(full, value);
+    return ago ? strings.dateAgo(time) : time;
   }
 
-  if (seconds < _minute) return unit(seconds, 'sec', 'second');
+  if (seconds < _minute) return unit(strings.dateSeconds, seconds);
   if (seconds < _hour) {
-    return unit((seconds / _minute).round(), 'min', 'minute');
+    return unit(strings.dateMinutes, (seconds / _minute).round());
   }
-  if (seconds < _day) return unit((seconds / _hour).round(), 'hr', 'hour');
-  if (seconds < _week) return unit((seconds / _day).round(), 'day', 'day');
-  if (seconds < _month) return unit((seconds / _week).round(), 'wk', 'week');
-  if (seconds < _year) return unit((seconds / _month).round(), 'mo', 'month');
-  return unit((seconds / _year).round(), 'yr', 'year');
+  if (seconds < _day) return unit(strings.dateHours, (seconds / _hour).round());
+  if (seconds < _week) return unit(strings.dateDays, (seconds / _day).round());
+  if (seconds < _month) {
+    return unit(strings.dateWeeks, (seconds / _week).round());
+  }
+  if (seconds < _year) {
+    return unit(strings.dateMonths, (seconds / _month).round());
+  }
+  return unit(strings.dateYears, (seconds / _year).round());
 }

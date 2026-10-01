@@ -1,0 +1,1555 @@
+{
+  "id": "k--kato.intellij-idea-keybindings",
+  "name": "IntelliJ IDEA",
+  "version": "1.7.8",
+  "keybindings": [
+    {
+      "key": "enter",
+      "mac": "enter",
+      "command": "acceptSelectedSuggestion",
+      "when": "!inlineEditIsVisible && !inInlineEditsPreviewEditor && acceptSuggestionOnEnter && suggestWidgetVisible && suggestionMakesTextEdit && textInputFocus",
+      "intellij": "Choose Lookup Item"
+    },
+    {
+      "key": "tab",
+      "mac": "tab",
+      "command": "acceptAlternativeSelectedSuggestion",
+      "when": "!inlineEditIsVisible && !inInlineEditsPreviewEditor && acceptSuggestionOnEnter && suggestWidgetVisible && textInputFocus",
+      "intellij": "Choose Lookup Item Replace"
+    },
+    {
+      "key": "ctrl+shift+enter",
+      "mac": "cmd+shift+enter",
+      "command": "runCommands",
+      "args": {
+        "commands": [
+          "acceptSelectedSuggestion",
+          {
+            "command": "cursorMove",
+            "args": {
+              "to": "wrappedLineEnd"
+            }
+          },
+          {
+            "command": "editor.action.insertSnippet",
+            "args": {
+              "snippet": ";"
+            }
+          }
+        ]
+      },
+      "when": "suggestWidgetVisible && textInputFocus && (editorLangId == 'javascript' || editorLangId == 'typescript') && config.javascript.format.semicolons == 'insert'",
+      "intellij": "Complete Current Statement"
+    },
+    {
+      "key": "ctrl+shift+enter",
+      "mac": "cmd+shift+enter",
+      "command": "acceptSelectedSuggestion",
+      "when": "suggestWidgetVisible && textInputFocus",
+      "intellij": "Complete Current Statement"
+    },
+    {
+      "key": "ctrl+p",
+      "mac": "cmd+p",
+      "command": "editor.action.triggerParameterHints",
+      "when": "editorHasSignatureHelpProvider && editorTextFocus",
+      "intellij": "Parameter info (within method call arguments)"
+    },
+    {
+      "key": "ctrl+q",
+      "mac": "ctrl+j",
+      "command": "editor.action.showHover",
+      "when": "editorTextFocus",
+      "intellij": "Quick documentation lookup"
+    },
+    {
+      "mac": "f1",
+      "command": "editor.action.showHover",
+      "when": "editorTextFocus",
+      "intellij": "Quick documentation lookup"
+    },
+    {
+      "key": "ctrl+f1",
+      "mac": "cmd+f1",
+      "command": "workbench.action.showErrorsWarnings",
+      "when": "editorTextFocus",
+      "intellij": "Show descriptions of error or warning at caret"
+    },
+    {
+      "key": "alt+insert",
+      "mac": "cmd+n",
+      "command": "editor.action.sourceAction",
+      "when": "editorHasCodeActionsProvider && editorTextFocus && !editorReadonly",
+      "intellij": "Generate code... (Getters, Setters, Constructors, hashCode/equals, toString)"
+    },
+    {
+      "key": "alt+insert",
+      "mac": "cmd+n",
+      "command": "workbench.action.files.newUntitledFile",
+      "when": "(!editorHasCodeActionsProvider && editorTextFocus) || !editorTextFocus",
+      "intellij": "New..."
+    },
+    {
+      "key": "ctrl+o",
+      "mac": "ctrl+o",
+      "command": "editor.action.codeAction",
+      "args": {
+        "kind": "source.overrideMethods"
+      },
+      "when": "editorLangId == java && javaLSReady && editorTextFocus",
+      "intellij": "Override methods"
+    },
+    {
+      "key": "ctrl+i",
+      "mac": "ctrl+i",
+      "command": "editor.action.codeAction",
+      "args": {
+        "kind": "source.overrideMethods"
+      },
+      "when": "editorLangId == java && javaLSReady && editorTextFocus",
+      "intellij": "Implement methods"
+    },
+    {
+      "command": "intellij.openInOppositeGroup",
+      "when": "editorTextFocus",
+      "intellij": "Open in Opposite Group"
+    },
+    {
+      "key": "ctrl+/",
+      "mac": "cmd+/",
+      "command": "editor.action.commentLine",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Comment/uncomment with line comment"
+    },
+    {
+      "key": "ctrl+numpad_divide",
+      "mac": "cmd+numpad_divide",
+      "command": "editor.action.commentLine",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Comment/uncomment with line comment"
+    },
+    {
+      "key": "ctrl+shift+/",
+      "mac": "cmd+alt+/",
+      "command": "editor.action.blockComment",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Comment/uncomment with block comment"
+    },
+    {
+      "key": "ctrl+shift+numpad_divide",
+      "mac": "cmd+alt+numpad_divide",
+      "command": "editor.action.blockComment",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Comment/uncomment with block comment"
+    },
+    {
+      "key": "ctrl+w",
+      "mac": "alt+up",
+      "command": "editor.action.smartSelect.grow",
+      "when": "editorTextFocus",
+      "intellij": "Select successively increasing code blocks"
+    },
+    {
+      "mac": "alt+up",
+      "command": "notebook.cell.moveUp",
+      "when": "notebookEditorFocused && !inputFocus",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "ctrl+shift+w",
+      "mac": "alt+down",
+      "command": "editor.action.smartSelect.shrink",
+      "when": "editorTextFocus",
+      "intellij": "Decrease current selection to previous state"
+    },
+    {
+      "mac": "alt+down",
+      "command": "notebook.cell.moveDown",
+      "when": "notebookEditorFocused && !inputFocus",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "alt+enter",
+      "mac": "alt+enter",
+      "command": "editor.action.quickFix",
+      "when": "editorHasCodeActionsProvider && editorTextFocus && !editorReadonly",
+      "intellij": "Show intention actions and quick-fixes"
+    },
+    {
+      "key": "alt+enter",
+      "mac": "alt+enter",
+      "command": "notebook.cell.executeAndInsertBelow",
+      "when": "notebookCellListFocused && notebookCellType == 'markup' || notebookCellListFocused && notebookMissingKernelExtension && !notebookCellExecuting && notebookCellType == 'code' || notebookCellListFocused && !notebookCellExecuting && notebookCellType == 'code' && notebookKernelCount > 0 || notebookCellListFocused && !notebookCellExecuting && notebookCellType == 'code' && notebookKernelSourceCount > 0",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "ctrl+alt+l",
+      "mac": "cmd+alt+l",
+      "command": "notebook.formatCell",
+      "when": "editorHasDocumentFormattingProvider && editorTextFocus && inCompositeEditor && notebookEditable && !editorReadonly && activeEditor == 'workbench.editor.notebook'",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "ctrl+alt+l",
+      "mac": "cmd+alt+l",
+      "command": "editor.action.formatDocument",
+      "when": "editorHasDocumentFormattingProvider && editorTextFocus && !editorReadonly && !inCompositeEditor",
+      "intellij": "Reformat code"
+    },
+    {
+      "key": "ctrl+alt+l",
+      "mac": "cmd+alt+l",
+      "command": "editor.action.formatDocument.none",
+      "when": "editorTextFocus && !editorHasDocumentFormattingProvider && !editorReadonly",
+      "intellij": "Reformat code"
+    },
+    {
+      "key": "ctrl+alt+l",
+      "mac": "cmd+alt+l",
+      "command": "editor.action.formatSelection",
+      "when": "editorHasDocumentSelectionFormattingProvider && editorHasSelection && editorTextFocus && !editorReadonly",
+      "intellij": "Reformat selected code"
+    },
+    {
+      "key": "ctrl+alt+l",
+      "mac": "cmd+alt+l",
+      "command": "notebook.format",
+      "when": "notebookEditable && !editorTextFocus && activeEditor == 'workbench.editor.notebook'",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "ctrl+alt+o",
+      "mac": "ctrl+alt+o",
+      "command": "editor.action.organizeImports",
+      "when": "editorTextFocus && !editorReadonly && supportedCodeAction =~ /(\\s|^)source\\.organizeImports\\b/",
+      "intellij": "Optimize imports"
+    },
+    {
+      "key": "ctrl+x",
+      "mac": "cmd+x",
+      "command": "editor.action.clipboardCutAction",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Cut current line or selected block to clipboard"
+    },
+    {
+      "key": "shift+delete",
+      "mac": "cmd+delete",
+      "command": "editor.action.clipboardCutAction",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Cut current line or selected block to clipboard"
+    },
+    {
+      "key": "ctrl+d",
+      "mac": "cmd+d",
+      "command": "editor.action.copyLinesDownAction",
+      "when": "editorTextFocus && !editorReadonly && !editorHasSelection",
+      "intellij": "Duplicate Line"
+    },
+    {
+      "key": "ctrl+d",
+      "mac": "cmd+d",
+      "command": "editor.action.duplicateSelection",
+      "when": "editorTextFocus && !editorReadonly && editorHasSelection",
+      "intellij": "Duplicate Selection"
+    },
+    {
+      "key": "ctrl+y",
+      "mac": "cmd+backspace",
+      "command": "editor.action.deleteLines",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Delete line at caret"
+    },
+    {
+      "key": "ctrl+shift+j",
+      "mac": "ctrl+shift+j",
+      "command": "editor.action.joinLines",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Smart line join"
+    },
+    {
+      "key": "ctrl+enter",
+      "mac": "cmd+enter",
+      "command": "lineBreakInsert",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Smart line split"
+    },
+    {
+      "key": "ctrl+enter",
+      "mac": "cmd+enter",
+      "command": "notebook.cell.insertCodeCellBelow",
+      "when": "notebookCellListFocused && !inputFocus",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "shift+enter",
+      "mac": "shift+enter",
+      "command": "editor.action.insertLineAfter",
+      "when": "editorTextFocus && !editorReadonly && !notebookEditorFocused",
+      "intellij": "Start new line"
+    },
+    {
+      "key": "shift+enter",
+      "mac": "shift+enter",
+      "command": "notebook.cell.executeAndSelectBelow",
+      "when": "notebookCellListFocused && notebookCellType == 'markup' || notebookCellListFocused && notebookMissingKernelExtension && !notebookCellExecuting && notebookCellType == 'code' || notebookCellListFocused && !notebookCellExecuting && notebookCellType == 'code' && notebookKernelCount > 0 || notebookCellListFocused && !notebookCellExecuting && notebookCellType == 'code' && notebookKernelSourceCount > 0",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "ctrl+right",
+      "mac": "alt+right",
+      "command": "cursorWordRight",
+      "when": "editorTextFocus && !inlineSuggestionVisible && !config.intellij-idea-keybindings.useCamelHumpsWords",
+      "intellij": "Cursor to word end"
+    },
+    {
+      "key": "ctrl+right",
+      "mac": "alt+right",
+      "command": "cursorWordPartRight",
+      "when": "editorTextFocus && !inlineSuggestionVisible && config.intellij-idea-keybindings.useCamelHumpsWords",
+      "intellij": "Cursor to hump end"
+    },
+    {
+      "key": "ctrl+left",
+      "mac": "alt+left",
+      "command": "cursorWordLeft",
+      "when": "editorTextFocus && !config.intellij-idea-keybindings.useCamelHumpsWords",
+      "intellij": "Cursor to word start"
+    },
+    {
+      "key": "ctrl+left",
+      "mac": "alt+left",
+      "command": "cursorWordPartStartLeft",
+      "when": "editorTextFocus && config.intellij-idea-keybindings.useCamelHumpsWords",
+      "intellij": "Cursor to hump start"
+    },
+    {
+      "key": "ctrl+shift+right",
+      "mac": "alt+shift+right",
+      "command": "cursorWordRightSelect",
+      "when": "editorTextFocus && !config.intellij-idea-keybindings.useCamelHumpsWords",
+      "intellij": "Select to word end"
+    },
+    {
+      "key": "ctrl+shift+right",
+      "mac": "alt+shift+right",
+      "command": "cursorWordPartRightSelect",
+      "when": "editorTextFocus && config.intellij-idea-keybindings.useCamelHumpsWords",
+      "intellij": "Select to hump end"
+    },
+    {
+      "key": "ctrl+shift+left",
+      "mac": "alt+shift+left",
+      "command": "cursorWordLeftSelect",
+      "when": "editorTextFocus && !config.intellij-idea-keybindings.useCamelHumpsWords",
+      "intellij": "Select to word start"
+    },
+    {
+      "key": "ctrl+shift+left",
+      "mac": "alt+shift+left",
+      "command": "cursorWordPartStartLeftSelect",
+      "when": "editorTextFocus && config.intellij-idea-keybindings.useCamelHumpsWords",
+      "intellij": "Select to hump start"
+    },
+    {
+      "key": "ctrl+delete",
+      "mac": "alt+delete",
+      "command": "deleteWordRight",
+      "when": "editorTextFocus && !editorReadonly && !config.intellij-idea-keybindings.useCamelHumpsWords",
+      "intellij": "Delete to word end"
+    },
+    {
+      "key": "ctrl+delete",
+      "mac": "alt+delete",
+      "command": "deleteWordPartRight",
+      "when": "editorTextFocus && !editorReadonly && config.intellij-idea-keybindings.useCamelHumpsWords",
+      "intellij": "Delete to hump end"
+    },
+    {
+      "key": "ctrl+backspace",
+      "mac": "alt+backspace",
+      "command": "deleteWordLeft",
+      "when": "editorTextFocus && !editorReadonly && !config.intellij-idea-keybindings.useCamelHumpsWords",
+      "intellij": "Delete to word start"
+    },
+    {
+      "key": "ctrl+backspace",
+      "mac": "alt+backspace",
+      "command": "deleteWordPartLeft",
+      "when": "editorTextFocus && !editorReadonly && config.intellij-idea-keybindings.useCamelHumpsWords",
+      "intellij": "Delete to hump start"
+    },
+    {
+      "key": "ctrl+.",
+      "mac": "cmd+.",
+      "command": "editor.toggleFold",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Fold selection"
+    },
+    {
+      "key": "ctrl+=",
+      "mac": "cmd+=",
+      "command": "editor.unfold",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Expand code block"
+    },
+    {
+      "key": "ctrl+numpad_add",
+      "mac": "cmd+numpad_add",
+      "command": "editor.unfold",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Expand code block"
+    },
+    {
+      "key": "ctrl+-",
+      "mac": "cmd+-",
+      "command": "editor.fold",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Collapse code block"
+    },
+    {
+      "key": "ctrl+numpad_subtract",
+      "mac": "cmd+numpad_subtract",
+      "command": "editor.fold",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Collapse code block"
+    },
+    {
+      "key": "ctrl+alt+=",
+      "mac": "cmd+alt+=",
+      "command": "editor.unfoldRecursively",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Expand code block recursively"
+    },
+    {
+      "key": "ctrl+alt+numpad_add",
+      "mac": "cmd+alt+numpad_add",
+      "command": "editor.unfoldRecursively",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Expand code block recursively"
+    },
+    {
+      "key": "ctrl+alt+-",
+      "mac": "cmd+alt+-",
+      "command": "editor.foldRecursively",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Collapse code block recursively"
+    },
+    {
+      "key": "ctrl+alt+numpad_subtract",
+      "mac": "cmd+alt+numpad_subtract",
+      "command": "editor.foldRecursively",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Collapse code block recursively"
+    },
+    {
+      "key": "ctrl+shift+=",
+      "mac": "cmd+shift+=",
+      "command": "editor.unfoldAll",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Expand all"
+    },
+    {
+      "key": "ctrl+shift+numpad_add",
+      "mac": "cmd+shift+numpad_add",
+      "command": "editor.unfoldAll",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Expand all"
+    },
+    {
+      "key": "ctrl+shift+-",
+      "mac": "cmd+shift+-",
+      "command": "editor.foldAll",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Collapse all"
+    },
+    {
+      "key": "ctrl+shift+numpad_subtract",
+      "mac": "cmd+shift+numpad_subtract",
+      "command": "editor.foldAll",
+      "when": "editorFocus && foldingEnabled",
+      "intellij": "Collapse all"
+    },
+    {
+      "key": "ctrl+f4",
+      "mac": "cmd+w",
+      "command": "workbench.action.closeActiveEditor",
+      "intellij": "Close active editor tab"
+    },
+    {
+      "key": "alt+j",
+      "mac": "ctrl+g",
+      "command": "editor.action.addSelectionToNextFindMatch",
+      "when": "editorFocus",
+      "intellij": "Add selection for Next Occurrence"
+    },
+    {
+      "key": "alt+shift+j",
+      "mac": "ctrl+shift+g",
+      "command": "cursorUndo",
+      "when": "editorTextFocus",
+      "intellij": "Unselect Occurrence"
+    },
+    {
+      "key": "shift+alt+down",
+      "mac": "shift+alt+down",
+      "command": "editor.action.moveLinesDownAction",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Move Line Down"
+    },
+    {
+      "key": "shift+alt+down",
+      "mac": "shift+alt+down",
+      "command": "notebook.cell.copyDown",
+      "when": "notebookEditorFocused && !inputFocus",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "shift+alt+up",
+      "mac": "shift+alt+up",
+      "command": "editor.action.moveLinesUpAction",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Move Line Up"
+    },
+    {
+      "key": "shift+alt+insert",
+      "mac": "shift+cmd+8",
+      "command": "editor.action.toggleColumnSelection",
+      "intellij": "Column Selection Mode"
+    },
+    {
+      "key": "shift+alt+.",
+      "mac": "shift+ctrl+.",
+      "command": "editor.action.fontZoomIn",
+      "when": "editorTextFocus",
+      "intellij": "Increase Font Size in All Editors"
+    },
+    {
+      "key": "shift+alt+,",
+      "mac": "shift+ctrl+,",
+      "command": "editor.action.fontZoomOut",
+      "when": "editorTextFocus",
+      "intellij": "Decrease Font Size in All Editors"
+    },
+    {
+      "key": "shift shift",
+      "mac": "shift shift",
+      "command": "workbench.action.quickOpen",
+      "intellij": "Search everywhere"
+    },
+    {
+      "key": "f3",
+      "mac": "cmd+g",
+      "command": "editor.action.nextMatchFindAction",
+      "when": "editorFocus",
+      "intellij": "Find next"
+    },
+    {
+      "key": "shift+f3",
+      "mac": "cmd+shift+g",
+      "command": "editor.action.previousMatchFindAction",
+      "when": "editorFocus",
+      "intellij": "Find previous"
+    },
+    {
+      "key": "ctrl+r",
+      "mac": "cmd+r",
+      "command": "editor.action.startFindReplaceAction",
+      "when": "editorFocus || editorIsOpen",
+      "intellij": "Replace"
+    },
+    {
+      "key": "ctrl+shift+f",
+      "mac": "cmd+shift+f",
+      "command": "workbench.action.findInFiles",
+      "when": "!explorerResourceIsFolder || !filesExplorerFocus",
+      "intellij": "Find in path"
+    },
+    {
+      "key": "ctrl+shift+f",
+      "mac": "cmd+shift+f",
+      "command": "filesExplorer.findInFolder",
+      "when": "explorerResourceIsFolder && filesExplorerFocus",
+      "intellij": "Find in path"
+    },
+    {
+      "key": "ctrl+shift+r",
+      "mac": "cmd+shift+r",
+      "command": "workbench.action.replaceInFiles",
+      "intellij": "Replace in path"
+    },
+    {
+      "key": "alt+f7",
+      "mac": "alt+f7",
+      "command": "references-view.findReferences",
+      "when": "editorHasReferenceProvider",
+      "intellij": "Find usages"
+    },
+    {
+      "key": "alt+ctrl+f7",
+      "mac": "alt+cmd+f7",
+      "command": "editor.action.referenceSearch.trigger",
+      "when": "editorHasReferenceProvider && editorTextFocus && !inReferenceSearchEditor",
+      "intellij": "Show usages"
+    },
+    {
+      "key": "",
+      "mac": "ctrl+alt+down",
+      "command": "editor.action.wordHighlight.next",
+      "when": "editorTextFocus && hasWordHighlights",
+      "intellij": "Next Highlighted Usage"
+    },
+    {
+      "key": "",
+      "mac": "ctrl+alt+up",
+      "command": "editor.action.wordHighlight.prev",
+      "when": "editorTextFocus && hasWordHighlights",
+      "intellij": "Previous Highlighted Usage"
+    },
+    {
+      "key": "ctrl+f9",
+      "mac": "cmd+f9",
+      "command": "workbench.action.tasks.build",
+      "intellij": "Make project (compile modifed and dependent)"
+    },
+    {
+      "key": "alt+shift+f10",
+      "mac": "ctrl+alt+r",
+      "command": "workbench.action.tasks.runTask",
+      "when": "taskCommandsRegistered && !terminalFocus",
+      "intellij": "Select configuration and run"
+    },
+    {
+      "key": "alt+shift+f9",
+      "mac": "ctrl+alt+d",
+      "command": "workbench.view.debug",
+      "intellij": "Select configuration and debug"
+    },
+    {
+      "key": "ctrl ctrl",
+      "mac": "ctrl ctrl",
+      "command": "workbench.action.tasks.runTask",
+      "when": "taskCommandsRegistered && !terminalFocus",
+      "intellij": "Run Anything"
+    },
+    {
+      "key": "shift+f10",
+      "mac": "ctrl+r",
+      "command": "workbench.action.tasks.reRunTask",
+      "when": "taskCommandsRegistered && !terminalFocus",
+      "intellij": "Run"
+    },
+    {
+      "key": "shift+f9",
+      "mac": "ctrl+d",
+      "command": "workbench.action.debug.run",
+      "when": "debuggersAvailable && !inDebugMode && !terminalFocus",
+      "intellij": "Debug"
+    },
+    {
+      "key": "ctrl+f2",
+      "mac": "cmd+f2",
+      "command": "workbench.action.debug.stop",
+      "when": "inDebugMode && !focusedSessionIsAttach",
+      "intellij": "Stop"
+    },
+    {
+      "key": "f8",
+      "mac": "f8",
+      "command": "workbench.action.debug.stepOver",
+      "when": "debugState == 'stopped'",
+      "intellij": "Step over"
+    },
+    {
+      "key": "f7",
+      "mac": "f7",
+      "command": "workbench.action.debug.stepInto",
+      "when": "debugState != 'inactive'",
+      "intellij": "Step into"
+    },
+    {
+      "key": "shift+f8",
+      "mac": "shift+f8",
+      "command": "workbench.action.debug.stepOut",
+      "when": "debugState == 'stopped'",
+      "intellij": "Step out"
+    },
+    {
+      "key": "alt+f9",
+      "mac": "alt+f9",
+      "command": "editor.debug.action.runToCursor",
+      "when": "debugState == 'stopped'",
+      "intellij": "Run to cursor"
+    },
+    {
+      "key": "alt+f8",
+      "mac": "alt+f8",
+      "command": "workbench.debug.action.toggleRepl",
+      "when": "debuggersAvailable",
+      "intellij": "Evaluate expression"
+    },
+    {
+      "key": "alt+f8",
+      "mac": "alt+f8",
+      "command": "editor.debug.action.selectionToRepl",
+      "when": "debuggersAvailable && editorTextFocus && editorHasSelection",
+      "intellij": "Evaluate expression (selection)"
+    },
+    {
+      "key": "f9",
+      "mac": "cmd+alt+r",
+      "command": "workbench.action.debug.continue",
+      "when": "inDebugMode",
+      "intellij": "Resume program"
+    },
+    {
+      "key": "ctrl+f8",
+      "mac": "cmd+f8",
+      "command": "editor.debug.action.toggleBreakpoint",
+      "when": "debuggersAvailable && editorTextFocus",
+      "intellij": "Toggle breakpoint"
+    },
+    {
+      "key": "ctrl+shift+f8",
+      "mac": "cmd+shift+f8",
+      "command": "workbench.debug.action.focusBreakpointsView",
+      "intellij": "View breakpoints"
+    },
+    {
+      "key": "ctrl+n",
+      "mac": "cmd+o",
+      "command": "workbench.action.showAllSymbols",
+      "intellij": "Go to class"
+    },
+    {
+      "key": "ctrl+shift+n",
+      "mac": "cmd+shift+o",
+      "command": "workbench.action.quickOpen",
+      "intellij": "Go to file"
+    },
+    {
+      "key": "ctrl+alt+shift+n",
+      "mac": "cmd+alt+o",
+      "command": "workbench.action.gotoSymbol",
+      "when": "editorTextFocus",
+      "intellij": "Go to symbol"
+    },
+    {
+      "key": "alt+left",
+      "mac": "ctrl+left",
+      "command": "workbench.action.previousEditor",
+      "when": "!terminalFocus",
+      "intellij": "Go to previous editor tab"
+    },
+    {
+      "key": "",
+      "mac": "shift+cmd+[",
+      "command": "workbench.action.previousEditor",
+      "when": "!terminalFocus",
+      "intellij": "Go to previous editor tab"
+    },
+    {
+      "key": "alt+right",
+      "mac": "ctrl+right",
+      "command": "workbench.action.nextEditor",
+      "when": "!terminalFocus",
+      "intellij": "Go to next editor tab"
+    },
+    {
+      "key": "",
+      "mac": "shift+cmd+]",
+      "command": "workbench.action.nextEditor",
+      "when": "!terminalFocus",
+      "intellij": "Go to next editor tab"
+    },
+    {
+      "key": "shift+escape",
+      "mac": "shift+escape",
+      "command": "workbench.action.toggleSidebarVisibility",
+      "when": "sideBarFocus",
+      "intellij": "Hide Active Tool Window"
+    },
+    {
+      "key": "shift+escape",
+      "mac": "shift+escape",
+      "command": "workbench.action.toggleAuxiliaryBar",
+      "when": "auxiliaryBarFocus",
+      "intellij": "Hide Active Tool Window"
+    },
+    {
+      "key": "shift+escape",
+      "mac": "shift+escape",
+      "command": "workbench.action.togglePanel",
+      "when": "panelFocus",
+      "intellij": "Hide Active Tool Window"
+    },
+    {
+      "key": "ctrl+shift+'",
+      "mac": "cmd+shift+'",
+      "command": "workbench.action.toggleMaximizedPanel",
+      "when": "problemFocus || focusedView == 'workbench.panel.output' || inDebugRepl || terminalFocus",
+      "intellij": "Maximize Tool Window (Problems, Output, Debug Console, Terminal)"
+    },
+    {
+      "key": "ctrl+g",
+      "mac": "cmd+l",
+      "command": "workbench.action.gotoLine",
+      "intellij": "Go to line"
+    },
+    {
+      "key": "ctrl+e",
+      "mac": "cmd+e",
+      "command": "workbench.action.quickOpen",
+      "when": "!inQuickOpen",
+      "intellij": "Recent files popup"
+    },
+    {
+      "key": "ctrl+e",
+      "mac": "cmd+e",
+      "command": "workbench.action.quickOpenNavigateNextInRecentFilesPicker",
+      "when": "inQuickOpen"
+    },
+    {
+      "key": "ctrl+shift+e",
+      "mac": "cmd+shift+e",
+      "command": "workbench.action.quickOpenNavigatePreviousInRecentFilesPicker",
+      "when": "inQuickOpen"
+    },
+    {
+      "key": "ctrl+alt+left",
+      "mac": "cmd+alt+left",
+      "command": "-workbench.action.moveEditorToPreviousGroup"
+    },
+    {
+      "key": "ctrl+alt+left",
+      "mac": "cmd+alt+left",
+      "command": "workbench.action.navigateBack",
+      "when": "canNavigateBack",
+      "intellij": "Navigate back"
+    },
+    {
+      "mac": "cmd+[",
+      "command": "-editor.action.outdentLines",
+      "when": "editorTextFocus && !editorReadonly"
+    },
+    {
+      "key": "",
+      "mac": "cmd+[",
+      "command": "workbench.action.navigateBack",
+      "when": "canNavigateBack",
+      "intellij": "Navigate back"
+    },
+    {
+      "key": "ctrl+alt+right",
+      "mac": "cmd+alt+right",
+      "command": "-workbench.action.moveEditorToNextGroup"
+    },
+    {
+      "key": "ctrl+alt+right",
+      "mac": "cmd+alt+right",
+      "command": "workbench.action.navigateForward",
+      "when": "canNavigateForward",
+      "intellij": "Navigate forward"
+    },
+    {
+      "key": "",
+      "mac": "cmd+]",
+      "command": "workbench.action.navigateForward",
+      "when": "canNavigateForward",
+      "intellij": "Navigate forward"
+    },
+    {
+      "key": "ctrl+shift+backspace",
+      "mac": "cmd+shift+backspace",
+      "command": "workbench.action.navigateToLastEditLocation",
+      "intellij": "Navigate to last edit location"
+    },
+    {
+      "key": "ctrl+b",
+      "mac": "cmd+b",
+      "command": "editor.action.goToDeclaration",
+      "when": "editorTextFocus",
+      "intellij": "Go to declaration"
+    },
+    {
+      "key": "ctrl+alt+b",
+      "mac": "cmd+alt+b",
+      "command": "editor.action.goToImplementation",
+      "when": "editorHasImplementationProvider && editorTextFocus && !isInEmbeddedEditor",
+      "intellij": "Go to implementation(s)"
+    },
+    {
+      "key": "ctrl+u",
+      "mac": "cmd+u",
+      "command": "java.action.navigateToSuperImplementation",
+      "when": "editorLangId == java && javaLSReady && editorHasImplementationProvider && editorTextFocus && !isInEmbeddedEditor",
+      "intellij": "Go to super implementation(s)"
+    },
+    {
+      "key": "ctrl+shift+i",
+      "mac": "alt+space",
+      "command": "editor.action.previewDeclaration",
+      "intellij": "Open quick definition lookup"
+    },
+    {
+      "key": "",
+      "mac": "cmd+y",
+      "command": "editor.action.previewDeclaration",
+      "intellij": "Open quick definition lookup"
+    },
+    {
+      "key": "ctrl+shift+b",
+      "mac": "ctrl+shift+b",
+      "command": "editor.action.goToTypeDefinition",
+      "when": "editorTextFocus",
+      "intellij": "Go to type declaration",
+      "todo": "not working"
+    },
+    {
+      "key": "ctrl+u",
+      "mac": "cmd+u",
+      "command": "java.action.navigateToSuperImplementation",
+      "when": "editorTextFocus && java:serverMode == Standard",
+      "intellij": "Go to super-method/super-class"
+    },
+    {
+      "key": "ctrl+u",
+      "mac": "cmd+u",
+      "command": "dart.goToSuper",
+      "when": "editorTextFocus && editorLangId == 'dart'",
+      "intellij": "Go to super-method/super-class"
+    },
+    {
+      "key": "alt+7",
+      "mac": "cmd+7",
+      "command": "outline.focus",
+      "intellij": "Structure"
+    },
+    {
+      "key": "ctrl+f12",
+      "mac": "cmd+f12",
+      "command": "workbench.action.gotoSymbol",
+      "when": "editorTextFocus",
+      "intellij": "File structure popup"
+    },
+    {
+      "key": "ctrl+h",
+      "mac": "ctrl+h",
+      "command": "java.action.showTypeHierarchy",
+      "when": "editorLangId == java && javaLSReady && editorTextFocus",
+      "intellij": "Type hierarchy"
+    },
+    {
+      "key": "ctrl+alt+h",
+      "mac": "ctrl+alt+h",
+      "command": "references-view.showCallHierarchy",
+      "when": "editorHasCallHierarchyProvider",
+      "intellij": "Call hierarchy"
+    },
+    {
+      "key": "f2",
+      "command": "-editor.action.rename",
+      "when": "editorHasRenameProvider && editorTextFocus && !editorReadonly"
+    },
+    {
+      "key": "f2",
+      "mac": "f2",
+      "command": "editor.action.marker.next",
+      "when": "editorFocus",
+      "intellij": "Next highlighted error"
+    },
+    {
+      "key": "shift+f2",
+      "mac": "shift+f2",
+      "command": "editor.action.marker.prev",
+      "when": "editorFocus",
+      "intellij": "Previous highlighted error"
+    },
+    {
+      "key": "f4",
+      "mac": "f4",
+      "command": "editor.action.goToDeclaration",
+      "when": "editorTextFocus",
+      "intellij": "Edit source"
+    },
+    {
+      "key": "ctrl+enter",
+      "mac": "cmd+down",
+      "command": "editor.action.goToDeclaration",
+      "when": "editorTextFocus",
+      "intellij": "View source"
+    },
+    {
+      "key": "shift+ctrl+down",
+      "mac": "shift+alt+down",
+      "command": "editor.action.moveLinesDownAction",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Move Statement Down"
+    },
+    {
+      "key": "shift+ctrl+up",
+      "mac": "shift+alt+up",
+      "command": "editor.action.moveLinesUpAction",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Move Statement Up"
+    },
+    {
+      "key": "ctrl+alt+shift+down",
+      "mac": "ctrl+alt+shift+down",
+      "command": "workbench.action.editor.nextChange",
+      "when": "editorTextFocus && !textCompareEditorActive",
+      "intellij": "Next Change"
+    },
+    {
+      "key": "ctrl+alt+shift+up",
+      "mac": "ctrl+alt+shift+up",
+      "command": "workbench.action.editor.previousChange",
+      "when": "editorTextFocus && !textCompareEditorActive",
+      "intellij": "Previous Change"
+    },
+    {
+      "key": "ctrl+home",
+      "mac": "cmd+home",
+      "command": "cursorTop",
+      "when": "textInputFocus",
+      "intellij": "Move Caret to Text Start"
+    },
+    {
+      "key": "ctrl+home",
+      "mac": "cmd+up",
+      "command": "notebook.focusTop",
+      "when": "notebookEditorFocused && !inputFocus",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "ctrl+end",
+      "mac": "cmd+end",
+      "command": "cursorBottom",
+      "when": "textInputFocus",
+      "intellij": "Move Caret to Text End"
+    },
+    {
+      "key": "ctrl+shift+m",
+      "mac": "ctrl+m",
+      "command": "editor.action.jumpToBracket",
+      "when": "editorTextFocus",
+      "intellij": "Move Caret to Matching Brace"
+    },
+    {
+      "key": "ctrl+end",
+      "mac": "cmd+down",
+      "command": "notebook.focusBottom",
+      "when": "notebookEditorFocused && !inputFocus",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "ctrl+shift+t",
+      "mac": "cmd+shift+t",
+      "command": "java.test.goToTest",
+      "when": "editorTextFocus && java:testRunnerActivated",
+      "intellij": "Go to Test"
+    },
+    {
+      "key": "ctrl+alt+shift+t",
+      "mac": "ctrl+t",
+      "command": "editor.action.refactor",
+      "when": "editorHasCodeActionsProvider && editorTextFocus && !editorReadonly",
+      "intellij": "Refactor This..."
+    },
+    {
+      "key": "f6",
+      "mac": "f6",
+      "command": "editor.action.codeAction",
+      "when": "editorTextFocus",
+      "args": {
+        "kind": "refactor.move"
+      },
+      "intellij": "Move"
+    },
+    {
+      "key": "shift+f6",
+      "mac": "shift+f6",
+      "command": "editor.action.rename",
+      "when": "editorHasRenameProvider && editorTextFocus && !editorReadonly",
+      "intellij": "Rename"
+    },
+    {
+      "key": "shift+f6",
+      "mac": "shift+f6",
+      "command": "editor.action.changeAll",
+      "when": "!editorHasRenameProvider && editorTextFocus && !editorReadonly",
+      "intellij": "Select All Occurrences"
+    },
+    {
+      "key": "shift+f6",
+      "mac": "shift+f6",
+      "command": "renameFile",
+      "when": "explorerViewletVisible && filesExplorerFocus",
+      "intellij": "Rename (File)"
+    },
+    {
+      "key": "ctrl+f6",
+      "mac": "cmd+f6",
+      "command": "editor.action.codeAction",
+      "when": "editorTextFocus",
+      "args": {
+        "kind": "refactor.change.signature",
+        "apply": "ifSingle"
+      },
+      "intellij": "Change Signature"
+    },
+    {
+      "key": "ctrl+alt+m",
+      "mac": "cmd+alt+m",
+      "command": "editor.action.codeAction",
+      "when": "editorTextFocus",
+      "intellij": "Extract Method",
+      "args": {
+        "kind": "refactor.extract.function",
+        "apply": "ifSingle"
+      }
+    },
+    {
+      "key": "ctrl+alt+v",
+      "mac": "cmd+alt+v",
+      "command": "editor.action.codeAction",
+      "when": "editorTextFocus",
+      "intellij": "Extract Variable",
+      "args": {
+        "kind": "refactor.extract.variable",
+        "apply": "ifSingle"
+      }
+    },
+    {
+      "key": "ctrl+alt+f",
+      "mac": "cmd+alt+f",
+      "command": "editor.action.codeAction",
+      "when": "editorTextFocus",
+      "intellij": "Extract Field",
+      "args": {
+        "kind": "refactor.extract.field",
+        "apply": "ifSingle"
+      }
+    },
+    {
+      "key": "ctrl+alt+c",
+      "mac": "cmd+alt+c",
+      "command": "editor.action.codeAction",
+      "when": "editorTextFocus",
+      "intellij": "Extract Constant",
+      "args": {
+        "kind": "refactor.extract.constant",
+        "apply": "ifSingle"
+      }
+    },
+    {
+      "key": "ctrl+alt+p",
+      "mac": "cmd+alt+p",
+      "command": "editor.action.codeAction",
+      "when": "editorTextFocus",
+      "args": {
+        "kind": "refactor.introduce.parameter",
+        "apply": "ifSingle"
+      },
+      "intellij": "Introduce Parameter"
+    },
+    {
+      "key": "ctrl+alt+k",
+      "mac": "cmd+k",
+      "command": "git.commitAll",
+      "when": "!inDebugMode && !terminalFocus",
+      "intellij": "Commit project to VCS"
+    },
+    {
+      "key": "ctrl+shift+k",
+      "mac": "cmd+alt+k",
+      "command": "git.pushTo",
+      "when": "!inDebugMode && !terminalFocus",
+      "intellij": "Push commits to VCS"
+    },
+    {
+      "key": "ctrl+t",
+      "mac": "cmd+t",
+      "command": "git.sync",
+      "intellij": "Update project from VCS"
+    },
+    {
+      "key": "ctrl+alt+z",
+      "mac": "cmd+alt+z",
+      "command": "git.revertSelectedRanges",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Rollback Lines"
+    },
+    {
+      "key": "f4",
+      "mac": "f4",
+      "command": "git.openFile",
+      "when": "config.git.enabled && isInDiffEditor",
+      "intellij": "Jump to Source"
+    },
+    {
+      "key": "alt+0",
+      "mac": "cmd+0",
+      "command": "workbench.actions.view.problems",
+      "intellij": "Activate Messages window (Problems)"
+    },
+    {
+      "key": "alt+numpad0",
+      "mac": "cmd+numpad0",
+      "command": "workbench.actions.view.problems",
+      "intellij": "Activate Messages window (Problems)"
+    },
+    {
+      "key": "alt+1",
+      "mac": "cmd+1",
+      "command": "workbench.view.explorer",
+      "when": "!explorerViewletFocus",
+      "intellij": "Open corresponding tool window (Explorer)"
+    },
+    {
+      "key": "alt+numpad1",
+      "mac": "cmd+numpad1",
+      "command": "workbench.view.explorer",
+      "when": "!explorerViewletFocus",
+      "intellij": "Open corresponding tool window (Explorer)"
+    },
+    {
+      "key": "alt+1",
+      "mac": "cmd+1",
+      "command": "workbench.action.toggleSidebarVisibility",
+      "when": "explorerViewletFocus",
+      "intellij": "Close corresponding tool window (Explorer)"
+    },
+    {
+      "key": "alt+numpad1",
+      "mac": "cmd+numpad1",
+      "command": "workbench.action.toggleSidebarVisibility",
+      "when": "explorerViewletFocus",
+      "intellij": "Close corresponding tool window (Explorer)"
+    },
+    {
+      "key": "alt+3",
+      "mac": "cmd+3",
+      "command": "workbench.view.search",
+      "when": "!searchViewletVisible",
+      "intellij": "Open corresponding tool window (Search)"
+    },
+    {
+      "key": "alt+numpad3",
+      "mac": "cmd+numpad3",
+      "command": "workbench.view.search",
+      "when": "!searchViewletVisible",
+      "intellij": "Open corresponding tool window (Search)"
+    },
+    {
+      "key": "alt+3",
+      "mac": "cmd+3",
+      "command": "workbench.action.toggleSidebarVisibility",
+      "when": "searchViewletVisible",
+      "intellij": "Close corresponding tool window (Search)"
+    },
+    {
+      "key": "alt+numpad3",
+      "mac": "cmd+numpad3",
+      "command": "workbench.action.toggleSidebarVisibility",
+      "when": "searchViewletVisible",
+      "intellij": "Close corresponding tool window (Search)"
+    },
+    {
+      "key": "alt+5",
+      "mac": "cmd+5",
+      "command": "workbench.view.debug",
+      "when": "activeViewlet != 'workbench.view.debug'",
+      "intellij": "Open corresponding tool window (Debug)"
+    },
+    {
+      "key": "alt+numpad5",
+      "mac": "cmd+numpad5",
+      "command": "workbench.view.debug",
+      "when": "activeViewlet != 'workbench.view.debug'",
+      "intellij": "Open corresponding tool window (Debug)"
+    },
+    {
+      "key": "alt+5",
+      "mac": "cmd+5",
+      "command": "workbench.action.toggleSidebarVisibility",
+      "when": "activeViewlet == 'workbench.view.debug'",
+      "intellij": "Close corresponding tool window (Debug)"
+    },
+    {
+      "key": "alt+numpad5",
+      "mac": "cmd+numpad5",
+      "command": "workbench.action.toggleSidebarVisibility",
+      "when": "activeViewlet == 'workbench.view.debug'",
+      "intellij": "Close corresponding tool window (Debug)"
+    },
+    {
+      "key": "alt+9",
+      "mac": "cmd+9",
+      "command": "workbench.view.scm",
+      "when": "activeViewlet != 'workbench.view.scm'",
+      "intellij": "Open corresponding tool window (Git)"
+    },
+    {
+      "key": "alt+numpad9",
+      "mac": "cmd+numpad9",
+      "command": "workbench.view.scm",
+      "when": "activeViewlet != 'workbench.view.scm'",
+      "intellij": "Open corresponding tool window (Git)"
+    },
+    {
+      "key": "alt+9",
+      "mac": "cmd+9",
+      "command": "workbench.action.toggleSidebarVisibility",
+      "when": "activeViewlet == 'workbench.view.scm'",
+      "intellij": "Close corresponding tool window (Git)"
+    },
+    {
+      "key": "alt+numpad9",
+      "mac": "cmd+numpad9",
+      "command": "workbench.action.toggleSidebarVisibility",
+      "when": "activeViewlet == 'workbench.view.scm'",
+      "intellij": "Close corresponding tool window (Git)"
+    },
+    {
+      "key": "ctrl+s",
+      "mac": "cmd+s",
+      "command": "workbench.action.files.saveAll",
+      "intellij": "Save all"
+    },
+    {
+      "mac": "ctrl+cmd+f",
+      "command": "workbench.action.toggleFullScreen",
+      "intellij": "Toggle full screen mode"
+    },
+    {
+      "key": "ctrl+`",
+      "mac": "ctrl+`",
+      "command": "workbench.action.selectTheme",
+      "intellij": "Quick switch current scheme"
+    },
+    {
+      "key": "ctrl+alt+s",
+      "mac": "cmd+,",
+      "command": "workbench.action.openGlobalSettings",
+      "intellij": "Open Settings dialog"
+    },
+    {
+      "key": "ctrl+alt+s",
+      "mac": "cmd+numpad_separator",
+      "command": "workbench.action.openGlobalSettings",
+      "intellij": "Open Settings dialog"
+    },
+    {
+      "key": "ctrl+alt+shift+s",
+      "mac": "cmd+;",
+      "command": "workbench.action.tasks.configureTaskRunner",
+      "intellij": "Open Project Structure dialog"
+    },
+    {
+      "key": "ctrl+shift+a",
+      "mac": "shift+cmd+a",
+      "command": "workbench.action.showCommands",
+      "intellij": "Find Action"
+    },
+    {
+      "key": "ctrl+tab",
+      "mac": "ctrl+tab",
+      "command": "workbench.action.quickOpenNavigateNext",
+      "when": "inQuickOpen",
+      "intellij": "Switch between tabs and tool window"
+    },
+    {
+      "key": "shift+f12",
+      "mac": "shift+f12",
+      "command": "workbench.action.resetViewLocations",
+      "intellij": "Restore Default layout"
+    },
+    {
+      "key": "ctrl+d",
+      "mac": "cmd+d",
+      "command": "workbench.files.action.compareFileWith",
+      "when": "filesExplorerFocus && !explorerResourceIsFolder && !inputFocus && !listMultiSelection",
+      "intellij": "Compare Files"
+    },
+    {
+      "key": "ctrl+d",
+      "mac": "cmd+d",
+      "command": "compareSelected",
+      "when": "filesExplorerFocus && !explorerResourceIsFolder && !inputFocus && listDoubleSelection",
+      "intellij": "Compare Selected Files"
+    },
+    {
+      "key": "ctrl+shift+tab",
+      "mac": "ctrl+shift+tab",
+      "command": "workbench.action.compareEditor.focusOtherSide",
+      "when": "activeCompareEditorCanSwap",
+      "intellij": "Select Opposite Diff Pane"
+    },
+    {
+      "key": "f7",
+      "mac": "f7",
+      "command": "workbench.action.compareEditor.nextChange",
+      "when": "textCompareEditorVisible",
+      "intellij": "Next difference"
+    },
+    {
+      "key": "shift+f7",
+      "mac": "shift+f7",
+      "command": "workbench.action.compareEditor.previousChange",
+      "when": "textCompareEditorVisible",
+      "intellij": "Previous difference"
+    },
+    {
+      "key": "f7",
+      "mac": "f7",
+      "command": "merge-conflict.next",
+      "when": "merge-conflict",
+      "intellij": "Next difference"
+    },
+    {
+      "key": "shift+f7",
+      "mac": "shift+f7",
+      "command": "merge-conflict.previous",
+      "when": "merge-conflict",
+      "intellij": "Previous difference"
+    },
+    {
+      "key": "alt+ctrl+enter",
+      "mac": "alt+cmd+enter",
+      "command": "editor.action.insertLineBefore",
+      "when": "editorTextFocus && !editorReadonly",
+      "intellij": "Start new line before current"
+    },
+    {
+      "key": "alt+ctrl+enter",
+      "mac": "ctrl+enter",
+      "command": "notebook.cell.execute",
+      "when": "notebookCellListFocused && notebookMissingKernelExtension && !notebookCellExecuting && notebookCellType == 'code' || notebookCellListFocused && !notebookCellExecuting && notebookCellType == 'code' && notebookKernelCount > 0 || notebookCellListFocused && !notebookCellExecuting && notebookCellType == 'code' && notebookKernelSourceCount > 0",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "alt+ctrl+enter",
+      "mac": "ctrl+enter",
+      "command": "notebook.cell.quitEdit",
+      "when": "inputFocus && notebookEditorFocused && notebookCellType == 'markup'",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "shift+ctrl+enter",
+      "mac": "shift+cmd+enter",
+      "command": "editor.action.insertLineAfter",
+      "when": "editorTextFocus && !editorReadonly && !suggestWidgetVisible",
+      "intellij": "Start new line"
+    },
+    {
+      "key": "shift+ctrl+enter",
+      "mac": "shift+cmd+enter",
+      "command": "notebook.cell.insertCodeCellAbove",
+      "when": "notebookCellListFocused && !inputFocus",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "alt+f12",
+      "mac": "alt+f12",
+      "command": "workbench.action.terminal.focus",
+      "when": "!terminalFocus",
+      "intellij": "Opens and focuses corresponding tool window (Terminal)"
+    },
+    {
+      "key": "alt+f12",
+      "mac": "alt+f12",
+      "command": "workbench.action.terminal.toggleTerminal",
+      "when": "terminalFocus",
+      "intellij": "Close corresponding tool window (Terminal)"
+    },
+    {
+      "key": "ctrl+shift+alt+j",
+      "mac": "ctrl+cmd+g",
+      "command": "editor.action.selectHighlights",
+      "when": "editorFocus",
+      "intellij": "Sublime Text style multiple selections"
+    },
+    {
+      "key": "alt+left",
+      "command": "workbench.action.terminal.focusPrevious",
+      "when": "terminalTabsFocus",
+      "intellij": "Select previous tab (Terminal)"
+    },
+    {
+      "key": "alt+right",
+      "command": "workbench.action.terminal.focusNext",
+      "when": "terminalTabsFocus",
+      "intellij": "Select next tab (Terminal)"
+    },
+    {
+      "key": "",
+      "mac": "shift+cmd+[",
+      "command": "workbench.action.terminal.focusPrevious",
+      "when": "terminalFocus",
+      "intellij": "Select previous tab (Terminal)"
+    },
+    {
+      "key": "",
+      "mac": "shift+cmd+]",
+      "command": "workbench.action.terminal.focusNext",
+      "when": "terminalFocus",
+      "intellij": "Select next tab (Terminal)"
+    },
+    {
+      "key": "alt+tab",
+      "mac": "alt+tab",
+      "command": "workbench.action.focusNextGroup",
+      "when": "editorFocus",
+      "intellij": "Goto next splitter"
+    },
+    {
+      "key": "shift+alt+tab",
+      "mac": "shift+alt+tab",
+      "command": "workbench.action.focusPreviousGroup",
+      "when": "editorFocus",
+      "intellij": "Goto previous splitter"
+    },
+    {
+      "key": "enter",
+      "mac": "enter",
+      "command": "list.select",
+      "intellij": "Open Highlighted File (Explorer)",
+      "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceIsFolder && !inputFocus"
+    },
+    {
+      "key": "f4",
+      "mac": "f4",
+      "command": "explorer.openAndPassFocus",
+      "intellij": "Open Highlighted File (Explorer)",
+      "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceIsFolder && !inputFocus"
+    },
+    {
+      "key": "enter",
+      "mac": "enter",
+      "command": "notebook.cell.edit",
+      "when": "notebookCellListFocused && notebookEditable && !inputFocus",
+      "notebook": "To keep Notebook key bindings"
+    },
+    {
+      "key": "alt+home",
+      "mac": "cmd+up",
+      "command": "breadcrumbs.focusAndSelect",
+      "intellij": "Jump to Navigation Bar",
+      "when": "breadcrumbsPossible && breadcrumbsVisible"
+    },
+    {
+      "key": "shift+ctrl+c",
+      "mac": "shift+cmd+c",
+      "command": "copyFilePath",
+      "intellij": "Copy paths",
+      "when": "!editorFocus && !terminalFocus"
+    },
+    {
+      "key": "shift+f10",
+      "mac": "ctrl+r",
+      "command": "go.test.previous",
+      "when": "editorLangId == go",
+      "intellij": "Go: Test Previous"
+    }
+  ]
+}

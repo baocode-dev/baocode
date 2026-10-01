@@ -95,9 +95,12 @@ void main() {
     );
     await pumpState(LimitsState.checking);
     expect(find.text('Plan usage'), findsOneWidget);
-    expect(find.text('正在获取额度…'), findsOneWidget);
+    expect(find.text('Checking limits…'), findsOneWidget);
     await pumpState(LimitsState.unavailable);
-    expect(find.textContaining('暂时获取不到额度'), findsOneWidget);
+    expect(
+      find.textContaining('Limits are unavailable right now'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('turned off, it says the replies will tell', (tester) async {
@@ -115,6 +118,11 @@ void main() {
         ),
       ),
     );
-    expect(find.text('额度随对话自动更新，对话后即可看到。'), findsOneWidget);
+    expect(
+      find.text(
+        'Limits update with the conversation; they show after a message.',
+      ),
+      findsOneWidget,
+    );
   });
 }

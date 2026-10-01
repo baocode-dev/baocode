@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../kernel/kernel_types.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../widgets/hover_builder.dart';
@@ -37,7 +38,7 @@ class McpServersPanel extends StatelessWidget {
       header: Row(
         children: [
           Text(
-            'MCP servers',
+            context.l10n.mcpServers,
             style: TextStyle(
               color: CursorColors.text,
               fontSize: 12,
@@ -47,19 +48,19 @@ class McpServersPanel extends StatelessWidget {
           const SizedBox(width: 8),
           if (servers.isNotEmpty)
             Text(
-              '$connected of ${servers.length} connected',
+              context.l10n.mcpConnectedOf(connected, servers.length),
               style: TextStyle(color: CursorColors.textFaint, fontSize: 11),
             ),
           const Spacer(),
           _HeaderIcon(
             icon: Icons.refresh_rounded,
-            tooltip: 'Refresh',
+            tooltip: context.l10n.mcpRefresh,
             onTap: onRefresh,
           ),
           const SizedBox(width: 8),
           _HeaderIcon(
             icon: Icons.close_rounded,
-            tooltip: 'Close',
+            tooltip: context.l10n.commonClose,
             onTap: onClose,
           ),
         ],
@@ -68,7 +69,7 @@ class McpServersPanel extends StatelessWidget {
           ? Padding(
               padding: EdgeInsets.fromLTRB(4, 4, 4, 2),
               child: Text(
-                'No MCP servers configured for this project.',
+                context.l10n.mcpNoServers,
                 style: TextStyle(color: CursorColors.textFaint, fontSize: 12),
               ),
             )
@@ -105,32 +106,32 @@ class _ServerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     // As upstream's MCP server list.
     final colors = themeColors;
+    final l10n = context.l10n;
     final (color, label) = switch (server.status) {
-      McpServerStatus.connected => (colors['charts.green'], 'Connected'),
+      McpServerStatus.connected => (colors['charts.green'], l10n.mcpConnected),
       McpServerStatus.pending => (
         colors['progressBar.background'],
-        'Connecting…',
+        l10n.mcpConnecting,
       ),
-      McpServerStatus.failed => (colors['errorForeground'], 'Failed'),
+      McpServerStatus.failed => (colors['errorForeground'], l10n.mcpFailed),
       McpServerStatus.needsAuth => (
         colors['list.warningForeground'],
-        'Needs sign-in',
+        l10n.mcpNeedsSignIn,
       ),
-      McpServerStatus.disabled => (CursorColors.textFaint, 'Disabled'),
+      McpServerStatus.disabled => (CursorColors.textFaint, l10n.mcpDisabled),
     };
     final details = [
       ?server.scope,
-      if (server.tools.isNotEmpty)
-        '${server.tools.length} ${server.tools.length == 1 ? 'tool' : 'tools'}',
+      if (server.tools.isNotEmpty) l10n.chatToolCount(server.tools.length),
       if (server.version case final version?) 'v$version',
     ].join(' · ');
     final action = switch (server.status) {
       McpServerStatus.failed => PanelButton(
-        label: 'Reconnect',
+        label: l10n.mcpReconnect,
         onTap: onReconnect,
       ),
       McpServerStatus.needsAuth => PanelButton(
-        label: 'Sign in',
+        label: l10n.mcpSignIn,
         primary: true,
         onTap: onSignIn,
       ),
@@ -201,8 +202,8 @@ class _ServerRow extends StatelessWidget {
           const SizedBox(width: 8),
           IdeHover(
             message: server.status == McpServerStatus.disabled
-                ? 'Enable'
-                : 'Disable',
+                ? l10n.mcpEnable
+                : l10n.mcpDisable,
             child: Transform.scale(
               scale: 0.7,
               child: Switch(

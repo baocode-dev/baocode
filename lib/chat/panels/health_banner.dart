@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../kernel/kernel_types.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/cursor_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'interaction_panel.dart';
@@ -54,7 +55,8 @@ class _HealthBannerState extends State<HealthBanner> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  health.message ?? '${widget.kernelName} stopped',
+                  health.message ??
+                      context.l10n.healthStopped(widget.kernelName),
                   style: TextStyle(
                     color: CursorColors.textPrimary,
                     fontSize: 12.5,
@@ -63,12 +65,18 @@ class _HealthBannerState extends State<HealthBanner> {
               ),
               if (detail != null && detail.isNotEmpty) ...[
                 PanelButton(
-                  label: _details ? 'Hide details' : 'Details',
+                  label: _details
+                      ? context.l10n.healthHideDetails
+                      : context.l10n.healthDetails,
                   onTap: () => setState(() => _details = !_details),
                 ),
                 const SizedBox(width: 6),
               ],
-              PanelButton(label: 'Retry', primary: true, onTap: widget.onRetry),
+              PanelButton(
+                label: context.l10n.healthRetry,
+                primary: true,
+                onTap: widget.onRetry,
+              ),
             ],
           ),
           if (_details && detail != null)
