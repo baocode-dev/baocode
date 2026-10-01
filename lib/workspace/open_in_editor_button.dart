@@ -33,7 +33,14 @@ class OpenInEditorButton extends StatelessWidget {
 
   void _open(Editor editor) {
     if (editor == Editor.fastIde) {
-      workspace.layout = WorkspaceLayout.ide;
+      // The project in the IDE, with the current agent's chat there.
+      if (workspace.current case final thread? when thread.project == project) {
+        workspace.openInIde(thread);
+      } else {
+        workspace
+          ..openIdeFolder(project.path)
+          ..layout = WorkspaceLayout.ide;
+      }
     } else {
       launch(editor, project.path);
     }

@@ -5,9 +5,12 @@
 #include <ole2.h>
 
 #include <algorithm>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "flutter_window.h"
+#include "open_requests.h"
 #include "utils.h"
 
 namespace {
@@ -21,6 +24,12 @@ constexpr unsigned int kDefaultHeight = 760;
 // logical pixels — the same numbers as macOS's contentMinSize).
 constexpr unsigned int kMinClientWidth = 400;
 constexpr unsigned int kMinClientHeight = 540;
+
+// Held by the copy of the app that runs for the user, for as long as it
+// runs: a second one started (the `code` command, Explorer's Open with)
+// finds it taken, and hands its paths to the first (see OpenRequests).
+// Local\ is the user's session, so another user's copy is another's.
+constexpr wchar_t kSingleInstanceMutex[] = L"Local\\BaoCode.SingleInstance";
 
 // Places |size| in the centre of the monitor under |origin|, capped to that
 // monitor's work area. |size| and |placed| are in logical pixels: Create
@@ -60,6 +69,17 @@ void PlaceOnMonitor(const Win32Window::Point& origin,
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  // The paths it was started with, from the folder it was started in: for
+  // this copy to open, or for the one already running.
+  std::vector<std::string> open_paths = OpenPathsFromCommandLine();
+  const HANDLE single_instance =
+      ::CreateMutexW(nullptr, FALSE, kSingleInstanceMutex);
+  if (single_instance != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
+    ForwardToRunningWindow(open_paths);
+    ::CloseHandle(single_instance);
+    return EXIT_SUCCESS;
+  }
+
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
@@ -78,7 +98,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 
-  FlutterWindow window(project);
+  FlutterWindow window(project, std::move(open_paths));
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(kDefaultWidth, kDefaultHeight);
   Win32Window::Point placed = origin;

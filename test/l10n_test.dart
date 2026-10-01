@@ -227,14 +227,18 @@ void main() {
       expect(find.text('Region & Language'), findsOneWidget);
       expect(find.text('Display Language'), findsOneWidget);
 
+      await tester.tap(find.text('Follow System (English)'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('简体中文'));
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.text('区域和语言'), findsOneWidget);
       expect(find.text('Region & Language'), findsNothing);
       expect(storage.writes, ['zh-cn']);
 
+      await tester.tap(find.text('简体中文'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('English'));
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.text('Region & Language'), findsOneWidget);
       expect(storage.writes, ['zh-cn', 'en']);
     });
@@ -247,17 +251,17 @@ void main() {
         BaoCodeApp(workspace: Workspace.mock(), appLocale: locale),
       );
       await tester.pump();
-      expect(find.text('New Agent'), findsWidgets);
-      expect(find.text('新建智能体'), findsNothing);
+      expect(find.text('New Chat'), findsWidgets);
+      expect(find.text('新对话'), findsNothing);
 
       await locale.select(AppLocale.simplifiedChinese);
       await tester.pump();
-      expect(find.text('新建智能体'), findsWidgets);
-      expect(find.text('New Agent'), findsNothing);
+      expect(find.text('新对话'), findsWidgets);
+      expect(find.text('New Chat'), findsNothing);
 
       await locale.select(AppLocale.english);
       await tester.pump();
-      expect(find.text('New Agent'), findsWidgets);
+      expect(find.text('New Chat'), findsWidgets);
     });
   });
 

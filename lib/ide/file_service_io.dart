@@ -315,11 +315,88 @@ class _FileSnapshot {
   final bool forced;
 }
 
+Future<Uint8List> readFileBytes(String path) async {
+  final file = File(path);
+  if (!await file.exists()) throw IdeFileNotFoundException(path);
+  return file.readAsBytes();
+}
+
+Stream<void> watchDirectory(String directory) {
+  if (!FileSystemEntity.isWatchSupported) return const Stream.empty();
+  try {
+    return Directory(directory).watch().map((_) {}).handleError((Object _) {});
+  } on FileSystemException {
+    return const Stream.empty();
+  }
+}
+
 Future<IdeFileListing> walkProjectFiles(
   String root,
   Set<String> excluded,
   int limit,
-) => Isolate.run(() => _walkProjectFiles(root, excluded, limit));
+) => Isolate.run(
+  () =>
+      _gitProjectFiles(root, excluded, limit) ??
+      _walkProjectFiles(root, excluded, limit),
+);
+
+/// The files Git sees under [root], tracked or not, without those its
+/// ignore files ignore (as VS Code's Quick Open, through ripgrep, honors
+/// `.gitignore`); null outside a repository or without Git. Other Git
+/// repositories inside (worktrees, clones) are left out, as Git leaves them.
+IdeFileListing? _gitProjectFiles(String root, Set<String> excluded, int limit) {
+  final ProcessResult result;
+  try {
+    result = Process.runSync(
+      'git',
+      [
+        '--no-optional-locks',
+        '-c',
+        'core.fsmonitor=false',
+        'ls-files',
+        '--cached',
+        '--others',
+        '--exclude-standard',
+        '-z',
+      ],
+      workingDirectory: root,
+      environment: const {
+        'GIT_TERMINAL_PROMPT': '0',
+        'GIT_OPTIONAL_LOCKS': '0',
+      },
+      stdoutEncoding: utf8,
+    );
+  } on ProcessException {
+    return null;
+  } on FormatException {
+    return null;
+  }
+  if (result.exitCode != 0) return null;
+  final paths = <String>[];
+  var truncated = false;
+  for (final relative in (result.stdout as String).split('\x00')) {
+    // Empty after the last NUL; a nested repository shows as `dir/`.
+    if (relative.isEmpty || relative.endsWith('/')) continue;
+    final parts = relative.split('/');
+    if (parts.take(parts.length - 1).any(excluded.contains)) continue;
+    final path = p.joinAll([root, ...parts]);
+    // Tracked files deleted from the working tree, and submodules, are not
+    // files to open.
+    if (FileSystemEntity.typeSync(path, followLinks: false) !=
+        FileSystemEntityType.file) {
+      continue;
+    }
+    if (paths.length >= limit) {
+      truncated = true;
+      break;
+    }
+    paths.add(path);
+  }
+  // None: the root may be ignored itself, which Git then lists nothing of.
+  if (paths.isEmpty) return null;
+  paths.sort();
+  return IdeFileListing(paths, truncated: truncated);
+}
 
 IdeFileListing _walkProjectFiles(String root, Set<String> excluded, int limit) {
   final paths = <String>[];

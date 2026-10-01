@@ -318,7 +318,8 @@ class IdeEditorState extends State<IdeEditor> {
     if (languages == null ||
         controller == null ||
         !widget.nativeEditorEnabled ||
-        doc.readOnly) {
+        doc.readOnly ||
+        doc.isUntitled) {
       _disposeLanguageSession();
       return;
     }

@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show TextSelection;
+import 'package:flutter_quill/quill_delta.dart';
 import 'package:path/path.dart' as p;
 
 import '../chat/chat_models.dart';
 import '../chat/chat_session.dart';
+import '../chat/composer/composer_draft.dart';
 import '../chat/mock_conversation.dart';
 import '../kernel/agent_kernel.dart';
 import '../kernel/kernel_registry.dart';
@@ -62,6 +66,7 @@ class AgentThread {
     this.record,
     this._title = '',
     this.pinned = false,
+    this.archived = false,
     bool unread = false,
   }) : _seenSeq = unread ? -1 : 0,
        _wantsTitle = record == null && _title.isEmpty;
@@ -87,9 +92,21 @@ class AgentThread {
 
   bool get isOpen => _session != null;
 
+  /// Its session's id: none for a new agent until its first message.
+  String? get id => (isOpen ? session.sessionId : null) ?? record?.id;
+  String? get _id => id;
+
+  /// A new agent of this run that nothing was sent to, nor named.
+  bool get untouched =>
+      record == null &&
+      _title.isEmpty &&
+      isOpen &&
+      session.itemCount == 0 &&
+      !archived;
+
   /// Empty until the first message names it (or the user does).
   String _title;
-  String get title => _title.isEmpty ? 'New Agent' : _title;
+  String get title => _title.isEmpty ? 'New Chat' : _title;
 
   /// [title] as shown: an untitled agent's in [l10n]'s language.
   String localizedTitle(AppLocalizations l10n) =>
@@ -99,17 +116,13 @@ class AgentThread {
   /// asked for or the user names it.
   bool _wantsTitle;
 
-  /// How many items it had when last looked through for a message worth a
-  /// title: streamed text adds none.
-  int _titleScan = 0;
-
   /// The user named it: a title generated meanwhile is dropped.
   bool _named = false;
 
   /// Last time it started, stopped, or asked something.
   DateTime updatedAt;
   bool pinned;
-  bool archived = false;
+  bool archived;
 
   /// The last turn end the user has seen (see [ChatSession.lastTurnEndSeq]).
   int _seenSeq;
@@ -177,19 +190,27 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     List<Project> projects = const [],
     List<KernelDescriptor>? kernels,
     PreferenceStore? preferences,
+    PreferenceStore? drafts,
     this.titler,
+    AppLocalizations Function()? l10n,
   }) : _projects = [...projects],
+       l10n = l10n ?? (() => englishLocalizations),
        kernels = kernels ?? KernelRegistry.all,
        _preferredKernel = (kernels ?? KernelRegistry.all).first,
-       _store = preferences;
+       _store = preferences,
+       _draftStore = drafts;
 
   /// The kernels new agents may run on.
   final List<KernelDescriptor> kernels;
 
-  /// Titles a new agent after its first message worth it (see
-  /// [agentTitleWorthy]); without it, the first message's first line stays
-  /// its title.
+  /// Titles a new agent after its first message (images alone are titled
+  /// after their file, see [agentImageTitle]); without it, the first
+  /// message's first line stays its title.
   final AgentTitler? titler;
+
+  /// The strings of the app's language, for the titles given here: they
+  /// are kept with the session, so are in the language of when given.
+  final AppLocalizations Function() l10n;
 
   List<Project> get projects => List.unmodifiable(_projects);
   final List<Project> _projects;
@@ -220,6 +241,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     _loading = true;
     notifyListeners();
     await (_restoring = _restore());
+    var complete = true;
+    final listed = <String>{};
     for (final kernel in kernels) {
       final catalog = kernel.catalog;
       if (catalog == null) continue;
@@ -228,17 +251,25 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         records = await catalog.projects();
       } on Object {
         records = const [];
+        complete = false;
       }
       for (final record in records) {
+        listed.add(record.path);
         final project = _project(record.path);
         for (final session in record.sessions) {
           _addKept(kernel, project, session);
         }
       }
     }
+    for (final folder in _folders) {
+      if (!listed.contains(folder)) _project(folder);
+    }
+    // Only once all were read: what one failed to list is not gone.
+    if (complete) _forgetGone(listed);
     _loading = false;
+    if (_ideFolder case final folder?) _ensureIdeChat(folder);
     if (_selected == null && _projects.isNotEmpty) {
-      create(project: _projects.first);
+      create(project: sidebarProjects.firstOrNull ?? _projects.first);
     } else {
       notifyListeners();
     }
@@ -279,22 +310,73 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   }
 
   /// Opens [path] as a project (if not yet) and a new agent in it.
-  Future<AgentThread> openFolder(String path) async {
+  Future<AgentThread> openFolder(String path) async =>
+      create(project: _openProject(path));
+
+  /// Has [thread], a new agent nothing was sent to yet, work in [path]
+  /// instead: a new agent there (an untouched one reused) takes its pane,
+  /// and it goes. [path] is opened as a project if it was not one.
+  AgentThread moveNew(AgentThread thread, String path) {
+    final project = _openProject(path);
+    if (project == thread.project || !_threads.contains(thread)) {
+      return thread;
+    }
+    // Into its pane: the focused one is what [create] shows the new in.
+    if (_grid.contains(thread)) _focus(thread);
+    final moved = create(project: project);
+    if (_isUntouched(thread)) _discard(thread);
+    return moved;
+  }
+
+  /// [path]'s project, listed first if it was not; the sessions kept there
+  /// follow once read (see [_listKept]).
+  Project _openProject(String path) {
+    // Opened again: listed again.
+    _unhide(path);
     final known = _projects.any((project) => project.path == path);
     final project = _project(path);
     if (!known) {
-      for (final kernel in kernels) {
-        final sessions = await kernel.catalog?.sessionsIn(path);
-        for (final session in sessions ?? const <SessionRecord>[]) {
-          _addKept(kernel, project, session);
-        }
-      }
       // Newest first, like the kept projects.
       _projects
         ..remove(project)
         ..insert(0, project);
+      // Listed again next run, if no kernel keeps a session there by then.
+      if (!_folders.contains(path)) {
+        _folders.add(path);
+        _save();
+      }
+      unawaited(_listKept(project));
     }
-    return create(project: project);
+    return project;
+  }
+
+  /// Lists the sessions the kernels keep in [project]. Not waited for: to
+  /// find them, Claude Code's are all read, which may take a while.
+  Future<void> _listKept(Project project) async {
+    final before = _threads.length;
+    for (final kernel in kernels) {
+      final List<SessionRecord> sessions;
+      try {
+        sessions = await kernel.catalog?.sessionsIn(project.path) ?? const [];
+      } on Object {
+        continue;
+      }
+      if (_disposed) return;
+      for (final session in sessions) {
+        _addKept(kernel, project, session);
+      }
+    }
+    if (_threads.length != before) notifyListeners();
+  }
+
+  /// Lists [project], first, kept for the next run (see [_folders]).
+  void _listProject(Project project) {
+    _unhide(project.path);
+    _projects
+      ..remove(project)
+      ..insert(0, project);
+    if (!_folders.contains(project.path)) _folders.add(project.path);
+    _save();
   }
 
   Project _project(String path) {
@@ -320,13 +402,23 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     )) {
       return;
     }
+    final id = session.id;
+    // Asked something there since it was taken off the list: back on it.
+    if (_hiddenProjects[project.path] case final since?
+        when session.updatedAt.isAfter(since)) {
+      _unhide(project.path);
+    }
     _add(
       AgentThread._(
         project: project,
         kernel: kernel,
         record: session,
-        title: session.title,
+        title:
+            _names[id] ??
+            (session.title.isEmpty ? l10n().agentImageUntitled : session.title),
         updatedAt: session.updatedAt,
+        pinned: _pinned.contains(id),
+        archived: _archived.contains(id),
         open: () => ChatSession(
           kernel: kernel,
           kernels: kernels,
@@ -468,6 +560,221 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     }
   }
 
+  // --- IDE -----------------------------------------------------------------
+
+  /// The folder the IDE shows, apart from the chat's: opening one there
+  /// neither starts an agent nor lists it as a project (one is listed once
+  /// an agent there is sent something). None: the IDE's empty window.
+  String? get ideFolder => _ideFolder;
+  String? _ideFolder;
+
+  /// Folders and files the IDE opened, the most recent first.
+  List<String> get recentFolders => List.unmodifiable(_recentFolders);
+  List<String> get recentFiles => List.unmodifiable(_recentFiles);
+  final List<String> _recentFolders = [], _recentFiles = [];
+
+  /// Recent folders and files kept, each.
+  static const _keptRecent = 30;
+
+  /// [path]'s project: the listed one, or one that is not (yet) listed.
+  Project projectAt(String path) {
+    for (final project in _projects) {
+      if (project.path == path) return project;
+    }
+    for (final thread in _threads) {
+      if (thread.project.path == path) return thread.project;
+    }
+    return Project.at(path);
+  }
+
+  /// Has the IDE show [path], with a chat of its own there.
+  void openIdeFolder(String path) {
+    _ideFolder = path;
+    _recent(_recentFolders, path);
+    _ensureIdeChat(path);
+    _save();
+    notifyListeners();
+  }
+
+  /// Back to the IDE's empty window.
+  void closeIdeFolder() {
+    if (_ideFolder == null) return;
+    _ideFolder = null;
+    _save();
+    notifyListeners();
+  }
+
+  /// Notes [path] among the files the IDE opened.
+  void addRecentFile(String path) {
+    if (_recentFiles.firstOrNull == path) return;
+    _recent(_recentFiles, path);
+    _save();
+    notifyListeners();
+  }
+
+  /// Forgets the folders and files the IDE opened.
+  void clearRecent() {
+    if (_recentFolders.isEmpty && _recentFiles.isEmpty) return;
+    _recentFolders.clear();
+    _recentFiles.clear();
+    _save();
+    notifyListeners();
+  }
+
+  void _recent(List<String> list, String path) {
+    list
+      ..remove(path)
+      ..insert(0, path);
+    if (list.length > _keptRecent) list.removeRange(_keptRecent, list.length);
+  }
+
+  /// Shows [thread] in the IDE: its folder, with it the chat there.
+  void openInIde(AgentThread thread) {
+    final folder = thread.project.path;
+    _ideFolder = folder;
+    _recent(_recentFolders, folder);
+    _addIdeChat(folder, thread);
+    _layout = WorkspaceLayout.ide;
+    _save();
+    notifyListeners();
+  }
+
+  /// The chats the IDE shows as tabs in [folder], in their order: agents,
+  /// or (until those are listed) the ids of their sessions.
+  final Map<String, List<Object>> _ideChats = {};
+
+  /// The tab shown in each folder, the same way.
+  final Map<String, Object> _ideChatShown = {};
+
+  /// New agents in the IDE's tabs, not kept until their session has an id.
+  final Set<AgentThread> _ideChatsUnkept = {};
+
+  AgentThread? _threadWithId(String id) {
+    for (final thread in _threads) {
+      if (thread.id == id) return thread;
+    }
+    return null;
+  }
+
+  /// The chats open as tabs in [folder] (once listed, for those of the last
+  /// run).
+  List<AgentThread> ideChats(String folder) {
+    final tabs = _ideChats[folder];
+    if (tabs == null) return const [];
+    for (final (i, tab) in tabs.indexed) {
+      if (tab is String) tabs[i] = _threadWithId(tab) ?? tab;
+    }
+    if (_ideChatShown[folder] case final String id) {
+      if (_threadWithId(id) case final thread?) _ideChatShown[folder] = thread;
+    }
+    return [...tabs.whereType<AgentThread>()];
+  }
+
+  /// The tab shown in [folder].
+  AgentThread? ideChat(String folder) {
+    final tabs = ideChats(folder);
+    return switch (_ideChatShown[folder]) {
+      final AgentThread thread when tabs.contains(thread) => thread,
+      _ => tabs.firstOrNull,
+    };
+  }
+
+  /// Shows [thread] in [folder]'s tabs, as one of them if it was not.
+  void openIdeChat(String folder, AgentThread thread) {
+    _addIdeChat(folder, thread);
+    _markShownSeen();
+    _save();
+    notifyListeners();
+  }
+
+  /// A new chat in [folder]'s tabs, shown: an untouched one there reused.
+  AgentThread newIdeChat(String folder) {
+    final thread =
+        ideChats(folder).where(_isUntouched).firstOrNull ??
+        _newThread(projectAt(folder));
+    _addIdeChat(folder, thread);
+    _save();
+    notifyListeners();
+    return thread;
+  }
+
+  /// Closes [thread]'s tab in [folder]; the agent goes on, in the sidebar
+  /// (a new one nothing was sent to is dropped). The last closed, a new
+  /// one takes its place.
+  void closeIdeChat(String folder, AgentThread thread) {
+    final tabs = _ideChats[folder];
+    if (tabs == null) return;
+    final at = tabs.indexOf(thread);
+    if (at < 0) return;
+    tabs.removeAt(at);
+    _ideChatsUnkept.remove(thread);
+    if (identical(_ideChatShown[folder], thread)) {
+      final heirs = tabs.whereType<AgentThread>().toList();
+      if (heirs.isEmpty) {
+        _ideChatShown.remove(folder);
+      } else {
+        _ideChatShown[folder] = heirs[(at - 1).clamp(0, heirs.length - 1)];
+      }
+    }
+    if (_isUntouched(thread) && !_grid.contains(thread)) {
+      _discard(thread);
+    }
+    _ensureIdeChat(folder);
+    _save();
+    notifyListeners();
+  }
+
+  /// Moves [thread]'s tab in [folder] to [index] among the tabs (a tab
+  /// dragged); those of the last run not listed yet keep their places.
+  void moveIdeChat(String folder, AgentThread thread, int index) {
+    final shown = ideChats(folder);
+    final from = shown.indexOf(thread);
+    if (from < 0) return;
+    shown.removeAt(from);
+    final to = index.clamp(0, shown.length);
+    if (to == from) return;
+    shown.insert(to, thread);
+    final tabs = _ideChats[folder]!;
+    var next = 0;
+    for (var i = 0; i < tabs.length; i++) {
+      if (tabs[i] is AgentThread) tabs[i] = shown[next++];
+    }
+    _save();
+    notifyListeners();
+  }
+
+  void _addIdeChat(String folder, AgentThread thread) {
+    final tabs = _ideChats.putIfAbsent(folder, () => []);
+    ideChats(folder);
+    if (!tabs.contains(thread)) {
+      final shown = tabs.indexOf(_ideChatShown[folder] ?? thread);
+      tabs.insert(shown < 0 ? tabs.length : shown + 1, thread);
+    }
+    _ideChatShown[folder] = thread;
+    if (thread.id == null) _ideChatsUnkept.add(thread);
+  }
+
+  /// A chat for [folder]'s panel, where it has none.
+  void _ensureIdeChat(String folder) {
+    if (ideChats(folder).isNotEmpty) return;
+    // Those of the last run are listed once loaded.
+    if (_loading || _ideChats[folder]?.isNotEmpty == true) return;
+    _addIdeChat(folder, _newThread(projectAt(folder)));
+  }
+
+  /// Takes [thread], deleted or dropped, out of the IDE's tabs.
+  void _closeIdeChats(AgentThread thread) {
+    _ideChatsUnkept.remove(thread);
+    for (final folder in [..._ideChats.keys]) {
+      if (!_ideChats[folder]!.remove(thread)) continue;
+      if (identical(_ideChatShown[folder], thread)) {
+        _ideChatShown.remove(folder);
+      }
+      if (folder == _ideFolder) _ensureIdeChat(folder);
+      _save();
+    }
+  }
+
   // --- Preferences ------------------------------------------------------------
 
   WorkspaceLayout get layout => _layout;
@@ -475,6 +782,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   set layout(WorkspaceLayout layout) {
     if (_layout == layout) return;
     _layout = layout;
+    _markShownSeen();
     _save();
     notifyListeners();
   }
@@ -517,6 +825,393 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Agents' choices kept, the most recent ones.
   static const _keptAgents = 500;
 
+  // --- Sidebar ------------------------------------------------------------
+
+  /// How the sidebar groups agents, by name; null for its default.
+  String? get sidebarGrouping => _sidebarGrouping;
+  String? _sidebarGrouping;
+  set sidebarGrouping(String? grouping) {
+    if (grouping == _sidebarGrouping) return;
+    _sidebarGrouping = grouping;
+    _save();
+    notifyListeners();
+  }
+
+  /// Whether the sidebar group [group] (by key) is folded.
+  bool isCollapsed(String group) => _collapsedGroups.contains(group);
+  final Set<String> _collapsedGroups = {};
+
+  void toggleCollapsed(String group) {
+    if (!_collapsedGroups.remove(group)) _collapsedGroups.add(group);
+    _save();
+    notifyListeners();
+  }
+
+  /// Whether the sidebar lists archived agents.
+  bool get showArchived => _showArchived;
+  bool _showArchived = false;
+  set showArchived(bool show) {
+    if (show == _showArchived) return;
+    _showArchived = show;
+    _save();
+    notifyListeners();
+  }
+
+  /// Whether the sidebar group [group] (by key) shows all its agents,
+  /// not only the most recent ones.
+  bool isExpanded(String group) => _expandedGroups.contains(group);
+  final Set<String> _expandedGroups = {};
+
+  void toggleExpanded(String group) {
+    if (!_expandedGroups.remove(group)) _expandedGroups.add(group);
+    _save();
+    notifyListeners();
+  }
+
+  /// Whether the sidebar lists [thread]: not a new agent nothing was sent
+  /// to (but the one shown), nor one of a project not listed (the IDE's
+  /// folder's, until it is sent something).
+  bool listsInSidebar(AgentThread thread) =>
+      _projects.contains(thread.project) &&
+      (!_isUntouched(thread) || _grid.contains(thread));
+
+  /// The sidebar's key for the group of [path]'s project.
+  static String projectGroup(String path) => 'project:$path';
+
+  /// Sessions pinned, by id, in the order the sidebar lists them; and
+  /// archived. Claude Code keeps neither.
+  final Set<String> _pinned = {}, _archived = {};
+
+  void _setPinnedIds(Iterable<String> ids) {
+    final ordered = {...ids};
+    _pinned
+      ..clear()
+      ..addAll(ordered);
+  }
+
+  /// [threads] (pinned ones) as the user ordered them: the last pinned on
+  /// top, those not yet with an id above all.
+  List<AgentThread> inPinnedOrder(Iterable<AgentThread> threads) {
+    final rank = {for (final (i, id) in _pinned.indexed) id: i};
+    final ranked = [
+      for (final thread in threads)
+        if (rank[thread.id] != null) thread,
+    ]..sort((a, b) => rank[a.id]!.compareTo(rank[b.id]!));
+    return [
+      for (final thread in threads)
+        if (rank[thread.id] == null) thread,
+      ...ranked,
+    ];
+  }
+
+  /// Pins what of [ordered] is not, and has them listed in that order.
+  void reorderPinned(List<AgentThread> ordered) {
+    for (final thread in ordered) {
+      thread.pinned = true;
+      _keepMarks(thread);
+    }
+    final ids = [for (final thread in ordered) ?thread.id];
+    // Those not listed (e.g. of a project taken off the list) after.
+    _setPinnedIds([...ids, ..._pinned]);
+    _save();
+    notifyListeners();
+  }
+
+  /// The order the user dragged each project's agents in, by path: ids,
+  /// top first. A project not here lists them newest first.
+  final Map<String, List<String>> _order = {};
+
+  /// Whether [project]'s agents are in the order the user dragged them in,
+  /// rather than newest first.
+  bool isManuallyOrdered(Project project) => _order.containsKey(project.path);
+
+  /// [threads] (of [project], newest first) as the user ordered them:
+  /// those not ordered yet (e.g. new) on top, newest first.
+  List<AgentThread> inProjectOrder(Project project, List<AgentThread> threads) {
+    final order = _order[project.path];
+    if (order == null) return threads;
+    final rank = {for (final (i, id) in order.indexed) id: i};
+    final ranked = [
+      for (final thread in threads)
+        if (rank[thread.id] != null) thread,
+    ]..sort((a, b) => rank[a.id]!.compareTo(rank[b.id]!));
+    return [
+      for (final thread in threads)
+        if (rank[thread.id] == null) thread,
+      ...ranked,
+    ];
+  }
+
+  /// Lists [project]'s agents in the order of [ordered] from now on.
+  void reorder(Project project, List<AgentThread> ordered) {
+    final ids = [for (final thread in ordered) ?thread.id];
+    _order[project.path] = [
+      ...ids,
+      // Those not listed now (e.g. archived) keep their place after.
+      for (final id in _order[project.path] ?? const <String>[])
+        if (!ids.contains(id)) id,
+    ];
+    _save();
+    notifyListeners();
+  }
+
+  /// Lists [project]'s agents newest first again.
+  void sortByTime(Project project) {
+    if (_order.remove(project.path) == null) return;
+    _save();
+    notifyListeners();
+  }
+
+  /// Projects the user took off the sidebar, by path, and when: listed
+  /// again once opened, or asked something since (see [_unhide]).
+  final Map<String, DateTime> _hiddenProjects = {};
+
+  bool isHidden(Project project) => _hiddenProjects.containsKey(project.path);
+
+  /// Takes [project] off the sidebar; nothing of it is deleted.
+  void hideProject(Project project) {
+    _hiddenProjects[project.path] = DateTime.now();
+    _save();
+    notifyListeners();
+  }
+
+  void _unhide(String path) {
+    if (_hiddenProjects.remove(path) != null) _save();
+  }
+
+  /// The order the user dragged projects in, by path.
+  final List<String> _projectOrder = [];
+
+  /// The projects the sidebar lists, in its order: those not dragged yet
+  /// (e.g. new) on top, most recent first; then as the user ordered them.
+  List<Project> get sidebarProjects {
+    final shown = [
+      for (final project in _projects)
+        if (!isHidden(project)) project,
+    ];
+    final rank = {for (final (i, path) in _projectOrder.indexed) path: i};
+    final ranked = [
+      for (final project in shown)
+        if (rank[project.path] != null) project,
+    ]..sort((a, b) => rank[a.path]!.compareTo(rank[b.path]!));
+    return [
+      for (final project in shown)
+        if (rank[project.path] == null) project,
+      ...ranked,
+    ];
+  }
+
+  /// Moves [project] to [index] of [sidebarProjects]: all listed are in
+  /// the user's order from then on.
+  void moveProject(Project project, int index) {
+    final order = sidebarProjects..remove(project);
+    order.insert(index.clamp(0, order.length), project);
+    final paths = [for (final project in order) project.path];
+    final rest = [
+      for (final path in _projectOrder)
+        if (!paths.contains(path)) path,
+    ];
+    _projectOrder
+      ..clear()
+      ..addAll([...paths, ...rest]);
+    _save();
+    notifyListeners();
+  }
+
+  /// Archives [project]'s agents (not a new one nothing was sent to).
+  void archiveAll(Project project) {
+    for (final thread in [..._threads]) {
+      if (thread.project != project || thread.archived || thread.untouched) {
+        continue;
+      }
+      thread
+        ..archived = true
+        ..pinned = false;
+      _keepMarks(thread);
+      _leave(thread);
+    }
+    notifyListeners();
+  }
+
+  /// Names the user gave sessions whose CLI was not running, by id: it
+  /// takes them once it is, until then the catalog lists the old title.
+  final Map<String, String> _names = {};
+
+  /// Folders opened where no kernel keeps a session yet.
+  final List<String> _folders = [];
+
+  /// Forgets what was kept for sessions and folders the catalogs no longer
+  /// list as such ([listed]: the project paths they do).
+  void _forgetGone(Set<String> listed) {
+    final titles = {
+      for (final thread in _threads)
+        if (thread.record case final record?) record.id: record.title,
+    };
+    final count = _pinned.length + _archived.length + _folders.length;
+    final names = _names.length;
+    _pinned.retainAll(titles.keys);
+    _archived.retainAll(titles.keys);
+    // A name the catalog lists is the CLI's now.
+    _names.removeWhere((id, name) => titles[id] == null || titles[id] == name);
+    _folders.removeWhere(listed.contains);
+    final paths = {for (final project in _projects) project.path};
+    bool gone(String group) =>
+        group.startsWith(projectGroup('')) &&
+        !paths.contains(group.substring(projectGroup('').length));
+    int size() => Object.hashAll([
+      _collapsedGroups.length,
+      _expandedGroups.length,
+      _projectOrder.length,
+      _hiddenProjects.length,
+      _order.length,
+      for (final order in _order.values) order.length,
+    ]);
+    final before = size();
+    _collapsedGroups.removeWhere(gone);
+    _expandedGroups.removeWhere(gone);
+    _projectOrder.retainWhere(paths.contains);
+    _hiddenProjects.removeWhere((path, _) => !paths.contains(path));
+    _order.removeWhere((path, _) => !paths.contains(path));
+    for (final order in _order.values) {
+      order.retainWhere(titles.containsKey);
+    }
+    final ids = {...titles.keys, for (final thread in _threads) ?thread.id};
+    final drafts = _drafts.length;
+    _drafts.removeWhere(
+      (key, _) => key.startsWith(_newDraft)
+          ? !paths.contains(key.substring(_newDraft.length))
+          : !ids.contains(key),
+    );
+    if (_drafts.length != drafts) _saveDrafts();
+    for (final tabs in _ideChats.values) {
+      tabs.removeWhere((tab) => tab is String && !titles.containsKey(tab));
+    }
+    _ideChatShown.removeWhere(
+      (_, tab) => tab is String && !titles.containsKey(tab),
+    );
+    if (_pinned.length + _archived.length + _folders.length != count ||
+        _names.length != names ||
+        size() != before) {
+      _save();
+    }
+  }
+
+  // --- Drafts ---------------------------------------------------------------
+
+  /// What is typed and not sent in each agent's composer, kept between
+  /// runs apart from [_store] (written as it is typed): by session id, or
+  /// [_newDraft] and the project's path for a new agent's.
+  final PreferenceStore? _draftStore;
+  final Map<String, Map<String, Object?>> _drafts = {};
+  static const _newDraft = 'new:';
+
+  /// Projects whose new agent's draft no agent of this run has taken yet:
+  /// the first new agent there does.
+  final Set<String> _newDrafts = {};
+
+  /// The key each agent's draft was last kept under: a new agent's moves
+  /// to its session's.
+  final Map<AgentThread, String> _draftKeys = {};
+  Timer? _draftTimer;
+
+  Future<void> _restoreDrafts() async {
+    final kept = await _draftStore?.read() ?? const {};
+    for (final MapEntry(:key, :value) in kept.entries) {
+      if (value is Map<String, Object?>) _drafts[key] = value;
+      if (key.startsWith(_newDraft)) {
+        _newDrafts.add(key.substring(_newDraft.length));
+      }
+    }
+  }
+
+  /// Puts back [thread]'s draft from the last run, and keeps it as it
+  /// changes.
+  void _followDraft(AgentThread thread) {
+    final draft = thread.session.draft;
+    final id = thread.id;
+    final key = id ?? '$_newDraft${thread.project.path}';
+    if (id != null || _newDrafts.remove(thread.project.path)) {
+      if (_drafts[key] case final kept?) _decodeDraft(kept, draft);
+    }
+    draft.onSaved = () => _draftChanged(thread);
+  }
+
+  void _draftChanged(AgentThread thread) {
+    final draft = thread.session.draft;
+    final key = thread.id ?? '$_newDraft${thread.project.path}';
+    if (_draftKeys[thread] case final was? when was != key) {
+      _drafts.remove(was);
+    }
+    _draftKeys[thread] = key;
+    final empty = draft.content!.toList().every(
+      (op) => op.data is String && (op.data! as String).trim().isEmpty,
+    );
+    if (empty) {
+      if (_drafts.remove(key) == null) return;
+    } else {
+      _drafts[key] = _encodeDraft(draft);
+    }
+    _saveDrafts();
+  }
+
+  void _forgetDraft(String id) {
+    if (_drafts.remove(id) != null) _saveDrafts();
+  }
+
+  /// Written a moment after typing stops, not on every key.
+  void _saveDrafts() {
+    if (_draftStore == null) return;
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 500), _writeDrafts);
+  }
+
+  void _writeDrafts() => unawaited(_draftStore?.write({..._drafts}));
+
+  static Map<String, Object?> _encodeDraft(ComposerDraft draft) => {
+    'content': draft.content!.toJson(),
+    'base': draft.selection.baseOffset,
+    'extent': draft.selection.extentOffset,
+    'images': [
+      for (final image in draft.images)
+        {
+          'bytes': base64Encode(image.bytes),
+          'mediaType': image.mediaType,
+          'name': ?image.name,
+          'number': ?image.number,
+        },
+    ],
+  };
+
+  /// Into [draft]; nothing of one that cannot be read.
+  static void _decodeDraft(Map<String, Object?> kept, ComposerDraft draft) {
+    try {
+      final images = [
+        for (final image in kept['images']! as List<Object?>)
+          if (image case {
+            'bytes': final String bytes,
+            'mediaType': final String mediaType,
+          })
+            ImageAttachment(
+              bytes: base64Decode(bytes),
+              mediaType: mediaType,
+              name: image['name'] as String?,
+              number: image['number'] as int?,
+            ),
+      ];
+      final content = Delta.fromJson(kept['content']! as List<Object?>);
+      final selection = TextSelection(
+        baseOffset: kept['base']! as int,
+        extentOffset: kept['extent']! as int,
+      );
+      draft
+        ..content = content
+        ..selection = selection
+        ..images = images;
+    } on Object {
+      // Kept by another version, or broken: not put back.
+    }
+  }
+
   // --- Color theme --------------------------------------------------------
 
   /// The `workbench.colorTheme` setting.
@@ -546,6 +1241,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   final PreferenceStore? _store;
 
   Future<void> _restore() async {
+    await _restoreDrafts();
     final store = _store;
     if (store == null) return;
     final kept = await store.read();
@@ -579,6 +1275,57 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         if (key is String) _agentSettings[key] = strings(value);
       }
     }
+    if (kept['sidebar'] case final Map<Object?, Object?> sidebar) {
+      Iterable<String> list(String key) => switch (sidebar[key]) {
+        final List<Object?> list => list.whereType<String>(),
+        _ => const [],
+      };
+      if (sidebar['grouping'] case final String grouping) {
+        _sidebarGrouping = grouping;
+      }
+      _collapsedGroups.addAll(list('collapsed'));
+      _showArchived = sidebar['showArchived'] == true;
+      _pinned.addAll(list('pinned'));
+      _archived.addAll(list('archived'));
+      _names.addAll(strings(sidebar['names']));
+      _folders.addAll(list('folders'));
+      _expandedGroups.addAll(list('expanded'));
+      _projectOrder.addAll(list('projectOrder'));
+      for (final MapEntry(:key, :value) in strings(
+        sidebar['hiddenProjects'],
+      ).entries) {
+        if (DateTime.tryParse(value) case final since?) {
+          _hiddenProjects[key] = since;
+        }
+      }
+      if (sidebar['order'] case final Map<Object?, Object?> order) {
+        for (final MapEntry(:key, :value) in order.entries) {
+          if ((key, value) case (final String path, final List<Object?> ids)) {
+            _order[path] = ids.whereType<String>().toList();
+          }
+        }
+      }
+    }
+    if (kept['ide'] case final Map<Object?, Object?> ide) {
+      Iterable<String> list(Object? raw) => switch (raw) {
+        final List<Object?> list => list.whereType<String>(),
+        _ => const [],
+      };
+      if (ide['folder'] case final String folder) _ideFolder = folder;
+      _recentFolders.addAll(list(ide['recentFolders']));
+      _recentFiles.addAll(list(ide['recentFiles']));
+      if (ide['chats'] case final Map<Object?, Object?> chats) {
+        for (final MapEntry(:key, :value) in chats.entries) {
+          if ((key, value) case (
+            final String folder,
+            final Map<Object?, Object?> chat,
+          )) {
+            _ideChats[folder] = [...list(chat['tabs'])];
+            if (chat['shown'] case final String id) _ideChatShown[folder] = id;
+          }
+        }
+      }
+    }
     if (!_colorThemeStored) {
       if (kept['colorTheme'] case final String setting) _colorTheme = setting;
       if (kept['colorThemeData'] case final String data) {
@@ -595,10 +1342,49 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       'settings': _settings,
       'agents': _agentSettings,
       'ignoredRecommendations': [..._ignoredRecommendations],
+      'sidebar': {
+        'grouping': ?_sidebarGrouping,
+        'collapsed': [..._collapsedGroups],
+        'showArchived': _showArchived,
+        'pinned': [..._pinned],
+        'archived': [..._archived],
+        'names': {..._names},
+        'folders': [..._folders],
+        'expanded': [..._expandedGroups],
+        'projectOrder': [..._projectOrder],
+        'hiddenProjects': {
+          for (final MapEntry(:key, :value) in _hiddenProjects.entries)
+            key: value.toIso8601String(),
+        },
+        'order': {
+          for (final MapEntry(:key, :value) in _order.entries) key: [...value],
+        },
+      },
+      'ide': {
+        'folder': ?_ideFolder,
+        'recentFolders': [..._recentFolders],
+        'recentFiles': [..._recentFiles],
+        'chats': {
+          for (final MapEntry(key: folder, value: tabs) in _ideChats.entries)
+            if (_keptTabs(tabs) case final ids when ids.isNotEmpty)
+              folder: {'tabs': ids, 'shown': ?_keptTab(_ideChatShown[folder])},
+        },
+      },
       'colorTheme': ?_colorTheme,
       'colorThemeData': ?_colorThemeData,
     }),
   );
+
+  /// An IDE tab as kept: its session's id, none for a new agent's.
+  static String? _keptTab(Object? tab) => switch (tab) {
+    final String id => id,
+    final AgentThread thread => thread.id,
+    _ => null,
+  };
+
+  static List<String> _keptTabs(List<Object> tabs) => [
+    for (final tab in tabs) ?_keptTab(tab),
+  ];
 
   /// Keeps [thread]'s choices for when it is opened again, e.g. after a
   /// restart. True if they changed.
@@ -646,6 +1432,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   void _listen(AgentThread thread) {
     if (_listeners.containsKey(thread)) return;
+    // Named while closed: its CLI keeps the name once running.
+    if (_names[thread.record?.id] case final name?) thread.session.rename(name);
+    _followDraft(thread);
     void listener() => _sync(thread);
     _listeners[thread] = listener;
     thread.session.addListener(listener);
@@ -661,9 +1450,19 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         thread._title = text.trim().split('\n').first;
       }
     }
-    if (thread._wantsTitle && titler != null) _askTitle(thread);
-    // What ends in view is seen, in any pane, while the window is in front.
-    if (_windowActive && _grid.contains(thread)) thread._markSeen();
+    if (thread._wantsTitle) _askTitle(thread);
+    // Sent something: its folder is a project now, if it was not.
+    if (!_isUntouched(thread) && !_projects.contains(thread.project)) {
+      _listProject(thread.project);
+    }
+    if (_ideChatsUnkept.contains(thread) && thread.id != null) {
+      _ideChatsUnkept.remove(thread);
+      _save();
+    }
+    // What ends in view is seen, while the window is in front.
+    if (_windowActive && isShown(thread)) thread._markSeen();
+    // Pinned or archived before its first message gave it an id.
+    if (thread.pinned || thread.archived) _keepMarks(thread);
     final before = _snapshots[thread];
     final snapshot = thread._snapshot;
     if (snapshot == before) return;
@@ -704,15 +1503,31 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   set windowActive(bool active) {
     if (active == _windowActive) return;
     _windowActive = active;
-    if (!active) return;
+    if (active && _markShownSeen()) notifyListeners();
+  }
+
+  /// Whether [thread] shows in the window: in one of the chat's panes, or,
+  /// while the IDE shows, as its folder's chat.
+  bool isShown(AgentThread thread) => switch (_layout) {
+    WorkspaceLayout.chat => _grid.contains(thread),
+    WorkspaceLayout.ide => switch (_ideFolder) {
+      final folder? => identical(ideChat(folder), thread),
+      null => false,
+    },
+  };
+
+  /// Marks what shows as seen, while the window is in front; whether any
+  /// was unread.
+  bool _markShownSeen() {
+    if (!_windowActive) return false;
     var changed = false;
-    for (final thread in _grid.panes) {
-      if (!thread.unread) continue;
+    for (final thread in _threads) {
+      if (!thread.unread || !isShown(thread)) continue;
       thread._markSeen();
       _snapshots[thread] = thread._snapshot;
       changed = true;
     }
-    if (changed) notifyListeners();
+    return changed;
   }
 
   /// Shows [thread] and focuses it: in its pane if it has one, else in
@@ -767,21 +1582,26 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Opens a new, empty agent in [project] (by default the current one's).
   /// An untouched new agent there is reused rather than piling up.
   AgentThread create({Project? project}) {
-    project ??= _selected?.project ?? _projects.firstOrNull;
+    project ??=
+        _selected?.project ??
+        sidebarProjects.firstOrNull ??
+        _projects.firstOrNull;
     if (project == null) {
       throw StateError('No project to create an agent in');
     }
     for (final thread in _threads) {
-      if (thread.project == project &&
-          thread.record == null &&
-          thread._title.isEmpty &&
-          thread.isOpen &&
-          thread.session.itemCount == 0 &&
-          !thread.archived) {
+      if (thread.project == project && _isUntouched(thread)) {
         select(thread);
         return thread;
       }
     }
+    final thread = _newThread(project);
+    select(thread);
+    return thread;
+  }
+
+  /// A new, empty agent in [project], listed here but not shown.
+  AgentThread _newThread(Project project) {
     final kernel = _preferredKernel;
     final settings = _preferredSettings;
     final cwd = project.path;
@@ -798,23 +1618,45 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     );
     _add(thread);
     _listen(thread); // Opens it.
-    select(thread);
     return thread;
   }
 
-  /// Has [titler] title [thread] once it has a message worth it, if its
-  /// kernel keeps the title (Claude Code's: the message goes to Claude).
+  static bool _isUntouched(AgentThread thread) => thread.untouched;
+
+  /// Takes the untouched [thread] off the list: nothing of it was kept, so
+  /// unlike [delete] there is no session to delete.
+  void _discard(AgentThread thread) {
+    final listener = _listeners.remove(thread);
+    if (listener != null) thread.session.removeListener(listener);
+    _snapshots.remove(thread);
+    if (_draftKeys.remove(thread) case final key?) _forgetDraft(key);
+    _threads.remove(thread);
+    _leave(thread);
+    _closeIdeChats(thread);
+    thread.session
+      ..stop()
+      ..dispose();
+    notifyListeners();
+  }
+
+  /// Titles [thread] after its first message: images alone after their
+  /// file; anything else by [titler], if its kernel keeps the title
+  /// (Claude Code's: the message goes to Claude).
   void _askTitle(AgentThread thread) {
     final session = thread.session;
     // Not only added at the end: a message goes before the live status.
-    final count = session.itemCount;
-    if (count == thread._titleScan) return;
-    thread._titleScan = count;
-    for (var i = 0; i < count; i++) {
-      if (session.itemAt(i) case UserMessageItem(:final text)
-          when agentTitleWorthy(text)) {
+    for (var i = 0; i < session.itemCount; i++) {
+      if (session.itemAt(i) case UserMessageItem(:final text, :final images)) {
         thread._wantsTitle = false;
-        if (!session.canRename) return;
+        // A new session there: its project is listed again.
+        _unhide(thread.project.path);
+        // Within [_sync], which tells the change.
+        if (agentImageTitle(text, images, l10n()) case final title?) {
+          thread._title = title;
+          session.rename(title);
+          return;
+        }
+        if (titler == null || !session.canRename) return;
         unawaited(
           titler!(text).then((title) {
             if (title == null || thread._named) return;
@@ -833,6 +1675,11 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     thread
       .._named = true
       .._wantsTitle = false;
+    // Kept here too: its CLI takes the name only once running.
+    if (thread._id case final id?) {
+      _names[id] = trimmed;
+      _save();
+    }
     _retitle(thread, trimmed);
   }
 
@@ -845,14 +1692,30 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   void setPinned(AgentThread thread, bool pinned) {
     thread.pinned = pinned;
+    _keepMarks(thread);
     notifyListeners();
   }
 
   void setArchived(AgentThread thread, bool archived) {
     thread.archived = archived;
     if (archived) thread.pinned = false;
+    _keepMarks(thread);
     if (archived) _leave(thread);
     notifyListeners();
+  }
+
+  /// Keeps whether [thread] is pinned and archived for the next run, once
+  /// its session has an id (see [_sync] for a new agent's).
+  void _keepMarks(AgentThread thread) {
+    final id = thread._id;
+    if (id == null) return;
+    bool mark(Set<String> ids, bool on) => on ? ids.add(id) : ids.remove(id);
+    // Both, not only the first that changed.
+    final pinned = mark(_pinned, thread.pinned);
+    final archived = mark(_archived, thread.archived);
+    // Pinned last, it is on top (see [inPinnedOrder]).
+    if (pinned && thread.pinned) _setPinnedIds([id, ..._pinned]);
+    if (pinned || archived) _save();
   }
 
   /// Deletes [thread]: stops its agent, and once it has stopped, deletes
@@ -860,13 +1723,20 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   void delete(AgentThread thread) {
     final id =
         thread.record?.id ?? (thread.isOpen ? thread.session.sessionId : null);
-    if (id != null) _removed.add(id);
+    if (id != null) {
+      _removed.add(id);
+      _forgetDraft(id);
+      final kept = [_pinned.remove(id), _archived.remove(id)];
+      if (_names.remove(id) != null || kept.contains(true)) _save();
+    }
     final catalog = thread.kernel.catalog;
     final listener = _listeners.remove(thread);
     if (listener != null) thread.session.removeListener(listener);
     _snapshots.remove(thread);
+    if (_draftKeys.remove(thread) case final key?) _forgetDraft(key);
     _threads.remove(thread);
     _leave(thread);
+    _closeIdeChats(thread);
     var stopped = Future<void>.value();
     if (thread.isOpen) {
       thread.session
@@ -893,7 +1763,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     }
     final candidates = [
       for (final thread in _threads)
-        if (!thread.archived && !identical(thread, gone)) thread,
+        if (!thread.archived &&
+            !identical(thread, gone) &&
+            _projects.contains(thread.project))
+          thread,
     ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     _grid.clear();
     _selected = null;
@@ -909,6 +1782,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   @override
   void dispose() {
     _disposed = true;
+    if (_draftTimer?.isActive ?? false) {
+      _draftTimer!.cancel();
+      _writeDrafts();
+    }
     for (final MapEntry(key: thread, value: listener) in _listeners.entries) {
       thread.session
         ..removeListener(listener)

@@ -19,6 +19,7 @@ import 'package:baocode/settings/pages/general_page.dart';
 import 'package:baocode/settings/pages/settings_dropdown.dart';
 import 'package:baocode/settings/pages/keybindings_page.dart';
 import 'package:baocode/settings/user_settings.dart';
+import 'package:baocode/workspace/main_window.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:path/path.dart' as p;
 
@@ -256,7 +257,8 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
     await tester.pumpAndSettle();
     expect(find.byType(GeneralSettingsPage), findsOneWidget);
-    final dropdown = find.byType(SettingsDropdown);
+    // The main window's comes first.
+    final dropdown = find.byType(SettingsDropdown).at(1);
     expect(tester.widget<SettingsDropdown>(dropdown).current, 'BaoCode');
     expect(find.text(CommitAttribution.baoCodeCommit), findsOneWidget);
 
@@ -287,6 +289,42 @@ void main() {
     );
     await tester.pump();
     expect(tester.widget<SettingsDropdown>(dropdown).current, 'BaoCode');
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('the main window is kept in settings.json, the default '
+      'unwritten', (tester) async {
+    await tester.runAsync(() async {
+      await write(
+        DataDirectory(data.path).storageFile,
+        '{ "$keybindingsImportOfferedKey": true }',
+      );
+      await start();
+    });
+    await pumpApp(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.comma);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.pumpAndSettle();
+    final dropdown = find.byType(SettingsDropdown).first;
+    expect(tester.widget<SettingsDropdown>(dropdown).current, 'Chat');
+
+    Future<void> choose(String label) async {
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    await choose('IDE');
+    await settle(tester, () => files.settings[MainWindow.settingKey] == 'ide');
+    await tester.pump();
+    expect(tester.widget<SettingsDropdown>(dropdown).current, 'IDE');
+
+    await choose('Chat');
+    await settle(
+      tester,
+      () => !files.settings.values.containsKey(MainWindow.settingKey),
+    );
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   test('the language is kept in argv.json, its comments too, and read back '

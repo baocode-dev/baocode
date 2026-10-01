@@ -23,6 +23,10 @@ const openSettingsCommandId = 'workbench.action.openSettings';
 /// Open Keyboard Shortcuts: the settings dialog on its keyboard page.
 const openKeybindingsCommandId = 'workbench.action.openGlobalKeybindings';
 
+/// Shell Command: Install / Uninstall the `code` command in PATH.
+const installShellCommandId = 'workbench.action.installCommandLine';
+const uninstallShellCommandId = 'workbench.action.uninstallCommandLine';
+
 /// A command a keybinding may run, as the Keyboard Shortcuts page lists it.
 @immutable
 class CommandInfo {
@@ -51,6 +55,51 @@ final Map<String, CommandInfo> commandCatalog = {
       'workbench.action.files.saveAll',
       'Save All',
       category: 'File',
+    ),
+    const CommandInfo(
+      'workbench.action.files.saveAs',
+      'Save As...',
+      category: 'File',
+    ),
+    const CommandInfo(
+      'workbench.action.files.newUntitledFile',
+      'New Text File',
+      category: 'File',
+    ),
+    const CommandInfo(
+      'workbench.action.files.openFile',
+      'Open File...',
+      category: 'File',
+    ),
+    const CommandInfo(
+      'workbench.action.files.openFolder',
+      'Open Folder...',
+      category: 'File',
+    ),
+    const CommandInfo(
+      'workbench.action.openRecent',
+      'Open Recent...',
+      category: 'File',
+    ),
+    const CommandInfo(
+      'workbench.action.clearRecentlyOpened',
+      'Clear Recently Opened...',
+      category: 'File',
+    ),
+    const CommandInfo(
+      'workbench.action.closeFolder',
+      'Close Folder',
+      category: 'Workspaces',
+    ),
+    const CommandInfo(
+      installShellCommandId,
+      "Install 'code' command in PATH",
+      category: 'Shell Command',
+    ),
+    const CommandInfo(
+      uninstallShellCommandId,
+      "Uninstall 'code' command from PATH",
+      category: 'Shell Command',
     ),
     const CommandInfo(
       'workbench.action.closeActiveEditor',
@@ -281,6 +330,18 @@ final Map<String, CommandInfo> commandCatalog = {
     const CommandInfo('list.collapse', 'Collapse', category: 'List'),
     const CommandInfo('list.select', 'Select', category: 'List'),
     const CommandInfo('list.toggleExpand', 'Toggle Expand', category: 'List'),
+    const CommandInfo(
+      'list.expandSelectionDown',
+      'Expand Selection Down',
+      category: 'List',
+    ),
+    const CommandInfo(
+      'list.expandSelectionUp',
+      'Expand Selection Up',
+      category: 'List',
+    ),
+    const CommandInfo('list.selectAll', 'Select All', category: 'List'),
+    const CommandInfo('list.clear', 'Clear Selection', category: 'List'),
     for (final MapEntry(key: id, value: title) in editorCommandLabels.entries)
       CommandInfo(id, title, category: 'Editor'),
     for (final MapEntry(key: id, value: title)
@@ -327,6 +388,32 @@ final List<KeybindingEntry> defaultKeybindings = List.unmodifiable([
     key: 'ctrl+alt+s',
     mac: 'alt+cmd+s',
     command: 'workbench.action.files.saveAll',
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+shift+s',
+    mac: 'shift+cmd+s',
+    command: 'workbench.action.files.saveAs',
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+n',
+    mac: 'cmd+n',
+    command: 'workbench.action.files.newUntitledFile',
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+o',
+    mac: 'cmd+o',
+    command: 'workbench.action.files.openFile',
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+k ctrl+o',
+    mac: 'cmd+k cmd+o',
+    command: 'workbench.action.files.openFolder',
+  ),
+  const KeybindingEntry(key: 'ctrl+r', command: 'workbench.action.openRecent'),
+  const KeybindingEntry(
+    key: 'ctrl+k f',
+    mac: 'cmd+k f',
+    command: 'workbench.action.closeFolder',
   ),
   const KeybindingEntry(
     win: 'ctrl+f4',
@@ -521,6 +608,27 @@ final List<KeybindingEntry> defaultKeybindings = List.unmodifiable([
   const KeybindingEntry(key: 'home', command: 'list.focusFirst', when: _list),
   const KeybindingEntry(key: 'end', command: 'list.focusLast', when: _list),
   const KeybindingEntry(
+    key: 'shift+down',
+    command: 'list.expandSelectionDown',
+    when: _multiselect,
+  ),
+  const KeybindingEntry(
+    key: 'shift+up',
+    command: 'list.expandSelectionUp',
+    when: _multiselect,
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+a',
+    mac: 'cmd+a',
+    command: 'list.selectAll',
+    when: _multiselect,
+  ),
+  const KeybindingEntry(
+    key: 'escape',
+    command: 'list.clear',
+    when: 'listFocus && listHasSelectionOrFocus && !inputFocus',
+  ),
+  const KeybindingEntry(
     mac: 'cmd+up',
     command: 'list.collapse',
     when: _collapse,
@@ -611,6 +719,7 @@ final List<KeybindingEntry> defaultKeybindings = List.unmodifiable([
 
 // Upstream's `when` clauses of the tree's and the explorer's keybindings.
 const _list = 'listFocus && !inputFocus';
+const _multiselect = 'listFocus && listSupportsMultiselect && !inputFocus';
 const _collapse =
     'listFocus && treeElementCanCollapse && !inputFocus || '
     'listFocus && treeElementHasParent && !inputFocus';
@@ -646,6 +755,8 @@ const knownContextKeys = {
   'explorerResourceMoveableToTrash',
   'listFocus',
   'listSupportsKeyboardNavigation',
+  'listSupportsMultiselect',
+  'listHasSelectionOrFocus',
   'treeElementCanCollapse',
   'treeElementCanExpand',
   'treeElementHasChild',

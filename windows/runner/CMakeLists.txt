@@ -14,6 +14,7 @@ add_executable(${BINARY_NAME} WIN32
   "drop_target.cpp"
   "flutter_window.cpp"
   "main.cpp"
+  "open_requests.cpp"
   "utils.cpp"
   "win32_window.cpp"
   "window_channel.cpp"

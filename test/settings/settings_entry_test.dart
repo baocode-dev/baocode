@@ -198,11 +198,28 @@ void main() {
         .first;
     expect(tester.getSize(box), const Size(700 - 48, 500 - 48));
     expect(find.text('page general'), findsOneWidget);
+    // The pages listed under their headings.
+    expect(find.text('Preferences'), findsOneWidget);
+    expect(find.text('Advanced'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Advanced')).dy,
+      greaterThan(tester.getTopLeft(find.text('Keyboard Shortcuts')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Data Directory')).dy,
+      greaterThan(tester.getTopLeft(find.text('Advanced')).dy),
+    );
     await tester.tap(find.text('Data Directory'));
     await tester.pumpAndSettle();
     expect(find.text('page dataDirectory'), findsOneWidget);
     await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();
     expect(find.byType(SettingsDialog), findsNothing);
+  });
+
+  test('every settings page is listed under one heading', () {
+    expect([
+      for (final category in SettingsCategory.values) ...category.sections,
+    ], unorderedEquals(SettingsSection.values));
   });
 }

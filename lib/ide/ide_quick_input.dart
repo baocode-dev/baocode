@@ -67,6 +67,7 @@ class IdeQuickPickItem extends IdeQuickPickEntry {
     this.description,
     this.descriptionMatches = const [],
     this.icon,
+    this.badge,
     this.detail,
     this.alwaysShow = false,
     this.keybinding,
@@ -85,6 +86,9 @@ class IdeQuickPickItem extends IdeQuickPickEntry {
 
   /// Before the label; an [Icon] without a color takes the row's.
   final Widget? icon;
+
+  /// Right after the label, before the description: e.g. a status dot.
+  final Widget? badge;
 
   /// Muted text on a second line, its `$(name)` icons drawn as codicons
   /// (upstream `detail`).
@@ -366,7 +370,7 @@ class IdeQuickInputState extends State<IdeQuickInput> {
     _controller.selection = widget.inputBox != null
         ? TextSelection(baseOffset: 0, extentOffset: widget.initialText.length)
         : TextSelection.collapsed(offset: widget.initialText.length);
-    _controller.addListener(_recompute);
+    _controller.addListener(_textEdited);
     widget.refresh?.addListener(_recompute);
     if (widget.inputBox case final box?) {
       _lastText = _controller.text;
@@ -466,6 +470,12 @@ class IdeQuickInputState extends State<IdeQuickInput> {
 
   IdeQuickPickItem? get _active =>
       _selected >= 0 && _selected < _rows.length ? _rows[_selected].item : null;
+
+  /// The text's controller changed: only the text's changes recompute the
+  /// rows, not the caret's or the selection's.
+  void _textEdited() {
+    if (_lastText != _controller.text) _recompute();
+  }
 
   void _recompute() {
     if (!mounted) return;
@@ -932,6 +942,11 @@ class _QuickPickRowState extends State<_QuickPickRow> {
                     fontSize: 12.5,
                   ),
                 ),
+                if (item.badge case final badge?)
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: badge,
+                  ),
                 if (item.description case final description?
                     when description.isNotEmpty) ...[
                   const TextSpan(text: '  '),

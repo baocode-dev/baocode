@@ -42,7 +42,31 @@ class IdeDocument {
       openError = null,
       label = null,
       readRevision = null,
-      diff = null;
+      diff = null,
+      isMedia = false,
+      isUntitled = false;
+
+  /// A new file, not saved anywhere yet: [path] is its name alone
+  /// (`Untitled-1`), and saving it asks where to (Save As).
+  IdeDocument.untitled(this.path)
+    : model = EditorDocumentModel(''),
+      openError = null,
+      label = null,
+      readRevision = null,
+      diff = null,
+      isMedia = false,
+      isUntitled = true;
+
+  /// An image, shown in VS Code's image preview rather than the text
+  /// editor: it has no text.
+  IdeDocument.media(this.path)
+    : model = EditorDocumentModel(''),
+      openError = null,
+      label = null,
+      readRevision = null,
+      diff = null,
+      isMedia = true,
+      isUntitled = false;
 
   /// A file the editor could not open: its tab shows [openError] in VS
   /// Code's placeholder editor, and it has no text.
@@ -50,7 +74,9 @@ class IdeDocument {
     : model = EditorDocumentModel(''),
       label = null,
       readRevision = null,
-      diff = null;
+      diff = null,
+      isMedia = false,
+      isUntitled = false;
 
   /// [path]'s text at a revision (Git's), read-only, titled with [label]
   /// (`Deleted`, `Index`): VS Code's editor of a `git:` document.
@@ -61,7 +87,9 @@ class IdeDocument {
     required Future<String> Function() this.readRevision,
   }) : model = EditorDocumentModel(text),
        openError = null,
-       diff = null;
+       diff = null,
+       isMedia = false,
+       isUntitled = false;
 
   /// A diff tab: [diff]'s original against [model], [path]'s file (then
   /// shared with its other tabs) or, with [readRevision], its text at a
@@ -72,14 +100,28 @@ class IdeDocument {
     required String this.label,
     required IdeDiffOriginal this.diff,
     this.readRevision,
-  }) : openError = null;
+  }) : openError = null,
+       isMedia = false,
+       isUntitled = false;
 
   /// [path]'s own tab of the [model] its diff tab has.
   IdeDocument._shared(this.path, this.model)
     : openError = null,
       label = null,
       readRevision = null,
-      diff = null;
+      diff = null,
+      isMedia = false,
+      isUntitled = false;
+
+  /// [document], new, saved to [path]: the same text and history.
+  IdeDocument._saved(this.path, IdeDocument document)
+    : model = document.model,
+      openError = null,
+      label = null,
+      readRevision = null,
+      diff = null,
+      isMedia = false,
+      isUntitled = false;
 
   /// [document] at [path], after its file moved: the same text, history
   /// and unsaved changes.
@@ -88,7 +130,9 @@ class IdeDocument {
       openError = document.openError,
       label = document.label,
       readRevision = document.readRevision,
-      diff = document.diff;
+      diff = document.diff,
+      isMedia = document.isMedia,
+      isUntitled = document.isUntitled;
 
   final String path;
   final EditorDocumentModel model;
@@ -108,12 +152,23 @@ class IdeDocument {
   /// The original side, for a diff tab.
   final IdeDiffOriginal? diff;
 
+  /// Whether the tab is the image preview's ([IdeDocument.media]).
+  final bool isMedia;
+
+  /// Whether it is a new file not saved yet ([IdeDocument.untitled]).
+  final bool isUntitled;
+
+  /// Whether its file was deleted while open: the tab says so, and saving
+  /// makes the file again (VS Code's orphaned editors).
+  bool deleted = false;
+
   /// Tells the tab apart from [path]'s others.
   String get key => label == null ? path : '$path\u0000$label';
 
   /// Whether the text is the file's: saved to it, and given to language
   /// servers.
-  bool get isFile => readRevision == null && openError == null;
+  bool get isFile =>
+      readRevision == null && openError == null && !isMedia && !isUntitled;
   bool get readOnly => readRevision != null;
 
   String get text => model.text;
@@ -135,10 +190,24 @@ class IdeDocument {
 
 /// Open files belong to the IDE pane, not to any one agent conversation.
 class IdeWorkspace extends ChangeNotifier {
-  IdeWorkspace(this.root, {IdeFileService? files, this.languages, this.git})
-    : files = files ?? IdeFileService(root);
+  IdeWorkspace(
+    this.root, {
+    IdeFileService? files,
+    this.languages,
+    this.git,
+    this.hasFolder = true,
+    Stream<void> Function(String directory)? watch,
+  }) : files = files ?? IdeFileService(root),
+       _watchDirectory = watch ?? watchDirectory {
+    addListener(_watchOpenFiles);
+  }
 
   final String root;
+
+  /// Whether [root] is a folder the user opened; without one (the IDE's
+  /// empty window, [root] then the home folder), there is no explorer
+  /// tree, and Search and Quick Open cover the open files alone.
+  final bool hasFolder;
   final IdeFileService files;
 
   /// Language servers for this workspace's documents; null for none.
@@ -166,6 +235,13 @@ class IdeWorkspace extends ChangeNotifier {
   _syncing = {};
   final List<IdeDocument> _documents = [];
   final Map<String, Future<String>> _reads = {};
+
+  /// The folders of the open files, watched for changes made outside the
+  /// editor (an agent's edit, another program's): VS Code's file watcher.
+  final Stream<void> Function(String directory) _watchDirectory;
+  final Map<String, StreamSubscription<void>> _watches = {};
+  final Set<String> _changedDirectories = {};
+  Timer? _changesTimer;
   Future<void> _saves = Future.value();
   String? _activeKey;
   int _selection = 0;
@@ -200,6 +276,8 @@ class IdeWorkspace extends ChangeNotifier {
     if (_fileModel(path) case final model?) {
       // Its diff tab's: the same text and history.
       doc = IdeDocument._shared(path, model);
+    } else if (ideIsImagePath(path)) {
+      doc = IdeDocument.media(path);
     } else {
       final read = _reads.putIfAbsent(path, () => files.read(path));
       try {
@@ -358,30 +436,74 @@ class IdeWorkspace extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Reads the open, unmodified documents among [paths] again, after
-  /// something else changed their files (a discard, an undone commit), as
+  /// Reads the open documents among [paths] again, after something else
+  /// changed their files (a discard, an undone commit, an agent's edit), as
   /// VS Code reloads an editor whose file changed on disk. Documents with
-  /// unsaved changes keep them.
+  /// unsaved changes keep them; those whose file is gone are [deleted].
   Future<void> reload(Iterable<String> paths) async {
     final wanted = {for (final path in paths) p.normalize(path)};
     var changed = false;
     for (final doc in _documents.toList()) {
-      if (!wanted.contains(doc.path) || doc.dirty || !doc.isFile) {
-        continue;
-      }
+      if (!wanted.contains(doc.path) || !doc.isFile) continue;
       final String text;
       try {
+        // A modified document's too, for whether its file is there: the
+        // read's baseline does not let a save write over the change.
         text = await files.read(doc.path);
+      } on IdeFileNotFoundException {
+        if (_disposed || !_documents.contains(doc) || doc.deleted) continue;
+        doc.deleted = true;
+        changed = true;
+        continue;
       } catch (_) {
         continue;
       }
-      if (_disposed || !_documents.contains(doc) || doc.dirty) continue;
-      if (text == doc.text) continue;
+      if (_disposed || !_documents.contains(doc)) continue;
+      if (doc.deleted) {
+        doc.deleted = false;
+        changed = true;
+      }
+      if (doc.dirty || text == doc.text) continue;
       doc.text = text;
       doc.savedText = text;
       changed = true;
     }
     if (changed && !_disposed) notifyListeners();
+  }
+
+  /// Watches the folders of the open files, and no others.
+  void _watchOpenFiles() {
+    if (_disposed) return;
+    final directories = {
+      for (final doc in _documents)
+        if (doc.isFile) p.dirname(doc.path),
+    };
+    for (final directory in _watches.keys.toList()) {
+      if (!directories.contains(directory)) {
+        unawaited(_watches.remove(directory)!.cancel());
+      }
+    }
+    for (final directory in directories) {
+      _watches[directory] ??= _watchDirectory(directory).listen((_) {
+        _changedDirectories.add(directory);
+        // A write comes as several events; read once they settle.
+        _changesTimer?.cancel();
+        _changesTimer = Timer(_changesDelay, _reloadChanged);
+      });
+    }
+  }
+
+  static const _changesDelay = Duration(milliseconds: 100);
+
+  void _reloadChanged() {
+    final directories = {..._changedDirectories};
+    _changedDirectories.clear();
+    unawaited(
+      reload([
+        for (final doc in _documents)
+          if (directories.contains(p.dirname(doc.path))) doc.path,
+      ]),
+    );
   }
 
   /// Follows a file or folder the explorer moved from [from] to [to]: the
@@ -516,14 +638,82 @@ class IdeWorkspace extends ChangeNotifier {
     return changed;
   }
 
+  /// Asks where to save a document (Save As): a path, or null when
+  /// cancelled. Without it, a new file cannot be saved.
+  Future<String?> Function(IdeDocument doc)? askSavePath;
+
+  /// Opens a new file, not saved anywhere yet (`Untitled-1`), and selects
+  /// it.
+  IdeDocument newUntitled() {
+    final names = {for (final doc in _documents) doc.path};
+    var n = 1;
+    while (names.contains('Untitled-$n')) {
+      n++;
+    }
+    final doc = IdeDocument.untitled('Untitled-$n');
+    _add(doc, select: true);
+    return doc;
+  }
+
+  /// Saves [doc] to a path asked for ([askSavePath]), its tab then that
+  /// file's: the new document, or null when not saved.
+  Future<IdeDocument?> saveAs(IdeDocument doc) async {
+    if (_disposed || !_documents.contains(doc) || doc.readOnly) return null;
+    final path = await askSavePath?.call(doc);
+    if (path == null || _disposed || !_documents.contains(doc)) return null;
+    return saveTo(doc, path);
+  }
+
+  /// Writes [doc]'s text to [path] (made if it is not there), and has its
+  /// tab be that file's, in place of any other of it.
+  Future<IdeDocument?> saveTo(IdeDocument doc, String path) async {
+    path = p.normalize(p.absolute(path));
+    final text = doc.text;
+    try {
+      await files.create(path);
+    } on IdeFileExistsException {
+      // Written over: the dialog asked.
+    }
+    await files.read(path, force: true);
+    await files.write(path, text);
+    if (_disposed || !_documents.contains(doc)) return null;
+    for (final other in [..._documents]) {
+      if (other.path == path && !identical(other, doc)) close(other);
+    }
+    final index = _documents.indexOf(doc);
+    if (index < 0) return null;
+    _stopSync(doc, force: true);
+    final saved = IdeDocument._saved(path, doc)..savedText = text;
+    _documents[index] = saved;
+    if (_activeKey == doc.key) _activeKey = saved.key;
+    _startSync(saved);
+    if (_syncing.containsKey(saved.model)) _sync?.saveDocument(path, text);
+    git?.scheduleRefresh();
+    notifyListeners();
+    return saved;
+  }
+
   Future<void> save(IdeDocument doc) {
+    if (doc.isUntitled) return saveAs(doc);
     final text = doc.text;
     final result = _saves.then((_) async {
       if (_disposed || !_documents.contains(doc) || !doc.isFile) {
         return;
       }
-      await files.write(doc.path, text, expectedText: doc.savedText);
+      String? expectedText = doc.savedText;
+      if (doc.deleted) {
+        // Saving a deleted file makes it again, as VS Code's does.
+        try {
+          await files.create(doc.path);
+          await files.read(doc.path);
+          expectedText = '';
+        } on IdeFileExistsException {
+          // Back meanwhile: written over only if it is as it was.
+        }
+      }
+      await files.write(doc.path, text, expectedText: expectedText);
       if (_disposed || !_documents.contains(doc)) return;
+      doc.deleted = false;
       doc.savedText = text;
       if (_syncing.containsKey(doc.model)) _sync?.saveDocument(doc.path, text);
       git?.scheduleRefresh();
@@ -552,6 +742,11 @@ class IdeWorkspace extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _changesTimer?.cancel();
+    for (final watch in _watches.values) {
+      unawaited(watch.cancel());
+    }
+    _watches.clear();
     final documents = _documents.toList();
     _documents.clear();
     final models = <EditorDocumentModel>{};

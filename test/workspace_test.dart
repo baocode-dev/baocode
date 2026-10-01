@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_quill/quill_delta.dart';
+import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
@@ -65,6 +68,7 @@ final KernelDescriptor claude = KernelDescriptor(
 Future<Workspace> pumpLoaded(
   WidgetTester tester, {
   PreferenceStore? preferences,
+  PreferenceStore? drafts,
   KernelDescriptor? kernel,
   AgentTitler? titler,
 }) async {
@@ -74,6 +78,7 @@ Future<Workspace> pumpLoaded(
   final workspace = Workspace(
     kernels: [kernel ?? claude],
     preferences: preferences,
+    drafts: drafts,
     titler: titler,
   );
   await tester.pumpWidget(BaoCodeApp(workspace: workspace));
@@ -187,6 +192,66 @@ void main() {
     expect(inSidebar(find.text('Write a.txt and read it back')), findsNothing);
   });
 
+  testWidgets('what is typed and not sent is there the next run', (
+    tester,
+  ) async {
+    final drafts = MemoryPreferenceStore();
+    var workspace = await pumpLoaded(tester, drafts: drafts);
+    AgentThread keptThread() => workspace.threads.firstWhere(
+      (thread) => thread.id == FakeCatalog.kept.id,
+    );
+    AgentThread newThread() =>
+        workspace.threads.firstWhere((thread) => thread.id == null);
+    final image = ImageAttachment(
+      bytes: Uint8List.fromList([1, 2, 3]),
+      mediaType: 'image/png',
+      name: 'shot.png',
+      number: 1,
+    );
+    keptThread().session.draft.save(
+      Delta()..insert('Half a question\n'),
+      const TextSelection.collapsed(offset: 4),
+      [image],
+    );
+    workspace.create(project: keptThread().project);
+    newThread().session.draft.save(
+      Delta()..insert('Not asked yet\n'),
+      const TextSelection(baseOffset: 0, extentOffset: 3),
+      const [],
+    );
+    // Written once typing stops.
+    await tester.pump(const Duration(milliseconds: 600));
+    expect((await drafts.read()).keys, {
+      FakeCatalog.kept.id,
+      'new:/tmp/project',
+    });
+
+    await tester.pumpWidget(const SizedBox());
+    workspace = await pumpLoaded(tester, drafts: drafts);
+    final kept = keptThread().session.draft;
+    expect(kept.content, Delta()..insert('Half a question\n'));
+    expect(kept.selection, const TextSelection.collapsed(offset: 4));
+    expect(kept.images.single.bytes, [1, 2, 3]);
+    expect(kept.images.single.name, 'shot.png');
+    expect(kept.images.single.number, 1);
+    workspace.create(project: keptThread().project);
+    final draft = newThread().session.draft;
+    expect(draft.content, Delta()..insert('Not asked yet\n'));
+    expect(
+      draft.selection,
+      const TextSelection(baseOffset: 0, extentOffset: 3),
+    );
+
+    // Emptied: not kept.
+    keptThread().session.draft.save(
+      Delta()..insert('\n'),
+      const TextSelection.collapsed(offset: 0),
+      const [],
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    expect((await drafts.read()).keys, {'new:/tmp/project'});
+  });
+
   testWidgets('an opened folder becomes the first project', (tester) async {
     final workspace = await pumpLoaded(tester);
     await tester.runAsync(() => workspace.openFolder('/tmp/other'));
@@ -196,8 +261,8 @@ void main() {
     expect(workspace.selected.session.kernelContext.cwd, '/tmp/other');
   });
 
-  testWidgets('a new agent is titled after its first message worth it, and '
-      'the title is kept with its session', (tester) async {
+  testWidgets('a new agent is titled after its first message, and the '
+      'title is kept with its session', (tester) async {
     final renames = <String>[];
     final asked = <String>[];
     final generated = Completer<String?>();
@@ -212,32 +277,60 @@ void main() {
     final thread = workspace.selected;
     final session = thread.session;
 
-    // Too short to say what it is about, a message is the title as it is;
-    // a slash command is none.
+    // Its first line is the title meanwhile.
     session.send(const ComposerMessage(text: 'hi'));
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
-    session.send(const ComposerMessage(text: '/review the diff'));
-    await tester.pump();
-    expect(asked, isEmpty);
+    expect(asked, ['hi']);
     expect(thread.title, 'hi');
-
-    session.send(const ComposerMessage(text: 'Fix the flaky login test in CI'));
+    generated.complete('Greeting');
     await tester.pump();
-    expect(asked, ['Fix the flaky login test in CI']);
-    expect(thread.title, 'hi');
-    generated.complete('Flaky login test');
-    await tester.pump();
-    expect(thread.title, 'Flaky login test');
-    expect(inSidebar(find.text('Flaky login test')), findsOneWidget);
+    expect(thread.title, 'Greeting');
+    expect(inSidebar(find.text('Greeting')), findsOneWidget);
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    expect(renames, ['Flaky login test']);
+    expect(renames, ['Greeting']);
 
     // Once.
-    session.send(const ComposerMessage(text: 'And the signup test as well'));
+    session.send(const ComposerMessage(text: 'Fix the flaky login test'));
     await tester.pump();
     expect(asked, hasLength(1));
     session.stop();
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('a new agent asked with images alone is titled after the '
+      'file, without the model', (tester) async {
+    final renames = <String>[];
+    final asked = <String>[];
+    final workspace = await pumpLoaded(
+      tester,
+      kernel: titledClaude(renames),
+      titler: (message) async {
+        asked.add(message);
+        return 'Generated';
+      },
+    );
+    final thread = workspace.selected;
+    thread.session.send(
+      ComposerMessage(
+        text: '[Image #1]',
+        images: [
+          ImageAttachment(
+            bytes: Uint8List(0),
+            mediaType: 'image/png',
+            name: 'shot.png',
+          ),
+        ],
+      ),
+    );
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    expect(asked, isEmpty);
+    expect(thread.title, 'Image: shot.png');
+    expect(inSidebar(find.text('Image: shot.png')), findsOneWidget);
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    expect(renames, ['Image: shot.png']);
+    thread.session.stop();
     await tester.pump(const Duration(seconds: 1));
   });
 
@@ -367,6 +460,99 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
+  testWidgets('what the sidebar shows is kept between runs', (tester) async {
+    addTearDown(FakeCatalog.started.clear);
+    FakeCatalog.started.add(
+      SessionRecord(
+        id: 'other',
+        title: 'Another',
+        updatedAt: DateTime(2026, 9, 26),
+        cwd: '/tmp/other',
+      ),
+    );
+    final store = MemoryPreferenceStore();
+    var workspace = await pumpLoaded(tester, preferences: store);
+    AgentThread thread(String id) =>
+        workspace.threads.firstWhere((thread) => thread.record?.id == id);
+    workspace
+      ..setPinned(thread(FakeCatalog.kept.id), true)
+      ..rename(thread(FakeCatalog.kept.id), 'Renamed')
+      ..setArchived(thread('other'), true)
+      ..sidebarGrouping = SidebarGrouping.time.name
+      ..toggleCollapsed('today')
+      ..showArchived = true;
+    await tester.runAsync(() => workspace.openFolder('/tmp/opened'));
+
+    // The next run.
+    await tester.pumpWidget(const SizedBox());
+    final renames = <String>[];
+    workspace = await pumpLoaded(
+      tester,
+      preferences: store,
+      kernel: titledClaude(renames),
+    );
+    final kept = thread(FakeCatalog.kept.id);
+    expect(kept.pinned, isTrue);
+    expect(kept.title, 'Renamed');
+    expect(thread('other').archived, isTrue);
+    expect(thread('other').pinned, isFalse);
+    expect(workspace.sidebarGrouping, SidebarGrouping.time.name);
+    expect(workspace.isCollapsed('today'), isTrue);
+    expect(workspace.showArchived, isTrue);
+    expect(
+      workspace.projects.map((project) => project.path),
+      contains('/tmp/opened'),
+    );
+
+    // Its CLI takes the name once running.
+    workspace.select(kept);
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    expect(renames, ['Renamed']);
+    kept.session.stop();
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('marks are dropped with the sessions gone, not when the '
+      'catalog could not be read', (tester) async {
+    final store = MemoryPreferenceStore({
+      'sidebar': {
+        'pinned': [FakeCatalog.kept.id, 'gone'],
+        'archived': ['gone'],
+        'names': {FakeCatalog.kept.id: FakeCatalog.kept.title, 'gone': 'x'},
+        'folders': ['/tmp/project', '/tmp/opened'],
+      },
+    });
+    late final KernelDescriptor failing;
+    failing = KernelDescriptor(
+      id: 'claude-code',
+      label: 'Claude Code',
+      icon: Icons.auto_awesome_rounded,
+      description: '',
+      catalog: _FailingCatalog(),
+      create: (context) => ClaudeCodeKernel(
+        failing,
+        context,
+        start: MockClaudeCodeTransport.start,
+      ),
+    );
+    await pumpLoaded(tester, preferences: store, kernel: failing);
+    expect((store.preferences['sidebar'] as Map)['pinned'], [
+      FakeCatalog.kept.id,
+      'gone',
+    ]);
+
+    await tester.pumpWidget(const SizedBox());
+    await pumpLoaded(tester, preferences: store);
+    final sidebar = store.preferences['sidebar'] as Map;
+    expect(sidebar['pinned'], [FakeCatalog.kept.id]);
+    expect(sidebar['archived'], isEmpty);
+    // The catalog lists the name now: it is the CLI's.
+    expect(sidebar['names'], isEmpty);
+    // Listed by the catalog now.
+    expect(sidebar['folders'], ['/tmp/opened']);
+  });
+
   testWidgets('back in the app, sessions started elsewhere are listed', (
     tester,
   ) async {
@@ -410,4 +596,114 @@ void main() {
     ours.stop();
     await tester.pump(const Duration(seconds: 1));
   });
+
+  group('the IDE', () {
+    testWidgets('opens a folder apart from the chat: no agent there is '
+        'listed, and the chat keeps its own', (tester) async {
+      final workspace = await pumpLoaded(tester);
+      final selected = workspace.selected;
+      final projects = [...workspace.projects];
+
+      workspace.openIdeFolder('/tmp/ide');
+      await tester.pump();
+      expect(workspace.ideFolder, '/tmp/ide');
+      expect(workspace.recentFolders, ['/tmp/ide']);
+      expect(workspace.projects, projects);
+      expect(workspace.selected, same(selected));
+      // A chat of its own there, which the sidebar does not list.
+      final chat = workspace.ideChat('/tmp/ide')!;
+      expect(chat.project.path, '/tmp/ide');
+      expect(workspace.ideChats('/tmp/ide'), [chat]);
+      expect(workspace.listsInSidebar(chat), isFalse);
+
+      workspace.closeIdeFolder();
+      expect(workspace.ideFolder, isNull);
+      expect(workspace.recentFolders, ['/tmp/ide']);
+    });
+
+    testWidgets('lists a folder once an agent there is sent something', (
+      tester,
+    ) async {
+      final workspace = await pumpLoaded(tester);
+      workspace.openIdeFolder('/tmp/ide');
+      final chat = workspace.ideChat('/tmp/ide')!;
+      chat.session.send(const ComposerMessage(text: 'hi'));
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+      expect(workspace.projects.first.path, '/tmp/ide');
+      expect(workspace.listsInSidebar(chat), isTrue);
+      chat.session.stop();
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('chats are tabs: a new one beside the shown, a closed one '
+        'nothing was sent to dropped, the last replaced', (tester) async {
+      final workspace = await pumpLoaded(tester);
+      workspace.openIdeFolder('/tmp/ide');
+      final first = workspace.ideChat('/tmp/ide')!;
+      // An untouched one is reused, not another made.
+      expect(workspace.newIdeChat('/tmp/ide'), same(first));
+
+      final kept = workspace.threads.firstWhere(
+        (thread) => thread.record?.id == FakeCatalog.kept.id,
+      );
+      workspace.openIdeChat('/tmp/ide', kept);
+      expect(workspace.ideChats('/tmp/ide'), [first, kept]);
+      expect(workspace.ideChat('/tmp/ide'), same(kept));
+
+      workspace.closeIdeChat('/tmp/ide', first);
+      expect(workspace.threads, isNot(contains(first)));
+      expect(workspace.ideChats('/tmp/ide'), [kept]);
+
+      // The agent goes on, out of the tabs; a new one takes their place.
+      workspace.closeIdeChat('/tmp/ide', kept);
+      expect(workspace.threads, contains(kept));
+      final replaced = workspace.ideChats('/tmp/ide');
+      expect(replaced, hasLength(1));
+      expect(replaced.single.untouched, isTrue);
+    });
+
+    testWidgets("an agent opened in the IDE shows its folder, with it the "
+        "chat's tab; kept between runs", (tester) async {
+      final store = MemoryPreferenceStore();
+      var workspace = await pumpLoaded(tester, preferences: store);
+      final kept = workspace.threads.firstWhere(
+        (thread) => thread.record?.id == FakeCatalog.kept.id,
+      );
+      final selected = workspace.selected;
+      workspace
+        ..openInIde(kept)
+        ..addRecentFile('/tmp/project/a.txt');
+      expect(workspace.layout, WorkspaceLayout.ide);
+      expect(workspace.ideFolder, '/tmp/project');
+      expect(workspace.ideChat('/tmp/project'), same(kept));
+      expect(workspace.selected, same(selected));
+
+      // The next run.
+      await tester.pumpWidget(const SizedBox());
+      workspace = await pumpLoaded(tester, preferences: store);
+      expect(workspace.ideFolder, '/tmp/project');
+      expect(workspace.recentFolders, ['/tmp/project']);
+      expect(workspace.recentFiles, ['/tmp/project/a.txt']);
+      expect(
+        workspace.ideChat('/tmp/project')?.record?.id,
+        FakeCatalog.kept.id,
+      );
+
+      workspace.clearRecent();
+      expect(workspace.recentFolders, isEmpty);
+      expect(workspace.recentFiles, isEmpty);
+    });
+  });
+}
+
+class _FailingCatalog implements SessionCatalog {
+  @override
+  Future<List<ProjectRecord>> projects() async => throw StateError('locked');
+
+  @override
+  Future<List<SessionRecord>> sessionsIn(String cwd) async => const [];
+
+  @override
+  Future<void> delete(String id) async {}
 }

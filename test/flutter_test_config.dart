@@ -11,6 +11,7 @@ import 'package:bao_editor/textmate/textmate_worker.dart';
 import 'package:baocode/ide/lsp/packs/language_packs.dart';
 import 'package:baocode/kernel/kernel_registry.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
+import 'package:baocode/platform/shell_command.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 
 import 'semantics_tree.dart';
@@ -21,7 +22,8 @@ import 'semantics_tree.dart';
 /// isolate, on its fake clock. Each test reads assets afresh: the bundle
 /// caches futures, which answer in the zone of the test that made them.
 /// Each test starts in the default color theme, restored as the app
-/// restores a kept theme, without reading assets.
+/// restores a kept theme, without reading assets. The `code` command is
+/// a stand-in, never installed: none looks at the machine's own.
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   checkDesktopSemantics();
   KernelRegistry.use(MockKernels.all);
@@ -30,6 +32,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   final defaultTheme = await _defaultColorTheme();
   setUp(() {
     rootBundle.clear();
+    ShellCommand.debugInstaller = _NoShellCommand();
     WorkbenchThemeService.instance = WorkbenchThemeService()
       ..restore(
         setting: ThemeSettingDefaults.colorThemeDark,
@@ -37,6 +40,20 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
       );
   });
   await testMain();
+}
+
+class _NoShellCommand implements ShellCommandInstaller {
+  @override
+  String get location => '/usr/local/bin/code';
+
+  @override
+  Future<ShellCommandStatus> status() async => ShellCommandStatus.notInstalled;
+
+  @override
+  Future<void> install({bool overwrite = false}) async {}
+
+  @override
+  Future<void> uninstall() async {}
 }
 
 /// The default theme's storage data, read from the assets on disk.

@@ -1,9 +1,12 @@
 // An agent's title, generated from the message it was first asked
 // something with, as Claude Code titles its sessions: by Claude Haiku, in
 // the message's language. Until then, and when it cannot be had, the
-// message's first line is the title.
+// message's first line is the title. Images alone are titled after their
+// file, without the model.
 
+import '../chat/chat_models.dart';
 import '../kernel/claude_code/claude_haiku.dart';
+import '../l10n/l10n.dart';
 
 /// Titles a conversation after [message]; null when it cannot.
 typedef AgentTitler = Future<String?> Function(String message);
@@ -11,11 +14,20 @@ typedef AgentTitler = Future<String?> Function(String message);
 /// The most of a message the model is given, in characters.
 const agentTitleMessageBudget = 2000;
 
-/// Whether [message] is worth a title: not a slash command, and long
-/// enough to say what it is about (a shorter one is a title as it is).
-bool agentTitleWorthy(String message) {
-  final text = message.trim();
-  return text.runes.length >= 10 && !RegExp(r'^/[\w:-]+(\s|$)').hasMatch(text);
+/// The title of an agent asked something with [images] alone (its [text]
+/// only refers to them, `[Image #1]`): `Image: shot.png`, after the first
+/// with a file name; null when the text says more.
+String? agentImageTitle(
+  String text,
+  List<ImageAttachment> images,
+  AppLocalizations l10n,
+) {
+  if (images.isEmpty) return null;
+  if (text.replaceAll(imageReferencePattern, '').trim().isNotEmpty) {
+    return null;
+  }
+  final name = images.map((image) => image.name).nonNulls.firstOrNull;
+  return name == null ? l10n.agentImageUntitled : l10n.agentImageTitle(name);
 }
 
 /// One line, so that it passes through a shell unchanged.

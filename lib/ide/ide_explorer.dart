@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'dart:async';
+import 'dart:collection' show UnmodifiableSetView;
 import 'dart:io' show Platform;
+import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -74,11 +76,21 @@ class IdeExplorerController extends ChangeNotifier {
   final Map<String, Future<void>> _loads = {};
   List<IdeExplorerRow>? _rows;
   String? _selected;
+  final Set<String> _selection = {};
+  String? _anchor;
   int _revealRequest = 0;
   bool _disposed = false;
 
-  /// The selected row's path, if any.
+  /// The focused row's path, if any (upstream's focus, as distinct from the
+  /// selection): the one the keys move from, and which is acted on alone
+  /// when it is not in the [selection].
   String? get selected => _selected;
+
+  /// The selected rows' paths: the focused one's alone, unless a modifier
+  /// click or Shift with the arrows selected more.
+  Set<String> get selection => UnmodifiableSetView(_selection);
+
+  bool isSelected(String path) => _selection.contains(path);
 
   /// Increments whenever the selection should be scrolled into view.
   int get revealRequest => _revealRequest;
@@ -151,7 +163,9 @@ class IdeExplorerController extends ChangeNotifier {
   }
 
   void collapse(String directory) {
-    if (_expanded.remove(directory)) _changed();
+    if (!_expanded.remove(directory)) return;
+    _selection.removeWhere((path) => p.isWithin(directory, path));
+    _changed();
   }
 
   Future<void> toggle(String directory) => _expanded.contains(directory)
@@ -162,17 +176,70 @@ class IdeExplorerController extends ChangeNotifier {
   void collapseAll() {
     if (_expanded.isEmpty) return;
     _expanded.clear();
-    if (_selected case final selected?
-        when !rows.any((r) => r.path == selected)) {
+    _rows = null;
+    final shown = {for (final row in rows) row.path};
+    if (_selected case final selected? when !shown.contains(selected)) {
       _selected = null;
     }
+    _selection.retainWhere(shown.contains);
     _changed();
   }
 
+  /// Focuses and selects [path] alone (none for null), as a click does.
   void select(String? path, {bool reveal = false}) {
-    if (_selected == path && !reveal) return;
+    if (!reveal && _selected == path && setEquals(_selection, {?path})) return;
     _selected = path;
+    _anchor = path;
+    _selection
+      ..clear()
+      ..addAll([?path]);
     if (reveal) _revealRequest++;
+    _changed();
+  }
+
+  /// Adds [path] to the selection, or takes it out, and focuses it, as a
+  /// Cmd (Ctrl) click does.
+  void toggleSelection(String path) {
+    _selected = path;
+    _anchor = path;
+    if (!_selection.remove(path)) _selection.add(path);
+    _changed();
+  }
+
+  /// Selects the rows from the last one clicked to [path] and focuses it,
+  /// as a Shift click or Shift with the arrows does.
+  void selectRange(String path, {bool reveal = false}) {
+    final paths = [
+      for (final row in rows)
+        if (row.message == null) row.path,
+    ];
+    final to = paths.indexOf(path);
+    if (to < 0) return;
+    var from = _anchor == null ? -1 : paths.indexOf(_anchor!);
+    if (from < 0) {
+      from = to;
+      _anchor = path;
+    }
+    _selected = path;
+    _selection
+      ..clear()
+      ..addAll(paths.sublist(math.min(from, to), math.max(from, to) + 1));
+    if (reveal) _revealRequest++;
+    _changed();
+  }
+
+  /// Selects every row shown (`list.selectAll`).
+  void selectAll() {
+    final paths = [
+      for (final row in rows)
+        if (row.message == null) row.path,
+    ];
+    if (paths.isEmpty) return;
+    _selected ??= paths.first;
+    _anchor ??= _selected;
+    _selection
+      ..clear()
+      ..addAll(paths);
     _changed();
   }
 
@@ -214,6 +281,8 @@ class IdeExplorerController extends ChangeNotifier {
     _expanded.removeWhere(under);
     _children.removeWhere((directory, _) => under(directory));
     if (_selected case final selected? when under(selected)) _selected = null;
+    if (_anchor case final anchor? when under(anchor)) _anchor = null;
+    _selection.removeWhere(under);
     _changed();
   }
 
@@ -234,9 +303,8 @@ class IdeExplorerController extends ChangeNotifier {
 /// fileActions.contribution.ts, views/explorerViewer.ts) and the Git
 /// extension's decorations (extensions/git/src/decorationProvider.ts).
 ///
-/// Deviations: one item is selected at a time (no multi-select), an item
-/// drags only onto the chat's composer (not to move it), and deleting
-/// cannot be undone from the editor.
+/// Deviations: items drag only onto the chat's composer (not to move
+/// them), and deleting cannot be undone from the editor.
 class IdeExplorer extends StatefulWidget {
   const IdeExplorer({
     super.key,
@@ -249,6 +317,7 @@ class IdeExplorer extends StatefulWidget {
     this.unsavedIn,
     this.trash,
     this.onError,
+    this.onOpenInDefaultApp,
     this.onFindInFolder,
     this.isBound,
   });
@@ -273,6 +342,10 @@ class IdeExplorer extends StatefulWidget {
   /// none, and files are deleted permanently.
   final Future<bool> Function(String path)? trash;
   final ValueChanged<Object>? onError;
+
+  /// Open in Default App: hands a file to the app the system opens it
+  /// with; none where there is no such app.
+  final ValueChanged<String>? onOpenInDefaultApp;
 
   /// Find in Folder...: searches in a folder.
   final ValueChanged<String>? onFindInFolder;
@@ -392,9 +465,55 @@ class IdeExplorerState extends State<IdeExplorer> {
     }
   }
 
+  /// A click: with Shift, selects the rows from the last one clicked; with
+  /// Cmd (Ctrl), adds the row to the selection or takes it out; else opens
+  /// it (upstream's `multiSelectModifier`, `ctrlCmd`).
+  void _click(IdeExplorerRow row) {
+    if (row.message != null) return;
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isShiftPressed) {
+      _controller.selectRange(row.path);
+    } else if (ideUsesMacKeys
+        ? keyboard.isMetaPressed
+        : keyboard.isControlPressed) {
+      _controller.toggleSelection(row.path);
+    } else {
+      _activate(row, keyboard: false);
+    }
+  }
+
   IdeExplorerRow? get _selectedRow {
     final selected = _controller.selected;
     return _controller.rows.where((row) => row.path == selected).firstOrNull;
+  }
+
+  /// What a command or the menu acts on for [row] (the focused row when
+  /// null): the selection when [row] is in it, else [row] alone; of the
+  /// selection, none under another selected folder (upstream
+  /// `getMultiSelectedResources` and `distinctParents`).
+  List<IdeExplorerRow> _targets([IdeExplorerRow? row]) {
+    row ??= _selectedRow;
+    if (row == null) return const [];
+    final selection = _controller.selection;
+    if (selection.length < 2 || !selection.contains(row.path)) return [row];
+    bool underSelected(String path) {
+      for (
+        var parent = p.dirname(path);
+        parent != _controller.root && p.isWithin(_controller.root, parent);
+        parent = p.dirname(parent)
+      ) {
+        if (selection.contains(parent)) return true;
+      }
+      return false;
+    }
+
+    return [
+      for (final row in _controller.rows)
+        if (row.message == null &&
+            selection.contains(row.path) &&
+            !underSelected(row.path))
+          row,
+    ];
   }
 
   /// The folder new items go in for [row]: itself, or its parent (the
@@ -454,6 +573,9 @@ class IdeExplorerState extends State<IdeExplorer> {
       'treeElementHasChild' => folder && row.expanded && _firstChild != null,
       'treeElementHasParent' =>
         row != null && p.dirname(row.path) != _controller.root,
+      'listSupportsMultiselect' => true,
+      'listHasSelectionOrFocus' =>
+        row != null || _controller.selection.isNotEmpty,
       _ => null,
     };
   }
@@ -506,6 +628,22 @@ class IdeExplorerState extends State<IdeExplorer> {
   /// `list.focusLast`.
   void focusLast() => _selectAt(_navigable.length - 1);
 
+  /// `list.expandSelectionDown` (1) / `list.expandSelectionUp` (-1): the
+  /// selection from the last row clicked to the next one.
+  void expandSelection(int delta) {
+    final rows = _navigable;
+    final index = _selectedIndex;
+    if (index < 0) return _selectAt(0);
+    final next = rows[(index + delta).clamp(0, rows.length - 1)];
+    _controller.selectRange(next.path, reveal: true);
+  }
+
+  /// `list.selectAll`.
+  void selectAll() => _controller.selectAll();
+
+  /// `list.clear`: selects nothing.
+  void clearSelection() => _controller.select(null);
+
   /// `list.expand`: opens the folder, or goes to its first child.
   void expandSelected() {
     final row = _selectedRow;
@@ -555,22 +693,24 @@ class IdeExplorerState extends State<IdeExplorer> {
   }
 
   /// `moveFileToTrash`, or `deleteFile` ([permanently]).
-  Future<void> deleteSelected({bool permanently = false}) async {
-    if (_selectedRow case final row?) {
-      await _delete(row, permanently: permanently);
-    }
-  }
+  Future<void> deleteSelected({bool permanently = false}) =>
+      _delete(_targets(), permanently: permanently);
 
   /// `filesExplorer.copy`, or `filesExplorer.cut`.
   void copySelected({bool cut = false}) {
-    if (_selectedRow case final row?) _copy(row.path, cut: cut);
+    final targets = _targets();
+    if (targets.isNotEmpty) _copy(_paths(targets), cut: cut);
   }
 
-  /// Copied, the file is on the system's clipboard too, as Finder copies
-  /// one: to paste into the chat, or into another app.
-  void _copy(String path, {required bool cut}) {
-    _controller.clipboard = (paths: [path], cut: cut);
-    if (!cut) unawaited(WindowControls.writePasteboardFiles([path]));
+  static List<String> _paths(List<IdeExplorerRow> rows) => [
+    for (final row in rows) row.path,
+  ];
+
+  /// Copied, the files are on the system's clipboard too, as Finder copies
+  /// them: to paste into the chat, or into another app.
+  void _copy(List<String> paths, {required bool cut}) {
+    _controller.clipboard = (paths: paths, cut: cut);
+    if (!cut) unawaited(WindowControls.writePasteboardFiles(paths));
   }
 
   /// Whether there is something cut or copied.
@@ -687,69 +827,101 @@ class IdeExplorerState extends State<IdeExplorer> {
 
   /// Delete (to the Trash where there is one) or, [permanently], Delete
   /// Permanently, confirmed as VS Code's `deleteFiles` confirms.
-  Future<void> _delete(IdeExplorerRow row, {bool permanently = false}) async {
-    if (row.path == _controller.root) return;
+  Future<void> _delete(
+    List<IdeExplorerRow> targets, {
+    bool permanently = false,
+  }) async {
+    final rows = [
+      for (final row in targets)
+        if (row.path != _controller.root) row,
+    ];
+    if (rows.isEmpty) return;
     final trash = permanently ? null : widget.trash;
     final useTrash = trash != null;
     final l10n = context.l10n;
     final primary = useTrash ? l10n.explorerMoveToTrash : l10n.commonDelete;
-    final unsaved = widget.unsavedIn?.call(row.path) ?? 0;
+    final single = rows.length == 1 ? rows.single : null;
+    // Upstream's `getFileNamesMessage`: the first ten, then how many more.
+    final names = [
+      for (final row in rows.take(10)) row.name,
+      if (rows.length > 10) l10n.explorerMoreFilesNotShown(rows.length - 10),
+    ].join('\n');
+    String detail(String text) => single == null ? '$names\n\n$text' : text;
+    var unsaved = 0;
+    for (final row in rows) {
+      unsaved += widget.unsavedIn?.call(row.path) ?? 0;
+    }
     final int? pick;
     if (unsaved > 0) {
       pick = await showIdeDialog(
         context,
-        message: row.isDirectory
-            ? l10n.explorerDeleteFolderUnsaved(unsaved, row.name)
-            : l10n.explorerDeleteFileUnsaved(row.name),
-        detail: l10n.explorerChangesLost,
+        message: single == null
+            ? l10n.explorerDeleteFilesUnsaved
+            : single.isDirectory
+            ? l10n.explorerDeleteFolderUnsaved(unsaved, single.name)
+            : l10n.explorerDeleteFileUnsaved(single.name),
+        detail: detail(l10n.explorerChangesLost),
         buttons: [primary],
       );
     } else if (useTrash) {
       pick = await showIdeDialog(
         context,
         type: IdeDialogType.question,
-        message: row.isDirectory
-            ? l10n.explorerConfirmDeleteFolder(row.name)
-            : l10n.explorerConfirmDeleteFile(row.name),
-        detail: l10n.explorerRestoreFromTrash,
+        message: single == null
+            ? l10n.explorerConfirmDeleteMultiple(rows.length)
+            : single.isDirectory
+            ? l10n.explorerConfirmDeleteFolder(single.name)
+            : l10n.explorerConfirmDeleteFile(single.name),
+        detail: single == null
+            ? detail(l10n.explorerRestoreFilesFromTrash)
+            : l10n.explorerRestoreFromTrash,
         buttons: [primary],
       );
     } else {
       pick = await showIdeDialog(
         context,
-        message: row.isDirectory
-            ? l10n.explorerConfirmPermanentDeleteFolder(row.name)
-            : l10n.explorerConfirmPermanentDeleteFile(row.name),
-        detail: row.isDirectory
+        message: single == null
+            ? l10n.explorerConfirmPermanentDeleteMultiple(rows.length)
+            : single.isDirectory
+            ? l10n.explorerConfirmPermanentDeleteFolder(single.name)
+            : l10n.explorerConfirmPermanentDeleteFile(single.name),
+        detail: single == null
+            ? detail(l10n.explorerIrreversible)
+            : single.isDirectory
             ? l10n.explorerIrreversible
             : l10n.explorerRestoreWithUndo,
         buttons: [primary],
       );
     }
     if (pick != 0 || !mounted) return;
-    try {
-      var trashed = false;
-      if (trash != null) {
-        try {
-          trashed = await trash(row.path);
-        } catch (_) {
-          if (!mounted) return;
-          final again = await showIdeDialog(
-            context,
-            message: l10n.explorerTrashFailed,
-            detail: row.isDirectory
-                ? l10n.explorerIrreversible
-                : l10n.explorerRestoreWithUndo,
-            buttons: [l10n.explorerDeletePermanently],
-          );
-          if (again != 0) return;
+    // Once the Trash fails, asked once, the rest go permanently.
+    var toTrash = trash;
+    for (final row in rows) {
+      try {
+        var trashed = false;
+        if (toTrash != null) {
+          try {
+            trashed = await toTrash(row.path);
+          } catch (_) {
+            if (!mounted) return;
+            final again = await showIdeDialog(
+              context,
+              message: l10n.explorerTrashFailed,
+              detail: row.isDirectory || single == null
+                  ? l10n.explorerIrreversible
+                  : l10n.explorerRestoreWithUndo,
+              buttons: [l10n.explorerDeletePermanently],
+            );
+            if (again != 0) break;
+            toTrash = null;
+          }
         }
+        if (!trashed) await _controller.files.delete(row.path);
+        _controller.forget(row.path);
+        widget.onDeleted?.call(row.path);
+      } catch (error) {
+        _report(error);
       }
-      if (!trashed) await _controller.files.delete(row.path);
-      _controller.forget(row.path);
-      widget.onDeleted?.call(row.path);
-    } catch (error) {
-      _report(error);
     }
     await _controller.refresh();
   }
@@ -823,10 +995,16 @@ class IdeExplorerState extends State<IdeExplorer> {
   /// `MenuId.ExplorerContext`, for [row] or (null) the empty space below the
   /// rows, which is the root folder's.
   Future<void> _showMenu(Offset position, IdeExplorerRow? row) {
-    if (row != null) _controller.select(row.path);
+    // Upstream keeps the selection when the clicked row is in it, and acts
+    // on all of it.
+    if (row != null && !_controller.isSelected(row.path)) {
+      _controller.select(row.path);
+    }
     final path = row?.path ?? _controller.root;
     final isFolder = row == null || row.isDirectory;
     final isRoot = row == null;
+    final targets = row == null ? const <IdeExplorerRow>[] : _targets(row);
+    final multiple = targets.length > 1;
     final mac = ideUsesMacKeys;
     String? keys(List<IdeKeybinding> bindings) => [
       for (final binding in bindings)
@@ -854,7 +1032,7 @@ class IdeExplorerState extends State<IdeExplorer> {
           ],
           if (WindowControls.canRevealInFileManager)
             IdeMenuAction(
-              l10n.explorerRevealInFinder,
+              l10n.revealInFileManager,
               keybinding: keys(const [
                 IdeKeybinding(
                   LogicalKeyboardKey.keyR,
@@ -866,9 +1044,19 @@ class IdeExplorerState extends State<IdeExplorer> {
               onSelected: () =>
                   unawaited(WindowControls.revealInFileManager(path)),
             ),
+          if (widget.onOpenInDefaultApp case final open?
+              when targets.any((target) => !target.isDirectory))
+            IdeMenuAction(
+              l10n.openInDefaultApp,
+              onSelected: () {
+                for (final target in targets) {
+                  if (!target.isDirectory) open(target.path);
+                }
+              },
+            ),
         ],
         [
-          if (isFolder && widget.onFindInFolder != null)
+          if (isFolder && !multiple && widget.onFindInFolder != null)
             IdeMenuAction(
               l10n.explorerFindInFolder,
               keybinding: keys(const [
@@ -882,12 +1070,12 @@ class IdeExplorerState extends State<IdeExplorer> {
             IdeMenuAction(
               l10n.commonCut,
               keybinding: _keybinding('filesExplorer.cut'),
-              onSelected: () => _copy(path, cut: true),
+              onSelected: () => _copy(_paths(targets), cut: true),
             ),
             IdeMenuAction(
               l10n.commonCopy,
               keybinding: _keybinding('filesExplorer.copy'),
-              onSelected: () => _copy(path, cut: false),
+              onSelected: () => _copy(_paths(targets), cut: false),
             ),
           ],
           if (isFolder)
@@ -915,8 +1103,13 @@ class IdeExplorerState extends State<IdeExplorer> {
                 mac: false,
               ),
             ]),
-            onSelected: () =>
-                unawaited(Clipboard.setData(ClipboardData(text: path))),
+            onSelected: () => unawaited(
+              Clipboard.setData(
+                ClipboardData(
+                  text: multiple ? _paths(targets).join('\n') : path,
+                ),
+              ),
+            ),
           ),
           IdeMenuAction(
             l10n.tabCopyRelativePath,
@@ -930,23 +1123,30 @@ class IdeExplorerState extends State<IdeExplorer> {
               ),
             ]),
             onSelected: () => unawaited(
-              Clipboard.setData(ClipboardData(text: _relative(path))),
+              Clipboard.setData(
+                ClipboardData(
+                  text: multiple
+                      ? [for (final t in targets) _relative(t.path)].join('\n')
+                      : _relative(path),
+                ),
+              ),
             ),
           ),
         ],
         [
           if (!isRoot) ...[
-            IdeMenuAction(
-              l10n.explorerRename,
-              keybinding: _keybinding('renameFile'),
-              onSelected: () => startRename(row),
-            ),
+            if (!multiple)
+              IdeMenuAction(
+                l10n.explorerRename,
+                keybinding: _keybinding('renameFile'),
+                onSelected: () => startRename(row),
+              ),
             IdeMenuAction(
               l10n.commonDelete,
               keybinding: _keybinding(
                 widget.trash == null ? 'deleteFile' : 'moveFileToTrash',
               ),
-              onSelected: () => unawaited(_delete(row)),
+              onSelected: () => unawaited(_delete(targets)),
             ),
           ],
         ],
@@ -986,6 +1186,20 @@ class IdeExplorerState extends State<IdeExplorer> {
     final rows = _rowsWithEdit();
     final focused = _focusNode.hasFocus;
     final decorations = widget.git?.decorations;
+    // A selected row drags the whole selection.
+    List<ComposerFile>? selectedFiles;
+    List<ComposerFile> dragged(IdeExplorerRow row) {
+      ComposerFile file(IdeExplorerRow row) =>
+          ComposerFile(row.path, directory: row.isDirectory);
+      if (_controller.selection.length < 2 ||
+          !_controller.isSelected(row.path)) {
+        return [file(row)];
+      }
+      return selectedFiles ??= [
+        for (final target in _targets(row)) file(target),
+      ];
+    }
+
     return ColoredBox(
       // Modern UI: the panes are the side bar's.
       color: themeColors['sideBar.background'],
@@ -1019,7 +1233,8 @@ class IdeExplorerState extends State<IdeExplorer> {
               }
               final view = _ExplorerRowView(
                 row: row,
-                selected: row.path == _controller.selected,
+                selected: _controller.isSelected(row.path),
+                focusedItem: row.path == _controller.selected,
                 focused: focused,
                 decoration: decorations == null || row.message != null
                     ? null
@@ -1028,7 +1243,7 @@ class IdeExplorerState extends State<IdeExplorer> {
                     : decorations.file(row.path),
                 onTap: () {
                   _focusNode.requestFocus();
-                  _activate(row, keyboard: false);
+                  _click(row);
                 },
                 onContextMenu: (position) {
                   _focusNode.requestFocus();
@@ -1040,9 +1255,7 @@ class IdeExplorerState extends State<IdeExplorer> {
                   ? KeyedSubtree(key: ValueKey(row.path), child: view)
                   : FileDraggable(
                       key: ValueKey(row.path),
-                      files: [
-                        ComposerFile(row.path, directory: row.isDirectory),
-                      ],
+                      files: dragged(row),
                       child: view,
                     );
             },
@@ -1077,6 +1290,7 @@ class _ExplorerRowView extends StatelessWidget {
   const _ExplorerRowView({
     required this.row,
     required this.selected,
+    required this.focusedItem,
     required this.focused,
     required this.decoration,
     required this.onTap,
@@ -1085,6 +1299,9 @@ class _ExplorerRowView extends StatelessWidget {
 
   final IdeExplorerRow row;
   final bool selected;
+
+  /// The list's focused row: outlined while the list has focus.
+  final bool focusedItem;
   final bool focused;
   final IdeGitDecoration? decoration;
   final VoidCallback onTap;
@@ -1127,6 +1344,7 @@ class _ExplorerRowView extends StatelessWidget {
     final letter = decoration?.letter;
     return IdeListRow(
       selected: selected,
+      focusedItem: focusedItem,
       focused: focused,
       onTap: onTap,
       onContextMenu: onContextMenu,

@@ -6,9 +6,12 @@
 
 #include <memory>
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "attention.h"
 #include "drop_target.h"
+#include "open_requests.h"
 #include "win32_window.h"
 #include "window_channel.h"
 
@@ -16,8 +19,11 @@
 // Flutter asks for over `baocode/window` (see window_channel.h).
 class FlutterWindow : public Win32Window {
  public:
-  // Creates a new FlutterWindow hosting a Flutter view running |project|.
-  explicit FlutterWindow(const flutter::DartProject& project);
+  // Creates a new FlutterWindow hosting a Flutter view running |project|,
+  // asked to open |open_paths| (UTF-8, absolute; see OpenRequests) once
+  // Flutter is ready for them.
+  explicit FlutterWindow(const flutter::DartProject& project,
+                         std::vector<std::string> open_paths = {});
   virtual ~FlutterWindow();
 
  protected:
@@ -51,6 +57,11 @@ class FlutterWindow : public Win32Window {
 
   // What Flutter asks of this window.
   std::unique_ptr<WindowChannel> window_channel_;
+
+  // The paths the app is asked to open, for Flutter; until it is made (see
+  // OnCreate), those kept for it.
+  std::unique_ptr<OpenRequests> open_requests_;
+  std::vector<std::string> open_paths_;
 
   // Notifications, the taskbar button's count and the tray icon, which the
   // close button hides the window to (see attention.h).

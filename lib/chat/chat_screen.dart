@@ -42,6 +42,7 @@ class ChatScreen extends StatefulWidget {
     this.windowTitleBar = true,
     this.focused = true,
     this.onOpenChange,
+    this.start,
   });
 
   final String title;
@@ -81,6 +82,10 @@ class ChatScreen extends StatefulWidget {
   final void Function(FileChange change, Future<String> Function()? original)?
   onOpenChange;
 
+  /// Over the composer while nothing was sent, e.g. where the agent is to
+  /// work: given, the composer waits in the middle of the screen until then.
+  final Widget? start;
+
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 
@@ -104,6 +109,16 @@ class _ChatScreenState extends State<ChatScreen>
   final GlobalKey _historyKey = GlobalKey();
   bool _contextPanelOpen = false;
   bool _renaming = false;
+
+  /// Nothing was sent yet: the composer is in the middle, under [start].
+  bool get _starting => widget.start != null && _session.itemCount == 0;
+  late bool _wasStarting = _starting;
+
+  /// Lays the screen out anew as the first message moves the composer down
+  /// (the rest of the session's changes are the builders' below).
+  void _checkStarting() {
+    if (_starting != _wasStarting) setState(() => _wasStarting = _starting);
+  }
 
   /// Around the chat: has the focus while anything in it does, and sees
   /// the keys it lets through (see [ChatKeys.dispatch]).
@@ -199,6 +214,7 @@ class _ChatScreenState extends State<ChatScreen>
   void initState() {
     super.initState();
     _session.attach();
+    _session.addListener(_checkStarting);
     _restoreAgents();
     if (widget.autofocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -208,7 +224,14 @@ class _ChatScreenState extends State<ChatScreen>
   }
 
   @override
+  void didUpdateWidget(ChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _wasStarting = _starting;
+  }
+
+  @override
   void dispose() {
+    _session.removeListener(_checkStarting);
     _keyScope.dispose();
     for (final layer in _layers) {
       layer.dispose();
@@ -437,7 +460,9 @@ class _ChatScreenState extends State<ChatScreen>
                       ListenableBuilder(
                         listenable: _session,
                         builder: (context, _) => _session.itemCount == 0
-                            ? const _EmptyHint()
+                            // Just over the composer, where it waits in
+                            // the middle.
+                            ? _EmptyHint(above: _starting)
                             : const SizedBox.shrink(),
                       ),
                     ],
@@ -483,6 +508,11 @@ class _ChatScreenState extends State<ChatScreen>
                       null => null,
                     },
                   ),
+                  if (widget.start case final start? when _starting)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: start,
+                    ),
                   // A subagent's conversation takes no messages: how it
                   // is doing ends it instead (see _buildAgentPage).
                   _BottomSwitcher(
@@ -494,6 +524,8 @@ class _ChatScreenState extends State<ChatScreen>
               ),
             ),
           ),
+          // As much room under it as over it.
+          if (_wasStarting) const Spacer(),
         ],
       ),
     );
@@ -811,31 +843,38 @@ class _PanelSlot extends StatelessWidget {
 
 /// Shown in place of the history while an agent has no messages yet.
 class _EmptyHint extends StatelessWidget {
-  const _EmptyHint();
+  const _EmptyHint({this.above = false});
+
+  /// At the bottom, over the composer, rather than in the middle.
+  final bool above;
 
   @override
   Widget build(BuildContext context) {
     return IgnorePointer(
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.auto_awesome_outlined,
-              size: 22,
-              color: AppColors.textFaint,
-            ),
-            SizedBox(height: 10),
-            Text(
-              context.l10n.chatEmptyTitle,
-              style: TextStyle(color: AppColors.textMuted, fontSize: 14),
-            ),
-            SizedBox(height: 4),
-            Text(
-              context.l10n.chatEmptyHint,
-              style: TextStyle(color: AppColors.textFaint, fontSize: 12),
-            ),
-          ],
+      child: Align(
+        alignment: above ? Alignment.bottomCenter : Alignment.center,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: above ? 28 : 0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.auto_awesome_outlined,
+                size: 22,
+                color: AppColors.textFaint,
+              ),
+              SizedBox(height: 10),
+              Text(
+                context.l10n.chatEmptyTitle,
+                style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+              ),
+              SizedBox(height: 4),
+              Text(
+                context.l10n.chatEmptyHint,
+                style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+              ),
+            ],
+          ),
         ),
       ),
     );

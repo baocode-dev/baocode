@@ -63,7 +63,10 @@ class IdeGitRepository extends ChangeNotifier {
   /// Whether the project is in a repository (after [loaded]).
   bool get isRepository => _state != null;
 
-  /// Whether an operation or refresh is running (the view's progress).
+  /// Whether an operation is running (the view's progress, and what
+  /// disables the commit button). Status reads are not counted: the
+  /// watcher runs them whenever a file changes, and counting them made the
+  /// commit button and the progress bar flash on every edit.
   bool get busy => _operations > 0;
 
   /// Whether a sync or a publish is running (upstream `isSyncInProgress`).
@@ -73,7 +76,7 @@ class IdeGitRepository extends ChangeNotifier {
   IdeGitDecorations? get decorations => _state?.decorations;
 
   /// Reads the status now; queued behind running operations.
-  Future<void> refresh() => _enqueue(() async {
+  Future<void> refresh() => _enqueue(background: true, () async {
     try {
       final state = await service.status();
       if (_disposed) return;
@@ -101,7 +104,17 @@ class IdeGitRepository extends ChangeNotifier {
     _watcher = service.watch(root).listen((_) => scheduleRefresh());
   }
 
-  Future<void> _enqueue(Future<void> Function() operation) {
+  /// Runs [operation] after the ones queued before it; a [background]
+  /// one (a status read) does not make the repository [busy].
+  Future<void> _enqueue(
+    Future<void> Function() operation, {
+    bool background = false,
+  }) {
+    if (background) {
+      final run = _queue.then((_) => operation());
+      _queue = run.catchError((Object _) {});
+      return run;
+    }
     _operations++;
     _notify();
     final run = _queue.then((_) => operation()).whenComplete(() {

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
@@ -32,7 +33,9 @@ import 'theme/app_theme.dart';
 import 'theme/workbench_theme.dart';
 import 'workbench.dart';
 import 'workspace/agent_title.dart';
+import 'workspace/main_window.dart';
 import 'workspace/preference_store.dart';
+import 'workspace/quit_confirmation.dart';
 import 'workspace/window_controls.dart';
 import 'workspace/workspace.dart';
 
@@ -67,15 +70,29 @@ Future<void> main() async {
     CommitAttribution.current = () =>
         CommitAttribution.parse(files.settings[CommitAttribution.settingKey]);
   }
+  final locale = AppLocale(storage: files?.argv);
   final workspace = Workspace(
     preferences: PreferenceStore.file(),
+    // Beside state.json: written as the user types.
+    drafts: kIsWeb
+        ? null
+        : PreferenceStore.file(
+            p.join(DataDirectory.current.stateDir, 'drafts.json'),
+          ),
     titler: claudeAgentTitle,
+    l10n: () =>
+        lookupAppLocalizations(locale.locale ?? AppLocale.systemLocale()),
   )..load();
   // The first frame is in the kept theme, restored from storage as VS Code
   // does before the workbench shows; its file is read after. The setting
   // is settings.json's `workbench.colorTheme`, the theme's colors the
   // workspace's state.
   await workspace.restored;
+  // It opens to the main window (settings.json's `workbench.mainWindow`).
+  if (files != null) {
+    workspace.layout = MainWindow.parse(files.settings[MainWindow.settingKey])
+        .layoutAtLaunch(workspace.layout);
+  }
   final ColorThemeStorage colorTheme = files == null
       ? workspace
       : ColorThemeSettings(settings: files.settings, state: workspace);
@@ -89,7 +106,6 @@ Future<void> main() async {
   unawaited(themes.initialize());
   // The keybindings: keybindings.json and the selected keymap, in effect
   // from the first frame and followed as they change.
-  final locale = AppLocale(storage: files?.argv);
   AppSettings? settings;
   if (files != null) {
     final catalog = KeymapCatalog(keymapsDir: DataDirectory.current.keymapsDir);
@@ -170,6 +186,9 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
   /// terminals' shells are hung up, as closing their window would.
   late final AppLifecycleListener _lifecycle = AppLifecycleListener(
     onExitRequested: () async {
+      if (!await QuitConfirmation.confirm(_navigator.currentContext)) {
+        return AppExitResponse.cancel;
+      }
       await Future.wait([
         stopClaudeProcesses(),
         stopLspProcesses(),
@@ -178,6 +197,9 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
       return AppExitResponse.exit;
     },
   );
+
+  /// Where the question before quitting is asked.
+  final GlobalKey<NavigatorState> _navigator = GlobalKey();
 
   final WorkbenchThemeService _themes = WorkbenchThemeService.instance;
   bool? _darkAppearance;
@@ -223,6 +245,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
         child: ListenableBuilder(
           listenable: _locale,
           builder: (context, _) => MaterialApp(
+            navigatorKey: _navigator,
             title: 'BaoCode',
             debugShowCheckedModeBanner: false,
             theme: buildAppTheme(),

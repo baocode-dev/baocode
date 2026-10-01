@@ -53,18 +53,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'The language of BaoCode\'s menus, views and messages. Changes apply at once.';
 
   @override
-  String get languageSettingsFollowSystem => 'Follow System';
-
-  @override
-  String languageSettingsFollowSystemDetail(String language) {
-    return 'Currently $language';
+  String languageSettingsFollowSystemCurrent(String language) {
+    return 'Follow System ($language)';
   }
 
   @override
-  String get languageSettingsEnglishName => 'English';
-
-  @override
-  String get languageSettingsSimplifiedChineseName => 'Chinese (Simplified)';
+  String languageSettingsDisplayLanguageLabel(String name) {
+    return 'Display Language: $name';
+  }
 
   @override
   String get cmdCategoryFile => 'File';
@@ -116,7 +112,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdCategoryChat => 'Chat';
 
   @override
-  String get cmdChatNewAgent => 'New Agent';
+  String get cmdChatNewAgent => 'New Chat';
 
   @override
   String get cmdChatClosePane => 'Close Pane';
@@ -581,6 +577,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdListToggleExpand => 'Toggle Expand';
+
+  @override
+  String get cmdListExpandSelectionDown => 'Expand Selection Down';
+
+  @override
+  String get cmdListExpandSelectionUp => 'Expand Selection Up';
+
+  @override
+  String get cmdListSelectAll => 'Select All';
+
+  @override
+  String get cmdListClear => 'Clear Selection';
 
   @override
   String get cmdEditorCursorLeft => 'Cursor Left';
@@ -1358,10 +1366,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Agents run Claude Code as a local process; what they do — messages, tools, diffs and panels — is shown here.';
 
   @override
-  String get agentUntitled => 'New Agent';
+  String get agentUntitled => 'New Chat';
 
   @override
-  String get sidebarNewAgent => 'New Agent';
+  String agentImageTitle(String name) {
+    return 'Image: $name';
+  }
+
+  @override
+  String get agentImageUntitled => 'Image';
+
+  @override
+  String get sidebarNewAgent => 'New Chat';
 
   @override
   String get sidebarGroupingProject => 'Project';
@@ -1491,8 +1507,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarSearchAgents => 'Search agents…';
 
   @override
+  String get ideChatHistory => 'Agent History';
+
+  @override
+  String get ideChatNoAgents => 'No agents in this project';
+
+  @override
   String sidebarNewAgentIn(String project) {
-    return 'New agent in $project';
+    return 'New chat in $project';
+  }
+
+  @override
+  String get newChatWorkingFolder => 'Folder to work in';
+
+  @override
+  String get newChatNoFolder => 'No folder';
+
+  @override
+  String get newChatNoFolderDetail => 'Works in the Desktop folder';
+
+  @override
+  String newChatOpenFrom(String app) {
+    return 'Open from $app';
   }
 
   @override
@@ -1506,6 +1542,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sidebarUnarchive => 'Unarchive';
+
+  @override
+  String sidebarShowMore(int count) {
+    return 'Show more ($count)';
+  }
+
+  @override
+  String get sidebarShowLess => 'Show less';
+
+  @override
+  String get sidebarNewAgentHere => 'New Chat Here';
+
+  @override
+  String sidebarRevealIn(String app) {
+    return 'Show in $app';
+  }
+
+  @override
+  String get sidebarSortByTime => 'Sort by Time';
+
+  @override
+  String get sidebarArchiveAll => 'Archive All';
+
+  @override
+  String get sidebarRemoveFromList => 'Remove from List';
+
+  @override
+  String get sidebarDropToPin => 'Drop here to pin';
+
+  @override
+  String get sidebarMoreActions => 'More Actions…';
 
   @override
   String get workspaceBackToChat => 'Back to chat';
@@ -2152,6 +2219,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String tabDeleted(String name) {
+    return '$name (deleted)';
+  }
+
+  @override
   String get commonDismiss => 'Dismiss';
 
   @override
@@ -2304,6 +2376,39 @@ class AppLocalizationsEn extends AppLocalizations {
       'You can restore this file using the Undo command.';
 
   @override
+  String get explorerDeleteFilesUnsaved =>
+      'You are deleting files with unsaved changes. Do you want to continue?';
+
+  @override
+  String explorerConfirmDeleteMultiple(int count) {
+    return 'Are you sure you want to delete the following $count files/directories and their contents?';
+  }
+
+  @override
+  String explorerConfirmPermanentDeleteMultiple(int count) {
+    return 'Are you sure you want to permanently delete the following $count files/directories and their contents?';
+  }
+
+  @override
+  String get explorerRestoreFilesFromTrash =>
+      'You can restore these files from the Trash.';
+
+  @override
+  String get explorerRestoreFilesWithUndo =>
+      'You can restore these files using the Undo command.';
+
+  @override
+  String explorerMoreFilesNotShown(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '...$count additional files not shown',
+      one: '...1 additional file not shown',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get explorerTrashFailed =>
       'Failed to delete using the Trash. Do you want to permanently delete instead?';
 
@@ -2384,6 +2489,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsSectionGeneral => 'General';
+
+  @override
+  String get settingsGroupPreferences => 'Preferences';
+
+  @override
+  String get settingsGroupAdvanced => 'Advanced';
 
   @override
   String get generalSettingsTitle => 'General';
@@ -2542,6 +2653,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get placeholderOpenAnyway => 'Open Anyway';
+
+  @override
+  String get openInDefaultApp => 'Open in Default App';
+
+  @override
+  String openInDefaultAppFailed(String name) {
+    return 'Unable to open \'$name\' in its default app.';
+  }
 
   @override
   String get placeholderTryAgain => 'Try Again';
@@ -4217,6 +4336,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dataDirTheNewFolder => 'the new folder';
 
   @override
+  String get quitConfirmMessage => 'Quit BaoCode?';
+
+  @override
+  String get quitConfirmDetail =>
+      'Running agents and terminals will be stopped.';
+
+  @override
+  String get quitConfirmQuit => 'Quit';
+
+  @override
   String get dataDirQuitNow => 'Quit Now';
 
   @override
@@ -4249,6 +4378,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dataDirCurrentFolder => 'Current folder';
+
+  @override
+  String get dataDirNewFolder => 'New folder';
 
   @override
   String dataDirAfterRestart(String path) {
@@ -4438,4 +4570,162 @@ class AppLocalizationsEn extends AppLocalizations {
   String impKeymapError(String name, String error) {
     return 'Could not import the $name: $error';
   }
+
+  @override
+  String get explorerNoFolderTitle => 'No Folder Opened';
+
+  @override
+  String get explorerNoFolder => 'You have not yet opened a folder.';
+
+  @override
+  String get explorerOpenFolder => 'Open Folder';
+
+  @override
+  String get ideSearchOpenFiles => 'Search open files';
+
+  @override
+  String get ideWelcomeRecent => 'Recent';
+
+  @override
+  String get ideOpenRecentPlaceholder => 'Select a folder or file to open';
+
+  @override
+  String get ideRecentFolders => 'folders';
+
+  @override
+  String get ideRecentFiles => 'files';
+
+  @override
+  String get ideNoRecent => 'No recently opened folders or files';
+
+  @override
+  String get ideClearRecentConfirm =>
+      'Do you want to clear all recently opened files and folders?';
+
+  @override
+  String get ideClearRecentDetail => 'This action is irreversible!';
+
+  @override
+  String get ideClearRecent => 'Clear';
+
+  @override
+  String get ideChatNoFolder => 'Open a folder to chat with an agent in it.';
+
+  @override
+  String ideCannotOpen(String path, String error) {
+    return 'Cannot open $path: $error';
+  }
+
+  @override
+  String get cmdNewUntitledFile => 'New Text File';
+
+  @override
+  String get cmdOpenFile => 'Open File...';
+
+  @override
+  String get cmdOpenFolder => 'Open Folder...';
+
+  @override
+  String get cmdOpenRecent => 'Open Recent...';
+
+  @override
+  String get cmdSaveAs => 'Save As...';
+
+  @override
+  String get cmdCloseFolder => 'Close Folder';
+
+  @override
+  String get cmdClearRecentlyOpened => 'Clear Recently Opened...';
+
+  @override
+  String cmdInstallShellCommand(String name) {
+    return 'Install \'$name\' command in PATH';
+  }
+
+  @override
+  String cmdUninstallShellCommand(String name) {
+    return 'Uninstall \'$name\' command from PATH';
+  }
+
+  @override
+  String get cmdCategoryWorkspaces => 'Workspaces';
+
+  @override
+  String get cmdCategoryShellCommand => 'Shell Command';
+
+  @override
+  String shellCommandInstalled(String name) {
+    return 'Shell command \'$name\' successfully installed in PATH.';
+  }
+
+  @override
+  String shellCommandUninstalled(String name) {
+    return 'Shell command \'$name\' successfully uninstalled from PATH.';
+  }
+
+  @override
+  String shellCommandOccupied(String path, String name) {
+    return '$path already runs another app\'s \'$name\' command. Replace it with BaoCode\'s?';
+  }
+
+  @override
+  String get shellCommandReplace => 'Replace';
+
+  @override
+  String shellCommandFailed(String name, String error) {
+    return 'Unable to install the shell command \'$name\': $error';
+  }
+
+  @override
+  String shellCommandUninstallFailed(String name, String error) {
+    return 'Unable to uninstall the shell command \'$name\': $error';
+  }
+
+  @override
+  String get generalSettingsMainWindow => 'Main Window';
+
+  @override
+  String get generalSettingsMainWindowDescription =>
+      'The window BaoCode opens to. The \'code\' command always opens files and folders in the IDE.';
+
+  @override
+  String generalSettingsMainWindowLabel(String name) {
+    return 'Main Window: $name';
+  }
+
+  @override
+  String get generalSettingsMainWindowChat => 'Chat';
+
+  @override
+  String get generalSettingsMainWindowIde => 'IDE';
+
+  @override
+  String get generalSettingsMainWindowLast => 'Last used';
+
+  @override
+  String get generalSettingsShellCommand => 'Shell Command';
+
+  @override
+  String generalSettingsShellCommandDescription(String location) {
+    return 'Open files and folders in BaoCode from a terminal: \'code <path>\'. Installed at $location.';
+  }
+
+  @override
+  String get generalSettingsShellCommandInstalled => 'Installed';
+
+  @override
+  String get generalSettingsShellCommandNotInstalled => 'Not installed';
+
+  @override
+  String get generalSettingsShellCommandOccupied =>
+      'Another app\'s command is installed';
+
+  @override
+  String get generalSettingsShellCommandInstall => 'Install';
+
+  @override
+  String get generalSettingsShellCommandUninstall => 'Uninstall';
+
+  @override
+  String get menuMore => 'More…';
 }

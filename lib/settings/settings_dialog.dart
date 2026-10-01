@@ -18,6 +18,21 @@ enum SettingsSection {
   dataDirectory,
 }
 
+/// The headings the dialog's pages are listed under, in order.
+enum SettingsCategory {
+  preferences([
+    SettingsSection.general,
+    SettingsSection.notifications,
+    SettingsSection.language,
+    SettingsSection.keyboard,
+  ]),
+  advanced([SettingsSection.dataDirectory]);
+
+  const SettingsCategory(this.sections);
+
+  final List<SettingsSection> sections;
+}
+
 /// Builds a section's page.
 typedef SettingsPageBuilder = Widget Function(
   BuildContext context,
@@ -81,6 +96,14 @@ class SettingsDialogState extends State<SettingsDialog> {
     SettingsSection.keyboard => Codicons.keyboard,
     SettingsSection.dataDirectory => Codicons.folder,
   };
+
+  static String categoryLabel(BuildContext context, SettingsCategory category) {
+    final l10n = context.l10n;
+    return switch (category) {
+      SettingsCategory.preferences => l10n.settingsGroupPreferences,
+      SettingsCategory.advanced => l10n.settingsGroupAdvanced,
+    };
+  }
 
   static String label(BuildContext context, SettingsSection section) {
     final l10n = context.l10n;
@@ -190,13 +213,28 @@ class SettingsDialogState extends State<SettingsDialog> {
               ),
             ),
           ),
-          for (final section in SettingsSection.values)
-            _NavItem(
-              icon: _icon(section),
-              label: label(context, section),
-              selected: section == _section,
-              onTap: () => show(section),
+          for (final (i, category) in SettingsCategory.values.indexed) ...[
+            Padding(
+              padding: EdgeInsets.fromLTRB(10, i == 0 ? 0 : 14, 10, 6),
+              child: Text(
+                categoryLabel(context, category),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
+            for (final section in category.sections)
+              _NavItem(
+                icon: _icon(section),
+                label: label(context, section),
+                selected: section == _section,
+                onTap: () => show(section),
+              ),
+          ],
         ],
       ),
     );

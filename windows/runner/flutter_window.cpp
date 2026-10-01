@@ -5,6 +5,7 @@
 #include <windowsx.h>
 
 #include <optional>
+#include <utility>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -88,8 +89,9 @@ std::optional<WPARAM> CommandForButton(HWND window, LRESULT part) {
 
 }  // namespace
 
-FlutterWindow::FlutterWindow(const flutter::DartProject& project)
-    : project_(project) {}
+FlutterWindow::FlutterWindow(const flutter::DartProject& project,
+                             std::vector<std::string> open_paths)
+    : project_(project), open_paths_(std::move(open_paths)) {}
 
 FlutterWindow::~FlutterWindow() {}
 
@@ -123,6 +125,14 @@ bool FlutterWindow::OnCreate() {
   // Window controls the Flutter side asks for (see window_controls.dart).
   window_channel_ = std::make_unique<WindowChannel>(
       flutter_controller_->engine()->messenger(), GetHandle());
+
+  // Paths the app is asked to open (see open_requests.dart): those it was
+  // started with first, then those a second copy of it hands this window
+  // (see main.cpp), which is marked for it to find.
+  open_requests_ = std::make_unique<OpenRequests>(
+      flutter_controller_->engine()->messenger(), std::move(open_paths_));
+  open_paths_.clear();
+  MarkOpenRequestWindow(GetHandle(), true);
 
   // Notifications, the taskbar button's count and the tray icon (see
   // lib/notifications/).
@@ -165,6 +175,10 @@ void FlutterWindow::OnDestroy() {
   view_ = nullptr;
   view_proc_ = nullptr;
 
+  if (const HWND window = GetHandle()) {
+    MarkOpenRequestWindow(window, false);
+  }
+  open_requests_ = nullptr;
   window_channel_ = nullptr;
   attention_ = nullptr;
   if (flutter_controller_) {
@@ -313,6 +327,32 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       }
       return 0;
     }
+  }
+
+  // Paths a second copy of the app hands over (see ForwardToRunningWindow),
+  // for Flutter to open; the window comes to the front for them, as the
+  // user just asked for it.
+  if (message == WM_COPYDATA) {
+    const auto* data = reinterpret_cast<const COPYDATASTRUCT*>(lparam);
+    if (data != nullptr && data->dwData == kOpenRequestData) {
+      std::vector<std::string> paths = OpenRequestPaths(*data);
+      if (open_requests_ != nullptr) {
+        open_requests_->Deliver(std::move(paths));
+      } else {
+        open_paths_.insert(open_paths_.end(), paths.begin(), paths.end());
+      }
+      if (::IsIconic(hwnd)) {
+        ::ShowWindow(hwnd, SW_RESTORE);
+      }
+      ::SetForegroundWindow(hwnd);
+      return TRUE;
+    }
+  }
+
+  // The app asks before it quits (see quit_confirmation.dart), in this
+  // window: brought back for it when closed from the taskbar minimized.
+  if (message == WM_CLOSE && ::IsIconic(hwnd)) {
+    ::ShowWindow(hwnd, SW_RESTORE);
   }
 
   // Give Flutter, including plugins, an opportunity to handle window messages.

@@ -51,12 +51,25 @@ class ChatDrop {
   int get hashCode => Object.hash(thread, target, side, preview, growth, fits);
 }
 
+/// Where else than the grid a dragged agent can go: the sidebar's list,
+/// to order it among the others.
+abstract interface class ChatDragList {
+  /// Whether [position] (in the window) is over the list; it shows where
+  /// [thread] would go there, if anywhere, until asked again.
+  bool hover(AgentThread thread, Offset position);
+
+  /// [thread] released at [position], over the list.
+  void drop(AgentThread thread, Offset position);
+}
+
 /// An agent dragged from the sidebar onto the conversations, to show it
-/// beside the others (see [ChatGridView]).
+/// beside the others (see [ChatGridView]), or within the sidebar
+/// ([list]), to order it.
 ///
 /// It follows the pointer that started it, wherever it goes: released
-/// where the grid shows a drop, the drop is made ([onDrop]); anywhere
-/// else, or on a right click or Esc on the way, nothing is.
+/// where the grid shows a drop, the drop is made ([onDrop]); over the
+/// list, the list takes it; anywhere else, or on a right click or Esc on
+/// the way, nothing is.
 class ChatDrag extends ChangeNotifier {
   ChatDrag({required this.onDrop, this.onStart});
 
@@ -90,6 +103,13 @@ class ChatDrag extends ChangeNotifier {
   /// Where the grid under the pointer would put the agent: set by the grid
   /// (there is none in the IDE).
   ChatDrop? Function(AgentThread thread, Offset position)? resolve;
+
+  /// The sidebar's list, where it shows: over it, the grid shows no drop.
+  ChatDragList? list;
+
+  /// Whether the pointer is over [list].
+  bool get overList => _overList;
+  bool _overList = false;
 
   int? _pointer;
 
@@ -133,9 +153,14 @@ class ChatDrag extends ChangeNotifier {
         _update();
       case PointerUpEvent():
         final drop = _drop;
+        final (thread, overList, list) = (_thread!, _overList, this.list);
         _stop();
         notifyListeners();
-        if (drop != null && drop.fits) onDrop(drop);
+        if (overList) {
+          list?.drop(thread, event.position);
+        } else if (drop != null && drop.fits) {
+          onDrop(drop);
+        }
       case PointerCancelEvent():
         cancel();
     }
@@ -155,7 +180,8 @@ class ChatDrag extends ChangeNotifier {
   void _update() {
     final thread = _thread;
     if (thread == null) return;
-    _drop = resolve?.call(thread, _position);
+    _overList = list?.hover(thread, _position) ?? false;
+    _drop = _overList ? null : resolve?.call(thread, _position);
     notifyListeners();
   }
 
@@ -165,6 +191,7 @@ class ChatDrag extends ChangeNotifier {
     _thread = null;
     _pointer = null;
     _drop = null;
+    _overList = false;
   }
 
   @override

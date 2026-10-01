@@ -1,5 +1,5 @@
 // The chat window's buttons title themselves with what they do and the key
-// that does the same, as upstream's action bar items do (`New Agent (⌘N)`),
+// that does the same, as upstream's action bar items do (`New Chat (⌘N)`),
 // following the keybindings as they change; the hints under a prompt's
 // options and in the composer show the keys the keybindings have.
 
@@ -76,7 +76,7 @@ void main() {
         containsAll([
           // The sidebar's.
           'Hide sidebar (⌘B)',
-          'New Agent (⌘N)',
+          'New Chat (⌘N)',
           'Search Agents (⇧⌘F)',
           'Settings (⌘,)',
           // The title bar's.
@@ -100,7 +100,7 @@ void main() {
       final workspace = await pumpApp(tester);
       expect(
         hovers(tester),
-        containsAll(['Hide sidebar (Ctrl+B)', 'New Agent (Ctrl+N)']),
+        containsAll(['Hide sidebar (Ctrl+B)', 'New Chat (Ctrl+N)']),
       );
 
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
@@ -127,7 +127,7 @@ void main() {
       await pumpApp(tester);
       expect(
         hovers(tester),
-        containsAll(['New Agent (⌘N)', 'Hide sidebar (⌘B)']),
+        containsAll(['New Chat (⌘N)', 'Hide sidebar (⌘B)']),
       );
 
       KeybindingService.instance.userEntries = const [
@@ -142,8 +142,8 @@ void main() {
       // The window builds again.
       await tester.pump();
       final shown = hovers(tester);
-      expect(shown, containsAll(['New Agent (⌥⌘N)', 'Hide sidebar']));
-      expect(shown, isNot(contains('New Agent (⌘N)')));
+      expect(shown, containsAll(['New Chat (⌥⌘N)', 'Hide sidebar']));
+      expect(shown, isNot(contains('New Chat (⌘N)')));
       expect(shown, isNot(contains('Hide sidebar (⌘B)')));
     }, variant: _mac);
 

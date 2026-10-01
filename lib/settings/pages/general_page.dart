@@ -2,16 +2,24 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../ide/ide_button.dart';
 import '../../ide/ide_menu.dart';
+import '../../ide/ide_notifications.dart' show IdeSeverity;
 import '../../kernel/commit_attribution.dart';
 import '../../l10n/l10n.dart';
-import '../../theme/app_theme.dart';
+import '../../platform/shell_command.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
+import '../../workspace/main_window.dart';
+import '../shell_command_actions.dart';
 import '../user_settings.dart';
 import 'settings_dropdown.dart';
+import 'settings_widgets.dart';
 
-/// Settings → General: who the commits and pull requests agents write
-/// credit (`chat.commitAttribution` in settings.json). A choice is written
-/// at once; the default is not written.
+/// Settings → General: the window the app opens to
+/// (`workbench.mainWindow`), who the commits and pull requests agents
+/// write credit (`chat.commitAttribution` in settings.json), and the
+/// `code` shell command. A choice is written at once; the default is not
+/// written.
 class GeneralSettingsPage extends StatelessWidget {
   const GeneralSettingsPage({super.key, this.settings});
 
@@ -39,20 +47,34 @@ class GeneralSettingsPage extends StatelessWidget {
     };
   }
 
-  void _select(CommitAttribution value) {
+  static String mainWindowName(BuildContext context, MainWindow value) {
+    final l10n = context.l10n;
+    return switch (value) {
+      MainWindow.chat => l10n.generalSettingsMainWindowChat,
+      MainWindow.ide => l10n.generalSettingsMainWindowIde,
+      MainWindow.last => l10n.generalSettingsMainWindowLast,
+    };
+  }
+
+  void _select(CommitAttribution value) => _write(
+    CommitAttribution.settingKey,
+    value == CommitAttribution.fallback ? null : value.name,
+  );
+
+  void _selectMainWindow(MainWindow value) => _write(
+    MainWindow.settingKey,
+    value == MainWindow.fallback ? null : value.name,
+  );
+
+  void _write(String key, String? value) {
     final settings = this.settings;
     if (settings == null) return;
     unawaited(
-      settings
-          .update(
-            CommitAttribution.settingKey,
-            value == CommitAttribution.fallback ? null : value.name,
-          )
-          .catchError((Object error) {
-            // A settings file that does not parse is left as it is; its
-            // error is shown.
-            debugPrint('${CommitAttribution.settingKey} not kept: $error');
-          }),
+      settings.update(key, value).catchError((Object error) {
+        // A settings file that does not parse is left as it is; its
+        // error is shown.
+        debugPrint('$key not kept: $error');
+      }),
     );
   }
 
@@ -67,63 +89,156 @@ class GeneralSettingsPage extends StatelessWidget {
           settings?[CommitAttribution.settingKey],
         );
         final name = attributionName(context, current);
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        final detail = _attributionDetail(context, current);
+        final mainWindow = MainWindow.parse(settings?[MainWindow.settingKey]);
+        final mainWindowShown = mainWindowName(context, mainWindow);
+        return SettingsPage(
+          title: l10n.generalSettingsTitle,
           children: [
-            Text(
-              l10n.generalSettingsTitle,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              l10n.generalSettingsCommitAttribution,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              l10n.generalSettingsCommitAttributionDescription,
-              style: TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 12,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: SettingsDropdown(
-                current: name,
-                semanticLabel: l10n.generalSettingsCommitAttributionLabel(name),
-                entries: () => [
-                  for (final value in CommitAttribution.values)
-                    IdeMenuAction(
-                      attributionName(context, value),
-                      checked: value == current,
-                      onSelected: () => _select(value),
+            SettingsCard(
+              children: [
+                SettingsRow(
+                  label: l10n.generalSettingsMainWindow,
+                  description: l10n.generalSettingsMainWindowDescription,
+                  trailing: SettingsDropdown(
+                    current: mainWindowShown,
+                    semanticLabel: l10n.generalSettingsMainWindowLabel(
+                      mainWindowShown,
                     ),
-                ],
-              ),
+                    entries: () => [
+                      for (final value in MainWindow.values)
+                        IdeMenuAction(
+                          mainWindowName(context, value),
+                          checked: value == mainWindow,
+                          onSelected: () => _selectMainWindow(value),
+                        ),
+                    ],
+                  ),
+                ),
+                SettingsRow(
+                  label: l10n.generalSettingsCommitAttribution,
+                  description: l10n.generalSettingsCommitAttributionDescription,
+                  below: [
+                    SelectableText(
+                      detail,
+                      style: current == CommitAttribution.baocode
+                          ? SettingsText.path
+                          : SettingsText.description,
+                    ),
+                  ],
+                  trailing: SettingsDropdown(
+                    current: name,
+                    semanticLabel: l10n.generalSettingsCommitAttributionLabel(
+                      name,
+                    ),
+                    entries: () => [
+                      for (final value in CommitAttribution.values)
+                        IdeMenuAction(
+                          attributionName(context, value),
+                          checked: value == current,
+                          onSelected: () => _select(value),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            SelectableText(
-              _attributionDetail(context, current),
-              style: TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 12,
-                height: 1.5,
-              ),
-            ),
+            if (ShellCommand.supported)
+              const SettingsCard(children: [_ShellCommandSetting()]),
           ],
         );
       },
+    );
+  }
+}
+
+/// Whether the `code` command is installed, and the buttons to install or
+/// remove it; what that came to, under them.
+class _ShellCommandSetting extends StatefulWidget {
+  const _ShellCommandSetting();
+
+  @override
+  State<_ShellCommandSetting> createState() => _ShellCommandSettingState();
+}
+
+class _ShellCommandSettingState extends State<_ShellCommandSetting> {
+  ShellCommandStatus? _status;
+  bool _busy = false;
+  ShellCommandOutcome? _outcome;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_read());
+  }
+
+  Future<void> _read() async {
+    final status = await ShellCommand.status();
+    if (mounted) setState(() => _status = status);
+  }
+
+  Future<void> _run(
+    Future<ShellCommandOutcome?> Function(BuildContext) action,
+  ) async {
+    setState(() {
+      _busy = true;
+      _outcome = null;
+    });
+    final outcome = await action(context);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _outcome = outcome;
+    });
+    await _read();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final status = _status;
+    final outcome = _outcome;
+    return SettingsRow(
+      label: l10n.generalSettingsShellCommand,
+      description: l10n.generalSettingsShellCommandDescription(
+        ShellCommand.location,
+      ),
+      below: [
+        if (status != null)
+          Text(switch (status) {
+            ShellCommandStatus.installed =>
+              l10n.generalSettingsShellCommandInstalled,
+            ShellCommandStatus.occupied =>
+              l10n.generalSettingsShellCommandOccupied,
+            _ => l10n.generalSettingsShellCommandNotInstalled,
+          }, style: SettingsText.description),
+        if (outcome != null)
+          SelectableText(
+            outcome.message,
+            style: outcome.severity == IdeSeverity.error
+                ? SettingsText.description.copyWith(
+                    color: themeColors['errorForeground'],
+                  )
+                : SettingsText.description,
+          ),
+      ],
+      trailing: SettingsButtons(
+        children: [
+          IdeButton(
+            label: l10n.generalSettingsShellCommandInstall,
+            onPressed: _busy || status == null
+                ? null
+                : () => unawaited(_run(installShellCommand)),
+          ),
+          IdeButton(
+            label: l10n.generalSettingsShellCommandUninstall,
+            secondary: true,
+            onPressed: _busy || status != ShellCommandStatus.installed
+                ? null
+                : () => unawaited(_run(uninstallShellCommand)),
+          ),
+        ],
+      ),
     );
   }
 }

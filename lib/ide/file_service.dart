@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:path/path.dart' as p;
 
 import '../l10n/app_localizations.dart';
@@ -116,6 +118,36 @@ String localizedFileError(AppLocalizations l10n, Object error) =>
       ),
       _ => '$error',
     };
+
+/// [path]'s bytes, for a preview (an image's): read whole, without the
+/// editor's binary and size checks. Throws [IdeFileNotFoundException] when
+/// there is no such file.
+Future<Uint8List> readFileBytes(String path) => platform.readFileBytes(path);
+
+/// Changes to the entries of [directory] (not of its subfolders): files
+/// written, made, moved or deleted there, by anything. Empty where it
+/// cannot be watched.
+Stream<void> watchDirectory(String directory) =>
+    platform.watchDirectory(directory);
+
+/// The extensions VS Code's image preview opens instead of the text editor
+/// (extensions/media-preview's `imagePreview.previewEditor`), less those
+/// Flutter cannot decode (`.tif`, `.tga`, `.psd`).
+const ideImageExtensions = <String>{
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.jpe',
+  '.gif',
+  '.webp',
+  '.bmp',
+  '.ico',
+  '.svg',
+};
+
+/// Whether [path] opens in the image preview.
+bool ideIsImagePath(String path) =>
+    ideImageExtensions.contains(p.extension(path).toLowerCase());
 
 /// Directory names never indexed for Quick Open: VCS metadata, dependency
 /// caches and build outputs.

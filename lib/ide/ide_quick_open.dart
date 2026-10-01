@@ -27,6 +27,12 @@ class IdeFileIndex extends ChangeNotifier {
 
   List<String> _paths = const [];
   List<String> _relative = const [];
+  Set<String>? _pathSet;
+
+  /// The last filter, and the indices of the paths it matched: a filter
+  /// typed on from it matches only among those.
+  String _lastFilter = '';
+  List<int>? _lastMatches;
   bool _truncated = false;
   bool _loaded = false;
   Future<void>? _pending;
@@ -40,6 +46,23 @@ class IdeFileIndex extends ChangeNotifier {
   bool get truncated => _truncated;
   bool get loaded => _loaded;
   bool get loading => _pending != null;
+
+  /// Whether [path] is one of [paths].
+  bool contains(String path) => (_pathSet ??= _paths.toSet()).contains(path);
+
+  /// The indices of the paths that may match [filter] (a subsequence of
+  /// their relative path): those the last filter matched when [filter]
+  /// extends it, else all.
+  Iterable<int> _candidates(String filter) {
+    final last = _lastMatches;
+    if (last != null && filter.startsWith(_lastFilter)) return last;
+    return Iterable<int>.generate(_paths.length);
+  }
+
+  void _matched(String filter, List<int> matches) {
+    _lastFilter = filter;
+    _lastMatches = matches;
+  }
 
   /// Starts a new listing unless one is already running.
   Future<void> refresh() => _pending ??= _load();
@@ -55,6 +78,8 @@ class IdeFileIndex extends ChangeNotifier {
       ];
       _truncated = listing.truncated;
       _loaded = true;
+      _pathSet = null;
+      _lastMatches = null;
     } catch (_) {
       // Keep the previous listing; Quick Open still offers recent files.
     } finally {
@@ -230,10 +255,9 @@ List<IdeQuickPickItem> fileQuickPicks(
           List<int> description,
         })
       >[];
-  final indexed = <String>{};
-  void consider(String path, String relative) {
+  bool consider(String path, String relative) {
     final result = scoreFilePath(query.filter, relative);
-    if (result == null) return;
+    if (result == null) return false;
     final rank = recentRank[path];
     scored.add((
       path: path,
@@ -242,14 +266,16 @@ List<IdeQuickPickItem> fileQuickPicks(
       label: result.label,
       description: result.description,
     ));
+    return true;
   }
 
-  for (var i = 0; i < index.paths.length; i++) {
-    indexed.add(index.paths[i]);
-    consider(index.paths[i], index.relativePaths[i]);
+  final matches = <int>[];
+  for (final i in index._candidates(query.filter)) {
+    if (consider(index.paths[i], index.relativePaths[i])) matches.add(i);
   }
+  index._matched(query.filter, matches);
   for (final path in recent) {
-    if (!indexed.contains(path)) consider(path, relativeOf(path));
+    if (!index.contains(path)) consider(path, relativeOf(path));
   }
   scored.sort((a, b) {
     final byScore = b.score.compareTo(a.score);

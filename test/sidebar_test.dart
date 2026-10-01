@@ -5,6 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/kernel/agent_kernel.dart';
+import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
+import 'package:baocode/kernel/claude_code/mock_claude_code_transport.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/main.dart';
@@ -15,6 +18,7 @@ import 'package:baocode/theme/workbench_theme.dart';
 import 'package:baocode/workspace/editor_launcher.dart';
 import 'package:baocode/workspace/open_in_editor_button.dart';
 import 'package:baocode/workspace/pin_window_button.dart';
+import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
 
 Future<Workspace> pumpApp(WidgetTester tester, {double width = 1400}) async {
@@ -35,6 +39,106 @@ String chatTitle(WidgetTester tester) =>
 
 AgentThread threadNamed(Workspace workspace, String title) =>
     workspace.threads.firstWhere((thread) => thread.title == title);
+
+/// Sessions Claude Code (the mock) keeps, in their projects.
+class KeptCatalog implements SessionCatalog {
+  KeptCatalog(this.records);
+
+  final List<SessionRecord> records;
+
+  @override
+  Future<List<ProjectRecord>> projects() async => [
+    for (final path in {for (final record in records) record.cwd})
+      ProjectRecord(
+        path: path,
+        sessions: [
+          for (final record in records)
+            if (record.cwd == path) record,
+        ],
+      ),
+  ];
+
+  @override
+  Future<List<SessionRecord>> sessionsIn(String cwd) async => const [];
+
+  @override
+  Future<void> delete(String id) async {}
+}
+
+/// A session titled `Chat <id>`, last active [minutesAgo].
+SessionRecord kept(String id, String cwd, int minutesAgo) => SessionRecord(
+  id: id,
+  title: 'Chat $id',
+  updatedAt: DateTime.now().subtract(Duration(minutes: minutesAgo)),
+  cwd: cwd,
+);
+
+/// The app over the sessions [catalog] keeps, loaded.
+Future<Workspace> pumpKept(
+  WidgetTester tester,
+  KeptCatalog catalog, {
+  PreferenceStore? preferences,
+}) async {
+  tester.view.physicalSize = const Size(1400, 900);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  late final KernelDescriptor claude;
+  claude = KernelDescriptor(
+    id: 'claude-code',
+    label: 'Claude Code',
+    icon: Icons.auto_awesome_rounded,
+    description: '',
+    catalog: catalog,
+    create: (context) =>
+        ClaudeCodeKernel(claude, context, start: MockClaudeCodeTransport.start),
+  );
+  final workspace = Workspace(kernels: [claude], preferences: preferences);
+  await tester.pumpWidget(BaoCodeApp(workspace: workspace));
+  await tester.runAsync(workspace.load);
+  await tester.pump();
+  return workspace;
+}
+
+AgentThread keptThread(Workspace workspace, String id) =>
+    workspace.threads.firstWhere((thread) => thread.record?.id == id);
+
+double top(WidgetTester tester, String text) =>
+    tester.getTopLeft(inSidebar(find.text(text))).dy;
+
+/// Drags with the mouse from [from] to where [to] is once the drag has
+/// begun (the place to pin shows then), a few steps on the way.
+Future<void> mouseDrag(
+  WidgetTester tester,
+  Offset from,
+  Offset Function() to,
+) async {
+  final gesture = await tester.startGesture(
+    from,
+    kind: PointerDeviceKind.mouse,
+  );
+  await gesture.moveBy(const Offset(0, -8));
+  await tester.pump();
+  from = from + const Offset(0, -8);
+  final end = to();
+  for (var i = 1; i <= 5; i++) {
+    await gesture.moveTo(Offset.lerp(from, end, i / 5)!);
+    await tester.pump();
+  }
+  await gesture.up();
+  await tester.pump();
+}
+
+/// Right clicks [label] in the sidebar and picks [item] from its menu.
+Future<void> pickFromMenu(
+  WidgetTester tester,
+  String label,
+  String item,
+) async {
+  await tester.tap(inSidebar(find.text(label)), buttons: kSecondaryButton);
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.tap(find.text(item));
+  await tester.pump(const Duration(milliseconds: 300));
+}
 
 /// Runs the mock script until it asks its question.
 Future<void> runUntilQuestion(WidgetTester tester, ChatSession session) async {
@@ -77,20 +181,17 @@ void main() {
 
   testWidgets('a new agent is named by its first message', (tester) async {
     final workspace = await pumpApp(tester);
-    await tester.tap(inSidebar(find.text('New Agent')));
+    await tester.tap(inSidebar(find.text('New Chat')));
     await tester.pump();
     final thread = workspace.selected;
     expect(thread.project.name, 'baocode');
-    expect(chatTitle(tester), 'New Agent');
+    expect(chatTitle(tester), 'New Chat');
     expect(find.text('Plan, build, anything'), findsOneWidget);
 
     // Asking again reuses the untouched one.
-    await tester.tap(inSidebar(find.text('New Agent')).first);
+    await tester.tap(inSidebar(find.text('New Chat')).first);
     await tester.pump();
-    expect(
-      workspace.threads.where((t) => t.title == 'New Agent'),
-      hasLength(1),
-    );
+    expect(workspace.threads.where((t) => t.title == 'New Chat'), hasLength(1));
 
     thread.session.send(const ComposerMessage(text: '整理一下测试\n第二行'));
     await tester.pump();
@@ -685,5 +786,308 @@ void main() {
         (width - 20).clamp(0.0, 420.0),
       );
     }
+  });
+
+  testWidgets('a project shows its five most recent agents, the rest on '
+      'asking', (tester) async {
+    final workspace = await pumpKept(
+      tester,
+      KeptCatalog([for (var i = 1; i <= 7; i++) kept('a$i', '/tmp/a', i)]),
+    );
+    final group = Workspace.projectGroup('/tmp/a');
+    // The new agent and four more; pinned ones would not count.
+    expect(inSidebar(find.text('New Chat')), findsNWidgets(2));
+    expect(inSidebar(find.text('Chat a4')), findsOneWidget);
+    expect(inSidebar(find.text('Chat a5')), findsNothing);
+    expect(inSidebar(find.text('Show more (3)')), findsOneWidget);
+
+    await tester.tap(inSidebar(find.text('Show more (3)')));
+    await tester.pump();
+    expect(inSidebar(find.text('Chat a7')), findsOneWidget);
+    expect(workspace.isExpanded(group), isTrue);
+    await tester.tap(inSidebar(find.text('Show less')));
+    await tester.pump();
+    expect(inSidebar(find.text('Chat a7')), findsNothing);
+    expect(workspace.isExpanded(group), isFalse);
+
+    // The open one shows wherever it is.
+    workspace.select(keptThread(workspace, 'a7'));
+    await tester.pump();
+    expect(inSidebar(find.text('Chat a7')), findsOneWidget);
+    expect(inSidebar(find.text('Chat a6')), findsNothing);
+    expect(inSidebar(find.text('Show more (1)')), findsOneWidget);
+    // Keys go through the rows shown.
+    expect(
+      tester
+          .widget<Sidebar>(find.byType(Sidebar))
+          .link!
+          .visibleThreads!
+          .map((thread) => thread.record?.id),
+      ['a1', 'a2', 'a3', 'a4', 'a5', 'a7'],
+    );
+
+    // A search shows every match.
+    await tester.enterText(inSidebar(find.byType(TextField)), 'Chat a');
+    await tester.pump();
+    expect(inSidebar(find.text('Chat a6')), findsOneWidget);
+    expect(inSidebar(find.textContaining('Show more')), findsNothing);
+  });
+
+  testWidgets('the only project has a plain header that does not fold', (
+    tester,
+  ) async {
+    await pumpKept(tester, KeptCatalog([kept('a1', '/tmp/a', 1)]));
+    expect(inSidebar(find.byIcon(Icons.chevron_right_rounded)), findsNothing);
+    await tester.tap(inSidebar(find.text('a')));
+    await tester.pump();
+    expect(inSidebar(find.text('Chat a1')), findsOneWidget);
+  });
+
+  testWidgets('a new agent is listed only while it shows', (tester) async {
+    final workspace = await pumpKept(
+      tester,
+      KeptCatalog([kept('a1', '/tmp/a', 1)]),
+    );
+    final created = workspace.selected;
+    expect(created.untouched, isTrue);
+    expect(inSidebar(find.text('New Chat')), findsNWidgets(2));
+
+    await tester.tap(inSidebar(find.text('Chat a1')));
+    await tester.pump();
+    expect(workspace.threads, contains(created));
+    expect(inSidebar(find.text('New Chat')), findsOneWidget);
+
+    // Asked for again, it is the same one.
+    await tester.tap(inSidebar(find.text('New Chat')));
+    await tester.pump();
+    expect(workspace.selected, same(created));
+    expect(inSidebar(find.text('New Chat')), findsNWidgets(2));
+  });
+
+  testWidgets('a project and an agent show what their rows have no room '
+      'for when hovered', (tester) async {
+    await pumpKept(
+      tester,
+      KeptCatalog([kept('a1', '/tmp/a', 1), kept('b1', '/tmp/b', 2)]),
+    );
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(inSidebar(find.text('b'))));
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('/tmp/b'), findsOneWidget);
+
+    await mouse.moveTo(tester.getCenter(inSidebar(find.text('Chat b1'))));
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('Chat b1'), findsNWidgets(2));
+    expect(find.text('/tmp/b'), findsOneWidget);
+  });
+
+  testWidgets('a project header has a menu of what can be done there', (
+    tester,
+  ) async {
+    final catalog = KeptCatalog([
+      kept('a1', '/tmp/a', 1),
+      kept('a2', '/tmp/a', 2),
+      kept('b1', '/tmp/b', 3),
+    ]);
+    final workspace = await pumpKept(tester, catalog);
+    final launched = <(Editor, String)>[];
+    final launch = Sidebar.launch;
+    Sidebar.launch = (editor, path) async {
+      launched.add((editor, path));
+      return true;
+    };
+    addTearDown(() => Sidebar.launch = launch);
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add((call.arguments as Map)['text'] as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await pickFromMenu(tester, 'b', 'New Chat Here');
+    expect(workspace.selected.project.path, '/tmp/b');
+    expect(workspace.selected.untouched, isTrue);
+
+    await pickFromMenu(tester, 'b', 'Show in Finder');
+    expect(launched, [(Editor.folder, '/tmp/b')]);
+
+    workspace.preferredEditor = Editor.vscode;
+    await tester.pump();
+    await pickFromMenu(tester, 'b', 'Open in VS Code');
+    expect(launched.last, (Editor.vscode, '/tmp/b'));
+
+    // The Fast Ide opens the project's folder, not the one it had open.
+    workspace
+      ..preferredEditor = Editor.fastIde
+      ..openIdeFolder('/tmp/a')
+      ..select(keptThread(workspace, 'a1'));
+    await tester.pump();
+    await pickFromMenu(tester, 'b', 'Open in Fast Ide');
+    expect(workspace.layout, WorkspaceLayout.ide);
+    expect(workspace.ideFolder, '/tmp/b');
+    workspace.layout = WorkspaceLayout.chat;
+    await tester.pump();
+    // With the current agent's chat there, when it is the project's.
+    workspace.select(keptThread(workspace, 'a1'));
+    await tester.pump();
+    await pickFromMenu(tester, 'a', 'Open in Fast Ide');
+    expect(workspace.ideFolder, '/tmp/a');
+    expect(workspace.ideChat('/tmp/a'), same(keptThread(workspace, 'a1')));
+    workspace.layout = WorkspaceLayout.chat;
+    await tester.pump();
+
+    await pickFromMenu(tester, 'a', 'Copy path');
+    expect(copied, ['/tmp/a']);
+
+    // Ordered by time already: nothing to go back to.
+    await tester.tap(inSidebar(find.text('a')), buttons: kSecondaryButton);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Sort by Time'), findsNothing);
+    await tester.tap(find.text('Archive All'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(keptThread(workspace, 'a1').archived, isTrue);
+    expect(keptThread(workspace, 'a2').archived, isTrue);
+    expect(inSidebar(find.text('Chat a1')), findsNothing);
+
+    // Off the list until it is opened again...
+    await pickFromMenu(tester, 'b', 'Remove from List');
+    expect(inSidebar(find.text('b')), findsNothing);
+    expect(inSidebar(find.text('Chat b1')), findsNothing);
+    await tester.runAsync(() => workspace.openFolder('/tmp/b'));
+    await tester.pump();
+    expect(inSidebar(find.text('b')), findsOneWidget);
+    expect(inSidebar(find.text('Chat b1')), findsOneWidget);
+
+    // ...or a session there is new.
+    await pickFromMenu(tester, 'b', 'Remove from List');
+    workspace.select(keptThread(workspace, 'a1'));
+    await tester.runAsync(workspace.refresh);
+    await tester.pump();
+    expect(inSidebar(find.text('Chat b1')), findsNothing);
+    catalog.records.add(
+      SessionRecord(
+        id: 'b2',
+        title: 'Chat b2',
+        updatedAt: DateTime.now().add(const Duration(minutes: 1)),
+        cwd: '/tmp/b',
+      ),
+    );
+    await tester.runAsync(workspace.refresh);
+    await tester.pump();
+    expect(inSidebar(find.text('Chat b2')), findsOneWidget);
+    expect(workspace.isHidden(workspace.selected.project), isFalse);
+  });
+
+  testWidgets('agents and projects keep the order they are dragged to', (
+    tester,
+  ) async {
+    final store = MemoryPreferenceStore();
+    final catalog = KeptCatalog([
+      kept('a1', '/tmp/a', 1),
+      kept('a2', '/tmp/a', 2),
+      kept('a3', '/tmp/a', 3),
+      kept('b1', '/tmp/b', 4),
+    ]);
+    var workspace = await pumpKept(tester, catalog, preferences: store);
+    workspace.select(keptThread(workspace, 'a1'));
+    await tester.pump();
+    Project project(String path) =>
+        workspace.projects.firstWhere((project) => project.path == path);
+
+    // Above a1.
+    await mouseDrag(
+      tester,
+      tester.getCenter(inSidebar(find.text('Chat a3'))),
+      () =>
+          tester.getTopLeft(inSidebar(find.text('Chat a1'))) +
+          const Offset(20, 0),
+    );
+    expect(top(tester, 'Chat a3'), lessThan(top(tester, 'Chat a1')));
+    expect(workspace.isManuallyOrdered(project('/tmp/a')), isTrue);
+    // A drag no longer shows beside the conversations.
+    expect(workspace.grid.length, 1);
+
+    // Onto the place to pin it, there while it is dragged.
+    final from = tester.getCenter(inSidebar(find.text('Chat a2')));
+    final gesture = await tester.startGesture(
+      from,
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.moveBy(const Offset(0, -10));
+    await tester.pump();
+    expect(inSidebar(find.text('Drop here to pin')), findsOneWidget);
+    await gesture.moveTo(
+      tester.getCenter(inSidebar(find.text('Drop here to pin'))),
+    );
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+    expect(keptThread(workspace, 'a2').pinned, isTrue);
+    expect(inSidebar(find.text('Drop here to pin')), findsNothing);
+
+    // Project b above a.
+    await mouseDrag(
+      tester,
+      tester.getCenter(inSidebar(find.text('b'))),
+      () => tester.getTopLeft(inSidebar(find.text('a'))) + const Offset(20, 2),
+    );
+    expect(top(tester, 'b'), lessThan(top(tester, 'a')));
+
+    // The next run.
+    await tester.pumpWidget(const SizedBox());
+    workspace = await pumpKept(tester, catalog, preferences: store);
+    workspace.select(keptThread(workspace, 'a1'));
+    await tester.pump();
+    expect(top(tester, 'Chat a3'), lessThan(top(tester, 'Chat a1')));
+    expect(top(tester, 'b'), lessThan(top(tester, 'a')));
+    expect(keptThread(workspace, 'a2').pinned, isTrue);
+    // The pinned row names its project too.
+    expect(
+      tester.getTopLeft(inSidebar(find.textContaining('Chat a2'))).dy,
+      lessThan(top(tester, 'b')),
+    );
+
+    // By time again.
+    await pickFromMenu(tester, 'a', 'Sort by Time');
+    expect(top(tester, 'Chat a1'), lessThan(top(tester, 'Chat a3')));
+    expect(workspace.isManuallyOrdered(project('/tmp/a')), isFalse);
+  });
+
+  testWidgets('the pinned agents keep the order they are dragged to', (
+    tester,
+  ) async {
+    final workspace = await pumpKept(
+      tester,
+      KeptCatalog([kept('a1', '/tmp/a', 1), kept('a2', '/tmp/a', 2)]),
+    );
+    final [a1, a2] = [keptThread(workspace, 'a1'), keptThread(workspace, 'a2')];
+    workspace
+      ..setPinned(a2, true)
+      ..setPinned(a1, true);
+    await tester.pump();
+    // The last pinned on top.
+    expect(top(tester, 'Chat a1'), lessThan(top(tester, 'Chat a2')));
+
+    await mouseDrag(
+      tester,
+      tester.getCenter(inSidebar(find.text('Chat a2'))),
+      () =>
+          tester.getTopLeft(inSidebar(find.text('Chat a1'))) +
+          const Offset(20, 2),
+    );
+    expect(top(tester, 'Chat a2'), lessThan(top(tester, 'Chat a1')));
+    expect(workspace.inPinnedOrder([a1, a2]), [a2, a1]);
   });
 }

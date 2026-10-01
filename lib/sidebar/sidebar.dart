@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/chat_drag.dart';
+import '../workspace/editor_launcher.dart';
 import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
@@ -69,7 +71,36 @@ class _Group {
 
   /// Set for a project group, which can start a new agent there.
   final Project? project;
+
+  bool get pinned => id == _pinnedGroup;
 }
+
+const _pinnedGroup = 'pinned';
+
+/// Where an agent dragged within the list would go: in [group], before or
+/// after an agent there, or on top (neither).
+@immutable
+class _Spot {
+  const _Spot(this.group, {this.before, this.after});
+
+  final _Group group;
+  final AgentThread? before;
+  final AgentThread? after;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _Spot &&
+      other.group.id == group.id &&
+      identical(other.before, before) &&
+      identical(other.after, after);
+
+  @override
+  int get hashCode => Object.hash(group.id, before, after);
+}
+
+/// What the list shows of a group: its rows, and how many more there are
+/// (shown on asking), or that all are and can be fewer again.
+typedef _Rows = ({List<AgentThread> threads, int more, bool less});
 
 /// What the window asks of its sidebar, for the chat's keybindings: the
 /// agents in the order it lists them, and its search.
@@ -99,10 +130,15 @@ class Sidebar extends StatefulWidget {
     this.onOpenSettings,
     this.drag,
     this.link,
-    this.collapsed,
   });
 
   final Workspace workspace;
+
+  /// Opens a project's folder in an app (a project's menu); replaceable
+  /// under test.
+  @visibleForTesting
+  static Future<bool> Function(Editor editor, String path) launch =
+      openInEditor;
   final VoidCallback onCollapse;
 
   /// Where rows are dragged to show beside the open agent; none when null.
@@ -121,24 +157,18 @@ class Sidebar extends StatefulWidget {
   /// Reaches this sidebar from the window.
   final SidebarLink? link;
 
-  /// The ids of the groups collapsed: the window's, so that they stay so
-  /// while the sidebar is built anew (between the docked sidebar and the
-  /// drawer, which is not built while closed); its own when null.
-  final Set<String>? collapsed;
-
   @override
   State<Sidebar> createState() => _SidebarState();
 }
 
-class _SidebarState extends State<Sidebar> {
+class _SidebarState extends State<Sidebar> implements ChatDragList {
   static const _rowHeight = 28.0;
+
+  /// The agents a project shows until asked for more (pinned ones apart).
+  static const _recent = 5;
 
   final TextEditingController _search = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
-  SidebarGrouping _grouping = SidebarGrouping.project;
-  final Set<String> _ownCollapsed = {};
-  Set<String> get _collapsed => widget.collapsed ?? _ownCollapsed;
-  bool _showArchived = false;
   AgentThread? _renaming;
 
   /// Keeps the relative times current.
@@ -146,12 +176,20 @@ class _SidebarState extends State<Sidebar> {
 
   Workspace get _workspace => widget.workspace;
 
+  // Kept by the workspace, between runs and as the sidebar is built anew
+  // (between the docked sidebar and the drawer, not built while closed).
+  SidebarGrouping get _grouping =>
+      SidebarGrouping.values.asNameMap()[_workspace.sidebarGrouping] ??
+      SidebarGrouping.project;
+  bool get _showArchived => _workspace.showArchived;
+
   @override
   void initState() {
     super.initState();
     _clock = Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
     _search.addListener(() => setState(() {}));
     widget.link?._state = this;
+    _attachDrag(widget.drag);
   }
 
   @override
@@ -161,25 +199,61 @@ class _SidebarState extends State<Sidebar> {
       if (oldWidget.link?._state == this) oldWidget.link!._state = null;
       widget.link?._state = this;
     }
+    if (oldWidget.drag != widget.drag) {
+      _detachDrag(oldWidget.drag);
+      _attachDrag(widget.drag);
+    }
   }
 
   @override
   void dispose() {
     if (widget.link?._state == this) widget.link!._state = null;
+    _detachDrag(widget.drag);
     _clock.cancel();
     _search.dispose();
     _searchFocus.dispose();
     super.dispose();
   }
 
+  bool get _searching => _search.text.trim().isNotEmpty;
+
   /// The agents listed, top to bottom (see [_buildList]).
-  List<AgentThread> _visibleThreads() {
-    final searching = _search.text.trim().isNotEmpty;
-    return [
-      for (final group in _groups())
-        if (!_collapsed.contains(group.id) || searching) ...group.threads,
+  List<AgentThread> _visibleThreads() => [
+    for (final group in _groups()) ..._rows(group).threads,
+  ];
+
+  /// Whether [group] folds: not the only project's, which is all there is.
+  bool _collapsible(_Group group) => group.project == null || _projectsShown;
+
+  bool _collapsed(_Group group) =>
+      !_searching && _collapsible(group) && _workspace.isCollapsed(group.id);
+
+  /// A project's most recent agents, unless asked for all (the open one
+  /// too, wherever it is); every one while searching.
+  _Rows _rows(_Group group) {
+    if (_collapsed(group)) return (threads: const [], more: 0, less: false);
+    final all = group.threads;
+    if (_searching || group.project == null || all.length <= _recent) {
+      return (threads: all, more: 0, less: false);
+    }
+    if (_workspace.isExpanded(group.id)) {
+      return (threads: all, more: 0, less: true);
+    }
+    final current = _workspace.current;
+    final shown = [
+      for (final (i, thread) in all.indexed)
+        if (i < _recent || identical(thread, current)) thread,
     ];
+    return (threads: shown, more: all.length - shown.length, less: false);
   }
+
+  /// A new agent nothing was sent to is listed only while it shows: one
+  /// left for another is not worth a row.
+  bool _listed(AgentThread thread) =>
+      !_workspace.isHidden(thread.project) &&
+      (!thread.untouched ||
+          identical(thread, _workspace.current) ||
+          _workspace.grid.contains(thread));
 
   void _focusSearch() {
     _search.selection = TextSelection(
@@ -229,16 +303,19 @@ class _SidebarState extends State<Sidebar> {
     final l10n = context.l10n;
     final threads = [
       for (final thread in _workspace.threads)
-        if (_matches(thread)) thread,
+        if (_listed(thread) &&
+            _workspace.listsInSidebar(thread) &&
+            _matches(thread))
+          thread,
     ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     final active = [
       for (final thread in threads)
         if (!thread.archived) thread,
     ];
-    final pinned = [
+    final pinned = _workspace.inPinnedOrder([
       for (final thread in active)
         if (thread.pinned) thread,
-    ];
+    ]);
     final rest = [
       for (final thread in active)
         if (!thread.pinned) thread,
@@ -254,14 +331,19 @@ class _SidebarState extends State<Sidebar> {
     }
 
     return [
-      if (pinned.isNotEmpty) _Group('pinned', l10n.sidebarPinned, pinned),
+      // While an agent is dragged, a place to pin it, if none is yet.
+      if (pinned.isNotEmpty || (_pinZone && !_searching))
+        _Group(_pinnedGroup, l10n.sidebarPinned, pinned),
       ...switch (_grouping) {
         SidebarGrouping.project => [
-          for (final project in _workspace.projects)
+          for (final project in _workspace.sidebarProjects)
             _Group(
-              'project:${project.path}',
+              Workspace.projectGroup(project.path),
               project.name,
-              where((thread) => thread.project == project),
+              _workspace.inProjectOrder(
+                project,
+                where((thread) => thread.project == project),
+              ),
               project: project,
             ),
         ],
@@ -408,7 +490,7 @@ class _SidebarState extends State<Sidebar> {
                   grouping.localizedLabel(context.l10n),
                   icon: grouping.icon,
                   checked: grouping == _grouping,
-                  onSelected: () => setState(() => _grouping = grouping),
+                  onSelected: () => _workspace.sidebarGrouping = grouping.name,
                 ),
             ],
             builder: (context, menu) => HoverBuilder(
@@ -450,14 +532,27 @@ class _SidebarState extends State<Sidebar> {
     );
   }
 
+  /// What [_buildList] laid out last, top to bottom, to find where a drag
+  /// is: each group's header, then its rows (an empty pinned group's
+  /// place to drop on instead).
+  List<({_Group group, AgentThread? thread, Object slot})> _laidOut = const [];
+
+  /// Where each of [_laidOut], and the list, is built now (a [_Slot]).
+  final Map<Object, BuildContext> _slots = {};
+  static const _listSlot = #list;
+
   Widget _buildList() {
-    final searching = _search.text.trim().isNotEmpty;
+    final searching = _searching;
     final groups = [
       for (final group in _groups())
-        // Empty projects stay, to start an agent in; other empty groups go.
-        if (group.threads.isNotEmpty || (group.project != null && !searching))
+        // Empty projects stay, to start an agent in; other empty groups go
+        // (but the place to pin a dragged agent).
+        if (group.threads.isNotEmpty ||
+            (group.project != null && !searching) ||
+            group.pinned)
           group,
     ];
+    _laidOut = const [];
     if (groups.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(16),
@@ -470,53 +565,330 @@ class _SidebarState extends State<Sidebar> {
         ),
       );
     }
-    final selected = _workspace.selected;
+    final selected = _workspace.current;
+    final spot = _spot;
+    final laidOut = <({_Group group, AgentThread? thread, Object slot})>[];
+    final projects = [for (final group in groups) ?group.project];
+    final children = <Widget>[];
+    for (final group in groups) {
+      final project = group.project;
+      if (project != null && _projectSpot == projects.indexOf(project)) {
+        children.add(const _DropLine());
+      }
+      laidOut.add((group: group, thread: null, slot: group.id));
+      children.add(
+        _Slot(
+          key: ValueKey(group.id),
+          slot: group.id,
+          slots: _slots,
+          child: _buildHeader(group, projects),
+        ),
+      );
+      if (spot case _Spot(before: null, after: null)
+          when spot.group.id == group.id && group.threads.isNotEmpty) {
+        children.add(const _DropLine());
+      }
+      if (group.pinned && group.threads.isEmpty) {
+        const zone = #pinZone;
+        laidOut.add((group: group, thread: null, slot: zone));
+        children.add(
+          _Slot(
+            key: const ValueKey(zone),
+            slot: zone,
+            slots: _slots,
+            child: _PinZone(
+              height: _rowHeight,
+              active: spot?.group.id == group.id,
+            ),
+          ),
+        );
+      }
+      final rows = _rows(group);
+      for (final thread in rows.threads) {
+        if (spot != null && identical(spot.before, thread)) {
+          children.add(const _DropLine());
+        }
+        laidOut.add((group: group, thread: thread, slot: thread));
+        children.add(
+          _Slot(
+            key: ObjectKey(thread),
+            slot: thread,
+            slots: _slots,
+            child: _buildRow(thread, group, selected),
+          ),
+        );
+        if (spot != null && identical(spot.after, thread)) {
+          children.add(const _DropLine());
+        }
+      }
+      if (rows.more > 0 || rows.less) {
+        children.add(
+          _MoreRow(
+            key: ValueKey('${group.id}.more'),
+            label: rows.less
+                ? context.l10n.sidebarShowLess
+                : context.l10n.sidebarShowMore(rows.more),
+            onTap: () => _workspace.toggleExpanded(group.id),
+          ),
+        );
+      }
+    }
+    if (_projectSpot != null && _projectSpot == projects.length) {
+      children.add(const _DropLine());
+    }
+    _laidOut = laidOut;
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
-        children: [
-          for (final group in groups) ...[
-            _GroupHeader(
-              group: group,
-              collapsed: _collapsed.contains(group.id) && !searching,
-              onToggle: () => setState(() {
-                if (!_collapsed.remove(group.id)) _collapsed.add(group.id);
-              }),
-              onCreate: group.project == null
-                  ? null
-                  : () => _create(group.project),
-            ),
-            if (!_collapsed.contains(group.id) || searching)
-              for (final thread in group.threads)
-                _ThreadRow(
-                  key: ObjectKey(thread),
-                  thread: thread,
-                  height: _rowHeight,
-                  selected: identical(thread, selected),
-                  shown: _workspace.grid.contains(thread),
-                  drag: widget.drag,
-                  showProject: group.project == null && _projectsShown,
-                  renaming: identical(thread, _renaming),
-                  onTap: () => _handleRowTap(thread),
-                  onRename: () => setState(() => _renaming = thread),
-                  onRenamed: (title) {
-                    if (title != null) _workspace.rename(thread, title);
-                    setState(() => _renaming = null);
-                  },
-                  onPin: () => _workspace.setPinned(thread, !thread.pinned),
-                  onArchive: () =>
-                      _workspace.setArchived(thread, !thread.archived),
-                  onDelete: () => _confirmDelete(thread),
-                ),
-          ],
-        ],
+      child: _Slot(
+        slot: _listSlot,
+        slots: _slots,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+          children: children,
+        ),
       ),
     );
   }
 
+  Widget _buildHeader(_Group group, List<Project> projects) {
+    final project = group.project;
+    final collapsible = _collapsible(group);
+    final header = _GroupHeader(
+      group: group,
+      collapsed: _collapsed(group),
+      light: !collapsible,
+      onToggle: collapsible ? () => _workspace.toggleCollapsed(group.id) : null,
+      onCreate: project == null ? null : () => _create(project),
+      menu: project == null ? null : () => _projectItems(project),
+      dragged: project != null && identical(project, _draggedProject),
+    );
+    // Projects are ordered by dragging their headers, where there are
+    // several to order.
+    if (project == null || projects.length < 2 || _searching) return header;
+    return _ProjectDragSource(
+      onStart: () => setState(() => _draggedProject = project),
+      onUpdate: (position) => _moveProjectDrag(position, projects),
+      onEnd: () => _endProjectDrag(projects),
+      child: header,
+    );
+  }
+
+  Widget _buildRow(AgentThread thread, _Group group, AgentThread? selected) {
+    return _ThreadRow(
+      thread: thread,
+      height: _rowHeight,
+      selected: identical(thread, selected),
+      shown: _workspace.grid.contains(thread),
+      drag: widget.drag,
+      showProject: group.project == null && _projectsShown,
+      renaming: identical(thread, _renaming),
+      onTap: () => _handleRowTap(thread),
+      onRename: () => setState(() => _renaming = thread),
+      onRenamed: (title) {
+        if (title != null) _workspace.rename(thread, title);
+        setState(() => _renaming = null);
+      },
+      onPin: () => _workspace.setPinned(thread, !thread.pinned),
+      onArchive: () => _workspace.setArchived(thread, !thread.archived),
+      onDelete: () => _confirmDelete(thread),
+    );
+  }
+
+  // --- A project's menu ------------------------------------------------------
+
+  List<SidebarMenuItem> _projectItems(Project project) {
+    final l10n = context.l10n;
+    final editor = _workspace.preferredEditor;
+    return [
+      SidebarMenuItem(
+        l10n.sidebarNewAgentHere,
+        icon: Icons.add_rounded,
+        onSelected: () => _create(project),
+      ),
+      SidebarMenuItem(
+        l10n.sidebarRevealIn(Editor.folder.localizedPlatformLabel(l10n)),
+        icon: Editor.folder.icon,
+        onSelected: () =>
+            unawaited(Sidebar.launch(Editor.folder, project.path)),
+      ),
+      if (editor != Editor.folder)
+        SidebarMenuItem(
+          l10n.workspaceOpenIn(editor.localizedPlatformLabel(l10n)),
+          icon: editor.icon,
+          onSelected: () => _openInEditor(project, editor),
+        ),
+      SidebarMenuItem(
+        l10n.workspaceCopyPath,
+        icon: Icons.content_copy_rounded,
+        onSelected: () =>
+            unawaited(Clipboard.setData(ClipboardData(text: project.path))),
+      ),
+      if (_workspace.isManuallyOrdered(project))
+        SidebarMenuItem(
+          l10n.sidebarSortByTime,
+          icon: Icons.schedule_rounded,
+          onSelected: () => _workspace.sortByTime(project),
+        ),
+      SidebarMenuItem(
+        l10n.sidebarArchiveAll,
+        icon: Icons.inventory_2_outlined,
+        onSelected: () => _workspace.archiveAll(project),
+      ),
+      SidebarMenuItem(
+        l10n.sidebarRemoveFromList,
+        icon: Icons.visibility_off_outlined,
+        onSelected: () => _workspace.hideProject(project),
+      ),
+    ];
+  }
+
+  /// The Fast Ide opens [project]'s folder, as the window header's button
+  /// does: with the current agent's chat there when it is the project's.
+  void _openInEditor(Project project, Editor editor) {
+    if (!editor.builtIn) {
+      unawaited(Sidebar.launch(editor, project.path));
+      return;
+    }
+    if (_workspace.current case final thread? when thread.project == project) {
+      _workspace.openInIde(thread);
+    } else {
+      _workspace
+        ..openIdeFolder(project.path)
+        ..layout = WorkspaceLayout.ide;
+    }
+  }
+
+  // --- Dragging projects -----------------------------------------------------
+
+  Project? _draggedProject;
+
+  /// Where the dragged project would go among the projects listed (it
+  /// included), as the line between them shows.
+  int? _projectSpot;
+
+  void _moveProjectDrag(Offset position, List<Project> projects) {
+    // Before the first header whose middle is below the pointer.
+    var at = projects.length;
+    for (final (i, project) in projects.indexed) {
+      final box = _box(Workspace.projectGroup(project.path));
+      if (box == null) continue;
+      final middle = box.localToGlobal(box.size.center(Offset.zero)).dy;
+      if (position.dy < middle) {
+        at = i;
+        break;
+      }
+    }
+    final from = projects.indexOf(_draggedProject!);
+    // Where it is already: no line.
+    final spot = at == from || at == from + 1 ? null : at;
+    if (spot != _projectSpot) setState(() => _projectSpot = spot);
+  }
+
+  void _endProjectDrag(List<Project> projects) {
+    final (project, at) = (_draggedProject, _projectSpot);
+    setState(() => _draggedProject = _projectSpot = null);
+    if (project == null || at == null) return;
+    final from = projects.indexOf(project);
+    _workspace.moveProject(project, at > from ? at - 1 : at);
+  }
+
+  // --- Dragging agents within the list ---------------------------------------
+
+  /// Where a dragged agent would go in the list, if anywhere.
+  _Spot? _spot;
+
+  /// An agent is dragged that can be pinned: an empty pinned group shows,
+  /// to drop it on.
+  bool _pinZone = false;
+
+  void _attachDrag(ChatDrag? drag) {
+    drag?.list = this;
+    drag?.addListener(_dragChanged);
+  }
+
+  void _detachDrag(ChatDrag? drag) {
+    if (drag?.list == this) drag!.list = null;
+    drag?.removeListener(_dragChanged);
+  }
+
+  void _dragChanged() {
+    final dragged = widget.drag?.thread;
+    final pinZone = dragged != null && !dragged.pinned && !dragged.archived;
+    if (pinZone == _pinZone && (dragged != null || _spot == null)) return;
+    setState(() {
+      _pinZone = pinZone;
+      if (dragged == null) _spot = null;
+    });
+  }
+
+  RenderBox? _box(Object slot) {
+    final context = _slots[slot];
+    final box = context != null && context.mounted
+        ? context.findRenderObject()
+        : null;
+    return box is RenderBox && box.attached && box.hasSize ? box : null;
+  }
+
+  @override
+  bool hover(AgentThread thread, Offset position) {
+    final list = _box(_listSlot);
+    final over =
+        list != null &&
+        (Offset.zero & list.size).contains(list.globalToLocal(position));
+    final spot = over ? _spotAt(thread, position) : null;
+    if (spot != _spot) setState(() => _spot = spot);
+    return over;
+  }
+
+  @override
+  void drop(AgentThread thread, Offset position) {
+    final spot = _spotAt(thread, position);
+    setState(() => _spot = null);
+    if (spot == null) return;
+    final group = spot.group;
+    final ordered = [
+      for (final other in group.threads)
+        if (!identical(other, thread)) other,
+    ];
+    final at = switch (spot) {
+      _Spot(:final before?) => ordered.indexOf(before),
+      _Spot(:final after?) => ordered.indexOf(after) + 1,
+      _ => 0,
+    };
+    ordered.insert(at.clamp(0, ordered.length), thread);
+    if (group.pinned) {
+      _workspace.reorderPinned(ordered);
+    } else if (group.project case final project?) {
+      if (thread.pinned) _workspace.setPinned(thread, false);
+      _workspace.reorder(project, ordered);
+    }
+  }
+
+  /// Whether [thread] can be dropped in [group]: pinned there, or ordered
+  /// among its project's (not into another's, nor while searching).
+  bool _takes(_Group group, AgentThread thread) =>
+      !thread.archived &&
+      !_searching &&
+      (group.pinned || group.project == thread.project);
+
+  _Spot? _spotAt(AgentThread thread, Offset position) {
+    for (final (:group, thread: row, :slot) in _laidOut) {
+      final box = _box(slot);
+      if (box == null) continue;
+      final top = box.localToGlobal(Offset.zero).dy;
+      if (position.dy < top || position.dy >= top + box.size.height) continue;
+      if (!_takes(group, thread)) return null;
+      if (row == null) return _Spot(group);
+      if (identical(row, thread)) return null;
+      return position.dy < top + box.size.height / 2
+          ? _Spot(group, before: row)
+          : _Spot(group, after: row);
+    }
+    return null;
+  }
+
   /// Project names are worth showing on rows only when there are several.
-  bool get _projectsShown => _workspace.projects.length > 1;
+  bool get _projectsShown => _workspace.sidebarProjects.length > 1;
 
   /// The archived toggle, when there are archived agents, and the
   /// settings' gear.
@@ -554,7 +926,7 @@ class _SidebarState extends State<Sidebar> {
     return HoverBuilder(
       cursor: SystemMouseCursors.click,
       builder: (context, hovered) => GestureDetector(
-        onTap: () => setState(() => _showArchived = !_showArchived),
+        onTap: () => _workspace.showArchived = !_showArchived,
         child: Container(
           height: 26,
           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -749,92 +1121,426 @@ class _GroupHeader extends StatelessWidget {
     required this.group,
     required this.collapsed,
     required this.onToggle,
+    this.light = false,
     this.onCreate,
+    this.menu,
+    this.dragged = false,
   });
 
   final _Group group;
   final bool collapsed;
-  final VoidCallback onToggle;
+
+  /// Null where the group does not fold.
+  final VoidCallback? onToggle;
+
+  /// The only project's: its name, nothing to fold or count.
+  final bool light;
   final VoidCallback? onCreate;
+
+  /// The project's menu, on a right click or its "…" button.
+  final List<SidebarMenuItem> Function()? menu;
+
+  /// Being dragged to another place among the projects.
+  final bool dragged;
 
   @override
   Widget build(BuildContext context) {
+    final menu = this.menu;
+    if (menu == null) return _build(context, null);
+    return SidebarMenu(
+      items: menu,
+      placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
+      builder: _build,
+    );
+  }
+
+  Widget _build(BuildContext context, SidebarMenuState? menu) {
     final project = group.project;
-    return HoverBuilder(
-      cursor: SystemMouseCursors.click,
-      builder: (context, hovered) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onToggle,
-        child: Container(
-          height: 26,
-          margin: const EdgeInsets.only(top: 6),
-          padding: const EdgeInsets.only(left: 4, right: 2),
-          decoration: BoxDecoration(
-            color: hovered && project != null
-                ? AppColors.hover
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(5),
-          ),
-          child: Row(
-            children: [
-              AnimatedRotation(
-                turns: collapsed ? 0 : 0.25,
-                duration: const Duration(milliseconds: 150),
-                child: Icon(
-                  Icons.chevron_right_rounded,
-                  size: 15,
-                  color: hovered ? AppColors.textMuted : AppColors.textFaint,
-                ),
-              ),
-              const SizedBox(width: 2),
-              if (project != null) ...[
-                Icon(
-                  Icons.folder_outlined,
-                  size: 13,
-                  color: AppColors.textMuted,
-                ),
-                const SizedBox(width: 6),
+    final header = HoverBuilder(
+      cursor: onToggle == null ? MouseCursor.defer : SystemMouseCursors.click,
+      builder: (context, hovered) {
+        final active = hovered || (menu?.isOpen ?? false);
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onToggle,
+          onSecondaryTapUp: menu == null
+              ? null
+              : (details) => menu.open(details.globalPosition),
+          child: Container(
+            height: 26,
+            margin: const EdgeInsets.only(top: 6),
+            padding: EdgeInsets.only(left: light ? 6 : 4, right: 2),
+            decoration: BoxDecoration(
+              color: (active || dragged) && project != null
+                  ? AppColors.hover
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Row(
+              children: [
+                if (!light) ...[
+                  AnimatedRotation(
+                    turns: collapsed ? 0 : 0.25,
+                    duration: const Duration(milliseconds: 150),
+                    child: Icon(
+                      Icons.chevron_right_rounded,
+                      size: 15,
+                      color: hovered
+                          ? AppColors.textMuted
+                          : AppColors.textFaint,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                ],
+                if (project != null) ...[
+                  Icon(
+                    Icons.folder_outlined,
+                    size: 13,
+                    color: AppColors.textMuted,
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Expanded(child: _label(project)),
+                if (collapsed && !light && group.threads.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: Text(
+                      '${group.threads.length}',
+                      style: TextStyle(
+                        color: AppColors.textFaint,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                if (active && menu != null)
+                  SidebarIconButton(
+                    icon: Icons.more_horiz_rounded,
+                    tooltip: context.l10n.sidebarMoreActions,
+                    size: 20,
+                    onTap: menu.open,
+                  ),
+                if (onCreate case final onCreate? when active)
+                  SidebarIconButton(
+                    icon: Icons.add_rounded,
+                    tooltip: context.l10n.sidebarNewAgentIn(group.label),
+                    size: 20,
+                    onTap: onCreate,
+                  ),
               ],
-              Expanded(
-                child: Text(
-                  group.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: project != null
-                        ? AppColors.text
-                        : AppColors.textMuted,
-                    fontSize: project != null ? 12.5 : 11.5,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              if (collapsed && group.threads.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: Text(
-                    '${group.threads.length}',
-                    style: TextStyle(color: AppColors.textFaint, fontSize: 11),
-                  ),
-                ),
-              if (onCreate case final onCreate? when hovered)
-                SidebarIconButton(
-                  icon: Icons.add_rounded,
-                  tooltip: context.l10n.sidebarNewAgentIn(group.label),
-                  size: 20,
-                  onTap: onCreate,
-                ),
-            ],
+            ),
           ),
-        ),
+        );
+      },
+    );
+    return header;
+  }
+
+  Widget _label(Project? project) {
+    final label = Text(
+      group.label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: project != null ? AppColors.text : AppColors.textMuted,
+        fontSize: project != null ? 12.5 : 11.5,
+        fontWeight: FontWeight.w500,
       ),
+    );
+    if (project == null) return label;
+    // Where the project is: its name says only which. Over the name alone,
+    // not the buttons beside it, which come and go with the pointer.
+    return _RowHover(
+      content: (_) => Text(project.path),
+      child: Align(alignment: Alignment.centerLeft, child: label),
     );
   }
 }
 
+/// The workbench hover of a row or header, placed as [IdeHover.followMouse]
+/// places it, in an overlay entry of its own: an [IdeHover] (an
+/// OverlayPortal) within the menu's OverlayPortal around each row leaves
+/// the desktop engines' semantics tree behind as it hides.
+class _RowHover extends StatefulWidget {
+  const _RowHover({required this.content, required this.child});
+
+  final WidgetBuilder content;
+  final Widget child;
+
+  @override
+  State<_RowHover> createState() => _RowHoverState();
+}
+
+class _RowHoverState extends State<_RowHover> {
+  Timer? _timer;
+  OverlayEntry? _entry;
+
+  /// Where the pointer last moved over the target, in the target.
+  Offset _mouse = Offset.zero;
+
+  void _enter(PointerEnterEvent event) {
+    _mouse = event.localPosition;
+    _timer?.cancel();
+    _timer = Timer(ideHoverDelay, _show);
+  }
+
+  void _hide() {
+    _timer?.cancel();
+    _timer = null;
+    _entry
+      ?..remove()
+      ..dispose();
+    _entry = null;
+  }
+
+  void _show() {
+    final box = context.findRenderObject();
+    final overlay = Overlay.maybeOf(context);
+    final overlayBox = overlay?.context.findRenderObject();
+    if (overlay == null ||
+        box is! RenderBox ||
+        !box.attached ||
+        overlayBox is! RenderBox) {
+      return;
+    }
+    final target =
+        box.localToGlobal(Offset.zero, ancestor: overlayBox) & box.size;
+    final x = target.left + _mouse.dx + 10;
+    final entry = _entry = OverlayEntry(
+      builder: (context) => CustomSingleChildLayout(
+        delegate: _BelowMouse(target, x),
+        child: IgnorePointer(
+          child: ExcludeSemantics(
+            child: IdeHoverBox(compact: false, child: widget.content(context)),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(entry);
+  }
+
+  @override
+  void dispose() {
+    _hide();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: (_) => _hide(),
+    onPointerSignal: (_) => _hide(),
+    child: MouseRegion(
+      onEnter: _enter,
+      onHover: (event) => _mouse = event.localPosition,
+      onExit: (_) => _hide(),
+      child: widget.child,
+    ),
+  );
+}
+
+/// Below the target (above where there is no room), from [x]; inside the
+/// overlay (hoverWidget.ts `layout`).
+class _BelowMouse extends SingleChildLayoutDelegate {
+  const _BelowMouse(this.target, this.x);
+
+  final Rect target;
+  final double x;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      constraints.loosen();
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final y = target.bottom + childSize.height > size.height
+        ? target.top - childSize.height
+        : target.bottom - 2;
+    return Offset(
+      x.clamp(0, math.max(0, size.width - childSize.width)),
+      y.clamp(0, math.max(0, size.height - childSize.height)),
+    );
+  }
+
+  @override
+  bool shouldRelayout(_BelowMouse oldDelegate) =>
+      oldDelegate.target != target || oldDelegate.x != x;
+}
+
+/// A project's header dragged to another place among the projects: past a
+/// few pixels, so a click still folds it.
+class _ProjectDragSource extends StatelessWidget {
+  const _ProjectDragSource({
+    required this.onStart,
+    required this.onUpdate,
+    required this.onEnd,
+    required this.child,
+  });
+
+  final VoidCallback onStart;
+
+  /// Where the pointer is, globally.
+  final ValueChanged<Offset> onUpdate;
+  final VoidCallback onEnd;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => RawGestureDetector(
+    gestures: {
+      _ProjectDragRecognizer:
+          GestureRecognizerFactoryWithHandlers<_ProjectDragRecognizer>(
+            _ProjectDragRecognizer.new,
+            (recognizer) {
+              recognizer
+                ..onStart = ((_) => onStart())
+                ..onUpdate = ((details) => onUpdate(details.globalPosition))
+                ..onEnd = ((_) => onEnd())
+                ..onCancel = onEnd;
+            },
+          ),
+    },
+    child: child,
+  );
+}
+
+/// A vertical drag that starts past 4 pixels, mouse or not (a mouse's
+/// slop is otherwise 1, which a click can move).
+class _ProjectDragRecognizer extends VerticalDragGestureRecognizer {
+  _ProjectDragRecognizer() : super(supportedDevices: null);
+
+  @override
+  bool hasSufficientGlobalDistanceToAccept(
+    PointerDeviceKind pointerDeviceKind,
+    double? deviceTouchSlop,
+  ) => globalDistanceMoved.abs() > 4;
+}
+
+/// Where a dragged agent or project would go, between rows: drawn over
+/// them, taking no room.
+class _DropLine extends StatelessWidget {
+  const _DropLine();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 0,
+    child: OverflowBox(
+      maxHeight: 2,
+      child: Container(
+        height: 2,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          color: themeColors['focusBorder'],
+          borderRadius: BorderRadius.circular(1),
+        ),
+      ),
+    ),
+  );
+}
+
+/// The pinned group while there is none yet and an agent is dragged: a
+/// place to drop it on, to pin it.
+class _PinZone extends StatelessWidget {
+  const _PinZone({required this.height, required this.active});
+
+  final double height;
+
+  /// The agent is over it.
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: height,
+    margin: const EdgeInsets.only(top: 2),
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: active ? AppColors.hover : Colors.transparent,
+      border: Border.all(
+        color: active ? themeColors['focusBorder'] : AppColors.border,
+      ),
+      borderRadius: BorderRadius.circular(5),
+    ),
+    child: Text(
+      context.l10n.sidebarDropToPin,
+      style: TextStyle(color: AppColors.textFaint, fontSize: 11.5),
+    ),
+  );
+}
+
+/// Something in the list a drag finds by [slot]: where it is built is
+/// kept in [slots] while it is.
+class _Slot extends StatefulWidget {
+  const _Slot({
+    super.key,
+    required this.slot,
+    required this.slots,
+    required this.child,
+  });
+
+  final Object slot;
+  final Map<Object, BuildContext> slots;
+  final Widget child;
+
+  @override
+  State<_Slot> createState() => _SlotState();
+}
+
+class _SlotState extends State<_Slot> {
+  @override
+  void initState() {
+    super.initState();
+    widget.slots[widget.slot] = context;
+  }
+
+  @override
+  void didUpdateWidget(_Slot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _forget(oldWidget);
+    widget.slots[widget.slot] = context;
+  }
+
+  @override
+  void dispose() {
+    _forget(widget);
+    super.dispose();
+  }
+
+  void _forget(_Slot of) {
+    if (identical(of.slots[of.slot], context)) of.slots.remove(of.slot);
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// Under a project's most recent agents: the rest, or fewer again.
+class _MoreRow extends StatelessWidget {
+  const _MoreRow({super.key, required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => HoverBuilder(
+    cursor: SystemMouseCursors.click,
+    builder: (context, hovered) => GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 24,
+        padding: const EdgeInsets.only(left: 28),
+        alignment: Alignment.centerLeft,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: hovered ? AppColors.textMuted : AppColors.textFaint,
+            fontSize: 11.5,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _ThreadRow extends StatelessWidget {
   const _ThreadRow({
-    super.key,
     required this.thread,
     required this.height,
     required this.selected,
@@ -944,7 +1650,15 @@ class _ThreadRow extends StatelessWidget {
                             initial: thread.localizedTitle(context.l10n),
                             onDone: onRenamed,
                           )
-                        : _buildTitle(context.l10n),
+                        // What the row has no room for, over the title
+                        // (not the buttons that come and go beside it).
+                        : _RowHover(
+                            content: (context) => _buildHover(context.l10n),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: _buildTitle(context.l10n),
+                            ),
+                          ),
                   ),
                   if (!renaming) ..._buildTrailing(active, context.l10n),
                 ],
@@ -959,6 +1673,42 @@ class _ThreadRow extends StatelessWidget {
       drag: renaming ? null : drag,
       thread: thread,
       child: row,
+    );
+  }
+
+  /// What the row has no room for: the whole title, where the agent works,
+  /// what it is doing and when it last did.
+  Widget _buildHover(AppLocalizations l10n) {
+    final diff = thread.diff;
+    final status = switch (thread.status) {
+      ThreadStatus.needsInput => l10n.sidebarNeedsInput,
+      ThreadStatus.running => l10n.sidebarRunning,
+      ThreadStatus.unread => l10n.sidebarUnread,
+      ThreadStatus.idle => null,
+    };
+    final faint = TextStyle(color: AppColors.textMuted, fontSize: 12);
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 360),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            thread.localizedTitle(l10n),
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 2),
+          Text(thread.project.path, style: faint),
+          Text(
+            [
+              ?status,
+              relativeTime(thread.updatedAt, DateTime.now(), l10n),
+              if (diff != null) '+${diff.added} −${diff.removed}',
+            ].join(' · '),
+            style: faint,
+          ),
+        ],
+      ),
     );
   }
 

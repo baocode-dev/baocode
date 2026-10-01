@@ -5,6 +5,7 @@
 #include <flutter_windows.h>
 #include <windows.h>
 #include <shellapi.h>
+#include <shlobj.h>
 #include <shobjidl.h>
 #include <wrl/client.h>
 
@@ -317,23 +318,9 @@ RECT WorkArea(HWND window) {
   return info.rcWork;
 }
 
-// The files the user picked through the system's own panel, to put in the
-// composer (Add Context…); none when they cancel, or it cannot be shown.
-std::vector<std::wstring> PickFiles(HWND window) {
-  ComPtr<IFileOpenDialog> dialog;
-  if (FAILED(::CoCreateInstance(CLSID_FileOpenDialog, nullptr,
-                                CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) {
-    return {};
-  }
-  DWORD options = 0;
-  if (SUCCEEDED(dialog->GetOptions(&options))) {
-    dialog->SetOptions(options | FOS_ALLOWMULTISELECT | FOS_FORCEFILESYSTEM |
-                       FOS_FILEMUSTEXIST);
-  }
-  dialog->SetOkButtonLabel(L"Add");
-  if (FAILED(dialog->Show(window))) {
-    return {};
-  }
+// The paths of what the user picked in |dialog|, once it has closed with
+// them.
+std::vector<std::wstring> PickedPaths(IFileOpenDialog* dialog) {
   ComPtr<IShellItemArray> items;
   if (FAILED(dialog->GetResults(&items))) {
     return {};
@@ -351,6 +338,100 @@ std::vector<std::wstring> PickFiles(HWND window) {
     }
   }
   return paths;
+}
+
+// Opens |dialog| in |directory| (UTF-8), when there is one; where the
+// system would otherwise (the last folder it was used in).
+void OpenIn(IFileDialog* dialog, const std::string& directory) {
+  if (directory.empty()) {
+    return;
+  }
+  ComPtr<IShellItem> folder;
+  if (SUCCEEDED(::SHCreateItemFromParsingName(
+          Utf16FromUtf8(directory).c_str(), nullptr, IID_PPV_ARGS(&folder)))) {
+    dialog->SetFolder(folder.Get());
+  }
+}
+
+// The files the user picked through the system's own panel to open in the
+// IDE (Open File…), from |directory| when given: one at most unless
+// |multiple|. None when they cancel, or it cannot be shown.
+std::vector<std::wstring> PickOpenFiles(HWND window,
+                                        const std::string& directory,
+                                        bool multiple) {
+  ComPtr<IFileOpenDialog> dialog;
+  if (FAILED(::CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) {
+    return {};
+  }
+  DWORD options = 0;
+  if (SUCCEEDED(dialog->GetOptions(&options))) {
+    options |= FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST;
+    if (multiple) {
+      options |= FOS_ALLOWMULTISELECT;
+    }
+    dialog->SetOptions(options);
+  }
+  OpenIn(dialog.Get(), directory);
+  if (FAILED(dialog->Show(window))) {
+    return {};
+  }
+  return PickedPaths(dialog.Get());
+}
+
+// Where the user chose to save a file (Save As…, an untitled one's Save),
+// from |directory| and under |name| when given; the panel asks itself
+// before replacing a file. Null when they cancel, or it cannot be shown.
+std::optional<std::string> PickSaveFile(HWND window,
+                                        const std::string& directory,
+                                        const std::string& name) {
+  ComPtr<IFileSaveDialog> dialog;
+  if (FAILED(::CoCreateInstance(CLSID_FileSaveDialog, nullptr,
+                                CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) {
+    return std::nullopt;
+  }
+  DWORD options = 0;
+  if (SUCCEEDED(dialog->GetOptions(&options))) {
+    dialog->SetOptions(options | FOS_OVERWRITEPROMPT | FOS_FORCEFILESYSTEM);
+  }
+  OpenIn(dialog.Get(), directory);
+  if (!name.empty()) {
+    dialog->SetFileName(Utf16FromUtf8(name).c_str());
+  }
+  if (FAILED(dialog->Show(window))) {
+    return std::nullopt;
+  }
+  ComPtr<IShellItem> file;
+  if (FAILED(dialog->GetResult(&file))) {
+    return std::nullopt;
+  }
+  PWSTR path = nullptr;
+  if (FAILED(file->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
+    return std::nullopt;
+  }
+  std::optional<std::string> picked = Utf8FromUtf16(path);
+  ::CoTaskMemFree(path);
+  return picked;
+}
+
+// The files the user picked through the system's own panel, to put in the
+// composer (Add Context…); none when they cancel, or it cannot be shown.
+std::vector<std::wstring> PickFiles(HWND window) {
+  ComPtr<IFileOpenDialog> dialog;
+  if (FAILED(::CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) {
+    return {};
+  }
+  DWORD options = 0;
+  if (SUCCEEDED(dialog->GetOptions(&options))) {
+    dialog->SetOptions(options | FOS_ALLOWMULTISELECT | FOS_FORCEFILESYSTEM |
+                       FOS_FILEMUSTEXIST);
+  }
+  dialog->SetOkButtonLabel(L"Add");
+  if (FAILED(dialog->Show(window))) {
+    return {};
+  }
+  return PickedPaths(dialog.Get());
 }
 
 // The project folder the user picked through the system's own panel; null
@@ -496,6 +577,28 @@ void WindowChannel::HandleMethodCall(
     return;
   }
 
+  if (method == "pickOpenFiles") {
+    flutter::EncodableList paths;
+    for (const std::wstring& path :
+         PickOpenFiles(window_, String(arguments, "directory"),
+                       Boolean(arguments, "multiple", true))) {
+      paths.push_back(flutter::EncodableValue(Utf8FromUtf16(path.c_str())));
+    }
+    result->Success(flutter::EncodableValue(std::move(paths)));
+    return;
+  }
+
+  if (method == "pickSaveFile") {
+    const std::optional<std::string> path = PickSaveFile(
+        window_, String(arguments, "directory"), String(arguments, "name"));
+    if (path.has_value()) {
+      result->Success(flutter::EncodableValue(*path));
+    } else {
+      result->Success();
+    }
+    return;
+  }
+
   if (method == "writePasteboardImage") {
     const auto found = arguments.find(flutter::EncodableValue("bytes"));
     const auto* bytes =
@@ -540,6 +643,27 @@ void WindowChannel::HandleMethodCall(
     } else {
       result->Success();
     }
+    return;
+  }
+
+  if (method == "revealInFinder") {
+    // The folder opened in File Explorer with the item selected, as
+    // Electron's shell.showItemInFolder does it (COM is up: OleInitialize,
+    // see main.cpp).
+    const auto* path = call.arguments() == nullptr
+                           ? nullptr
+                           : std::get_if<std::string>(call.arguments());
+    bool revealed = false;
+    if (path != nullptr && !path->empty()) {
+      PIDLIST_ABSOLUTE item = nullptr;
+      if (SUCCEEDED(::SHParseDisplayName(Utf16FromUtf8(*path).c_str(), nullptr,
+                                         &item, 0, nullptr))) {
+        revealed =
+            SUCCEEDED(::SHOpenFolderAndSelectItems(item, 0, nullptr, 0));
+        ::CoTaskMemFree(item);
+      }
+    }
+    result->Success(flutter::EncodableValue(revealed));
     return;
   }
 

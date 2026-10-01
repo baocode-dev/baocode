@@ -29,7 +29,13 @@ class _FakeIdeFileService with ReadWriteOnlyFiles implements IdeFileService {
   @override
   Future<String> read(String path, {bool force = false}) async {
     reads.add(path);
-    return contents[path] ?? (throw StateError('Missing test file: $path'));
+    return contents[path] ?? (throw IdeFileNotFoundException(path));
+  }
+
+  @override
+  Future<void> create(String path, {bool directory = false}) async {
+    if (contents.containsKey(path)) throw IdeFileExistsException(path);
+    contents[path] = '';
   }
 
   @override
@@ -73,6 +79,66 @@ void main() {
       expect(files.reads, [first]);
     },
   );
+
+  test('open files follow changes made on disk, unless edited', () async {
+    final files = _FakeIdeFileService({first: 'one\n', second: 'two\n'});
+    final watches = <String, StreamController<void>>{};
+    final workspace = IdeWorkspace(
+      root,
+      files: files,
+      watch: (directory) =>
+          (watches[directory] = StreamController<void>()).stream,
+    );
+    addTearDown(workspace.dispose);
+    const settle = Duration(milliseconds: 150);
+
+    await workspace.open(first);
+    await workspace.open(second);
+    expect(watches.keys, [root]);
+    final firstDoc = workspace.documents.first;
+    final secondDoc = workspace.documents.last;
+
+    // An agent's edit: the clean tab shows it, still saved.
+    files.contents[first] = 'one\nagent\n';
+    watches[root]!.add(null);
+    await Future<void>.delayed(settle);
+    expect(firstDoc.text, 'one\nagent\n');
+    expect(firstDoc.dirty, isFalse);
+
+    // Unsaved changes are kept.
+    workspace.edit(second, 'mine\n');
+    files.contents[second] = 'theirs\n';
+    watches[root]!.add(null);
+    await Future<void>.delayed(settle);
+    expect(secondDoc.text, 'mine\n');
+
+    // Deleted: kept open and marked, modified or not.
+    files.contents.remove(first);
+    files.contents.remove(second);
+    watches[root]!.add(null);
+    await Future<void>.delayed(settle);
+    expect(firstDoc.deleted, isTrue);
+    expect(firstDoc.text, 'one\nagent\n');
+    expect(secondDoc.deleted, isTrue);
+    expect(secondDoc.text, 'mine\n');
+
+    // Back: no longer marked.
+    files.contents[first] = 'one\nagent\n';
+    watches[root]!.add(null);
+    await Future<void>.delayed(settle);
+    expect(firstDoc.deleted, isFalse);
+
+    // Saved, a deleted file is made again.
+    await workspace.save(secondDoc);
+    expect(files.contents[second], 'mine\n');
+    expect(secondDoc.deleted, isFalse);
+    expect(secondDoc.dirty, isFalse);
+
+    // Closed, its folder is no longer watched.
+    workspace.close(firstDoc);
+    workspace.close(secondDoc);
+    expect(watches[root]!.hasListener, isFalse);
+  });
 
   test(
     'tabs keep independent models, text, baselines, and selection',

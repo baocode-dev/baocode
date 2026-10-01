@@ -5,6 +5,7 @@
 // dialog built above the app's Localizations).
 import 'package:flutter/widgets.dart';
 
+import '../platform/app_platform.dart';
 import 'app_localizations.dart';
 import 'app_localizations_en.dart';
 
@@ -18,4 +19,12 @@ extension AppLocalizationsContext on BuildContext {
   /// The strings of the locale in scope; English when there is none.
   AppLocalizations get l10n =>
       AppLocalizations.of(this) ?? englishLocalizations;
+}
+
+extension AppLocalizationsPlatform on AppLocalizations {
+  /// Reveal in Finder, or Reveal in File Explorer on Windows (VS Code's
+  /// `revealFileInOS` title is the platform's too).
+  String get revealInFileManager => AppPlatform.isWindows
+      ? dataDirRevealInFileExplorer
+      : explorerRevealInFinder;
 }

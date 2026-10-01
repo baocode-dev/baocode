@@ -24,6 +24,9 @@ bool _isUpper(int unit) => unit >= 0x41 && unit <= 0x5a;
 bool _isLower(int unit) => unit >= 0x61 && unit <= 0x7a;
 int _lower(int unit) => _isUpper(unit) ? unit + 0x20 : unit;
 
+Int32List _scores = Int32List(1024);
+Int32List _back = Int32List(1024);
+
 /// Scores [query] as an in-order (not necessarily contiguous) subsequence of
 /// [target], ignoring case. Word starts, camelCase humps, consecutive runs and
 /// exact case score higher, similar in spirit to VS Code's `fuzzyScore`.
@@ -42,8 +45,14 @@ IdeFuzzyMatch? ideFuzzyMatch(String query, String target) {
   if (qi < n) return null;
 
   const impossible = -0x3fffffff;
-  final scores = Int32List(n * m)..fillRange(0, n * m, impossible);
-  final back = Int32List(n * m)..fillRange(0, n * m, -1);
+  // The tables are reused across calls: Quick Open scores thousands of
+  // paths per key.
+  if (_scores.length < n * m) {
+    _scores = Int32List(n * m * 2);
+    _back = Int32List(n * m * 2);
+  }
+  final scores = _scores..fillRange(0, n * m, impossible);
+  final back = _back..fillRange(0, n * m, -1);
 
   int bonusAt(int j) {
     if (j == 0) return 8;

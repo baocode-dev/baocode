@@ -45,6 +45,7 @@ class WindowHeader extends StatefulWidget {
     required this.onToggleContextPanel,
     this.onOpenSettings,
     this.onCommand,
+    this.onFileCommand,
     this.project,
     this.ideLayout,
   });
@@ -79,6 +80,11 @@ class WindowHeader extends StatefulWidget {
   /// Runs a chat command (see [ChatCommandIds]): the menus' New Agent,
   /// Search Agents… With none, they are not offered.
   final ValueChanged<String>? onCommand;
+
+  /// Runs a command of the IDE's File menu (New Text File, Open File…,
+  /// Save As…, Close Folder…), by its id; with none, the IDE's File menu
+  /// is the chat's.
+  final ValueChanged<String>? onFileCommand;
 
   @override
   State<WindowHeader> createState() => _WindowHeaderState();
@@ -280,7 +286,44 @@ class _WindowHeaderState extends State<WindowHeader> {
       shortcut: _shortcut(id),
       onSelected: () => run!(id),
     );
+    final file = ide ? widget.onFileCommand : null;
+    HeaderMenuItem fileCommand(String label, String id) => HeaderMenuItem(
+      label,
+      shortcut: _shortcut(id, ChatKeys.ideLayout),
+      onSelected: () => file!(id),
+    );
     return switch (menu) {
+      HeaderMenu.file when file != null => [
+        fileCommand(
+          l10n.cmdNewUntitledFile,
+          'workbench.action.files.newUntitledFile',
+        ),
+        const HeaderMenuItem.rule(),
+        fileCommand(l10n.cmdOpenFile, 'workbench.action.files.openFile'),
+        fileCommand(l10n.cmdOpenFolder, 'workbench.action.files.openFolder'),
+        fileCommand(l10n.cmdOpenRecent, 'workbench.action.openRecent'),
+        const HeaderMenuItem.rule(),
+        fileCommand(l10n.cmdSave, 'workbench.action.files.save'),
+        fileCommand(l10n.cmdSaveAs, 'workbench.action.files.saveAs'),
+        if (widget.workspace.ideFolder != null) ...[
+          const HeaderMenuItem.rule(),
+          fileCommand(l10n.cmdCloseFolder, 'workbench.action.closeFolder'),
+        ],
+        if (widget.onOpenSettings case final openSettings?) ...[
+          const HeaderMenuItem.rule(),
+          HeaderMenuItem(
+            '${l10n.settingsTitle}…',
+            shortcut: _shortcut(openSettingsCommandId, ChatKeys.ideLayout),
+            onSelected: openSettings,
+          ),
+        ],
+        const HeaderMenuItem.rule(),
+        HeaderMenuItem(
+          l10n.menuCloseWindow,
+          shortcut: 'Alt+F4',
+          onSelected: () => WindowControls.windowCommand('close'),
+        ),
+      ],
       HeaderMenu.file => [
         if (run != null) ...[
           command(l10n.sidebarNewAgent, ChatCommandIds.newChat),

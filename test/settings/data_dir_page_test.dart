@@ -92,8 +92,8 @@ void main() {
     expect(revealed, ['/data/baocode']);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-  testWidgets('Change copies the data to an empty folder, then offers to '
-      'quit', (tester) async {
+  testWidgets('Change shows the folder picked; Save copies the data there, '
+      'then offers to quit', (tester) async {
     final service = _FakeService();
     final (revealed: _, :quits) = await pumpPage(
       tester,
@@ -102,8 +102,11 @@ void main() {
     );
     await tester.tap(find.text('Change…'));
     await tester.pumpAndSettle();
-    expect(find.text("Move BaoCode's data to this folder?"), findsOneWidget);
-    await tester.tap(find.text('Copy and Switch'));
+    expect(find.text('New folder'), findsOneWidget);
+    expect(find.text('/Volumes/D/BaoCode'), findsOneWidget);
+    expect(find.text('Change…'), findsNothing);
+    expect(service.migrated, isEmpty);
+    await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(service.migrated, ['/Volumes/D/BaoCode']);
     expect(
@@ -157,8 +160,8 @@ void main() {
     );
     await tester.tap(find.text('Change…'));
     await tester.pumpAndSettle();
-    expect(find.text('The folder already holds BaoCode data'), findsOneWidget);
-    await tester.tap(find.text('Use Its Data'));
+    expect(find.textContaining('uses the data there as it is'), findsOneWidget);
+    await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(service.usedAsIs, ['/other']);
     expect(service.migrated, isEmpty);
@@ -188,6 +191,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
+    expect(find.text('/data/baocode'), findsOneWidget);
+    expect(find.text('/empty'), findsNothing);
     // A picker closed without a folder.
     await tester.tap(find.text('Change…'));
     await tester.pumpAndSettle();
@@ -202,11 +207,8 @@ void main() {
     await pumpPage(tester, service);
     await tester.tap(find.text('Reset to Default'));
     await tester.pumpAndSettle();
-    expect(
-      find.text("Move BaoCode's data back to the default folder?"),
-      findsOneWidget,
-    );
-    await tester.tap(find.text('Copy and Switch'));
+    expect(find.text(service.defaultPath), findsOneWidget);
+    await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(service.checked, ['${service.defaultPath} (made)']);
     expect(service.migrated, [service.defaultPath]);

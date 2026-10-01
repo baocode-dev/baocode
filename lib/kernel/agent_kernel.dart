@@ -212,6 +212,9 @@ class SessionRecord {
   });
 
   final String id;
+
+  /// Empty when it was first asked something with images alone, and not
+  /// named since.
   final String title;
   final DateTime updatedAt;
 

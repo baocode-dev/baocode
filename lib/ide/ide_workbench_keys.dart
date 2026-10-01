@@ -367,7 +367,9 @@ extension _WorkbenchKeys on IdeWorkbenchState {
   String? get _revealPath {
     if (_explorerFocus.hasFocus) return _explorer.selected;
     final active = widget.workspace.active;
-    return active != null && active.isFile ? active.path : null;
+    return active != null && (active.isFile || active.isMedia)
+        ? active.path
+        : null;
   }
 
   /// [IdeWorkbench.commands]' [id], to run it from another id.
@@ -894,6 +896,26 @@ extension _SearchAndListKeys on IdeWorkbenchState {
       _catalogCommand('list.expand', list.listExpand),
       _catalogCommand('list.collapse', list.listCollapse),
       _catalogCommand('list.collapseAll', list.listCollapseAll),
+      _catalogCommand(
+        'list.expandSelectionDown',
+        () => list.listExpandSelection(1),
+        enabled: list.listSupportsMultiselect,
+      ),
+      _catalogCommand(
+        'list.expandSelectionUp',
+        () => list.listExpandSelection(-1),
+        enabled: list.listSupportsMultiselect,
+      ),
+      _catalogCommand(
+        'list.selectAll',
+        list.listSelectAll,
+        enabled: list.listSupportsMultiselect,
+      ),
+      _catalogCommand(
+        'list.clear',
+        list.listClear,
+        enabled: list.listHasSelection,
+      ),
     ];
   }
 }

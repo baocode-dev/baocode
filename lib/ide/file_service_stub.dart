@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'file_service.dart';
 
 class LocalIdeFileService implements IdeFileService {
@@ -33,8 +35,13 @@ class LocalIdeFileService implements IdeFileService {
       Future.error(UnsupportedError('Local editing requires the desktop app'));
 }
 
+Future<Uint8List> readFileBytes(String path) =>
+    Future.error(UnsupportedError('Local editing requires the desktop app'));
+
 Future<IdeFileListing> walkProjectFiles(
   String root,
   Set<String> excluded,
   int limit,
 ) async => IdeFileListing(const []);
+
+Stream<void> watchDirectory(String directory) => const Stream.empty();

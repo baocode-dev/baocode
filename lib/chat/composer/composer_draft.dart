@@ -15,6 +15,9 @@ class ComposerDraft {
 
   bool get saved => content != null;
 
+  /// Told of each [save], e.g. to keep the draft between runs.
+  VoidCallback? onSaved;
+
   void save(
     Delta content,
     TextSelection selection,
@@ -23,5 +26,6 @@ class ComposerDraft {
     this.content = content;
     this.selection = selection;
     this.images = [...images];
+    onSaved?.call();
   }
 }

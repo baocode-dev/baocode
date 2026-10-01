@@ -9,6 +9,7 @@ import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import '../theme/material_file_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import '../workspace/window_controls.dart';
 import 'ide_hover.dart';
 import 'ide_menu.dart';
 import 'ide_workspace.dart';
@@ -22,6 +23,8 @@ enum IdeTabAction {
   closeAll,
   copyPath,
   copyRelativePath,
+  revealInFileManager,
+  openInDefaultApp,
   revealInExplorer,
 }
 
@@ -228,7 +231,18 @@ class _IdeTabBarState extends State<IdeTabBar> {
             command: 'copyRelativeFilePath',
           ),
         ],
-        [item(IdeTabAction.revealInExplorer, l10n.tabRevealInExplorerView)],
+        [
+          // Not a revision's tab, whose file may be gone.
+          if (WindowControls.canRevealInFileManager && doc.readRevision == null)
+            item(
+              IdeTabAction.revealInFileManager,
+              l10n.revealInFileManager,
+              command: 'revealFileInOS',
+            ),
+          if (WindowControls.canOpenInDefaultApp && doc.readRevision == null)
+            item(IdeTabAction.openInDefaultApp, l10n.openInDefaultApp),
+          item(IdeTabAction.revealInExplorer, l10n.tabRevealInExplorerView),
+        ],
       ]),
     );
   }
@@ -414,7 +428,15 @@ class _TabState extends State<_Tab> {
                 Flexible(
                   child: Text.rich(
                     TextSpan(
-                      text: doc.title,
+                      text: doc.deleted
+                          ? context.l10n.tabDeleted(doc.title)
+                          : doc.title,
+                      // Upstream strikes a deleted file's label through.
+                      style: doc.deleted
+                          ? const TextStyle(
+                              decoration: TextDecoration.lineThrough,
+                            )
+                          : null,
                       children: [
                         if (widget.description case final description?)
                           TextSpan(
@@ -425,6 +447,7 @@ class _TabState extends State<_Tab> {
                                 alpha: foreground.a * .7,
                               ),
                               fontSize: 11,
+                              decoration: TextDecoration.none,
                             ),
                           ),
                       ],

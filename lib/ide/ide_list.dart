@@ -103,6 +103,7 @@ class IdeListRow extends StatefulWidget {
     this.onDoubleTap,
     this.onContextMenu,
     this.selected = false,
+    this.focusedItem,
     this.focused = false,
     this.height = IdeListColors.rowHeight,
     this.tooltip,
@@ -113,6 +114,10 @@ class IdeListRow extends StatefulWidget {
   final VoidCallback? onDoubleTap;
   final ValueChanged<Offset>? onContextMenu;
   final bool selected;
+
+  /// Whether it is the list's focused row, which the focus outline marks
+  /// (upstream tells it from the selection); [selected] when null.
+  final bool? focusedItem;
 
   /// Whether the list has focus: its selection is the active one.
   final bool focused;
@@ -155,12 +160,17 @@ class _IdeListRowState extends State<IdeListRow> {
   Color? get _outline {
     final colors = themeColors;
     final contrast = colors.get('contrastActiveBorder');
-    if (widget.selected) {
-      return widget.focused
+    final focusedItem = widget.focusedItem ?? widget.selected;
+    if (widget.focused && focusedItem) {
+      return widget.selected
           ? colors.get('list.focusAndSelectionOutline') ??
                 contrast ??
                 colors.get('list.focusOutline')
-          : contrast ?? colors.get('list.inactiveFocusOutline');
+          : colors.get('list.focusOutline');
+    }
+    if (widget.selected) {
+      return contrast ??
+          (focusedItem ? colors.get('list.inactiveFocusOutline') : null);
     }
     return _hover ? contrast : null;
   }
@@ -313,8 +323,8 @@ class IdeResourceLabel extends StatelessWidget {
 /// src/vs/workbench/browser/actions/listCommands.ts (`list.focusDown`,
 /// `list.select`, `list.expand`…), found from the primary focus.
 ///
-/// Deviations: one row is both focused and selected (no multiple
-/// selection, no type to filter).
+/// Deviations: no type to filter; a list selecting more than one row says
+/// so ([listSupportsMultiselect]), else its focused row is its selection.
 mixin IdeKeyboardList<T extends StatefulWidget> on State<T> {
   /// Whether its rows have the keyboard (`listFocus`).
   bool get listHasFocus;
@@ -348,6 +358,24 @@ mixin IdeKeyboardList<T extends StatefulWidget> on State<T> {
 
   /// `list.collapseAll`.
   void listCollapseAll() {}
+
+  /// `listSupportsMultiselect`: whether more than one row can be selected
+  /// now, by [listExpandSelection] and [listSelectAll].
+  bool get listSupportsMultiselect => false;
+
+  /// `list.expandSelectionDown` (1) / `list.expandSelectionUp` (-1): the
+  /// selection from the last row clicked to the next one.
+  void listExpandSelection(int delta) {}
+
+  /// `list.selectAll`.
+  void listSelectAll() {}
+
+  /// `listHasSelectionOrFocus`: whether [listClear] has a selection to
+  /// clear (Escape).
+  bool get listHasSelection => false;
+
+  /// `list.clear`: selects nothing.
+  void listClear() {}
 
   /// `treeElementCanCollapse`, `treeElementCanExpand`,
   /// `treeElementHasChild` and `treeElementHasParent` for the focused row.

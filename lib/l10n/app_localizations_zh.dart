@@ -52,18 +52,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get languageSettingsDescription => 'BaoCode 的菜单、视图和消息所用的语言。更改立即生效。';
 
   @override
-  String get languageSettingsFollowSystem => '跟随系统';
-
-  @override
-  String languageSettingsFollowSystemDetail(String language) {
-    return '当前：$language';
+  String languageSettingsFollowSystemCurrent(String language) {
+    return '跟随系统（$language）';
   }
 
   @override
-  String get languageSettingsEnglishName => '英语';
-
-  @override
-  String get languageSettingsSimplifiedChineseName => '简体中文';
+  String languageSettingsDisplayLanguageLabel(String name) {
+    return '显示语言: $name';
+  }
 
   @override
   String get cmdCategoryFile => '文件';
@@ -115,7 +111,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdCategoryChat => '聊天';
 
   @override
-  String get cmdChatNewAgent => '新建智能体';
+  String get cmdChatNewAgent => '新对话';
 
   @override
   String get cmdChatClosePane => '关闭窗格';
@@ -564,6 +560,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdListToggleExpand => '切换展开';
+
+  @override
+  String get cmdListExpandSelectionDown => '向下扩展选择';
+
+  @override
+  String get cmdListExpandSelectionUp => '向上扩展选择';
+
+  @override
+  String get cmdListSelectAll => '全选';
+
+  @override
+  String get cmdListClear => '清除选择';
 
   @override
   String get cmdEditorCursorLeft => '光标左移';
@@ -1321,10 +1329,18 @@ class AppLocalizationsZh extends AppLocalizations {
       '智能体以本地进程运行 Claude Code；它们所做的一切——消息、工具、差异和面板——都显示在这里。';
 
   @override
-  String get agentUntitled => '新智能体';
+  String get agentUntitled => '新对话';
 
   @override
-  String get sidebarNewAgent => '新建智能体';
+  String agentImageTitle(String name) {
+    return '图片：$name';
+  }
+
+  @override
+  String get agentImageUntitled => '图片';
+
+  @override
+  String get sidebarNewAgent => '新对话';
 
   @override
   String get sidebarGroupingProject => '项目';
@@ -1439,8 +1455,28 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarSearchAgents => '搜索智能体…';
 
   @override
+  String get ideChatHistory => '历史智能体';
+
+  @override
+  String get ideChatNoAgents => '此项目中没有智能体';
+
+  @override
   String sidebarNewAgentIn(String project) {
-    return '在 $project 中新建智能体';
+    return '在 $project 中新对话';
+  }
+
+  @override
+  String get newChatWorkingFolder => '在哪个文件夹中工作';
+
+  @override
+  String get newChatNoFolder => '不使用文件夹';
+
+  @override
+  String get newChatNoFolderDetail => '在桌面中工作';
+
+  @override
+  String newChatOpenFrom(String app) {
+    return '从$app打开';
   }
 
   @override
@@ -1454,6 +1490,37 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sidebarUnarchive => '取消归档';
+
+  @override
+  String sidebarShowMore(int count) {
+    return '显示更多（$count）';
+  }
+
+  @override
+  String get sidebarShowLess => '收起';
+
+  @override
+  String get sidebarNewAgentHere => '在此新建对话';
+
+  @override
+  String sidebarRevealIn(String app) {
+    return '在$app中显示';
+  }
+
+  @override
+  String get sidebarSortByTime => '按时间排序';
+
+  @override
+  String get sidebarArchiveAll => '全部归档';
+
+  @override
+  String get sidebarRemoveFromList => '从列表移除';
+
+  @override
+  String get sidebarDropToPin => '拖到这里置顶';
+
+  @override
+  String get sidebarMoreActions => '更多操作…';
 
   @override
   String get workspaceBackToChat => '返回聊天';
@@ -2082,6 +2149,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String tabDeleted(String name) {
+    return '$name (已删除)';
+  }
+
+  @override
   String get commonDismiss => '关闭';
 
   @override
@@ -2225,6 +2297,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get explorerRestoreWithUndo => '可以使用“撤销”命令还原此文件。';
 
   @override
+  String get explorerDeleteFilesUnsaved => '你正在删除有未保存更改的文件。是否继续?';
+
+  @override
+  String explorerConfirmDeleteMultiple(int count) {
+    return '确定要删除以下 $count 个文件/目录及其内容吗?';
+  }
+
+  @override
+  String explorerConfirmPermanentDeleteMultiple(int count) {
+    return '确定要永久删除以下 $count 个文件/目录及其内容吗?';
+  }
+
+  @override
+  String get explorerRestoreFilesFromTrash => '可以从废纸篓还原这些文件。';
+
+  @override
+  String get explorerRestoreFilesWithUndo => '可以使用“撤销”命令还原这些文件。';
+
+  @override
+  String explorerMoreFilesNotShown(int count) {
+    return '...另有 $count 个文件未显示';
+  }
+
+  @override
   String get explorerTrashFailed => '无法通过废纸篓删除。是否改为永久删除?';
 
   @override
@@ -2303,6 +2399,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsSectionGeneral => '通用';
+
+  @override
+  String get settingsGroupPreferences => '偏好设置';
+
+  @override
+  String get settingsGroupAdvanced => '高级';
 
   @override
   String get generalSettingsTitle => '通用';
@@ -2455,6 +2557,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get placeholderOpenAnyway => '仍然打开';
+
+  @override
+  String get openInDefaultApp => '使用默认应用打开';
+
+  @override
+  String openInDefaultAppFailed(String name) {
+    return '无法使用默认应用打开“$name”。';
+  }
 
   @override
   String get placeholderTryAgain => '重试';
@@ -3925,6 +4035,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dataDirTheNewFolder => '新文件夹';
 
   @override
+  String get quitConfirmMessage => '要退出 BaoCode 吗？';
+
+  @override
+  String get quitConfirmDetail => '正在运行的 Agent 和终端会一并停止。';
+
+  @override
+  String get quitConfirmQuit => '退出';
+
+  @override
   String get dataDirQuitNow => '立即退出';
 
   @override
@@ -3959,6 +4078,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dataDirCurrentFolder => '当前文件夹';
 
   @override
+  String get dataDirNewFolder => '新文件夹';
+
+  @override
   String dataDirAfterRestart(String path) {
     return '重启后: $path';
   }
@@ -3967,7 +4089,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dataDirChange => '更改…';
 
   @override
-  String get dataDirResetDefault => '重置为默认';
+  String get dataDirResetDefault => '恢复默认';
 
   @override
   String dataDirEnvDecides(String variable) {
@@ -4125,4 +4247,160 @@ class AppLocalizationsZh extends AppLocalizations {
   String impKeymapError(String name, String error) {
     return '无法导入 $name: $error';
   }
+
+  @override
+  String get explorerNoFolderTitle => '无打开的文件夹';
+
+  @override
+  String get explorerNoFolder => '尚未打开文件夹。';
+
+  @override
+  String get explorerOpenFolder => '打开文件夹';
+
+  @override
+  String get ideSearchOpenFiles => '搜索已打开的文件';
+
+  @override
+  String get ideWelcomeRecent => '最近';
+
+  @override
+  String get ideOpenRecentPlaceholder => '选择要打开的文件夹或文件';
+
+  @override
+  String get ideRecentFolders => '文件夹';
+
+  @override
+  String get ideRecentFiles => '文件';
+
+  @override
+  String get ideNoRecent => '没有最近打开的文件夹或文件';
+
+  @override
+  String get ideClearRecentConfirm => '是否要清除所有最近打开的文件和文件夹?';
+
+  @override
+  String get ideClearRecentDetail => '此操作不可逆!';
+
+  @override
+  String get ideClearRecent => '清除';
+
+  @override
+  String get ideChatNoFolder => '打开文件夹后，即可在其中与智能体对话。';
+
+  @override
+  String ideCannotOpen(String path, String error) {
+    return '无法打开 $path：$error';
+  }
+
+  @override
+  String get cmdNewUntitledFile => '新建文本文件';
+
+  @override
+  String get cmdOpenFile => '打开文件...';
+
+  @override
+  String get cmdOpenFolder => '打开文件夹...';
+
+  @override
+  String get cmdOpenRecent => '打开最近的文件...';
+
+  @override
+  String get cmdSaveAs => '另存为...';
+
+  @override
+  String get cmdCloseFolder => '关闭文件夹';
+
+  @override
+  String get cmdClearRecentlyOpened => '清除最近打开...';
+
+  @override
+  String cmdInstallShellCommand(String name) {
+    return '在 PATH 中安装“$name”命令';
+  }
+
+  @override
+  String cmdUninstallShellCommand(String name) {
+    return '从 PATH 中卸载“$name”命令';
+  }
+
+  @override
+  String get cmdCategoryWorkspaces => '工作区';
+
+  @override
+  String get cmdCategoryShellCommand => 'Shell 命令';
+
+  @override
+  String shellCommandInstalled(String name) {
+    return '已成功在 PATH 中安装了 Shell 命令“$name”。';
+  }
+
+  @override
+  String shellCommandUninstalled(String name) {
+    return '已成功从 PATH 卸载了 Shell 命令“$name”。';
+  }
+
+  @override
+  String shellCommandOccupied(String path, String name) {
+    return '$path 已是其他应用的“$name”命令。要替换为 BaoCode 的吗?';
+  }
+
+  @override
+  String get shellCommandReplace => '替换';
+
+  @override
+  String shellCommandFailed(String name, String error) {
+    return '无法安装 Shell 命令“$name”：$error';
+  }
+
+  @override
+  String shellCommandUninstallFailed(String name, String error) {
+    return '无法卸载 Shell 命令“$name”：$error';
+  }
+
+  @override
+  String get generalSettingsMainWindow => '主要窗口';
+
+  @override
+  String get generalSettingsMainWindowDescription =>
+      'BaoCode 启动时打开的窗口。“code”命令始终在 IDE 中打开文件和文件夹。';
+
+  @override
+  String generalSettingsMainWindowLabel(String name) {
+    return '主要窗口：$name';
+  }
+
+  @override
+  String get generalSettingsMainWindowChat => '对话';
+
+  @override
+  String get generalSettingsMainWindowIde => 'IDE';
+
+  @override
+  String get generalSettingsMainWindowLast => '上次使用';
+
+  @override
+  String get generalSettingsShellCommand => 'Shell 命令';
+
+  @override
+  String generalSettingsShellCommandDescription(String location) {
+    return '在终端中用“code <路径>”在 BaoCode 中打开文件和文件夹。安装位置：$location。';
+  }
+
+  @override
+  String get generalSettingsShellCommandInstalled => '已安装';
+
+  @override
+  String get generalSettingsShellCommandNotInstalled => '未安装';
+
+  @override
+  String get generalSettingsShellCommandOccupied => '已安装其他应用的命令';
+
+  @override
+  String get generalSettingsShellCommandInstall => '安装';
+
+  @override
+  String get generalSettingsShellCommandUninstall => '卸载';
+
+  @override
+  String get menuMore => '更多…';
 }

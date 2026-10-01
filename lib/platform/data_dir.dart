@@ -31,6 +31,7 @@ enum DataDirectorySource {
 /// <path>/state/{state.json,storage.json,*-processes.json}
 /// <path>/servers/  <path>/language-packs/
 /// <path>/checkpoints/             snapshots of the projects agents change
+/// <path>/cache/                   what can be made again, to start faster
 /// ```
 ///
 /// Other programs keep files there too (the web views' `Cookies`,
@@ -86,6 +87,10 @@ class DataDirectory {
   /// agents' changes are kept or undone against (see change_review.dart).
   String get checkpointsDir => p.join(path, 'checkpoints');
 
+  /// What is kept only to be quicker, made again if lost (e.g. the
+  /// summaries of Claude Code's sessions).
+  String get cacheDir => p.join(path, 'cache');
+
   /// The app's own entries, all others' left alone: what moving the folder
   /// copies and removing old data deletes.
   static const items = [
@@ -96,6 +101,7 @@ class DataDirectory {
     'servers',
     'language-packs',
     'checkpoints',
+    'cache',
   ];
 
   /// Entries that show a folder holds the app's data.

@@ -13,7 +13,8 @@
 // and src/vs/workbench/common/editor.ts (`createTooLargeFileError`).
 //
 // Deviations: no Configure Limit (there is no setting for it), no Create
-// File for a missing file, and no Show Logs.
+// File for a missing file, and no Show Logs; a file not shown can be opened
+// in its default app.
 
 import 'package:flutter/material.dart';
 
@@ -85,6 +86,7 @@ class IdeEditorPlaceholder extends StatelessWidget {
     required this.error,
     required this.onOpenAnyway,
     required this.onRetry,
+    this.onOpenInDefaultApp,
   });
 
   final Object error;
@@ -95,15 +97,32 @@ class IdeEditorPlaceholder extends StatelessWidget {
   /// Other errors: Try Again.
   final VoidCallback onRetry;
 
+  /// Opens the file in the app the system opens it with, for a file that
+  /// is there; none where there is no such app (the web).
+  final VoidCallback? onOpenInDefaultApp;
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final contents = idePlaceholderContents(error, l10n: l10n);
+    final IdePlaceholderAction? external = switch (onOpenInDefaultApp) {
+      final run? when error is! IdeFileNotFoundException => (
+        label: l10n.openInDefaultApp,
+        run: run,
+      ),
+      _ => null,
+    };
     final List<IdePlaceholderAction> actions = switch (error) {
-      IdeBinaryFileException() || IdeFileTooLargeException() => [
+      // A binary file is likelier one for another app than for text.
+      IdeBinaryFileException() => [
+        ?external,
         (label: l10n.placeholderOpenAnyway, run: onOpenAnyway),
       ],
-      _ => [(label: l10n.placeholderTryAgain, run: onRetry)],
+      IdeFileTooLargeException() => [
+        (label: l10n.placeholderOpenAnyway, run: onOpenAnyway),
+        ?external,
+      ],
+      _ => [(label: l10n.placeholderTryAgain, run: onRetry), ?external],
     };
     return LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(

@@ -232,7 +232,7 @@ void main() {
     expect(before.session.itemCount, sent);
   });
 
-  testWidgets('rebound in keybindings.json, New Agent takes its new keys', (
+  testWidgets('rebound in keybindings.json, New Chat takes its new keys', (
     tester,
   ) async {
     KeybindingService.instance.userEntries = const [
@@ -267,7 +267,7 @@ void main() {
 
     await openMenu('File');
     expect(find.byType(HeaderMenuBar), findsOneWidget);
-    expect(find.text('New Agent'), findsWidgets);
+    expect(find.text('New Chat'), findsWidgets);
     expect(find.text('Ctrl+N'), findsOneWidget);
     await closeMenu();
     await openMenu('View');
@@ -288,9 +288,9 @@ void main() {
     await openMenu('File');
     expect(find.text('Ctrl+Alt+N'), findsOneWidget);
     expect(find.text('Ctrl+N'), findsNothing);
-    // Chosen, it runs (the sidebar's button is the other New Agent).
+    // Chosen, it runs (the sidebar's button is the other New Chat).
     final before = workspace.current;
-    await tester.tap(find.text('New Agent').last, warnIfMissed: false);
+    await tester.tap(find.text('New Chat').last, warnIfMissed: false);
     await tester.pump();
     await tester.pump();
     expect(workspace.current, isNot(same(before)));

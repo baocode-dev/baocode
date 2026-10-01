@@ -3,7 +3,9 @@
 // also matches the English one (upstream `commandAlias`).
 import '../ide/ide_commands.dart';
 import '../keybindings/chat_keybindings.dart';
-import 'app_localizations.dart';
+import '../keybindings/default_keybindings.dart';
+import '../platform/shell_command.dart';
+import 'l10n.dart';
 
 /// [id]'s title (without its category) in [l10n]'s language; [english], the
 /// title the command was registered with, for commands without one.
@@ -20,6 +22,15 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'editor.action.startFindReplaceAction' => l10n.cmdReplace,
     'workbench.action.files.save' => l10n.cmdSave,
     'workbench.action.files.saveAll' => l10n.cmdSaveAll,
+    'workbench.action.files.saveAs' => l10n.cmdSaveAs,
+    'workbench.action.files.newUntitledFile' => l10n.cmdNewUntitledFile,
+    'workbench.action.files.openFile' => l10n.cmdOpenFile,
+    'workbench.action.files.openFolder' => l10n.cmdOpenFolder,
+    'workbench.action.openRecent' => l10n.cmdOpenRecent,
+    'workbench.action.clearRecentlyOpened' => l10n.cmdClearRecentlyOpened,
+    'workbench.action.closeFolder' => l10n.cmdCloseFolder,
+    installShellCommandId => l10n.cmdInstallShellCommand(ShellCommand.name),
+    uninstallShellCommandId => l10n.cmdUninstallShellCommand(ShellCommand.name),
     'workbench.action.closeActiveEditor' => l10n.cmdCloseEditor,
     'workbench.action.closeOtherEditors' => l10n.cmdCloseOtherEditors,
     'workbench.action.closeEditorsToTheRight' => l10n.cmdCloseEditorsToTheRight,
@@ -279,7 +290,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'quickInput.last' => l10n.cmdListFocusLast,
     'workbench.action.files.copyPathOfActiveFile' =>
       l10n.cmdCopyPathOfActiveFile,
-    'revealFileInOS' => l10n.explorerRevealInFinder,
+    'revealFileInOS' => l10n.revealInFileManager,
     'list.focusDown' => l10n.cmdListFocusDown,
     'list.focusUp' => l10n.cmdListFocusUp,
     'list.focusPageDown' => l10n.cmdListFocusPageDown,
@@ -290,6 +301,10 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'list.collapse' => l10n.cmdListCollapse,
     'list.select' => l10n.cmdListSelect,
     'list.toggleExpand' => l10n.cmdListToggleExpand,
+    'list.expandSelectionDown' => l10n.cmdListExpandSelectionDown,
+    'list.expandSelectionUp' => l10n.cmdListExpandSelectionUp,
+    'list.selectAll' => l10n.cmdListSelectAll,
+    'list.clear' => l10n.cmdListClear,
     // The editor's keyboard commands (editorKeyboardCommandLabels), then
     // more of editorCommandLabels and editorLanguageCommandLabels.
     'cursorLeft' => l10n.cmdEditorCursorLeft,
@@ -490,6 +505,8 @@ const _openEditorAtIndex = 'workbench.action.openEditorAtIndex';
 String localizedCommandCategory(AppLocalizations l10n, String english) =>
     switch (english) {
       'File' => l10n.cmdCategoryFile,
+      'Workspaces' => l10n.cmdCategoryWorkspaces,
+      'Shell Command' => l10n.cmdCategoryShellCommand,
       'View' => l10n.cmdCategoryView,
       'Terminal' => l10n.cmdCategoryTerminal,
       'Go' => l10n.cmdCategoryGo,

@@ -14,23 +14,23 @@
   "languageSettingsTitle": "Region & Language",
   "languageSettingsDisplayLanguage": "Display Language",
   "languageSettingsDescription": "The language of BaoCode's menus, views and messages. Changes apply at once.",
-  "languageSettingsFollowSystem": "Follow System",
-  "languageSettingsFollowSystemDetail": "Currently {language}",
-  "@languageSettingsFollowSystemDetail": {
-    "description": "Under Follow System: the language the system's resolves to, named in its own language.",
+  "languageSettingsFollowSystemCurrent": "Follow System ({language})",
+  "@languageSettingsFollowSystemCurrent": {
+    "description": "Follow System, with the language the system's resolves to, named in its own language.",
     "placeholders": {
       "language": {
         "type": "String"
       }
     }
   },
-  "languageSettingsEnglishName": "English",
-  "@languageSettingsEnglishName": {
-    "description": "English, named in the display language (shown under its own name, 'English')."
-  },
-  "languageSettingsSimplifiedChineseName": "Chinese (Simplified)",
-  "@languageSettingsSimplifiedChineseName": {
-    "description": "Simplified Chinese, named in the display language (shown under its own name, '简体中文')."
+  "languageSettingsDisplayLanguageLabel": "Display Language: {name}",
+  "@languageSettingsDisplayLanguageLabel": {
+    "description": "The display language dropdown, as read out: its setting and the choice in effect.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "cmdCategoryFile": "File",
   "@cmdCategoryFile": {
@@ -104,7 +104,7 @@
   "@cmdCategoryChat": {
     "description": "Command category: the chat window's commands."
   },
-  "cmdChatNewAgent": "New Agent",
+  "cmdChatNewAgent": "New Chat",
   "cmdChatClosePane": "Close Pane",
   "cmdChatNextAgent": "Open Next Agent",
   "cmdChatPreviousAgent": "Open Previous Agent",
@@ -274,6 +274,10 @@
   "cmdListCollapse": "Collapse",
   "cmdListSelect": "Select",
   "cmdListToggleExpand": "Toggle Expand",
+  "cmdListExpandSelectionDown": "Expand Selection Down",
+  "cmdListExpandSelectionUp": "Expand Selection Up",
+  "cmdListSelectAll": "Select All",
+  "cmdListClear": "Clear Selection",
   "cmdEditorCursorLeft": "Cursor Left",
   "cmdEditorCursorLeftSelect": "Cursor Left Select",
   "cmdEditorCursorRight": "Cursor Right",
@@ -602,11 +606,25 @@
     "description": "Window button."
   },
   "aboutDescription": "Agents run Claude Code as a local process; what they do — messages, tools, diffs and panels — is shown here.",
-  "agentUntitled": "New Agent",
+  "agentUntitled": "New Chat",
   "@agentUntitled": {
     "description": "The title of an agent before its first message names it."
   },
-  "sidebarNewAgent": "New Agent",
+  "agentImageTitle": "Image: {name}",
+  "@agentImageTitle": {
+    "description": "The title of an agent first asked something with images alone: the first one's file name.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "screenshot.png"
+      }
+    }
+  },
+  "agentImageUntitled": "Image",
+  "@agentImageUntitled": {
+    "description": "The title of an agent first asked something with images alone, none from a file (pasted)."
+  },
+  "sidebarNewAgent": "New Chat",
   "@sidebarNewAgent": {
     "description": "Button that starts a new agent."
   },
@@ -712,7 +730,12 @@
     }
   },
   "sidebarSearchAgents": "Search agents…",
-  "sidebarNewAgentIn": "New agent in {project}",
+  "ideChatHistory": "Agent History",
+  "@ideChatHistory": {
+    "description": "Button over the IDE's chat that lists the project's agents to switch to."
+  },
+  "ideChatNoAgents": "No agents in this project",
+  "sidebarNewAgentIn": "New chat in {project}",
   "@sidebarNewAgentIn": {
     "placeholders": {
       "project": {
@@ -720,10 +743,52 @@
       }
     }
   },
+  "newChatWorkingFolder": "Folder to work in",
+  "@newChatWorkingFolder": {
+    "description": "Heads the menu, over a new chat's input, of the folders it may work in."
+  },
+  "newChatNoFolder": "No folder",
+  "@newChatNoFolder": {
+    "description": "The menu's first choice: a new chat working in no project, in the Desktop folder."
+  },
+  "newChatNoFolderDetail": "Works in the Desktop folder",
+  "newChatOpenFrom": "Open from {app}",
+  "@newChatOpenFrom": {
+    "description": "Button over a new chat's input that picks a folder for it in the system's file manager.",
+    "placeholders": {
+      "app": {
+        "type": "String",
+        "example": "Finder"
+      }
+    }
+  },
   "sidebarPin": "Pin",
   "sidebarUnpin": "Unpin",
   "sidebarArchive": "Archive",
   "sidebarUnarchive": "Unarchive",
+  "sidebarShowMore": "Show more ({count})",
+  "@sidebarShowMore": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sidebarShowLess": "Show less",
+  "sidebarNewAgentHere": "New Chat Here",
+  "sidebarRevealIn": "Show in {app}",
+  "@sidebarRevealIn": {
+    "placeholders": {
+      "app": {
+        "type": "String"
+      }
+    }
+  },
+  "sidebarSortByTime": "Sort by Time",
+  "sidebarArchiveAll": "Archive All",
+  "sidebarRemoveFromList": "Remove from List",
+  "sidebarDropToPin": "Drop here to pin",
+  "sidebarMoreActions": "More Actions…",
   "workspaceBackToChat": "Back to chat",
   "@workspaceBackToChat": {
     "description": "Title bar button leaving the IDE layout."
@@ -1278,6 +1343,15 @@
       }
     }
   },
+  "tabDeleted": "{name} (deleted)",
+  "@tabDeleted": {
+    "description": "A tab's title when its file was deleted while open.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "commonDismiss": "Dismiss",
   "@commonDismiss": {
     "description": "Accessibility label of the area around a dialog."
@@ -1426,6 +1500,33 @@
   },
   "explorerIrreversible": "This action is irreversible!",
   "explorerRestoreWithUndo": "You can restore this file using the Undo command.",
+  "explorerDeleteFilesUnsaved": "You are deleting files with unsaved changes. Do you want to continue?",
+  "explorerConfirmDeleteMultiple": "Are you sure you want to delete the following {count} files/directories and their contents?",
+  "@explorerConfirmDeleteMultiple": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "explorerConfirmPermanentDeleteMultiple": "Are you sure you want to permanently delete the following {count} files/directories and their contents?",
+  "@explorerConfirmPermanentDeleteMultiple": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "explorerRestoreFilesFromTrash": "You can restore these files from the Trash.",
+  "explorerRestoreFilesWithUndo": "You can restore these files using the Undo command.",
+  "explorerMoreFilesNotShown": "{count, plural, =1{...1 additional file not shown} other{...{count} additional files not shown}}",
+  "@explorerMoreFilesNotShown": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "explorerTrashFailed": "Failed to delete using the Trash. Do you want to permanently delete instead?",
   "explorerDeletePermanently": "Delete Permanently",
   "explorerPasteIntoAncestor": "File to paste is an ancestor of the destination folder",
@@ -1463,6 +1564,8 @@
   "settingsSectionKeyboard": "Keyboard Shortcuts",
   "settingsSectionDataDirectory": "Data Directory",
   "settingsSectionGeneral": "General",
+  "settingsGroupPreferences": "Preferences",
+  "settingsGroupAdvanced": "Advanced",
   "generalSettingsTitle": "General",
   "generalSettingsCommitAttribution": "Commit Attribution",
   "generalSettingsCommitAttributionDescription": "Who the commits and pull requests an agent writes credit. Applies to agents started after a change; Claude Code only for now.",
@@ -1588,6 +1691,18 @@
   "placeholderNotFound": "The editor could not be opened because the file was not found.",
   "placeholderUnexpected": "The editor could not be opened due to an unexpected error.",
   "placeholderOpenAnyway": "Open Anyway",
+  "openInDefaultApp": "Open in Default App",
+  "@openInDefaultApp": {
+    "description": "Hands a file the IDE does not show (a PDF, a video…) to the app the system opens it with."
+  },
+  "openInDefaultAppFailed": "Unable to open '{name}' in its default app.",
+  "@openInDefaultAppFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "placeholderTryAgain": "Try Again",
   "fileErrorConflict": "The file changed on disk. Reopen it before saving: {path}",
   "@fileErrorConflict": {
@@ -2912,6 +3027,9 @@
     }
   },
   "dataDirTheNewFolder": "the new folder",
+  "quitConfirmMessage": "Quit BaoCode?",
+  "quitConfirmDetail": "Running agents and terminals will be stopped.",
+  "quitConfirmQuit": "Quit",
   "dataDirQuitNow": "Quit Now",
   "dataDirLater": "Later",
   "dataDirSetByEnv": "Set by the {variable} environment variable.",
@@ -2942,6 +3060,7 @@
   "dataDirTitle": "Data Folder",
   "dataDirDescription": "Where BaoCode keeps your settings, keybindings, language servers and its own state. Other programs keep files there too (the web view's caches); BaoCode never moves or removes those.",
   "dataDirCurrentFolder": "Current folder",
+  "dataDirNewFolder": "New folder",
   "dataDirAfterRestart": "After a restart: {path}",
   "@dataDirAfterRestart": {
     "placeholders": {
@@ -3135,5 +3254,132 @@
         "type": "String"
       }
     }
-  }
+  },
+  "explorerNoFolderTitle": "No Folder Opened",
+  "explorerNoFolder": "You have not yet opened a folder.",
+  "explorerOpenFolder": "Open Folder",
+  "ideSearchOpenFiles": "Search open files",
+  "ideWelcomeRecent": "Recent",
+  "ideOpenRecentPlaceholder": "Select a folder or file to open",
+  "ideRecentFolders": "folders",
+  "ideRecentFiles": "files",
+  "ideNoRecent": "No recently opened folders or files",
+  "ideClearRecentConfirm": "Do you want to clear all recently opened files and folders?",
+  "ideClearRecentDetail": "This action is irreversible!",
+  "ideClearRecent": "Clear",
+  "ideChatNoFolder": "Open a folder to chat with an agent in it.",
+  "ideCannotOpen": "Cannot open {path}: {error}",
+  "@ideCannotOpen": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cmdNewUntitledFile": "New Text File",
+  "cmdOpenFile": "Open File...",
+  "cmdOpenFolder": "Open Folder...",
+  "cmdOpenRecent": "Open Recent...",
+  "cmdSaveAs": "Save As...",
+  "cmdCloseFolder": "Close Folder",
+  "cmdClearRecentlyOpened": "Clear Recently Opened...",
+  "cmdInstallShellCommand": "Install '{name}' command in PATH",
+  "@cmdInstallShellCommand": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "cmdUninstallShellCommand": "Uninstall '{name}' command from PATH",
+  "@cmdUninstallShellCommand": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "cmdCategoryWorkspaces": "Workspaces",
+  "cmdCategoryShellCommand": "Shell Command",
+  "shellCommandInstalled": "Shell command '{name}' successfully installed in PATH.",
+  "@shellCommandInstalled": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "shellCommandUninstalled": "Shell command '{name}' successfully uninstalled from PATH.",
+  "@shellCommandUninstalled": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "shellCommandOccupied": "{path} already runs another app's '{name}' command. Replace it with BaoCode's?",
+  "@shellCommandOccupied": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "shellCommandReplace": "Replace",
+  "shellCommandFailed": "Unable to install the shell command '{name}': {error}",
+  "@shellCommandFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "shellCommandUninstallFailed": "Unable to uninstall the shell command '{name}': {error}",
+  "@shellCommandUninstallFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "generalSettingsMainWindow": "Main Window",
+  "generalSettingsMainWindowDescription": "The window BaoCode opens to. The 'code' command always opens files and folders in the IDE.",
+  "generalSettingsMainWindowLabel": "Main Window: {name}",
+  "@generalSettingsMainWindowLabel": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "generalSettingsMainWindowChat": "Chat",
+  "generalSettingsMainWindowIde": "IDE",
+  "generalSettingsMainWindowLast": "Last used",
+  "generalSettingsShellCommand": "Shell Command",
+  "generalSettingsShellCommandDescription": "Open files and folders in BaoCode from a terminal: 'code <path>'. Installed at {location}.",
+  "@generalSettingsShellCommandDescription": {
+    "placeholders": {
+      "location": {
+        "type": "String"
+      }
+    }
+  },
+  "generalSettingsShellCommandInstalled": "Installed",
+  "generalSettingsShellCommandNotInstalled": "Not installed",
+  "generalSettingsShellCommandOccupied": "Another app's command is installed",
+  "generalSettingsShellCommandInstall": "Install",
+  "generalSettingsShellCommandUninstall": "Uninstall",
+  "menuMore": "More…"
 }

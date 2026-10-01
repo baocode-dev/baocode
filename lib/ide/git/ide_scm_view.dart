@@ -208,8 +208,14 @@ class IdeScmViewState extends State<IdeScmView>
   final GlobalKey _actionKey = GlobalKey();
   double _headerHeight = 0;
 
-  /// The selected resource (`group:path`) or group (`group`).
+  /// The focused row's key: a resource's (`group:path`), a folder's or a
+  /// group's (`group`).
   String? _selected;
+
+  /// The selected rows' keys, [_selected] among them unless cleared, and
+  /// the row a Shift click selects from (upstream's anchor).
+  final Set<String> _selection = {};
+  String? _anchor;
   String? _selectedCommit;
   final Map<String, Future<List<IdeGitCommitChange>>> _changes = {};
 
@@ -421,6 +427,88 @@ class IdeScmViewState extends State<IdeScmView>
 
   List<IdeGraphRow> get _commits => _git?.graph ?? const [];
 
+  bool _isSelected(String key) => _selection.contains(key);
+
+  /// Focuses and selects the row of [key] alone.
+  void _selectOnly(String key) {
+    _selected = _anchor = key;
+    _selection
+      ..clear()
+      ..add(key);
+  }
+
+  /// Focuses [key]'s row and selects the rows from the anchor's to it.
+  void _selectRange(String key) {
+    final keys = [for (final row in _rows) row.key];
+    final to = keys.indexOf(key);
+    var from = _anchor == null ? -1 : keys.indexOf(_anchor!);
+    if (from < 0) from = to;
+    _selected = key;
+    _anchor = keys[from];
+    _selection
+      ..clear()
+      ..addAll(
+        keys.sublist(from < to ? from : to, (from < to ? to : from) + 1),
+      );
+  }
+
+  /// A click on [key]'s row: with Shift, selects the rows from the last
+  /// one clicked; with Cmd (Ctrl), adds the row to the selection or takes
+  /// it out, and true for both (the click does nothing else); else
+  /// selects the row alone (upstream's `multiSelectModifier`, `ctrlCmd`).
+  bool _multiSelectClick(String key) {
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isShiftPressed) {
+      setState(() => _selectRange(key));
+      return true;
+    }
+    if (ideUsesMacKeys ? keyboard.isMetaPressed : keyboard.isControlPressed) {
+      setState(() {
+        _selected = _anchor = key;
+        if (!_selection.remove(key)) _selection.add(key);
+      });
+      return true;
+    }
+    setState(() => _selectOnly(key));
+    return false;
+  }
+
+  /// A right click on [key]'s row: the selection stays when the row is in
+  /// it, else the row is selected alone.
+  void _selectForMenu(String key) => setState(() {
+    if (_isSelected(key)) {
+      _selected = key;
+    } else {
+      _selectOnly(key);
+    }
+  });
+
+  /// What an action on [key]'s row acts on, [own] the row's changes: when
+  /// the row is in a selection of more than one, the changes of its group
+  /// selected, alone or in a selected folder (upstream's
+  /// `getSCMResources` of the selection); else [own].
+  List<IdeGitResource> _targets(
+    String key,
+    IdeGitGroup group,
+    List<IdeGitResource> own,
+  ) {
+    if (_selection.length < 2 || !_isSelected(key)) return own;
+    final targets = <String, IdeGitResource>{};
+    for (final row in _rows) {
+      if (!_isSelected(row.key)) continue;
+      switch (row) {
+        case _ResourceRow(:final resource) when resource.group == group:
+          targets[resource.path] = resource;
+        case _FolderRow(group: final of, :final folder) when of == group:
+          for (final resource in folder.resources) {
+            targets[resource.path] = resource;
+          }
+        default:
+      }
+    }
+    return targets.isEmpty ? own : targets.values.toList();
+  }
+
   _ScmRow? get _focusedRow {
     final key = _selected;
     return key == null
@@ -480,7 +568,11 @@ class IdeScmViewState extends State<IdeScmView>
       ideRevealRow(_graphScroll, index);
       return;
     }
-    setState(() => _selected = _rows[index].key);
+    setState(() => _selectOnly(_rows[index].key));
+    _revealRow(index);
+  }
+
+  void _revealRow(int index) {
     // Below the input and the action button.
     final heights = [
       for (final key in [_inputKey, _actionKey]) key.currentContext?.size,
@@ -490,6 +582,33 @@ class IdeScmViewState extends State<IdeScmView>
     }
     ideRevealRow(_changesScroll, index, top: _headerHeight);
   }
+
+  @override
+  bool get listSupportsMultiselect => _listFocus.hasPrimaryFocus;
+
+  @override
+  void listExpandSelection(int delta) {
+    final rows = _rows;
+    if (rows.isEmpty) return;
+    final at = listFocusedIndex;
+    final next = at < 0 ? 0 : (at + delta).clamp(0, rows.length - 1);
+    setState(() => _selectRange(rows[next].key));
+    _revealRow(next);
+  }
+
+  @override
+  void listSelectAll() => setState(() {
+    _selection
+      ..clear()
+      ..addAll([for (final row in _rows) row.key]);
+  });
+
+  @override
+  bool get listHasSelection =>
+      _listFocus.hasPrimaryFocus && _selection.isNotEmpty;
+
+  @override
+  void listClear() => setState(_selection.clear);
 
   @override
   void listSelect() {
@@ -577,7 +696,7 @@ class IdeScmViewState extends State<IdeScmView>
         _session.collapsedGroups.add(group);
       }
       // The focus goes to its group.
-      if (focused != null) _selected = focused.key.split(':').first;
+      if (focused != null) _selectOnly(focused.key.split(':').first);
     });
   }
 
@@ -743,24 +862,29 @@ class IdeScmViewState extends State<IdeScmView>
   ) {
     final collapsed = _session.collapsedFolders.contains(key);
     final resources = folder.resources.toList();
-    final actions = _folderActions(git, group, resources);
+    final actions = _folderActions(
+      git,
+      group,
+      () => _targets(key, group, resources),
+    );
     final bubble = git.decorations?.folder(folder.path)?.color;
     return IdeListRow(
       key: ValueKey(key),
-      selected: _selected == key,
+      selected: _isSelected(key),
+      focusedItem: _selected == key,
       focused: _listFocus.hasFocus,
       tooltip: p.relative(folder.path, from: state.root),
       onTap: () {
         _listFocus.requestFocus();
+        if (_multiSelectClick(key)) return;
         setState(() {
-          _selected = key;
           if (!_session.collapsedFolders.remove(key)) {
             _session.collapsedFolders.add(key);
           }
         });
       },
       onContextMenu: (position) {
-        setState(() => _selected = key);
+        _selectForMenu(key);
         unawaited(
           showIdeMenu(
             context,
@@ -793,7 +917,9 @@ class IdeScmViewState extends State<IdeScmView>
               child: IdeResourceLabel(
                 name: folder.label,
                 actions: [
-                  if (hovered || (_selected == key && _listFocus.hasFocus))
+                  if (hovered ||
+                      ((_selected == key || _isSelected(key)) &&
+                          _listFocus.hasFocus))
                     for (final action in actions)
                       _InlineAction(
                         icon: action.icon,
@@ -822,36 +948,36 @@ class IdeScmViewState extends State<IdeScmView>
   }
 
   /// `scm/resourceFolder/context`'s inline actions: on every change in the
-  /// folder.
+  /// folder, or of the selection it is in ([targets]).
   List<_Action> _folderActions(
     IdeGitRepository git,
     IdeGitGroup group,
-    List<IdeGitResource> resources,
+    List<IdeGitResource> Function() targets,
   ) => switch (group) {
     IdeGitGroup.merge => [
       _Action(
         context.l10n.scmStageChanges,
         Codicons.add,
-        () => unawaited(_run(() => git.stage(resources))),
+        () => unawaited(_run(() => git.stage(targets()))),
       ),
     ],
     IdeGitGroup.staged => [
       _Action(
         context.l10n.scmUnstageChanges,
         Codicons.remove,
-        () => unawaited(_run(() => git.unstage(resources))),
+        () => unawaited(_run(() => git.unstage(targets()))),
       ),
     ],
     IdeGitGroup.workingTree => [
       _Action(
         context.l10n.scmDiscardChanges,
         Codicons.discard,
-        () => unawaited(_discard(resources)),
+        () => unawaited(_discard(targets())),
       ),
       _Action(
         context.l10n.scmStageChanges,
         Codicons.add,
-        () => unawaited(_run(() => git.stage(resources))),
+        () => unawaited(_run(() => git.stage(targets()))),
       ),
     ],
   };
@@ -1153,7 +1279,6 @@ class IdeScmViewState extends State<IdeScmView>
     final collapsed = _session.collapsedGroups.contains(group);
     final key = group.name;
     void toggle() => setState(() {
-      _selected = key;
       if (!_session.collapsedGroups.remove(group)) {
         _session.collapsedGroups.add(group);
       }
@@ -1161,11 +1286,12 @@ class IdeScmViewState extends State<IdeScmView>
     final actions = _groupActions(git, group, resources);
     return IdeListRow(
       key: ValueKey('group:$key'),
-      selected: _selected == key,
+      selected: _isSelected(key),
+      focusedItem: _selected == key,
       focused: _listFocus.hasFocus,
       onTap: () {
         _listFocus.requestFocus();
-        toggle();
+        if (!_multiSelectClick(key)) toggle();
       },
       onContextMenu: (position) => unawaited(
         showIdeMenu(
@@ -1270,45 +1396,67 @@ class IdeScmViewState extends State<IdeScmView>
     ],
   };
 
+  /// A change's inline actions, on it or the selection it is in
+  /// ([targets]).
   List<_Action> _resourceActions(
     IdeGitRepository git,
     IdeGitResource resource,
+    List<IdeGitResource> Function() targets,
   ) => [
     if (!_deleted(resource))
       _Action(
         context.l10n.scmOpenFile,
         Codicons.goToFile,
-        () => unawaited(widget.onOpen(resource.path, focusEditor: true)),
+        () => unawaited(_openFiles(targets())),
       ),
     ...switch (resource.group) {
       IdeGitGroup.merge => [
         _Action(
           context.l10n.scmStageChanges,
           Codicons.add,
-          () => unawaited(_run(() => git.stage([resource]))),
+          () => unawaited(_run(() => git.stage(targets()))),
         ),
       ],
       IdeGitGroup.staged => [
         _Action(
           context.l10n.scmUnstageChanges,
           Codicons.remove,
-          () => unawaited(_run(() => git.unstage([resource]))),
+          () => unawaited(_run(() => git.unstage(targets()))),
         ),
       ],
       IdeGitGroup.workingTree => [
         _Action(
           context.l10n.scmDiscardChanges,
           Codicons.discard,
-          () => unawaited(_discard([resource])),
+          () => unawaited(_discard(targets())),
         ),
         _Action(
           context.l10n.scmStageChanges,
           Codicons.add,
-          () => unawaited(_run(() => git.stage([resource]))),
+          () => unawaited(_run(() => git.stage(targets()))),
         ),
       ],
     },
   ];
+
+  /// Open File on [resources]: each but the deleted, one after another.
+  Future<void> _openFiles(List<IdeGitResource> resources) async {
+    for (final resource in resources) {
+      if (!_deleted(resource)) {
+        await widget.onOpen(resource.path, focusEditor: true);
+      }
+    }
+  }
+
+  /// Open Changes (Open File (HEAD) with [head]) on [resources].
+  Future<void> _openChanges(
+    List<IdeGitResource> resources, {
+    bool head = false,
+  }) async {
+    for (final resource in resources) {
+      await widget.onOpenChange(resource, head: head, focusEditor: true);
+    }
+  }
 
   static bool _deleted(IdeGitResource resource) => switch (resource.status) {
     IdeGitStatus.deleted ||
@@ -1329,26 +1477,27 @@ class IdeScmViewState extends State<IdeScmView>
     final key = '${resource.group.name}:${resource.path}';
     final relative = p.relative(resource.path, from: state.root);
     final folder = p.dirname(relative);
-    final actions = _resourceActions(git, resource);
+    List<IdeGitResource> targets() => _targets(key, resource.group, [resource]);
+    final actions = _resourceActions(git, resource, targets);
     void open({bool focus = false}) =>
         unawaited(widget.onOpenChange(resource, focusEditor: focus));
 
     return IdeListRow(
       key: ValueKey(key),
-      selected: _selected == key,
+      selected: _isSelected(key),
+      focusedItem: _selected == key,
       focused: _listFocus.hasFocus,
       tooltip:
           '${p.join(state.root, relative)} • '
           '${resource.status.localizedLabel(context.l10n)}',
       onTap: () {
         _listFocus.requestFocus();
-        setState(() => _selected = key);
-        open();
+        if (!_multiSelectClick(key)) open();
       },
       onDoubleTap: () => open(focus: true),
       onContextMenu: (position) {
-        setState(() => _selected = key);
-        unawaited(_showResourceMenu(position, git, state, resource));
+        _selectForMenu(key);
+        unawaited(_showResourceMenu(position, git, state, resource, targets()));
       },
       builder: (context, hovered) => Padding(
         padding: EdgeInsets.only(
@@ -1367,7 +1516,9 @@ class IdeScmViewState extends State<IdeScmView>
                 letter: resource.status.letter,
                 letterColor: resource.status.color,
                 actions: [
-                  if (hovered || (_selected == key && _listFocus.hasFocus))
+                  if (hovered ||
+                      ((_selected == key || _isSelected(key)) &&
+                          _listFocus.hasFocus))
                     for (final action in actions)
                       _InlineAction(
                         icon: action.icon,
@@ -1383,11 +1534,14 @@ class IdeScmViewState extends State<IdeScmView>
     );
   }
 
+  /// [resource]'s menu, its actions on [targets] (it or the selection it
+  /// is in); the reveals for one alone.
   Future<void> _showResourceMenu(
     Offset position,
     IdeGitRepository git,
     IdeGitState state,
     IdeGitResource resource,
+    List<IdeGitResource> targets,
   ) {
     final working = resource.group == IdeGitGroup.workingTree;
     // The merge group's has Open File alone.
@@ -1401,58 +1555,58 @@ class IdeScmViewState extends State<IdeScmView>
           if (!merge)
             IdeMenuAction(
               l10n.scmOpenChanges,
-              onSelected: () =>
-                  unawaited(widget.onOpenChange(resource, focusEditor: true)),
+              onSelected: () => unawaited(_openChanges(targets)),
             ),
           if (!_deleted(resource))
             IdeMenuAction(
               l10n.scmOpenFile,
-              onSelected: () =>
-                  unawaited(widget.onOpen(resource.path, focusEditor: true)),
+              onSelected: () => unawaited(_openFiles(targets)),
             ),
           if (!merge)
             IdeMenuAction(
               l10n.scmOpenFileHead,
-              onSelected: () => unawaited(
-                widget.onOpenChange(resource, head: true, focusEditor: true),
-              ),
+              onSelected: () => unawaited(_openChanges(targets, head: true)),
             ),
         ],
         [
           if (resource.group == IdeGitGroup.staged)
             IdeMenuAction(
               l10n.scmUnstageChanges,
-              onSelected: () => unawaited(_run(() => git.unstage([resource]))),
+              onSelected: () => unawaited(_run(() => git.unstage(targets))),
             )
           else
             IdeMenuAction(
               l10n.scmStageChanges,
-              onSelected: () => unawaited(_run(() => git.stage([resource]))),
+              onSelected: () => unawaited(_run(() => git.stage(targets))),
             ),
           if (working) ...[
             IdeMenuAction(
               l10n.scmDiscardChanges,
-              onSelected: () => unawaited(_discard([resource])),
+              onSelected: () => unawaited(_discard(targets)),
             ),
             IdeMenuAction(
               l10n.scmAddToGitignore,
-              onSelected: () => unawaited(_ignore(state, [resource.path])),
+              onSelected: () => unawaited(
+                _ignore(state, [for (final target in targets) target.path]),
+              ),
             ),
           ],
         ],
-        [
-          if (WindowControls.canRevealInFileManager && !_deleted(resource))
-            IdeMenuAction(
-              l10n.explorerRevealInFinder,
-              onSelected: () =>
-                  unawaited(WindowControls.revealInFileManager(resource.path)),
-            ),
-          if (!_deleted(resource))
-            IdeMenuAction(
-              l10n.tabRevealInExplorerView,
-              onSelected: () => widget.onRevealInExplorer(resource.path),
-            ),
-        ],
+        if (targets.length == 1)
+          [
+            if (WindowControls.canRevealInFileManager && !_deleted(resource))
+              IdeMenuAction(
+                l10n.revealInFileManager,
+                onSelected: () => unawaited(
+                  WindowControls.revealInFileManager(resource.path),
+                ),
+              ),
+            if (!_deleted(resource))
+              IdeMenuAction(
+                l10n.tabRevealInExplorerView,
+                onSelected: () => widget.onRevealInExplorer(resource.path),
+              ),
+          ],
       ]),
     );
   }

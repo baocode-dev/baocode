@@ -182,29 +182,17 @@ abstract class AppLocalizations {
   /// **'The language of BaoCode\'s menus, views and messages. Changes apply at once.'**
   String get languageSettingsDescription;
 
-  /// No description provided for @languageSettingsFollowSystem.
+  /// Follow System, with the language the system's resolves to, named in its own language.
   ///
   /// In en, this message translates to:
-  /// **'Follow System'**
-  String get languageSettingsFollowSystem;
+  /// **'Follow System ({language})'**
+  String languageSettingsFollowSystemCurrent(String language);
 
-  /// Under Follow System: the language the system's resolves to, named in its own language.
+  /// The display language dropdown, as read out: its setting and the choice in effect.
   ///
   /// In en, this message translates to:
-  /// **'Currently {language}'**
-  String languageSettingsFollowSystemDetail(String language);
-
-  /// English, named in the display language (shown under its own name, 'English').
-  ///
-  /// In en, this message translates to:
-  /// **'English'**
-  String get languageSettingsEnglishName;
-
-  /// Simplified Chinese, named in the display language (shown under its own name, '简体中文').
-  ///
-  /// In en, this message translates to:
-  /// **'Chinese (Simplified)'**
-  String get languageSettingsSimplifiedChineseName;
+  /// **'Display Language: {name}'**
+  String languageSettingsDisplayLanguageLabel(String name);
 
   /// Command category, as in 'File: Save'.
   ///
@@ -299,7 +287,7 @@ abstract class AppLocalizations {
   /// No description provided for @cmdChatNewAgent.
   ///
   /// In en, this message translates to:
-  /// **'New Agent'**
+  /// **'New Chat'**
   String get cmdChatNewAgent;
 
   /// No description provided for @cmdChatClosePane.
@@ -1183,6 +1171,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Toggle Expand'**
   String get cmdListToggleExpand;
+
+  /// No description provided for @cmdListExpandSelectionDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand Selection Down'**
+  String get cmdListExpandSelectionDown;
+
+  /// No description provided for @cmdListExpandSelectionUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand Selection Up'**
+  String get cmdListExpandSelectionUp;
+
+  /// No description provided for @cmdListSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select All'**
+  String get cmdListSelectAll;
+
+  /// No description provided for @cmdListClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Selection'**
+  String get cmdListClear;
 
   /// No description provided for @cmdEditorCursorLeft.
   ///
@@ -2675,13 +2687,25 @@ abstract class AppLocalizations {
   /// The title of an agent before its first message names it.
   ///
   /// In en, this message translates to:
-  /// **'New Agent'**
+  /// **'New Chat'**
   String get agentUntitled;
+
+  /// The title of an agent first asked something with images alone: the first one's file name.
+  ///
+  /// In en, this message translates to:
+  /// **'Image: {name}'**
+  String agentImageTitle(String name);
+
+  /// The title of an agent first asked something with images alone, none from a file (pasted).
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get agentImageUntitled;
 
   /// Button that starts a new agent.
   ///
   /// In en, this message translates to:
-  /// **'New Agent'**
+  /// **'New Chat'**
   String get sidebarNewAgent;
 
   /// No description provided for @sidebarGroupingProject.
@@ -2876,11 +2900,47 @@ abstract class AppLocalizations {
   /// **'Search agents…'**
   String get sidebarSearchAgents;
 
+  /// Button over the IDE's chat that lists the project's agents to switch to.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent History'**
+  String get ideChatHistory;
+
+  /// No description provided for @ideChatNoAgents.
+  ///
+  /// In en, this message translates to:
+  /// **'No agents in this project'**
+  String get ideChatNoAgents;
+
   /// No description provided for @sidebarNewAgentIn.
   ///
   /// In en, this message translates to:
-  /// **'New agent in {project}'**
+  /// **'New chat in {project}'**
   String sidebarNewAgentIn(String project);
+
+  /// Heads the menu, over a new chat's input, of the folders it may work in.
+  ///
+  /// In en, this message translates to:
+  /// **'Folder to work in'**
+  String get newChatWorkingFolder;
+
+  /// The menu's first choice: a new chat working in no project, in the Desktop folder.
+  ///
+  /// In en, this message translates to:
+  /// **'No folder'**
+  String get newChatNoFolder;
+
+  /// No description provided for @newChatNoFolderDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Works in the Desktop folder'**
+  String get newChatNoFolderDetail;
+
+  /// Button over a new chat's input that picks a folder for it in the system's file manager.
+  ///
+  /// In en, this message translates to:
+  /// **'Open from {app}'**
+  String newChatOpenFrom(String app);
 
   /// No description provided for @sidebarPin.
   ///
@@ -2905,6 +2965,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unarchive'**
   String get sidebarUnarchive;
+
+  /// No description provided for @sidebarShowMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more ({count})'**
+  String sidebarShowMore(int count);
+
+  /// No description provided for @sidebarShowLess.
+  ///
+  /// In en, this message translates to:
+  /// **'Show less'**
+  String get sidebarShowLess;
+
+  /// No description provided for @sidebarNewAgentHere.
+  ///
+  /// In en, this message translates to:
+  /// **'New Chat Here'**
+  String get sidebarNewAgentHere;
+
+  /// No description provided for @sidebarRevealIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Show in {app}'**
+  String sidebarRevealIn(String app);
+
+  /// No description provided for @sidebarSortByTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort by Time'**
+  String get sidebarSortByTime;
+
+  /// No description provided for @sidebarArchiveAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Archive All'**
+  String get sidebarArchiveAll;
+
+  /// No description provided for @sidebarRemoveFromList.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from List'**
+  String get sidebarRemoveFromList;
+
+  /// No description provided for @sidebarDropToPin.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop here to pin'**
+  String get sidebarDropToPin;
+
+  /// No description provided for @sidebarMoreActions.
+  ///
+  /// In en, this message translates to:
+  /// **'More Actions…'**
+  String get sidebarMoreActions;
 
   /// Title bar button leaving the IDE layout.
   ///
@@ -3908,6 +4022,12 @@ abstract class AppLocalizations {
   /// **'Close {name}'**
   String tabCloseNamed(String name);
 
+  /// A tab's title when its file was deleted while open.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} (deleted)'**
+  String tabDeleted(String name);
+
   /// Accessibility label of the area around a dialog.
   ///
   /// In en, this message translates to:
@@ -4118,6 +4238,42 @@ abstract class AppLocalizations {
   /// **'You can restore this file using the Undo command.'**
   String get explorerRestoreWithUndo;
 
+  /// No description provided for @explorerDeleteFilesUnsaved.
+  ///
+  /// In en, this message translates to:
+  /// **'You are deleting files with unsaved changes. Do you want to continue?'**
+  String get explorerDeleteFilesUnsaved;
+
+  /// No description provided for @explorerConfirmDeleteMultiple.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete the following {count} files/directories and their contents?'**
+  String explorerConfirmDeleteMultiple(int count);
+
+  /// No description provided for @explorerConfirmPermanentDeleteMultiple.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to permanently delete the following {count} files/directories and their contents?'**
+  String explorerConfirmPermanentDeleteMultiple(int count);
+
+  /// No description provided for @explorerRestoreFilesFromTrash.
+  ///
+  /// In en, this message translates to:
+  /// **'You can restore these files from the Trash.'**
+  String get explorerRestoreFilesFromTrash;
+
+  /// No description provided for @explorerRestoreFilesWithUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'You can restore these files using the Undo command.'**
+  String get explorerRestoreFilesWithUndo;
+
+  /// No description provided for @explorerMoreFilesNotShown.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{...1 additional file not shown} other{...{count} additional files not shown}}'**
+  String explorerMoreFilesNotShown(int count);
+
   /// No description provided for @explorerTrashFailed.
   ///
   /// In en, this message translates to:
@@ -4273,6 +4429,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'General'**
   String get settingsSectionGeneral;
+
+  /// No description provided for @settingsGroupPreferences.
+  ///
+  /// In en, this message translates to:
+  /// **'Preferences'**
+  String get settingsGroupPreferences;
+
+  /// No description provided for @settingsGroupAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get settingsGroupAdvanced;
 
   /// No description provided for @generalSettingsTitle.
   ///
@@ -4543,6 +4711,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open Anyway'**
   String get placeholderOpenAnyway;
+
+  /// Hands a file the IDE does not show (a PDF, a video…) to the app the system opens it with.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in Default App'**
+  String get openInDefaultApp;
+
+  /// No description provided for @openInDefaultAppFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to open \'{name}\' in its default app.'**
+  String openInDefaultAppFailed(String name);
 
   /// No description provided for @placeholderTryAgain.
   ///
@@ -6963,6 +7143,24 @@ abstract class AppLocalizations {
   /// **'the new folder'**
   String get dataDirTheNewFolder;
 
+  /// No description provided for @quitConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Quit BaoCode?'**
+  String get quitConfirmMessage;
+
+  /// No description provided for @quitConfirmDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Running agents and terminals will be stopped.'**
+  String get quitConfirmDetail;
+
+  /// No description provided for @quitConfirmQuit.
+  ///
+  /// In en, this message translates to:
+  /// **'Quit'**
+  String get quitConfirmQuit;
+
   /// No description provided for @dataDirQuitNow.
   ///
   /// In en, this message translates to:
@@ -7016,6 +7214,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Current folder'**
   String get dataDirCurrentFolder;
+
+  /// No description provided for @dataDirNewFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'New folder'**
+  String get dataDirNewFolder;
 
   /// No description provided for @dataDirAfterRestart.
   ///
@@ -7268,6 +7472,276 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not import the {name}: {error}'**
   String impKeymapError(String name, String error);
+
+  /// No description provided for @explorerNoFolderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No Folder Opened'**
+  String get explorerNoFolderTitle;
+
+  /// No description provided for @explorerNoFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'You have not yet opened a folder.'**
+  String get explorerNoFolder;
+
+  /// No description provided for @explorerOpenFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Folder'**
+  String get explorerOpenFolder;
+
+  /// No description provided for @ideSearchOpenFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Search open files'**
+  String get ideSearchOpenFiles;
+
+  /// No description provided for @ideWelcomeRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent'**
+  String get ideWelcomeRecent;
+
+  /// No description provided for @ideOpenRecentPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a folder or file to open'**
+  String get ideOpenRecentPlaceholder;
+
+  /// No description provided for @ideRecentFolders.
+  ///
+  /// In en, this message translates to:
+  /// **'folders'**
+  String get ideRecentFolders;
+
+  /// No description provided for @ideRecentFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'files'**
+  String get ideRecentFiles;
+
+  /// No description provided for @ideNoRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'No recently opened folders or files'**
+  String get ideNoRecent;
+
+  /// No description provided for @ideClearRecentConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Do you want to clear all recently opened files and folders?'**
+  String get ideClearRecentConfirm;
+
+  /// No description provided for @ideClearRecentDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'This action is irreversible!'**
+  String get ideClearRecentDetail;
+
+  /// No description provided for @ideClearRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get ideClearRecent;
+
+  /// No description provided for @ideChatNoFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a folder to chat with an agent in it.'**
+  String get ideChatNoFolder;
+
+  /// No description provided for @ideCannotOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot open {path}: {error}'**
+  String ideCannotOpen(String path, String error);
+
+  /// No description provided for @cmdNewUntitledFile.
+  ///
+  /// In en, this message translates to:
+  /// **'New Text File'**
+  String get cmdNewUntitledFile;
+
+  /// No description provided for @cmdOpenFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Open File...'**
+  String get cmdOpenFile;
+
+  /// No description provided for @cmdOpenFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Folder...'**
+  String get cmdOpenFolder;
+
+  /// No description provided for @cmdOpenRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Recent...'**
+  String get cmdOpenRecent;
+
+  /// No description provided for @cmdSaveAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Save As...'**
+  String get cmdSaveAs;
+
+  /// No description provided for @cmdCloseFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Close Folder'**
+  String get cmdCloseFolder;
+
+  /// No description provided for @cmdClearRecentlyOpened.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Recently Opened...'**
+  String get cmdClearRecentlyOpened;
+
+  /// No description provided for @cmdInstallShellCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Install \'{name}\' command in PATH'**
+  String cmdInstallShellCommand(String name);
+
+  /// No description provided for @cmdUninstallShellCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Uninstall \'{name}\' command from PATH'**
+  String cmdUninstallShellCommand(String name);
+
+  /// No description provided for @cmdCategoryWorkspaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspaces'**
+  String get cmdCategoryWorkspaces;
+
+  /// No description provided for @cmdCategoryShellCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Shell Command'**
+  String get cmdCategoryShellCommand;
+
+  /// No description provided for @shellCommandInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Shell command \'{name}\' successfully installed in PATH.'**
+  String shellCommandInstalled(String name);
+
+  /// No description provided for @shellCommandUninstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Shell command \'{name}\' successfully uninstalled from PATH.'**
+  String shellCommandUninstalled(String name);
+
+  /// No description provided for @shellCommandOccupied.
+  ///
+  /// In en, this message translates to:
+  /// **'{path} already runs another app\'s \'{name}\' command. Replace it with BaoCode\'s?'**
+  String shellCommandOccupied(String path, String name);
+
+  /// No description provided for @shellCommandReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace'**
+  String get shellCommandReplace;
+
+  /// No description provided for @shellCommandFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to install the shell command \'{name}\': {error}'**
+  String shellCommandFailed(String name, String error);
+
+  /// No description provided for @shellCommandUninstallFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to uninstall the shell command \'{name}\': {error}'**
+  String shellCommandUninstallFailed(String name, String error);
+
+  /// No description provided for @generalSettingsMainWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Main Window'**
+  String get generalSettingsMainWindow;
+
+  /// No description provided for @generalSettingsMainWindowDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The window BaoCode opens to. The \'code\' command always opens files and folders in the IDE.'**
+  String get generalSettingsMainWindowDescription;
+
+  /// No description provided for @generalSettingsMainWindowLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Main Window: {name}'**
+  String generalSettingsMainWindowLabel(String name);
+
+  /// No description provided for @generalSettingsMainWindowChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get generalSettingsMainWindowChat;
+
+  /// No description provided for @generalSettingsMainWindowIde.
+  ///
+  /// In en, this message translates to:
+  /// **'IDE'**
+  String get generalSettingsMainWindowIde;
+
+  /// No description provided for @generalSettingsMainWindowLast.
+  ///
+  /// In en, this message translates to:
+  /// **'Last used'**
+  String get generalSettingsMainWindowLast;
+
+  /// No description provided for @generalSettingsShellCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Shell Command'**
+  String get generalSettingsShellCommand;
+
+  /// No description provided for @generalSettingsShellCommandDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Open files and folders in BaoCode from a terminal: \'code <path>\'. Installed at {location}.'**
+  String generalSettingsShellCommandDescription(String location);
+
+  /// No description provided for @generalSettingsShellCommandInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed'**
+  String get generalSettingsShellCommandInstalled;
+
+  /// No description provided for @generalSettingsShellCommandNotInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Not installed'**
+  String get generalSettingsShellCommandNotInstalled;
+
+  /// No description provided for @generalSettingsShellCommandOccupied.
+  ///
+  /// In en, this message translates to:
+  /// **'Another app\'s command is installed'**
+  String get generalSettingsShellCommandOccupied;
+
+  /// No description provided for @generalSettingsShellCommandInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get generalSettingsShellCommandInstall;
+
+  /// No description provided for @generalSettingsShellCommandUninstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Uninstall'**
+  String get generalSettingsShellCommandUninstall;
+
+  /// No description provided for @menuMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More…'**
+  String get menuMore;
 }
 
 class _AppLocalizationsDelegate

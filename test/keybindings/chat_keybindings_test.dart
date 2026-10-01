@@ -180,7 +180,7 @@ void main() {
       );
     }
 
-    expect(title(ChatCommandIds.newChat), '聊天: 新建智能体');
+    expect(title(ChatCommandIds.newChat), '聊天: 新对话');
     expect(title('${ChatCommandIds.openAgentAtIndex}3'), '聊天: 打开第 3 个智能体');
     expect(title('${ChatCommandIds.focusPane}2'), '聊天: 聚焦第 2 个窗格');
     expect(title(ChatCommandIds.focusPreviousPane), '聊天: 聚焦上一个窗格');

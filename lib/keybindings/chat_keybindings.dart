@@ -145,7 +145,7 @@ abstract final class ChatContextKeys {
 /// The chat's commands, for the catalog.
 final List<CommandInfo> chatExtraCommands = [
   for (final (id, title) in [
-    (ChatCommandIds.newChat, 'New Agent'),
+    (ChatCommandIds.newChat, 'New Chat'),
     (ChatCommandIds.closePane, 'Close Pane'),
     (ChatCommandIds.nextAgent, 'Open Next Agent'),
     (ChatCommandIds.previousAgent, 'Open Previous Agent'),
@@ -214,6 +214,13 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     mac: 'cmd+n',
     command: ChatCommandIds.newChat,
     when: _window,
+  ),
+  // In the IDE, from its chat: a new chat there (elsewhere New Text File).
+  const KeybindingEntry(
+    key: 'ctrl+n',
+    mac: 'cmd+n',
+    command: ChatCommandIds.newChat,
+    when: 'ideMode && auxiliaryBarFocus',
   ),
   const KeybindingEntry(
     win: 'ctrl+f4',

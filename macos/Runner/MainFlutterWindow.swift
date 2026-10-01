@@ -72,6 +72,18 @@ class MainFlutterWindow: NSWindow {
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
     self.channel = channel
+
+    // Paths the system asks the app to open (see AppDelegate.swift).
+    OpenRequests.shared.attach(to: flutterViewController.engine.binaryMessenger)
+
+    // The menu bar's File menu, once the nib has made the menu bar (it
+    // has none of its own; see FileMenu).
+    let fileMenu = FileMenu(channel: channel)
+    self.fileMenu = fileMenu
+    DispatchQueue.main.async {
+      if let mainMenu = NSApp.mainMenu { fileMenu.install(in: mainMenu) }
+    }
+
     channel.setMethodCallHandler { [weak self] call, result in
       switch call.method {
       case "setAppearance":
@@ -162,6 +174,48 @@ class MainFlutterWindow: NSWindow {
         panel.beginSheetModal(for: window) { response in
           result(response == .OK ? panel.urls.map(FileDropView.entry) : [])
         }
+      case "pickOpenFiles":
+        // Files for the IDE to open (Open File…), in the folder given.
+        let arguments = call.arguments as? [String: Any]
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = arguments?["multiple"] as? Bool ?? true
+        if let directory = arguments?["directory"] as? String {
+          panel.directoryURL = URL(fileURLWithPath: directory, isDirectory: true)
+        }
+        guard let window = self else {
+          result([])
+          return
+        }
+        panel.beginSheetModal(for: window) { response in
+          result(response == .OK ? panel.urls.map(\.path) : [])
+        }
+      case "pickSaveFile":
+        // Where the IDE saves a file (Save As…, an untitled one's Save):
+        // the panel asks itself before replacing one.
+        let arguments = call.arguments as? [String: Any]
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        if let directory = arguments?["directory"] as? String {
+          panel.directoryURL = URL(fileURLWithPath: directory, isDirectory: true)
+        }
+        if let name = arguments?["name"] as? String {
+          panel.nameFieldStringValue = name
+        }
+        guard let window = self else {
+          result(nil)
+          return
+        }
+        panel.beginSheetModal(for: window) { response in
+          result(response == .OK ? panel.url?.path : nil)
+        }
+      case "setFileMenuTitles":
+        self?.fileMenu?.setTitles(call.arguments as? [String: String] ?? [:])
+        result(nil)
+      case "setRecentItems":
+        self?.fileMenu?.setRecent(call.arguments as? [String] ?? [])
+        result(nil)
       case "writePasteboardImage":
         guard let arguments = call.arguments as? [String: Any],
               let bytes = arguments["bytes"] as? FlutterStandardTypedData
@@ -218,17 +272,21 @@ class MainFlutterWindow: NSWindow {
 
   private var channel: FlutterMethodChannel?
 
+  private var fileMenu: FileMenu?
+
   private var attention: Attention?
 
   /// The close button hides the window while the menu bar icon can bring
-  /// it back (see Attention); without one, the window closes and the app
-  /// quits.
+  /// it back (see Attention); without one, it quits as ⌘Q does, asking
+  /// first: the window is the app's only one, and closed it would quit
+  /// anyway, past the question.
   @objc func windowShouldClose(_ sender: NSWindow) -> Bool {
     if attention?.hidesOnClose ?? false {
       orderOut(sender)
       return false
     }
-    return true
+    NSApp.terminate(sender)
+    return false
   }
 
   private static let darkAppearanceKey = "BaoCodeDarkAppearance"
@@ -523,6 +581,134 @@ private class FileDropView: NSView {
     let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
     let directory = (values?.isDirectory ?? false) && !(values?.isPackage ?? false)
     return ["path": url.path, "directory": directory]
+  }
+}
+
+/// The menu bar's File menu, which MainMenu.xib has none of: its items
+/// are the workbench's commands, sent to Flutter as the app menu's
+/// Preferences… is (`menuCommand`, see WindowControls.onMenuCommand). None
+/// has a key equivalent: Flutter takes the keys (⌘O, ⌘S…) itself, and one
+/// here would have them first. Titled in English until Flutter names them
+/// in the app's language (`setFileMenuTitles`).
+///
+/// Open Recent lists what Flutter says (`setRecentItems`); one picked is
+/// opened as a path the system asks the app to open (see OpenRequests), as
+/// `code <path>` would.
+private class FileMenu: NSObject {
+  private let channel: FlutterMethodChannel
+  private let menu = NSMenu(title: "File")
+  private let recentMenu = NSMenu(title: "Open Recent")
+  private var titles: [String: String] = [
+    "file": "File",
+    "newUntitledFile": "New Text File",
+    "openFile": "Open File…",
+    "openFolder": "Open Folder…",
+    "openRecent": "Open Recent",
+    "save": "Save",
+    "saveAs": "Save As…",
+    "closeFolder": "Close Folder",
+    "clearRecent": "Clear Recently Opened",
+    "more": "More…",
+  ]
+  private var recent: [String] = []
+
+  /// The menu's items: the key of each one's title and the command it
+  /// runs (Open Recent's is its submenu); an empty key is a separator.
+  private let layout: [(key: String, command: String)] = [
+    ("newUntitledFile", "workbench.action.files.newUntitledFile"),
+    ("openFile", "workbench.action.files.openFile"),
+    ("openFolder", "workbench.action.files.openFolder"),
+    ("openRecent", ""),
+    ("", ""),
+    ("save", "workbench.action.files.save"),
+    ("saveAs", "workbench.action.files.saveAs"),
+    ("", ""),
+    ("closeFolder", "workbench.action.closeFolder"),
+  ]
+
+  init(channel: FlutterMethodChannel) {
+    self.channel = channel
+    super.init()
+    recentMenu.autoenablesItems = false
+  }
+
+  /// Puts the menu after the app menu, before Edit.
+  func install(in mainMenu: NSMenu) {
+    let item = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
+    item.submenu = menu
+    mainMenu.insertItem(item, at: min(1, mainMenu.numberOfItems))
+    build()
+  }
+
+  func setTitles(_ titles: [String: String]) {
+    self.titles.merge(titles) { _, new in new }
+    build()
+  }
+
+  func setRecent(_ paths: [String]) {
+    recent = paths
+    buildRecent()
+  }
+
+  private func title(_ key: String) -> String { titles[key] ?? key }
+
+  private func build() {
+    menu.title = title("file")
+    menu.supermenu?.items.first(where: { $0.submenu === menu })?.title = title("file")
+    menu.removeAllItems()
+    for (key, command) in layout {
+      if key.isEmpty {
+        menu.addItem(.separator())
+        continue
+      }
+      let item = NSMenuItem(title: title(key), action: nil, keyEquivalent: "")
+      if key == "openRecent" {
+        recentMenu.title = title(key)
+        item.submenu = recentMenu
+      } else {
+        item.action = #selector(runCommand(_:))
+        item.target = self
+        item.representedObject = command
+      }
+      menu.addItem(item)
+    }
+    buildRecent()
+  }
+
+  private func buildRecent() {
+    recentMenu.removeAllItems()
+    let home = NSHomeDirectory()
+    for path in recent {
+      let shown = path == home || path.hasPrefix(home + "/")
+        ? "~" + path.dropFirst(home.count) : path
+      let item = NSMenuItem(title: shown, action: #selector(openRecent(_:)), keyEquivalent: "")
+      item.target = self
+      item.representedObject = path
+      recentMenu.addItem(item)
+    }
+    if !recent.isEmpty { recentMenu.addItem(.separator()) }
+    let more = NSMenuItem(
+      title: title("more"), action: #selector(runCommand(_:)), keyEquivalent: "")
+    more.target = self
+    more.representedObject = "workbench.action.openRecent"
+    recentMenu.addItem(more)
+    recentMenu.addItem(.separator())
+    let clear = NSMenuItem(
+      title: title("clearRecent"), action: #selector(runCommand(_:)), keyEquivalent: "")
+    clear.target = self
+    clear.representedObject = "workbench.action.clearRecentlyOpened"
+    clear.isEnabled = !recent.isEmpty
+    recentMenu.addItem(clear)
+  }
+
+  @objc private func runCommand(_ sender: NSMenuItem) {
+    guard let command = sender.representedObject as? String else { return }
+    channel.invokeMethod("menuCommand", arguments: command)
+  }
+
+  @objc private func openRecent(_ sender: NSMenuItem) {
+    guard let path = sender.representedObject as? String else { return }
+    OpenRequests.shared.deliver([path])
   }
 }
 

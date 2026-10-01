@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,9 +13,12 @@ import 'chat/chat_screen.dart';
 import 'chat/composer/file_drop.dart';
 import 'chat/panels/interaction_panel.dart';
 import 'ide/git/git_repository.dart';
+import 'ide/ide_chat_title.dart';
 import 'ide/ide_commands.dart';
+import 'ide/ide_dialog.dart';
 import 'ide/ide_modern_ui.dart';
 import 'ide/ide_notifications.dart';
+import 'ide/ide_quick_input.dart';
 import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
 import 'ide/lsp/language_features.dart';
@@ -27,16 +31,22 @@ import 'l10n/l10n.dart';
 import 'notifications/attention_host.dart';
 import 'notifications/attention_service.dart';
 import 'notifications/attention_settings.dart';
+import 'platform/local_paths.dart'
+    if (dart.library.io) 'platform/local_paths_io.dart';
+import 'platform/open_requests.dart';
+import 'platform/shell_command.dart';
 import 'settings/app_settings.dart';
 import 'settings/data_dir_startup.dart';
 import 'settings/jsonc_file.dart';
 import 'settings/settings_dialog.dart';
+import 'settings/shell_command_actions.dart';
 import 'sidebar/sidebar.dart';
 import 'theme/codicons.dart';
 import 'theme/app_theme.dart';
 import 'theme/workbench_theme.dart' show WorkbenchThemeService, themeColors;
 import 'workspace/chat_drag.dart';
 import 'workspace/chat_grid_view.dart';
+import 'workspace/new_chat_folder_bar.dart';
 import 'workspace/open_in_editor_button.dart';
 import 'workspace/pin_window_button.dart';
 import 'workspace/title_bar_double_click.dart';
@@ -137,7 +147,19 @@ class _WorkbenchState extends State<Workbench> {
   bool _narrow = false;
 
   Workspace get _workspace => widget.workspace;
+
+  /// The IDE's workspaces by folder, each kept once shown; [_noFolder]'s is
+  /// its empty window.
   final Map<String, IdeWorkspace> _ideSpaces = {};
+  final Map<String, GlobalKey<IdeWorkbenchState>> _ideKeys = {};
+  final Map<String, List<IdeCommand>> _ideCommands = {};
+
+  /// The key of the IDE's empty window, with no folder open.
+  static const _noFolder = '';
+
+  /// The IDE shown, or to be shown: that of its folder.
+  String get _ideFolder => _workspace.ideFolder ?? _noFolder;
+  IdeWorkbenchState? get _ide => _ideKeys[_ideFolder]?.currentState;
 
   /// The window is kept above other apps' windows.
   bool _pinned = false;
@@ -164,7 +186,8 @@ class _WorkbenchState extends State<Workbench> {
     ),
     settingsChanges: widget.settings?.files?.settings,
     l10n: () => context.l10n,
-    onOpen: _openAgent,
+    shown: _workspace.isShown,
+    onOpen: _openNotifiedAgent,
   );
 
   /// The keybindings the buttons' tooltips show (`New Agent (⌘N)`): they
@@ -184,6 +207,9 @@ class _WorkbenchState extends State<Workbench> {
     WindowControls.handleEditCommands();
     WindowControls.handleWindowEvents();
     FileDrops.listen();
+    OpenRequests.listen((paths) => unawaited(_openPaths(paths)));
+    _workspace.addListener(_syncRecentMenu);
+    _syncRecentMenu();
     _lifecycle = AppLifecycleListener(
       onResume: () => unawaited(_workspace.refresh()),
     );
@@ -229,6 +255,8 @@ class _WorkbenchState extends State<Workbench> {
       WindowControls.onMenuCommand = null;
     }
     _chordTimer?.cancel();
+    OpenRequests.stop();
+    _workspace.removeListener(_syncRecentMenu);
     widget.settings?.files?.changes.removeListener(_settingsFilesChanged);
     _notifications.dispose();
     for (final ide in _ideSpaces.values) {
@@ -318,16 +346,12 @@ class _WorkbenchState extends State<Workbench> {
       },
       ChatCommandIds.searchAgents: _searchAgents,
       if (current != null)
-        ChatCommandIds.openIde: () => _workspace.layout = WorkspaceLayout.ide,
+        ChatCommandIds.openIde: () => _workspace.openInIde(current),
     };
   }
 
   /// Reaches the sidebar, for the agents it lists and its search.
   final SidebarLink _sidebarLink = SidebarLink();
-
-  /// The sidebar's collapsed groups, kept here: the sidebar is built anew
-  /// as the window crosses [Workbench.narrowWidth].
-  final Set<String> _collapsedGroups = {};
 
   /// The agents as the sidebar lists them, top to bottom; without it, as it
   /// would by date (pinned ones first, no archived ones).
@@ -335,7 +359,7 @@ class _WorkbenchState extends State<Workbench> {
     if (_sidebarLink.visibleThreads case final threads?) return threads;
     final threads = [
       for (final thread in _workspace.threads)
-        if (!thread.archived) thread,
+        if (!thread.archived && _workspace.listsInSidebar(thread)) thread,
     ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return [
       ...threads.where((thread) => thread.pinned),
@@ -349,6 +373,17 @@ class _WorkbenchState extends State<Workbench> {
     _closeDrawer();
     if (!identical(thread, _workspace.current)) _workspace.select(thread);
     _focusChat(thread);
+  }
+
+  /// An agent picked in a notification or the tray's menu: in the IDE's
+  /// chat while the IDE shows (its folder's IDE, if another shows), else as
+  /// the sidebar opens it.
+  void _openNotifiedAgent(AgentThread thread) {
+    if (_workspace.layout != WorkspaceLayout.ide) return _openAgent(thread);
+    final folder = thread.project.path;
+    if (folder != _ideFolder) _openIdeFolder(folder);
+    _openIdeChat(folder, thread);
+    _afterBuild(() => _ide?.showChat());
   }
 
   /// The agent [step] away from the current one in the sidebar's order,
@@ -508,9 +543,300 @@ class _WorkbenchState extends State<Workbench> {
     _ => null,
   };
 
-  /// A command of the system's menu bar (the app menu's Preferences…).
+  /// A command of the system's menu bar: the app menu's Preferences…, and
+  /// the File menu's, which are the IDE's (Open Folder… in the chat layout
+  /// is its own, a project there).
   void _runMenuCommand(String command) {
-    if (command == openSettingsCommandId) unawaited(openSettings());
+    if (command == openSettingsCommandId) {
+      unawaited(openSettings());
+      return;
+    }
+    final chat = _workspace.layout == WorkspaceLayout.chat;
+    if (chat && command == 'workbench.action.files.openFolder') {
+      unawaited(_openFolder());
+      return;
+    }
+    if (_ideCommandsFor(_ideFolder).where((c) => c.id == command).firstOrNull
+        case final host?) {
+      host.run();
+      return;
+    }
+    // The IDE's own (New Text File, Save, Save As…): once it shows.
+    _workspace.layout = WorkspaceLayout.ide;
+    _afterBuild(() => _ide?.runCommand(command));
+  }
+
+  /// Runs [action] once the frame being scheduled is built.
+  void _afterBuild(VoidCallback action) {
+    setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) action();
+    });
+  }
+
+  // --- The IDE's files and folders --------------------------------------------
+
+  /// The host's commands for the IDE of [folder]: the settings', the files'
+  /// and folders', its chat's, the shell command's. The same list each
+  /// time, so its keybindings are registered once.
+  List<IdeCommand> _ideCommandsFor(String folder) =>
+      _ideCommands.putIfAbsent(folder, () {
+        IdeCommand command(String id, VoidCallback run, {bool enabled = true}) {
+          final info = commandCatalog[id];
+          return IdeCommand(
+            id: id,
+            category: info?.category,
+            label: info?.title ?? id,
+            enabled: enabled,
+            run: run,
+          );
+        }
+
+        return [
+          ..._settingsCommands,
+          command(
+            'workbench.action.files.openFile',
+            () => unawaited(_pickIdeFiles()),
+            enabled: WindowControls.canPickFiles,
+          ),
+          command(
+            'workbench.action.files.openFolder',
+            () => unawaited(_pickIdeFolder()),
+            enabled: WindowControls.canPickDirectory,
+          ),
+          command('workbench.action.openRecent', _showOpenRecent),
+          command(
+            'workbench.action.clearRecentlyOpened',
+            () => unawaited(_clearRecent()),
+          ),
+          if (folder != _noFolder) ...[
+            command('workbench.action.closeFolder', _workspace.closeIdeFolder),
+            IdeCommand(
+              id: ChatCommandIds.newChat,
+              label: 'New Chat',
+              category: 'Chat',
+              run: () => _newIdeChat(folder),
+            ),
+          ],
+          if (ShellCommand.supported) ...[
+            command(
+              installShellCommandId,
+              () => unawaited(_shellCommand(installShellCommand)),
+            ),
+            command(
+              uninstallShellCommandId,
+              () => unawaited(_shellCommand(uninstallShellCommand)),
+            ),
+          ],
+        ];
+      });
+
+  /// Shows [folder] in the IDE.
+  void _openIdeFolder(String folder) {
+    _workspace.openIdeFolder(folder);
+    _workspace.layout = WorkspaceLayout.ide;
+  }
+
+  Future<void> _pickIdeFolder() async {
+    final path = await WindowControls.pickDirectory();
+    if (path == null || !mounted) return;
+    _openIdeFolder(path);
+  }
+
+  /// Opens [paths] in editors of the IDE's folder (or its empty window).
+  void _openIdeFiles(List<String> paths) {
+    if (paths.isEmpty) return;
+    paths.forEach(_workspace.addRecentFile);
+    _workspace.layout = WorkspaceLayout.ide;
+    _afterBuild(() async {
+      for (final path in paths) {
+        await _ide?.openFile(path);
+      }
+    });
+  }
+
+  Future<void> _pickIdeFiles() async {
+    final paths = await WindowControls.pickOpenFiles(
+      directory: _workspace.ideFolder,
+    );
+    if (!mounted) return;
+    _openIdeFiles(paths);
+  }
+
+  /// What the system asks to open (the `code` command, Finder's Open With,
+  /// the File menu's Open Recent): folders and files alike in the IDE,
+  /// whichever the main window is; the chat is left as it was.
+  Future<void> _openPaths(List<String> paths) async {
+    final folders = <String>[];
+    final files = <String>[];
+    for (final path in paths) {
+      (await isDirectory(path) ? folders : files).add(path);
+    }
+    if (!mounted) return;
+    // One window, one folder: the last given.
+    if (folders.lastOrNull case final folder?) _openIdeFolder(folder);
+    _openIdeFiles(files);
+  }
+
+  /// The IDE's Open Recent: the folders and files it opened, to open again.
+  void _showOpenRecent() {
+    final ide = _ide;
+    if (ide == null) return;
+    final l10n = context.l10n;
+    IdeQuickPickItem item(String path, IconData icon, VoidCallback open) =>
+        IdeQuickPickItem(
+          label: p.basename(path).isEmpty ? path : p.basename(path),
+          description: p.dirname(path),
+          icon: Icon(icon),
+          onAccept: open,
+        );
+    final folders = [
+      for (final folder in _workspace.recentFolders)
+        if (folder != _workspace.ideFolder)
+          item(folder, Codicons.folder, () => _openIdeFolder(folder)),
+    ];
+    final files = [
+      for (final file in _workspace.recentFiles)
+        item(file, Codicons.file, () => _openIdeFiles([file])),
+    ];
+    ide.showQuickPick(
+      IdeQuickPick(
+        items: [
+          if (folders.isEmpty && files.isEmpty)
+            IdeQuickPickItem(label: l10n.ideNoRecent),
+          if (folders.isNotEmpty) ...[
+            IdeQuickPickSeparator(l10n.ideRecentFolders),
+            ...folders,
+          ],
+          if (files.isNotEmpty) ...[
+            IdeQuickPickSeparator(l10n.ideRecentFiles),
+            ...files,
+          ],
+        ],
+        placeholder: l10n.ideOpenRecentPlaceholder,
+        matchOnDescription: true,
+        sortByLabel: false,
+        onDidAccept: (item) => item?.onAccept?.call(),
+      ),
+    );
+  }
+
+  Future<void> _clearRecent() async {
+    final l10n = context.l10n;
+    final choice = await showIdeDialog(
+      context,
+      message: l10n.ideClearRecentConfirm,
+      detail: l10n.ideClearRecentDetail,
+      buttons: [l10n.ideClearRecent],
+    );
+    if (choice == 0) _workspace.clearRecent();
+  }
+
+  /// Installs or removes the shell command, and tells how that went.
+  Future<void> _shellCommand(
+    Future<ShellCommandOutcome?> Function(BuildContext) action,
+  ) async {
+    final outcome = await action(context);
+    if (outcome == null || !mounted) return;
+    final ide = _ide;
+    if (ide != null && _workspace.layout == WorkspaceLayout.ide) {
+      ide.notify(outcome.severity, outcome.message);
+    } else {
+      _notifications.notify(outcome.severity, outcome.message);
+    }
+  }
+
+  /// Asks where to save [doc] of [space] (Save As…, an untitled file's
+  /// first save): where it is, or in the folder; noted among the recent.
+  Future<String?> _askSavePath(IdeWorkspace space, IdeDocument doc) async {
+    final path = await WindowControls.pickSaveFile(
+      directory: doc.isUntitled
+          ? (space.hasFolder ? space.root : null)
+          : p.dirname(doc.path),
+      name: doc.isUntitled ? doc.path : p.basename(doc.path),
+    );
+    if (path != null) _workspace.addRecentFile(path);
+    return path;
+  }
+
+  /// The macOS File menu's Open Recent, as the IDE's.
+  List<String> _recentMenu = const [];
+  void _syncRecentMenu() {
+    final recent = [
+      ..._workspace.recentFolders.take(_recentMenuItems),
+      ..._workspace.recentFiles.take(_recentMenuItems),
+    ];
+    if (listEquals(recent, _recentMenu)) return;
+    _recentMenu = recent;
+    unawaited(WindowControls.setRecentItems(recent));
+  }
+
+  static const _recentMenuItems = 10;
+
+  /// The macOS File menu's titles, in the language they were last set in.
+  String? _fileMenuLocale;
+  void _syncFileMenu(AppLocalizations l10n) {
+    if (_fileMenuLocale == l10n.localeName) return;
+    _fileMenuLocale = l10n.localeName;
+    unawaited(
+      WindowControls.setFileMenuTitles({
+        'file': l10n.menuFile,
+        'newUntitledFile': l10n.cmdNewUntitledFile,
+        'openFile': l10n.cmdOpenFile,
+        'openFolder': l10n.cmdOpenFolder,
+        'openRecent': l10n.cmdOpenRecent,
+        'save': l10n.cmdSave,
+        'saveAs': l10n.cmdSaveAs,
+        'closeFolder': l10n.cmdCloseFolder,
+        'clearRecent': l10n.cmdClearRecentlyOpened,
+        'more': l10n.menuMore,
+      }),
+    );
+  }
+
+  // --- The IDE's chat ----------------------------------------------------------
+
+  void _newIdeChat(String folder) => _focusChat(_workspace.newIdeChat(folder));
+
+  void _openIdeChat(String folder, AgentThread thread) {
+    _workspace.openIdeChat(folder, thread);
+    _focusChat(thread);
+  }
+
+  /// The IDE's chat in [folder]: its tabs over the one shown. Without a
+  /// folder, a way to open one.
+  Widget _buildIdeChat(String folder) {
+    if (folder == _noFolder) {
+      return _IdeNoFolderChat(
+        onOpenFolder: WindowControls.canPickDirectory
+            ? () => unawaited(_pickIdeFolder())
+            : null,
+      );
+    }
+    final current = _workspace.ideChat(folder);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        IdeChatTitle(
+          tabs: _workspace.ideChats(folder),
+          threads: [
+            for (final thread in _workspace.threads)
+              if (thread.project.path == folder) thread,
+          ],
+          current: current,
+          onNew: () => _newIdeChat(folder),
+          onOpen: (thread) => _openIdeChat(folder, thread),
+          onClose: (thread) => _workspace.closeIdeChat(folder, thread),
+          onMove: (thread, index) =>
+              _workspace.moveIdeChat(folder, thread, index),
+        ),
+        Expanded(
+          child: current == null
+              ? const SizedBox.shrink()
+              : _buildChat(showToggle: false, embedded: true, pane: current),
+        ),
+      ],
+    );
   }
 
   bool _settingsOpen = false;
@@ -556,6 +882,7 @@ class _WorkbenchState extends State<Workbench> {
 
   @override
   Widget build(BuildContext context) {
+    _syncFileMenu(context.l10n);
     return LayoutBuilder(
       builder: (context, constraints) {
         _windowWidth = constraints.maxWidth;
@@ -604,47 +931,54 @@ class _WorkbenchState extends State<Workbench> {
   }
 
   Widget _buildContent(bool narrow) {
-    final project = _workspace.current?.project;
-    final ide = _workspace.layout == WorkspaceLayout.ide && project != null;
-    if (ide) _ideSpace(project);
+    final ide = _workspace.layout == WorkspaceLayout.ide;
+    final folder = _ideFolder;
+    if (ide) _ideSpace(folder);
     return Stack(
       fit: StackFit.expand,
       children: [
-        for (final entry in _ideSpaces.entries)
-          Offstage(
-            key: ValueKey(entry.key),
-            offstage: !ide || project.path != entry.key,
-            child: TickerMode(
-              enabled: ide && project.path == entry.key,
-              child: ExcludeFocus(
-                excluding: !ide || project.path != entry.key,
-                child: IdeWorkbench(
-                  workspace: entry.value,
-                  project: Project.at(entry.key),
-                  visible: ide && project.path == entry.key,
-                  onBack: () => _workspace.layout = WorkspaceLayout.chat,
-                  pinned: _pinned,
-                  onPinnedChanged: _setPinned,
-                  editorBuilder: widget.ideEditorBuilder,
-                  ignoredRecommendations:
-                      _workspace.ignoredServerRecommendations,
-                  onIgnoreRecommendation: _workspace.ignoreServerRecommendation,
-                  colorThemes: WorkbenchThemeService.instance,
-                  commands: _settingsCommands,
-                  terminalBackend:
-                      widget.terminalBackend ??
-                      const TerminalBackend(supported: false),
-                  chat: ide && project.path == entry.key
-                      ? _conversation(
-                          _buildChat(showToggle: false, embedded: true),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ),
-            ),
-          ),
+        for (final MapEntry(key: path, value: space) in _ideSpaces.entries)
+          _buildIde(path, space, shown: ide && path == folder),
         if (!ide) narrow ? _buildNarrow() : _buildWide(),
       ],
+    );
+  }
+
+  /// The IDE of [path] (see [_ideSpace]), kept built while another shows.
+  Widget _buildIde(String path, IdeWorkspace space, {required bool shown}) {
+    return Offstage(
+      key: ValueKey(path),
+      offstage: !shown,
+      child: TickerMode(
+        enabled: shown,
+        child: ExcludeFocus(
+          excluding: !shown,
+          child: IdeWorkbench(
+            key: _ideKeys.putIfAbsent(path, GlobalKey.new),
+            workspace: space,
+            project: path == _noFolder
+                ? Project.at(space.root)
+                : _workspace.projectAt(path),
+            visible: shown,
+            onBack: () => _workspace.layout = WorkspaceLayout.chat,
+            pinned: _pinned,
+            onPinnedChanged: _setPinned,
+            editorBuilder: widget.ideEditorBuilder,
+            ignoredRecommendations: _workspace.ignoredServerRecommendations,
+            onIgnoreRecommendation: _workspace.ignoreServerRecommendation,
+            colorThemes: WorkbenchThemeService.instance,
+            commands: _ideCommandsFor(path),
+            recentFolders: _workspace.recentFolders,
+            onOpenRecent: _openIdeFolder,
+            terminalBackend:
+                widget.terminalBackend ??
+                const TerminalBackend(supported: false),
+            chat: shown
+                ? _conversation(_buildIdeChat(path))
+                : const SizedBox.shrink(),
+          ),
+        ),
+      ),
     );
   }
 
@@ -785,7 +1119,6 @@ class _WorkbenchState extends State<Workbench> {
     return Sidebar(
       workspace: _workspace,
       link: _sidebarLink,
-      collapsed: _collapsedGroups,
       onCollapse: _toggle,
       onOpened: onOpened,
       onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
@@ -798,27 +1131,35 @@ class _WorkbenchState extends State<Workbench> {
   /// window_header/): the sidebar toggle, the menus, the pin, the editor
   /// button and the window buttons, all of which are in the columns
   /// themselves elsewhere.
-  /// The IDE's workspace for [project], made the first time it is shown
-  /// (the header, built first, may be the first to ask).
-  IdeWorkspace _ideSpace(Project project) => _ideSpaces.putIfAbsent(
-    project.path,
-    () => IdeWorkspace(
-      project.path,
-      languages: widget.languagesFor?.call(project.path),
-      git: widget.gitFor?.call(project.path),
-    ),
-  );
+  /// The IDE's workspace for [folder], made the first time it is shown
+  /// (the header, built first, may be the first to ask). Without a folder
+  /// ([_noFolder]), it is in the home folder, with no language servers
+  /// or Git.
+  IdeWorkspace _ideSpace(String folder) => _ideSpaces.putIfAbsent(folder, () {
+    final space = folder == _noFolder
+        ? IdeWorkspace(homeDirectory ?? p.current, hasFolder: false)
+        : IdeWorkspace(
+            folder,
+            languages: widget.languagesFor?.call(folder),
+            git: widget.gitFor?.call(folder),
+          );
+    return space..askSavePath = (doc) => _askSavePath(space, doc);
+  });
 
   Widget _buildHeader() {
-    final project = _workspace.current?.project;
+    final ide = _workspace.layout == WorkspaceLayout.ide;
+    final project = ide
+        ? switch (_workspace.ideFolder) {
+            final folder? => _workspace.projectAt(folder),
+            null => null,
+          }
+        : _workspace.current?.project;
     return WindowHeader(
       workspace: _workspace,
       project: project,
       sidebarShown: _narrow ? _drawerOpen : _docked,
       onToggleSidebar: _toggle,
-      ideLayout: _workspace.layout == WorkspaceLayout.ide && project != null
-          ? _ideSpace(project).layout
-          : null,
+      ideLayout: ide ? _ideSpace(_ideFolder).layout : null,
       pinned: _pinned,
       onTogglePin: _setPinned,
       onOpenFolder: _openFolder,
@@ -829,6 +1170,7 @@ class _WorkbenchState extends State<Workbench> {
         }
       },
       onCommand: (command) => _chatCommands()[command]?.call(),
+      onFileCommand: _runMenuCommand,
     );
   }
 
@@ -1014,6 +1356,11 @@ class _WorkbenchState extends State<Workbench> {
         focused: place.alone || identical(thread, _workspace.current),
         onOpenChange: (change, original) =>
             _openChange(thread, change, original),
+        // Where a new agent is to work: the IDE's chat works in the IDE's
+        // project, and a kept session where it was.
+        start: embedded || thread.record != null
+            ? null
+            : NewChatFolderBar(workspace: _workspace, thread: thread),
       ),
     );
   }
@@ -1026,9 +1373,8 @@ class _WorkbenchState extends State<Workbench> {
     FileChange change,
     Future<String> Function()? original,
   ) {
-    if (!identical(_workspace.current, thread)) _workspace.select(thread);
-    _workspace.layout = WorkspaceLayout.ide;
-    final ide = _ideSpace(thread.project);
+    _workspace.openInIde(thread);
+    final ide = _ideSpace(thread.project.path);
     final label = context.l10n.stripChangesDiff;
     unawaited(switch ((original, change.kind)) {
       (null, _) => ide.open(change.path),
@@ -1043,6 +1389,48 @@ class _WorkbenchState extends State<Workbench> {
         original: read,
       ),
     });
+  }
+}
+
+/// The IDE's chat without a folder: one to open first, as agents work in
+/// one.
+class _IdeNoFolderChat extends StatelessWidget {
+  const _IdeNoFolderChat({this.onOpenFolder});
+
+  final VoidCallback? onOpenFolder;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Codicons.commentDiscussion,
+              size: 26,
+              color: AppColors.textFaint,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              l10n.ideChatNoFolder,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+            ),
+            if (onOpenFolder case final open?) ...[
+              const SizedBox(height: 16),
+              PanelButton(
+                label: l10n.explorerOpenFolder,
+                primary: true,
+                onTap: open,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 

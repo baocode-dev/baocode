@@ -702,7 +702,11 @@ void main() {
         'status': 'requesting',
         'uuid': uuid,
       };
-      const result = {'type': 'result', 'subtype': 'success', 'is_error': false};
+      const result = {
+        'type': 'result',
+        'subtype': 'success',
+        'is_error': false,
+      };
       Future<void> notified(String id) async {
         cli
           ..push({
@@ -735,8 +739,9 @@ void main() {
       // A message meanwhile waits its turn, as the CLI has it.
       kernel.send(const KernelTurn(id: 'u2', text: 'and lint'));
       expect(
-        (transcript.itemAt(transcript.indexOf('u2')!) as UserMessageItem)
-            .queued,
+        (transcript.itemAt(
+          transcript.indexOf('u2')!,
+        ) as UserMessageItem).queued,
         isTrue,
       );
       cli.push(result);
@@ -768,7 +773,11 @@ void main() {
         'it is done; its tasks end with it', () async {
       final cli = FakeCli();
       final (:kernel, :transcript, events: _) = claude(cli);
-      const result = {'type': 'result', 'subtype': 'success', 'is_error': false};
+      const result = {
+        'type': 'result',
+        'subtype': 'success',
+        'is_error': false,
+      };
       Future<void> backgrounded(String turn, String task) async {
         kernel.send(KernelTurn(id: turn, text: 'run the tests'));
         await pumpEventQueue();
@@ -829,7 +838,11 @@ void main() {
         'subtype': 'session_state_changed',
         'state': value,
       };
-      const result = {'type': 'result', 'subtype': 'success', 'is_error': false};
+      const result = {
+        'type': 'result',
+        'subtype': 'success',
+        'is_error': false,
+      };
       Future<void> push(Map<String, Object?> message) async {
         cli.push(message);
         await pumpEventQueue();
@@ -2058,6 +2071,108 @@ void main() {
           'untitled': 'list the files',
         },
       );
+    });
+
+    test('a session is dated by its last message, and titled past the '
+        'placeholders its images are sent with', () async {
+      final root = await Directory.systemTemp.createTemp('baocode-storage-');
+      addTearDown(() => root.delete(recursive: true));
+      final config = '${root.path}/config';
+      final cwd = '${root.path}/project';
+      Directory(cwd).createSync(recursive: true);
+      const image = {
+        'type': 'image',
+        'source': {'type': 'base64', 'media_type': 'image/png', 'data': ''},
+      };
+      void session(String id, List<Object?> content) =>
+          File('$config/projects/-p/$id.jsonl')
+            ..createSync(recursive: true)
+            ..writeAsStringSync(
+              [
+                {
+                  'type': 'user',
+                  'uuid': 'aaaaaaaa-1111-4111-8111-111111111111',
+                  'cwd': cwd,
+                  'timestamp': '2026-09-27T08:00:00.000Z',
+                  'message': {'role': 'user', 'content': content},
+                },
+                {
+                  'type': 'assistant',
+                  'cwd': cwd,
+                  'timestamp': '2026-09-27T08:05:00.000Z',
+                  'message': {'role': 'assistant', 'content': []},
+                },
+                // Written after: not a message.
+                {'type': 'ai-title', 'aiTitle': '  ', 'sessionId': id},
+              ].map((line) => '${jsonEncode(line)}\n').join(),
+            );
+      session('captioned', [
+        {'type': 'text', 'text': '[Image #1]'},
+        image,
+        {'type': 'text', 'text': 'what is wrong here'},
+      ]);
+      session('images', [
+        {'type': 'text', 'text': '[Image #1]'},
+        image,
+      ]);
+
+      final sessions = (await ClaudeStorage(
+        configDir: config,
+      ).projects()).single.sessions;
+      expect(
+        {for (final s in sessions) s.id: s.title},
+        {'captioned': 'what is wrong here', 'images': ''},
+      );
+      expect(
+        sessions.map((s) => s.updatedAt),
+        everyElement(DateTime.utc(2026, 9, 27, 8, 5).toLocal()),
+      );
+    });
+
+    test('a session file is read again only once it changes, and the cache '
+        'keeps only the files still there', () async {
+      final root = await Directory.systemTemp.createTemp('baocode-storage-');
+      addTearDown(() => root.delete(recursive: true));
+      final config = '${root.path}/config';
+      final cwd = '${root.path}/project';
+      final cacheFile = '${root.path}/cache/claude-sessions.json';
+      Directory(cwd).createSync(recursive: true);
+      File write(String id, String prompt) =>
+          File('$config/projects/-p/$id.jsonl')
+            ..createSync(recursive: true)
+            ..writeAsStringSync(
+              '${jsonEncode({
+                'type': 'user',
+                'uuid': 'aaaaaaaa-1111-4111-8111-111111111111',
+                'cwd': cwd,
+                'timestamp': '2026-09-27T08:00:00.000Z',
+                'message': {'role': 'user', 'content': prompt},
+              })}\n',
+            );
+      final storage = ClaudeStorage(configDir: config, cacheFile: cacheFile);
+      Future<Map<String, String>> titles() async => {
+        for (final s in (await storage.projects()).single.sessions)
+          s.id: s.title,
+      };
+
+      final first = write('one', 'aaaa');
+      final modified = first.lastModifiedSync();
+      write('two', 'gone soon');
+      expect(await titles(), {'one': 'aaaa', 'two': 'gone soon'});
+
+      // Same size, same time: taken as unchanged.
+      write('one', 'bbbb').setLastModifiedSync(modified);
+      File('$config/projects/-p/two.jsonl').deleteSync();
+      expect(await titles(), {'one': 'aaaa'});
+      final kept = jsonDecode(File(cacheFile).readAsStringSync()) as Map;
+      expect((kept['files'] as Map).keys, [first.path]);
+
+      write('one', 'grown longer');
+      expect(await titles(), {'one': 'grown longer'});
+
+      // One not to trust is started over.
+      File(cacheFile).writeAsStringSync('{not json');
+      expect(await titles(), {'one': 'grown longer'});
     });
 
     test(

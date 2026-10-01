@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
 import '../l10n/command_titles.dart';
 import '../l10n/l10n.dart';
@@ -9,11 +10,24 @@ import 'ide_quick_input.dart';
 
 /// The editor area with no open file: the key shortcuts, VS Code's
 /// watermark (workbench/browser/parts/editor/media/editorgroupview.css),
-/// each also clickable.
+/// each also clickable; without a folder, the ones to start with and the
+/// [recent] folders, as its welcome page's Start and Recent.
 class IdeWelcome extends StatelessWidget {
-  const IdeWelcome({super.key, required this.commands});
+  const IdeWelcome({
+    super.key,
+    required this.commands,
+    this.recent = const [],
+    this.onOpenRecent,
+  });
 
   final List<IdeCommand> commands;
+
+  /// Folders opened last, most recent first; [onOpenRecent] opens one.
+  final List<String> recent;
+  final ValueChanged<String>? onOpenRecent;
+
+  /// Recent folders listed, at most.
+  static const recentShown = 5;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +51,78 @@ class IdeWelcome extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               for (final command in commands) _WelcomeEntry(command: command),
+              if (onOpenRecent case final open? when recent.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Text(
+                  context.l10n.ideWelcomeRecent,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: colors['descriptionForeground'],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                for (final path in recent.take(recentShown))
+                  _RecentEntry(path: path, onOpen: () => open(path)),
+              ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A recent folder: its name, a link, and where it is.
+class _RecentEntry extends StatefulWidget {
+  const _RecentEntry({required this.path, required this.onOpen});
+
+  final String path;
+  final VoidCallback onOpen;
+
+  @override
+  State<_RecentEntry> createState() => _RecentEntryState();
+}
+
+class _RecentEntryState extends State<_RecentEntry> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = themeColors;
+    final name = p.basename(widget.path);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onOpen,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: SizedBox(
+            width: 282,
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: name.isEmpty ? widget.path : name,
+                    style: TextStyle(
+                      color: _hover
+                          ? colors['textLink.activeForeground']
+                          : colors['textLink.foreground'],
+                    ),
+                  ),
+                  TextSpan(
+                    text: '   ${p.dirname(widget.path)}',
+                    style: TextStyle(color: colors['descriptionForeground']),
+                  ),
+                ],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12.5),
+            ),
           ),
         ),
       ),

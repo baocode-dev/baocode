@@ -138,7 +138,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: find.byType(Sidebar),
-        matching: find.text('New Agent'),
+        matching: find.text('New Chat'),
       ),
     );
     await tester.pump();
@@ -175,7 +175,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: find.byType(Sidebar),
-        matching: find.text('New Agent'),
+        matching: find.text('New Chat'),
       ),
     );
     await tester.pump();

@@ -76,6 +76,27 @@ void main() {
     expect(_tabNames(tester), ['a.dart']);
   });
 
+  testWidgets('a tab whose file was deleted says so, struck through', (
+    tester,
+  ) async {
+    final workspace = await pumpWorkbench(tester, files, open: ['a.dart']);
+    final tree = workspace.files as TreeFiles;
+
+    tree.contents.remove(inRoot('a.dart'));
+    await workspace.reload([inRoot('a.dart')]);
+    await tester.pump();
+    expect(_tabNames(tester), ['a.dart (deleted)']);
+    final label = tester.widget<Text>(
+      find.descendant(of: find.byType(IdeTabBar), matching: find.byType(Text)),
+    );
+    expect(label.textSpan!.style!.decoration, TextDecoration.lineThrough);
+
+    tree.contents[inRoot('a.dart')] = 'a';
+    await workspace.reload([inRoot('a.dart')]);
+    await tester.pump();
+    expect(_tabNames(tester), ['a.dart']);
+  });
+
   testWidgets('copy paths and reveal in explorer from a tab', (tester) async {
     final copied = <String>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(

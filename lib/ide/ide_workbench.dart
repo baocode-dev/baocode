@@ -32,7 +32,7 @@ import 'package:bao_editor/monaco/vs/editor/contrib/gotoError/browser/marker_nav
 
 import 'extensions/ide_extensions.dart';
 import 'extensions/ide_extensions_view.dart';
-import 'file_service.dart' show localizedFileError;
+import 'file_service.dart' show IdeFileListing, localizedFileError;
 import 'git/commit_message.dart';
 import 'git/git_change_editor.dart';
 import 'git/git_checkout.dart';
@@ -41,6 +41,7 @@ import 'git/git_repository.dart';
 import 'git/ide_scm_view.dart';
 import 'git/ide_timeline_view.dart';
 import 'ide_breadcrumbs.dart';
+import 'ide_button.dart';
 import 'ide_color_theme_picker.dart';
 import 'ide_columns.dart';
 import 'ide_rows.dart';
@@ -48,6 +49,7 @@ import 'ide_commands.dart';
 import 'ide_dialog.dart';
 import 'ide_editor.dart';
 import 'ide_editor_placeholder.dart';
+import 'ide_image_preview.dart';
 import 'ide_explorer.dart';
 import 'ide_hover.dart';
 import 'ide_layout.dart';
@@ -105,9 +107,16 @@ class IdeWorkbench extends StatefulWidget {
     this.onPinnedChanged,
     this.terminalBackend = const TerminalBackend(),
     this.colorThemes,
+    this.recentFolders = const [],
+    this.onOpenRecent,
   });
 
   final IdeWorkspace workspace;
+
+  /// Hands a file to its default app; tests replace it.
+  @visibleForTesting
+  static Future<bool> Function(String path) openInDefaultApp = openExternal;
+
   final Project project;
   final bool visible;
   final Widget chat;
@@ -151,6 +160,11 @@ class IdeWorkbench extends StatefulWidget {
   /// The color themes Preferences: Color Theme (⌘K ⌘T) picks from; the
   /// command is disabled without them.
   final IdeColorThemeController? colorThemes;
+
+  /// The folders opened last, most recent first, for the welcome page of
+  /// a window without one; [onOpenRecent] opens one.
+  final List<String> recentFolders;
+  final ValueChanged<String>? onOpenRecent;
 
   @override
   State<IdeWorkbench> createState() => IdeWorkbenchState();
@@ -260,7 +274,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The Search view's inputs and results, while other views show.
   late final IdeSearchSession _search = IdeSearchSession(
-    engine: widget.textSearch,
+    engine: (root, query) => widget.workspace.hasFolder
+        ? widget.textSearch(root, query)
+        : _searchOpenFiles(query),
   );
   final _searchKey = GlobalKey<IdeSearchViewState>();
   final _scmKey = GlobalKey<IdeScmViewState>();
@@ -390,7 +406,17 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       files: workspace.files,
       root: workspace.root,
     );
-    _fileIndex = IdeFileIndex(workspace.files, workspace.root);
+    _fileIndex = IdeFileIndex(
+      workspace.files,
+      workspace.root,
+      // Without a folder, the open files alone.
+      lister: workspace.hasFolder
+          ? null
+          : (_, _) async => IdeFileListing([
+              for (final doc in workspace.documents)
+                if (doc.isFile && doc.label == null) doc.path,
+            ]),
+    );
     final languages = _languages = workspace.languages;
     _symbols = languages == null ? null : IdeDocumentSymbols(languages)
       ?..addListener(_symbolsChanged);
@@ -626,6 +652,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
   }
 
+  /// Hands [path] to the app the system opens it with (a file the IDE
+  /// does not show: a PDF, a video…).
+  Future<void> _openInDefaultApp(String path) async {
+    if (await IdeWorkbench.openInDefaultApp(path) || !mounted) return;
+    _report(context.l10n.openInDefaultAppFailed(p.basename(path)));
+  }
+
   /// Errors are error notifications, as VS Code's are.
   void _report(Object error) {
     if (!mounted) return;
@@ -785,10 +818,17 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         if (doc.dirty) {
           final choice = await _confirmClose(doc);
           if (choice == null || !mounted) return;
+          if (choice == 'save' && doc.isUntitled) {
+            // Saved as a file, that is what closes; not saved, nothing.
+            final saved = await widget.workspace.saveAs(doc);
+            if (saved == null || !mounted) return;
+            widget.workspace.close(saved);
+            continue;
+          }
           if (choice == 'save') await widget.workspace.save(doc);
         }
         await _editor?.closeDocument(doc);
-        if (doc.label == null) {
+        if (doc.label == null && !doc.isUntitled) {
           _closedEditors.remove(doc.path);
           _closedEditors.add(doc.path);
         }
@@ -854,6 +894,55 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   String _relative(String path) =>
       p.relative(path, from: widget.workspace.root);
 
+  /// New Text File: an untitled one, its editor focused.
+  void _newUntitled() {
+    final doc = widget.workspace.newUntitled();
+    unawaited(_select(doc));
+  }
+
+  /// Save As: the active editor's text to a file asked for, its tab then
+  /// that file's.
+  Future<void> _saveAs() async {
+    final doc = widget.workspace.active;
+    if (doc == null) return;
+    try {
+      await _editor?.flush();
+      final saved = await widget.workspace.saveAs(doc);
+      if (saved != null && mounted) _focusSoon();
+    } catch (error) {
+      _report(error);
+    }
+  }
+
+  /// Search without a folder: the open files' text, as upstream searches
+  /// the open editors alone in an empty window.
+  Stream<Object> _searchOpenFiles(IdeTextQuery query) async* {
+    final pattern = query.toRegExp();
+    var count = 0;
+    var limitHit = false;
+    final searched = <String>{};
+    for (final doc in [...widget.workspace.documents]) {
+      if (!doc.isFile || !searched.add(doc.path)) continue;
+      final matches = <IdeTextMatch>[];
+      for (final (line, text) in doc.text.split(_lineBreak).indexed) {
+        for (final match in pattern.allMatches(text)) {
+          if (match.end == match.start) continue;
+          if (count == query.maxResults) {
+            limitHit = true;
+            break;
+          }
+          count++;
+          matches.add(IdeTextMatch(line, match.start, match.end, text));
+        }
+      }
+      if (matches.isNotEmpty) yield IdeFileMatches(doc.path, matches);
+      if (limitHit) break;
+    }
+    yield IdeTextSearchComplete(limitHit: limitHit);
+  }
+
+  static final _lineBreak = RegExp(r'\r\n|\r|\n');
+
   void _tabAction(IdeDocument doc, IdeTabAction action) {
     final docs = widget.workspace.documents;
     switch (action) {
@@ -881,6 +970,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         unawaited(Clipboard.setData(ClipboardData(text: doc.path)));
       case IdeTabAction.copyRelativePath:
         unawaited(Clipboard.setData(ClipboardData(text: _relative(doc.path))));
+      case IdeTabAction.revealInFileManager:
+        unawaited(WindowControls.revealInFileManager(doc.path));
+      case IdeTabAction.openInDefaultApp:
+        unawaited(_openInDefaultApp(doc.path));
       case IdeTabAction.revealInExplorer:
         _revealInExplorer(doc.path);
     }
@@ -1349,6 +1442,29 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     });
   }
 
+  /// Opens [model] in the quick input, for the views the workbench hosts
+  /// (e.g. its chat).
+  void showQuickPick(IdeQuickInputModel model) => _showQuickModel(model);
+
+  /// Opens [path] in an editor and focuses it (the host's Open File…).
+  Future<void> openFile(String path) => _open(path, focusEditor: true);
+
+  /// Shows the chat, if hidden (e.g. for an agent a notification opens).
+  void showChat() => _layout.showChat();
+
+  /// Tells of [message] as the IDE's own notifications do.
+  void notify(IdeSeverity severity, String message) =>
+      _notifications.notify(severity, message);
+
+  /// Runs the command [id] (the palette's, or one of its keybindings'),
+  /// as a menu does; false when there is none here, or it cannot run now.
+  bool runCommand(String id) {
+    final command = _commandsById()[id];
+    if (command == null || !command.enabled) return false;
+    _runCommand(command);
+    return true;
+  }
+
   /// Opens [model], a quick pick or an input box, in the quick input in
   /// place of what it shows.
   void _showQuickModel(IdeQuickInputModel model) =>
@@ -1524,6 +1640,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       'filesExplorerFocus' => _explorerFocus.hasFocus,
       'listFocus' || 'listSupportsKeyboardNavigation' =>
         _explorerFocus.hasFocus || _focusedList != null,
+      'listSupportsMultiselect' =>
+        _explorerFocus.hasFocus
+            ? _explorerTree.currentState?.contextKey(key) == true
+            : _focusedList?.listSupportsMultiselect ?? false,
+      'listHasSelectionOrFocus' =>
+        _explorerFocus.hasFocus
+            ? _explorerTree.currentState?.contextKey(key) == true
+            : _focusedList?.listHasSelection ?? false,
       'foldersViewVisible' || 'explorerViewletVisible' =>
         _sidebarShown && _view == IdeSideView.explorer,
       'treestickyScrollFocused' => false,
@@ -1650,6 +1774,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       command('list.collapse', explorer.collapseSelected),
       command('list.select', explorer.openSelected),
       command('list.toggleExpand', explorer.toggleSelected),
+      command('list.expandSelectionDown', () => explorer.expandSelection(1)),
+      command('list.expandSelectionUp', () => explorer.expandSelection(-1)),
+      command('list.selectAll', explorer.selectAll),
+      command(
+        'list.clear',
+        explorer.clearSelection,
+        enabled: explorer.contextKey('listHasSelectionOrFocus') == true,
+      ),
       command('list.collapseAll', _explorer.collapseAll),
     ];
   }
@@ -1834,6 +1966,23 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         label: 'Save All',
         enabled: workspace.documents.any((doc) => doc.dirty),
         run: () => unawaited(_saveAll()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.files.saveAs',
+        category: 'File',
+        label: 'Save As...',
+        enabled:
+            active != null &&
+            (active.isFile || active.isUntitled) &&
+            active.label == null &&
+            workspace.askSavePath != null,
+        run: () => unawaited(_saveAs()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.files.newUntitledFile',
+        category: 'File',
+        label: 'New Text File',
+        run: _newUntitled,
       ),
       IdeCommand(
         id: 'workbench.action.closeActiveEditor',
@@ -2342,79 +2491,94 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 if (!_explorerPanes.remove(id)) _explorerPanes.add(id);
               }),
               panes: [
-                IdePane(
-                  id: 'folder',
-                  title: widget.project.name,
-                  weight: 3,
-                  actions: [
-                    IdePaneAction(
-                      icon: Codicons.newFile,
-                      tooltip: keys.titleWithKeybinding(
-                        context.l10n.explorerNewFile,
-                        'explorer.newFile',
-                      ),
-                      onPressed: () => unawaited(
-                        _explorerTree.currentState?.startCreate(
-                          directory: false,
+                if (!workspace.hasFolder)
+                  IdePane(
+                    id: 'folder',
+                    title: context.l10n.explorerNoFolderTitle,
+                    weight: 3,
+                    body: _NoFolder(
+                      onOpenFolder: _hostCommand(
+                        'workbench.action.files.openFolder',
+                      )?.run,
+                    ),
+                  )
+                else
+                  IdePane(
+                    id: 'folder',
+                    title: widget.project.name,
+                    weight: 3,
+                    actions: [
+                      IdePaneAction(
+                        icon: Codicons.newFile,
+                        tooltip: keys.titleWithKeybinding(
+                          context.l10n.explorerNewFile,
+                          'explorer.newFile',
+                        ),
+                        onPressed: () => unawaited(
+                          _explorerTree.currentState?.startCreate(
+                            directory: false,
+                          ),
                         ),
                       ),
-                    ),
-                    IdePaneAction(
-                      icon: Codicons.newFolder,
-                      tooltip: keys.titleWithKeybinding(
-                        context.l10n.explorerNewFolder,
-                        'explorer.newFolder',
-                      ),
-                      onPressed: () => unawaited(
-                        _explorerTree.currentState?.startCreate(
-                          directory: true,
+                      IdePaneAction(
+                        icon: Codicons.newFolder,
+                        tooltip: keys.titleWithKeybinding(
+                          context.l10n.explorerNewFolder,
+                          'explorer.newFolder',
+                        ),
+                        onPressed: () => unawaited(
+                          _explorerTree.currentState?.startCreate(
+                            directory: true,
+                          ),
                         ),
                       ),
-                    ),
-                    IdePaneAction(
-                      icon: Codicons.refresh,
-                      tooltip: keys.titleWithKeybinding(
-                        context.l10n.cmdRefreshExplorer,
-                        'workbench.files.action.refreshFilesExplorer',
+                      IdePaneAction(
+                        icon: Codicons.refresh,
+                        tooltip: keys.titleWithKeybinding(
+                          context.l10n.cmdRefreshExplorer,
+                          'workbench.files.action.refreshFilesExplorer',
+                        ),
+                        onPressed: () => unawaited(_explorer.refresh()),
                       ),
-                      onPressed: () => unawaited(_explorer.refresh()),
-                    ),
-                    IdePaneAction(
-                      icon: Codicons.collapseAll,
-                      tooltip: keys.titleWithKeybinding(
-                        context.l10n.cmdCollapseExplorerFolders,
-                        'workbench.files.action.collapseExplorerFolders',
+                      IdePaneAction(
+                        icon: Codicons.collapseAll,
+                        tooltip: keys.titleWithKeybinding(
+                          context.l10n.cmdCollapseExplorerFolders,
+                          'workbench.files.action.collapseExplorerFolders',
+                        ),
+                        onPressed: _explorer.collapseAll,
                       ),
-                      onPressed: _explorer.collapseAll,
+                    ],
+                    body: IdeExplorer(
+                      key: _explorerTree,
+                      controller: _explorer,
+                      focusNode: _explorerFocus,
+                      isBound: (event) => _resolveEditorKey(event) != null,
+                      git: workspace.git,
+                      onOpen: (path, focusEditor) =>
+                          unawaited(_open(path, focusEditor: focusEditor)),
+                      onMoved: workspace.moved,
+                      onDeleted: workspace.deleted,
+                      unsavedIn: (path) => workspace
+                          .documentsIn(path)
+                          .where((d) => d.dirty)
+                          .length,
+                      trash: WindowControls.canMoveToTrash
+                          ? WindowControls.moveToTrash
+                          : null,
+                      onError: _report,
+                      onOpenInDefaultApp: WindowControls.canOpenInDefaultApp
+                          ? (path) => unawaited(_openInDefaultApp(path))
+                          : null,
+                      onFindInFolder: (folder) {
+                        _search.findInFolder(
+                          _relative(folder) == '.' ? '' : _relative(folder),
+                          workspace.root,
+                        );
+                        _showView(IdeSideView.search);
+                      },
                     ),
-                  ],
-                  body: IdeExplorer(
-                    key: _explorerTree,
-                    controller: _explorer,
-                    focusNode: _explorerFocus,
-                    isBound: (event) => _resolveEditorKey(event) != null,
-                    git: workspace.git,
-                    onOpen: (path, focusEditor) =>
-                        unawaited(_open(path, focusEditor: focusEditor)),
-                    onMoved: workspace.moved,
-                    onDeleted: workspace.deleted,
-                    unsavedIn: (path) => workspace
-                        .documentsIn(path)
-                        .where((d) => d.dirty)
-                        .length,
-                    trash: WindowControls.canMoveToTrash
-                        ? WindowControls.moveToTrash
-                        : null,
-                    onError: _report,
-                    onFindInFolder: (folder) {
-                      _search.findInFolder(
-                        _relative(folder) == '.' ? '' : _relative(folder),
-                        workspace.root,
-                      );
-                      _showView(IdeSideView.search);
-                    },
                   ),
-                ),
                 IdePane(
                   id: 'outline',
                   title: context.l10n.wbOutline,
@@ -2478,7 +2642,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               onClose: (doc) => unawaited(_close(doc)),
               onAction: _tabAction,
             ),
-            if (active != null)
+            if (active != null && !active.isUntitled)
               IdeBreadcrumbs(
                 root: widget.workspace.root,
                 path: active.path,
@@ -2488,13 +2652,29 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               ),
           ],
           Expanded(
-            child: active == null
+            child: active == null && !widget.workspace.hasFolder
+                ? IdeWelcome(
+                    commands: [
+                      for (final id in const [
+                        'workbench.action.files.newUntitledFile',
+                        'workbench.action.files.openFile',
+                        'workbench.action.files.openFolder',
+                        'workbench.action.openRecent',
+                      ])
+                        ...commands.where((command) => command.id == id),
+                    ],
+                    recent: widget.recentFolders,
+                    onOpenRecent: widget.onOpenRecent,
+                  )
+                : active == null
                 ? IdeWelcome(
                     commands: [
                       for (final id in const [
                         'workbench.action.showCommands',
                         'workbench.action.quickOpen',
-                        'workbench.view.search',
+                        // Upstream's watermark: Show Search has no key of
+                        // its own, Find in Files takes its ⇧⌘F.
+                        'workbench.action.findInFiles',
                         'actions.find',
                         'workbench.action.gotoLine',
                         'workbench.action.toggleSidebarVisibility',
@@ -2503,6 +2683,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         ...commands.where((command) => command.id == id),
                     ],
                   )
+                : active.isMedia
+                ? IdeImagePreview(
+                    key: ValueKey(active),
+                    path: active.path,
+                    onOpenInDefaultApp: WindowControls.canOpenInDefaultApp
+                        ? () => unawaited(_openInDefaultApp(active.path))
+                        : null,
+                  )
                 : active.openError != null
                 ? IdeEditorPlaceholder(
                     key: ValueKey(active),
@@ -2510,6 +2698,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     onOpenAnyway: () =>
                         unawaited(widget.workspace.reopen(active, force: true)),
                     onRetry: () => unawaited(widget.workspace.reopen(active)),
+                    onOpenInDefaultApp:
+                        WindowControls.canOpenInDefaultApp &&
+                            active.readRevision == null
+                        ? () => unawaited(_openInDefaultApp(active.path))
+                        : null,
                   )
                 : widget.editorBuilder?.call(context, widget.workspace) ??
                       IdeEditor(
@@ -2978,9 +3171,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             Expanded(
               child: Center(
                 child: _CommandCenter(
-                  label: widget.project.name,
+                  label: widget.workspace.hasFolder
+                      ? widget.project.name
+                      : l10n.ideSearchOpenFiles,
                   tooltip: keys.titleWithKeybinding(
-                    l10n.ideSearchProject(widget.project.name),
+                    widget.workspace.hasFolder
+                        ? l10n.ideSearchProject(widget.project.name)
+                        : l10n.ideSearchOpenFiles,
                     'workbench.action.quickOpen',
                   ),
                   onTap: () => _showQuickInput(''),
@@ -3097,7 +3294,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       if (_statusMessage case final message?) IdeStatusBarItem(message),
     ];
     final bell = ideNotificationsStatusItem(_notifications, l10n: l10n);
-    if (active == null || active.openError != null) {
+    if (active == null || active.openError != null || active.isMedia) {
       return IdeStatusBar(left: left, right: [bell]);
     }
     final snapshot = active.model.snapshot;
@@ -3582,4 +3779,38 @@ class _ActivityItemState extends State<_ActivityItem> {
           : IdeModernUI.activityForeground,
     ),
   );
+}
+
+/// The explorer of a window without a folder: says so, with Open Folder
+/// (upstream's empty view, `explorer.openFolder` welcome content).
+class _NoFolder extends StatelessWidget {
+  const _NoFolder({this.onOpenFolder});
+
+  final VoidCallback? onOpenFolder;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      children: [
+        Text(
+          l10n.explorerNoFolder,
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.4,
+            color: themeColors['sideBar.foreground'],
+          ),
+        ),
+        if (onOpenFolder case final open?) ...[
+          const SizedBox(height: 12),
+          IdeButton(
+            label: l10n.explorerOpenFolder,
+            expand: true,
+            onPressed: open,
+          ),
+        ],
+      ],
+    );
+  }
 }

@@ -28,6 +28,10 @@
 //   writePasteboardFiles (paths)  copy files to the clipboard, as Explorer
 //   readImageFile (path)          an image file as the composer takes one
 //   pickFiles                     the files the user chose, or none
+//   pickOpenFiles (directory?,    the paths of the files the user chose to
+//                  multiple)      open, or none
+//   pickSaveFile (directory?,     where the user chose to save a file, or
+//                 name?)          null
 //   showContextMenu (x, y, items) the item chosen from the system's menu
 //   open (target, app?, …)        the system opens it, in the app's own way
 //   setHitTestAreas (…)           where the header Flutter draws is, so the
@@ -38,7 +42,9 @@
 //   growWindow (width, height)    makes it that much larger, on the monitor
 //
 // The Edit menu's commands are not here: Windows draws no menu bar for the
-// app (see hasEditMenu), so Flutter handles those shortcuts itself.
+// app (see hasEditMenu), so Flutter handles those shortcuts itself; nor are
+// the File menu's (setFileMenuTitles, setRecentItems), which the header
+// Flutter draws carries.
 class WindowChannel {
  public:
   WindowChannel(flutter::BinaryMessenger* messenger, HWND window);

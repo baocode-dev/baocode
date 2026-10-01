@@ -187,6 +187,10 @@ abstract final class WindowControls {
     }
   }
 
+  /// Whether a file can be handed to its default app (editor_launcher's
+  /// `openExternal`: `open` on macOS, [openExternal] on Windows).
+  static bool get canOpenInDefaultApp => isDesktop;
+
   /// Hands [target] to the system to open in its default app (the browser,
   /// for a URL; whatever opens a file or folder), or in [app] when given,
   /// with [arguments] passed to it.
@@ -241,10 +245,11 @@ abstract final class WindowControls {
     }
   }
 
-  /// Whether [revealInFileManager] can show a file (Finder).
-  static bool get canRevealInFileManager => AppPlatform.isMacOS;
+  /// Whether [revealInFileManager] can show a file (Finder, or File
+  /// Explorer on Windows).
+  static bool get canRevealInFileManager => isDesktop;
 
-  /// Opens a Finder window with [path] selected.
+  /// Opens a Finder (or File Explorer) window with [path] selected.
   static Future<void> revealInFileManager(String path) async {
     if (!canRevealInFileManager) return;
     try {
@@ -272,7 +277,8 @@ abstract final class WindowControls {
   }
 
   /// Runs a command the system's menu bar picked (the app menu's
-  /// Preferences…: `workbench.action.openSettings`); set by the workbench.
+  /// Preferences…: `workbench.action.openSettings`; the File menu's, see
+  /// [setFileMenuTitles]); set by the workbench.
   static void Function(String command)? onMenuCommand;
 
   /// Whether the OS has a menu bar of its own to carry the Edit commands
@@ -381,6 +387,75 @@ abstract final class WindowControls {
 
   /// Asks the user for files (the native open panel); none if they cancel.
   static Future<List<ComposerFile>> pickFiles() => _files('pickFiles');
+
+  /// Asks the user for files to open (the native open panel, in
+  /// [directory] when given): their absolute paths, one at most unless
+  /// [multiple]; none if they cancel or there is no such panel. Files
+  /// only, as the IDE's Open File… takes them.
+  static Future<List<String>> pickOpenFiles({
+    String? directory,
+    bool multiple = true,
+  }) async {
+    if (!canPickFiles) return const [];
+    try {
+      final paths = await _channel.invokeListMethod<Object?>('pickOpenFiles', {
+        'directory': ?directory,
+        'multiple': multiple,
+      });
+      return [
+        for (final path in paths ?? const <Object?>[])
+          if (path is String && path.isNotEmpty) path,
+      ];
+    } on MissingPluginException {
+      return const [];
+    }
+  }
+
+  /// Asks the user where to save a file (the native save panel, in
+  /// [directory] and under [name] when given; it asks before replacing a
+  /// file): the absolute path chosen, or null if they cancel or there is
+  /// no such panel.
+  static Future<String?> pickSaveFile({String? directory, String? name}) async {
+    if (!canPickFiles) return null;
+    try {
+      final path = await _channel.invokeMethod<String>('pickSaveFile', {
+        'directory': ?directory,
+        'name': ?name,
+      });
+      return path == null || path.isEmpty ? null : path;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  /// Names the macOS menu bar's File menu and its items in the app's
+  /// language: [titles] by key — `file` (the menu), `newUntitledFile`,
+  /// `openFile`, `openFolder`, `openRecent`, `save`, `saveAs`,
+  /// `closeFolder`, `clearRecent` and `more` (Open Recent's empty state).
+  /// Keys left out keep their English. Its items come back through
+  /// [onMenuCommand], as the workbench's command ids. Nothing elsewhere:
+  /// Windows' menus are the header's own.
+  static Future<void> setFileMenuTitles(Map<String, String> titles) async {
+    if (!hasEditMenu) return;
+    try {
+      await _channel.invokeMethod<void>('setFileMenuTitles', titles);
+    } on MissingPluginException {
+      // A host without the channel (e.g. tests).
+    }
+  }
+
+  /// What the macOS File menu's Open Recent lists: [paths], the latest
+  /// first, then Clear Recently Opened (`workbench.action.clearRecentlyOpened`
+  /// through [onMenuCommand]). A path picked there comes back as one the
+  /// system asks to open (see OpenRequests), as `code <path>` does.
+  static Future<void> setRecentItems(List<String> paths) async {
+    if (!hasEditMenu) return;
+    try {
+      await _channel.invokeMethod<void>('setRecentItems', paths);
+    } on MissingPluginException {
+      // A host without the channel (e.g. tests).
+    }
+  }
 
   static Future<List<ComposerFile>> _files(String method) async {
     if (!isDesktop) return const [];
