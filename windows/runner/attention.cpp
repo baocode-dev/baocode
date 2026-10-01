@@ -68,12 +68,10 @@ class Canvas {
   explicit Canvas(int size)
       : size_(size), pixels_(static_cast<size_t>(size) * size, 0) {}
 
-  // A rectangle of |rgb|; or, |clear|, a hole of that shape.
-  void Fill(int x0, int y0, int x1, int y1, uint32_t rgb, bool clear = false) {
+  void Fill(int x0, int y0, int x1, int y1, uint32_t rgb) {
     for (int y = (std::max)(0, y0); y < (std::min)(size_, y1); y++) {
       for (int x = (std::max)(0, x0); x < (std::min)(size_, x1); x++) {
-        pixels_[static_cast<size_t>(y) * size_ + x] =
-            clear ? 0u : 0xFF000000u | rgb;
+        pixels_[static_cast<size_t>(y) * size_ + x] = 0xFF000000u | rgb;
       }
     }
   }
@@ -162,14 +160,15 @@ class Canvas {
   std::vector<uint32_t> pixels_;
 };
 
-// The logo, filled, in its own 56×42 units (Subtract.svg; the same as
-// Attention.swift's): its rows, then its eyes, which are cut out of them.
+// The logo's cells, in its own 56×42 units (bao.svg; the same as
+// Attention.swift's).
 struct Cell {
   int x, y, width, height;
 };
-constexpr Cell kLogoRows[] = {
-    {14, 0, 28, 7}, {7, 7, 42, 7}, {0, 14, 56, 21}, {7, 35, 42, 7}};
-constexpr Cell kLogoEyes[] = {{14, 21, 8, 7}, {35, 21, 8, 7}};
+constexpr Cell kLogoCells[] = {
+    {14, 0, 28, 7}, {7, 7, 7, 7},   {42, 7, 7, 7},  {0, 14, 7, 21},
+    {49, 14, 7, 21}, {14, 21, 8, 7}, {35, 21, 8, 7}, {7, 35, 42, 7},
+};
 
 // Digits and a plus, 3×5 pixels each, top row first, a row's bits from the
 // left: the count over the taskbar button, in the logo's pixels.
@@ -451,18 +450,12 @@ HICON Attention::TrayIcon(bool dot) const {
   const int left = (size - 8 * cell) / 2;
   const int top = (size - 6 * cell) / 2;
   const uint32_t ink = TaskbarIsLight() ? 0x1F1F1F : 0xFFFFFF;
-  auto fill = [&](const Cell& c, bool clear) {
+  for (const Cell& c : kLogoCells) {
     canvas.Fill(left + static_cast<int>(std::lround(c.x * k)),
                 top + static_cast<int>(std::lround(c.y * k)),
                 left + static_cast<int>(std::lround((c.x + c.width) * k)),
                 top + static_cast<int>(std::lround((c.y + c.height) * k)),
-                ink, clear);
-  };
-  for (const Cell& c : kLogoRows) {
-    fill(c, false);
-  }
-  for (const Cell& c : kLogoEyes) {
-    fill(c, true);
+                ink);
   }
   if (dot) {
     const double radius = size * 0.17;
