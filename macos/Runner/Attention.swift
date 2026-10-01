@@ -8,6 +8,9 @@ import UserNotifications
 /// icon's badge and bounce, and the menu bar icon, whose menu brings the
 /// window — or an agent — back. Over `baocode/attention`.
 final class Attention: NSObject, UNUserNotificationCenterDelegate {
+  /// The window's, for the app delegate to ask (see hidesOnClose).
+  private(set) static weak var shared: Attention?
+
   private let channel: FlutterMethodChannel
   private weak var window: NSWindow?
 
@@ -28,6 +31,7 @@ final class Attention: NSObject, UNUserNotificationCenterDelegate {
       self?.handle(call, result: result)
     }
     UNUserNotificationCenter.current().delegate = self
+    Attention.shared = self
   }
 
   /// The close button hides the window while the menu bar icon can bring it
@@ -242,13 +246,15 @@ final class Attention: NSObject, UNUserNotificationCenterDelegate {
         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
       else { continue }
-      rep.size = size
       NSGraphicsContext.saveGraphicsState()
       NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
       if let context = NSGraphicsContext.current?.cgContext {
         drawTray(in: context, pixels: CGFloat(18 * scale), dot: dot)
       }
       NSGraphicsContext.restoreGraphicsState()
+      // In points only once drawn: a context made for a rep of a size
+      // draws in its points, not its pixels.
+      rep.size = size
       image.addRepresentation(rep)
     }
     image.isTemplate = true

@@ -3,8 +3,11 @@ import FlutterMacOS
 
 @main
 class AppDelegate: FlutterAppDelegate {
+  /// Closing the window quits, unless the menu bar icon is up: the close
+  /// button only hides the window then, and AppKit counts a window ordered
+  /// out as closed (see Attention.swift).
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-    return true
+    return !(Attention.shared?.hidesOnClose ?? false)
   }
 
   /// A click on the Dock icon brings back the window the close button hid
