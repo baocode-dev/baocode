@@ -370,6 +370,11 @@ std::optional<LRESULT> Attention::HandleMessage(HWND window, UINT message,
     }
     return std::nullopt;
   }
+  if (message == WM_COPYDATA && !::IsWindowVisible(window)) {
+    // A second copy of the app hands this one what to open (see main.cpp):
+    // the window hidden to the tray comes back for it.
+    ::ShowWindow(window, SW_SHOW);
+  }
   if (message == taskbar_created_ && taskbar_created_ != 0) {
     // Explorer started again: the tray is new, and empty.
     if (icon_added_) {
