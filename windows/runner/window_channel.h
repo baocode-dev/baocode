@@ -15,7 +15,7 @@
 
 #include "caption_areas.h"
 
-// What Flutter asks of the window, over the `monad/window` channel: the
+// What Flutter asks of the window, over the `baocode/window` channel: the
 // methods the macOS app answers in MainFlutterWindow.swift, which are asked
 // for in lib/workspace/window_controls.dart.
 //

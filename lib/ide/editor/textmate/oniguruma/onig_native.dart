@@ -1,7 +1,7 @@
-/// Oniguruma's scanner, native/oniguruma/monad_onig.c, built by
+/// Oniguruma's scanner, native/oniguruma/baocode_onig.c, built by
 /// hook/build.dart for macOS, Linux and Windows. The calls a tokenizer makes
 /// per line and per match are leaf calls.
-@DefaultAsset('package:monad/ide/editor/textmate/oniguruma/onig_native.dart')
+@DefaultAsset('package:baocode/ide/editor/textmate/oniguruma/onig_native.dart')
 library;
 
 import 'dart:ffi';
@@ -14,24 +14,24 @@ final class OnigScannerHandle extends Opaque {}
 const onigErrorLength = 128;
 
 @Native<Pointer<Void> Function(Int64)>(
-  symbol: 'monad_onig_malloc',
+  symbol: 'baocode_onig_malloc',
   isLeaf: true,
 )
 external Pointer<Void> onigMalloc(int count);
 
-@Native<Void Function(Pointer<Void>)>(symbol: 'monad_onig_free', isLeaf: true)
+@Native<Void Function(Pointer<Void>)>(symbol: 'baocode_onig_free', isLeaf: true)
 external void onigFree(Pointer<Void> pointer);
 
-@Native<Int64 Function()>(symbol: 'monad_onig_next_string_id', isLeaf: true)
+@Native<Int64 Function()>(symbol: 'baocode_onig_next_string_id', isLeaf: true)
 external int onigNextStringId();
 
-@Native<Int32 Function()>(symbol: 'monad_onig_version', isLeaf: true)
+@Native<Int32 Function()>(symbol: 'baocode_onig_version', isLeaf: true)
 external int onigVersion();
 
 /// A scanner over [count] UTF-8 patterns laid end to end, with the index of
 /// the first invalid one (or -1) in [invalid] and its message in [error]
 /// ([onigErrorLength] bytes). An invalid pattern still makes a scanner, as in
-/// VS Code: see native/oniguruma/monad_onig.c.
+/// VS Code: see native/oniguruma/baocode_onig.c.
 @Native<
   Pointer<OnigScannerHandle> Function(
     Pointer<Uint8>,
@@ -40,7 +40,7 @@ external int onigVersion();
     Pointer<Int32>,
     Pointer<Uint8>,
   )
->(symbol: 'monad_onig_scanner_new')
+>(symbol: 'baocode_onig_scanner_new')
 external Pointer<OnigScannerHandle> onigScannerNew(
   Pointer<Uint8> patterns,
   Pointer<Int32> lengths,
@@ -51,7 +51,7 @@ external Pointer<OnigScannerHandle> onigScannerNew(
 
 /// Takes `Pointer<Void>` to serve as a [NativeFinalizer]'s callback.
 @Native<Void Function(Pointer<Void>)>(
-  symbol: 'monad_onig_scanner_free',
+  symbol: 'baocode_onig_scanner_free',
   isLeaf: true,
 )
 external void onigScannerFree(Pointer<Void> scanner);
@@ -59,13 +59,13 @@ external void onigScannerFree(Pointer<Void> scanner);
 /// The register count, then each register's UTF-8 start and end: read as
 /// unsigned, as vscode-oniguruma's `HEAPU32` does.
 @Native<Pointer<Uint32> Function(Pointer<OnigScannerHandle>)>(
-  symbol: 'monad_onig_scanner_result',
+  symbol: 'baocode_onig_scanner_result',
   isLeaf: true,
 )
 external Pointer<Uint32> onigScannerResult(Pointer<OnigScannerHandle> scanner);
 
 @Native<Int32 Function(Pointer<OnigScannerHandle>)>(
-  symbol: 'monad_onig_scanner_capacity',
+  symbol: 'baocode_onig_scanner_capacity',
   isLeaf: true,
 )
 external int onigScannerCapacity(Pointer<OnigScannerHandle> scanner);
@@ -80,7 +80,7 @@ external int onigScannerCapacity(Pointer<OnigScannerHandle> scanner);
     Int32,
     Int32,
   )
->(symbol: 'monad_onig_find_next', isLeaf: true)
+>(symbol: 'baocode_onig_find_next', isLeaf: true)
 external int onigFindNext(
   Pointer<OnigScannerHandle> scanner,
   int stringId,

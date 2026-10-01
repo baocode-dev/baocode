@@ -4,11 +4,11 @@
 // `registerLanguages`, and configuration files are strings instead of URIs.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/lifecycle.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/languages/modes_registry.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/services/languages_associations.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/services/languages_registry.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/tokens/line_tokens.dart';
+import 'package:baocode/ide/editor/monaco/vs/base/common/lifecycle.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/languages/modes_registry.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/services/languages_associations.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/services/languages_registry.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/tokens/line_tokens.dart';
 
 void main() {
   group('LanguagesRegistry', () {

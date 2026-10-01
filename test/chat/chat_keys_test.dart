@@ -5,21 +5,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_history_view.dart';
-import 'package:monad/chat/chat_models.dart';
-import 'package:monad/chat/chat_screen.dart';
-import 'package:monad/chat/chat_session.dart';
-import 'package:monad/chat/composer/composer_embeds.dart';
-import 'package:monad/chat/composer/composer_picker.dart';
-import 'package:monad/chat/composer/suggestion_menu.dart';
-import 'package:monad/chat/panels/interaction_panel.dart';
-import 'package:monad/kernel/agent_kernel.dart';
-import 'package:monad/kernel/kernel_types.dart';
-import 'package:monad/kernel/mock/mock_kernels.dart';
-import 'package:monad/keybindings/chat_keybindings.dart';
-import 'package:monad/keybindings/keybinding_entry.dart';
-import 'package:monad/keybindings/keybinding_service.dart';
-import 'package:monad/theme/app_theme.dart';
+import 'package:baocode/chat/chat_history_view.dart';
+import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/chat/composer/composer_embeds.dart';
+import 'package:baocode/chat/composer/composer_picker.dart';
+import 'package:baocode/chat/composer/suggestion_menu.dart';
+import 'package:baocode/chat/panels/interaction_panel.dart';
+import 'package:baocode/kernel/agent_kernel.dart';
+import 'package:baocode/kernel/kernel_types.dart';
+import 'package:baocode/kernel/mock/mock_kernels.dart';
+import 'package:baocode/keybindings/chat_keybindings.dart';
+import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
+import 'package:baocode/theme/app_theme.dart';
 
 Future<ChatSession> pumpChat(
   WidgetTester tester, {

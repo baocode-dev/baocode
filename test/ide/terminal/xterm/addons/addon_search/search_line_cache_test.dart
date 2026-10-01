@@ -12,10 +12,10 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_search/search_line_cache.dart';
-import 'package:monad/ide/terminal/xterm/common/async.dart';
-import 'package:monad/ide/terminal/xterm/headless/public/terminal.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm_headless.dart'
+import 'package:baocode/ide/terminal/xterm/addons/addon_search/search_line_cache.dart';
+import 'package:baocode/ide/terminal/xterm/common/async.dart';
+import 'package:baocode/ide/terminal/xterm/headless/public/terminal.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
     show ITerminalOptions;
 
 Future<void> writeP(Terminal terminal, String data) {

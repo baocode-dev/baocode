@@ -53,7 +53,7 @@ class MainFlutterWindow: NSWindow {
 
     // Window controls the Flutter side asks for (see window_controls.dart).
     let channel = FlutterMethodChannel(
-      name: "monad/window",
+      name: "baocode/window",
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
     self.channel = channel
@@ -170,7 +170,7 @@ class MainFlutterWindow: NSWindow {
 
   private var channel: FlutterMethodChannel?
 
-  private static let darkAppearanceKey = "MonadDarkAppearance"
+  private static let darkAppearanceKey = "BaoCodeDarkAppearance"
 
   /// Whether the last color theme was dark; dark the first time.
   private static var keptDarkAppearance: Bool {
@@ -226,12 +226,12 @@ class MainFlutterWindow: NSWindow {
   // engine's hidden text view, which edits nothing shown, or at nothing.
   // They come here too when a shortcut Flutter did not take matches them.
 
-  @objc func monadUndo(_ sender: Any?) { editCommand("undo") }
-  @objc func monadRedo(_ sender: Any?) { editCommand("redo") }
-  @objc func monadCut(_ sender: Any?) { editCommand("cut") }
-  @objc func monadCopy(_ sender: Any?) { editCommand("copy") }
-  @objc func monadPaste(_ sender: Any?) { editCommand("paste") }
-  @objc func monadSelectAll(_ sender: Any?) { editCommand("selectAll") }
+  @objc func baocodeUndo(_ sender: Any?) { editCommand("undo") }
+  @objc func baocodeRedo(_ sender: Any?) { editCommand("redo") }
+  @objc func baocodeCut(_ sender: Any?) { editCommand("cut") }
+  @objc func baocodeCopy(_ sender: Any?) { editCommand("copy") }
+  @objc func baocodePaste(_ sender: Any?) { editCommand("paste") }
+  @objc func baocodeSelectAll(_ sender: Any?) { editCommand("selectAll") }
 
   private func editCommand(_ command: String) {
     channel?.invokeMethod("editCommand", arguments: command)
@@ -239,7 +239,7 @@ class MainFlutterWindow: NSWindow {
 
   // The app menu's Preferences… (⌘,): the app's settings, which ⌘, opens
   // too while Flutter takes the key (it comes here when Flutter did not).
-  @objc func monadPreferences(_ sender: Any?) {
+  @objc func baocodePreferences(_ sender: Any?) {
     channel?.invokeMethod("menuCommand", arguments: "workbench.action.openSettings")
   }
 

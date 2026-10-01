@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/language_assets.dart';
+import 'package:baocode/ide/editor/monaco/flutter/language_assets.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -14,9 +14,9 @@ void main(List<String> arguments) async {
     final os = input.config.code.targetOS;
     if (os == OS.macOS || os == OS.linux) {
       await CBuilder.library(
-        name: 'monad_pty',
+        name: 'baocode_pty',
         assetName: 'ide/terminal/pty_native.dart',
-        sources: ['native/pty/monad_pty.c'],
+        sources: ['native/pty/baocode_pty.c'],
         frameworks: const [],
         flags: const ['-Wall', '-Wextra'],
       ).run(input: input, output: output);
@@ -26,10 +26,10 @@ void main(List<String> arguments) async {
         await configureWindowsCompiler(input.config);
       }
       await CBuilder.library(
-        name: 'monad_onig',
+        name: 'baocode_onig',
         assetName: 'ide/editor/textmate/oniguruma/onig_native.dart',
         sources: [
-          'native/oniguruma/monad_onig.c',
+          'native/oniguruma/baocode_onig.c',
           for (final source in _oniguruma) 'native/oniguruma/onig/src/$source',
         ],
         includes: const [

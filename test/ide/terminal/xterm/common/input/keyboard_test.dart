@@ -3,8 +3,8 @@
 // Adapted from xterm.js src/common/input/Keyboard.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/input/keyboard.dart';
-import 'package:monad/ide/terminal/xterm/common/types.dart';
+import 'package:baocode/ide/terminal/xterm/common/input/keyboard.dart';
+import 'package:baocode/ide/terminal/xterm/common/types.dart';
 
 /// A helper function for testing which allows passing in a partial event and
 /// defaults will be filled in on it.

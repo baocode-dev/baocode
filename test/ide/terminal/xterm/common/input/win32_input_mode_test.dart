@@ -3,8 +3,8 @@
 // Adapted from xterm.js src/common/input/Win32InputMode.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/input/win32_input_mode.dart';
-import 'package:monad/ide/terminal/xterm/common/types.dart';
+import 'package:baocode/ide/terminal/xterm/common/input/win32_input_mode.dart';
+import 'package:baocode/ide/terminal/xterm/common/types.dart';
 
 /// Upstream spreads a `Partial<IKeyboardEvent>` over the defaults; here its
 /// fields are named parameters.

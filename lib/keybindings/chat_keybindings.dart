@@ -11,7 +11,7 @@
 // src/vs/editor/contrib/suggest/browser/suggestController.ts (the suggest
 // widget's keys, for the @ and / menu); the context keys are upstream's
 // (src/vs/workbench/contrib/chat/common/actions/chatContextKeys.ts) where
-// Monad has the same.
+// BaoCode has the same.
 //
 // Deviations:
 // - New Chat starts a new agent, anywhere in the chat window (upstream: in
@@ -29,10 +29,10 @@
 //   menu; Add Context… types `@`, which lists the files and context to
 //   mention.
 // - The @ and / menu's keys are commands of their own
-//   (`monad.chat.*Suggestion*`), not the editor's suggest widget's; the chat
+//   (`baocode.chat.*Suggestion*`), not the editor's suggest widget's; the chat
 //   history's are the list's (`list.focusDown`, …), which scroll it.
-// - Monad's own: the agents and the panes they show in, a prompt's options
-//   (`monad.chat.*`).
+// - BaoCode's own: the agents and the panes they show in, a prompt's options
+//   (`baocode.chat.*`).
 
 import 'default_keybindings.dart' show CommandInfo;
 import 'keybinding_entry.dart';
@@ -41,19 +41,19 @@ import 'keybinding_entry.dart';
 abstract final class ChatCommandIds {
   // The window's: its agents and panes.
   static const newChat = 'workbench.action.chat.newChat';
-  static const closePane = 'monad.chat.closePane';
-  static const nextAgent = 'monad.chat.nextAgent';
-  static const previousAgent = 'monad.chat.previousAgent';
+  static const closePane = 'baocode.chat.closePane';
+  static const nextAgent = 'baocode.chat.nextAgent';
+  static const previousAgent = 'baocode.chat.previousAgent';
 
   /// Followed by 1 to 9: the agent at that place in the sidebar.
-  static const openAgentAtIndex = 'monad.chat.openAgentAtIndex';
+  static const openAgentAtIndex = 'baocode.chat.openAgentAtIndex';
 
   /// Followed by 1 to 4: the pane at that place, row by row.
-  static const focusPane = 'monad.chat.focusPane';
-  static const focusNextPane = 'monad.chat.focusNextPane';
-  static const focusPreviousPane = 'monad.chat.focusPreviousPane';
-  static const searchAgents = 'monad.chat.searchAgents';
-  static const openIde = 'monad.chat.openIde';
+  static const focusPane = 'baocode.chat.focusPane';
+  static const focusNextPane = 'baocode.chat.focusNextPane';
+  static const focusPreviousPane = 'baocode.chat.focusPreviousPane';
+  static const searchAgents = 'baocode.chat.searchAgents';
+  static const openIde = 'baocode.chat.openIde';
 
   // A chat's (see ChatScreen).
   static const focusInput = 'workbench.action.chat.focusInput';
@@ -61,32 +61,33 @@ abstract final class ChatCommandIds {
   static const cancel = 'workbench.action.chat.cancel';
   static const acceptTool = 'workbench.action.chat.acceptTool';
   static const skipTool = 'workbench.action.chat.skipTool';
-  static const toggleContextPanel = 'monad.chat.toggleContextPanel';
-  static const renameAgent = 'monad.chat.renameAgent';
-  static const closeSubagent = 'monad.chat.closeSubagent';
+  static const toggleContextPanel = 'baocode.chat.toggleContextPanel';
+  static const renameAgent = 'baocode.chat.renameAgent';
+  static const closeSubagent = 'baocode.chat.closeSubagent';
 
   // Its input's (see ChatComposer).
   static const submit = 'workbench.action.chat.submit';
   static const cancelEdit = 'workbench.edit.chat.cancel';
-  static const showPreviousPrompt = 'monad.chat.showPreviousPrompt';
-  static const showNextPrompt = 'monad.chat.showNextPrompt';
-  static const acceptPromptSuggestion = 'monad.chat.acceptPromptSuggestion';
+  static const showPreviousPrompt = 'baocode.chat.showPreviousPrompt';
+  static const showNextPrompt = 'baocode.chat.showNextPrompt';
+  static const acceptPromptSuggestion = 'baocode.chat.acceptPromptSuggestion';
   static const openModePicker = 'workbench.action.chat.openModePicker';
   static const openModelPicker = 'workbench.action.chat.openModelPicker';
   static const attachContext = 'workbench.action.chat.attachContext';
-  static const selectNextSuggestion = 'monad.chat.selectNextSuggestion';
-  static const selectPrevSuggestion = 'monad.chat.selectPrevSuggestion';
-  static const acceptSelectedSuggestion = 'monad.chat.acceptSelectedSuggestion';
-  static const hideSuggestWidget = 'monad.chat.hideSuggestWidget';
+  static const selectNextSuggestion = 'baocode.chat.selectNextSuggestion';
+  static const selectPrevSuggestion = 'baocode.chat.selectPrevSuggestion';
+  static const acceptSelectedSuggestion =
+      'baocode.chat.acceptSelectedSuggestion';
+  static const hideSuggestWidget = 'baocode.chat.hideSuggestWidget';
 
   // A prompt's options: a question, a tool's approval, a plan (see
   // InteractionPanel).
-  static const interactionFocusNext = 'monad.chat.interaction.focusNext';
+  static const interactionFocusNext = 'baocode.chat.interaction.focusNext';
   static const interactionFocusPrevious =
-      'monad.chat.interaction.focusPrevious';
-  static const interactionToggle = 'monad.chat.interaction.toggle';
-  static const interactionAccept = 'monad.chat.interaction.accept';
-  static const interactionDismiss = 'monad.chat.interaction.dismiss';
+      'baocode.chat.interaction.focusPrevious';
+  static const interactionToggle = 'baocode.chat.interaction.toggle';
+  static const interactionAccept = 'baocode.chat.interaction.accept';
+  static const interactionDismiss = 'baocode.chat.interaction.dismiss';
 
   /// How many agents [openAgentAtIndex] reaches, and panes [focusPane].
   static const agentIndexes = 9;

@@ -3,8 +3,8 @@
 // Adapted from xterm.js src/common/SortedList.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/services/services.dart';
-import 'package:monad/ide/terminal/xterm/common/sorted_list.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
+import 'package:baocode/ide/terminal/xterm/common/sorted_list.dart';
 
 /// Upstream's `MockLogService` from TestUtils.test.ts, which is ported
 /// separately.

@@ -3,10 +3,10 @@
 // Adapted from xterm.js src/common/services/BufferService.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/attribute_data.dart';
-import 'package:monad/ide/terminal/xterm/common/services/buffer_service.dart';
-import 'package:monad/ide/terminal/xterm/common/services/options_service.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm.dart'
+import 'package:baocode/ide/terminal/xterm/common/buffer/attribute_data.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/buffer_service.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/options_service.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
     show ITerminalOptions;
 
 import '../test_utils.dart';

@@ -179,7 +179,7 @@ abstract class AppLocalizations {
   /// No description provided for @languageSettingsDescription.
   ///
   /// In en, this message translates to:
-  /// **'The language of Monad\'s menus, views and messages. Changes apply at once.'**
+  /// **'The language of BaoCode\'s menus, views and messages. Changes apply at once.'**
   String get languageSettingsDescription;
 
   /// No description provided for @languageSettingsFollowSystem.
@@ -2618,11 +2618,11 @@ abstract class AppLocalizations {
   /// **'Context Panel'**
   String get menuContextPanel;
 
-  /// No description provided for @menuAboutMonad.
+  /// No description provided for @menuAboutBaoCode.
   ///
   /// In en, this message translates to:
-  /// **'About Monad'**
-  String get menuAboutMonad;
+  /// **'About BaoCode'**
+  String get menuAboutBaoCode;
 
   /// Tooltip.
   ///
@@ -6246,7 +6246,7 @@ abstract class AppLocalizations {
   /// No description provided for @kbUnknownContextKeys.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{Monad does not know the context key {keys}: this keybinding never applies.} other{Monad does not know the context keys {keys}: this keybinding never applies.}}'**
+  /// **'{count, plural, =1{BaoCode does not know the context key {keys}: this keybinding never applies.} other{BaoCode does not know the context keys {keys}: this keybinding never applies.}}'**
   String kbUnknownContextKeys(int count, String keys);
 
   /// No description provided for @kbChangeFailed.
@@ -6384,7 +6384,7 @@ abstract class AppLocalizations {
   /// No description provided for @kbCannotReadKey.
   ///
   /// In en, this message translates to:
-  /// **'Monad cannot read the key “{key}”: this keybinding never applies.'**
+  /// **'BaoCode cannot read the key “{key}”: this keybinding never applies.'**
   String kbCannotReadKey(String key);
 
   /// No description provided for @kbNotSupported.
@@ -6396,7 +6396,7 @@ abstract class AppLocalizations {
   /// No description provided for @kbNotSupportedHover.
   ///
   /// In en, this message translates to:
-  /// **'Monad does not have this command: the keybinding is kept, but does nothing.'**
+  /// **'BaoCode does not have this command: the keybinding is kept, but does nothing.'**
   String get kbNotSupportedHover;
 
   /// No description provided for @kbPressKeys.
@@ -6480,37 +6480,37 @@ abstract class AppLocalizations {
   /// No description provided for @dataDirAlreadyHolds.
   ///
   /// In en, this message translates to:
-  /// **'The folder already holds Monad data'**
+  /// **'The folder already holds BaoCode data'**
   String get dataDirAlreadyHolds;
 
   /// No description provided for @dataDirMoveBack.
   ///
   /// In en, this message translates to:
-  /// **'Move Monad\'s data back to the default folder?'**
+  /// **'Move BaoCode\'s data back to the default folder?'**
   String get dataDirMoveBack;
 
   /// No description provided for @dataDirMoveHere.
   ///
   /// In en, this message translates to:
-  /// **'Move Monad\'s data to this folder?'**
+  /// **'Move BaoCode\'s data to this folder?'**
   String get dataDirMoveHere;
 
   /// No description provided for @dataDirUseAsIsDetail.
   ///
   /// In en, this message translates to:
-  /// **'After a restart Monad uses the data there as it is; nothing is copied, and the current folder keeps yours.'**
+  /// **'After a restart BaoCode uses the data there as it is; nothing is copied, and the current folder keeps yours.'**
   String get dataDirUseAsIsDetail;
 
   /// No description provided for @dataDirCopyDetail.
   ///
   /// In en, this message translates to:
-  /// **'Monad copies its settings, keybindings, language servers and state there, and uses that folder after a restart.'**
+  /// **'BaoCode copies its settings, keybindings, language servers and state there, and uses that folder after a restart.'**
   String get dataDirCopyDetail;
 
   /// No description provided for @dataDirOtherFiles.
   ///
   /// In en, this message translates to:
-  /// **'The folder holds other files: they stay, beside Monad\'s own.'**
+  /// **'The folder holds other files: they stay, beside BaoCode\'s own.'**
   String get dataDirOtherFiles;
 
   /// No description provided for @dataDirUseItsData.
@@ -6546,13 +6546,13 @@ abstract class AppLocalizations {
   /// No description provided for @dataDirRestartTitle.
   ///
   /// In en, this message translates to:
-  /// **'Restart Monad to use the new data folder'**
+  /// **'Restart BaoCode to use the new data folder'**
   String get dataDirRestartTitle;
 
   /// No description provided for @dataDirRestartDetail.
   ///
   /// In en, this message translates to:
-  /// **'Monad keeps using {current} until it restarts. The next start uses {next}, and offers to remove what is left in the old one.'**
+  /// **'BaoCode keeps using {current} until it restarts. The next start uses {next}, and offers to remove what is left in the old one.'**
   String dataDirRestartDetail(String current, String next);
 
   /// No description provided for @dataDirTheNewFolder.
@@ -6606,7 +6606,7 @@ abstract class AppLocalizations {
   /// No description provided for @dataDirDescription.
   ///
   /// In en, this message translates to:
-  /// **'Where Monad keeps your settings, keybindings, language servers and its own state. Other programs keep files there too (the web view\'s caches); Monad never moves or removes those.'**
+  /// **'Where BaoCode keeps your settings, keybindings, language servers and its own state. Other programs keep files there too (the web view\'s caches); BaoCode never moves or removes those.'**
   String get dataDirDescription;
 
   /// No description provided for @dataDirCurrentFolder.
@@ -6648,19 +6648,19 @@ abstract class AppLocalizations {
   /// No description provided for @dataDirSettingUnreadable.
   ///
   /// In en, this message translates to:
-  /// **'Monad\'s data folder setting cannot be read'**
+  /// **'BaoCode\'s data folder setting cannot be read'**
   String get dataDirSettingUnreadable;
 
   /// No description provided for @dataDirCannotWrite.
   ///
   /// In en, this message translates to:
-  /// **'Monad cannot write to its data folder'**
+  /// **'BaoCode cannot write to its data folder'**
   String get dataDirCannotWrite;
 
   /// No description provided for @dataDirUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'Monad\'s data folder is not available'**
+  /// **'BaoCode\'s data folder is not available'**
   String get dataDirUnavailable;
 
   /// No description provided for @dataDirWhereEnv.
@@ -6672,7 +6672,7 @@ abstract class AppLocalizations {
   /// No description provided for @dataDirWhereFixPointer.
   ///
   /// In en, this message translates to:
-  /// **'Fix or delete {file} and try again; Monad changes it only if you choose another folder.'**
+  /// **'Fix or delete {file} and try again; BaoCode changes it only if you choose another folder.'**
   String dataDirWhereFixPointer(String file);
 
   /// No description provided for @dataDirWherePointer.
@@ -6708,13 +6708,13 @@ abstract class AppLocalizations {
   /// No description provided for @dataDirRemoveOldTitle.
   ///
   /// In en, this message translates to:
-  /// **'Remove the data Monad left in its previous folder?'**
+  /// **'Remove the data BaoCode left in its previous folder?'**
   String get dataDirRemoveOldTitle;
 
   /// No description provided for @dataDirRemoveOldDetail.
   ///
   /// In en, this message translates to:
-  /// **'Monad now keeps its data in {current}. Only its own items are removed from the previous folder ({items}); the folder and everything else in it stay.'**
+  /// **'BaoCode now keeps its data in {current}. Only its own items are removed from the previous folder ({items}); the folder and everything else in it stay.'**
   String dataDirRemoveOldDetail(String current, String items);
 
   /// No description provided for @dataDirRemove.

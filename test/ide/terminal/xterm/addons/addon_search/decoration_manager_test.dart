@@ -11,12 +11,12 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_search/decoration_manager.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_search/search_engine.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_search/search_line_cache.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_search/typings/addon_search.dart';
-import 'package:monad/ide/terminal/xterm/common/lifecycle.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm.dart'
+import 'package:baocode/ide/terminal/xterm/addons/addon_search/decoration_manager.dart';
+import 'package:baocode/ide/terminal/xterm/addons/addon_search/search_engine.dart';
+import 'package:baocode/ide/terminal/xterm/addons/addon_search/search_line_cache.dart';
+import 'package:baocode/ide/terminal/xterm/addons/addon_search/typings/addon_search.dart';
+import 'package:baocode/ide/terminal/xterm/common/lifecycle.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
     show IDecorationOptions, ITerminalOptions;
 
 import 'search_test_terminal.dart';

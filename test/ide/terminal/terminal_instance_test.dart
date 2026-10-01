@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/pty.dart';
-import 'package:monad/ide/terminal/terminal_instance.dart';
-import 'package:monad/ide/terminal/terminal_keyboard.dart';
+import 'package:baocode/ide/terminal/pty.dart';
+import 'package:baocode/ide/terminal/terminal_instance.dart';
+import 'package:baocode/ide/terminal/terminal_keyboard.dart';
 
 import 'fake_pty.dart';
 import 'fake_terminal.dart';

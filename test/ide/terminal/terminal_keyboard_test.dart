@@ -1,12 +1,14 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show KeyEventResult;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/terminal_clipboard.dart';
-import 'package:monad/ide/terminal/terminal_keyboard.dart';
-import 'package:monad/ide/terminal/terminal_selection.dart';
-import 'package:monad/ide/terminal/xterm/common/input/kitty_keyboard.dart';
-import 'package:monad/ide/terminal/xterm/common/types.dart' show IKeyboardEvent;
-import 'package:monad/ide/terminal/xterm/typings/xterm.dart' show IVtExtensions;
+import 'package:baocode/ide/terminal/terminal_clipboard.dart';
+import 'package:baocode/ide/terminal/terminal_keyboard.dart';
+import 'package:baocode/ide/terminal/terminal_selection.dart';
+import 'package:baocode/ide/terminal/xterm/common/input/kitty_keyboard.dart';
+import 'package:baocode/ide/terminal/xterm/common/types.dart'
+    show IKeyboardEvent;
+import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
+    show IVtExtensions;
 
 import 'xterm/common/test_utils.dart';
 

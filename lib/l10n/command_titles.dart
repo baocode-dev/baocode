@@ -59,14 +59,14 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'workbench.action.navigateForward' => l10n.cmdGoForward,
     'workbench.action.selectTheme' => l10n.cmdColorTheme,
     // Its title says what running it does.
-    'monad.ide.toggleFormatOnSave' =>
+    'baocode.ide.toggleFormatOnSave' =>
       english.startsWith('Turn Off')
           ? l10n.cmdTurnOffFormatOnSave
           : english.startsWith('Turn On')
           ? l10n.cmdTurnOnFormatOnSave
           : l10n.cmdToggleFormatOnSave,
-    'monad.ide.retryLanguageServices' => l10n.cmdRetryLanguageServices,
-    'monad.ide.backToChat' => l10n.cmdBackToChat,
+    'baocode.ide.retryLanguageServices' => l10n.cmdRetryLanguageServices,
+    'baocode.ide.backToChat' => l10n.cmdBackToChat,
     'workbench.action.openSettings' => l10n.cmdOpenSettings,
     'workbench.action.openGlobalKeybindings' => l10n.cmdOpenKeyboardShortcuts,
     // The chat's (chatExtraCommands).

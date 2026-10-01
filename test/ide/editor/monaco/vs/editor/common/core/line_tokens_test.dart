@@ -11,8 +11,8 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/tokens/line_tokens.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/encoded_token_attributes.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/tokens/line_tokens.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/encoded_token_attributes.dart';
 
 final class _Codec implements ILanguageIdCodec {
   const _Codec();

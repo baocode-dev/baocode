@@ -8,9 +8,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/terminal_custom_glyphs.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_webgl/custom_glyphs/custom_glyph_definitions.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_webgl/custom_glyphs/types.dart';
+import 'package:baocode/ide/terminal/terminal_custom_glyphs.dart';
+import 'package:baocode/ide/terminal/xterm/addons/addon_webgl/custom_glyphs/custom_glyph_definitions.dart';
+import 'package:baocode/ide/terminal/xterm/addons/addon_webgl/custom_glyphs/types.dart';
 
 const _white = Color(0xFFFFFFFF);
 

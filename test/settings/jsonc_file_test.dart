@@ -1,12 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/platform/data_dir.dart';
-import 'package:monad/settings/jsonc_file.dart';
-import 'package:monad/settings/user_settings.dart';
-import 'package:monad/theme/workbench_theme.dart';
-import 'package:monad/workspace/preference_store.dart';
-import 'package:monad/workspace/workspace.dart';
+import 'package:baocode/platform/data_dir.dart';
+import 'package:baocode/settings/jsonc_file.dart';
+import 'package:baocode/settings/user_settings.dart';
+import 'package:baocode/theme/workbench_theme.dart';
+import 'package:baocode/workspace/preference_store.dart';
+import 'package:baocode/workspace/workspace.dart';
 import 'package:path/path.dart' as p;
 
 /// Settings files read leniently, kept up to date as they change on disk,
@@ -14,7 +14,7 @@ import 'package:path/path.dart' as p;
 void main() {
   late Directory dir;
 
-  setUp(() => dir = Directory.systemTemp.createTempSync('monad-jsonc-file'));
+  setUp(() => dir = Directory.systemTemp.createTempSync('baocode-jsonc-file'));
   tearDown(() => dir.deleteSync(recursive: true));
 
   String path(String name) => p.join(dir.path, name);
@@ -227,7 +227,7 @@ void main() {
       expect(argv.read(), 'zh-cn');
 
       File(argv.path).writeAsStringSync(
-        '// Monad reads this first.\n{\n  "locale": "en", // English\n}\n',
+        '// BaoCode reads this first.\n{\n  "locale": "en", // English\n}\n',
       );
       final next = ArgvSettings(argv.path)..loadSync();
       addTearDown(next.dispose);
@@ -235,7 +235,7 @@ void main() {
       await next.write(null);
       expect(
         File(argv.path).readAsStringSync(),
-        '// Monad reads this first.\n{\n}\n',
+        '// BaoCode reads this first.\n{\n}\n',
       );
       expect(next.locale, isNull);
     });

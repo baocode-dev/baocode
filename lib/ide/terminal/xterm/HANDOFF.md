@@ -5,7 +5,7 @@
 ## 分层
 
 - **PTY**：`lib/ide/terminal/pty*.dart`，外加一层很薄的原生代码。网页版没有 PTY。
-  - macOS/Linux：`native/pty/monad_pty.c`（forkpty 之类的一小段 C），由 `hook/build.dart` 用 Dart 的 build hook（native assets）编译成 `monad_pty.framework`。
+  - macOS/Linux：`native/pty/baocode_pty.c`（forkpty 之类的一小段 C），由 `hook/build.dart` 用 Dart 的 build hook（native assets）编译成 `baocode_pty.framework`。
   - Windows：ConPTY，直接用 `dart:ffi` 调 kernel32，没有原生库。输出和进程退出在 UI isolate 上轮询，没有 isolate 停在阻塞调用里（原因见“已知问题”里 Dart 分析器那条）。
 - **内核**：`lib/ide/terminal/xterm/`，是 xterm.js 无界面部分的纯 Dart 移植，网页版也能编译。
 - **渲染和交互**：`lib/ide/terminal/`，用 Flutter 自己画。
@@ -30,7 +30,7 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 - 移植目标锁定在上面的 commit，不追 xterm.js 新版本。
 - TypeScript 装饰器实现的依赖注入不移植。各 service 的依赖改由构造函数传入，由 `CoreTerminal` 负责组装（见 PORTING.md 的约定）。
 - 渲染层用内部的 `Terminal`（`xterm/headless/terminal.dart`），和 xterm.js 浏览器版一样是 `CoreTerminal` 的子类；公开的 `Terminal` 给插件和照搬 VS Code 的代码用（`publicTerminal.core` 拿到内部对象）。
-- 原生构建用 Dart build hook：`pubspec.yaml` 加了 `hooks`、`code_assets`、`native_toolchain_c` 三个依赖（版本与 Flutter 工具自带的一致）。`tool/build_macos.dart` 会检查产物里有 `monad_pty.framework`。
+- 原生构建用 Dart build hook：`pubspec.yaml` 加了 `hooks`、`code_assets`、`native_toolchain_c` 三个依赖（版本与 Flutter 工具自带的一致）。`tool/build_macos.dart` 会检查产物里有 `baocode_pty.framework`。
 - ⌘J 仍是聊天区的开关；VS Code 的“切换面板”命令保留但不绑快捷键，终端用 ⌃\` 开关。
 - 标签列表照 VS Code 默认的 `terminal.integrated.tabs.focusMode`（`doubleClick`）：单击选中，双击把键盘交给终端；重命名用 F2（macOS 上是 Enter）或右键菜单。
 - 每个 `TerminalInstance` 自己持有内核 `Terminal`、装饰服务、渲染数据源和键盘、鼠标、选择、剪贴板四个控制器；视图只在显示时接上它们。这样切到别的标签，后台终端照样解析输出，选区也保留。
@@ -66,7 +66,7 @@ xterm.js commit `c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2`（`@xterm/xterm` 6.1.
 
 以下都先按合理的默认做了，需要时再改：
 
-1. `TERM_PROGRAM` 设成 `monad`，不是 `vscode`。有些程序会按 `vscode` 做特殊处理，好处是兼容，坏处是冒充。
+1. `TERM_PROGRAM` 设成 `baocode`，不是 `vscode`。有些程序会按 `vscode` 做特殊处理，好处是兼容，坏处是冒充。
 2. Windows 上不设 `TERM`，与 VS Code、node-pty 一致。
 3. 没有设 `TERM_PROGRAM_VERSION`，应用版本还没接进来（`terminalEnvironment(version:)` 已经能接收）。
 4. native assets 要求 macOS 13，而 Runner 的最低版本是 12.0：在 macOS 12 上 `ptySupported` 为 false，没有终端。可以把最低版本提到 13，或者接受。

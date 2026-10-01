@@ -150,7 +150,7 @@ abstract final class PtyProcesses {
 }
 
 /// A process on a pseudo terminal of macOS or Linux, forked by
-/// native/pty/monad_pty.c.
+/// native/pty/baocode_pty.c.
 ///
 /// A helper isolate waits on the terminal and on the process: it sends what
 /// the terminal gives, then the exit code, and last that it is done; only
@@ -196,7 +196,7 @@ final class _PosixPty extends Pty {
     if (!supported) {
       throw const PtyException(
         'The terminal is missing its native library',
-        detail: 'monad_pty was not built.',
+        detail: 'baocode_pty was not built.',
       );
     }
     final cwd = launch.workingDirectory;

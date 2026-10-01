@@ -5,9 +5,9 @@
 // foldingRanges}.test.ts.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/languages/language_configuration.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/contrib/folding/browser/folding_ranges.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/contrib/folding/browser/indent_range_provider.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/languages/language_configuration.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/contrib/folding/browser/folding_ranges.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/contrib/folding/browser/indent_range_provider.dart';
 
 class _Lines implements FoldingLineSource {
   _Lines(this.lines);

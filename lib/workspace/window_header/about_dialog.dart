@@ -8,18 +8,18 @@ import '../../theme/workbench_theme.dart' show themeColors;
 /// The version this build is of, as pubspec.yaml says; kept here rather than
 /// read at runtime, which would mean another package for one line. A test
 /// holds the two together.
-const monadVersion = '1.0.0';
+const baocodeVersion = '1.0.0';
 
 /// Help → About: what the app is, and which build this is.
-Future<void> showAboutMonad(BuildContext context) => showDialog<void>(
+Future<void> showAboutBaoCode(BuildContext context) => showDialog<void>(
   context: context,
   // Black, not the theme's: as upstream's dialogs dim the window.
   barrierColor: const Color(0x88000000),
-  builder: (context) => const _AboutMonadDialog(),
+  builder: (context) => const _AboutBaoCodeDialog(),
 );
 
-class _AboutMonadDialog extends StatelessWidget {
-  const _AboutMonadDialog();
+class _AboutBaoCodeDialog extends StatelessWidget {
+  const _AboutBaoCodeDialog();
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +59,7 @@ class _AboutMonadDialog extends StatelessWidget {
                 ),
                 SizedBox(width: 9),
                 Text(
-                  'Monad',
+                  'BaoCode',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 15,
@@ -68,7 +68,7 @@ class _AboutMonadDialog extends StatelessWidget {
                 ),
                 SizedBox(width: 10),
                 Text(
-                  monadVersion,
+                  baocodeVersion,
                   style: TextStyle(
                     color: AppColors.textFaint,
                     fontSize: 12,

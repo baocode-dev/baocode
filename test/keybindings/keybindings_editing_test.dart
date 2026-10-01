@@ -1,12 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/keybindings/key_chord.dart';
-import 'package:monad/keybindings/keybinding_entry.dart';
-import 'package:monad/keybindings/keybinding_service.dart';
-import 'package:monad/keybindings/keybindings_editing.dart';
-import 'package:monad/settings/jsonc.dart';
-import 'package:monad/settings/jsonc_file.dart';
+import 'package:baocode/keybindings/key_chord.dart';
+import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
+import 'package:baocode/keybindings/keybindings_editing.dart';
+import 'package:baocode/settings/jsonc.dart';
+import 'package:baocode/settings/jsonc_file.dart';
 import 'package:path/path.dart' as p;
 
 const _toggleSidebar = 'workbench.action.toggleSidebarVisibility';
@@ -59,7 +59,7 @@ void main() {
   KeySequence keys(String text) => KeySequence.parse(text)!;
 
   setUp(() {
-    temp = Directory.systemTemp.createTempSync('monad-keybindings-editing');
+    temp = Directory.systemTemp.createTempSync('baocode-keybindings-editing');
     path = p.join(temp.path, 'User', 'keybindings.json');
     Directory(p.dirname(path)).createSync(recursive: true);
     file = JsoncFile(path);

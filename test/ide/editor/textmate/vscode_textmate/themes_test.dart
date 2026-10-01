@@ -6,9 +6,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/textmate/vscode_textmate/main.dart';
-import 'package:monad/ide/editor/textmate/vscode_textmate/theme.dart';
-import 'package:monad/ide/editor/textmate/vscode_textmate/utils.dart';
+import 'package:baocode/ide/editor/textmate/vscode_textmate/main.dart';
+import 'package:baocode/ide/editor/textmate/vscode_textmate/theme.dart';
+import 'package:baocode/ide/editor/textmate/vscode_textmate/utils.dart';
 
 import 'support/fixtures.dart';
 import 'support/onig.dart';
@@ -324,14 +324,10 @@ void main() {
 
     for (final testFile in testFiles) {
       final tst = ThemeTest(testFile, themeData, resolver);
-      test(
-        tst.testName,
-        () async {
-          await tst.evaluate();
-          expect(tst.actual, tst.expected);
-        },
-        timeout: const Timeout(Duration(seconds: 120)),
-      );
+      test(tst.testName, () async {
+        await tst.evaluate();
+        expect(tst.actual, tst.expected);
+      }, timeout: const Timeout(Duration(seconds: 120)));
     }
   });
 

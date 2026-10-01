@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/keybindings/import_dialog.dart';
-import 'package:monad/keybindings/keybinding_entry.dart';
-import 'package:monad/keybindings/vscode_import.dart';
+import 'package:baocode/keybindings/import_dialog.dart';
+import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:baocode/keybindings/vscode_import.dart';
 
 const _code = KeybindingsSource(
   product: VsCodeProduct.code,

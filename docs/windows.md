@@ -9,7 +9,7 @@ does the same way, and where it differs.
 windows/
   runner/
     main.cpp                 window size, centre, minimum size
-    flutter_window.cpp       hosts Flutter; wires monad/window; the window's
+    flutter_window.cpp       hosts Flutter; wires baocode/window; the window's
                              parts: hit test, move, resize, its buttons
     window_channel.cpp       setAlwaysOnTop, pickDirectory, clipboard,
                              context menu, ShellExecute open
@@ -25,7 +25,7 @@ lib/
   kernel/claude_code/        CLI find + start, config and temp dirs
 ```
 
-## Same channel as macOS: `monad/window`
+## Same channel as macOS: `baocode/window`
 
 | Method | Windows |
 | --- | --- |
@@ -36,7 +36,7 @@ lib/
 | `showContextMenu` | system popup; shortcuts shown as Ctrl+… |
 | `open` | `ShellExecuteW` (PATH finds `code` / `cursor` / `wt`) |
 
-Edit-menu bridging (`editCommand` / `monadSelectAll:` …) is **macOS only**.
+Edit-menu bridging (`editCommand` / `baocodeSelectAll:` …) is **macOS only**.
 Windows has no app menu bar for those; Flutter handles Ctrl+A/C/V itself
 (`WindowControls.hasEditMenu`).
 
@@ -71,8 +71,8 @@ Default client size 1024×760, minimum 400×540 — same numbers as
 
 | Concern | Windows |
 | --- | --- |
-| Preferences | `%APPDATA%\monad\preferences.json` |
-| Claude config | `%USERPROFILE%\.claude` (or `MONAD_CLAUDE_PATH` / `CLAUDE_CONFIG_DIR`) |
+| Preferences | `%APPDATA%\baocode\preferences.json` |
+| Claude config | `%USERPROFILE%\.claude` (or `BAOCODE_CLAUDE_PATH` / `CLAUDE_CONFIG_DIR`) |
 | Task temp | `Directory.systemTemp` (not `/tmp`) |
 | Finding `claude` | PATH (`claude.cmd` / `.exe`), `%APPDATA%\npm\claude.cmd`, … |
 | Starting CLI | `Process.start(..., runInShell: true)` for `.cmd` / `.bat` shims |

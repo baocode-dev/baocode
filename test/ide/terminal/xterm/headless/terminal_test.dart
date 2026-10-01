@@ -12,11 +12,11 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_unicode11/unicode11_addon.dart';
-import 'package:monad/ide/terminal/xterm/headless/public/terminal.dart'
+import 'package:baocode/ide/terminal/xterm/addons/addon_unicode11/unicode11_addon.dart';
+import 'package:baocode/ide/terminal/xterm/headless/public/terminal.dart'
     as public;
-import 'package:monad/ide/terminal/xterm/headless/terminal.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm_headless.dart'
+import 'package:baocode/ide/terminal/xterm/headless/terminal.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
     hide Terminal;
 
 Future<void> _write(Terminal term, Object data) {

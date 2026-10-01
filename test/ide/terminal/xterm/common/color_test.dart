@@ -3,8 +3,8 @@
 // Adapted from xterm.js src/common/Color.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/color.dart';
-import 'package:monad/ide/terminal/xterm/common/types.dart';
+import 'package:baocode/ide/terminal/xterm/common/color.dart';
+import 'package:baocode/ide/terminal/xterm/common/types.dart';
 
 void main() {
   group('Color', () {

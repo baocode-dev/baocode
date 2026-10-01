@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/lsp/lsp_protocol.dart';
-import 'package:monad/ide/lsp_ui/language_widgets.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/lsp_ui/language_widgets.dart';
 
 import '../workbench/fake_files.dart';
 import 'fake_language_features.dart';

@@ -2,8 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/ide_editor.dart';
-import 'package:monad/ide/ide_quick_input.dart';
+import 'package:baocode/ide/ide_editor.dart';
+import 'package:baocode/ide/ide_quick_input.dart';
 
 import 'fake_files.dart';
 

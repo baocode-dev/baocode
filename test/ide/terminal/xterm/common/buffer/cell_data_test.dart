@@ -3,8 +3,8 @@
 // Adapted from xterm.js src/common/buffer/CellData.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/cell_data.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/constants.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/cell_data.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/constants.dart';
 
 CellData createStyledCell(String char, int underlineStyle, int underlineColor) {
   final cell = CellData();

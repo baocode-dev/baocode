@@ -1,12 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/keybindings/keybinding_entry.dart';
-import 'package:monad/keybindings/keybinding_service.dart';
-import 'package:monad/keybindings/keybindings_sync.dart';
-import 'package:monad/keybindings/keymap.dart';
-import 'package:monad/settings/jsonc_file.dart';
-import 'package:monad/settings/user_settings.dart';
+import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
+import 'package:baocode/keybindings/keybindings_sync.dart';
+import 'package:baocode/keybindings/keymap.dart';
+import 'package:baocode/settings/jsonc_file.dart';
+import 'package:baocode/settings/user_settings.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -19,7 +19,7 @@ void main() {
   late KeybindingsSync sync;
 
   setUp(() async {
-    temp = await Directory.systemTemp.createTemp('monad-keybindings-sync');
+    temp = await Directory.systemTemp.createTemp('baocode-keybindings-sync');
     keybindings = JsoncFile(
       p.join(temp.path, 'User', 'keybindings.json'),
       debounce: Duration.zero,
@@ -71,7 +71,7 @@ void main() {
   );
 
   test('applies the keymap the setting selects, and follows it', () async {
-    await write(settings, '{ "monad.keymap": "ms-vscode.atom-keybindings" }');
+    await write(settings, '{ "baocode.keymap": "ms-vscode.atom-keybindings" }');
     sync.start();
     await sync.ready;
     expect(service.keymapId, 'ms-vscode.atom-keybindings');
@@ -80,7 +80,7 @@ void main() {
 
     await write(
       settings,
-      '{ "monad.keymap": "ms-vscode.sublime-keybindings" }',
+      '{ "baocode.keymap": "ms-vscode.sublime-keybindings" }',
     );
     await sync.ready;
     expect(service.keymapName, 'Sublime Text');
@@ -106,12 +106,12 @@ void main() {
     expect(service.labelFor('workbench.view.explorer'), '⌘K ⌘M');
     final text = File(settings.path).readAsStringSync();
     expect(text, contains('// settings'));
-    expect(text, contains('"monad.keymap": "someone.my-keys"'));
+    expect(text, contains('"baocode.keymap": "someone.my-keys"'));
 
     // Not there (deleted): none in effect.
     await sync.selectKeymap('someone.gone');
     expect(service.keymapId, isNull);
     await sync.selectKeymap(null);
-    expect(settings['monad.keymap'], isNull);
+    expect(settings['baocode.keymap'], isNull);
   });
 }

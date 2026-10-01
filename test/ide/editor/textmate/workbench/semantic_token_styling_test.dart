@@ -9,13 +9,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/services/semantic_tokens_provider_styling.dart';
-import 'package:monad/ide/editor/monaco/vs/platform/theme/common/token_classification_registry.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_token_styles.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/token_classification_extension_point.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
-import 'package:monad/ide/editor/textmate/textmate_manifest.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/services/semantic_tokens_provider_styling.dart';
+import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/token_classification_registry.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_token_styles.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/token_classification_extension_point.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
+import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
 
 const fixturePath = 'test/fixtures/theme/semantic_tokens.json.gz';
 

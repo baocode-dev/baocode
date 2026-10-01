@@ -1,12 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/workspace/preference_store.dart';
+import 'package:baocode/workspace/preference_store.dart';
 
 void main() {
   test('preferences written to a file are read back; none, or a broken '
       'file, reads as none', () async {
-    final folder = await Directory.systemTemp.createTemp('monad-prefs');
+    final folder = await Directory.systemTemp.createTemp('baocode-prefs');
     addTearDown(() => folder.delete(recursive: true));
     final path = '${folder.path}/nested/preferences.json';
     final store = PreferenceStore.file(path);

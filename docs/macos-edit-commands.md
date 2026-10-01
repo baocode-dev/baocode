@@ -42,15 +42,15 @@ Flutter 不处理某个按键时，引擎会把它继续往下传，最后落到
 
    | 菜单项 | 原 action | 现 action |
    | --- | --- | --- |
-   | Undo | `undo:` | `monadUndo:` |
-   | Redo | `redo:` | `monadRedo:` |
-   | Cut | `cut:` | `monadCut:` |
-   | Copy | `copy:` | `monadCopy:` |
-   | Paste | `paste:` | `monadPaste:` |
-   | Paste and Match Style | `pasteAsPlainText:` | `monadPaste:` |
-   | Select All | `selectAll:` | `monadSelectAll:` |
+   | Undo | `undo:` | `baocodeUndo:` |
+   | Redo | `redo:` | `baocodeRedo:` |
+   | Cut | `cut:` | `baocodeCut:` |
+   | Copy | `copy:` | `baocodeCopy:` |
+   | Paste | `paste:` | `baocodePaste:` |
+   | Paste and Match Style | `pasteAsPlainText:` | `baocodePaste:` |
+   | Select All | `selectAll:` | `baocodeSelectAll:` |
 
-2. [MainFlutterWindow.swift](../macos/Runner/MainFlutterWindow.swift)：窗口实现了这些方法，通过 `monad/window` 通道调用 Dart 端的 `editCommand`，参数是命令名（`undo`、`redo`、`cut`、`copy`、`paste` 或 `selectAll`）。
+2. [MainFlutterWindow.swift](../macos/Runner/MainFlutterWindow.swift)：窗口实现了这些方法，通过 `baocode/window` 通道调用 Dart 端的 `editCommand`，参数是命令名（`undo`、`redo`、`cut`、`copy`、`paste` 或 `selectAll`）。
 3. [window_controls.dart](../lib/workspace/window_controls.dart)：`WindowControls.handleEditCommands()` 在 [workbench.dart](../lib/workbench.dart) 启动时注册。收到命令后，`runEditCommand` 把它换成对应的 Intent，交给当前焦点所在的 context 执行：
 
    | 命令 | Intent |

@@ -25,7 +25,7 @@
 //   which matches empty at the start position while failedSearchOption is
 //   none, and otherwise has more registers than onig.cc returns.
 // - A valid pattern with (?L) (find longest) is refused a regset too.
-// monad_onig_scanner_new reports the first invalid pattern instead of
+// baocode_onig_scanner_new reports the first invalid pattern instead of
 // keeping a global for getLastOnigError. Oniguruma is initialized once
 // explicitly, where onig.cc's first onig_new does it implicitly.
 
@@ -39,11 +39,11 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#define MONAD_ONIG_EXPORT __declspec(dllexport)
+#define BAOCODE_ONIG_EXPORT __declspec(dllexport)
 #else
 #include <pthread.h>
 #include <time.h>
-#define MONAD_ONIG_EXPORT __attribute__((visibility("default")))
+#define BAOCODE_ONIG_EXPORT __attribute__((visibility("default")))
 #endif
 
 #if defined(_WIN32)
@@ -92,18 +92,18 @@ static double nowMilliseconds(void) {
 
 #endif
 
-MONAD_ONIG_EXPORT void* monad_onig_malloc(int64_t count) {
+BAOCODE_ONIG_EXPORT void* baocode_onig_malloc(int64_t count) {
   return malloc(count > 0 ? (size_t)count : 1);
 }
 
-MONAD_ONIG_EXPORT void monad_onig_free(void* pointer) { free(pointer); }
+BAOCODE_ONIG_EXPORT void baocode_onig_free(void* pointer) { free(pointer); }
 
 static volatile int64_t lastStringId = 0;
 
 // OnigString's `LAST_ID`: an id for each string, so that a regex's cached
 // search is only reused on the string it was made on. Process-wide, as
 // scanners are.
-MONAD_ONIG_EXPORT int64_t monad_onig_next_string_id(void) {
+BAOCODE_ONIG_EXPORT int64_t baocode_onig_next_string_id(void) {
 #if defined(_MSC_VER)
   return InterlockedIncrement64(&lastStringId);
 #else
@@ -111,7 +111,7 @@ MONAD_ONIG_EXPORT int64_t monad_onig_next_string_id(void) {
 #endif
 }
 
-MONAD_ONIG_EXPORT int32_t monad_onig_version(void) {
+BAOCODE_ONIG_EXPORT int32_t baocode_onig_version(void) {
   return ONIGURUMA_VERSION_INT;
 }
 
@@ -127,7 +127,7 @@ typedef struct OnigRegExp_ {
   int lastSearchMatched;
 } OnigRegExp;
 
-typedef struct MonadOnigScanner_ {
+typedef struct BaoCodeOnigScanner_ {
   // NULL when refused one: see the top of the file.
   OnigRegSet* rset;
   // NULL for an invalid pattern.
@@ -137,12 +137,12 @@ typedef struct MonadOnigScanner_ {
   // The match: its register count, then each register's start and end.
   int32_t* result;
   int capacity;
-} MonadOnigScanner;
+} BaoCodeOnigScanner;
 
 #define MAX_REGIONS 1000
 
 // Returns index, or -1 for none, having put the region in the result.
-static int32_t encodeOnigRegion(MonadOnigScanner* scanner, OnigRegion* result,
+static int32_t encodeOnigRegion(BaoCodeOnigScanner* scanner, OnigRegion* result,
                                 int index) {
   int i;
   if (result == NULL || result->num_regs > MAX_REGIONS ||
@@ -273,7 +273,7 @@ static OnigRegion* searchOnigRegExp(OnigRegExp* regex, int64_t strCacheId,
 // A scanner over [count] UTF-8 patterns, laid end to end in [patterns]. Puts the index of the first invalid pattern in
 // [invalid] (-1 for none) and Oniguruma's message for it in [error]
 // (ONIG_MAX_ERROR_MESSAGE_LEN bytes).
-MONAD_ONIG_EXPORT MonadOnigScanner* monad_onig_scanner_new(
+BAOCODE_ONIG_EXPORT BaoCodeOnigScanner* baocode_onig_scanner_new(
     const uint8_t* patterns, const int32_t* lengths, int32_t count,
     int32_t* invalid, uint8_t* error) {
   int i;
@@ -285,7 +285,7 @@ MONAD_ONIG_EXPORT MonadOnigScanner* monad_onig_scanner_new(
   OnigRegExp** regexes;
   regex_t** regs;
   OnigRegSet* rset = NULL;
-  MonadOnigScanner* scanner;
+  BaoCodeOnigScanner* scanner;
 
   ensureInitialized();
   *invalid = -1;
@@ -326,7 +326,7 @@ MONAD_ONIG_EXPORT MonadOnigScanner* monad_onig_scanner_new(
     capacity = MAX_REGIONS;
   }
 
-  scanner = (MonadOnigScanner*)malloc(sizeof(MonadOnigScanner));
+  scanner = (BaoCodeOnigScanner*)malloc(sizeof(BaoCodeOnigScanner));
   scanner->rset = rset;
   scanner->regexes = regexes;
   scanner->count = count;
@@ -336,7 +336,7 @@ MONAD_ONIG_EXPORT MonadOnigScanner* monad_onig_scanner_new(
   return scanner;
 }
 
-MONAD_ONIG_EXPORT void monad_onig_scanner_free(MonadOnigScanner* scanner) {
+BAOCODE_ONIG_EXPORT void baocode_onig_scanner_free(BaoCodeOnigScanner* scanner) {
   int i;
   for (i = 0; i < scanner->count; i++) {
     if (scanner->regexes[i] == NULL) continue;
@@ -354,16 +354,16 @@ MONAD_ONIG_EXPORT void monad_onig_scanner_free(MonadOnigScanner* scanner) {
   free(scanner);
 }
 
-// Where monad_onig_find_next puts a match: its register count, then each
+// Where baocode_onig_find_next puts a match: its register count, then each
 // register's UTF-8 start and end (-1 for a group that did not take part).
-MONAD_ONIG_EXPORT int32_t* monad_onig_scanner_result(
-    MonadOnigScanner* scanner) {
+BAOCODE_ONIG_EXPORT int32_t* baocode_onig_scanner_result(
+    BaoCodeOnigScanner* scanner) {
   return scanner->result;
 }
 
 // How many registers the result has room for: 1 + 2 * this int32s.
-MONAD_ONIG_EXPORT int32_t monad_onig_scanner_capacity(
-    MonadOnigScanner* scanner) {
+BAOCODE_ONIG_EXPORT int32_t baocode_onig_scanner_capacity(
+    BaoCodeOnigScanner* scanner) {
   return scanner->capacity;
 }
 
@@ -387,7 +387,7 @@ static OnigOptionType toOnigOption(int option) {
   return onigOption;
 }
 
-static int32_t findNextOnigScannerMatch(MonadOnigScanner* scanner,
+static int32_t findNextOnigScannerMatch(BaoCodeOnigScanner* scanner,
                                         int64_t strCacheId,
                                         const unsigned char* strData,
                                         int strLength, int position,
@@ -451,7 +451,7 @@ static int32_t findNextOnigScannerMatch(MonadOnigScanner* scanner,
   return encodeOnigRegion(scanner, bestResult, bestResultIndex);
 }
 
-static int32_t findNextOnigScannerMatchDbg(MonadOnigScanner* scanner,
+static int32_t findNextOnigScannerMatchDbg(BaoCodeOnigScanner* scanner,
                                            int64_t strCacheId,
                                            const unsigned char* strData,
                                            int strLength, int position,
@@ -512,7 +512,7 @@ static int32_t findNextOnigScannerMatchDbg(MonadOnigScanner* scanner,
 // result; or -1. [strCacheId] names the string for the per-regex cache; with
 // FindOption.DebugCall in [option], each regex's search is logged, as with
 // onig.cc's findNextOnigScannerMatchDbg.
-MONAD_ONIG_EXPORT int32_t monad_onig_find_next(MonadOnigScanner* scanner,
+BAOCODE_ONIG_EXPORT int32_t baocode_onig_find_next(BaoCodeOnigScanner* scanner,
                                                int64_t strCacheId,
                                                const uint8_t* strData,
                                                int32_t strLength,

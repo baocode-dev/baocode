@@ -2,12 +2,12 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/ide_explorer.dart';
-import 'package:monad/ide/ide_input.dart';
-import 'package:monad/ide/ide_list.dart';
-import 'package:monad/ide/ide_workspace.dart';
-import 'package:monad/ide/search/ide_search_view.dart';
-import 'package:monad/ide/search/text_search.dart';
+import 'package:baocode/ide/ide_explorer.dart';
+import 'package:baocode/ide/ide_input.dart';
+import 'package:baocode/ide/ide_list.dart';
+import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/ide/search/ide_search_view.dart';
+import 'package:baocode/ide/search/text_search.dart';
 import 'package:path/path.dart' as p;
 
 import '../workbench/fake_files.dart';

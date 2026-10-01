@@ -10,12 +10,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/color.dart';
-import 'package:monad/ide/editor/monaco/vs/platform/theme/common/color_registry_data.g.dart';
-import 'package:monad/ide/editor/monaco/vs/platform/theme/common/color_utils.dart';
-import 'package:monad/ide/editor/monaco/vs/platform/theme/common/theme.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:monad/ide/editor/textmate/textmate_manifest.dart';
+import 'package:baocode/ide/editor/monaco/vs/base/common/color.dart';
+import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/color_registry_data.g.dart';
+import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/color_utils.dart';
+import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/theme.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
 
 Future<String> readAsset(String path) =>
     File('$textMateAssetRoot/$path').readAsString();
@@ -249,18 +249,18 @@ void main() {
     final registry = getColorRegistry();
     final count = registry.getColors().length;
     const defaults = ColorDefaults.all(ColorLiteral('#010203'));
-    registerColor('monad.test', defaults);
+    registerColor('baocode.test', defaults);
     registerColor(ids.first, defaults);
     try {
       expect(registry.getColors().length, count + 1);
       expect(registry.getColors().first.id, ids.first);
-      expect(registry.getColors().last.id, 'monad.test');
+      expect(registry.getColors().last.id, 'baocode.test');
       final theme = ColorThemeData.createLoadedEmptyTheme('vs', 'vs');
       expect(ColorFormatCSS.formatHex(theme.getColor(ids.first)!), '#010203');
-      registry.updateDefaultColor('monad.missing', defaults);
-      expect(registry.getColor('monad.missing'), isNull);
+      registry.updateDefaultColor('baocode.missing', defaults);
+      expect(registry.getColor('baocode.missing'), isNull);
     } finally {
-      registry.deregisterColor('monad.test');
+      registry.deregisterColor('baocode.test');
       registry.registerColor(ids.first, colorRegistryData.first.defaults);
     }
     expect(registry.getColors().map((c) => c.id).toList(), ids);

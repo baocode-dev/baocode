@@ -7,8 +7,8 @@
 // needed to read it.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/public/addon_manager.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm_headless.dart';
+import 'package:baocode/ide/terminal/xterm/common/public/addon_manager.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart';
 
 /// A terminal that the addons only compare.
 class _StandInTerminal implements Terminal {

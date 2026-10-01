@@ -17,7 +17,7 @@ import 'dart:io';
 /// written. Under build/, which the repository already ignores and flutter
 /// clean already removes.
 // ignore: unused_element
-const _bundleRelative = 'build/macos/Build/Products/Release/monad.app';
+const _bundleRelative = 'build/macos/Build/Products/Release/BaoCode.app';
 // ignore: unused_element
 const _installersRelative = 'build/installers';
 
@@ -27,11 +27,11 @@ const _installersRelative = 'build/installers';
 /// them against a real build before trusting them.
 // ignore: unused_element
 const _required = [
-  'Contents/MacOS/monad',
+  'Contents/MacOS/BaoCode',
   'Contents/Frameworks/FlutterMacOS.framework',
   'Contents/Frameworks/App.framework',
   // The terminal's native half (hook/build.dart builds it).
-  'Contents/Frameworks/monad_pty.framework',
+  'Contents/Frameworks/baocode_pty.framework',
   'Contents/Resources/flutter_assets',
 ];
 
@@ -67,16 +67,16 @@ Future<void> main(List<String> arguments) async {
   //      and its volume name agree with it, as the installer's do on Windows.
   //
   //   4. Create the image:
-  //        hdiutil create -volname "Monad <marketing>" \
+  //        hdiutil create -volname "BaoCode <marketing>" \
   //          -srcfolder <the .app> -ov -format UDZO \
-  //          build/installers/Monad-<marketing>.dmg
+  //          build/installers/BaoCode-<marketing>.dmg
   //      hdiutil is part of macOS. It gives a bare folder in a window; for a
   //      background picture and an Applications shortcut (the usual look),
   //      `brew install create-dmg` and drive that instead. Pick one — this
   //      is the only part with a real choice in it.
   //
   //   5. Signing and notarising. Without both, Gatekeeper refuses the app on
-  //      anyone else's machine ("Monad is damaged and can't be opened"),
+  //      anyone else's machine ("BaoCode is damaged and can't be opened"),
   //      and the .dmg is only good for people who can run
   //      `xattr -d com.apple.quarantine` on it. Both need an Apple Developer
   //      account ($99/year) and a "Developer ID Application" certificate:
@@ -98,14 +98,8 @@ Future<void> main(List<String> arguments) async {
   //      entitlements either: that one adds allow-jit and network.server,
   //      which are for debugging.
   //
-  // Two things in the checked-in project have to be fixed before step 5, and
-  // neither is the script's job:
-  //
-  //   - macos/Runner/Configs/AppInfo.xcconfig still carries the template
-  //     bundle id `com.example.monad` and a `com.example` copyright.
-  //     Signing and notarising both want a real identifier, so this has to
-  //     become e.g. com.kun6687.monad, and the Xcode signing settings
-  //     updated to match.
+  // One thing in the checked-in project has to be fixed before step 5, and
+  // it is not the script's job:
   //
   //   - macos/Runner.xcodeproj/project.pbxproj sets MARKETING_VERSION = 1.0,
   //     where pubspec.yaml says 1.0.0. Info.plist reads $(MARKETING_VERSION),

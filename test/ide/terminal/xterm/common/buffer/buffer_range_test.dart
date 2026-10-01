@@ -3,8 +3,8 @@
 // Adapted from xterm.js src/common/buffer/BufferRange.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/buffer_range.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_range.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm.dart';
 
 void main() {
   group('BufferRange', () {

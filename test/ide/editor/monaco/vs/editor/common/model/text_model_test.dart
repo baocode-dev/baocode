@@ -4,13 +4,13 @@
 // modelDecorations.test.ts and modelEditOperation.test.ts (6a598d4a).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/position.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/model/text_model.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/model/interval_tree.dart'
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/position.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/model/text_model.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/model/interval_tree.dart'
     show IntervalNodeOptions;
-import 'package:monad/ide/editor/monaco/vs/editor/common/text_model_events.dart';
-import 'package:monad/ide/editor/monaco/vs/platform/undo_redo/common/undo_redo_service.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/text_model_events.dart';
+import 'package:baocode/ide/editor/monaco/vs/platform/undo_redo/common/undo_redo_service.dart';
 
 void checkRange(Range? actual, Range expected) {
   expect(actual, isNotNull);

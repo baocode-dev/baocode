@@ -26,7 +26,7 @@ class ClaudeCli {
 abstract final class CliLocator {
   /// Names another build to run instead of the installed one, e.g. set in
   /// the user's environment (on macOS, `~/.zshenv`) to try a fork.
-  static const overrideVariable = 'MONAD_CLAUDE_PATH';
+  static const overrideVariable = 'BAOCODE_CLAUDE_PATH';
 
   static Future<ClaudeCli>? _located;
 

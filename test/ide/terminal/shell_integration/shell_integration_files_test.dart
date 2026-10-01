@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/pty.dart';
-import 'package:monad/ide/terminal/shell_integration/shell_integration_files.dart';
-import 'package:monad/ide/terminal/shell_integration/shell_integration_injection.dart';
-import 'package:monad/ide/terminal/shell_integration/shell_integration_scripts.dart';
-import 'package:monad/ide/terminal/terminal_shell.dart';
+import 'package:baocode/ide/terminal/pty.dart';
+import 'package:baocode/ide/terminal/shell_integration/shell_integration_files.dart';
+import 'package:baocode/ide/terminal/shell_integration/shell_integration_injection.dart';
+import 'package:baocode/ide/terminal/shell_integration/shell_integration_scripts.dart';
+import 'package:baocode/ide/terminal/terminal_shell.dart';
 import 'package:path/path.dart' as p;
 
 /// VS Code's scripts written where a shell loads them, in a temp folder of
@@ -14,7 +14,7 @@ import 'package:path/path.dart' as p;
 void main() {
   late Directory temp;
 
-  setUp(() => temp = Directory.systemTemp.createTempSync('monad-si-test'));
+  setUp(() => temp = Directory.systemTemp.createTempSync('baocode-si-test'));
   tearDown(() => temp.deleteSync(recursive: true));
 
   test('the scripts are VS Code 6a598d4a\'s, headers and all', () {
@@ -66,7 +66,7 @@ void main() {
       final folder = ShellIntegrationFolder(temp);
       final root = folder.path;
       expect(p.dirname(root), temp.path);
-      expect(p.basename(root), startsWith('monad-shell-integration-'));
+      expect(p.basename(root), startsWith('baocode-shell-integration-'));
       if (!Platform.isWindows) {
         // Like mkdtemp: the user's alone.
         expect(Directory(root).statSync().mode & 0x1ff, 0x1c0);

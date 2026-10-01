@@ -11,11 +11,11 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/language_configuration_assets.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/json.dart' as json;
-import 'package:monad/ide/editor/monaco/vs/editor/common/languages/language_configuration.dart';
-import 'package:monad/ide/editor/textmate/textmate_manifest.dart';
-import 'package:monad/ide/editor/textmate/vscode_textmate/main.dart'
+import 'package:baocode/ide/editor/monaco/flutter/language_configuration_assets.dart';
+import 'package:baocode/ide/editor/monaco/vs/base/common/json.dart' as json;
+import 'package:baocode/ide/editor/monaco/vs/editor/common/languages/language_configuration.dart';
+import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
+import 'package:baocode/ide/editor/textmate/vscode_textmate/main.dart'
     show parseRawGrammar;
 
 /// What the loader does not keep of a bundled configuration that VS Code

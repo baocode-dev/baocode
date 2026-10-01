@@ -92,7 +92,7 @@ Future<void> main() async {
     );
   }
   runApp(
-    MonadApp(
+    BaoCodeApp(
       workspace: workspace,
       appLocale: locale,
       settings: settings,
@@ -104,8 +104,8 @@ Future<void> main() async {
   );
 }
 
-class MonadApp extends StatefulWidget {
-  const MonadApp({
+class BaoCodeApp extends StatefulWidget {
+  const BaoCodeApp({
     super.key,
     this.workspace,
     this.languagesFor,
@@ -135,10 +135,10 @@ class MonadApp extends StatefulWidget {
   final TerminalBackend? terminalBackend;
 
   @override
-  State<MonadApp> createState() => _MonadAppState();
+  State<BaoCodeApp> createState() => _BaoCodeAppState();
 }
 
-class _MonadAppState extends State<MonadApp> {
+class _BaoCodeAppState extends State<BaoCodeApp> {
   late final Workspace _workspace =
       widget.workspace ??
       (Workspace(preferences: PreferenceStore.file())..load());
@@ -207,7 +207,7 @@ class _MonadAppState extends State<MonadApp> {
         child: ListenableBuilder(
           listenable: _locale,
           builder: (context, _) => MaterialApp(
-            title: 'Monad',
+            title: 'BaoCode',
             debugShowCheckedModeBanner: false,
             theme: buildAppTheme(),
             locale: _locale.locale,

@@ -4,9 +4,9 @@
 // The embedded-case fixture also follows standalone/test/browser/monarch.test.ts.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_common.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_compile.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_types.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_common.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_compile.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_types.dart';
 
 ILexer _lexerForAction(
   Object? action, {

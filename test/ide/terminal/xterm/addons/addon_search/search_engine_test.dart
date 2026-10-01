@@ -12,11 +12,11 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_search/search_engine.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_search/search_line_cache.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_search/typings/addon_search.dart';
-import 'package:monad/ide/terminal/xterm/common/lifecycle.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm_headless.dart'
+import 'package:baocode/ide/terminal/xterm/addons/addon_search/search_engine.dart';
+import 'package:baocode/ide/terminal/xterm/addons/addon_search/search_line_cache.dart';
+import 'package:baocode/ide/terminal/xterm/addons/addon_search/typings/addon_search.dart';
+import 'package:baocode/ide/terminal/xterm/common/lifecycle.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
     show ITerminalOptions;
 
 import 'search_test_terminal.dart';

@@ -16,10 +16,10 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/links/links.dart';
-import 'package:monad/ide/terminal/links/terminal_link_parsing.dart';
-import 'package:monad/ide/terminal/links/terminal_link_resolver.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm_headless.dart';
+import 'package:baocode/ide/terminal/links/links.dart';
+import 'package:baocode/ide/terminal/links/terminal_link_parsing.dart';
+import 'package:baocode/ide/terminal/links/terminal_link_resolver.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart';
 
 Future<void> assertLinkHelper(
   String text,

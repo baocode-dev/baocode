@@ -8,17 +8,17 @@
 // MockOptionsService never fires `onOptionChange` and its `options` is the
 // very object `rawOptions` is.
 
-import 'package:monad/ide/terminal/xterm/common/buffer/buffer_set.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/cell_data.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/constants.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/types.dart';
-import 'package:monad/ide/terminal/xterm/common/event.dart';
-import 'package:monad/ide/terminal/xterm/common/input/unicode_v6.dart';
-import 'package:monad/ide/terminal/xterm/common/services/options_service.dart';
-import 'package:monad/ide/terminal/xterm/common/services/services.dart';
-import 'package:monad/ide/terminal/xterm/common/services/unicode_service.dart';
-import 'package:monad/ide/terminal/xterm/common/types.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm.dart'
+import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_set.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/cell_data.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/constants.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/types.dart';
+import 'package:baocode/ide/terminal/xterm/common/event.dart';
+import 'package:baocode/ide/terminal/xterm/common/input/unicode_v6.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/options_service.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/unicode_service.dart';
+import 'package:baocode/ide/terminal/xterm/common/types.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
     show IDecoration, IDecorationOptions;
 
 CellData createCellData(int attr, String char, int width) {

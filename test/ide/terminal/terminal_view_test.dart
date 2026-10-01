@@ -11,12 +11,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/ide_find_widget.dart';
-import 'package:monad/ide/terminal/links/terminal_links.dart';
-import 'package:monad/ide/terminal/terminal_instance.dart';
-import 'package:monad/ide/terminal/terminal_view.dart';
-import 'package:monad/ide/terminal/terminal_widget.dart';
-import 'package:monad/theme/codicons.dart';
+import 'package:baocode/ide/ide_find_widget.dart';
+import 'package:baocode/ide/terminal/links/terminal_links.dart';
+import 'package:baocode/ide/terminal/terminal_instance.dart';
+import 'package:baocode/ide/terminal/terminal_view.dart';
+import 'package:baocode/ide/terminal/terminal_widget.dart';
+import 'package:baocode/theme/codicons.dart';
 
 import 'fake_pty.dart';
 import 'fake_terminal.dart';

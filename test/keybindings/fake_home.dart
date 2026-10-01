@@ -108,7 +108,7 @@ Map<String, Object?> atomManifest(String version) => {
 
 /// Builds the home in a new temporary folder; the caller deletes it.
 Future<Directory> createFakeHome() async {
-  final home = await Directory.systemTemp.createTemp('monad_keybindings_');
+  final home = await Directory.systemTemp.createTemp('baocode_keybindings_');
   final support = p.join(home.path, 'Library', 'Application Support');
 
   Future<void> write(String path, String text) async {

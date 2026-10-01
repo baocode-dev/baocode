@@ -49,7 +49,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get languageSettingsDisplayLanguage => '显示语言';
 
   @override
-  String get languageSettingsDescription => 'Monad 的菜单、视图和消息所用的语言。更改立即生效。';
+  String get languageSettingsDescription => 'BaoCode 的菜单、视图和消息所用的语言。更改立即生效。';
 
   @override
   String get languageSettingsFollowSystem => '跟随系统';
@@ -1293,7 +1293,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuContextPanel => '上下文面板';
 
   @override
-  String get menuAboutMonad => '关于 Monad';
+  String get menuAboutBaoCode => '关于 BaoCode';
 
   @override
   String get windowShowSidebar => '显示侧边栏';
@@ -3515,7 +3515,7 @@ class AppLocalizationsZh extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Monad 无法识别上下文键 $keys: 此快捷键永远不会生效。',
+      other: 'BaoCode 无法识别上下文键 $keys: 此快捷键永远不会生效。',
     );
     return '$_temp0';
   }
@@ -3592,14 +3592,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String kbCannotReadKey(String key) {
-    return 'Monad 无法识别按键“$key”: 此快捷键永远不会生效。';
+    return 'BaoCode 无法识别按键“$key”: 此快捷键永远不会生效。';
   }
 
   @override
   String get kbNotSupported => '不支持';
 
   @override
-  String get kbNotSupportedHover => 'Monad 没有此命令: 快捷键会保留，但不起作用。';
+  String get kbNotSupportedHover => 'BaoCode 没有此命令: 快捷键会保留，但不起作用。';
 
   @override
   String get kbPressKeys => '先按所需的组合键，再按 Enter 键。';
@@ -3651,23 +3651,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dataDirChecking => '正在检查文件夹…';
 
   @override
-  String get dataDirAlreadyHolds => '该文件夹中已有 Monad 数据';
+  String get dataDirAlreadyHolds => '该文件夹中已有 BaoCode 数据';
 
   @override
-  String get dataDirMoveBack => '将 Monad 的数据移回默认文件夹?';
+  String get dataDirMoveBack => '将 BaoCode 的数据移回默认文件夹?';
 
   @override
-  String get dataDirMoveHere => '将 Monad 的数据移到此文件夹?';
+  String get dataDirMoveHere => '将 BaoCode 的数据移到此文件夹?';
 
   @override
   String get dataDirUseAsIsDetail =>
-      '重启后 Monad 将直接使用那里的数据；不会复制任何内容，当前文件夹中的数据保持不变。';
+      '重启后 BaoCode 将直接使用那里的数据；不会复制任何内容，当前文件夹中的数据保持不变。';
 
   @override
-  String get dataDirCopyDetail => 'Monad 会将其设置、快捷键、语言服务器和状态复制到那里，并在重启后使用该文件夹。';
+  String get dataDirCopyDetail =>
+      'BaoCode 会将其设置、快捷键、语言服务器和状态复制到那里，并在重启后使用该文件夹。';
 
   @override
-  String get dataDirOtherFiles => '该文件夹中还有其他文件: 它们会保留，与 Monad 自己的文件并存。';
+  String get dataDirOtherFiles => '该文件夹中还有其他文件: 它们会保留，与 BaoCode 自己的文件并存。';
 
   @override
   String get dataDirUseItsData => '使用其中的数据';
@@ -3689,11 +3690,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get dataDirRestartTitle => '重启 Monad 以使用新的数据文件夹';
+  String get dataDirRestartTitle => '重启 BaoCode 以使用新的数据文件夹';
 
   @override
   String dataDirRestartDetail(String current, String next) {
-    return 'Monad 在重启前会继续使用 $current。下次启动时将使用 $next，并询问是否移除旧文件夹中剩余的内容。';
+    return 'BaoCode 在重启前会继续使用 $current。下次启动时将使用 $next，并询问是否移除旧文件夹中剩余的内容。';
   }
 
   @override
@@ -3728,7 +3729,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get dataDirDescription =>
-      'Monad 存放你的设置、快捷键、语言服务器及其自身状态的位置。其他程序也会在此存放文件(如网页视图的缓存)；Monad 从不移动或删除这些文件。';
+      'BaoCode 存放你的设置、快捷键、语言服务器及其自身状态的位置。其他程序也会在此存放文件(如网页视图的缓存)；BaoCode 从不移动或删除这些文件。';
 
   @override
   String get dataDirCurrentFolder => '当前文件夹';
@@ -3755,13 +3756,13 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get dataDirSettingUnreadable => '无法读取 Monad 的数据文件夹设置';
+  String get dataDirSettingUnreadable => '无法读取 BaoCode 的数据文件夹设置';
 
   @override
-  String get dataDirCannotWrite => 'Monad 无法写入其数据文件夹';
+  String get dataDirCannotWrite => 'BaoCode 无法写入其数据文件夹';
 
   @override
-  String get dataDirUnavailable => 'Monad 的数据文件夹不可用';
+  String get dataDirUnavailable => 'BaoCode 的数据文件夹不可用';
 
   @override
   String dataDirWhereEnv(String variable) {
@@ -3770,7 +3771,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String dataDirWhereFixPointer(String file) {
-    return '请修复或删除 $file 后重试；只有在你选择其他文件夹时 Monad 才会更改它。';
+    return '请修复或删除 $file 后重试；只有在你选择其他文件夹时 BaoCode 才会更改它。';
   }
 
   @override
@@ -3793,11 +3794,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dataDirChooseAnother => '选择其他文件夹…';
 
   @override
-  String get dataDirRemoveOldTitle => '是否移除 Monad 留在之前文件夹中的数据?';
+  String get dataDirRemoveOldTitle => '是否移除 BaoCode 留在之前文件夹中的数据?';
 
   @override
   String dataDirRemoveOldDetail(String current, String items) {
-    return 'Monad 现在将数据存放在 $current。只会从之前的文件夹中移除它自己的项目($items)；该文件夹及其中的其他内容都会保留。';
+    return 'BaoCode 现在将数据存放在 $current。只会从之前的文件夹中移除它自己的项目($items)；该文件夹及其中的其他内容都会保留。';
   }
 
   @override

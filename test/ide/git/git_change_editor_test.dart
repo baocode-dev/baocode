@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/git/git_change_editor.dart';
-import 'package:monad/ide/git/git_model.dart';
+import 'package:baocode/ide/git/git_change_editor.dart';
+import 'package:baocode/ide/git/git_model.dart';
 
 /// Which texts a change's editor compares, and its title, as the Git
 /// extension's `ResourceCommandResolver` has them.

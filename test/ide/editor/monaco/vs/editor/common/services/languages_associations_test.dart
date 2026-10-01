@@ -5,8 +5,8 @@
 // associations before each run.
 
 import 'package:flutter_test/flutter_test.dart' hide isWindows;
-import 'package:monad/ide/editor/monaco/vs/base/common/platform.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/services/languages_associations.dart';
+import 'package:baocode/ide/editor/monaco/vs/base/common/platform.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/services/languages_associations.dart';
 
 /// Upstream `URI.file`, with the separators of the emulated platform.
 Uri file(String path) => Uri.file(path, windows: isWindows);

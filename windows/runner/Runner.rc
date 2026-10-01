@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "Monad" "\0"
-            VALUE "FileDescription", "Monad" "\0"
+            VALUE "CompanyName", "BaoCode" "\0"
+            VALUE "FileDescription", "BaoCode" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "monad" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 Monad. All rights reserved." "\0"
-            VALUE "OriginalFilename", "monad.exe" "\0"
-            VALUE "ProductName", "Monad" "\0"
+            VALUE "InternalName", "baocode" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 BaoCode. All rights reserved." "\0"
+            VALUE "OriginalFilename", "baocode.exe" "\0"
+            VALUE "ProductName", "BaoCode" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

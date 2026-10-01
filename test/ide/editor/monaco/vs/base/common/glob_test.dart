@@ -9,10 +9,10 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart' hide isLinux, isWindows;
-import 'package:monad/ide/editor/monaco/vs/base/common/glob.dart' as glob;
-import 'package:monad/ide/editor/monaco/vs/base/common/path.dart' as paths;
-import 'package:monad/ide/editor/monaco/vs/base/common/platform.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/uri.dart';
+import 'package:baocode/ide/editor/monaco/vs/base/common/glob.dart' as glob;
+import 'package:baocode/ide/editor/monaco/vs/base/common/path.dart' as paths;
+import 'package:baocode/ide/editor/monaco/vs/base/common/platform.dart';
+import 'package:baocode/ide/editor/monaco/vs/base/common/uri.dart';
 
 String _describe(Object pattern) => pattern is glob.IRelativePattern
     ? jsonEncode({'base': pattern.base, 'pattern': pattern.pattern})

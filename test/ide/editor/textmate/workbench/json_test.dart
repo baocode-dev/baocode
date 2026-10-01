@@ -4,8 +4,8 @@
 // `parseTree` is not ported. The last group covers error collection.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/json.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/json_error_messages.dart';
+import 'package:baocode/ide/editor/monaco/vs/base/common/json.dart';
+import 'package:baocode/ide/editor/monaco/vs/base/common/json_error_messages.dart';
 
 void assertKinds(String text, List<int> kinds) {
   final scanner = createScanner(text);

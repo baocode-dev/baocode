@@ -10,9 +10,9 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/glob.dart' as glob;
-import 'package:monad/ide/editor/monaco/vs/base/common/platform.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/services/languages_registry.dart';
+import 'package:baocode/ide/editor/monaco/vs/base/common/glob.dart' as glob;
+import 'package:baocode/ide/editor/monaco/vs/base/common/platform.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/services/languages_registry.dart';
 
 final Map<String, Object?> _fixture = jsonDecode(
   File('test/fixtures/textmate/language_detection.json').readAsStringSync(),

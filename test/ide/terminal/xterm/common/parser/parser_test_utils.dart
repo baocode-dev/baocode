@@ -8,9 +8,9 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/input/text_decoder.dart';
-import 'package:monad/ide/terminal/xterm/common/parser/params.dart';
-import 'package:monad/ide/terminal/xterm/common/parser/types.dart';
+import 'package:baocode/ide/terminal/xterm/common/input/text_decoder.dart';
+import 'package:baocode/ide/terminal/xterm/common/parser/params.dart';
+import 'package:baocode/ide/terminal/xterm/common/parser/types.dart';
 
 Uint32List toUtf32(String s) {
   final utf32 = Uint32List(s.length);

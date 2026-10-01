@@ -2,14 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/ide_input.dart';
-import 'package:monad/ide/ide_list.dart';
-import 'package:monad/ide/ide_workbench.dart';
-import 'package:monad/ide/ide_workspace.dart';
-import 'package:monad/ide/search/ide_search_view.dart';
-import 'package:monad/ide/search/text_search.dart';
-import 'package:monad/keybindings/keybinding_entry.dart';
-import 'package:monad/keybindings/keybinding_service.dart';
+import 'package:baocode/ide/ide_input.dart';
+import 'package:baocode/ide/ide_list.dart';
+import 'package:baocode/ide/ide_workbench.dart';
+import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/ide/search/ide_search_view.dart';
+import 'package:baocode/ide/search/text_search.dart';
+import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:path/path.dart' as p;
 
 import 'fake_files.dart';
@@ -213,12 +213,7 @@ void main() {
     expect(focused(state), 'listFocus');
     // Ctrl+Shift+1 on a match replaces it.
     await press(tester, LogicalKeyboardKey.arrowDown);
-    await press(
-      tester,
-      LogicalKeyboardKey.digit1,
-      control: true,
-      shift: true,
-    );
+    await press(tester, LogicalKeyboardKey.digit1, control: true, shift: true);
     final contents = (workspace.files as TreeFiles).contents;
     expect(contents[inRoot('lib/a.dart')], 'bar one\nFoo two');
     expect(find.text('2 results in 2 files'), findsOneWidget);
@@ -288,10 +283,7 @@ void main() {
 
     await press(tester, LogicalKeyboardKey.keyR, control: true, alt: true);
     expect(state.keyContext('replaceActive'), isTrue);
-    expect(
-      tester.widget<EditableText>(input('Replace')).controller.text,
-      'x',
-    );
+    expect(tester.widget<EditableText>(input('Replace')).controller.text, 'x');
     // Ctrl+Shift+F again: no replace.
     await press(tester, LogicalKeyboardKey.keyF, control: true, shift: true);
     expect(state.keyContext('replaceActive'), isFalse);

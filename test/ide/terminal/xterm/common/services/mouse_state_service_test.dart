@@ -4,8 +4,8 @@
 // (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/services/mouse_state_service.dart';
-import 'package:monad/ide/terminal/xterm/common/types.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/mouse_state_service.dart';
+import 'package:baocode/ide/terminal/xterm/common/types.dart';
 
 List<int> toBytes(String? s) {
   if (s == null || s.isEmpty) {

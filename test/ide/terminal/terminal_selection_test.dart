@@ -6,12 +6,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/terminal_mouse.dart';
-import 'package:monad/ide/terminal/terminal_selection.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/buffer_line.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/cell_data.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/types.dart';
-import 'package:monad/ide/terminal/xterm/common/event.dart';
+import 'package:baocode/ide/terminal/terminal_mouse.dart';
+import 'package:baocode/ide/terminal/terminal_selection.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_line.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/cell_data.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/types.dart';
+import 'package:baocode/ide/terminal/xterm/common/event.dart';
 
 import 'xterm/common/test_utils.dart';
 

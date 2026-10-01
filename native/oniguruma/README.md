@@ -15,7 +15,7 @@ and vscode-textmate 9.3.2.
   with the Unicode data unicode.c includes. BSD-2-Clause, see `onig/COPYING`.
 - `config/config.h`: what `./configure` (or `src/config.h.windows.in`) would
   define, from the compiler instead of probes.
-- `monad_onig.c`: vscode-oniguruma 1.7.0
+- `baocode_onig.c`: vscode-oniguruma 1.7.0
   (microsoft/vscode-oniguruma 716aeaa229e4ae2e3b0057377b55743e9a3e995b)
   `src/onig.cc`: the scanner over a regset, with the per-regex search cache
   for strings of 1000 UTF-8 bytes or more. Its `src/index.ts` (UTF-16 to
@@ -24,7 +24,7 @@ and vscode-textmate 9.3.2.
 
 An invalid pattern does what it does in the WebAssembly vscode-oniguruma
 publishes, not what `onig.cc` reads as: there the scanner is made all the
-same, and never throws. The top of `monad_onig.c` has the details;
+same, and never throws. The top of `baocode_onig.c` has the details;
 `NativeOnigLib(strict: true)` throws instead.
 
 test/ide/editor/textmate/oniguruma/vscode_oniguruma_parity.json is what the

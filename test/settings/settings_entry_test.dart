@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_screen.dart';
-import 'package:monad/ide/ide_hover.dart';
-import 'package:monad/ide/ide_workbench.dart';
-import 'package:monad/keybindings/default_keybindings.dart';
-import 'package:monad/keybindings/keybinding_entry.dart';
-import 'package:monad/keybindings/keybinding_service.dart';
-import 'package:monad/main.dart';
-import 'package:monad/settings/settings_dialog.dart';
-import 'package:monad/sidebar/sidebar.dart';
-import 'package:monad/theme/codicons.dart';
-import 'package:monad/workspace/workspace.dart';
+import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/ide/ide_workbench.dart';
+import 'package:baocode/keybindings/default_keybindings.dart';
+import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
+import 'package:baocode/main.dart';
+import 'package:baocode/settings/settings_dialog.dart';
+import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/theme/codicons.dart';
+import 'package:baocode/workspace/workspace.dart';
 
 final _mac = TargetPlatformVariant.only(TargetPlatform.macOS);
 
@@ -23,7 +23,7 @@ Future<Workspace> _pumpApp(WidgetTester tester) async {
   KeybindingService.instance = KeybindingService();
   addTearDown(() => KeybindingService.instance = KeybindingService());
   final workspace = Workspace.mock();
-  await tester.pumpWidget(MonadApp(workspace: workspace));
+  await tester.pumpWidget(BaoCodeApp(workspace: workspace));
   await tester.pump();
   return workspace;
 }
@@ -108,7 +108,7 @@ void main() {
 
     // What the app menu's Preferences… sends (MainFlutterWindow.swift).
     await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
-      'monad/window',
+      'baocode/window',
       const StandardMethodCodec().encodeMethodCall(
         const MethodCall('menuCommand', openSettingsCommandId),
       ),

@@ -7,7 +7,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/input/text_decoder.dart';
+import 'package:baocode/ide/terminal/xterm/common/input/text_decoder.dart';
 
 // convert UTF32 codepoints to string
 String toString(Uint32List data, int length) {

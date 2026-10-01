@@ -6,11 +6,11 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/diff/default_lines_diff_computer/algorithms.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/diff/default_lines_diff_computer/char_sequence.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/diff/default_lines_diff_computer/default_lines_diff_computer.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/diff/range_mapping.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/diff/default_lines_diff_computer/algorithms.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/diff/default_lines_diff_computer/char_sequence.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/diff/default_lines_diff_computer/default_lines_diff_computer.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/diff/range_mapping.dart';
 
 void main() {
   final computer = DefaultLinesDiffComputer();

@@ -3,9 +3,9 @@
 // Adapted from xterm.js src/common/buffer/BufferSet.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/buffer.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/buffer_set.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm.dart'
+import 'package:baocode/ide/terminal/xterm/common/buffer/buffer.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_set.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
     show ITerminalOptions;
 
 import '../test_utils.dart';

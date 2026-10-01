@@ -7,7 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/ecmascript_lower_case.dart';
+import 'package:baocode/ide/editor/monaco/vs/base/common/ecmascript_lower_case.dart';
 
 void main() {
   test('matches JavaScript for every code point', () {

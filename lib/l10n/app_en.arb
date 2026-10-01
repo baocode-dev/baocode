@@ -13,7 +13,7 @@
   "commonSelectAll": "Select All",
   "languageSettingsTitle": "Region & Language",
   "languageSettingsDisplayLanguage": "Display Language",
-  "languageSettingsDescription": "The language of Monad's menus, views and messages. Changes apply at once.",
+  "languageSettingsDescription": "The language of BaoCode's menus, views and messages. Changes apply at once.",
   "languageSettingsFollowSystem": "Follow System",
   "languageSettingsFollowSystemDetail": "Currently {language}",
   "@languageSettingsFollowSystemDetail": {
@@ -581,7 +581,7 @@
   "menuHideSidebar": "Hide Sidebar",
   "menuKeepOnTop": "Keep on Top",
   "menuContextPanel": "Context Panel",
-  "menuAboutMonad": "About Monad",
+  "menuAboutBaoCode": "About BaoCode",
   "windowShowSidebar": "Show sidebar",
   "@windowShowSidebar": {
     "description": "Tooltip."
@@ -2595,7 +2595,7 @@
       }
     }
   },
-  "kbUnknownContextKeys": "{count, plural, =1{Monad does not know the context key {keys}: this keybinding never applies.} other{Monad does not know the context keys {keys}: this keybinding never applies.}}",
+  "kbUnknownContextKeys": "{count, plural, =1{BaoCode does not know the context key {keys}: this keybinding never applies.} other{BaoCode does not know the context keys {keys}: this keybinding never applies.}}",
   "@kbUnknownContextKeys": {
     "placeholders": {
       "count": {
@@ -2642,7 +2642,7 @@
   "kbColumnSource": "Source",
   "kbWhenLabel": "When expression",
   "kbNoneFound": "No keybindings found",
-  "kbCannotReadKey": "Monad cannot read the key “{key}”: this keybinding never applies.",
+  "kbCannotReadKey": "BaoCode cannot read the key “{key}”: this keybinding never applies.",
   "@kbCannotReadKey": {
     "placeholders": {
       "key": {
@@ -2651,7 +2651,7 @@
     }
   },
   "kbNotSupported": "Not supported",
-  "kbNotSupportedHover": "Monad does not have this command: the keybinding is kept, but does nothing.",
+  "kbNotSupportedHover": "BaoCode does not have this command: the keybinding is kept, but does nothing.",
   "kbPressKeys": "Press desired key combination and then press Enter.",
   "kbChordTo": "chord to",
   "kbExistingCommands": "{count, plural, =1{1 existing command has this keybinding} other{{count} existing commands have this keybinding}}",
@@ -2700,12 +2700,12 @@
   },
   "dataDirRevealInFileExplorer": "Reveal in File Explorer",
   "dataDirChecking": "Checking the folder…",
-  "dataDirAlreadyHolds": "The folder already holds Monad data",
-  "dataDirMoveBack": "Move Monad's data back to the default folder?",
-  "dataDirMoveHere": "Move Monad's data to this folder?",
-  "dataDirUseAsIsDetail": "After a restart Monad uses the data there as it is; nothing is copied, and the current folder keeps yours.",
-  "dataDirCopyDetail": "Monad copies its settings, keybindings, language servers and state there, and uses that folder after a restart.",
-  "dataDirOtherFiles": "The folder holds other files: they stay, beside Monad's own.",
+  "dataDirAlreadyHolds": "The folder already holds BaoCode data",
+  "dataDirMoveBack": "Move BaoCode's data back to the default folder?",
+  "dataDirMoveHere": "Move BaoCode's data to this folder?",
+  "dataDirUseAsIsDetail": "After a restart BaoCode uses the data there as it is; nothing is copied, and the current folder keeps yours.",
+  "dataDirCopyDetail": "BaoCode copies its settings, keybindings, language servers and state there, and uses that folder after a restart.",
+  "dataDirOtherFiles": "The folder holds other files: they stay, beside BaoCode's own.",
   "dataDirUseItsData": "Use Its Data",
   "dataDirCopyAndSwitch": "Copy and Switch",
   "dataDirCopying": "Copying…",
@@ -2728,8 +2728,8 @@
       }
     }
   },
-  "dataDirRestartTitle": "Restart Monad to use the new data folder",
-  "dataDirRestartDetail": "Monad keeps using {current} until it restarts. The next start uses {next}, and offers to remove what is left in the old one.",
+  "dataDirRestartTitle": "Restart BaoCode to use the new data folder",
+  "dataDirRestartDetail": "BaoCode keeps using {current} until it restarts. The next start uses {next}, and offers to remove what is left in the old one.",
   "@dataDirRestartDetail": {
     "placeholders": {
       "current": {
@@ -2769,7 +2769,7 @@
     }
   },
   "dataDirTitle": "Data Folder",
-  "dataDirDescription": "Where Monad keeps your settings, keybindings, language servers and its own state. Other programs keep files there too (the web view's caches); Monad never moves or removes those.",
+  "dataDirDescription": "Where BaoCode keeps your settings, keybindings, language servers and its own state. Other programs keep files there too (the web view's caches); BaoCode never moves or removes those.",
   "dataDirCurrentFolder": "Current folder",
   "dataDirAfterRestart": "After a restart: {path}",
   "@dataDirAfterRestart": {
@@ -2800,9 +2800,9 @@
       }
     }
   },
-  "dataDirSettingUnreadable": "Monad's data folder setting cannot be read",
-  "dataDirCannotWrite": "Monad cannot write to its data folder",
-  "dataDirUnavailable": "Monad's data folder is not available",
+  "dataDirSettingUnreadable": "BaoCode's data folder setting cannot be read",
+  "dataDirCannotWrite": "BaoCode cannot write to its data folder",
+  "dataDirUnavailable": "BaoCode's data folder is not available",
   "dataDirWhereEnv": "It is set by the {variable} environment variable.",
   "@dataDirWhereEnv": {
     "placeholders": {
@@ -2811,7 +2811,7 @@
       }
     }
   },
-  "dataDirWhereFixPointer": "Fix or delete {file} and try again; Monad changes it only if you choose another folder.",
+  "dataDirWhereFixPointer": "Fix or delete {file} and try again; BaoCode changes it only if you choose another folder.",
   "@dataDirWhereFixPointer": {
     "placeholders": {
       "file": {
@@ -2838,8 +2838,8 @@
   "dataDirRetry": "Retry",
   "dataDirUseDefaultOnce": "Use the Default Folder This Time",
   "dataDirChooseAnother": "Choose Another Folder…",
-  "dataDirRemoveOldTitle": "Remove the data Monad left in its previous folder?",
-  "dataDirRemoveOldDetail": "Monad now keeps its data in {current}. Only its own items are removed from the previous folder ({items}); the folder and everything else in it stay.",
+  "dataDirRemoveOldTitle": "Remove the data BaoCode left in its previous folder?",
+  "dataDirRemoveOldDetail": "BaoCode now keeps its data in {current}. Only its own items are removed from the previous folder ({items}); the folder and everything else in it stay.",
   "@dataDirRemoveOldDetail": {
     "placeholders": {
       "current": {

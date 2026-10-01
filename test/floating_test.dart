@@ -4,16 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
-import 'package:monad/chat/chat_history_view.dart';
-import 'package:monad/chat/chat_models.dart';
-import 'package:monad/chat/composer/composer_picker.dart';
-import 'package:monad/chat/composer/suggestion_menu.dart';
-import 'package:monad/chat/floating/floating_placement.dart';
-import 'package:monad/chat/floating/hover_tooltip.dart';
-import 'package:monad/chat/floating/floating_registry.dart';
-import 'package:monad/chat/widgets/fold_line.dart';
-import 'package:monad/chat/widgets/tool_call_row.dart';
-import 'package:monad/chat/widgets/user_message_bubble.dart';
+import 'package:baocode/chat/chat_history_view.dart';
+import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/composer/composer_picker.dart';
+import 'package:baocode/chat/composer/suggestion_menu.dart';
+import 'package:baocode/chat/floating/floating_placement.dart';
+import 'package:baocode/chat/floating/hover_tooltip.dart';
+import 'package:baocode/chat/floating/floating_registry.dart';
+import 'package:baocode/chat/widgets/fold_line.dart';
+import 'package:baocode/chat/widgets/tool_call_row.dart';
+import 'package:baocode/chat/widgets/user_message_bubble.dart';
 
 import 'composer_test.dart' show pumpScreen, settleAnimations, typeText;
 

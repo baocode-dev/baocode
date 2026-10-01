@@ -5,8 +5,8 @@
 // Translated in full from VS Code linesLayout.test.ts at
 // 6a598d4a13031703d483d103c1d934a36ad27971 (apart from the disposal harness).
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/view_layout/line_heights.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/view_layout/lines_layout.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/view_layout/line_heights.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/view_layout/lines_layout.dart';
 
 void main() {
   group('Editor ViewLayout - LinesLayout', () {

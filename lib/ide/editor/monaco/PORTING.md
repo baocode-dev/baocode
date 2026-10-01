@@ -204,7 +204,7 @@ minimal-edit formatting (line diff → one undo step keeping cursors) and
 workspace edit application. Rename edits to unopened files open them as dirty
 tabs; resource operations are refused. References go to a panel, not a peek.
 
-Client (`lib/ide/lsp/`, Monad code, not VS Code): `json_rpc.dart`,
+Client (`lib/ide/lsp/`, BaoCode code, not VS Code): `json_rpc.dart`,
 `lsp_client.dart`, `lsp_manager.dart`, `lsp_process*.dart`, `lsp_glob.dart`;
 contracts `lsp_protocol.dart`, `lsp_server_definition.dart`,
 `language_features.dart`. `EditorDocumentModel.changes` emits LSP-ordered
@@ -759,7 +759,7 @@ Deviations:
   background or top border of its own: its text is `statusBar.foreground`
   where the theme's `statusBar.background` is the side bar's (or unset), else
   the side bar's foreground. `test/theme/theme_sweep_test.dart` paints the workbench and
-  the chat in every bundled theme (`MONAD_THEME_SNAPSHOTS=<dir>` writes what
+  the chat in every bundled theme (`BAOCODE_THEME_SNAPSHOTS=<dir>` writes what
   each paints).
 
 ## Color registry (2026-09-30)

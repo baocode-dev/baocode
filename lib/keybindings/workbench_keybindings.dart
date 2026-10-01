@@ -36,7 +36,7 @@
 // and those upstream weighs more (`WorkbenchContrib + 50`) after the rest.
 //
 // Deviations:
-// - ⌃Tab / ⌃⇧Tab open the editor picker as upstream, where Monad's first
+// - ⌃Tab / ⌃⇧Tab open the editor picker as upstream, where BaoCode's first
 //   table had them switch to the next and previous tab (those keep ⌥⌘→ /
 //   ⌥⌘← and ⇧⌘] / ⇧⌘[, Ctrl+PageDown / Ctrl+PageUp elsewhere).
 // - Go to File… keeps ⌘P / Ctrl+P shown before its Ctrl+E (it is listed
@@ -656,12 +656,12 @@ final List<KeybindingEntry> workbenchExtraKeybindings = [
     mac: 'cmd+1',
     command: 'workbench.action.focusFirstEditorGroup',
   ),
-  // Monad's: back to the chat window with the keys that window opens the
-  // IDE with (chat_keybindings.dart, `monad.chat.openIde`).
+  // BaoCode's: back to the chat window with the keys that window opens the
+  // IDE with (chat_keybindings.dart, `baocode.chat.openIde`).
   const KeybindingEntry(
     key: 'ctrl+alt+i',
     mac: 'ctrl+cmd+i',
-    command: 'monad.ide.backToChat',
+    command: 'baocode.ide.backToChat',
     when: 'ideMode',
   ),
   // The quick input's.

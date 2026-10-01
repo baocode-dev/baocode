@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_surface.dart';
-import 'package:monad/ide/ide_breadcrumbs.dart';
-import 'package:monad/ide/ide_quick_input.dart';
-import 'package:monad/ide/lsp/language_features.dart';
-import 'package:monad/ide/lsp/lsp_protocol.dart';
-import 'package:monad/ide/lsp_ui/document_symbols.dart';
-import 'package:monad/ide/lsp_ui/semantic_tokens.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_surface.dart';
+import 'package:baocode/ide/ide_breadcrumbs.dart';
+import 'package:baocode/ide/ide_quick_input.dart';
+import 'package:baocode/ide/lsp/language_features.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/lsp_ui/document_symbols.dart';
+import 'package:baocode/ide/lsp_ui/semantic_tokens.dart';
 
 import '../workbench/fake_files.dart';
 import 'fake_language_features.dart';

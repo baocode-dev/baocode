@@ -3,8 +3,8 @@
 // Adapted from xterm.js src/common/services/CharsetService.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/data/charsets.dart';
-import 'package:monad/ide/terminal/xterm/common/services/charset_service.dart';
+import 'package:baocode/ide/terminal/xterm/common/data/charsets.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/charset_service.dart';
 
 void main() {
   group('CharsetService', () {

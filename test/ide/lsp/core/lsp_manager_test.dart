@@ -6,18 +6,18 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_document_model.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:monad/ide/file_service.dart';
-import 'package:monad/ide/ide_workspace.dart';
-import 'package:monad/ide/lsp/language_features.dart';
-import 'package:monad/ide/lsp/lsp_manager.dart';
-import 'package:monad/ide/lsp/lsp_process.dart';
-import 'package:monad/ide/lsp/lsp_process_io.dart';
-import 'package:monad/ide/lsp/lsp_protocol.dart';
-import 'package:monad/ide/lsp/lsp_server_definition.dart';
-import 'package:monad/kernel/claude_code/claude_environment.dart';
-import 'package:monad/platform/child_process_registry.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_document_model.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
+import 'package:baocode/ide/file_service.dart';
+import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/ide/lsp/language_features.dart';
+import 'package:baocode/ide/lsp/lsp_manager.dart';
+import 'package:baocode/ide/lsp/lsp_process.dart';
+import 'package:baocode/ide/lsp/lsp_process_io.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/lsp/lsp_server_definition.dart';
+import 'package:baocode/kernel/claude_code/claude_environment.dart';
+import 'package:baocode/platform/child_process_registry.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../fixtures/lsp/fake_lsp.dart';
@@ -31,7 +31,7 @@ void main() {
 
   setUp(() {
     root = Directory.systemTemp
-        .createTempSync('monad-lsp')
+        .createTempSync('baocode-lsp')
         .resolveSymbolicLinksSync();
     ClaudeEnvironment.use(Platform.environment);
     LspProcesses.registry = ChildProcessRegistry(

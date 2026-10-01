@@ -9,7 +9,7 @@
 // literals are record literals; `undefined` is null.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/links/terminal_link_parsing.dart';
+import 'package:baocode/ide/terminal/links/terminal_link_parsing.dart';
 
 class ITestLink {
   const ITestLink({

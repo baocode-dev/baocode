@@ -1,9 +1,9 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/edits/text_edit.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/position.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/range.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/edits/text_edit.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/position.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
 
 Range _range(int sl, int sc, int el, int ec) => Range(sl, sc, el, ec);
 

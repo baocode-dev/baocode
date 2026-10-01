@@ -13,7 +13,7 @@ if (execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' })
   throw new Error(`Expected Monaco revision ${revision}`);
 }
 const source = join(root, 'src/languages/definitions');
-const temporary = await mkdtemp(join(tmpdir(), 'monad-monaco-grammars-'));
+const temporary = await mkdtemp(join(tmpdir(), 'baocode-monaco-grammars-'));
 try {
   await writeFile(join(temporary, 'package.json'), '{"type":"module"}');
   const names = (await readdir(source, { withFileTypes: true }))

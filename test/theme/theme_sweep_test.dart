@@ -4,16 +4,16 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:monad/ide/editor/textmate/textmate_manifest.dart';
-import 'package:monad/ide/editor/textmate/textmate_syntax.dart'
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
+import 'package:baocode/ide/editor/textmate/textmate_syntax.dart'
     show textMateWorkerLauncher;
-import 'package:monad/ide/ide_modern_ui.dart';
-import 'package:monad/ide/lsp_ui/problems_panel.dart';
-import 'package:monad/ide/terminal/terminal_colors.dart';
-import 'package:monad/main.dart';
-import 'package:monad/theme/workbench_theme.dart';
-import 'package:monad/workspace/workspace.dart';
+import 'package:baocode/ide/ide_modern_ui.dart';
+import 'package:baocode/ide/lsp_ui/problems_panel.dart';
+import 'package:baocode/ide/terminal/terminal_colors.dart';
+import 'package:baocode/main.dart';
+import 'package:baocode/theme/workbench_theme.dart';
+import 'package:baocode/workspace/workspace.dart';
 
 import '../ide/workbench/fake_files.dart';
 
@@ -37,8 +37,8 @@ Future<List<ColorThemeData>> _themes() async {
 }
 
 /// Where to write what each theme paints, to look at (e.g.
-/// `MONAD_THEME_SNAPSHOTS=/tmp/themes flutter test test/theme/`).
-final _snapshots = Platform.environment['MONAD_THEME_SNAPSHOTS'];
+/// `BAOCODE_THEME_SNAPSHOTS=/tmp/themes flutter test test/theme/`).
+final _snapshots = Platform.environment['BAOCODE_THEME_SNAPSHOTS'];
 
 Future<void> _snapshot(WidgetTester tester, String name) async {
   final directory = _snapshots;
@@ -74,7 +74,7 @@ void main() {
         ..restore(setting: theme.settingsId, data: theme.toStorage());
       expect(service.colorThemeId, theme.settingsId);
       final name = theme.settingsId.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
-      // As MonadApp does, which the workbench here is outside of.
+      // As BaoCodeApp does, which the workbench here is outside of.
       terminalColorTheme.value = TerminalColorTheme.resolve(
         service.colors.get,
         type: service.colors.type,
@@ -118,7 +118,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpWidget(const SizedBox());
 
-      await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
+      await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
       await tester.pump();
       expect(tester.takeException(), isNull, reason: theme.settingsId);
       await _snapshot(tester, 'chat_$name');

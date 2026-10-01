@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/terminal_shell.dart';
+import 'package:baocode/ide/terminal/terminal_shell.dart';
 
 /// The shell and environment of a new terminal, as VS Code picks them.
 void main() {
@@ -168,7 +168,7 @@ void main() {
         'PATH': '/usr/bin:/bin',
         'HOME': '/Users/me',
         'TERM': 'xterm-256color',
-        'TERM_PROGRAM': 'monad',
+        'TERM_PROGRAM': 'baocode',
         'LANG': 'en_US.UTF-8',
         'COLORTERM': 'truecolor',
       });
@@ -181,7 +181,7 @@ void main() {
         'TERM_PROGRAM_VERSION': '1.99.0',
       }, os: TerminalOs.linux);
       expect(environment['TERM'], 'xterm-256color');
-      expect(environment['TERM_PROGRAM'], 'monad');
+      expect(environment['TERM_PROGRAM'], 'baocode');
       expect(environment, isNot(contains('TERM_PROGRAM_VERSION')));
       expect(
         terminalEnvironment(
@@ -240,7 +240,7 @@ void main() {
       expect(environment, {
         'Path': r'C:\Windows',
         'Lang': 'fr_FR.UTF-8',
-        'Term_Program': 'monad',
+        'Term_Program': 'baocode',
         'COLORTERM': 'truecolor',
       });
     });

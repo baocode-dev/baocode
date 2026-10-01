@@ -5,13 +5,13 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/json.dart' as json;
-import 'package:monad/ide/editor/monaco/vs/editor/common/encoded_token_attributes.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/text_mate/common/tm_grammars.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/text_mate/common/tm_scope_registry.dart';
-import 'package:monad/ide/editor/textmate/textmate_manifest.dart';
-import 'package:monad/ide/editor/textmate/vscode_textmate/main.dart'
+import 'package:baocode/ide/editor/monaco/vs/base/common/json.dart' as json;
+import 'package:baocode/ide/editor/monaco/vs/editor/common/encoded_token_attributes.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/text_mate/common/tm_grammars.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/text_mate/common/tm_scope_registry.dart';
+import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
+import 'package:baocode/ide/editor/textmate/vscode_textmate/main.dart'
     show parseRawGrammar;
 
 import '../textmate_fixture.dart';

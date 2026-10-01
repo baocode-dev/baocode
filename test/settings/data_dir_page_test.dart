@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/ide_button.dart';
-import 'package:monad/platform/data_dir.dart';
-import 'package:monad/settings/data_dir_service.dart';
-import 'package:monad/settings/pages/data_dir_page.dart';
+import 'package:baocode/ide/ide_button.dart';
+import 'package:baocode/platform/data_dir.dart';
+import 'package:baocode/settings/data_dir_service.dart';
+import 'package:baocode/settings/pages/data_dir_page.dart';
 
 /// Moves as the page asks for them: nothing is copied, no file touched.
 class _FakeService extends DataDirectoryService {
@@ -12,7 +12,7 @@ class _FakeService extends DataDirectoryService {
     super.environment = const {'HOME': '/home/me'},
     this.targets = const {},
   }) : super(
-         current: DataDirectory('/data/monad', source: source),
+         current: DataDirectory('/data/baocode', source: source),
          home: '/home/me',
        );
 
@@ -82,13 +82,13 @@ void main() {
     tester,
   ) async {
     final (:revealed, quits: _) = await pumpPage(tester, _FakeService());
-    expect(find.text('/data/monad'), findsOneWidget);
+    expect(find.text('/data/baocode'), findsOneWidget);
     expect(
-      find.text('Set in /home/me/.monad/config-dir.json.'),
+      find.text('Set in /home/me/.baocode/config-dir.json.'),
       findsOneWidget,
     );
     await tester.tap(find.text('Reveal in Finder'));
-    expect(revealed, ['/data/monad']);
+    expect(revealed, ['/data/baocode']);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('Change copies the data to an empty folder, then offers to '
@@ -97,31 +97,31 @@ void main() {
     final (revealed: _, :quits) = await pumpPage(
       tester,
       service,
-      picks: ['/Volumes/D/Monad'],
+      picks: ['/Volumes/D/BaoCode'],
     );
     await tester.tap(find.text('Change…'));
     await tester.pumpAndSettle();
-    expect(find.text("Move Monad's data to this folder?"), findsOneWidget);
+    expect(find.text("Move BaoCode's data to this folder?"), findsOneWidget);
     await tester.tap(find.text('Copy and Switch'));
     await tester.pumpAndSettle();
-    expect(service.migrated, ['/Volumes/D/Monad']);
+    expect(service.migrated, ['/Volumes/D/BaoCode']);
     expect(
-      find.text('Restart Monad to use the new data folder'),
+      find.text('Restart BaoCode to use the new data folder'),
       findsOneWidget,
     );
     await tester.tap(find.text('Quit Now').last);
     await tester.pumpAndSettle();
     expect(quits, ['quit']);
-    expect(find.text('After a restart: /Volumes/D/Monad'), findsOneWidget);
+    expect(find.text('After a restart: /Volumes/D/BaoCode'), findsOneWidget);
   });
 
-  testWidgets('a folder with Monad data is used as it is; Later keeps '
+  testWidgets('a folder with BaoCode data is used as it is; Later keeps '
       'running', (tester) async {
     final service = _FakeService(
       targets: {
         '/other': const DataDirectoryTarget(
           '/other',
-          contents: DataDirectoryContents.monadData,
+          contents: DataDirectoryContents.baocodeData,
         ),
       },
     );
@@ -132,7 +132,7 @@ void main() {
     );
     await tester.tap(find.text('Change…'));
     await tester.pumpAndSettle();
-    expect(find.text('The folder already holds Monad data'), findsOneWidget);
+    expect(find.text('The folder already holds BaoCode data'), findsOneWidget);
     await tester.tap(find.text('Use Its Data'));
     await tester.pumpAndSettle();
     expect(service.usedAsIs, ['/other']);
@@ -178,7 +178,7 @@ void main() {
     await tester.tap(find.text('Reset to Default'));
     await tester.pumpAndSettle();
     expect(
-      find.text("Move Monad's data back to the default folder?"),
+      find.text("Move BaoCode's data back to the default folder?"),
       findsOneWidget,
     );
     await tester.tap(find.text('Copy and Switch'));
@@ -187,18 +187,20 @@ void main() {
     expect(service.migrated, [service.defaultPath]);
   });
 
-  testWidgets('set by MONAD_DATA_DIR: nothing to change here', (tester) async {
+  testWidgets('set by BAOCODE_DATA_DIR: nothing to change here', (
+    tester,
+  ) async {
     await pumpPage(
       tester,
       _FakeService(
         source: DataDirectorySource.environment,
-        environment: const {'HOME': '/home/me', 'MONAD_DATA_DIR': '/env'},
+        environment: const {'HOME': '/home/me', 'BAOCODE_DATA_DIR': '/env'},
       ),
     );
     expect(button(tester, 'Change…').onPressed, isNull);
     expect(button(tester, 'Reset to Default').onPressed, isNull);
     expect(
-      find.text('Set by the MONAD_DATA_DIR environment variable.'),
+      find.text('Set by the BAOCODE_DATA_DIR environment variable.'),
       findsOneWidget,
     );
   });

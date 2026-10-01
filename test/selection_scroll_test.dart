@@ -4,8 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
-import 'package:monad/main.dart';
-import 'package:monad/workspace/workspace.dart';
+import 'package:baocode/main.dart';
+import 'package:baocode/workspace/workspace.dart';
 
 void main() {
   testWidgets('a press stops a trackpad fling, so what is dragged over is '
@@ -22,7 +22,7 @@ void main() {
     addTearDown(
       () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
     );
-    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
+    await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
     await tester.pump();
     final list = find.byType(SuperListView);
     final position = tester.widget<SuperListView>(list).controller!.position;

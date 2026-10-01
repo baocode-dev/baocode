@@ -3,8 +3,8 @@
 // Adapted from xterm.js src/browser/input/MoveToCell.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/browser/input/move_to_cell.dart';
-import 'package:monad/ide/terminal/xterm/common/services/services.dart';
+import 'package:baocode/ide/terminal/xterm/browser/input/move_to_cell.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
 
 import '../../common/test_utils.dart';
 

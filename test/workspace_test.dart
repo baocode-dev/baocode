@@ -4,16 +4,16 @@ import 'dart:io';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_screen.dart';
-import 'package:monad/chat/chat_session.dart';
-import 'package:monad/kernel/agent_kernel.dart';
-import 'package:monad/kernel/claude_code/claude_code_kernel.dart';
-import 'package:monad/kernel/claude_code/mock_claude_code_transport.dart';
-import 'package:monad/main.dart';
-import 'package:monad/sidebar/sidebar.dart';
-import 'package:monad/workspace/editor_launcher.dart';
-import 'package:monad/workspace/preference_store.dart';
-import 'package:monad/workspace/workspace.dart';
+import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/kernel/agent_kernel.dart';
+import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
+import 'package:baocode/kernel/claude_code/mock_claude_code_transport.dart';
+import 'package:baocode/main.dart';
+import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/workspace/editor_launcher.dart';
+import 'package:baocode/workspace/preference_store.dart';
+import 'package:baocode/workspace/workspace.dart';
 
 /// Sessions as Claude Code keeps them: one recorded, in one project, and
 /// any [started] since (e.g. in a terminal).
@@ -70,7 +70,7 @@ Future<Workspace> pumpLoaded(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final workspace = Workspace(kernels: [claude], preferences: preferences);
-  await tester.pumpWidget(MonadApp(workspace: workspace));
+  await tester.pumpWidget(BaoCodeApp(workspace: workspace));
   await tester.runAsync(workspace.load);
   await tester.pump();
   return workspace;

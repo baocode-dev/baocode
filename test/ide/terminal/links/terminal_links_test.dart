@@ -5,11 +5,11 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/links/terminal_link_parsing.dart';
-import 'package:monad/ide/terminal/links/terminal_link_resolver.dart';
-import 'package:monad/ide/terminal/links/terminal_links.dart';
-import 'package:monad/ide/terminal/xterm/headless/public/terminal.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm_headless.dart'
+import 'package:baocode/ide/terminal/links/terminal_link_parsing.dart';
+import 'package:baocode/ide/terminal/links/terminal_link_resolver.dart';
+import 'package:baocode/ide/terminal/links/terminal_links.dart';
+import 'package:baocode/ide/terminal/xterm/headless/public/terminal.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
     hide Terminal;
 
 IBufferRange range((int, int) start, (int, int) end) => IBufferRange(
@@ -182,7 +182,7 @@ void main() {
       link,
       contextLine: contextLine,
       os: OperatingSystem.linux,
-      workspaceFolders: ['/code/monad'],
+      workspaceFolders: ['/code/baocode'],
     );
 
     test('drops file:// and ./ prefixes', () {
@@ -202,7 +202,7 @@ void main() {
     });
 
     test('drops a workspace folder name', () {
-      expect(text('monad/lib/a.dart'), 'lib/a.dart');
+      expect(text('baocode/lib/a.dart'), 'lib/a.dart');
     });
   });
 }

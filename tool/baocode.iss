@@ -1,11 +1,11 @@
-; The Windows installer for Monad, compiled by tool/build_windows.dart.
+; The Windows installer for BaoCode, compiled by tool/build_windows.dart.
 ;
 ; It is compiled with three /D defines, all required:
-;   BundleDir  the Release bundle to pack (the folder holding monad.exe)
+;   BundleDir  the Release bundle to pack (the folder holding baocode.exe)
 ;   AppVersion the version pubspec.yaml carries, as it writes it (1.0.0+1)
 ;   OutDir     where to write the installer (build/installers)
 ;
-; Output: Monad-<version>-setup.exe
+; Output: BaoCode-<version>-setup.exe
 
 #ifndef BundleDir
   #error BundleDir is not defined: pass /DBundleDir=<release bundle folder>
@@ -29,16 +29,16 @@
 ; Base of the identity Windows uses for the installed app. It must not change
 ; between versions, or an upgrade installs beside the old one instead of over
 ; it.
-AppId={{cde61266-7a57-4e0e-8e32-152bf6536000}
-AppName=Monad
+AppId={{6fdd732b-95c6-4c37-af6f-ff574358deb5}
+AppName=BaoCode
 AppVersion={#VersionNumber}
-AppPublisher=Monad
-AppVerName=Monad {#VersionNumber}
-DefaultDirName={autopf}\Monad
-DefaultGroupName=Monad
-UninstallDisplayName=Monad
-UninstallDisplayIcon={app}\monad.exe
-OutputBaseFilename=Monad-{#VersionNumber}-setup
+AppPublisher=BaoCode
+AppVerName=BaoCode {#VersionNumber}
+DefaultDirName={autopf}\BaoCode
+DefaultGroupName=BaoCode
+UninstallDisplayName=BaoCode
+UninstallDisplayIcon={app}\baocode.exe
+OutputBaseFilename=BaoCode-{#VersionNumber}-setup
 OutputDir={#OutDir}
 ; What Explorer shows for the installer itself. Windows wants four numbers,
 ; where pubspec's version has three.
@@ -60,19 +60,19 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; \
   GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "addtopath"; Description: "Add Monad to the PATH"; \
+Name: "addtopath"; Description: "Add BaoCode to the PATH"; \
   GroupDescription: "Other:"; Flags: unchecked
 
 [Files]
-; The whole bundle: monad.exe, the engine and plugin DLLs, and data\ (the
+; The whole bundle: baocode.exe, the engine and plugin DLLs, and data\ (the
 ; AOT app.so and flutter_assets) which sit beside the executable.
 Source: "{#BundleDir}\*"; DestDir: "{app}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Monad"; Filename: "{app}\monad.exe"
-Name: "{group}\{cm:UninstallProgram,Monad}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Monad"; Filename: "{app}\monad.exe"; Tasks: desktopicon
+Name: "{group}\BaoCode"; Filename: "{app}\baocode.exe"
+Name: "{group}\{cm:UninstallProgram,BaoCode}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\BaoCode"; Filename: "{app}\baocode.exe"; Tasks: desktopicon
 
 [Registry]
 ; Only when asked for. Which hive follows the install mode: a per-machine
@@ -87,7 +87,7 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; \
   Check: (not IsAdminInstallMode) and NeedsAddPath(ExpandConstant('{app}'), False)
 
 [Run]
-Filename: "{app}\monad.exe"; Description: "{cm:LaunchProgram,Monad}"; \
+Filename: "{app}\baocode.exe"; Description: "{cm:LaunchProgram,BaoCode}"; \
   Flags: nowait postinstall skipifsilent
 
 [Code]

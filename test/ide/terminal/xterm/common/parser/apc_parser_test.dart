@@ -5,9 +5,9 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/input/text_decoder.dart';
-import 'package:monad/ide/terminal/xterm/common/parser/apc_parser.dart';
-import 'package:monad/ide/terminal/xterm/common/parser/types.dart';
+import 'package:baocode/ide/terminal/xterm/common/input/text_decoder.dart';
+import 'package:baocode/ide/terminal/xterm/common/parser/apc_parser.dart';
+import 'package:baocode/ide/terminal/xterm/common/parser/types.dart';
 
 import 'parser_test_utils.dart';
 

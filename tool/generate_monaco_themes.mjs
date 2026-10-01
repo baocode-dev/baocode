@@ -13,7 +13,7 @@ if (execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' })
   throw new Error(`Expected VS Code revision ${revision}`);
 }
 const source = await readFile(join(root, 'src/vs/editor/standalone/common/themes.ts'), 'utf8');
-const temporary = await mkdtemp(join(tmpdir(), 'monad-monaco-themes-'));
+const temporary = await mkdtemp(join(tmpdir(), 'baocode-monaco-themes-'));
 try {
   await writeFile(join(temporary, 'package.json'), '{"type":"module"}');
   const symbols = [

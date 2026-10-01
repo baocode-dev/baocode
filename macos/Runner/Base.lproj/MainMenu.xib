@@ -35,7 +35,7 @@
                             <menuItem isSeparatorItem="YES" id="VOq-y0-SEH"/>
                             <menuItem title="Preferences…" keyEquivalent="," id="BOF-NM-1cW">
                                 <connections>
-                                    <action selector="monadPreferences:" target="-1" id="Pf1-mo-nd1"/>
+                                    <action selector="baocodePreferences:" target="-1" id="Pf1-mo-nd1"/>
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="wFC-TO-SCJ"/>
@@ -76,34 +76,34 @@
                         <items>
                             <menuItem title="Undo" keyEquivalent="z" id="dRJ-4n-Yzg">
                                 <connections>
-                                    <action selector="monadUndo:" target="-1" id="M6e-cu-g7V"/>
+                                    <action selector="baocodeUndo:" target="-1" id="M6e-cu-g7V"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Redo" keyEquivalent="Z" id="6dh-zS-Vam">
                                 <connections>
-                                    <action selector="monadRedo:" target="-1" id="oIA-Rs-6OD"/>
+                                    <action selector="baocodeRedo:" target="-1" id="oIA-Rs-6OD"/>
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="WRV-NI-Exz"/>
                             <menuItem title="Cut" keyEquivalent="x" id="uRl-iY-unG">
                                 <connections>
-                                    <action selector="monadCut:" target="-1" id="YJe-68-I9s"/>
+                                    <action selector="baocodeCut:" target="-1" id="YJe-68-I9s"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Copy" keyEquivalent="c" id="x3v-GG-iWU">
                                 <connections>
-                                    <action selector="monadCopy:" target="-1" id="G1f-GL-Joy"/>
+                                    <action selector="baocodeCopy:" target="-1" id="G1f-GL-Joy"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Paste" keyEquivalent="v" id="gVA-U4-sdL">
                                 <connections>
-                                    <action selector="monadPaste:" target="-1" id="UvS-8e-Qdg"/>
+                                    <action selector="baocodePaste:" target="-1" id="UvS-8e-Qdg"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Paste and Match Style" keyEquivalent="V" id="WeT-3V-zwk">
                                 <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
                                 <connections>
-                                    <action selector="monadPaste:" target="-1" id="cEh-KX-wJQ"/>
+                                    <action selector="baocodePaste:" target="-1" id="cEh-KX-wJQ"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Delete" id="pa3-QI-u2k">
@@ -114,7 +114,7 @@
                             </menuItem>
                             <menuItem title="Select All" keyEquivalent="a" id="Ruw-6m-B2m">
                                 <connections>
-                                    <action selector="monadSelectAll:" target="-1" id="VNm-Mi-diN"/>
+                                    <action selector="baocodeSelectAll:" target="-1" id="VNm-Mi-diN"/>
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="uyl-h8-XO2"/>

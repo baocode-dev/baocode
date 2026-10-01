@@ -2,9 +2,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/ide_explorer.dart';
-import 'package:monad/ide/ide_input.dart';
-import 'package:monad/theme/codicons.dart';
+import 'package:baocode/ide/ide_explorer.dart';
+import 'package:baocode/ide/ide_input.dart';
+import 'package:baocode/theme/codicons.dart';
 
 import '../git/fake_git.dart';
 import 'fake_files.dart';

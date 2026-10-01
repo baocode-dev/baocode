@@ -5,8 +5,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/textmate/vscode_textmate/js_semantics.dart';
-import 'package:monad/ide/editor/textmate/vscode_textmate/main.dart';
+import 'package:baocode/ide/editor/textmate/vscode_textmate/js_semantics.dart';
+import 'package:baocode/ide/editor/textmate/vscode_textmate/main.dart';
 
 import 'support/fixtures.dart';
 import 'support/onig.dart';

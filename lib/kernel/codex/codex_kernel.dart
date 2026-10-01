@@ -167,7 +167,7 @@ class CodexKernel
     if (!_initialized) {
       _initialized = true;
       await _request('initialize', {
-        'clientInfo': {'name': 'monad', 'version': '1.0.0'},
+        'clientInfo': {'name': 'baocode', 'version': '1.0.0'},
       });
     }
     if (_threadId == null) {

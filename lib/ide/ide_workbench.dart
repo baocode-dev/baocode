@@ -88,7 +88,7 @@ class IdeWorkbench extends StatefulWidget {
     required this.onBack,
     this.editorBuilder,
     this.nativeEditorEnabled = const bool.fromEnvironment(
-      'MONAD_NATIVE_EDITOR',
+      'BAOCODE_NATIVE_EDITOR',
       defaultValue: true,
     ),
     this.commands = const [],
@@ -2101,7 +2101,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         run: _selectColorTheme,
       ),
       IdeCommand(
-        id: 'monad.ide.toggleFormatOnSave',
+        id: 'baocode.ide.toggleFormatOnSave',
         category: 'Preferences',
         label: _formatOnSave
             ? 'Turn Off Format on Save'
@@ -2115,14 +2115,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         enabled: widget.workspace.git != null,
       ),
       IdeCommand(
-        id: 'monad.ide.retryLanguageServices',
+        id: 'baocode.ide.retryLanguageServices',
         category: 'Developer',
         label: 'Retry Language Services',
         enabled: active != null,
         run: () => unawaited(_editor?.retryLanguageServer()),
       ),
       IdeCommand(
-        id: 'monad.ide.backToChat',
+        id: 'baocode.ide.backToChat',
         category: 'View',
         label: 'Back to Chat',
         run: () => unawaited(_back()),
@@ -2997,7 +2997,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   IdeHover(
                     message: keys.titleWithKeybinding(
                       l10n.workspaceBackToChat,
-                      'monad.ide.backToChat',
+                      'baocode.ide.backToChat',
                     ),
                     child: BackToChatButton(
                       onPressed: () => unawaited(_back()),
@@ -3039,7 +3039,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         },
         tooltip: keys.titleWithKeybinding(
           l10n.wbRetryLanguageServices,
-          'monad.ide.retryLanguageServices',
+          'baocode.ide.retryLanguageServices',
         ),
         onTap: () => unawaited(_editor?.retryLanguageServer()),
       ),
@@ -3222,7 +3222,7 @@ class _CommandCenter extends StatefulWidget {
 
   final String label;
 
-  /// `Search monad (⌘P)`: upstream's `CommandCenterCenterViewItem
+  /// `Search baocode (⌘P)`: upstream's `CommandCenterCenterViewItem
   /// .getTooltip` (commandCenterControl.ts), but the window title after it.
   final String tooltip;
   final VoidCallback onTap;

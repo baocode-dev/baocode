@@ -13,7 +13,7 @@ typedef TerminalShell = ({String executable, List<String> arguments});
 
 /// What `TERM_PROGRAM` says in a terminal. Not `vscode`: programs (the
 /// Claude Code CLI among them) change what they do on that.
-const terminalProgram = 'monad';
+const terminalProgram = 'baocode';
 
 /// The shell a new terminal runs: on macOS and Linux, `$SHELL`; on Windows,
 /// the first PowerShell installed (see [windowsPowerShells]), else

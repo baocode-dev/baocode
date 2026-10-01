@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_document_model.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_surface.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_surface_controller.dart';
-import 'package:monad/ide/editor/monaco/flutter/monaco_syntax.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_document_model.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_surface.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:baocode/ide/editor/monaco/flutter/monaco_syntax.dart';
 
 void main() {
   testWidgets(

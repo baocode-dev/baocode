@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/misc/eol_counter.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/misc/eol_counter.dart';
 
 void main() {
   test('StringEOL preserves upstream bit flags', () {

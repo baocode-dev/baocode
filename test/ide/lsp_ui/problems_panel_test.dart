@@ -3,7 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/lsp_ui/problems_panel.dart';
+import 'package:baocode/ide/lsp_ui/problems_panel.dart';
 
 void main() {
   testWidgets('narrow, its tabs scroll and its actions stay whole', (

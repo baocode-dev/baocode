@@ -50,7 +50,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get languageSettingsDescription =>
-      'The language of Monad\'s menus, views and messages. Changes apply at once.';
+      'The language of BaoCode\'s menus, views and messages. Changes apply at once.';
 
   @override
   String get languageSettingsFollowSystem => 'Follow System';
@@ -1330,7 +1330,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuContextPanel => 'Context Panel';
 
   @override
-  String get menuAboutMonad => 'About Monad';
+  String get menuAboutBaoCode => 'About BaoCode';
 
   @override
   String get windowShowSidebar => 'Show sidebar';
@@ -3783,9 +3783,9 @@ class AppLocalizationsEn extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          'Monad does not know the context keys $keys: this keybinding never applies.',
+          'BaoCode does not know the context keys $keys: this keybinding never applies.',
       one:
-          'Monad does not know the context key $keys: this keybinding never applies.',
+          'BaoCode does not know the context key $keys: this keybinding never applies.',
     );
     return '$_temp0';
   }
@@ -3862,7 +3862,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String kbCannotReadKey(String key) {
-    return 'Monad cannot read the key “$key”: this keybinding never applies.';
+    return 'BaoCode cannot read the key “$key”: this keybinding never applies.';
   }
 
   @override
@@ -3870,7 +3870,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get kbNotSupportedHover =>
-      'Monad does not have this command: the keybinding is kept, but does nothing.';
+      'BaoCode does not have this command: the keybinding is kept, but does nothing.';
 
   @override
   String get kbPressKeys =>
@@ -3931,26 +3931,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dataDirChecking => 'Checking the folder…';
 
   @override
-  String get dataDirAlreadyHolds => 'The folder already holds Monad data';
+  String get dataDirAlreadyHolds => 'The folder already holds BaoCode data';
 
   @override
   String get dataDirMoveBack =>
-      'Move Monad\'s data back to the default folder?';
+      'Move BaoCode\'s data back to the default folder?';
 
   @override
-  String get dataDirMoveHere => 'Move Monad\'s data to this folder?';
+  String get dataDirMoveHere => 'Move BaoCode\'s data to this folder?';
 
   @override
   String get dataDirUseAsIsDetail =>
-      'After a restart Monad uses the data there as it is; nothing is copied, and the current folder keeps yours.';
+      'After a restart BaoCode uses the data there as it is; nothing is copied, and the current folder keeps yours.';
 
   @override
   String get dataDirCopyDetail =>
-      'Monad copies its settings, keybindings, language servers and state there, and uses that folder after a restart.';
+      'BaoCode copies its settings, keybindings, language servers and state there, and uses that folder after a restart.';
 
   @override
   String get dataDirOtherFiles =>
-      'The folder holds other files: they stay, beside Monad\'s own.';
+      'The folder holds other files: they stay, beside BaoCode\'s own.';
 
   @override
   String get dataDirUseItsData => 'Use Its Data';
@@ -3972,11 +3972,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get dataDirRestartTitle => 'Restart Monad to use the new data folder';
+  String get dataDirRestartTitle =>
+      'Restart BaoCode to use the new data folder';
 
   @override
   String dataDirRestartDetail(String current, String next) {
-    return 'Monad keeps using $current until it restarts. The next start uses $next, and offers to remove what is left in the old one.';
+    return 'BaoCode keeps using $current until it restarts. The next start uses $next, and offers to remove what is left in the old one.';
   }
 
   @override
@@ -4011,7 +4012,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dataDirDescription =>
-      'Where Monad keeps your settings, keybindings, language servers and its own state. Other programs keep files there too (the web view\'s caches); Monad never moves or removes those.';
+      'Where BaoCode keeps your settings, keybindings, language servers and its own state. Other programs keep files there too (the web view\'s caches); BaoCode never moves or removes those.';
 
   @override
   String get dataDirCurrentFolder => 'Current folder';
@@ -4039,13 +4040,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dataDirSettingUnreadable =>
-      'Monad\'s data folder setting cannot be read';
+      'BaoCode\'s data folder setting cannot be read';
 
   @override
-  String get dataDirCannotWrite => 'Monad cannot write to its data folder';
+  String get dataDirCannotWrite => 'BaoCode cannot write to its data folder';
 
   @override
-  String get dataDirUnavailable => 'Monad\'s data folder is not available';
+  String get dataDirUnavailable => 'BaoCode\'s data folder is not available';
 
   @override
   String dataDirWhereEnv(String variable) {
@@ -4054,7 +4055,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String dataDirWhereFixPointer(String file) {
-    return 'Fix or delete $file and try again; Monad changes it only if you choose another folder.';
+    return 'Fix or delete $file and try again; BaoCode changes it only if you choose another folder.';
   }
 
   @override
@@ -4078,11 +4079,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dataDirRemoveOldTitle =>
-      'Remove the data Monad left in its previous folder?';
+      'Remove the data BaoCode left in its previous folder?';
 
   @override
   String dataDirRemoveOldDetail(String current, String items) {
-    return 'Monad now keeps its data in $current. Only its own items are removed from the previous folder ($items); the folder and everything else in it stay.';
+    return 'BaoCode now keeps its data in $current. Only its own items are removed from the previous folder ($items); the folder and everything else in it stay.';
   }
 
   @override

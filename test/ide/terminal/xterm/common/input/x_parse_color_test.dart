@@ -3,7 +3,7 @@
 // Adapted from xterm.js src/common/input/XParseColor.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/input/x_parse_color.dart';
+import 'package:baocode/ide/terminal/xterm/common/input/x_parse_color.dart';
 
 void main() {
   group('XParseColor', () {

@@ -11,12 +11,12 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/document_snapshot.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/tokens/contiguous_tokens_store.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/tokens/line_tokens.dart';
-import 'package:monad/ide/editor/textmate/textmate_syntax.dart';
-import 'package:monad/ide/editor/textmate/textmate_worker.dart';
-import 'package:monad/theme/workbench_theme.dart';
+import 'package:baocode/ide/editor/monaco/flutter/document_snapshot.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/tokens/contiguous_tokens_store.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/tokens/line_tokens.dart';
+import 'package:baocode/ide/editor/textmate/textmate_syntax.dart';
+import 'package:baocode/ide/editor/textmate/textmate_worker.dart';
+import 'package:baocode/theme/workbench_theme.dart';
 
 import 'textmate_fixture.dart';
 

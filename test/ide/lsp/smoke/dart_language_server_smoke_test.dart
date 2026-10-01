@@ -8,15 +8,15 @@ library;
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/file_service.dart';
-import 'package:monad/ide/ide_workspace.dart';
-import 'package:monad/ide/lsp/language_features.dart';
-import 'package:monad/ide/lsp/lsp_manager.dart';
-import 'package:monad/ide/lsp/lsp_process.dart';
-import 'package:monad/ide/lsp/lsp_process_io.dart';
-import 'package:monad/ide/lsp/lsp_protocol.dart';
-import 'package:monad/ide/lsp/lsp_server_definition.dart';
-import 'package:monad/platform/child_process_registry.dart';
+import 'package:baocode/ide/file_service.dart';
+import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/ide/lsp/language_features.dart';
+import 'package:baocode/ide/lsp/lsp_manager.dart';
+import 'package:baocode/ide/lsp/lsp_process.dart';
+import 'package:baocode/ide/lsp/lsp_process_io.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/lsp/lsp_server_definition.dart';
+import 'package:baocode/platform/child_process_registry.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../fixtures/lsp/fake_lsp.dart';
@@ -56,7 +56,7 @@ class _PathProvider implements LspServerProvider {
 void main() {
   test('dart language-server answers through the manager', () async {
     final root = Directory.systemTemp
-        .createTempSync('monad-lsp-smoke')
+        .createTempSync('baocode-lsp-smoke')
         .resolveSymbolicLinksSync();
     addTearDown(() => Directory(root).deleteSync(recursive: true));
     LspProcesses.registry = ChildProcessRegistry(

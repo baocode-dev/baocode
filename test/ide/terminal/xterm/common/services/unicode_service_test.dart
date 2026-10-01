@@ -3,9 +3,9 @@
 // Adapted from xterm.js src/common/services/UnicodeService.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/input/unicode_v6.dart';
-import 'package:monad/ide/terminal/xterm/common/services/services.dart';
-import 'package:monad/ide/terminal/xterm/common/services/unicode_service.dart';
+import 'package:baocode/ide/terminal/xterm/common/input/unicode_v6.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/unicode_service.dart';
 
 class DummyProvider implements IUnicodeVersionProvider {
   @override

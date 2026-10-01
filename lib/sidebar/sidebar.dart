@@ -666,7 +666,7 @@ class _SearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // An input box; its hover with the keys that focus it, as upstream's
-    // command center has (`Search monad (⌘P)`).
+    // command center has (`Search baocode (⌘P)`).
     final colors = themeColors;
     final box = SizedBox(
       height: 28,

@@ -17,19 +17,19 @@ abstract final class AppPaths {
     return '';
   }
 
-  /// The platform's place for the app's data: `%APPDATA%\monad` on
-  /// Windows, `~/Library/Application Support/monad` on macOS,
-  /// `~/.config/monad` elsewhere. The user may move it: the folder in use is
+  /// The platform's place for the app's data: `%APPDATA%\baocode` on
+  /// Windows, `~/Library/Application Support/baocode` on macOS,
+  /// `~/.config/baocode` elsewhere. The user may move it: the folder in use is
   /// `DataDirectory.current`.
   static String dataDir(Map<String, String> environment) {
     final homeDir = home(environment);
     if (Platform.isWindows) {
       final appData = environment['APPDATA'] ?? '';
-      return p.join(appData.isEmpty ? homeDir : appData, 'monad');
+      return p.join(appData.isEmpty ? homeDir : appData, 'baocode');
     }
     return Platform.isMacOS
-        ? p.join(homeDir, 'Library', 'Application Support', 'monad')
-        : p.join(homeDir, '.config', 'monad');
+        ? p.join(homeDir, 'Library', 'Application Support', 'baocode')
+        : p.join(homeDir, '.config', 'baocode');
   }
 
   /// Where what a session's tasks print is kept: `/tmp`, where that is

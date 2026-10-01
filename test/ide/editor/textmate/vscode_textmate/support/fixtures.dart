@@ -5,8 +5,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:monad/ide/editor/textmate/vscode_textmate/plist.dart';
-import 'package:monad/ide/editor/textmate/vscode_textmate/theme.dart';
+import 'package:baocode/ide/editor/textmate/vscode_textmate/plist.dart';
+import 'package:baocode/ide/editor/textmate/vscode_textmate/theme.dart';
 
 /// Upstream's `test-cases/` folder, copied next to the tests.
 const String fixturesRoot = 'test/ide/editor/textmate/vscode_textmate/fixtures';

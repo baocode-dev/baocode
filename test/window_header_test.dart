@@ -4,30 +4,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_screen.dart';
-import 'package:monad/chat/composer/composer.dart';
-import 'package:monad/chat/panels/context_usage_panel.dart';
-import 'package:monad/ide/ide_layout.dart';
-import 'package:monad/ide/ide_workbench.dart';
-import 'package:monad/ide/lsp_ui/problems_panel.dart';
-import 'package:monad/ide/terminal/terminal_instance.dart';
-import 'package:monad/main.dart';
-import 'package:monad/sidebar/sidebar.dart';
-import 'package:monad/theme/codicons.dart';
-import 'package:monad/theme/app_theme.dart';
-import 'package:monad/workspace/back_to_chat_button.dart';
-import 'package:monad/workspace/editor_launcher.dart';
-import 'package:monad/workspace/open_in_editor_button.dart';
-import 'package:monad/workspace/pin_window_button.dart';
-import 'package:monad/workspace/window_header/about_dialog.dart';
-import 'package:monad/workspace/window_header/header_menu_bar.dart';
-import 'package:monad/workspace/window_header/window_header.dart';
-import 'package:monad/workspace/workspace.dart';
+import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/composer/composer.dart';
+import 'package:baocode/chat/panels/context_usage_panel.dart';
+import 'package:baocode/ide/ide_layout.dart';
+import 'package:baocode/ide/ide_workbench.dart';
+import 'package:baocode/ide/lsp_ui/problems_panel.dart';
+import 'package:baocode/ide/terminal/terminal_instance.dart';
+import 'package:baocode/main.dart';
+import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/theme/codicons.dart';
+import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/workspace/back_to_chat_button.dart';
+import 'package:baocode/workspace/editor_launcher.dart';
+import 'package:baocode/workspace/open_in_editor_button.dart';
+import 'package:baocode/workspace/pin_window_button.dart';
+import 'package:baocode/workspace/window_header/about_dialog.dart';
+import 'package:baocode/workspace/window_header/header_menu_bar.dart';
+import 'package:baocode/workspace/window_header/window_header.dart';
+import 'package:baocode/workspace/workspace.dart';
 
 import 'ide/terminal/fake_pty.dart';
 import 'ide/terminal/fake_terminal.dart';
 
-const _window = MethodChannel('monad/window');
+const _window = MethodChannel('baocode/window');
 
 /// The app with the header Windows draws, and what it tells the window.
 Future<(Workspace, List<MethodCall>)> pumpWindowsApp(
@@ -52,7 +52,7 @@ Future<(Workspace, List<MethodCall>)> pumpWindowsApp(
   );
   final workspace = Workspace.mock();
   await tester.pumpWidget(
-    MonadApp(workspace: workspace, terminalBackend: terminalBackend),
+    BaoCodeApp(workspace: workspace, terminalBackend: terminalBackend),
   );
   await tester.pump();
   return (workspace, calls);
@@ -356,7 +356,7 @@ void main() {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
+    await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
     await tester.pump();
     final button = tester.getRect(
       find.descendant(
@@ -373,6 +373,6 @@ void main() {
       r'^version: ([^+\s]+)',
       multiLine: true,
     ).firstMatch(File('pubspec.yaml').readAsStringSync())!.group(1);
-    expect(monadVersion, version);
+    expect(baocodeVersion, version);
   });
 }

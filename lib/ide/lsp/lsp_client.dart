@@ -356,7 +356,7 @@ class LspClient {
   }) async {
     final result = await _rpc.request('initialize', {
       'processId': lspClientProcessId,
-      'clientInfo': {'name': 'Monad', 'version': '1.0.0'},
+      'clientInfo': {'name': 'BaoCode', 'version': '1.0.0'},
       'locale': 'en',
       'rootPath': rootPath,
       'rootUri': _rootUri,

@@ -9,34 +9,34 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/widgets/activity_row.dart';
-import 'package:monad/sidebar/sidebar.dart';
-import 'package:monad/workspace/workspace.dart';
-import 'package:monad/chat/widgets/markdown_view.dart';
-import 'package:monad/workspace/window_controls.dart';
-import 'package:monad/main.dart';
+import 'package:baocode/chat/widgets/activity_row.dart';
+import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/workspace/workspace.dart';
+import 'package:baocode/chat/widgets/markdown_view.dart';
+import 'package:baocode/workspace/window_controls.dart';
+import 'package:baocode/main.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
-import 'package:monad/kernel/claude_code/claude_code_kernel.dart';
-import 'package:monad/chat/chat_models.dart';
-import 'package:monad/chat/widgets/edge_fade_mask.dart';
-import 'package:monad/chat/widgets/live_selectable_text.dart';
-import 'package:monad/chat/widgets/shimmer_text.dart';
-import 'package:monad/chat/widgets/thinking_section.dart';
-import 'package:monad/chat/widgets/chat_item_view.dart';
-import 'package:monad/chat/widgets/user_message_bubble.dart';
-import 'package:monad/chat/chat_history_view.dart';
-import 'package:monad/chat/chat_session.dart';
-import 'package:monad/chat/chat_screen.dart';
-import 'package:monad/chat/composer/composer.dart';
-import 'package:monad/chat/composer/composer_caret.dart';
-import 'package:monad/chat/composer/composer_embeds.dart';
-import 'package:monad/chat/composer/composer_picker.dart';
-import 'package:monad/chat/floating/floating_layer.dart';
-import 'package:monad/chat/composer/suggestion_menu.dart';
-import 'package:monad/chat/panels/activity_strip.dart';
-import 'package:monad/chat/panels/interaction_panel.dart';
-import 'package:monad/chat/panels/context_usage_panel.dart';
-import 'package:monad/theme/app_theme.dart';
+import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
+import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/widgets/edge_fade_mask.dart';
+import 'package:baocode/chat/widgets/live_selectable_text.dart';
+import 'package:baocode/chat/widgets/shimmer_text.dart';
+import 'package:baocode/chat/widgets/thinking_section.dart';
+import 'package:baocode/chat/widgets/chat_item_view.dart';
+import 'package:baocode/chat/widgets/user_message_bubble.dart';
+import 'package:baocode/chat/chat_history_view.dart';
+import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/composer/composer.dart';
+import 'package:baocode/chat/composer/composer_caret.dart';
+import 'package:baocode/chat/composer/composer_embeds.dart';
+import 'package:baocode/chat/composer/composer_picker.dart';
+import 'package:baocode/chat/floating/floating_layer.dart';
+import 'package:baocode/chat/composer/suggestion_menu.dart';
+import 'package:baocode/chat/panels/activity_strip.dart';
+import 'package:baocode/chat/panels/interaction_panel.dart';
+import 'package:baocode/chat/panels/context_usage_panel.dart';
+import 'package:baocode/theme/app_theme.dart';
 
 Future<ChatSession> pumpScreen(
   WidgetTester tester, {
@@ -579,7 +579,7 @@ void main() {
     final messenger = tester.binding.defaultBinaryMessenger;
     final menus = <List<Map<Object?, Object?>>>[];
     final replies = ['selectAll', 'copy', 'paste'];
-    messenger.setMockMethodCallHandler(const MethodChannel('monad/window'), (
+    messenger.setMockMethodCallHandler(const MethodChannel('baocode/window'), (
       call,
     ) async {
       switch (call.method) {
@@ -640,7 +640,7 @@ void main() {
       expect(menus, hasLength(3));
     } finally {
       messenger.setMockMethodCallHandler(
-        const MethodChannel('monad/window'),
+        const MethodChannel('baocode/window'),
         null,
       );
       messenger.setMockMethodCallHandler(SystemChannels.platform, null);
@@ -666,7 +666,7 @@ void main() {
       /// The menu item [command] chosen, as the window sends it.
       Future<void> menu(String command) async {
         await messenger.handlePlatformMessage(
-          'monad/window',
+          'baocode/window',
           const StandardMethodCodec().encodeMethodCall(
             MethodCall('editCommand', command),
           ),
@@ -701,7 +701,7 @@ void main() {
       expect(copied!.length, greaterThan(200));
     } finally {
       messenger.setMockMethodCallHandler(
-        const MethodChannel('monad/window'),
+        const MethodChannel('baocode/window'),
         null,
       );
       messenger.setMockMethodCallHandler(SystemChannels.platform, null);
@@ -1082,7 +1082,7 @@ void main() {
 
     testWidgets('an edit stays open while another conversation is visited '
         'from the sidebar', (tester) async {
-      await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
+      await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
       await tester.pump();
       final title = find.descendant(
         of: find.byType(Sidebar),

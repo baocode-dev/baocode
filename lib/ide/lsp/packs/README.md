@@ -10,8 +10,8 @@ from three layers; each overrides the one before:
    allowed).
 
 `<data>` is the app data folder (`DataDirectory.current`): by default
-`~/Library/Application Support/monad` on macOS, `~/.config/monad` on Linux,
-`%APPDATA%\monad` on Windows; `MONAD_DATA_DIR` or `~/.monad/config-dir.json`
+`~/Library/Application Support/baocode` on macOS, `~/.config/baocode` on Linux,
+`%APPDATA%\baocode` on Windows; `BAOCODE_DATA_DIR` or `~/.baocode/config-dir.json`
 may move it. Installed servers go to `<data>/servers/`.
 
 Entries that do not validate are skipped and reported

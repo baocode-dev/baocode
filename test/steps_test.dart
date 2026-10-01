@@ -2,16 +2,16 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_models.dart';
-import 'package:monad/chat/panels/activity_strip.dart';
-import 'package:monad/chat/widgets/chat_item_view.dart';
-import 'package:monad/chat/widgets/shell_highlight.dart';
-import 'package:monad/chat/widgets/shimmer_text.dart';
-import 'package:monad/chat/widgets/step_header.dart';
-import 'package:monad/chat/widgets/wheel_latch.dart';
-import 'package:monad/ide/terminal/terminal_colors.dart';
-import 'package:monad/kernel/kernel_types.dart';
-import 'package:monad/theme/app_theme.dart';
+import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/panels/activity_strip.dart';
+import 'package:baocode/chat/widgets/chat_item_view.dart';
+import 'package:baocode/chat/widgets/shell_highlight.dart';
+import 'package:baocode/chat/widgets/shimmer_text.dart';
+import 'package:baocode/chat/widgets/step_header.dart';
+import 'package:baocode/chat/widgets/wheel_latch.dart';
+import 'package:baocode/ide/terminal/terminal_colors.dart';
+import 'package:baocode/kernel/kernel_types.dart';
+import 'package:baocode/theme/app_theme.dart';
 
 /// [item] as the history shows it, opened or not; taps toggle it.
 Future<void> pumpStep(WidgetTester tester, ChatItem item) async {

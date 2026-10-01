@@ -3,7 +3,7 @@
 // Adapted from xterm.js src/common/StringBuilder.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/string_builder.dart';
+import 'package:baocode/ide/terminal/xterm/common/string_builder.dart';
 
 void main() {
   group('StringBuilder', () {

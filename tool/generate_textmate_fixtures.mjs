@@ -42,7 +42,7 @@ if (process.argv.length > 4) throw new Error('Usage: node --experimental-transfo
 async function download(path) {
   for (let attempt = 1; ; attempt++) {
     try {
-      const response = await fetch(path.startsWith('https:') ? path : source + path, { headers: { 'User-Agent': 'monad-textmate-fixtures' } });
+      const response = await fetch(path.startsWith('https:') ? path : source + path, { headers: { 'User-Agent': 'baocode-textmate-fixtures' } });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return Buffer.from(await response.arrayBuffer());
     } catch (error) {
@@ -52,7 +52,7 @@ async function download(path) {
   }
 }
 
-const temporary = await mkdtemp(join(tmpdir(), 'monad-textmate-fixtures-'));
+const temporary = await mkdtemp(join(tmpdir(), 'baocode-textmate-fixtures-'));
 try {
   // --- Pinned engine, installed outside the repository ---
   await writeFile(join(temporary, 'package.json'), '{"private":true,"type":"module"}');

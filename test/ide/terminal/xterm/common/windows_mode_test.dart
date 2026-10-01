@@ -3,11 +3,11 @@
 // Adapted from xterm.js src/common/WindowsMode.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/buffer_line.dart';
-import 'package:monad/ide/terminal/xterm/common/services/buffer_service.dart';
-import 'package:monad/ide/terminal/xterm/common/services/options_service.dart';
-import 'package:monad/ide/terminal/xterm/common/windows_mode.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm.dart'
+import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_line.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/buffer_service.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/options_service.dart';
+import 'package:baocode/ide/terminal/xterm/common/windows_mode.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
     show ITerminalOptions;
 
 import 'test_utils.dart';

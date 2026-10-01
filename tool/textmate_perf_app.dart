@@ -21,15 +21,15 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:monad/ide/editor/monaco/flutter/document_snapshot.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_surface.dart';
-import 'package:monad/ide/editor/monaco/flutter/monaco_syntax.dart';
-import 'package:monad/ide/editor/textmate/textmate_syntax.dart';
-import 'package:monad/ide/editor/textmate/textmate_worker.dart';
-import 'package:monad/ide/file_service.dart';
-import 'package:monad/ide/ide_editor.dart';
-import 'package:monad/ide/ide_workspace.dart';
-import 'package:monad/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/editor/monaco/flutter/document_snapshot.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_surface.dart';
+import 'package:baocode/ide/editor/monaco/flutter/monaco_syntax.dart';
+import 'package:baocode/ide/editor/textmate/textmate_syntax.dart';
+import 'package:baocode/ide/editor/textmate/textmate_worker.dart';
+import 'package:baocode/ide/file_service.dart';
+import 'package:baocode/ide/ide_editor.dart';
+import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
 
 /// The app does not run in the repository: pass the absolute path with
 /// `--dart-define=TEXTMATE_PERF_SAMPLE=...`.

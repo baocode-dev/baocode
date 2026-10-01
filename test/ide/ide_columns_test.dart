@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/ide_columns.dart';
+import 'package:baocode/ide/ide_columns.dart';
 
 void main() {
   const both = IdeColumns(sidebar: 240, chat: 420);

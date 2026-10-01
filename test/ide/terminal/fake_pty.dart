@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:monad/ide/terminal/pty.dart';
+import 'package:baocode/ide/terminal/pty.dart';
 
 /// A [Pty] for widget tests: records what the terminal sends it, and lets
 /// the test play the process ([emit], [emitText], [exit]).

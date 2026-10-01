@@ -5,10 +5,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/lsp/lsp_process.dart';
-import 'package:monad/ide/lsp/lsp_process_io.dart';
-import 'package:monad/kernel/claude_code/claude_environment.dart';
-import 'package:monad/platform/child_process_registry.dart';
+import 'package:baocode/ide/lsp/lsp_process.dart';
+import 'package:baocode/ide/lsp/lsp_process_io.dart';
+import 'package:baocode/kernel/claude_code/claude_environment.dart';
+import 'package:baocode/platform/child_process_registry.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../fixtures/lsp/fake_lsp.dart';
@@ -21,7 +21,7 @@ void main() {
   late File file;
 
   setUp(() {
-    dir = Directory.systemTemp.createTempSync('monad-lsp-processes');
+    dir = Directory.systemTemp.createTempSync('baocode-lsp-processes');
     file = File(p.join(dir.path, 'lsp-processes.json'));
     ClaudeEnvironment.use(Platform.environment);
     LspProcesses.registry = ChildProcessRegistry(file: file);

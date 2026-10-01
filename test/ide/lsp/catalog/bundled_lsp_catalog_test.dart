@@ -2,13 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/lsp/catalog/bundled_lsp_catalog.dart';
-import 'package:monad/ide/lsp/catalog/file_matching.dart';
-import 'package:monad/ide/lsp/catalog/lsp_catalog_overlay.dart';
-import 'package:monad/ide/lsp/install/mason_install_plan.dart';
-import 'package:monad/ide/lsp/install/mason_platform.dart';
-import 'package:monad/ide/lsp/install/mason_registry.dart';
-import 'package:monad/ide/lsp/lsp_server_definition.dart';
+import 'package:baocode/ide/lsp/catalog/bundled_lsp_catalog.dart';
+import 'package:baocode/ide/lsp/catalog/file_matching.dart';
+import 'package:baocode/ide/lsp/catalog/lsp_catalog_overlay.dart';
+import 'package:baocode/ide/lsp/install/mason_install_plan.dart';
+import 'package:baocode/ide/lsp/install/mason_platform.dart';
+import 'package:baocode/ide/lsp/install/mason_registry.dart';
+import 'package:baocode/ide/lsp/lsp_server_definition.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -8,7 +8,7 @@
 //   {"id": "ms-vscode.atom-keybindings", "name": "Atom", "version": "3.3.0",
 //    "keybindings": [{"key": "ctrl+1", "command": "...", ...}, ...]}
 //
-// The one in use is the `monad.keymap` setting, by id.
+// The one in use is the `baocode.keymap` setting, by id.
 
 import 'dart:convert';
 import 'dart:io';

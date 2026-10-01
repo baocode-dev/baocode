@@ -1,9 +1,9 @@
 import 'dart:ui' show Color;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:monad/ide/git/git_model.dart';
-import 'package:monad/theme/workbench_theme.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:baocode/ide/git/git_model.dart';
+import 'package:baocode/theme/workbench_theme.dart';
 import 'package:path/path.dart' as p;
 
 final _root = p.join(p.separator, 'repo');

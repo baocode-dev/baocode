@@ -9,10 +9,10 @@
 // terminal.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/shell_integration/capabilities/partial_command_detection_capability.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/types.dart';
-import 'package:monad/ide/terminal/xterm/common/event.dart';
-import 'package:monad/ide/terminal/xterm/headless/terminal.dart';
+import 'package:baocode/ide/terminal/shell_integration/capabilities/partial_command_detection_capability.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/types.dart';
+import 'package:baocode/ide/terminal/xterm/common/event.dart';
+import 'package:baocode/ide/terminal/xterm/headless/terminal.dart';
 
 import '../shell_integration_test_helpers.dart';
 

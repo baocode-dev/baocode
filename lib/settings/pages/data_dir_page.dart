@@ -98,7 +98,7 @@ class _DataDirectoryPageState extends State<DataDirectoryPage> {
         _error = target.localizedError(l10n);
       });
       if (!target.ok) return;
-      final existing = target.contents == DataDirectoryContents.monadData;
+      final existing = target.contents == DataDirectoryContents.baocodeData;
       final choice = await showIdeDialog(
         context,
         message: existing

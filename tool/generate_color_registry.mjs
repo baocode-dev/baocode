@@ -5,7 +5,7 @@
 // Usage: node tool/generate_color_registry.mjs [vscode-source] [--keep]
 //   [vscode-source]  the VS Code sources at `revision`: a git checkout, or a directory this
 //                    script extracted (default: the GitHub tarball of `revision`, extracted into
-//                    /tmp/monad-color-registry-vscode-<rev>; its pax header names the commit).
+//                    /tmp/baocode-color-registry-vscode-<rev>; its pax header names the commit).
 //   --keep           keeps the temporary esbuild install and bundle (printed at the end).
 //
 // What it does, at VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
@@ -79,7 +79,7 @@ const keep = flags.includes('--keep');
 async function download(url) {
   for (let attempt = 1; ; attempt++) {
     try {
-      const response = await fetch(url, { headers: { 'User-Agent': 'monad-color-registry' } });
+      const response = await fetch(url, { headers: { 'User-Agent': 'baocode-color-registry' } });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return Buffer.from(await response.arrayBuffer());
     } catch (error) {
@@ -89,7 +89,7 @@ async function download(url) {
   }
 }
 
-const marker = '.monad-revision';
+const marker = '.baocode-revision';
 
 async function sources() {
   if (positional[0]) {
@@ -104,7 +104,7 @@ async function sources() {
     }
     return root;
   }
-  const parent = join(tmpdir(), `monad-color-registry-vscode-${revision.slice(0, 8)}`);
+  const parent = join(tmpdir(), `baocode-color-registry-vscode-${revision.slice(0, 8)}`);
   const root = join(parent, `vscode-${revision}`);
   if (existsSync(join(root, marker))) return root;
   await rm(parent, { recursive: true, force: true });
@@ -148,7 +148,7 @@ for (const file of (await walk(join(root, 'src', 'vs'))).map(f => posixPath(rela
 
 // --- esbuild, pinned by build/package.json ---------------------------------------------
 
-const temporary = await mkdtemp(join(tmpdir(), 'monad-color-registry-'));
+const temporary = await mkdtemp(join(tmpdir(), 'baocode-color-registry-'));
 const esbuildVersion = JSON.parse(await read('build/package.json')).devDependencies.esbuild;
 await writeFile(join(temporary, 'package.json'), '{"private":true,"type":"module"}');
 execFileSync('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock', `esbuild@${esbuildVersion}`],
@@ -216,10 +216,10 @@ const realFiles = new Set([
 const isReal = file => colorFileSet.has(file) || realFiles.has(file) || realPrefixes.some(p => file.startsWith(p));
 
 const entry = [
-  `import { registrations } from 'monad:instrument';`,
+  `import { registrations } from 'baocode:instrument';`,
   ...colorFiles.map(f => `import './${f}';`),
   `export { registrations };`,
-  `export { extensionPoints, registryFallbacks } from 'monad:extensions-registry';`,
+  `export { extensionPoints, registryFallbacks } from 'baocode:extensions-registry';`,
   `export { ColorExtensionPoint } from './${extensionPointFile}';`,
   `export { ColorThemeData } from './src/vs/workbench/services/themes/common/colorThemeData.ts';`,
   `export { getColorRegistry, isColorDefaults, resolveColorValue } from './${colorUtilsFile}';`,
@@ -229,9 +229,9 @@ const entry = [
   `export { joinPath } from './src/vs/base/common/resources.ts';`,
 ].join('\n');
 
-const universalStub = 'module.exports = globalThis.__monadUniversalStub;';
+const universalStub = 'module.exports = globalThis.__baocodeUniversalStub;';
 const stubbed = new Set();
-const monadModules = {
+const baocodeModules = {
   // Records every registration with its call stack, before any color file runs.
   'instrument': `
     import { getColorRegistry } from './${colorUtilsFile}';
@@ -244,9 +244,9 @@ const monadModules = {
     };`,
   // The real Registry; ids that only stubbed modules would add resolve to the stub.
   'registry': `
-    import { Registry as real } from 'monad:real-registry';
-    import { registryFallbacks } from 'monad:extensions-registry';
-    const stub = globalThis.__monadUniversalStub;
+    import { Registry as real } from 'baocode:real-registry';
+    import { registryFallbacks } from 'baocode:extensions-registry';
+    const stub = globalThis.__baocodeUniversalStub;
     export const Registry = {
       add: (id, data) => real.add(id, data),
       knows: id => real.knows(id),
@@ -281,17 +281,17 @@ const monadModules = {
 
 const bundled = await esbuild.build({
   absWorkingDir: root,
-  stdin: { contents: entry, resolveDir: root, loader: 'ts', sourcefile: 'monad-entry.ts' },
+  stdin: { contents: entry, resolveDir: root, loader: 'ts', sourcefile: 'baocode-entry.ts' },
   bundle: true, format: 'esm', platform: 'neutral', write: false, metafile: true, logLevel: 'warning',
   loader: emptyLoaders, tsconfigRaw,
-  plugins: [{ name: 'monad-stubs', setup(build) {
-    build.onResolve({ filter: /^monad:/ }, args => {
-      const name = args.path.slice('monad:'.length);
+  plugins: [{ name: 'baocode-stubs', setup(build) {
+    build.onResolve({ filter: /^baocode:/ }, args => {
+      const name = args.path.slice('baocode:'.length);
       if (name === 'real-registry') return { path: join(root, registryFile) };
-      return { path: name, namespace: 'monad' };
+      return { path: name, namespace: 'baocode' };
     });
     build.onResolve({ filter: /.*/ }, async args => {
-      if (args.pluginData?.inner || args.kind === 'entry-point' || args.path.startsWith('monad:')) return undefined;
+      if (args.pluginData?.inner || args.kind === 'entry-point' || args.path.startsWith('baocode:')) return undefined;
       if (!args.path.startsWith('.') && !args.path.startsWith('/')) {
         stubbed.add(args.path);
         return { path: args.path, namespace: 'stub' };
@@ -300,13 +300,13 @@ const bundled = await esbuild.build({
       if (resolved.errors.length) throw new Error(`Cannot resolve ${args.path} from ${args.importer}`);
       const file = posixPath(relative(root, resolved.path));
       if (Object.keys(emptyLoaders).some(e => file.endsWith(e))) return { path: resolved.path };
-      if (file === registryFile) return { path: 'registry', namespace: 'monad' };
-      if (file === extensionsRegistryFile) return { path: 'extensions-registry', namespace: 'monad' };
+      if (file === registryFile) return { path: 'registry', namespace: 'baocode' };
+      if (file === extensionsRegistryFile) return { path: 'extensions-registry', namespace: 'baocode' };
       if (isReal(file)) return { path: resolved.path };
       stubbed.add(file);
       return { path: file, namespace: 'stub' };
     });
-    build.onLoad({ filter: /.*/, namespace: 'monad' }, args => ({ contents: monadModules[args.path], loader: 'js', resolveDir: root }));
+    build.onLoad({ filter: /.*/, namespace: 'baocode' }, args => ({ contents: baocodeModules[args.path], loader: 'js', resolveDir: root }));
     build.onLoad({ filter: /.*/, namespace: 'stub' }, () => ({ contents: universalStub, loader: 'js' }));
   } }],
 });
@@ -367,7 +367,7 @@ function universalStub_() {
   return stub;
 }
 const universal = universalStub_();
-globalThis.__monadUniversalStub = universal;
+globalThis.__baocodeUniversalStub = universal;
 
 // --- Built-in extensions, as the desktop product ships them -----------------------------
 
@@ -455,7 +455,7 @@ async function evaluate(platform) {
   const executed = new Map();
   const sources = [];
   for (const [index, { id, stack }] of mod.registrations.entries()) {
-    const site = frames(stack).find(f => f.file !== 'monad:instrument' && f.file !== colorUtilsFile);
+    const site = frames(stack).find(f => f.file !== 'baocode:instrument' && f.file !== colorUtilsFile);
     if (!site || !colorFileSet.has(site.file)) throw new Error(`Cannot attribute the registration of ${id} (${site?.file})`);
     if (!executed.has(site.file)) executed.set(site.file, new Set());
     executed.get(site.file).add(`${site.line}:${site.column}`);

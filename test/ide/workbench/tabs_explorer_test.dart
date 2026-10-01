@@ -2,11 +2,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/ide_breadcrumbs.dart';
-import 'package:monad/ide/ide_explorer.dart';
-import 'package:monad/ide/ide_hover.dart';
-import 'package:monad/ide/ide_tab_bar.dart';
-import 'package:monad/ide/ide_welcome.dart';
+import 'package:baocode/ide/ide_breadcrumbs.dart';
+import 'package:baocode/ide/ide_explorer.dart';
+import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/ide/ide_tab_bar.dart';
+import 'package:baocode/ide/ide_welcome.dart';
 
 import 'fake_files.dart';
 

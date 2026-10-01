@@ -11,7 +11,7 @@
 #include "window_channel.h"
 
 // A window that hosts a Flutter view, and answers the window commands
-// Flutter asks for over `monad/window` (see window_channel.h).
+// Flutter asks for over `baocode/window` (see window_channel.h).
 class FlutterWindow : public Win32Window {
  public:
   // Creates a new FlutterWindow hosting a Flutter view running |project|.

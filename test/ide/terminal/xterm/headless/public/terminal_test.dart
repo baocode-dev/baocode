@@ -10,10 +10,10 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/headless/public/terminal.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm_headless.dart'
+import 'package:baocode/ide/terminal/xterm/headless/public/terminal.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
     hide Terminal;
-import 'package:monad/ide/terminal/xterm/typings/xterm_headless.dart'
+import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
     as api
     show Terminal;
 

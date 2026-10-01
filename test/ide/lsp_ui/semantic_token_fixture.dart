@@ -7,10 +7,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show Color;
 
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
-import 'package:monad/ide/editor/textmate/textmate_manifest.dart';
-import 'package:monad/ide/lsp_ui/semantic_tokens.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
+import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
+import 'package:baocode/ide/lsp_ui/semantic_tokens.dart';
 
 class SemanticTokenFixture {
   SemanticTokenFixture._(Map<String, Object?> json)

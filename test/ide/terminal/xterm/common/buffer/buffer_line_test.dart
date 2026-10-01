@@ -3,11 +3,11 @@
 // Adapted from xterm.js src/common/buffer/BufferLine.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/attribute_data.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/buffer_line.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/cell_data.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/constants.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/types.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/attribute_data.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_line.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/cell_data.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/constants.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/types.dart';
 
 import '../test_utils.dart';
 

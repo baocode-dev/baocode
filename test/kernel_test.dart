@@ -5,22 +5,22 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_models.dart';
-import 'package:monad/chat/chat_session.dart';
-import 'package:monad/kernel/agent_kernel.dart';
-import 'package:monad/kernel/claude_code/claude_code_kernel.dart';
-import 'package:monad/kernel/claude_code/claude_code_transport.dart';
-import 'package:monad/kernel/claude_code/claude_code_translator.dart';
-import 'package:monad/kernel/claude_code/claude_environment.dart';
-import 'package:monad/kernel/claude_code/claude_storage_io.dart';
-import 'package:monad/kernel/claude_code/cli_locator.dart';
-import 'package:monad/kernel/claude_code/control_channel.dart';
-import 'package:monad/kernel/codex/codex_kernel.dart';
-import 'package:monad/kernel/codex/codex_transport.dart';
-import 'package:monad/kernel/kernel_event.dart';
-import 'package:monad/kernel/kernel_types.dart';
-import 'package:monad/kernel/mock/mock_kernels.dart';
-import 'package:monad/kernel/transcript.dart';
+import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/kernel/agent_kernel.dart';
+import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
+import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
+import 'package:baocode/kernel/claude_code/claude_code_translator.dart';
+import 'package:baocode/kernel/claude_code/claude_environment.dart';
+import 'package:baocode/kernel/claude_code/claude_storage_io.dart';
+import 'package:baocode/kernel/claude_code/cli_locator.dart';
+import 'package:baocode/kernel/claude_code/control_channel.dart';
+import 'package:baocode/kernel/codex/codex_kernel.dart';
+import 'package:baocode/kernel/codex/codex_transport.dart';
+import 'package:baocode/kernel/kernel_event.dart';
+import 'package:baocode/kernel/kernel_types.dart';
+import 'package:baocode/kernel/mock/mock_kernels.dart';
+import 'package:baocode/kernel/transcript.dart';
 
 /// Lines Claude Code 2.1.281 printed (recorded, with paths and account
 /// details replaced).
@@ -1690,14 +1690,14 @@ void main() {
   group('claude locator', () {
     tearDown(() => CliLocator.use(null));
 
-    test('runs the build MONAD_CLAUDE_PATH names, not the installed '
+    test('runs the build BAOCODE_CLAUDE_PATH names, not the installed '
         'one', () async {
-      final root = await Directory.systemTemp.createTemp('monad-locator-');
+      final root = await Directory.systemTemp.createTemp('baocode-locator-');
       addTearDown(() => root.delete(recursive: true));
       final variant = File('${root.path}/claude-variant')
         ..writeAsStringSync('#!/bin/sh\n');
       CliLocator.use({
-        'MONAD_CLAUDE_PATH': variant.path,
+        'BAOCODE_CLAUDE_PATH': variant.path,
         'PATH': '${root.path}/none',
       });
 
@@ -1706,7 +1706,7 @@ void main() {
     });
 
     test('an override that is not there fails, naming the variable', () async {
-      CliLocator.use({'MONAD_CLAUDE_PATH': '/nonexistent/claude-variant'});
+      CliLocator.use({'BAOCODE_CLAUDE_PATH': '/nonexistent/claude-variant'});
 
       await expectLater(
         CliLocator.locate(),
@@ -1714,7 +1714,7 @@ void main() {
           isA<ClaudeUnavailable>().having(
             (error) => error.detail,
             'detail',
-            contains('MONAD_CLAUDE_PATH'),
+            contains('BAOCODE_CLAUDE_PATH'),
           ),
         ),
       );
@@ -1723,7 +1723,7 @@ void main() {
 
   group('Claude Code storage', () {
     test('reads the sessions where the login shell keeps them', () async {
-      final root = await Directory.systemTemp.createTemp('monad-storage-');
+      final root = await Directory.systemTemp.createTemp('baocode-storage-');
       addTearDown(() => root.delete(recursive: true));
       addTearDown(() => ClaudeEnvironment.use(null));
       final config = '${root.path}/config';
@@ -1749,7 +1749,7 @@ void main() {
     test(
       'the app\'s data path wins, and the CLI is told to keep state there',
       () async {
-        final root = await Directory.systemTemp.createTemp('monad-storage-');
+        final root = await Directory.systemTemp.createTemp('baocode-storage-');
         addTearDown(() => root.delete(recursive: true));
         addTearDown(() => ClaudeEnvironment.use(null));
         final mine = '${root.path}/mine';
@@ -1767,7 +1767,7 @@ void main() {
             })}\n',
           );
         final environment = {
-          'MONAD_CLAUDE_DATA_PATH': mine,
+          'BAOCODE_CLAUDE_DATA_PATH': mine,
           'CLAUDE_CONFIG_DIR': theirs,
         };
         ClaudeEnvironment.use(environment);
@@ -1784,7 +1784,7 @@ void main() {
     test(
       'deleting a session removes all of it, and only it, idempotently',
       () async {
-        final root = await Directory.systemTemp.createTemp('monad-storage-');
+        final root = await Directory.systemTemp.createTemp('baocode-storage-');
         addTearDown(() => root.delete(recursive: true));
         final config = '${root.path}/config';
         final temp = '${root.path}/tmp';

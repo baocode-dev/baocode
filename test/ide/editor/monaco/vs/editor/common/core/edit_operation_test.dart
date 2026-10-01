@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/edit_operation.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/position.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/range.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/edit_operation.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/position.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
 
 void main() {
   test('insert collapses the range and moves markers', () {

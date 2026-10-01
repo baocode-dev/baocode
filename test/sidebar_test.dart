@@ -2,27 +2,27 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_screen.dart';
-import 'package:monad/chat/composer/composer.dart';
-import 'package:monad/chat/chat_session.dart';
-import 'package:monad/kernel/kernel_types.dart';
-import 'package:monad/ide/ide_hover.dart';
-import 'package:monad/main.dart';
-import 'package:monad/chat/widgets/user_message_bubble.dart';
-import 'package:monad/sidebar/sidebar.dart';
-import 'package:monad/theme/codicons.dart';
-import 'package:monad/theme/workbench_theme.dart';
-import 'package:monad/workspace/editor_launcher.dart';
-import 'package:monad/workspace/open_in_editor_button.dart';
-import 'package:monad/workspace/pin_window_button.dart';
-import 'package:monad/workspace/workspace.dart';
+import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/composer/composer.dart';
+import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/kernel/kernel_types.dart';
+import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/main.dart';
+import 'package:baocode/chat/widgets/user_message_bubble.dart';
+import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/theme/codicons.dart';
+import 'package:baocode/theme/workbench_theme.dart';
+import 'package:baocode/workspace/editor_launcher.dart';
+import 'package:baocode/workspace/open_in_editor_button.dart';
+import 'package:baocode/workspace/pin_window_button.dart';
+import 'package:baocode/workspace/workspace.dart';
 
 Future<Workspace> pumpApp(WidgetTester tester, {double width = 1400}) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final workspace = Workspace.mock();
-  await tester.pumpWidget(MonadApp(workspace: workspace));
+  await tester.pumpWidget(BaoCodeApp(workspace: workspace));
   await tester.pump();
   return workspace;
 }
@@ -49,14 +49,14 @@ void main() {
     tester,
   ) async {
     final workspace = await pumpApp(tester);
-    expect(inSidebar(find.text('monad')), findsOneWidget);
+    expect(inSidebar(find.text('baocode')), findsOneWidget);
     expect(inSidebar(find.text('cursor-docs')), findsOneWidget);
     expect(inSidebar(find.text('api-gateway')), findsOneWidget);
     // Pinned agents sit above the projects.
     expect(inSidebar(find.text('Pinned')), findsOneWidget);
     expect(
       tester.getTopLeft(inSidebar(find.text('Pinned'))).dy,
-      lessThan(tester.getTopLeft(inSidebar(find.text('monad'))).dy),
+      lessThan(tester.getTopLeft(inSidebar(find.text('baocode'))).dy),
     );
     expect(chatTitle(tester), 'Optimize virtual list scrolling');
 
@@ -80,7 +80,7 @@ void main() {
     await tester.tap(inSidebar(find.text('New Agent')));
     await tester.pump();
     final thread = workspace.selected;
-    expect(thread.project.name, 'monad');
+    expect(thread.project.name, 'baocode');
     expect(chatTitle(tester), 'New Agent');
     expect(find.text('Plan, build, anything'), findsOneWidget);
 
@@ -199,7 +199,7 @@ void main() {
     expect(thread.pinned, isTrue);
     expect(
       tester.getTopLeft(row()).dy,
-      lessThan(tester.getTopLeft(inSidebar(find.text('monad'))).dy),
+      lessThan(tester.getTopLeft(inSidebar(find.text('baocode'))).dy),
     );
 
     await menu('Archive');
@@ -510,7 +510,7 @@ void main() {
   testWidgets('the pin keeps the window on top', (tester) async {
     final calls = <MethodCall>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('monad/window'),
+      const MethodChannel('baocode/window'),
       (call) async {
         calls.add(call);
         return null;

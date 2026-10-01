@@ -87,7 +87,7 @@ class WindowHeader extends StatefulWidget {
 class _WindowHeaderState extends State<WindowHeader> {
   static const _toggleSidebarCommand =
       'workbench.action.toggleSidebarVisibility';
-  static const _backToChatCommand = 'monad.ide.backToChat';
+  static const _backToChatCommand = 'baocode.ide.backToChat';
 
   /// The controls the window leaves to Flutter, read back as rectangles
   /// after each layout (see [_report]).
@@ -375,8 +375,8 @@ class _WindowHeaderState extends State<WindowHeader> {
       ],
       HeaderMenu.help => [
         HeaderMenuItem(
-          l10n.menuAboutMonad,
-          onSelected: () => showAboutMonad(context),
+          l10n.menuAboutBaoCode,
+          onSelected: () => showAboutBaoCode(context),
         ),
       ],
     };

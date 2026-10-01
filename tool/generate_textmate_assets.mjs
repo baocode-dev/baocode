@@ -45,7 +45,7 @@ const excludedThemes = ['Visual Studio Light', 'Light+'];
 async function download(path) {
   for (let attempt = 1; ; attempt++) {
     try {
-      const response = await fetch(path.startsWith('https:') ? path : source + path, { headers: { 'User-Agent': 'monad-textmate-assets' } });
+      const response = await fetch(path.startsWith('https:') ? path : source + path, { headers: { 'User-Agent': 'baocode-textmate-assets' } });
       if (response.status === 404) return null;
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return Buffer.from(await response.arrayBuffer());

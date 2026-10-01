@@ -3,13 +3,13 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:monad/ide/editor/textmate/textmate_manifest.dart';
-import 'package:monad/ide/editor/textmate/textmate_syntax.dart';
-import 'package:monad/ide/editor/textmate/textmate_worker.dart';
-import 'package:monad/kernel/kernel_registry.dart';
-import 'package:monad/kernel/mock/mock_kernels.dart';
-import 'package:monad/theme/workbench_theme.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
+import 'package:baocode/ide/editor/textmate/textmate_syntax.dart';
+import 'package:baocode/ide/editor/textmate/textmate_worker.dart';
+import 'package:baocode/kernel/kernel_registry.dart';
+import 'package:baocode/kernel/mock/mock_kernels.dart';
+import 'package:baocode/theme/workbench_theme.dart';
 
 import 'semantics_tree.dart';
 

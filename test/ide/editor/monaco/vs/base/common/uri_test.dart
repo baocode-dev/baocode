@@ -3,8 +3,8 @@
 // (URI.fromUri) and its documented deviations.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/platform.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/uri.dart';
+import 'package:baocode/ide/editor/monaco/vs/base/common/platform.dart';
+import 'package:baocode/ide/editor/monaco/vs/base/common/uri.dart';
 
 void main() {
   tearDown(() => debugOperatingSystemOverride = null);

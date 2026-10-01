@@ -17,7 +17,7 @@ abstract final class ClaudeEnvironment {
   /// Names the directory Claude Code keeps its state in (`projects`,
   /// `file-history`, …), e.g. a build's own; the installed `~/.claude`
   /// when unset.
-  static const dataPathVariable = 'MONAD_CLAUDE_DATA_PATH';
+  static const dataPathVariable = 'BAOCODE_CLAUDE_DATA_PATH';
 
   /// Keeps Claude Code to essential traffic: no request for the plan
   /// usage either.
@@ -59,7 +59,7 @@ abstract final class ClaudeEnvironment {
     if (Platform.isWindows) return fallback;
     final shell = Platform.environment['SHELL'] ?? '/bin/zsh';
     try {
-      const marker = '__MONAD_ENV__';
+      const marker = '__BAOCODE_ENV__';
       final result = await Process.run(shell, [
         '-l',
         '-c',

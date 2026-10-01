@@ -6,15 +6,15 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/terminal_clipboard.dart';
-import 'package:monad/ide/terminal/terminal_mouse.dart';
-import 'package:monad/ide/terminal/terminal_selection.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/buffer_line.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/types.dart';
-import 'package:monad/ide/terminal/xterm/common/services/mouse_state_service.dart';
-import 'package:monad/ide/terminal/xterm/common/services/options_service.dart';
-import 'package:monad/ide/terminal/xterm/common/services/services.dart';
-import 'package:monad/ide/terminal/xterm/common/types.dart';
+import 'package:baocode/ide/terminal/terminal_clipboard.dart';
+import 'package:baocode/ide/terminal/terminal_mouse.dart';
+import 'package:baocode/ide/terminal/terminal_selection.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_line.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/types.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/mouse_state_service.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/options_service.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
+import 'package:baocode/ide/terminal/xterm/common/types.dart';
 
 import 'xterm/common/test_utils.dart';
 

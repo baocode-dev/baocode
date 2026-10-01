@@ -9,8 +9,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/parser/params.dart';
-import 'package:monad/ide/terminal/xterm/common/parser/types.dart';
+import 'package:baocode/ide/terminal/xterm/common/parser/params.dart';
+import 'package:baocode/ide/terminal/xterm/common/parser/types.dart';
 
 import 'parser_test_utils.dart';
 

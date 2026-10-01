@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/selection.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/model/edit_stack.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/model/text_model.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/text_model_events.dart';
-import 'package:monad/ide/editor/monaco/vs/platform/undo_redo/common/undo_redo_service.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/selection.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/model/edit_stack.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/model/text_model.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/text_model_events.dart';
+import 'package:baocode/ide/editor/monaco/vs/platform/undo_redo/common/undo_redo_service.dart';
 
 TextModel document(String resource, String text, UndoRedoService history) {
   final model = TextModel(text);

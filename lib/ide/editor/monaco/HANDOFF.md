@@ -2,9 +2,9 @@
 
 ## 目标、边界与当前结论
 
-用户的目标是**在当前 Monad Flutter 仓库中完整移植 Monaco Editor**，不是另起项目、嵌入 WebView 或只复刻外观。目录采用上游相对路径 `lib/ide/editor/monaco/vs/`，Flutter 平台适配在 `lib/ide/editor/monaco/flutter/`；应用接入层是 `lib/ide/ide_editor.dart`。目标尚未完成，**不能宣称 100% 兼容**。详细的源码映射、偏差及未完成项分别见同目录的 [PORTING.md](PORTING.md) 和 [PARITY.md](PARITY.md)。
+用户的目标是**在当前 BaoCode Flutter 仓库中完整移植 Monaco Editor**，不是另起项目、嵌入 WebView 或只复刻外观。目录采用上游相对路径 `lib/ide/editor/monaco/vs/`，Flutter 平台适配在 `lib/ide/editor/monaco/flutter/`；应用接入层是 `lib/ide/ide_editor.dart`。目标尚未完成，**不能宣称 100% 兼容**。详细的源码映射、偏差及未完成项分别见同目录的 [PORTING.md](PORTING.md) 和 [PARITY.md](PARITY.md)。
 
-**2026-09-29 起自绘 Monaco 编辑器是 Fast IDE 默认编辑器**；`--dart-define=MONAD_NATIVE_EDITOR=false` 回退到 Flutter `TextField`（`IdeWorkbench`/`IdeEditor` 的 `nativeEditorEnabled` 参数同理）。IME、原生菜单与辅助功能仍缺平台验收，保留回退。用户已看过 macOS 实验效果并表示满意，明确要求后续**不要再观察/操作 GUI**；可以继续静态分析、自动测试及构建，但不需要重新打开预览。
+**2026-09-29 起自绘 Monaco 编辑器是 Fast IDE 默认编辑器**；`--dart-define=BAOCODE_NATIVE_EDITOR=false` 回退到 Flutter `TextField`（`IdeWorkbench`/`IdeEditor` 的 `nativeEditorEnabled` 参数同理）。IME、原生菜单与辅助功能仍缺平台验收，保留回退。用户已看过 macOS 实验效果并表示满意，明确要求后续**不要再观察/操作 GUI**；可以继续静态分析、自动测试及构建，但不需要重新打开预览。
 
 ## 固定上游与许可
 
@@ -32,7 +32,7 @@
 
 - `flutter analyze --no-pub`：**No issues found**。
 - `flutter test --no-pub --reporter expanded`：**1138 通过，1 个既有条件性测试跳过**（结尾 `+1138 ~1: All tests passed!`）。覆盖了刚增加的零宽正则导航、正则分组替换、原始 CRLF 保留、自绘编辑器替换/撤销、随机增量 token 对照等。
-- `flutter build macos --debug --dart-define=MONAD_NATIVE_EDITOR=true` 曾成功，**那次构建早于最后几次查找/替换 UI 修改**；交接后的新改动若涉及 macOS，应重新构建。用户不希望再次观看 GUI，不要自动启动应用。
+- `flutter build macos --debug --dart-define=BAOCODE_NATIVE_EDITOR=true` 曾成功，**那次构建早于最后几次查找/替换 UI 修改**；交接后的新改动若涉及 macOS，应重新构建。用户不希望再次观看 GUI，不要自动启动应用。
 - 关键聚焦测试：`flutter test --no-pub test/ide/editor_status_test.dart test/ide/native_editor_integration_test.dart`；`flutter test --no-pub test/ide/editor/monaco/`；完整 suite 如上。生成资源已经纳入 `pubspec.yaml`。
 
 ## 推荐的后续路线与注意事项
@@ -62,10 +62,10 @@
   - `install/`：mason 安装器。
   - `packs/`：用户覆盖 `lsp.json` 与语言包，格式见 `packs/README.md`。
   - 编辑器界面在 `lib/ide/lsp_ui/`，只依赖接口 `lsp/language_features.dart`，测试可用 `test/ide/lsp_ui/fake_language_features.dart` 替代。
-- **接入**：`main()` → `MonadApp(languagesFor: standardLspManager)` → `Workbench` → `IdeWorkspace(root, languages: …)`。
+- **接入**：`main()` → `BaoCodeApp(languagesFor: standardLspManager)` → `Workbench` → `IdeWorkspace(root, languages: …)`。
   - catalog 与 provider 在后台加载一次，所有项目共享；加载前已打开的文档在加载后由 `LspManager.reloadCatalog()` 重新匹配。
   - 工作区负责 didOpen、增量 didChange（来自 `EditorDocumentModel.changes`）、didSave、didClose；dispose 时关闭服务器。
-  - 测试里的 `MonadApp()` 与 `Workbench` 默认不启用 LSP，不会拉起真实服务器。
+  - 测试里的 `BaoCodeApp()` 与 `Workbench` 默认不启用 LSP，不会拉起真实服务器。
 - **进程**：`lib/platform/child_process_registry.dart` 是通用 pid 登记，`ClaudeProcessRegistry` 继承它；LSP 使用 `AppPaths.dataDir/lsp-processes.json`。
   - 启动时 `reapLspProcesses()`；退出时与 Claude 一起 `stopLspProcesses()`。
   - 只清理命令行仍匹配、且父进程为 1 或本进程的条目。

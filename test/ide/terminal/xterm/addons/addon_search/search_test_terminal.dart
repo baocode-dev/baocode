@@ -10,12 +10,12 @@
 // `setSelection`, `clearSelection`, `hasSelection` and `selectionText` (not
 // in column mode); no mouse, trimming or clearing on input.
 
-import 'package:monad/ide/terminal/xterm/addons/addon_search/typings/addon_search.dart';
-import 'package:monad/ide/terminal/xterm/browser/selection/selection_model.dart';
-import 'package:monad/ide/terminal/xterm/common/event.dart';
-import 'package:monad/ide/terminal/xterm/common/services/decoration_service.dart';
-import 'package:monad/ide/terminal/xterm/headless/public/terminal.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm.dart'
+import 'package:baocode/ide/terminal/xterm/addons/addon_search/typings/addon_search.dart';
+import 'package:baocode/ide/terminal/xterm/browser/selection/selection_model.dart';
+import 'package:baocode/ide/terminal/xterm/common/event.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/decoration_service.dart';
+import 'package:baocode/ide/terminal/xterm/headless/public/terminal.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
     show IBufferCellPosition, IBufferRange, IDecoration, IDecorationOptions;
 
 final RegExp _allNonBreakingSpace = RegExp('\u00a0');

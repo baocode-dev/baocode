@@ -5,16 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_history_view.dart';
-import 'package:monad/chat/chat_models.dart';
-import 'package:monad/chat/chat_screen.dart';
-import 'package:monad/chat/chat_session.dart';
-import 'package:monad/chat/composer/composer.dart';
-import 'package:monad/chat/composer/composer_embeds.dart';
-import 'package:monad/chat/widgets/image_thumbnails.dart';
-import 'package:monad/chat/widgets/user_message_bubble.dart';
-import 'package:monad/kernel/mock/mock_kernels.dart';
-import 'package:monad/theme/app_theme.dart';
+import 'package:baocode/chat/chat_history_view.dart';
+import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/chat/composer/composer.dart';
+import 'package:baocode/chat/composer/composer_embeds.dart';
+import 'package:baocode/chat/widgets/image_thumbnails.dart';
+import 'package:baocode/chat/widgets/user_message_bubble.dart';
+import 'package:baocode/kernel/mock/mock_kernels.dart';
+import 'package:baocode/theme/app_theme.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 Future<ChatSession> _pump(WidgetTester tester) async {
@@ -78,7 +78,7 @@ Future<Uint8List> _png() async {
 Future<void> _pasteImages(WidgetTester tester, int count) async {
   final bytes = (await tester.runAsync(_png))!;
   tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-    const MethodChannel('monad/window'),
+    const MethodChannel('baocode/window'),
     (call) async => switch (call.method) {
       'readPasteboardImages' => [
         for (var i = 0; i < count; i++) {'bytes': bytes, 'type': 'image/png'},
@@ -88,7 +88,7 @@ Future<void> _pasteImages(WidgetTester tester, int count) async {
   );
   addTearDown(
     () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('monad/window'),
+      const MethodChannel('baocode/window'),
       null,
     ),
   );
@@ -102,7 +102,7 @@ Future<void> _pasteImages(WidgetTester tester, int count) async {
 List<MethodCall> _windowCalls(WidgetTester tester, {String? chosen}) {
   final calls = <MethodCall>[];
   tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-    const MethodChannel('monad/window'),
+    const MethodChannel('baocode/window'),
     (call) async {
       calls.add(call);
       return switch (call.method) {
@@ -250,7 +250,7 @@ void main() {
     await _pasteImages(tester, 1);
     // Text on the pasteboard now, no image.
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('monad/window'),
+      const MethodChannel('baocode/window'),
       (call) async => call.method == 'readPasteboardImages' ? [] : null,
     );
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(

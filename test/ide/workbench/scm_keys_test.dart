@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/ide_list.dart';
-import 'package:monad/ide/ide_workbench.dart';
-import 'package:monad/ide/ide_workspace.dart';
-import 'package:monad/keybindings/keybinding_entry.dart';
-import 'package:monad/keybindings/keybinding_service.dart';
+import 'package:baocode/ide/ide_list.dart';
+import 'package:baocode/ide/ide_workbench.dart';
+import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
 
 import '../git/fake_git.dart';
 import 'fake_files.dart';

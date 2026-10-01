@@ -8,8 +8,8 @@
 import 'dart:ui' show Color;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/encoded_token_attributes.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/languages/supports/tokenization.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/encoded_token_attributes.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/languages/supports/tokenization.dart';
 
 void expectRule(
   ThemeTrieElementRule actual,

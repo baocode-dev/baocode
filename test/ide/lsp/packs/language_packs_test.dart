@@ -2,16 +2,16 @@ import 'dart:io';
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/document_snapshot.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_document_model.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_surface_controller.dart';
-import 'package:monad/ide/editor/monaco/flutter/language_assets.dart';
-import 'package:monad/ide/editor/monaco/flutter/language_configuration_assets.dart';
-import 'package:monad/ide/editor/monaco/flutter/monaco_syntax.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/languages/language_configuration.dart';
-import 'package:monad/ide/lsp/catalog/bundled_lsp_catalog.dart';
-import 'package:monad/ide/lsp/packs/language_packs.dart';
-import 'package:monad/ide/lsp/packs/lsp_user_settings.dart';
+import 'package:baocode/ide/editor/monaco/flutter/document_snapshot.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_document_model.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:baocode/ide/editor/monaco/flutter/language_assets.dart';
+import 'package:baocode/ide/editor/monaco/flutter/language_configuration_assets.dart';
+import 'package:baocode/ide/editor/monaco/flutter/monaco_syntax.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/languages/language_configuration.dart';
+import 'package:baocode/ide/lsp/catalog/bundled_lsp_catalog.dart';
+import 'package:baocode/ide/lsp/packs/language_packs.dart';
+import 'package:baocode/ide/lsp/packs/lsp_user_settings.dart';
 import 'package:path/path.dart' as p;
 
 final packsDirectory = p.absolute('test/fixtures/lsp/packs');

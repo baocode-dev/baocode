@@ -28,7 +28,7 @@ Future<DataDirectory> recoverDataDirectory(DataDirectoryResolution problem) {
 }
 
 /// The small app shown before the real one when the data folder set by
-/// `MONAD_DATA_DIR` or `~/.monad/config-dir.json` cannot be used (a drive
+/// `BAOCODE_DATA_DIR` or `~/.baocode/config-dir.json` cannot be used (a drive
 /// that is gone, a pointer that does not parse): try again, use the
 /// platform's default folder this time only (the pointer left as it is), or
 /// choose another folder (written to the pointer). The default is never
@@ -55,7 +55,7 @@ class DataDirectoryRecoveryApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Monad',
+    title: 'BaoCode',
     debugShowCheckedModeBanner: false,
     theme: buildAppTheme(),
     // The display language setting is in the folder that is not there:

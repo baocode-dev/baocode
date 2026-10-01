@@ -2,14 +2,14 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/lsp_ui/problems_panel.dart';
-import 'package:monad/ide/ide_layout.dart';
-import 'package:monad/ide/ide_menu.dart';
-import 'package:monad/ide/ide_quick_input.dart';
-import 'package:monad/ide/ide_workbench.dart';
-import 'package:monad/keybindings/keybinding_service.dart';
-import 'package:monad/settings/user_settings.dart';
-import 'package:monad/theme/codicons.dart';
+import 'package:baocode/ide/lsp_ui/problems_panel.dart';
+import 'package:baocode/ide/ide_layout.dart';
+import 'package:baocode/ide/ide_menu.dart';
+import 'package:baocode/ide/ide_quick_input.dart';
+import 'package:baocode/ide/ide_workbench.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
+import 'package:baocode/settings/user_settings.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:path/path.dart' as p;
 
 import '../terminal/fake_pty.dart';
@@ -200,7 +200,9 @@ void main() {
 
   testWidgets('Select Default Profile writes it to settings.json, where '
       'new terminals and the dropdown find it', (tester) async {
-    final temp = Directory.systemTemp.createTempSync('monad-terminal-default');
+    final temp = Directory.systemTemp.createTempSync(
+      'baocode-terminal-default',
+    );
     addTearDown(() => temp.deleteSync(recursive: true));
     final settings = UserSettings(
       p.join(temp.path, 'User', 'settings.json'),

@@ -4,7 +4,7 @@
 //
 // Usage: node tool/generate_semantic_token_fixtures.mjs [vscode-checkout] [output.json.gz]
 //   [vscode-checkout]  a checkout of microsoft/vscode at `revision` (default: a sparse,
-//                      blob-less clone into /tmp/monad-semantic-tokens-vscode-<rev>)
+//                      blob-less clone into /tmp/baocode-semantic-tokens-vscode-<rev>)
 //   [output.json.gz]   default test/fixtures/theme/semantic_tokens.json.gz
 //
 // What it does, at VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
@@ -64,7 +64,7 @@ const sparsePaths = [
 ];
 
 async function checkout() {
-  const root = checkoutArg ?? join(tmpdir(), `monad-semantic-tokens-vscode-${revision.slice(0, 8)}`);
+  const root = checkoutArg ?? join(tmpdir(), `baocode-semantic-tokens-vscode-${revision.slice(0, 8)}`);
   if (!existsSync(join(root, '.git'))) {
     if (checkoutArg) throw new Error(`${root} is not a git checkout`);
     git(['clone', '--filter=blob:none', '--no-checkout', '--sparse', repository, root], { stdio: 'inherit' });
@@ -120,7 +120,7 @@ function readZipEntry(buffer, name) {
 async function download(url) {
   for (let attempt = 1; ; attempt++) {
     try {
-      const response = await fetch(url, { headers: { 'User-Agent': 'monad-semantic-token-fixtures' } });
+      const response = await fetch(url, { headers: { 'User-Agent': 'baocode-semantic-token-fixtures' } });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return Buffer.from(await response.arrayBuffer());
     } catch (error) {
@@ -169,7 +169,7 @@ function localize(value, nls) {
 
 // --- Bundle the upstream modules -----------------------------------------------
 
-const temporary = await mkdtemp(join(tmpdir(), 'monad-semantic-tokens-'));
+const temporary = await mkdtemp(join(tmpdir(), 'baocode-semantic-tokens-'));
 try {
   const esbuildVersion = JSON.parse(await read('build/package.json')).devDependencies.esbuild;
   await writeFile(join(temporary, 'package.json'), '{"private":true,"type":"module"}');

@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/lsp/install/mason_install_plan.dart';
-import 'package:monad/ide/lsp/install/mason_platform.dart';
-import 'package:monad/ide/lsp/install/mason_purl.dart';
-import 'package:monad/ide/lsp/install/mason_registry.dart';
-import 'package:monad/ide/lsp/install/mason_template.dart';
-import 'package:monad/ide/lsp/lsp_server_definition.dart';
+import 'package:baocode/ide/lsp/install/mason_install_plan.dart';
+import 'package:baocode/ide/lsp/install/mason_platform.dart';
+import 'package:baocode/ide/lsp/install/mason_purl.dart';
+import 'package:baocode/ide/lsp/install/mason_registry.dart';
+import 'package:baocode/ide/lsp/install/mason_template.dart';
+import 'package:baocode/ide/lsp/lsp_server_definition.dart';
 
 const macArm = MasonPlatform('darwin', 'arm64');
 const macIntel = MasonPlatform('darwin', 'x64');

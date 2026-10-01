@@ -33,7 +33,7 @@ abstract final class MockScript {
   static const searchMatches = [
     'lib/chat/chat_screen.dart:219:                      ChatComposer(',
     'lib/chat/composer/composer.dart:44:class ChatComposer extends StatefulWidget {',
-    'test/composer_test.dart:22:import \'package:monad/chat/composer/composer.dart\';',
+    'test/composer_test.dart:22:import \'package:baocode/chat/composer/composer.dart\';',
   ];
 
   static const beforeQuestion = '我看了一下相关代码，开始修改之前需要先确认两点：';

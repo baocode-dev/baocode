@@ -4,11 +4,11 @@
 // language servers keep their own ids whatever highlights the file.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/language_assets.dart';
-import 'package:monad/ide/editor/textmate/textmate_syntax.dart';
-import 'package:monad/ide/editor/textmate/textmate_worker.dart';
-import 'package:monad/ide/lsp/catalog/bundled_lsp_catalog.dart';
-import 'package:monad/ide/lsp/packs/language_packs.dart';
+import 'package:baocode/ide/editor/monaco/flutter/language_assets.dart';
+import 'package:baocode/ide/editor/textmate/textmate_syntax.dart';
+import 'package:baocode/ide/editor/textmate/textmate_worker.dart';
+import 'package:baocode/ide/lsp/catalog/bundled_lsp_catalog.dart';
+import 'package:baocode/ide/lsp/packs/language_packs.dart';
 import 'package:path/path.dart' as p;
 
 final _packsDirectory = p.absolute('test/fixtures/lsp/packs');

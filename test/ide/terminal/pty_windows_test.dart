@@ -3,10 +3,10 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/pty.dart';
-import 'package:monad/ide/terminal/pty_io.dart';
-import 'package:monad/ide/terminal/pty_windows.dart';
-import 'package:monad/platform/child_process_registry.dart';
+import 'package:baocode/ide/terminal/pty.dart';
+import 'package:baocode/ide/terminal/pty_io.dart';
+import 'package:baocode/ide/terminal/pty_windows.dart';
+import 'package:baocode/platform/child_process_registry.dart';
 import 'package:path/path.dart' as p;
 
 /// A console for [ConsolePoll]: the output waiting in its pipe, and what
@@ -173,7 +173,7 @@ void main() {
     late Directory dir;
 
     setUp(() {
-      dir = Directory.systemTemp.createTempSync('monad-conpty');
+      dir = Directory.systemTemp.createTempSync('baocode-conpty');
       PtyProcesses.registry = ChildProcessRegistry(
         file: File(p.join(dir.path, 'pty-processes.json')),
         lookup: (_) async => null,

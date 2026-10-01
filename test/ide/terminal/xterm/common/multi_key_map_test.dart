@@ -3,7 +3,7 @@
 // Adapted from xterm.js src/common/MultiKeyMap.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/multi_key_map.dart';
+import 'package:baocode/ide/terminal/xterm/common/multi_key_map.dart';
 
 void main() {
   group('TwoKeyMap', () {

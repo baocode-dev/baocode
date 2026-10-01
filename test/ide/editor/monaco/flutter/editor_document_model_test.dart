@@ -1,10 +1,10 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_document_model.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/position.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/model/search/piece_tree_search.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_document_model.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/position.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/model/search/piece_tree_search.dart';
 
 void main() {
   group('EditorDocumentModel', () {

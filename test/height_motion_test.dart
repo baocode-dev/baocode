@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_history_view.dart';
-import 'package:monad/chat/chat_models.dart';
-import 'package:monad/chat/chat_screen.dart';
-import 'package:monad/chat/chat_session.dart';
-import 'package:monad/chat/composer/composer.dart';
-import 'package:monad/chat/widgets/fold_line.dart';
-import 'package:monad/chat/widgets/image_thumbnails.dart';
-import 'package:monad/chat/widgets/tool_call_row.dart';
-import 'package:monad/chat/widgets/user_message_bubble.dart';
-import 'package:monad/theme/app_theme.dart';
+import 'package:baocode/chat/chat_history_view.dart';
+import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/chat/composer/composer.dart';
+import 'package:baocode/chat/widgets/fold_line.dart';
+import 'package:baocode/chat/widgets/image_thumbnails.dart';
+import 'package:baocode/chat/widgets/tool_call_row.dart';
+import 'package:baocode/chat/widgets/user_message_bubble.dart';
+import 'package:baocode/theme/app_theme.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 Future<void> pumpScreen(WidgetTester tester) async {

@@ -12,7 +12,7 @@ if (!root || !output) throw new Error('Expected VS Code checkout and output JSON
 if (execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() !== revision) {
   throw new Error(`Expected VS Code revision ${revision}`);
 }
-const temporary = await mkdtemp(join(tmpdir(), 'monad-monaco-fixtures-'));
+const temporary = await mkdtemp(join(tmpdir(), 'baocode-monaco-fixtures-'));
 try {
   await writeFile(join(temporary, 'package.json'), '{"type":"module"}');
   for (const name of ['position', 'range', 'selection']) {

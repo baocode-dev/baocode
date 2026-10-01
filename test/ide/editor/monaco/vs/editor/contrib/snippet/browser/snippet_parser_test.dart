@@ -4,7 +4,7 @@
 // [SnippetRegExp]s.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/contrib/snippet/browser/snippet_parser.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/contrib/snippet/browser/snippet_parser.dart';
 
 void _assertText(String value, String expected) {
   expect(SnippetParser.asInsertText(value), expected, reason: value);

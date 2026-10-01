@@ -3,8 +3,8 @@
 // Source-derived tests for pinned VS Code monarchCommon.ts (6a598d4a).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_common.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_compile.dart'
+import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_common.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/standalone/common/monarch/monarch_compile.dart'
     as compiler;
 
 void main() {

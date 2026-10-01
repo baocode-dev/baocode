@@ -7,13 +7,13 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/platform/theme/common/theme.dart'
+import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/theme.dart'
     show ColorScheme;
-import 'package:monad/ide/terminal/terminal_colors.dart';
-import 'package:monad/ide/terminal/terminal_render_adapter.dart';
-import 'package:monad/ide/terminal/terminal_render_theme.dart';
-import 'package:monad/ide/terminal/terminal_renderer.dart';
-import 'package:monad/ide/terminal/xterm/headless/terminal.dart' as headless;
+import 'package:baocode/ide/terminal/terminal_colors.dart';
+import 'package:baocode/ide/terminal/terminal_render_adapter.dart';
+import 'package:baocode/ide/terminal/terminal_render_theme.dart';
+import 'package:baocode/ide/terminal/terminal_renderer.dart';
+import 'package:baocode/ide/terminal/xterm/headless/terminal.dart' as headless;
 
 import 'terminal_color_themes.dart';
 

@@ -5,8 +5,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/platform/data_dir.dart';
-import 'package:monad/settings/data_dir_service.dart';
+import 'package:baocode/platform/data_dir.dart';
+import 'package:baocode/settings/data_dir_service.dart';
 import 'package:path/path.dart' as p;
 
 /// Moving the data folder copies only the app's own entries, points the
@@ -18,7 +18,7 @@ void main() {
   late String current;
 
   setUp(() {
-    root = Directory.systemTemp.createTempSync('monad-move');
+    root = Directory.systemTemp.createTempSync('baocode-move');
     home = p.join(root.path, 'home');
     current = p.join(root.path, 'current');
     Directory(home).createSync();
@@ -76,11 +76,11 @@ void main() {
       p.relative(entity.path, from: path),
   ]..sort();
 
-  File pointer() => File(p.join(home, '.monad', 'config-dir.json'));
+  File pointer() => File(p.join(home, '.baocode', 'config-dir.json'));
 
   group('check', () {
     test(
-      'an empty folder, one with Monad data, one with other files',
+      'an empty folder, one with BaoCode data, one with other files',
       () async {
         expect(
           (await service().check(folder('empty', files: ['.DS_Store'])))
@@ -89,14 +89,14 @@ void main() {
         );
         expect(
           (await service().check(
-            folder('monad', files: ['User/settings.json']),
+            folder('baocode', files: ['User/settings.json']),
           )).contents,
-          DataDirectoryContents.monadData,
+          DataDirectoryContents.baocodeData,
         );
         expect(
           (await service().check(folder('argv', files: ['argv.json'])))
               .contents,
-          DataDirectoryContents.monadData,
+          DataDirectoryContents.baocodeData,
         );
         expect(
           (await service().check(folder('other', files: ['notes.txt'])))
@@ -131,7 +131,7 @@ void main() {
       final target = await service().check(readOnly);
       expect(target.error, contains('cannot be written'));
       // Made when asked (the default place may not be there yet).
-      final made = p.join(root.path, 'made', 'monad');
+      final made = p.join(root.path, 'made', 'baocode');
       expect((await service().check(made, create: true)).ok, isTrue);
       expect(Directory(made).existsSync(), isTrue);
     });
@@ -202,7 +202,7 @@ void main() {
     },
   );
 
-  test('a folder with Monad data is used as it is', () async {
+  test('a folder with BaoCode data is used as it is', () async {
     final target = folder('target', files: ['User/settings.json']);
     await service().useAsIs(target);
     expect(tree(target), ['User', 'User/settings.json']);

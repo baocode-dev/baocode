@@ -1,6 +1,6 @@
-import 'package:monad/ide/git/git_model.dart';
-import 'package:monad/ide/git/git_repository.dart';
-import 'package:monad/ide/git/git_service.dart';
+import 'package:baocode/ide/git/git_model.dart';
+import 'package:baocode/ide/git/git_repository.dart';
+import 'package:baocode/ide/git/git_service.dart';
 
 /// Git as widget tests need it: no processes, canned output, and the
 /// commands it was asked to run.

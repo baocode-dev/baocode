@@ -1,6 +1,6 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/theme_assets.dart';
+import 'package:baocode/ide/editor/monaco/flutter/theme_assets.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

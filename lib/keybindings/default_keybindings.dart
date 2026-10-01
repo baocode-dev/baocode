@@ -1,8 +1,8 @@
-// The keybindings Monad comes with, written as VS Code's Default Keyboard
+// The keybindings BaoCode comes with, written as VS Code's Default Keyboard
 // Shortcuts (JSON) writes them, and the commands a keybinding may run.
 //
 // The keys are upstream's defaults for the same commands (VS Code
-// 6a598d4a13031703d483d103c1d934a36ad27971), but where Monad differs: ⌘J
+// 6a598d4a13031703d483d103c1d934a36ad27971), but where BaoCode differs: ⌘J
 // toggles the chat (upstream: the panel), and ⌃9 / Alt+9 opens the last
 // editor as well as the ninth.
 
@@ -33,7 +33,7 @@ class CommandInfo {
   String get label => category == null ? title : '$category: $title';
 }
 
-/// Every command Monad has, by id: those a keybinding can run. One not
+/// Every command BaoCode has, by id: those a keybinding can run. One not
 /// here (another editor's, in an imported `keybindings.json`) is kept but
 /// shown as not supported.
 final Map<String, CommandInfo> commandCatalog = {
@@ -235,16 +235,20 @@ final Map<String, CommandInfo> commandCatalog = {
       category: 'Preferences',
     ),
     const CommandInfo(
-      'monad.ide.toggleFormatOnSave',
+      'baocode.ide.toggleFormatOnSave',
       'Toggle Format on Save',
       category: 'Preferences',
     ),
     const CommandInfo(
-      'monad.ide.retryLanguageServices',
+      'baocode.ide.retryLanguageServices',
       'Retry Language Services',
       category: 'Developer',
     ),
-    const CommandInfo('monad.ide.backToChat', 'Back to Chat', category: 'View'),
+    const CommandInfo(
+      'baocode.ide.backToChat',
+      'Back to Chat',
+      category: 'View',
+    ),
     // The explorer's (fileActions.contribution.ts) and its tree's
     // (listCommands.ts), run where the focus is in it.
     const CommandInfo('explorer.newFile', 'New File...', category: 'File'),

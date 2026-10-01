@@ -2,7 +2,7 @@
 /// broken at CRLF, CR and LF; a character past a line's end means its end.
 library;
 
-import 'package:monad/ide/editor/monaco/flutter/editor_document_model.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_document_model.dart';
 
 int lspOffset(String text, int line, int character) {
   var offset = 0;

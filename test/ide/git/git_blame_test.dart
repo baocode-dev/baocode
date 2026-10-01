@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_document_model.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_surface.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/range.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/diff/range_mapping.dart';
-import 'package:monad/ide/git/git_blame.dart';
-import 'package:monad/ide/git/git_model.dart';
-import 'package:monad/ide/git/git_repository.dart';
-import 'package:monad/ide/ide_editor.dart';
-import 'package:monad/ide/ide_workspace.dart';
-import 'package:monad/l10n/app_localizations_zh.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_document_model.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_surface.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/diff/range_mapping.dart';
+import 'package:baocode/ide/git/git_blame.dart';
+import 'package:baocode/ide/git/git_model.dart';
+import 'package:baocode/ide/git/git_repository.dart';
+import 'package:baocode/ide/ide_editor.dart';
+import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/l10n/app_localizations_zh.dart';
 
 import '../workbench/fake_files.dart';
 import 'fake_git.dart';

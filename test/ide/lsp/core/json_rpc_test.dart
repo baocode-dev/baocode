@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/lsp/json_rpc.dart';
-import 'package:monad/ide/lsp/lsp_glob.dart';
+import 'package:baocode/ide/lsp/json_rpc.dart';
+import 'package:baocode/ide/lsp/lsp_glob.dart';
 
 List<int> frame(Object message) {
   final body = utf8.encode(jsonEncode(message));

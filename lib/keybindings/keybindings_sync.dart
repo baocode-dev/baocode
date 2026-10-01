@@ -1,6 +1,6 @@
 // Keeps the keybindings in effect ([KeybindingService]) in step with the
 // files they come from: the user's `keybindings.json`, and the keymap the
-// `monad.keymap` setting in `settings.json` selects (as VS Code's
+// `baocode.keymap` setting in `settings.json` selects (as VS Code's
 // `UserKeybindings` follows its file, and a keymap extension, once
 // installed, is in effect until uninstalled).
 
@@ -22,7 +22,7 @@ class KeybindingsSync {
   }) : service = service ?? KeybindingService.instance;
 
   /// The setting that holds the selected keymap's id.
-  static const keymapSetting = 'monad.keymap';
+  static const keymapSetting = 'baocode.keymap';
 
   /// `User/keybindings.json`.
   final JsoncFile keybindings;

@@ -2,20 +2,20 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_screen.dart';
-import 'package:monad/chat/composer/composer.dart';
-import 'package:monad/chat/widgets/markdown_view.dart';
-import 'package:monad/ide/ide_modern_ui.dart';
-import 'package:monad/ide/ide_workbench.dart';
-import 'package:monad/main.dart';
-import 'package:monad/theme/app_theme.dart';
-import 'package:monad/sidebar/sidebar.dart';
-import 'package:monad/workspace/chat_grid.dart';
-import 'package:monad/workspace/chat_grid_view.dart';
-import 'package:monad/workspace/editor_launcher.dart';
-import 'package:monad/workspace/open_in_editor_button.dart';
-import 'package:monad/workspace/title_bar_double_click.dart';
-import 'package:monad/workspace/workspace.dart';
+import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/composer/composer.dart';
+import 'package:baocode/chat/widgets/markdown_view.dart';
+import 'package:baocode/ide/ide_modern_ui.dart';
+import 'package:baocode/ide/ide_workbench.dart';
+import 'package:baocode/main.dart';
+import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/workspace/chat_grid.dart';
+import 'package:baocode/workspace/chat_grid_view.dart';
+import 'package:baocode/workspace/editor_launcher.dart';
+import 'package:baocode/workspace/open_in_editor_button.dart';
+import 'package:baocode/workspace/title_bar_double_click.dart';
+import 'package:baocode/workspace/workspace.dart';
 
 const first = 'Optimize virtual list scrolling';
 const second = 'Rate limit per API key';
@@ -28,7 +28,7 @@ Future<Workspace> pumpApp(WidgetTester tester, {double width = 1400}) async {
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final workspace = Workspace.mock();
-  await tester.pumpWidget(MonadApp(workspace: workspace));
+  await tester.pumpWidget(BaoCodeApp(workspace: workspace));
   await tester.pump();
   return workspace;
 }
@@ -430,7 +430,7 @@ void main() {
     var room = <String, double>{'width': 400, 'height': 0};
     final grown = <Object?>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('monad/window'),
+      const MethodChannel('baocode/window'),
       (call) async {
         switch (call.method) {
           case 'windowRoom':
@@ -483,7 +483,7 @@ void main() {
       'the window grows past the narrow width', (tester) async {
     final grown = <Object?>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('monad/window'),
+      const MethodChannel('baocode/window'),
       (call) async {
         switch (call.method) {
           case 'windowRoom':

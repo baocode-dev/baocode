@@ -10,11 +10,11 @@
 // V6.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_unicode11/unicode11_addon.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_unicode11/unicode_v11.dart';
-import 'package:monad/ide/terminal/xterm/common/input/unicode_v6.dart';
-import 'package:monad/ide/terminal/xterm/common/services/unicode_service.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm_headless.dart';
+import 'package:baocode/ide/terminal/xterm/addons/addon_unicode11/unicode11_addon.dart';
+import 'package:baocode/ide/terminal/xterm/addons/addon_unicode11/unicode_v11.dart';
+import 'package:baocode/ide/terminal/xterm/common/input/unicode_v6.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/unicode_service.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart';
 
 /// `Terminal.unicode` over the core's UnicodeService, as the public terminal
 /// hands it out.

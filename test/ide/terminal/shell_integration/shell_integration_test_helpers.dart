@@ -13,8 +13,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/headless/terminal.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm_headless.dart'
+import 'package:baocode/ide/terminal/xterm/headless/terminal.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm_headless.dart'
     hide Terminal;
 
 /// Writes [data] and waits for it to be parsed.

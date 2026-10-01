@@ -4,9 +4,9 @@
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/document_snapshot.dart';
-import 'package:monad/ide/lsp/lsp_protocol.dart';
-import 'package:monad/ide/lsp_ui/semantic_tokens.dart';
+import 'package:baocode/ide/editor/monaco/flutter/document_snapshot.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/lsp_ui/semantic_tokens.dart';
 
 import 'semantic_token_fixture.dart';
 

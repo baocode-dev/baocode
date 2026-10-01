@@ -10,11 +10,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/terminal_render_adapter.dart';
-import 'package:monad/ide/terminal/terminal_render_theme.dart';
-import 'package:monad/ide/terminal/terminal_renderer.dart';
-import 'package:monad/ide/terminal/terminal_widget.dart';
-import 'package:monad/ide/terminal/xterm/headless/terminal.dart' as headless;
+import 'package:baocode/ide/terminal/terminal_render_adapter.dart';
+import 'package:baocode/ide/terminal/terminal_render_theme.dart';
+import 'package:baocode/ide/terminal/terminal_renderer.dart';
+import 'package:baocode/ide/terminal/terminal_widget.dart';
+import 'package:baocode/ide/terminal/xterm/headless/terminal.dart' as headless;
 
 const _fg = Color(0xFFCCCCCC);
 const _bg = Color(0xFF191A1B);

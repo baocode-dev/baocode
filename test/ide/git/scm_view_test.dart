@@ -4,12 +4,12 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/git/git_model.dart';
-import 'package:monad/ide/git/git_service.dart';
-import 'package:monad/ide/ide_hover.dart';
-import 'package:monad/ide/ide_explorer.dart';
-import 'package:monad/ide/ide_list.dart';
-import 'package:monad/ide/ide_modern_ui.dart';
+import 'package:baocode/ide/git/git_model.dart';
+import 'package:baocode/ide/git/git_service.dart';
+import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/ide/ide_explorer.dart';
+import 'package:baocode/ide/ide_list.dart';
+import 'package:baocode/ide/ide_modern_ui.dart';
 
 import '../workbench/fake_files.dart';
 import 'fake_git.dart';

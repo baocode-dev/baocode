@@ -4,7 +4,7 @@
 //
 // Usage: node tool/generate_language_detection_fixtures.mjs [vscode-checkout] [output.json]
 //   [vscode-checkout]  a checkout of microsoft/vscode at `revision` (default: a sparse,
-//                      blob-less clone into /tmp/monad-language-detection-vscode-<rev>)
+//                      blob-less clone into /tmp/baocode-language-detection-vscode-<rev>)
 //   [output.json]      default test/fixtures/textmate/language_detection.json; the
 //                      ECMAScript lower-case table goes next to it as
 //                      language_detection_lowercase.json.
@@ -82,7 +82,7 @@ const sparsePaths = [
 ];
 
 async function checkout() {
-  const root = checkoutArg ?? join(tmpdir(), `monad-language-detection-vscode-${revision.slice(0, 8)}`);
+  const root = checkoutArg ?? join(tmpdir(), `baocode-language-detection-vscode-${revision.slice(0, 8)}`);
   if (!existsSync(join(root, '.git'))) {
     if (checkoutArg) throw new Error(`${root} is not a git checkout`);
     git(['clone', '--filter=blob:none', '--no-checkout', '--sparse', repository, root], { stdio: 'inherit' });
@@ -153,7 +153,7 @@ function readZipEntry(buffer, name) {
 async function download(url) {
   for (let attempt = 1; ; attempt++) {
     try {
-      const response = await fetch(url, { headers: { 'User-Agent': 'monad-language-detection-fixtures' } });
+      const response = await fetch(url, { headers: { 'User-Agent': 'baocode-language-detection-fixtures' } });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return Buffer.from(await response.arrayBuffer());
     } catch (error) {
@@ -241,7 +241,7 @@ for (const { folder, source, manifest, nls } of builtIns) {
 
 // --- Bundle the upstream modules -----------------------------------------------
 
-const temporary = await mkdtemp(join(tmpdir(), 'monad-language-detection-'));
+const temporary = await mkdtemp(join(tmpdir(), 'baocode-language-detection-'));
 try {
   const esbuildVersion = JSON.parse(await read('build/package.json')).devDependencies.esbuild;
   await writeFile(join(temporary, 'package.json'), '{"private":true,"type":"module"}');

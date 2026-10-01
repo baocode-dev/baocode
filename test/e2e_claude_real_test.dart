@@ -8,22 +8,22 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_models.dart';
-import 'package:monad/kernel/agent_kernel.dart';
-import 'package:monad/kernel/claude_code/claude_code_kernel.dart';
-import 'package:monad/kernel/claude_code/claude_storage_io.dart';
-import 'package:monad/kernel/claude_code/process_transport.dart';
-import 'package:monad/kernel/kernel_event.dart';
-import 'package:monad/kernel/kernel_types.dart';
-import 'package:monad/kernel/mock/mock_kernels.dart';
-import 'package:monad/kernel/transcript.dart';
+import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/kernel/agent_kernel.dart';
+import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
+import 'package:baocode/kernel/claude_code/claude_storage_io.dart';
+import 'package:baocode/kernel/claude_code/process_transport.dart';
+import 'package:baocode/kernel/kernel_event.dart';
+import 'package:baocode/kernel/kernel_types.dart';
+import 'package:baocode/kernel/mock/mock_kernels.dart';
+import 'package:baocode/kernel/transcript.dart';
 
 import 'kernel_test.dart' show shown;
 
 /// A new git repository to run in. Removed after the test, pass or fail,
 /// with what Claude Code kept of it: its sessions, and task output.
 Future<String> tempProject() async {
-  final dir = await Directory.systemTemp.createTemp('monad-e2e-');
+  final dir = await Directory.systemTemp.createTemp('baocode-e2e-');
   final cwd = dir.resolveSymbolicLinksSync();
   await Process.run('git', ['init', '-q'], workingDirectory: cwd);
   final dashed = cwd.replaceAll(RegExp('[^a-zA-Z0-9]'), '-');

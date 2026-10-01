@@ -11,7 +11,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/model/prefix_sum_computer.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/model/prefix_sum_computer.dart';
 
 typedef _TestPrefixSumComputer = ({
   int Function() getTotalSum,

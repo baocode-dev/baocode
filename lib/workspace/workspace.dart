@@ -328,10 +328,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Sample projects and agents at various ages and states, on the
   /// registered kernels (mock ones under test).
   factory Workspace.mock() {
-    const monad = Project('monad', '~/code/monad');
+    const baocode = Project('baocode', '~/code/baocode');
     const docs = Project('cursor-docs', '~/code/cursor-docs');
     const gateway = Project('api-gateway', '~/work/api-gateway');
-    final workspace = Workspace(projects: const [monad, docs, gateway]);
+    final workspace = Workspace(projects: const [baocode, docs, gateway]);
     final claude = workspace.kernels.first;
     final codex = workspace.kernels.lastOrNull ?? claude;
     final now = DateTime.now();
@@ -373,13 +373,13 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     }
 
     add(
-      monad,
+      baocode,
       'Optimize virtual list scrolling',
       const Duration(minutes: 2),
       history: MockConversation.itemCount,
     );
     add(
-      monad,
+      baocode,
       'Sticky user message on scroll',
       const Duration(minutes: 38),
       unread: true,
@@ -393,18 +393,18 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       ],
     );
     add(
-      monad,
+      baocode,
       'Fix selection jitter in streaming thoughts',
       const Duration(hours: 3),
       history: 24,
     );
     add(
-      monad,
+      baocode,
       'Floating layer for composer popovers',
       const Duration(days: 1, hours: 2),
       pinned: true,
     );
-    add(monad, 'Edit sent messages in history', const Duration(days: 4));
+    add(baocode, 'Edit sent messages in history', const Duration(days: 4));
     add(
       docs,
       'Rewrite the agents quickstart',

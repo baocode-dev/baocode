@@ -3,20 +3,20 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/ide_notifications.dart';
-import 'package:monad/keybindings/import_dialog.dart';
-import 'package:monad/keybindings/keybinding_entry.dart';
-import 'package:monad/keybindings/keybinding_service.dart';
-import 'package:monad/keybindings/keybindings_sync.dart';
-import 'package:monad/keybindings/keymap.dart';
-import 'package:monad/keybindings/vscode_import.dart';
-import 'package:monad/main.dart';
-import 'package:monad/platform/data_dir.dart';
-import 'package:monad/settings/app_locale.dart';
-import 'package:monad/settings/app_settings.dart';
-import 'package:monad/settings/pages/keybindings_page.dart';
-import 'package:monad/settings/user_settings.dart';
-import 'package:monad/workspace/workspace.dart';
+import 'package:baocode/ide/ide_notifications.dart';
+import 'package:baocode/keybindings/import_dialog.dart';
+import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
+import 'package:baocode/keybindings/keybindings_sync.dart';
+import 'package:baocode/keybindings/keymap.dart';
+import 'package:baocode/keybindings/vscode_import.dart';
+import 'package:baocode/main.dart';
+import 'package:baocode/platform/data_dir.dart';
+import 'package:baocode/settings/app_locale.dart';
+import 'package:baocode/settings/app_settings.dart';
+import 'package:baocode/settings/pages/keybindings_page.dart';
+import 'package:baocode/settings/user_settings.dart';
+import 'package:baocode/workspace/workspace.dart';
 import 'package:path/path.dart' as p;
 
 import '../keybindings/fake_home.dart';
@@ -31,7 +31,7 @@ void main() {
   late AppSettings settings;
 
   setUp(() async {
-    data = await Directory.systemTemp.createTemp('monad-settings-wiring');
+    data = await Directory.systemTemp.createTemp('baocode-settings-wiring');
     home = await createFakeHome();
     KeybindingService.instance = KeybindingService()
       ..debugPlatform = KeybindingPlatform.mac;
@@ -81,7 +81,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      MonadApp(workspace: Workspace.mock(), settings: settings),
+      BaoCodeApp(workspace: Workspace.mock(), settings: settings),
     );
     await tester.pump();
   }
@@ -148,7 +148,7 @@ void main() {
     }))!;
     expect(keymap.builtIn, isTrue);
     expect(service.keymapName, 'Atom');
-    expect(files.settings['monad.keymap'], 'ms-vscode.atom-keybindings');
+    expect(files.settings['baocode.keymap'], 'ms-vscode.atom-keybindings');
 
     Navigator.of(tester.element(dialog)).pop();
     await tester.pumpAndSettle();
@@ -210,7 +210,7 @@ void main() {
       );
       await write(
         DataDirectory(data.path).settingsFile,
-        '{ "monad.keymap": "ms-vscode.atom-keybindings" }',
+        '{ "baocode.keymap": "ms-vscode.atom-keybindings" }',
       );
       await start();
     });

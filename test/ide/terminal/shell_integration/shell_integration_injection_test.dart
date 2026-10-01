@@ -16,12 +16,12 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/pty.dart';
-import 'package:monad/ide/terminal/shell_integration/shell_integration_injection.dart';
-import 'package:monad/ide/terminal/terminal_shell.dart';
+import 'package:baocode/ide/terminal/pty.dart';
+import 'package:baocode/ide/terminal/shell_integration/shell_integration_injection.dart';
+import 'package:baocode/ide/terminal/terminal_shell.dart';
 
 const _root = '/app/shell-integration';
-const _zdotdir = '/tmp/monad-shell-integration-x/zsh';
+const _zdotdir = '/tmp/baocode-shell-integration-x/zsh';
 const _home = '/home/me';
 
 ShellIntegrationInjectionResult _inject(
@@ -377,11 +377,11 @@ void main() {
     // New: not upstream.
     group('fish', () {
       const source =
-          r'set -g __monad_term_program $TERM_PROGRAM; '
+          r'set -g __baocode_term_program $TERM_PROGRAM; '
           r'set -gx TERM_PROGRAM vscode; '
           'source "$_root/shellIntegration.fish"; '
-          r'set -gx TERM_PROGRAM $__monad_term_program; '
-          'set -e __monad_term_program';
+          r'set -gx TERM_PROGRAM $__baocode_term_program; '
+          'set -e __baocode_term_program';
       test('sources the script with TERM_PROGRAM=vscode, login or not', () {
         _expectInjection(
           _inject('/opt/homebrew/bin/fish', null),

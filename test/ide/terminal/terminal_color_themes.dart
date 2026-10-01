@@ -5,9 +5,9 @@
 
 import 'dart:ui';
 
-import 'package:monad/ide/editor/monaco/vs/platform/theme/common/theme.dart'
+import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/theme.dart'
     show ColorScheme;
-import 'package:monad/ide/terminal/terminal_colors.dart';
+import 'package:baocode/ide/terminal/terminal_colors.dart';
 
 /// Light 2026's colors by id. It has no `terminal.background`: the panel's
 /// is the terminal's.

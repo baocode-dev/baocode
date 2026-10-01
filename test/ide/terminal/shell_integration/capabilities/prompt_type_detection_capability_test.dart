@@ -8,8 +8,8 @@
 // promptTypeDetectionCapability.test.ts.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/shell_integration/capabilities/capabilities.dart';
-import 'package:monad/ide/terminal/shell_integration/capabilities/prompt_type_detection_capability.dart';
+import 'package:baocode/ide/terminal/shell_integration/capabilities/capabilities.dart';
+import 'package:baocode/ide/terminal/shell_integration/capabilities/prompt_type_detection_capability.dart';
 
 void main() {
   PromptTypeDetectionCapability create() {

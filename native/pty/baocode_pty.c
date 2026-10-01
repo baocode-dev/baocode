@@ -33,10 +33,10 @@
 
 #define EXPORT __attribute__((visibility("default"))) __attribute__((used))
 
-// What monad_pty_poll found ready.
+// What baocode_pty_poll found ready.
 enum { kOutput = 1, kExited = 2, kWoken = 4 };
 
-// Where monad_pty_spawn failed.
+// Where baocode_pty_spawn failed.
 enum { kStageSetup = 0, kStageDirectory = 1, kStageExec = 2 };
 
 // Closing every descriptor the app might have open is a loop up to here at
@@ -216,7 +216,7 @@ static void __attribute__((noreturn)) run_child(
 //
 // Returns the child's pid, and sets `*master` (non-blocking) and
 // `*exit_fd` (see watch_exit). On failure returns -errno and sets `*stage`.
-EXPORT int monad_pty_spawn(const char *path, char *const argv[],
+EXPORT int baocode_pty_spawn(const char *path, char *const argv[],
                            char *const envp[], const char *cwd, int columns,
                            int rows, int *master, int *exit_fd, int *stage) {
   int pty = -1, slave = -1, watcher = -1;
@@ -313,7 +313,7 @@ fail:
 // of the child (`exit_fd`), or a byte on `wake`; a negative descriptor is
 // not waited for. Returns what is ready (kOutput, kExited, kWoken), or
 // -errno.
-EXPORT int monad_pty_poll(int master, int exit_fd, int wake, int timeout) {
+EXPORT int baocode_pty_poll(int master, int exit_fd, int wake, int timeout) {
   struct pollfd fds[3] = {
       {.fd = master, .events = POLLIN},
       {.fd = exit_fd, .events = POLLIN},
@@ -332,7 +332,7 @@ EXPORT int monad_pty_poll(int master, int exit_fd, int wake, int timeout) {
 
 // Reads what `master` has: the count; 0 when there is nothing yet; -1 once
 // the child's side is closed (0 on macOS, EIO on Linux) or reading fails.
-EXPORT int monad_pty_read(int master, uint8_t *buffer, int length) {
+EXPORT int baocode_pty_read(int master, uint8_t *buffer, int length) {
   for (;;) {
     ssize_t count = read(master, buffer, (size_t)length);
     if (count > 0) return (int)count;
@@ -344,7 +344,7 @@ EXPORT int monad_pty_read(int master, uint8_t *buffer, int length) {
 
 // Writes what `master` takes now: the count, 0 when it is full, -1 when the
 // terminal is gone.
-EXPORT int monad_pty_write(int master, const uint8_t *data, int length) {
+EXPORT int baocode_pty_write(int master, const uint8_t *data, int length) {
   for (;;) {
     ssize_t count = write(master, data, (size_t)length);
     if (count >= 0) return (int)count;
@@ -356,7 +356,7 @@ EXPORT int monad_pty_write(int master, const uint8_t *data, int length) {
 // Whether the child has exited: 1 with `*code` its exit code, or minus the
 // signal that ended it (0 when another waiter took the status); 0 while it
 // runs.
-EXPORT int monad_pty_exit_status(int pid, int exit_fd, int *code) {
+EXPORT int baocode_pty_exit_status(int pid, int exit_fd, int *code) {
   int status = 0;
 #if defined(__APPLE__)
   if (exit_fd != -1) {
@@ -385,7 +385,7 @@ EXPORT int monad_pty_exit_status(int pid, int exit_fd, int *code) {
 }
 
 // Sets the terminal's size; its foreground job gets SIGWINCH.
-EXPORT int monad_pty_resize(int master, int columns, int rows) {
+EXPORT int baocode_pty_resize(int master, int columns, int rows) {
   struct winsize size;
   memset(&size, 0, sizeof size);
   size.ws_col = (unsigned short)columns;
@@ -396,7 +396,7 @@ EXPORT int monad_pty_resize(int master, int columns, int rows) {
 // Sends `number` to the child, then its process group, then the job in the
 // terminal's foreground (which an interactive shell puts in a group of its
 // own). Returns 0, or -errno from the first.
-EXPORT int monad_pty_kill(int pid, int master, int number) {
+EXPORT int baocode_pty_kill(int pid, int master, int number) {
   int result = kill(pid, number) == -1 ? -errno : 0;
   kill(-pid, number);
   pid_t foreground = tcgetpgrp(master);
@@ -405,22 +405,22 @@ EXPORT int monad_pty_kill(int pid, int master, int number) {
 }
 
 // A pipe, close-on-exec at both ends, into `fds`.
-EXPORT int monad_pty_pipe(int *fds) {
+EXPORT int baocode_pty_pipe(int *fds) {
   return cloexec_pipe(fds) == -1 ? -errno : 0;
 }
 
-// Writes a byte to `fd`, the write end of a pipe from monad_pty_pipe.
-EXPORT void monad_pty_wake(int fd) {
+// Writes a byte to `fd`, the write end of a pipe from baocode_pty_pipe.
+EXPORT void baocode_pty_wake(int fd) {
   char byte = 1;
   while (write(fd, &byte, 1) == -1 && errno == EINTR) {
   }
 }
 
-EXPORT void monad_pty_close(int fd) { close(fd); }
+EXPORT void baocode_pty_close(int fd) { close(fd); }
 
 // What errno `error` means, in the C library's words.
-EXPORT const char *monad_pty_describe(int error) { return strerror(error); }
+EXPORT const char *baocode_pty_describe(int error) { return strerror(error); }
 
-EXPORT void *monad_pty_alloc(size_t size) { return calloc(1, size); }
+EXPORT void *baocode_pty_alloc(size_t size) { return calloc(1, size); }
 
-EXPORT void monad_pty_free(void *pointer) { free(pointer); }
+EXPORT void baocode_pty_free(void *pointer) { free(pointer); }

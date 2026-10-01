@@ -4,8 +4,8 @@ library;
 import 'dart:async';
 import 'dart:io';
 
-import 'package:monad/ide/lsp/lsp_protocol.dart';
-import 'package:monad/ide/lsp/lsp_server_definition.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/lsp/lsp_server_definition.dart';
 import 'package:path/path.dart' as p;
 
 /// The fake server's source, run by `dart` directly (it starts in a

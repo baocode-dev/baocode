@@ -6,7 +6,7 @@
 // here the positions are relative to the element's content box.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/browser/input/mouse.dart';
+import 'package:baocode/ide/terminal/xterm/browser/input/mouse.dart';
 
 const double charWidth = 10;
 const double charHeight = 20;

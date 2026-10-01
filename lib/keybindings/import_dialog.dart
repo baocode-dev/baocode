@@ -43,7 +43,7 @@ typedef ImportKeymap = Future<KeymapImportResult> Function(
   KeymapExtension extension,
 );
 
-/// Makes keymap [id] the one in use (the `monad.keymap` setting).
+/// Makes keymap [id] the one in use (the `baocode.keymap` setting).
 typedef SelectKeymap = FutureOr<void> Function(String id);
 
 /// Shows [KeybindingsImportDialog]; completes when it is closed.

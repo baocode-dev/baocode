@@ -1,10 +1,10 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_models.dart';
-import 'package:monad/chat/widgets/chat_item_view.dart';
-import 'package:monad/chat/widgets/terminal_output.dart';
-import 'package:monad/ide/terminal/terminal_colors.dart';
-import 'package:monad/theme/app_theme.dart';
+import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/widgets/chat_item_view.dart';
+import 'package:baocode/chat/widgets/terminal_output.dart';
+import 'package:baocode/ide/terminal/terminal_colors.dart';
+import 'package:baocode/theme/app_theme.dart';
 
 const _red = Color(0xFFCD3131);
 const _brightGreen = Color(0xFF23D18B);

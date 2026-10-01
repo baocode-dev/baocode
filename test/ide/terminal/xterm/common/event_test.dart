@@ -3,8 +3,8 @@
 // Adapted from xterm.js src/common/Event.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/event.dart';
-import 'package:monad/ide/terminal/xterm/common/lifecycle.dart';
+import 'package:baocode/ide/terminal/xterm/common/event.dart';
+import 'package:baocode/ide/terminal/xterm/common/lifecycle.dart';
 
 class _Handler {
   int value = 0;

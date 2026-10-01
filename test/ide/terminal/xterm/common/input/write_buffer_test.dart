@@ -11,7 +11,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/input/write_buffer.dart';
+import 'package:baocode/ide/terminal/xterm/common/input/write_buffer.dart';
 
 Uint8List toBytes(String s) {
   return Uint8List.fromList(utf8.encode(s));

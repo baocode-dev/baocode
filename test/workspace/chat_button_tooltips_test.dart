@@ -7,25 +7,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_screen.dart';
-import 'package:monad/chat/chat_session.dart';
-import 'package:monad/chat/composer/composer.dart';
-import 'package:monad/chat/panels/interaction_panel.dart';
-import 'package:monad/ide/ide_hover.dart';
-import 'package:monad/kernel/kernel_types.dart';
-import 'package:monad/kernel/mock/mock_kernels.dart';
-import 'package:monad/keybindings/chat_keybindings.dart';
-import 'package:monad/keybindings/keybinding_entry.dart';
-import 'package:monad/keybindings/keybinding_service.dart';
-import 'package:monad/main.dart';
-import 'package:monad/theme/app_theme.dart';
-import 'package:monad/workspace/back_to_chat_button.dart';
-import 'package:monad/workspace/chat_grid.dart';
-import 'package:monad/workspace/editor_launcher.dart';
-import 'package:monad/workspace/window_header/window_header.dart';
-import 'package:monad/workspace/workspace.dart';
+import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/chat/composer/composer.dart';
+import 'package:baocode/chat/panels/interaction_panel.dart';
+import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/kernel/kernel_types.dart';
+import 'package:baocode/kernel/mock/mock_kernels.dart';
+import 'package:baocode/keybindings/chat_keybindings.dart';
+import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
+import 'package:baocode/main.dart';
+import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/workspace/back_to_chat_button.dart';
+import 'package:baocode/workspace/chat_grid.dart';
+import 'package:baocode/workspace/editor_launcher.dart';
+import 'package:baocode/workspace/window_header/window_header.dart';
+import 'package:baocode/workspace/workspace.dart';
 
-const _window = MethodChannel('monad/window');
+const _window = MethodChannel('baocode/window');
 
 final _mac = TargetPlatformVariant.only(TargetPlatform.macOS);
 
@@ -45,7 +45,7 @@ Future<Workspace> pumpApp(WidgetTester tester) async {
     ),
   );
   final workspace = Workspace.mock();
-  await tester.pumpWidget(MonadApp(workspace: workspace));
+  await tester.pumpWidget(BaoCodeApp(workspace: workspace));
   await tester.pump();
   return workspace;
 }

@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/ide_explorer.dart';
-import 'package:monad/ide/ide_workbench.dart';
-import 'package:monad/keybindings/keybinding_service.dart';
+import 'package:baocode/ide/ide_explorer.dart';
+import 'package:baocode/ide/ide_workbench.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
 
 import 'fake_files.dart';
 
@@ -20,9 +20,9 @@ void main() {
       tester.state<IdeWorkbenchState>(find.byType(IdeWorkbench));
 
   Future<void> run(WidgetTester tester, String id) async {
-    workbench(
-      tester,
-    ).commands.firstWhere((command) => command.id == id).invoke();
+    workbench(tester).commands
+        .firstWhere((command) => command.id == id)
+        .invoke();
     await tester.pump();
     await tester.pump();
   }

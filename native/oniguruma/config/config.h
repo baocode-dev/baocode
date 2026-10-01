@@ -7,8 +7,8 @@
  * `./configure`, neither USE_CRNL_AS_LINE_TERMINATOR nor the POSIX API is on.
  */
 
-#ifndef MONAD_ONIG_CONFIG_H
-#define MONAD_ONIG_CONFIG_H
+#ifndef BAOCODE_ONIG_CONFIG_H
+#define BAOCODE_ONIG_CONFIG_H
 
 #define PACKAGE "onig"
 #define PACKAGE_VERSION "6.9.8"
@@ -50,4 +50,4 @@
 
 #endif
 
-#endif /* MONAD_ONIG_CONFIG_H */
+#endif /* BAOCODE_ONIG_CONFIG_H */

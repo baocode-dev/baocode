@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/platform/child_process_registry.dart';
+import 'package:baocode/platform/child_process_registry.dart';
 import 'package:path/path.dart' as p;
 
 /// The list is written aside and renamed over; nothing written aside is
@@ -12,7 +12,7 @@ void main() {
   late File file;
 
   setUp(() {
-    dir = Directory.systemTemp.createTempSync('monad-registry');
+    dir = Directory.systemTemp.createTempSync('baocode-registry');
     file = File(p.join(dir.path, 'claude-processes.json'));
   });
   tearDown(() => dir.deleteSync(recursive: true));

@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/ide_hover.dart';
-import 'package:monad/theme/codicons.dart';
+import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/theme/codicons.dart';
 
 void main() {
   Future<void> pump(WidgetTester tester, Widget child) => tester.pumpWidget(

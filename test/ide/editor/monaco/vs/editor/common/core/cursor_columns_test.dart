@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/strings_cursor.dart'
+import 'package:baocode/ide/editor/monaco/vs/base/common/strings_cursor.dart'
     as strings;
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/cursor_columns.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/cursor_columns.dart';
 
 void main() {
   group('CursorColumns tab stops (upstream cases)', () {

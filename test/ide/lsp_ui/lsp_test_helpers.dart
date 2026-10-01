@@ -1,13 +1,13 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_surface.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_surface_controller.dart';
-import 'package:monad/ide/ide_commands.dart';
-import 'package:monad/ide/ide_editor.dart';
-import 'package:monad/ide/ide_workbench.dart';
-import 'package:monad/ide/ide_workspace.dart';
-import 'package:monad/ide/lsp_ui/editor_language_session.dart';
-import 'package:monad/ide/lsp_ui/lsp_convert.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_surface.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:baocode/ide/ide_commands.dart';
+import 'package:baocode/ide/ide_editor.dart';
+import 'package:baocode/ide/ide_workbench.dart';
+import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/ide/lsp_ui/editor_language_session.dart';
+import 'package:baocode/ide/lsp_ui/lsp_convert.dart';
 
 import '../workbench/fake_files.dart';
 import 'fake_language_features.dart';

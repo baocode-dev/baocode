@@ -5,9 +5,9 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/lifecycle.dart';
-import 'package:monad/ide/terminal/xterm/common/services/options_service.dart';
-import 'package:monad/ide/terminal/xterm/common/services/services.dart';
+import 'package:baocode/ide/terminal/xterm/common/lifecycle.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/options_service.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
 
 void main() {
   group('OptionsService', () {

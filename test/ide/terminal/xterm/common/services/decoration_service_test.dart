@@ -4,11 +4,11 @@
 // (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/buffer.dart';
-import 'package:monad/ide/terminal/xterm/common/buffer/buffer_line.dart';
-import 'package:monad/ide/terminal/xterm/common/services/decoration_service.dart';
-import 'package:monad/ide/terminal/xterm/common/services/services.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm.dart'
+import 'package:baocode/ide/terminal/xterm/common/buffer/buffer.dart';
+import 'package:baocode/ide/terminal/xterm/common/buffer/buffer_line.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/decoration_service.dart';
+import 'package:baocode/ide/terminal/xterm/common/services/services.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
     show IDecorationOptions;
 
 import '../test_utils.dart';

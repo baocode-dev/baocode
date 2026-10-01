@@ -22,7 +22,7 @@
 
 ## PTY 和环境变量
 
-- `TERM_PROGRAM` 是 `monad`，没有 `TERM_PROGRAM_VERSION`。
+- `TERM_PROGRAM` 是 `baocode`，没有 `TERM_PROGRAM_VERSION`。
 - 直接启动 `$SHELL` 本身；VS Code 是按名字在 PATH 里找对应的配置。不查 `/etc/passwd`。
 - Linux 上启动 shell 不加登录参数；macOS 上 bash、zsh、fish 加 `-l`，tmux、pwsh 不加，其他名字里带 zsh 或 bash 的加 `--login`。
 - Windows 按 VS Code 的顺序找 PowerShell，找不到再用 `ComSpec`，最后是 `cmd.exe`。
@@ -94,7 +94,7 @@
 
 - VS Code 的 shell 集成脚本原样打包成 Dart 常量（由 `tool/generate_shell_integration_scripts.dart` 生成），每次运行时写到临时目录里新建的 0700 文件夹；VS Code 用安装目录里的脚本。
 - zsh 的 ZDOTDIR 是这个文件夹下的 `zsh/`，不是 VS Code 的 `<tmp>/<用户>-<应用>-zsh` 加 sticky bit（Dart 不能 chmod）。
-- `TERM_PROGRAM` 是 `monad`，而 fish 的脚本只在 `vscode` 下运行：fish 的启动命令在 source 脚本期间把它临时改成 `vscode`，之后还原。
+- `TERM_PROGRAM` 是 `baocode`，而 fish 的脚本只在 `vscode` 下运行：fish 的启动命令在 source 脚本期间把它临时改成 `vscode`，之后还原。
 - 没有扩展的环境变量集合，`VSCODE_PATH_PREFIX` 从不设置。
 - 没有 `terminal.integrated.shellIntegration.*` 设置项：注入由 `terminalLaunch` 的 `shellIntegration` 参数控制（默认开），装饰的显示由 `DecorationAddon` 的构造参数和 `setDecorationsEnabled` 控制。
 - 命令检测只移植了 Unix 的启发式；`WindowsPtyHeuristics`（ConPTY 下调整提示符和命令位置）没有移植，`P;IsWindows=True` 只记下标志。录制的 Windows pwsh 会话测试照样通过。

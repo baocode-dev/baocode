@@ -3,7 +3,7 @@
 // Adapted from xterm.js src/browser/Clipboard.test.ts (c58ea36).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/browser/clipboard.dart' as clipboard;
+import 'package:baocode/ide/terminal/xterm/browser/clipboard.dart' as clipboard;
 
 void main() {
   group('evaluatePastedTextProcessing', () {

@@ -13,7 +13,7 @@ enum WindowButton { minimize, maximize, close }
 /// Controls of the native window, where there is one (the desktop app; see
 /// MainFlutterWindow.swift and windows/runner/window_channel.cpp).
 abstract final class WindowControls {
-  static const _channel = MethodChannel('monad/window');
+  static const _channel = MethodChannel('baocode/window');
 
   /// Whether the app runs in a window to command: the desktop app, not a
   /// browser tab.

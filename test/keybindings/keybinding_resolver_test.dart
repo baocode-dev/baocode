@@ -3,13 +3,13 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/keybindings/default_keybindings.dart';
-import 'package:monad/keybindings/key_chord.dart';
-import 'package:monad/keybindings/keybinding_entry.dart';
-import 'package:monad/keybindings/keybinding_resolver.dart';
-import 'package:monad/keybindings/keybinding_service.dart';
-import 'package:monad/keybindings/keymap.dart';
-import 'package:monad/settings/jsonc.dart';
+import 'package:baocode/keybindings/default_keybindings.dart';
+import 'package:baocode/keybindings/key_chord.dart';
+import 'package:baocode/keybindings/keybinding_entry.dart';
+import 'package:baocode/keybindings/keybinding_resolver.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
+import 'package:baocode/keybindings/keymap.dart';
+import 'package:baocode/settings/jsonc.dart';
 
 import 'fake_home.dart';
 
@@ -223,7 +223,10 @@ void main() {
       );
       // None: the title alone.
       expect(
-        service.titleWithKeybinding('Refresh', 'workbench.files.action.refresh'),
+        service.titleWithKeybinding(
+          'Refresh',
+          'workbench.files.action.refresh',
+        ),
         'Refresh',
       );
       var heard = 0;
@@ -321,10 +324,10 @@ void main() {
 
     test('registers the keybindings of commands the catalog lacks', () {
       service.registerExtraDefaults(const [
-        KeybindingEntry(command: 'monad.extra', key: 'cmd+k cmd+x'),
+        KeybindingEntry(command: 'baocode.extra', key: 'cmd+k cmd+x'),
       ]);
-      expect(service.isSupported('monad.extra'), isTrue);
-      expect(service.labelFor('monad.extra'), '⌘K ⌘X');
+      expect(service.isSupported('baocode.extra'), isTrue);
+      expect(service.labelFor('baocode.extra'), '⌘K ⌘X');
     });
 
     test('resolves a key event, by its character too', () {

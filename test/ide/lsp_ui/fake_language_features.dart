@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:monad/ide/lsp/language_features.dart';
-import 'package:monad/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/lsp/language_features.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
 
 /// Scripted language services for widget tests: answers come from the
 /// `on*` callbacks (empty when unset) and every request is recorded in

@@ -9,10 +9,10 @@
 // here a real CwdDetectionCapability, or fakes for the others.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/shell_integration/capabilities/capabilities.dart';
-import 'package:monad/ide/terminal/shell_integration/capabilities/cwd_detection_capability.dart';
-import 'package:monad/ide/terminal/shell_integration/capabilities/terminal_capability_store.dart';
-import 'package:monad/ide/terminal/xterm/common/event.dart';
+import 'package:baocode/ide/terminal/shell_integration/capabilities/capabilities.dart';
+import 'package:baocode/ide/terminal/shell_integration/capabilities/cwd_detection_capability.dart';
+import 'package:baocode/ide/terminal/shell_integration/capabilities/terminal_capability_store.dart';
+import 'package:baocode/ide/terminal/xterm/common/event.dart';
 
 class _FakeNaiveCwdDetection implements INaiveCwdDetectionCapability {
   @override

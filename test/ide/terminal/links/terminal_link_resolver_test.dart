@@ -5,8 +5,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/links/terminal_link_parsing.dart';
-import 'package:monad/ide/terminal/links/terminal_link_resolver.dart';
+import 'package:baocode/ide/terminal/links/terminal_link_parsing.dart';
+import 'package:baocode/ide/terminal/links/terminal_link_resolver.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
@@ -17,7 +17,7 @@ void main() {
     late TerminalFileLinkResolver resolver;
 
     setUp(() {
-      dir = Directory.systemTemp.createTempSync('monad_links_');
+      dir = Directory.systemTemp.createTempSync('baocode_links_');
       file = p.join(dir.path, 'a.txt');
       File(file).writeAsStringSync('a');
       folder = p.join(dir.path, 'sub');

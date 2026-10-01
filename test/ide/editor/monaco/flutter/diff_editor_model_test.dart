@@ -1,10 +1,10 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/diff_editor_model.dart';
-import 'package:monad/ide/editor/monaco/flutter/document_snapshot.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_document_model.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/diff/range_mapping.dart';
+import 'package:baocode/ide/editor/monaco/flutter/diff_editor_model.dart';
+import 'package:baocode/ide/editor/monaco/flutter/document_snapshot.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_document_model.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/diff/range_mapping.dart';
 
 /// A diff editor's model: the diff, and the alignments, zones and
 /// decorations each editor gets from it.

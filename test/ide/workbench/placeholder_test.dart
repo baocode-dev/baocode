@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/file_service.dart';
-import 'package:monad/ide/ide_editor.dart';
-import 'package:monad/ide/ide_editor_placeholder.dart';
-import 'package:monad/theme/codicons.dart';
+import 'package:baocode/ide/file_service.dart';
+import 'package:baocode/ide/ide_editor.dart';
+import 'package:baocode/ide/ide_editor_placeholder.dart';
+import 'package:baocode/theme/codicons.dart';
 
 import 'fake_files.dart';
 

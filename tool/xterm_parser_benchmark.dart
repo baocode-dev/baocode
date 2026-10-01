@@ -14,9 +14,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:monad/ide/terminal/xterm/common/input/text_decoder.dart';
-import 'package:monad/ide/terminal/xterm/common/parser/escape_sequence_parser.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm.dart'
+import 'package:baocode/ide/terminal/xterm/common/input/text_decoder.dart';
+import 'package:baocode/ide/terminal/xterm/common/parser/escape_sequence_parser.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
     show IFunctionIdentifier;
 
 const int _targetBytes = 4 * 1000 * 1000;

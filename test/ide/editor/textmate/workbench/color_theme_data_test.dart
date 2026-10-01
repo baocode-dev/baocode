@@ -7,15 +7,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/vs/base/common/color.dart';
-import 'package:monad/ide/editor/monaco/vs/platform/theme/common/theme.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/plist_parser.dart'
+import 'package:baocode/ide/editor/monaco/vs/base/common/color.dart';
+import 'package:baocode/ide/editor/monaco/vs/platform/theme/common/theme.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/text_mate/browser/text_mate_tokenization_feature_impl.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/plist_parser.dart'
     as plist;
-import 'package:monad/ide/editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
-import 'package:monad/ide/editor/textmate/textmate_manifest.dart';
-import 'package:monad/ide/editor/textmate/vscode_textmate/raw_theme.dart';
+import 'package:baocode/ide/editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
+import 'package:baocode/ide/editor/textmate/textmate_manifest.dart';
+import 'package:baocode/ide/editor/textmate/vscode_textmate/raw_theme.dart';
 
 Future<String> readAsset(String path) =>
     File('$textMateAssetRoot/$path').readAsString();

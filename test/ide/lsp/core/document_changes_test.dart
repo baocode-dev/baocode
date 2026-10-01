@@ -2,8 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/services.dart' show TextSelection;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_document_model.dart';
-import 'package:monad/ide/editor/monaco/vs/editor/common/core/range.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_document_model.dart';
+import 'package:baocode/ide/editor/monaco/vs/editor/common/core/range.dart';
 
 import 'lsp_text.dart';
 

@@ -217,7 +217,7 @@ std::optional<std::string> PickDirectory(HWND window) {
 WindowChannel::WindowChannel(flutter::BinaryMessenger* messenger, HWND window)
     : window_(window),
       channel_(std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
-          messenger, "monad/window",
+          messenger, "baocode/window",
           &flutter::StandardMethodCodec::GetInstance())) {
   channel_->SetMethodCallHandler(
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,

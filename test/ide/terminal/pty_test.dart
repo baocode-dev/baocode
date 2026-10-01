@@ -5,10 +5,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/pty.dart';
-import 'package:monad/ide/terminal/pty_io.dart';
-import 'package:monad/ide/terminal/terminal_shell.dart';
-import 'package:monad/platform/child_process_registry.dart';
+import 'package:baocode/ide/terminal/pty.dart';
+import 'package:baocode/ide/terminal/pty_io.dart';
+import 'package:baocode/ide/terminal/terminal_shell.dart';
+import 'package:baocode/platform/child_process_registry.dart';
 import 'package:path/path.dart' as p;
 
 /// Real processes on a real pseudo terminal: only `/bin/sh -c` with fixed
@@ -19,7 +19,7 @@ void main() {
   late File registryFile;
 
   setUp(() {
-    dir = Directory.systemTemp.createTempSync('monad-pty');
+    dir = Directory.systemTemp.createTempSync('baocode-pty');
     registryFile = File(p.join(dir.path, 'pty-processes.json'));
     // Never the user's own list, nor their processes.
     PtyProcesses.registry = ChildProcessRegistry(
@@ -209,7 +209,7 @@ void main() {
     expect(printed.toString(), contains(dir.resolveSymbolicLinksSync()));
     expect(
       printed.toString(),
-      contains('term=xterm-256color program=monad lang=en_US.UTF-8'),
+      contains('term=xterm-256color program=baocode lang=en_US.UTF-8'),
     );
   });
 
@@ -250,7 +250,7 @@ void main() {
     await expectLater(
       startPty(
         PtyLaunch(
-          executable: 'monad-no-such-program',
+          executable: 'baocode-no-such-program',
           workingDirectory: dir.path,
           environment: const {'PATH': '/usr/bin:/bin'},
         ),

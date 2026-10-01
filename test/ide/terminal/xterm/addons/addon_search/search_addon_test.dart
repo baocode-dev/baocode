@@ -17,11 +17,11 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_search/search_addon.dart';
-import 'package:monad/ide/terminal/xterm/addons/addon_search/typings/addon_search.dart'
+import 'package:baocode/ide/terminal/xterm/addons/addon_search/search_addon.dart';
+import 'package:baocode/ide/terminal/xterm/addons/addon_search/typings/addon_search.dart'
     hide SearchAddon;
-import 'package:monad/ide/terminal/xterm/common/async.dart';
-import 'package:monad/ide/terminal/xterm/typings/xterm.dart'
+import 'package:baocode/ide/terminal/xterm/common/async.dart';
+import 'package:baocode/ide/terminal/xterm/typings/xterm.dart'
     show ITerminalOptions;
 
 import 'search_test_terminal.dart';

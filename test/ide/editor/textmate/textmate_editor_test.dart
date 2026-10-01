@@ -4,13 +4,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/ide/editor/monaco/flutter/editor_surface.dart';
-import 'package:monad/ide/editor/textmate/textmate_syntax.dart';
-import 'package:monad/ide/editor/textmate/textmate_worker.dart';
-import 'package:monad/ide/file_service.dart';
-import 'package:monad/ide/ide_editor.dart';
-import 'package:monad/ide/ide_workspace.dart';
-import 'package:monad/theme/app_theme.dart';
+import 'package:baocode/ide/editor/monaco/flutter/editor_surface.dart';
+import 'package:baocode/ide/editor/textmate/textmate_syntax.dart';
+import 'package:baocode/ide/editor/textmate/textmate_worker.dart';
+import 'package:baocode/ide/file_service.dart';
+import 'package:baocode/ide/ide_editor.dart';
+import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/theme/app_theme.dart';
 import 'package:path/path.dart' as p;
 
 import '../../workbench/fake_files.dart';

@@ -3,13 +3,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_screen.dart';
-import 'package:monad/chat/chat_history_view.dart';
-import 'package:monad/chat/widgets/user_message_bubble.dart';
-import 'package:monad/main.dart';
-import 'package:monad/sidebar/sidebar.dart';
-import 'package:monad/theme/app_theme.dart';
-import 'package:monad/workspace/workspace.dart';
+import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/chat_history_view.dart';
+import 'package:baocode/chat/widgets/user_message_bubble.dart';
+import 'package:baocode/main.dart';
+import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/workspace/workspace.dart';
 
 import 'first_frame_test.dart' show LongTurnFeed;
 
@@ -19,7 +19,7 @@ Future<void> pumpMacApp(WidgetTester tester, {double width = 1400}) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
+  await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
   await tester.pump();
 }
 
@@ -96,7 +96,7 @@ void main() {
     await tester.pumpWidget(
       RepaintBoundary(
         key: _app,
-        child: MonadApp(workspace: Workspace.mock()),
+        child: BaoCodeApp(workspace: Workspace.mock()),
       ),
     );
     await tester.pump();
@@ -173,7 +173,7 @@ void main() {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MonadApp(workspace: Workspace.mock()));
+    await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
     await tester.pump();
     expect(colorsUnder(tester, find.byType(Sidebar)).first.a, 1);
     expect(sidebarColor(tester).a, 1);

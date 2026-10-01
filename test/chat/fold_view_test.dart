@@ -2,13 +2,13 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:monad/chat/chat_feed.dart';
-import 'package:monad/chat/chat_history_view.dart';
-import 'package:monad/chat/chat_models.dart';
-import 'package:monad/chat/chat_session.dart';
-import 'package:monad/chat/composer/composer_draft.dart';
-import 'package:monad/chat/widgets/fold_line.dart';
-import 'package:monad/theme/app_theme.dart';
+import 'package:baocode/chat/chat_feed.dart';
+import 'package:baocode/chat/chat_history_view.dart';
+import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/chat/composer/composer_draft.dart';
+import 'package:baocode/chat/widgets/fold_line.dart';
+import 'package:baocode/theme/app_theme.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 /// A conversation held in a list, changed by hand.
