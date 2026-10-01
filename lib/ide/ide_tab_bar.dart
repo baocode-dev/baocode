@@ -399,8 +399,12 @@ class _TabState extends State<_Tab> {
             constraints: const BoxConstraints(minWidth: 80, maxWidth: 260),
             padding: const EdgeInsets.only(left: 10, right: 5),
             decoration: BoxDecoration(
+              // The active tab wears the same selection color as the side
+              // bar's rows and the chat tabs, rather than the theme's
+              // `tab.activeBackground` (a deviation: upstream's active tab
+              // is the editor's own color, so that it merges with it).
               color: active
-                  ? colors['tab.activeBackground']
+                  ? colors['list.activeSelectionBackground']
                   : (hovered ? colors.get('tab.hoverBackground') : null) ??
                         colors['tab.inactiveBackground'],
               border: Border(

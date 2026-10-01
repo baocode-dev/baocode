@@ -72,6 +72,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // The paths it was started with, from the folder it was started in: for
   // this copy to open, or for the one already running.
   std::vector<std::string> open_paths = OpenPathsFromCommandLine();
+#if defined(_DEBUG)
+  // A debug build — `flutter run`'s, which starts the app it just built and
+  // waits for it to connect its debugger — does not join the one copy of the
+  // app that runs for the user (see kSingleInstanceMutex). Were it to, a copy
+  // the user already has running (an installed one, most of the time) would
+  // hold the name, and the app `flutter run` just started would find it
+  // taken, hand its paths over and exit without ever starting an engine: the
+  // tool would fail with "The log reader stopped unexpectedly, or never
+  // started". Only a release build, the one installed, claims the name.
+#else
   const HANDLE single_instance =
       ::CreateMutexW(nullptr, FALSE, kSingleInstanceMutex);
   if (single_instance != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
@@ -79,6 +89,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     ::CloseHandle(single_instance);
     return EXIT_SUCCESS;
   }
+#endif
 
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.

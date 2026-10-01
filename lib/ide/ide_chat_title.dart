@@ -544,8 +544,11 @@ class _ChatTabState extends State<_ChatTab> {
           margin: const EdgeInsets.only(right: 2),
           padding: const EdgeInsets.only(left: 8, right: 2),
           decoration: BoxDecoration(
+            // The same selection color the side bar's rows wear, whole: the
+            // chat's own tab is the one the pane shows, as a selected row
+            // is the one its pane shows.
             color: active
-                ? colors['list.activeSelectionBackground'].withValues(alpha: .5)
+                ? colors['list.activeSelectionBackground']
                 : _hover
                 ? colors['list.hoverBackground']
                 : null,
