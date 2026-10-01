@@ -24,6 +24,9 @@ import 'keybindings/default_keybindings.dart';
 import 'keybindings/key_chord.dart';
 import 'keybindings/keybinding_service.dart';
 import 'l10n/l10n.dart';
+import 'notifications/attention_host.dart';
+import 'notifications/attention_service.dart';
+import 'notifications/attention_settings.dart';
 import 'settings/app_settings.dart';
 import 'settings/data_dir_startup.dart';
 import 'settings/jsonc_file.dart';
@@ -151,6 +154,19 @@ class _WorkbenchState extends State<Workbench> {
   /// in a terminal) meanwhile.
   late final AppLifecycleListener _lifecycle;
 
+  /// Notifies of the agents that want the user, keeps the count on the
+  /// app's icon and the tray icon (see lib/notifications/).
+  late final AttentionService _attention = AttentionService(
+    workspace: _workspace,
+    host: ChannelAttentionHost.instance,
+    settings: () => AttentionSettings.parse(
+      widget.settings?.files?.settings.values ?? const {},
+    ),
+    settingsChanges: widget.settings?.files?.settings,
+    l10n: () => context.l10n,
+    onOpen: _openAgent,
+  );
+
   /// The keybindings the buttons' tooltips show (`New Agent (⌘N)`): they
   /// follow a keymap picked, keybindings.json edited.
   late final KeybindingService _keybindings = KeybindingService.instance;
@@ -176,6 +192,20 @@ class _WorkbenchState extends State<Workbench> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _afterFirstFrame());
   }
 
+  bool _attentionStarted = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Once the app's language is in scope; the tray's menu follows it.
+    if (_attentionStarted) {
+      _attention.refresh();
+    } else {
+      _attentionStarted = true;
+      _attention.start();
+    }
+  }
+
   /// What the app asks once it shows: whether to remove what a move of
   /// the data folder left behind, then (once ever) whether to import
   /// another editor's keybindings; one after the other.
@@ -192,6 +222,7 @@ class _WorkbenchState extends State<Workbench> {
     _drag.dispose();
     _width.dispose();
     _lifecycle.dispose();
+    _attention.dispose();
     HardwareKeyboard.instance.removeHandler(_handleKey);
     _keybindings.removeListener(_keybindingsChanged);
     if (WindowControls.onMenuCommand == _runMenuCommand) {

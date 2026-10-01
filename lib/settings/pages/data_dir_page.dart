@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../../ide/ide_button.dart';
 import '../../ide/ide_dialog.dart';
 import '../../l10n/l10n.dart';
+import '../../notifications/attention_host.dart';
 import '../../platform/app_platform.dart';
 import '../../platform/data_dir.dart';
 import '../../theme/app_theme.dart';
@@ -79,7 +80,9 @@ class _DataDirectoryPageState extends State<DataDirectoryPage> {
     // engine's answer to it ends the message loop with the window still up,
     // and the runner then takes Flutter down outside the loop, without
     // FlutterWindow::OnDestroy.
-    if (AppPlatform.isWindows) return WindowControls.windowCommand('close');
+    // That is the tray's Quit while there is a tray icon, the close button
+    // then hiding the window.
+    if (AppPlatform.isWindows) return ChannelAttentionHost.instance.quit();
     await ServicesBinding.instance.exitApplication(AppExitType.cancelable);
   }
 

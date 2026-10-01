@@ -124,6 +124,11 @@ bool FlutterWindow::OnCreate() {
   window_channel_ = std::make_unique<WindowChannel>(
       flutter_controller_->engine()->messenger(), GetHandle());
 
+  // Notifications, the taskbar button's count and the tray icon (see
+  // lib/notifications/).
+  attention_ = std::make_unique<Attention>(
+      flutter_controller_->engine()->messenger(), GetHandle());
+
   // Files dragged onto the view from other apps (see file_drop.dart).
   drop_target_ =
       new DropTarget(flutter_controller_->engine()->messenger(), view_);
@@ -161,6 +166,7 @@ void FlutterWindow::OnDestroy() {
   view_proc_ = nullptr;
 
   window_channel_ = nullptr;
+  attention_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -244,6 +250,15 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  // The tray icon's messages, and the close button while there is a tray
+  // icon to hide the window to: before the engine, which would quit.
+  if (attention_ != nullptr) {
+    if (const std::optional<LRESULT> handled =
+            attention_->HandleMessage(hwnd, message, wparam, lparam)) {
+      return *handled;
+    }
+  }
+
   // What each part of the window is, and what it is around what the app
   // paints, are this window's own answers (the header is Flutter's; see
   // lib/workspace/window_header/), and they come before the engine, which

@@ -662,8 +662,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       }
     }
     if (thread._wantsTitle && titler != null) _askTitle(thread);
-    // What ends in view is seen, in any pane.
-    if (_grid.contains(thread)) thread._markSeen();
+    // What ends in view is seen, in any pane, while the window is in front.
+    if (_windowActive && _grid.contains(thread)) thread._markSeen();
     final before = _snapshots[thread];
     final snapshot = thread._snapshot;
     if (snapshot == before) return;
@@ -695,6 +695,24 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (changed) _save();
     _snapshots[thread] = snapshot;
     notifyListeners();
+  }
+
+  /// Whether the window is in front: what ends in view while it is not
+  /// is unread until it is again.
+  bool get windowActive => _windowActive;
+  bool _windowActive = true;
+  set windowActive(bool active) {
+    if (active == _windowActive) return;
+    _windowActive = active;
+    if (!active) return;
+    var changed = false;
+    for (final thread in _grid.panes) {
+      if (!thread.unread) continue;
+      thread._markSeen();
+      _snapshots[thread] = thread._snapshot;
+      changed = true;
+    }
+    if (changed) notifyListeners();
   }
 
   /// Shows [thread] and focuses it: in its pane if it has one, else in

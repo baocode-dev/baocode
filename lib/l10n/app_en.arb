@@ -1485,6 +1485,97 @@
     "description": "Commit attribution choice: nothing is added."
   },
   "generalSettingsAttributionNoneDetail": "Nothing is added to commits or pull requests.",
+  "settingsSectionNotifications": "Notifications",
+  "notificationsSettingsTitle": "Notifications",
+  "notificationsEnabled": "Notify me when an agent needs me",
+  "notificationsEnabledDescription": "A notification of the system's and a sound when an agent asks you something or finishes. The app's icon counts the agents waiting on you or not yet seen either way.",
+  "notificationsEvents": "Notify When an Agent",
+  "notificationsEventNeedsInput": "Needs your input",
+  "@notificationsEventNeedsInput": {
+    "description": "Notification event: the agent asks a question, for permission, or for a plan to be approved."
+  },
+  "notificationsEventNeedsInputDetail": "It asks a question, for permission, or for its plan to be approved.",
+  "notificationsEventFinished": "Finishes a turn",
+  "@notificationsEventFinished": {
+    "description": "Notification event: the agent ended its turn."
+  },
+  "notificationsEventFinishedDetail": "It is done and waiting for your next message.",
+  "notificationsWhen": "When",
+  "notificationsWhenDescription": "Whether to notify about the agent you are looking at, the window in front.",
+  "notificationsWhenUnfocused": "When I'm not looking at it",
+  "@notificationsWhenUnfocused": {
+    "description": "Notify choice: unless the window is in front and the agent in view."
+  },
+  "notificationsWhenAlways": "Always",
+  "notificationsWhenLabel": "Notify: {name}",
+  "@notificationsWhenLabel": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    },
+    "description": "The when-to-notify dropdown, as read out."
+  },
+  "notificationsSound": "Sound",
+  "notificationsSoundMicrowave": "Microwave Ding",
+  "@notificationsSoundMicrowave": {
+    "description": "The app's own notification sound: a microwave's bell."
+  },
+  "notificationsSoundNone": "None",
+  "@notificationsSoundNone": {
+    "description": "Notification sound choice: no sound."
+  },
+  "notificationsSoundChoose": "Choose a File…",
+  "notificationsSoundLabel": "Sound: {name}",
+  "@notificationsSoundLabel": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    },
+    "description": "The notification sound dropdown, as read out."
+  },
+  "notificationsSoundPlay": "Play",
+  "@notificationsSoundPlay": {
+    "description": "Plays the notification sound picked, to hear it."
+  },
+  "traySettings": "Tray",
+  "trayEnabledMacOS": "Show the icon in the menu bar",
+  "trayEnabledWindows": "Show the icon in the system tray",
+  "trayEnabledDescription": "Closing the window hides it there and the agents keep running; its menu shows the agents waiting on you, and quits the app.",
+  "trayShow": "Show BaoCode",
+  "trayWaiting": "Waiting for You",
+  "@trayWaiting": {
+    "description": "Tray menu header over the agents waiting on the user."
+  },
+  "trayWaitingCount": "{count} waiting",
+  "@trayWaitingCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    },
+    "description": "Tray tooltip: how many agents wait on the user."
+  },
+  "trayRunning": "{count} running",
+  "@trayRunning": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    },
+    "description": "Tray menu: how many agents are running."
+  },
+  "trayQuit": "Quit BaoCode",
+  "attentionNeedsInput": "Needs your input",
+  "@attentionNeedsInput": {
+    "description": "Notification: the agent waits on the user."
+  },
+  "attentionFinished": "Finished",
+  "@attentionFinished": {
+    "description": "Notification: the agent ended its turn."
+  },
+  "attentionPlanReady": "Plan ready for review",
   "placeholderBinary": "The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.",
   "placeholderTooLarge": "The file is not displayed in the text editor because it is very large ({size}).",
   "@placeholderTooLarge": {

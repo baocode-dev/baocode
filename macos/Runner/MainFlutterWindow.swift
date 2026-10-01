@@ -61,6 +61,11 @@ class MainFlutterWindow: NSWindow {
     flutterViewController.view.superview?.addSubview(
       drops, positioned: .above, relativeTo: flutterViewController.view)
 
+    // Notifications, the Dock's badge and the menu bar icon (see
+    // lib/notifications/).
+    attention = Attention(
+      messenger: flutterViewController.engine.binaryMessenger, window: self)
+
     // Window controls the Flutter side asks for (see window_controls.dart).
     let channel = FlutterMethodChannel(
       name: "baocode/window",
@@ -212,6 +217,19 @@ class MainFlutterWindow: NSWindow {
   }
 
   private var channel: FlutterMethodChannel?
+
+  private var attention: Attention?
+
+  /// The close button hides the window while the menu bar icon can bring
+  /// it back (see Attention); without one, the window closes and the app
+  /// quits.
+  @objc func windowShouldClose(_ sender: NSWindow) -> Bool {
+    if attention?.hidesOnClose ?? false {
+      orderOut(sender)
+      return false
+    }
+    return true
+  }
 
   private static let darkAppearanceKey = "BaoCodeDarkAppearance"
 

@@ -2334,6 +2334,112 @@ class AppLocalizationsZh extends AppLocalizations {
       '不在提交和 Pull Request 中添加任何署名。';
 
   @override
+  String get settingsSectionNotifications => '通知';
+
+  @override
+  String get notificationsSettingsTitle => '通知';
+
+  @override
+  String get notificationsEnabled => 'Agent 需要我时通知我';
+
+  @override
+  String get notificationsEnabledDescription =>
+      'Agent 向你提问或跑完一轮时，发出系统通知并播放提示音。无论是否开启，应用图标都会显示等待你回复或未读的 Agent 数量。';
+
+  @override
+  String get notificationsEvents => '在 Agent 这些时候通知';
+
+  @override
+  String get notificationsEventNeedsInput => '需要你回复';
+
+  @override
+  String get notificationsEventNeedsInputDetail => '它在提问、请求权限，或等你确认计划。';
+
+  @override
+  String get notificationsEventFinished => '跑完一轮';
+
+  @override
+  String get notificationsEventFinishedDetail => '它做完了，等你发下一条消息。';
+
+  @override
+  String get notificationsWhen => '何时通知';
+
+  @override
+  String get notificationsWhenDescription => '窗口在前台、你正在看的那个 Agent，是否也要通知。';
+
+  @override
+  String get notificationsWhenUnfocused => '我没在看它时';
+
+  @override
+  String get notificationsWhenAlways => '总是';
+
+  @override
+  String notificationsWhenLabel(String name) {
+    return '何时通知：$name';
+  }
+
+  @override
+  String get notificationsSound => '提示音';
+
+  @override
+  String get notificationsSoundMicrowave => '微波炉“叮”';
+
+  @override
+  String get notificationsSoundNone => '无';
+
+  @override
+  String get notificationsSoundChoose => '选择文件…';
+
+  @override
+  String notificationsSoundLabel(String name) {
+    return '提示音：$name';
+  }
+
+  @override
+  String get notificationsSoundPlay => '试听';
+
+  @override
+  String get traySettings => '托盘';
+
+  @override
+  String get trayEnabledMacOS => '在菜单栏显示图标';
+
+  @override
+  String get trayEnabledWindows => '在系统托盘显示图标';
+
+  @override
+  String get trayEnabledDescription =>
+      '关闭窗口时隐藏到这里，Agent 继续在后台运行；它的菜单列出等待你回复的 Agent，也从这里退出应用。';
+
+  @override
+  String get trayShow => '显示 BaoCode';
+
+  @override
+  String get trayWaiting => '等待你回复';
+
+  @override
+  String trayWaitingCount(int count) {
+    return '$count 个等待中';
+  }
+
+  @override
+  String trayRunning(int count) {
+    return '$count 个运行中';
+  }
+
+  @override
+  String get trayQuit => '退出 BaoCode';
+
+  @override
+  String get attentionNeedsInput => '需要你回复';
+
+  @override
+  String get attentionFinished => '已完成';
+
+  @override
+  String get attentionPlanReady => '计划待确认';
+
+  @override
   String get placeholderBinary => '此文件是二进制文件或使用了不支持的文本编码，所以无法在文本编辑器中显示。';
 
   @override

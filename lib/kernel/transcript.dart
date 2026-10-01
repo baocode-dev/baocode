@@ -47,6 +47,9 @@ class Transcript {
   /// Sequence of the last turn end; 0 before any.
   int lastTurnEndSeq = 0;
 
+  /// Whether the last turn to end was stopped rather than done.
+  bool lastTurnInterrupted = false;
+
   final Map<String, InteractionRequest> _pending = {};
 
   /// Every file change reported, with its sequence and turn, oldest
@@ -94,6 +97,7 @@ class Transcript {
         if (activeTurn == turnId) activeTurn = null;
         activity = null;
         lastTurnEndSeq = event.seq;
+        lastTurnInterrupted = interrupted;
         _pending.clear();
         _settleStreaming();
         if (!interrupted && worked != null) _timeTurn(turnId, worked);

@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 
+#include "attention.h"
 #include "drop_target.h"
 #include "win32_window.h"
 #include "window_channel.h"
@@ -50,6 +51,10 @@ class FlutterWindow : public Win32Window {
 
   // What Flutter asks of this window.
   std::unique_ptr<WindowChannel> window_channel_;
+
+  // Notifications, the taskbar button's count and the tray icon, which the
+  // close button hides the window to (see attention.h).
+  std::unique_ptr<Attention> attention_;
 
   // Takes the files other apps drag onto the view, for Flutter; a COM object,
   // released when the window goes.

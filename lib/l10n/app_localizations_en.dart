@@ -2415,6 +2415,115 @@ class AppLocalizationsEn extends AppLocalizations {
       'Nothing is added to commits or pull requests.';
 
   @override
+  String get settingsSectionNotifications => 'Notifications';
+
+  @override
+  String get notificationsSettingsTitle => 'Notifications';
+
+  @override
+  String get notificationsEnabled => 'Notify me when an agent needs me';
+
+  @override
+  String get notificationsEnabledDescription =>
+      'A notification of the system\'s and a sound when an agent asks you something or finishes. The app\'s icon counts the agents waiting on you or not yet seen either way.';
+
+  @override
+  String get notificationsEvents => 'Notify When an Agent';
+
+  @override
+  String get notificationsEventNeedsInput => 'Needs your input';
+
+  @override
+  String get notificationsEventNeedsInputDetail =>
+      'It asks a question, for permission, or for its plan to be approved.';
+
+  @override
+  String get notificationsEventFinished => 'Finishes a turn';
+
+  @override
+  String get notificationsEventFinishedDetail =>
+      'It is done and waiting for your next message.';
+
+  @override
+  String get notificationsWhen => 'When';
+
+  @override
+  String get notificationsWhenDescription =>
+      'Whether to notify about the agent you are looking at, the window in front.';
+
+  @override
+  String get notificationsWhenUnfocused => 'When I\'m not looking at it';
+
+  @override
+  String get notificationsWhenAlways => 'Always';
+
+  @override
+  String notificationsWhenLabel(String name) {
+    return 'Notify: $name';
+  }
+
+  @override
+  String get notificationsSound => 'Sound';
+
+  @override
+  String get notificationsSoundMicrowave => 'Microwave Ding';
+
+  @override
+  String get notificationsSoundNone => 'None';
+
+  @override
+  String get notificationsSoundChoose => 'Choose a File…';
+
+  @override
+  String notificationsSoundLabel(String name) {
+    return 'Sound: $name';
+  }
+
+  @override
+  String get notificationsSoundPlay => 'Play';
+
+  @override
+  String get traySettings => 'Tray';
+
+  @override
+  String get trayEnabledMacOS => 'Show the icon in the menu bar';
+
+  @override
+  String get trayEnabledWindows => 'Show the icon in the system tray';
+
+  @override
+  String get trayEnabledDescription =>
+      'Closing the window hides it there and the agents keep running; its menu shows the agents waiting on you, and quits the app.';
+
+  @override
+  String get trayShow => 'Show BaoCode';
+
+  @override
+  String get trayWaiting => 'Waiting for You';
+
+  @override
+  String trayWaitingCount(int count) {
+    return '$count waiting';
+  }
+
+  @override
+  String trayRunning(int count) {
+    return '$count running';
+  }
+
+  @override
+  String get trayQuit => 'Quit BaoCode';
+
+  @override
+  String get attentionNeedsInput => 'Needs your input';
+
+  @override
+  String get attentionFinished => 'Finished';
+
+  @override
+  String get attentionPlanReady => 'Plan ready for review';
+
+  @override
   String get placeholderBinary =>
       'The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.';
 

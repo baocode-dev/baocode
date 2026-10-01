@@ -81,6 +81,8 @@ flutter:
     # Built-in keymaps: VS Code keymap extensions' keybindings (lib/keybindings/keymap.dart).
     - assets/keymaps/
     - assets/keymaps/LICENSES/
+    # The notifications' "ding" (tool/generate_notification_sound.dart).
+    - assets/sounds/
     # VS Code TextMate grammars and color themes (tool/generate_textmate_assets.mjs).
 
   # VS Code's icon font (tool/generate_codicons.mjs; lib/theme/codicons.dart).

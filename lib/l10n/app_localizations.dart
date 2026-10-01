@@ -4322,6 +4322,198 @@ abstract class AppLocalizations {
   /// **'Nothing is added to commits or pull requests.'**
   String get generalSettingsAttributionNoneDetail;
 
+  /// No description provided for @settingsSectionNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get settingsSectionNotifications;
+
+  /// No description provided for @notificationsSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get notificationsSettingsTitle;
+
+  /// No description provided for @notificationsEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Notify me when an agent needs me'**
+  String get notificationsEnabled;
+
+  /// No description provided for @notificationsEnabledDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'A notification of the system\'s and a sound when an agent asks you something or finishes. The app\'s icon counts the agents waiting on you or not yet seen either way.'**
+  String get notificationsEnabledDescription;
+
+  /// No description provided for @notificationsEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Notify When an Agent'**
+  String get notificationsEvents;
+
+  /// Notification event: the agent asks a question, for permission, or for a plan to be approved.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs your input'**
+  String get notificationsEventNeedsInput;
+
+  /// No description provided for @notificationsEventNeedsInputDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'It asks a question, for permission, or for its plan to be approved.'**
+  String get notificationsEventNeedsInputDetail;
+
+  /// Notification event: the agent ended its turn.
+  ///
+  /// In en, this message translates to:
+  /// **'Finishes a turn'**
+  String get notificationsEventFinished;
+
+  /// No description provided for @notificationsEventFinishedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'It is done and waiting for your next message.'**
+  String get notificationsEventFinishedDetail;
+
+  /// No description provided for @notificationsWhen.
+  ///
+  /// In en, this message translates to:
+  /// **'When'**
+  String get notificationsWhen;
+
+  /// No description provided for @notificationsWhenDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Whether to notify about the agent you are looking at, the window in front.'**
+  String get notificationsWhenDescription;
+
+  /// Notify choice: unless the window is in front and the agent in view.
+  ///
+  /// In en, this message translates to:
+  /// **'When I\'m not looking at it'**
+  String get notificationsWhenUnfocused;
+
+  /// No description provided for @notificationsWhenAlways.
+  ///
+  /// In en, this message translates to:
+  /// **'Always'**
+  String get notificationsWhenAlways;
+
+  /// The when-to-notify dropdown, as read out.
+  ///
+  /// In en, this message translates to:
+  /// **'Notify: {name}'**
+  String notificationsWhenLabel(String name);
+
+  /// No description provided for @notificationsSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Sound'**
+  String get notificationsSound;
+
+  /// The app's own notification sound: a microwave's bell.
+  ///
+  /// In en, this message translates to:
+  /// **'Microwave Ding'**
+  String get notificationsSoundMicrowave;
+
+  /// Notification sound choice: no sound.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get notificationsSoundNone;
+
+  /// No description provided for @notificationsSoundChoose.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a File…'**
+  String get notificationsSoundChoose;
+
+  /// The notification sound dropdown, as read out.
+  ///
+  /// In en, this message translates to:
+  /// **'Sound: {name}'**
+  String notificationsSoundLabel(String name);
+
+  /// Plays the notification sound picked, to hear it.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get notificationsSoundPlay;
+
+  /// No description provided for @traySettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Tray'**
+  String get traySettings;
+
+  /// No description provided for @trayEnabledMacOS.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the icon in the menu bar'**
+  String get trayEnabledMacOS;
+
+  /// No description provided for @trayEnabledWindows.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the icon in the system tray'**
+  String get trayEnabledWindows;
+
+  /// No description provided for @trayEnabledDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Closing the window hides it there and the agents keep running; its menu shows the agents waiting on you, and quits the app.'**
+  String get trayEnabledDescription;
+
+  /// No description provided for @trayShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show BaoCode'**
+  String get trayShow;
+
+  /// Tray menu header over the agents waiting on the user.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for You'**
+  String get trayWaiting;
+
+  /// Tray tooltip: how many agents wait on the user.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} waiting'**
+  String trayWaitingCount(int count);
+
+  /// Tray menu: how many agents are running.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} running'**
+  String trayRunning(int count);
+
+  /// No description provided for @trayQuit.
+  ///
+  /// In en, this message translates to:
+  /// **'Quit BaoCode'**
+  String get trayQuit;
+
+  /// Notification: the agent waits on the user.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs your input'**
+  String get attentionNeedsInput;
+
+  /// Notification: the agent ended its turn.
+  ///
+  /// In en, this message translates to:
+  /// **'Finished'**
+  String get attentionFinished;
+
+  /// No description provided for @attentionPlanReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan ready for review'**
+  String get attentionPlanReady;
+
   /// No description provided for @placeholderBinary.
   ///
   /// In en, this message translates to:

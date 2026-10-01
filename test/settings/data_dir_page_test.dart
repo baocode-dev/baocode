@@ -116,11 +116,11 @@ void main() {
     expect(find.text('After a restart: /Volumes/D/BaoCode'), findsOneWidget);
   });
 
-  testWidgets('on Windows, Quit Now closes the window as its close button '
-      'does', (tester) async {
+  testWidgets('on Windows, Quit Now quits as the tray icon\'s Quit does '
+      '(the close button hides the window to it)', (tester) async {
     final calls = <MethodCall>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('baocode/window'),
+      const MethodChannel('baocode/attention'),
       (call) async {
         calls.add(call);
         return null;
@@ -137,12 +137,7 @@ void main() {
     );
     await tester.tap(find.text('Quit Now'));
     await tester.pump();
-    expect(
-      calls
-          .where((call) => call.method == 'windowCommand')
-          .map((call) => call.arguments),
-      ['close'],
-    );
+    expect(calls.map((call) => call.method), ['quit']);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('a folder with BaoCode data is used as it is; Later keeps '

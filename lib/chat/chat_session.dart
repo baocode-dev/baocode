@@ -460,6 +460,9 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// Sequence of the last turn to end, to tell whether it was seen.
   int get lastTurnEndSeq => _transcript.lastTurnEndSeq;
 
+  /// Whether the last turn to end was stopped rather than done.
+  bool get lastTurnInterrupted => _transcript.lastTurnInterrupted;
+
   /// The history, and a status row at its end while a turn runs: the agent
   /// is live. Hidden (but there, to come and go smoothly) where something
   /// else says so, or it would only flash.

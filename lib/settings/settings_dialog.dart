@@ -10,11 +10,19 @@ import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 
 /// The settings dialog's pages.
-enum SettingsSection { general, language, keyboard, dataDirectory }
+enum SettingsSection {
+  general,
+  notifications,
+  language,
+  keyboard,
+  dataDirectory,
+}
 
 /// Builds a section's page.
-typedef SettingsPageBuilder =
-    Widget Function(BuildContext context, SettingsSection section);
+typedef SettingsPageBuilder = Widget Function(
+  BuildContext context,
+  SettingsSection section,
+);
 
 /// Opens the settings, the same in the chat and the IDE: a modal dialog,
 /// its pages listed at the left, [section] shown first. Completes when it
@@ -68,6 +76,7 @@ class SettingsDialogState extends State<SettingsDialog> {
 
   static IconData _icon(SettingsSection section) => switch (section) {
     SettingsSection.general => Codicons.settingsGear,
+    SettingsSection.notifications => Codicons.bell,
     SettingsSection.language => Codicons.globe,
     SettingsSection.keyboard => Codicons.keyboard,
     SettingsSection.dataDirectory => Codicons.folder,
@@ -77,6 +86,7 @@ class SettingsDialogState extends State<SettingsDialog> {
     final l10n = context.l10n;
     return switch (section) {
       SettingsSection.general => l10n.settingsSectionGeneral,
+      SettingsSection.notifications => l10n.settingsSectionNotifications,
       SettingsSection.language => l10n.settingsSectionLanguage,
       SettingsSection.keyboard => l10n.settingsSectionKeyboard,
       SettingsSection.dataDirectory => l10n.settingsSectionDataDirectory,

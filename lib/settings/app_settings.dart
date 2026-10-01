@@ -13,6 +13,7 @@ import 'pages/data_dir_page.dart';
 import 'pages/general_page.dart';
 import 'pages/keybindings_page.dart';
 import 'pages/language_page.dart';
+import 'pages/notifications_page.dart';
 import 'settings_dialog.dart';
 import 'user_settings.dart';
 
@@ -69,6 +70,8 @@ class AppSettings {
     switch (section) {
       case SettingsSection.general:
         return GeneralSettingsPage(settings: files?.settings);
+      case SettingsSection.notifications:
+        return NotificationsSettingsPage(settings: files?.settings);
       case SettingsSection.language:
         return LanguageSettingsPage(locale: locale);
       case SettingsSection.keyboard:
