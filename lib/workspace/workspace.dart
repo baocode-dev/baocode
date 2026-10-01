@@ -712,11 +712,27 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Closes [thread]'s tab in [folder]; the agent goes on, in the sidebar
   /// (a new one nothing was sent to is dropped). The last closed, a new
   /// one takes its place.
-  void closeIdeChat(String folder, AgentThread thread) {
+  void closeIdeChat(String folder, AgentThread thread) =>
+      closeIdeChats(folder, [thread]);
+
+  /// Closes the tabs of [threads] in [folder] at once (a tab's Close
+  /// Others, Close to the Right, Close All), as [closeIdeChat] each.
+  void closeIdeChats(String folder, Iterable<AgentThread> threads) {
+    var closed = false;
+    for (final thread in [...threads]) {
+      closed = _closeIdeChat(folder, thread) || closed;
+    }
+    if (!closed) return;
+    _ensureIdeChat(folder);
+    _save();
+    notifyListeners();
+  }
+
+  bool _closeIdeChat(String folder, AgentThread thread) {
     final tabs = _ideChats[folder];
-    if (tabs == null) return;
+    if (tabs == null) return false;
     final at = tabs.indexOf(thread);
-    if (at < 0) return;
+    if (at < 0) return false;
     tabs.removeAt(at);
     _ideChatsUnkept.remove(thread);
     if (identical(_ideChatShown[folder], thread)) {
@@ -730,9 +746,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (_isUntouched(thread) && !_grid.contains(thread)) {
       _discard(thread);
     }
-    _ensureIdeChat(folder);
-    _save();
-    notifyListeners();
+    return true;
   }
 
   /// Moves [thread]'s tab in [folder] to [index] among the tabs (a tab

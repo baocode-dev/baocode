@@ -341,4 +341,52 @@ void main() {
     expect(workspace.ideChat(folder), same(thread));
     expect(workspace.ideChats(folder), [others.last, thread, others.first]);
   });
+
+  testWidgets('a chat tab\'s right click closes it, the others, those to '
+      'its right or all, and pins its agent', (tester) async {
+    final workspace = await _pumpApp(tester);
+    final thread = workspace.current!;
+    final folder = thread.project.path;
+    final others = [
+      for (final t in workspace.threads)
+        if (t.project == thread.project && t != thread && !t.archived) t,
+    ].take(3).toList();
+    workspace.openInIde(thread);
+    for (final t in others) {
+      workspace.openIdeChat(folder, t);
+    }
+    await tester.pump();
+    await tester.pump();
+    expect(workspace.ideChats(folder), [thread, ...others]);
+
+    final title = find.byType(IdeChatTitle);
+    Future<void> choose(AgentThread t, String item) async {
+      final tab = find.descendant(of: title, matching: find.text(t.title));
+      await tester.ensureVisible(tab);
+      await tester.pumpAndSettle();
+      await tester.tap(tab, buttons: kSecondaryMouseButton);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(item));
+      await tester.pumpAndSettle();
+    }
+
+    await choose(others.first, 'Close to the Right');
+    expect(workspace.ideChats(folder), [thread, others.first]);
+    expect(workspace.ideChat(folder), same(others.first));
+
+    await choose(thread, 'Close Others');
+    expect(workspace.ideChats(folder), [thread]);
+    expect(workspace.ideChat(folder), same(thread));
+
+    expect(thread.pinned, isFalse);
+    await choose(thread, 'Pin');
+    expect(thread.pinned, isTrue);
+
+    await choose(thread, 'Close All');
+    // A new one takes the last's place; the agents go on.
+    final tabs = workspace.ideChats(folder);
+    expect(tabs, hasLength(1));
+    expect(tabs.single.untouched, isTrue);
+    expect(workspace.threads, containsAll([thread, ...others]));
+  });
 }

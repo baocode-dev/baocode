@@ -826,7 +826,8 @@ class _WorkbenchState extends State<Workbench> {
           current: current,
           onNew: () => _newIdeChat(folder),
           onOpen: (thread) => _openIdeChat(folder, thread),
-          onClose: (thread) => _workspace.closeIdeChat(folder, thread),
+          onClose: (threads) => _workspace.closeIdeChats(folder, threads),
+          onPin: (thread) => _workspace.setPinned(thread, !thread.pinned),
           onMove: (thread, index) =>
               _workspace.moveIdeChat(folder, thread, index),
         ),

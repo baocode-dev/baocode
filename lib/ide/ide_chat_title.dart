@@ -1,8 +1,10 @@
 // The title over the IDE's chat: the folder's chats as tabs, each
-// closable and dragged to order, its agent's status on it (as the
+// closable (by a right click, the others too) and dragged to order, its agent's status on it (as the
 // sidebar's), a button for a new one, and one listing the folder's agents to
 // open one as a tab (as VS Code's chat view titles its New Chat and Show
 // Chats actions).
+
+import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +18,7 @@ import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/workspace.dart';
 import 'ide_dates.dart';
 import 'ide_hover.dart';
+import 'ide_menu.dart';
 import 'ide_panes.dart';
 import 'ide_quick_input.dart';
 import 'ide_workbench.dart';
@@ -29,6 +32,7 @@ class IdeChatTitle extends StatelessWidget {
     required this.onNew,
     required this.onOpen,
     required this.onClose,
+    required this.onPin,
     required this.onMove,
   });
 
@@ -45,7 +49,12 @@ class IdeChatTitle extends StatelessWidget {
 
   /// Shows an agent: its tab, or a new tab of it.
   final ValueChanged<AgentThread> onOpen;
-  final ValueChanged<AgentThread> onClose;
+
+  /// Closes the tabs of these agents.
+  final ValueChanged<List<AgentThread>> onClose;
+
+  /// Pins an agent, or unpins a pinned one.
+  final ValueChanged<AgentThread> onPin;
 
   /// Moves a tab dragged to [index] among the tabs.
   final void Function(AgentThread thread, int index) onMove;
@@ -113,6 +122,7 @@ class IdeChatTitle extends StatelessWidget {
               current: current,
               onOpen: onOpen,
               onClose: onClose,
+              onPin: onPin,
               onMove: onMove,
             ),
           ),
@@ -145,13 +155,15 @@ class _ChatTabs extends StatefulWidget {
     required this.current,
     required this.onOpen,
     required this.onClose,
+    required this.onPin,
     required this.onMove,
   });
 
   final List<AgentThread> tabs;
   final AgentThread? current;
   final ValueChanged<AgentThread> onOpen;
-  final ValueChanged<AgentThread> onClose;
+  final ValueChanged<List<AgentThread>> onClose;
+  final ValueChanged<AgentThread> onPin;
   final void Function(AgentThread thread, int index) onMove;
 
   /// As VS Code's `workbench.editor.titleScrollbarSizing` by default.
@@ -272,6 +284,57 @@ class _ChatTabsState extends State<_ChatTabs> {
     widget.onMove(thread, at > from ? at - 1 : at);
   }
 
+  /// A tab's right-click menu, at [position]: as an editor tab's, its
+  /// closes; then its agent's pin.
+  void _showMenu(AgentThread thread, Offset position) {
+    final tabs = widget.tabs;
+    final at = tabs.indexOf(thread);
+    final l10n = context.l10n;
+    IdeMenuAction item(
+      String label,
+      VoidCallback onSelected, {
+      bool enabled = true,
+    }) => IdeMenuAction(
+      label,
+      enabled: enabled,
+      onSelected: () {
+        if (mounted) onSelected();
+      },
+    );
+    unawaited(
+      showIdeMenu(
+        context,
+        position: position,
+        entries: ideMenuGroups([
+          [
+            item(l10n.tabClose, () => widget.onClose([thread])),
+            item(
+              l10n.tabCloseOthers,
+              () => widget.onClose([
+                for (final tab in widget.tabs)
+                  if (!identical(tab, thread)) tab,
+              ]),
+              enabled: tabs.length > 1,
+            ),
+            item(l10n.tabCloseToTheRight, () {
+              final from = widget.tabs.indexOf(thread);
+              if (from >= 0) widget.onClose(widget.tabs.sublist(from + 1));
+            }, enabled: at >= 0 && at < tabs.length - 1),
+            item(l10n.tabCloseAll, () => widget.onClose([...widget.tabs])),
+          ],
+          [
+            // A new one, nothing sent to it, is in no list to pin it in.
+            if (!thread.untouched && !thread.archived)
+              item(
+                thread.pinned ? l10n.sidebarUnpin : l10n.sidebarPin,
+                () => widget.onPin(thread),
+              ),
+          ],
+        ]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -317,7 +380,8 @@ class _ChatTabsState extends State<_ChatTabs> {
                           active: identical(thread, widget.current),
                           closeTooltip: l10n.commonClose,
                           onSelect: () => widget.onOpen(thread),
-                          onClose: () => widget.onClose(thread),
+                          onClose: () => widget.onClose([thread]),
+                          onMenu: (position) => _showMenu(thread, position),
                         ),
                       ),
                     ),
@@ -491,6 +555,7 @@ class _ChatTab extends StatefulWidget {
     required this.closeTooltip,
     required this.onSelect,
     required this.onClose,
+    required this.onMenu,
   });
 
   final AgentThread thread;
@@ -499,6 +564,9 @@ class _ChatTab extends StatefulWidget {
   final String closeTooltip;
   final VoidCallback onSelect;
   final VoidCallback onClose;
+
+  /// Opens its menu at a right click's global position.
+  final ValueChanged<Offset> onMenu;
 
   @override
   State<_ChatTab> createState() => _ChatTabState();
@@ -539,6 +607,7 @@ class _ChatTabState extends State<_ChatTab> {
         onTap: widget.onSelect,
         // A middle click closes it, as an editor tab.
         onTertiaryTapUp: (_) => widget.onClose(),
+        onSecondaryTapUp: (details) => widget.onMenu(details.globalPosition),
         child: Container(
           height: 26,
           margin: const EdgeInsets.only(right: 2),
