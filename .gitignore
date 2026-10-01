@@ -56,3 +56,6 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# MSVC object files (scratch builds of the Windows runner)
+*.obj

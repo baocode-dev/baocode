@@ -1,17 +1,18 @@
 # BaoCode
 
-A new Flutter project.
+A native, high-performance desktop UI for [Claude Code](https://github.com/anthropics/claude-code).
 
-## Getting Started
+> Early development, not released yet.
 
-This project is a starting point for a Flutter application.
+## Feedback
 
-A few resources to get you started if this is your first Flutter project:
+Issues are welcome. Pull requests are not accepted.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## License
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+BaoCode is licensed under the [GNU General Public License v3.0](LICENSE)
+(GPL-3.0-only). Third-party components keep their own licenses, found next
+to them in the source tree.
+
+BaoCode is an independent project, not affiliated with or endorsed by
+Anthropic.
