@@ -73,7 +73,7 @@ class _IoLspProcess implements LspProcess {
       await _process.exitCode.timeout(timeout);
     } on TimeoutException {
       _process.kill(ProcessSignal.sigkill);
-      await _process.exitCode;
+      await _process.exitCode.timeout(timeout, onTimeout: () => 0);
     }
   }
 }

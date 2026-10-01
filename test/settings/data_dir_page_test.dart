@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_button.dart';
 import 'package:baocode/platform/data_dir.dart';
@@ -114,6 +115,35 @@ void main() {
     expect(quits, ['quit']);
     expect(find.text('After a restart: /Volumes/D/BaoCode'), findsOneWidget);
   });
+
+  testWidgets('on Windows, Quit Now closes the window as its close button '
+      'does', (tester) async {
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('baocode/window'),
+      (call) async {
+        calls.add(call);
+        return null;
+      },
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: DataDirectoryPage(
+            service: _FakeService()..pending = '/Volumes/D/BaoCode',
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Quit Now'));
+    await tester.pump();
+    expect(
+      calls
+          .where((call) => call.method == 'windowCommand')
+          .map((call) => call.arguments),
+      ['close'],
+    );
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('a folder with BaoCode data is used as it is; Later keeps '
       'running', (tester) async {

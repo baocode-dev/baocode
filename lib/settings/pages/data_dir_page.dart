@@ -74,6 +74,12 @@ class _DataDirectoryPageState extends State<DataDirectoryPage> {
 
   Future<void> _quit() async {
     if (widget.quit case final quit?) return quit();
+    // On Windows, the way the window's close button goes (which asks the
+    // app first just the same): exitApplication was seen to hang there. The
+    // engine's answer to it ends the message loop with the window still up,
+    // and the runner then takes Flutter down outside the loop, without
+    // FlutterWindow::OnDestroy.
+    if (AppPlatform.isWindows) return WindowControls.windowCommand('close');
     await ServicesBinding.instance.exitApplication(AppExitType.cancelable);
   }
 
