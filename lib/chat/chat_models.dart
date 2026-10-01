@@ -337,17 +337,40 @@ class LiveStatusItem extends ChatItem {
   final bool visible;
 }
 
+enum FileChangeKind { added, modified, deleted }
+
 /// A file an agent changed, with its line counts.
 class FileChange {
   const FileChange({
     required this.path,
     required this.added,
     required this.removed,
+    this.kind = FileChangeKind.modified,
+    this.binary = false,
+    this.tracked = true,
+    this.shared = false,
+    this.conflict = false,
   });
 
   final String path;
   final int added;
   final int removed;
+  final FileChangeKind kind;
+
+  /// No line counts: a binary file.
+  final bool binary;
+
+  /// Whether it is in the project's snapshots, to be undone; not when it
+  /// is ignored, too large, or outside the project.
+  final bool tracked;
+
+  /// Another agent was at work in the project at the same time: some of
+  /// it may be theirs.
+  final bool shared;
+
+  /// It changed again since the agent left it, and Undo could not carry
+  /// that over.
+  final bool conflict;
 
   String get fileName => path.split('/').last;
   String get directory {

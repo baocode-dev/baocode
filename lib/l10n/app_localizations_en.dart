@@ -251,6 +251,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdScmClearValidation => 'Clear Validation';
 
   @override
+  String get cmdGitCheckout => 'Checkout to...';
+
+  @override
   String get cmdScmClearInput => 'Clear Input';
 
   @override
@@ -1799,11 +1802,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String stepsFailed(int count) {
-    return '$count failed';
-  }
-
-  @override
   String turnWorked(String duration) {
     return 'Worked for $duration';
   }
@@ -1920,6 +1918,36 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get stripKeepAll => 'Keep all';
+
+  @override
+  String get stripKeep => 'Keep';
+
+  @override
+  String get stripUndo => 'Undo';
+
+  @override
+  String get stripChangeAdded => 'Added';
+
+  @override
+  String get stripChangeModified => 'Modified';
+
+  @override
+  String get stripChangeDeleted => 'Deleted';
+
+  @override
+  String get stripChangeConflict =>
+      'Changed again since the agent left it, so Undo could not take the agent\'s change out. Undo it by hand, then keep it.';
+
+  @override
+  String get stripChangeShared =>
+      'Another agent was working in this project at the same time: some of this change may be its.';
+
+  @override
+  String get stripChangeUntracked =>
+      'Not in the project\'s snapshots (ignored, too large, or outside the project): it can be kept, not undone.';
+
+  @override
+  String get stripChangesDiff => 'Agent Changes';
 
   @override
   String get usageUsed => 'Used';
@@ -3050,6 +3078,64 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get gitCheckoutBranchTag => 'Checkout Branch/Tag...';
+
+  @override
+  String get gitSelectBranchOrTag => 'Select a branch or tag to checkout';
+
+  @override
+  String get gitSelectBranchDetached =>
+      'Select a branch to checkout in detached mode';
+
+  @override
+  String get gitCreateBranch => 'Create new branch...';
+
+  @override
+  String get gitCreateBranchFrom => 'Create new branch from...';
+
+  @override
+  String get gitCheckoutDetached => 'Checkout detached...';
+
+  @override
+  String get gitBranches => 'branches';
+
+  @override
+  String get gitRemoteBranches => 'remote branches';
+
+  @override
+  String get gitTags => 'tags';
+
+  @override
+  String gitRemoteBranchAt(String commit) {
+    return 'Remote branch at $commit';
+  }
+
+  @override
+  String gitTagAt(String commit) {
+    return 'Tag at $commit';
+  }
+
+  @override
+  String get gitSelectRefToBranchFrom =>
+      'Select a ref to create the branch from';
+
+  @override
+  String get gitBranchName => 'Branch name';
+
+  @override
+  String get gitProvideBranchName => 'Please provide a new branch name';
+
+  @override
+  String gitBranchExists(String name) {
+    return 'Branch \"$name\" already exists';
+  }
+
+  @override
+  String gitNewBranchWillBe(String name) {
+    return 'The new branch will be \"$name\"';
+  }
+
+  @override
   String get timelineCopyCommitId => 'Copy Commit ID';
 
   @override
@@ -3646,6 +3732,15 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get wbQuickFiles =>
       'Search files by name (append : to go to a line or > to run a command)';
+
+  @override
+  String get quickInputEntry =>
+      'Press \'Enter\' to confirm your input or \'Escape\' to cancel';
+
+  @override
+  String quickInputEntryWithPrompt(String prompt) {
+    return '$prompt (Press \'Enter\' to confirm or \'Escape\' to cancel)';
+  }
 
   @override
   String wbChordWaiting(String chord) {

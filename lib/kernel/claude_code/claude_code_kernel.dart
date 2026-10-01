@@ -100,6 +100,14 @@ class ClaudeCodeKernel
   String? _sessionId;
   bool _disposed = false;
 
+  /// Whether the CLI says it is at work (`session_state_changed`): from a
+  /// turn's start until, its `result` sent, nothing it queued follows.
+  bool _cliWorking = false;
+
+  /// Out of view, but busy when asked to free the process: freed once the
+  /// CLI says it is idle.
+  bool _releaseWanted = false;
+
   String? _turn;
 
   /// When [_turn] began, to time it if the CLI does not.
@@ -272,6 +280,8 @@ class ClaudeCodeKernel
       transport.close();
     }
     _transport = null;
+    _cliWorking = false;
+    _releaseWanted = false;
   }
 
   /// Runs [write] once ready and after the writes before it; a failure to
@@ -317,6 +327,7 @@ class ClaudeCodeKernel
 
   @override
   void prepare() {
+    _releaseWanted = false;
     if (_health.status == KernelHealthStatus.failed) return;
     unawaited(_ensureStarted().catchError((_) {}));
   }
@@ -328,15 +339,26 @@ class ClaudeCodeKernel
     prepare();
   }
 
+  /// Whether stopping the process would cut work short: a turn (or the
+  /// CLI's work past one), one to come, or a task in the background whose
+  /// notice the agent awaits.
   bool get _busy =>
       _turn != null ||
+      _cliWorking ||
       _queued.isNotEmpty ||
       _permissions.isNotEmpty ||
-      _starting != null;
+      _starting != null ||
+      _translator.workingInBackground;
 
+  /// Frees the process now if idle, else once the CLI says it is (one
+  /// that does not say keeps it until asked again).
   @override
   void release() {
-    if (_busy || _transport == null) return;
+    if (_transport == null) return;
+    if (_busy) {
+      _releaseWanted = true;
+      return;
+    }
     _teardown();
     _setHealth(KernelHealth.idle);
   }
@@ -946,7 +968,16 @@ class ClaudeCodeKernel
         if (message['permissionMode'] case final String mode) {
           _reported(mode);
         }
+        // The model asked with no turn under way here: the CLI took up a
+        // prompt of its own (a background task's notice, a scheduled one).
+        // It is at work all the same: shown, and stopped, as any turn.
+        if (message['status'] == 'requesting' && _turn == null) {
+          _beginTurn('${message['uuid'] ?? 'own:$nextSeq'}');
+        }
         _translator.translate(message);
+      case 'system' when message['subtype'] == 'session_state_changed':
+        _cliWorking = message['state'] != 'idle';
+        if (!_cliWorking && _releaseWanted) release();
       case 'system' when message['subtype'] == 'commands_changed':
         _catalog = _catalog.copyWith(
           commands: _commandsFrom(message['commands']),
@@ -1316,6 +1347,7 @@ class ClaudeCodeKernel
       emit(ItemRemoved(nextSeq, id));
     }
     _queued.clear();
+    _translator.endTasks();
     if (_disposed) return;
     if (code == 0 && wasReady) {
       _setHealth(KernelHealth.idle);

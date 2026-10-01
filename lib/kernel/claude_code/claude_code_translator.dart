@@ -1098,46 +1098,13 @@ class ClaudeTranslator {
           }
         }
       case 'task_notification' when !replaying:
-        final taskId = message['task_id'] as String;
-        final status =
-            _taskStatus(message['status']) ?? CommandStatus.succeeded;
-        final summary = _string(message['summary']);
-        if (_tasks[taskId] case final task?) {
-          _tasks[taskId] = task.copyWith(status: status, summary: summary);
-          _reportTasks();
-        }
-        // A background command's row in the history settles too, and a
-        // subagent's card (its report comes in the notification to the
-        // agent, see _agentNotified).
-        final toolUseId = message['tool_use_id'] as String?;
-        final tool = toolUseId == null ? null : _tools[toolUseId];
-        if (_agents[toolUseId] case final agent?) {
-          final usage = _map(message['usage']);
-          agent.item = agent.item.copyWith(
-            status: status,
-            tokens: usage['total_tokens'] as int?,
-            toolUses: usage['tool_uses'] as int?,
-            duration: switch (usage['duration_ms']) {
-              final int ms => Duration(milliseconds: ms),
-              _ => null,
-            },
-          );
-          _putAgent(toolUseId!);
-        }
-        if (tool != null && tool.name == 'Bash') {
-          _put(
-            toolUseId!,
-            TerminalItem(
-              command: _string(tool.input['command']) ?? '',
-              description: _string(tool.input['description']),
-              output: summary ?? '',
-              status: status,
-              background: true,
-              startedAt: tool.startedAt,
-            ),
-            parent: tool.parent,
-          );
-        }
+        _taskEnded(
+          message['task_id'] as String,
+          _taskStatus(message['status']) ?? CommandStatus.succeeded,
+          toolUseId: message['tool_use_id'] as String?,
+          summary: _string(message['summary']),
+          usage: _map(message['usage']),
+        );
       case 'background_tasks_changed' when !replaying:
         final live = {
           for (final raw in _list(message['tasks']))
@@ -1162,6 +1129,68 @@ class ClaudeTranslator {
     if (agent == null || agent.item.background) return;
     agent.item = agent.item.copyWith(background: true);
     _putAgent(toolUseId!);
+  }
+
+  /// Whether a task sent to the background is at work still: the CLI
+  /// takes up its notice when it ends, as a turn of its own.
+  bool get workingInBackground => _tasks.values.any(
+    (task) => task.background && task.status == CommandStatus.running,
+  );
+
+  /// The CLI is gone, and the tasks it ran with it.
+  void endTasks() {
+    for (final task in [..._tasks.values]) {
+      if (task.status != CommandStatus.running) continue;
+      _taskEnded(
+        task.id,
+        CommandStatus.failed,
+        toolUseId: task.toolUseId,
+        summary: 'Claude Code stopped',
+      );
+    }
+  }
+
+  void _taskEnded(
+    String taskId,
+    CommandStatus status, {
+    String? toolUseId,
+    String? summary,
+    Map<String, Object?> usage = const {},
+  }) {
+    if (_tasks[taskId] case final task?) {
+      _tasks[taskId] = task.copyWith(status: status, summary: summary);
+      _reportTasks();
+    }
+    // A background command's row in the history settles too, and a
+    // subagent's card (its report comes in the notification to the agent,
+    // see _agentNotified).
+    final tool = toolUseId == null ? null : _tools[toolUseId];
+    if (_agents[toolUseId] case final agent?) {
+      agent.item = agent.item.copyWith(
+        status: status,
+        tokens: usage['total_tokens'] as int?,
+        toolUses: usage['tool_uses'] as int?,
+        duration: switch (usage['duration_ms']) {
+          final int ms => Duration(milliseconds: ms),
+          _ => null,
+        },
+      );
+      _putAgent(toolUseId!);
+    }
+    if (tool != null && tool.name == 'Bash') {
+      _put(
+        toolUseId!,
+        TerminalItem(
+          command: _string(tool.input['command']) ?? '',
+          description: _string(tool.input['description']),
+          output: summary ?? '',
+          status: status,
+          background: true,
+          startedAt: tool.startedAt,
+        ),
+        parent: tool.parent,
+      );
+    }
   }
 
   void _reportTasks() => emit(TasksReported(nextSeq(), [..._tasks.values]));

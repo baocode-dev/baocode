@@ -554,6 +554,12 @@ abstract class AppLocalizations {
   /// **'Clear Validation'**
   String get cmdScmClearValidation;
 
+  /// No description provided for @cmdGitCheckout.
+  ///
+  /// In en, this message translates to:
+  /// **'Checkout to...'**
+  String get cmdGitCheckout;
+
   /// No description provided for @cmdScmClearInput.
   ///
   /// In en, this message translates to:
@@ -3332,12 +3338,6 @@ abstract class AppLocalizations {
   /// **'thought {duration}'**
   String stepsThought(String duration);
 
-  /// No description provided for @stepsFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'{count} failed'**
-  String stepsFailed(int count);
-
   /// A finished turn's work, folded before its answer, e.g. "Worked for 4m 32s".
   ///
   /// In en, this message translates to:
@@ -3517,6 +3517,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Keep all'**
   String get stripKeepAll;
+
+  /// No description provided for @stripKeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep'**
+  String get stripKeep;
+
+  /// No description provided for @stripUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get stripUndo;
+
+  /// No description provided for @stripChangeAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Added'**
+  String get stripChangeAdded;
+
+  /// No description provided for @stripChangeModified.
+  ///
+  /// In en, this message translates to:
+  /// **'Modified'**
+  String get stripChangeModified;
+
+  /// No description provided for @stripChangeDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted'**
+  String get stripChangeDeleted;
+
+  /// No description provided for @stripChangeConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Changed again since the agent left it, so Undo could not take the agent\'s change out. Undo it by hand, then keep it.'**
+  String get stripChangeConflict;
+
+  /// Tooltip of a changed file seen while another agent worked in the same project.
+  ///
+  /// In en, this message translates to:
+  /// **'Another agent was working in this project at the same time: some of this change may be its.'**
+  String get stripChangeShared;
+
+  /// No description provided for @stripChangeUntracked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not in the project\'s snapshots (ignored, too large, or outside the project): it can be kept, not undone.'**
+  String get stripChangeUntracked;
+
+  /// Label of the diff editor comparing a file before the agent changed it with the file now.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent Changes'**
+  String get stripChangesDiff;
 
   /// The used part of the context window, without a breakdown.
   ///
@@ -5151,6 +5205,102 @@ abstract class AppLocalizations {
     String period,
   );
 
+  /// No description provided for @gitCheckoutBranchTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Checkout Branch/Tag...'**
+  String get gitCheckoutBranchTag;
+
+  /// No description provided for @gitSelectBranchOrTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a branch or tag to checkout'**
+  String get gitSelectBranchOrTag;
+
+  /// No description provided for @gitSelectBranchDetached.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a branch to checkout in detached mode'**
+  String get gitSelectBranchDetached;
+
+  /// No description provided for @gitCreateBranch.
+  ///
+  /// In en, this message translates to:
+  /// **'Create new branch...'**
+  String get gitCreateBranch;
+
+  /// No description provided for @gitCreateBranchFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'Create new branch from...'**
+  String get gitCreateBranchFrom;
+
+  /// No description provided for @gitCheckoutDetached.
+  ///
+  /// In en, this message translates to:
+  /// **'Checkout detached...'**
+  String get gitCheckoutDetached;
+
+  /// No description provided for @gitBranches.
+  ///
+  /// In en, this message translates to:
+  /// **'branches'**
+  String get gitBranches;
+
+  /// No description provided for @gitRemoteBranches.
+  ///
+  /// In en, this message translates to:
+  /// **'remote branches'**
+  String get gitRemoteBranches;
+
+  /// No description provided for @gitTags.
+  ///
+  /// In en, this message translates to:
+  /// **'tags'**
+  String get gitTags;
+
+  /// No description provided for @gitRemoteBranchAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote branch at {commit}'**
+  String gitRemoteBranchAt(String commit);
+
+  /// No description provided for @gitTagAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Tag at {commit}'**
+  String gitTagAt(String commit);
+
+  /// No description provided for @gitSelectRefToBranchFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a ref to create the branch from'**
+  String get gitSelectRefToBranchFrom;
+
+  /// No description provided for @gitBranchName.
+  ///
+  /// In en, this message translates to:
+  /// **'Branch name'**
+  String get gitBranchName;
+
+  /// No description provided for @gitProvideBranchName.
+  ///
+  /// In en, this message translates to:
+  /// **'Please provide a new branch name'**
+  String get gitProvideBranchName;
+
+  /// No description provided for @gitBranchExists.
+  ///
+  /// In en, this message translates to:
+  /// **'Branch \"{name}\" already exists'**
+  String gitBranchExists(String name);
+
+  /// No description provided for @gitNewBranchWillBe.
+  ///
+  /// In en, this message translates to:
+  /// **'The new branch will be \"{name}\"'**
+  String gitNewBranchWillBe(String name);
+
   /// No description provided for @timelineCopyCommitId.
   ///
   /// In en, this message translates to:
@@ -6026,6 +6176,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search files by name (append : to go to a line or > to run a command)'**
   String get wbQuickFiles;
+
+  /// No description provided for @quickInputEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'Press \'Enter\' to confirm your input or \'Escape\' to cancel'**
+  String get quickInputEntry;
+
+  /// No description provided for @quickInputEntryWithPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'{prompt} (Press \'Enter\' to confirm or \'Escape\' to cancel)'**
+  String quickInputEntryWithPrompt(String prompt);
 
   /// No description provided for @wbChordWaiting.
   ///

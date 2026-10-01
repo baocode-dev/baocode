@@ -446,6 +446,18 @@ std::optional<LRESULT> Win32Window::NonClientSize(WPARAM wparam,
   if (window_handle_ == nullptr) {
     return 0;
   }
+  // Minimized, there is no client: the view is sized to nothing, which the
+  // engine takes for a hidden window (it sends Flutter no size, and waits on
+  // no frame). Less the border below, the minimized rectangle would leave a
+  // strip of it instead — a window too narrow to keep the sidebar docked,
+  // and a resize the engine waits on a frame of that size for, which a
+  // hidden window may never present: until another resize, the engine then
+  // drops every frame of any other size (the window seems frozen).
+  if (::IsIconic(window_handle_)) {
+    client->right = client->left;
+    client->bottom = client->top;
+    return 0;
+  }
   if (::IsZoomed(window_handle_)) {
     MONITORINFO monitor = {};
     monitor.cbSize = sizeof(monitor);

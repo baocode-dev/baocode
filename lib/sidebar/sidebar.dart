@@ -99,6 +99,7 @@ class Sidebar extends StatefulWidget {
     this.onOpenSettings,
     this.drag,
     this.link,
+    this.collapsed,
   });
 
   final Workspace workspace;
@@ -120,6 +121,11 @@ class Sidebar extends StatefulWidget {
   /// Reaches this sidebar from the window.
   final SidebarLink? link;
 
+  /// The ids of the groups collapsed: the window's, so that they stay so
+  /// while the sidebar is built anew (between the docked sidebar and the
+  /// drawer, which is not built while closed); its own when null.
+  final Set<String>? collapsed;
+
   @override
   State<Sidebar> createState() => _SidebarState();
 }
@@ -130,7 +136,8 @@ class _SidebarState extends State<Sidebar> {
   final TextEditingController _search = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   SidebarGrouping _grouping = SidebarGrouping.project;
-  final Set<String> _collapsed = {};
+  final Set<String> _ownCollapsed = {};
+  Set<String> get _collapsed => widget.collapsed ?? _ownCollapsed;
   bool _showArchived = false;
   AgentThread? _renaming;
 

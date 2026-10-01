@@ -58,7 +58,9 @@ class IdeFileTooLargeException implements Exception {
   String toString() => 'Files over 5 MB cannot be edited: $path';
 }
 
-/// The files under one open project. The web cannot access local projects.
+/// The files an open project's IDE reads and writes: the project's, and
+/// any other opened, as VS Code opens a file outside its workspace. The
+/// web cannot access local files.
 abstract interface class IdeFileService {
   factory IdeFileService(String root) = platform.LocalIdeFileService;
 

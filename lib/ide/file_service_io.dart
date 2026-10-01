@@ -11,8 +11,9 @@ class LocalIdeFileService implements IdeFileService {
   LocalIdeFileService(this.root);
 
   final String root;
-  late final Future<String> _canonicalRoot = Directory(root)
-      .resolveSymbolicLinks();
+
+  /// [root] with its links resolved: never deleted.
+  late final Future<String> _canonicalRoot = _resolved(root);
   final Map<String, _FileSnapshot> _snapshots = {};
   Future<void> _operations = Future<void>.value();
 
@@ -37,17 +38,13 @@ class LocalIdeFileService implements IdeFileService {
     return result;
   }
 
-  Future<String> _inside(String path) async {
-    final base = p.normalize(await _canonicalRoot);
-    final target = p.normalize(await File(path).resolveSymbolicLinks());
-    if (target != base && !p.isWithin(base, target)) {
-      throw FileSystemException('File is outside the project', path);
-    }
-    return target;
-  }
+  /// [path] with its links resolved. Anywhere, not only in the project: a
+  /// file outside it opens and saves as VS Code's do.
+  static Future<String> _resolved(String path) async =>
+      p.normalize(await File(path).resolveSymbolicLinks());
 
-  Future<String> _fileInside(String path) async {
-    final target = await _inside(path);
+  static Future<String> _regularFile(String path) async {
+    final target = await _resolved(path);
     if (await FileSystemEntity.type(target, followLinks: false) !=
         FileSystemEntityType.file) {
       throw FileSystemException('Only regular files can be edited', path);
@@ -57,7 +54,7 @@ class LocalIdeFileService implements IdeFileService {
 
   @override
   Future<List<IdeFile>> list(String directory) async {
-    final resolved = await _inside(directory);
+    final resolved = await _resolved(directory);
     final entries = await Directory(resolved).list(followLinks: false).toList();
     final files = <IdeFile>[
       for (final entry in entries)
@@ -81,7 +78,7 @@ class LocalIdeFileService implements IdeFileService {
   Future<String> read(String path, {bool force = false}) =>
       _serialize(() async {
         if (!await File(path).exists()) throw IdeFileNotFoundException(path);
-        final resolved = await _fileInside(path);
+        final resolved = await _regularFile(path);
         final handle = await File(resolved).open();
         final limit = force ? _forcedMaximumFileBytes : _maximumFileBytes;
         void checkSize(int length) => _checkSize(path, length, limit: limit);
@@ -92,7 +89,7 @@ class LocalIdeFileService implements IdeFileService {
           bytes = await handle.read(limit + 1);
           checkSize(bytes.length);
           checkSize(await handle.length());
-          if (await _fileInside(path) != resolved) {
+          if (await _regularFile(path) != resolved) {
             throw IdeFileConflictException(path);
           }
         } finally {
@@ -122,7 +119,7 @@ class LocalIdeFileService implements IdeFileService {
         if (snapshot == null) {
           throw StateError('Read the file before saving it: $path');
         }
-        final resolved = await _fileInside(path);
+        final resolved = await _regularFile(path);
         if (snapshot.path != resolved ||
             (expectedText != null && _lf(expectedText) != _lf(snapshot.text))) {
           throw IdeFileConflictException(path);
@@ -145,7 +142,7 @@ class LocalIdeFileService implements IdeFileService {
         // FileMode.write would truncate before a conflict could be detected;
         // writeOnly keeps the existing bytes until the comparison is done.
         final current = await File(resolved).readAsBytes();
-        if (await _fileInside(path) != resolved ||
+        if (await _regularFile(path) != resolved ||
             !_sameBytes(current, snapshot.bytes)) {
           throw IdeFileConflictException(path);
         }
@@ -175,10 +172,10 @@ class LocalIdeFileService implements IdeFileService {
         }
       });
 
-  /// [path] resolved in its (existing) parent, which must be inside the
-  /// project; [path] itself need not exist.
-  Future<String> _newInside(String path) async {
-    final parent = await _inside(p.dirname(path));
+  /// [path] resolved in its (existing) parent; [path] itself need not
+  /// exist.
+  static Future<String> _newPath(String path) async {
+    final parent = await _resolved(p.dirname(path));
     return p.join(parent, p.basename(path));
   }
 
@@ -189,7 +186,7 @@ class LocalIdeFileService implements IdeFileService {
   @override
   Future<void> create(String path, {bool directory = false}) =>
       _serialize(() async {
-        final target = await _newInside(path);
+        final target = await _newPath(path);
         if (await _exists(target)) throw IdeFileExistsException(path);
         if (directory) {
           await Directory(target).create();
@@ -200,8 +197,8 @@ class LocalIdeFileService implements IdeFileService {
 
   @override
   Future<void> rename(String from, String to) => _serialize(() async {
-    final source = await _newInside(from);
-    final target = await _newInside(to);
+    final source = await _newPath(from);
+    final target = await _newPath(to);
     if (!await _exists(source)) throw IdeFileNotFoundException(from);
     // A change of case only is the same file on case-insensitive disks.
     final sameFile = source.toLowerCase() == target.toLowerCase();
@@ -221,8 +218,8 @@ class LocalIdeFileService implements IdeFileService {
 
   @override
   Future<void> copy(String from, String to) => _serialize(() async {
-    final source = await _newInside(from);
-    final target = await _newInside(to);
+    final source = await _newPath(from);
+    final target = await _newPath(to);
     if (await _exists(target)) throw IdeFileExistsException(to);
     Future<void> copyEntity(String from, String to) async {
       switch (await FileSystemEntity.type(from, followLinks: false)) {
@@ -245,7 +242,7 @@ class LocalIdeFileService implements IdeFileService {
 
   @override
   Future<void> delete(String path) => _serialize(() async {
-    final target = await _newInside(path);
+    final target = await _newPath(path);
     if (p.equals(target, p.normalize(await _canonicalRoot))) {
       throw FileSystemException('The project folder cannot be deleted', path);
     }

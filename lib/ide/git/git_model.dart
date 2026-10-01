@@ -11,8 +11,8 @@
 // strike-through, priority, propagation; the status-to-group mapping),
 // extensions/git/src/decorationProvider.ts (later groups override earlier
 // ones; ignored files are dimmed), extensions/git/src/historyProvider.ts
-// (`_resolveHistoryItemRefs`), extensions/git/src/git.ts (`parseGitBlame`)
-// and src/vs/workbench/contrib/scm/browser/scmHistory.ts
+// (`_resolveHistoryItemRefs`), extensions/git/src/git.ts (`parseGitBlame`,
+// `parseRefs`) and src/vs/workbench/contrib/scm/browser/scmHistory.ts
 // (`toISCMHistoryItemViewModelArray`, swimlane colors).
 //
 // Deviations: untracked changes are always `mixed` into Changes (VS Code's
@@ -523,16 +523,127 @@ IdeGitHead _parseBranchLine(String line) {
 /// What a reference is, for its icon.
 enum IdeGitRefKind { head, branch, remote, tag }
 
-/// A branch, remote branch or tag pointing at a commit.
+/// A branch, remote branch or tag pointing at a commit; as `git
+/// for-each-ref` lists it ([parseGitRefs]), with that commit.
 class IdeGitRef {
-  const IdeGitRef(this.id, this.name, this.kind);
+  const IdeGitRef(
+    this.id,
+    this.name,
+    this.kind, {
+    this.remote,
+    this.commit,
+    this.details,
+    this.ahead,
+    this.behind,
+  });
 
   /// `refs/heads/main`.
   final String id;
 
-  /// `main`.
+  /// `main`; `origin/main` for a remote branch.
   final String name;
   final IdeGitRefKind kind;
+
+  /// A remote branch's remote: `origin`.
+  final String? remote;
+
+  /// The commit it points at (a tag's commit, not the tag).
+  final String? commit;
+
+  /// Its commit's subject, author and date (upstream `commitDetails`).
+  final ({String subject, String author, DateTime date})? details;
+
+  /// How far a branch is ahead of and behind its upstream; null when it has
+  /// none or is level with it.
+  final int? ahead;
+  final int? behind;
+}
+
+/// The `git for-each-ref` format [parseGitRefs] reads (upstream
+/// `REFS_WITH_DETAILS_FORMAT` and the upstream's tracking).
+const ideGitRefsFormat =
+    '%(refname)%00%(objectname)%00%(*objectname)%00%(parent)%00%(*parent)'
+    '%00%(authorname)%00%(*authorname)%00%(committerdate:unix)'
+    '%00%(*committerdate:unix)%00%(subject)%00%(*subject)%00%(upstream:track)';
+
+/// Parses `git for-each-ref --format=<ideGitRefsFormat>` (upstream
+/// `parseRefs`): the local branches, remote branches and tags, an annotated
+/// tag's details its commit's.
+List<IdeGitRef> parseGitRefs(String output) {
+  final refRegex = RegExp(
+    r'^(refs\/[^\x00]+)\x00([0-9a-f]{40})\x00([0-9a-f]{40})?(?:\x00(.*))?$',
+    multiLine: true,
+  );
+  final headRegex = RegExp(r'^refs\/heads\/([^ ]+)$');
+  final remoteHeadRegex = RegExp(r'^refs\/remotes\/([^/]+)\/([^ ]+)$');
+  final tagRegex = RegExp(r'^refs\/tags\/([^ ]+)$');
+  final statusRegex = RegExp(
+    r'\[(?:ahead ([0-9]+))?[,\s]*(?:behind ([0-9]+))?]|\[gone]',
+  );
+  final refs = <IdeGitRef>[];
+  for (final match in refRegex.allMatches(output)) {
+    final ref = match[1]!;
+    final commit = match[2]!;
+    final tagCommit = match[3];
+    final details = match[4]?.split('\x00') ?? const [];
+    String field(int index) => index < details.length ? details[index] : '';
+    String either(int tagged, int own) =>
+        field(tagged).isNotEmpty ? field(tagged) : field(own);
+    final parents = either(1, 0);
+    final author = either(3, 2);
+    final date = either(5, 4);
+    final subject = either(7, 6);
+    final status = field(8);
+    final commitDetails =
+        parents.isNotEmpty &&
+            subject.isNotEmpty &&
+            author.isNotEmpty &&
+            date.isNotEmpty
+        ? (
+            subject: subject,
+            author: author,
+            date: DateTime.fromMillisecondsSinceEpoch(
+              (int.tryParse(date) ?? 0) * 1000,
+            ),
+          )
+        : null;
+    if (headRegex.firstMatch(ref) case final head?) {
+      final track = statusRegex.firstMatch(status);
+      refs.add(
+        IdeGitRef(
+          ref,
+          head[1]!,
+          IdeGitRefKind.branch,
+          commit: commit,
+          details: commitDetails,
+          ahead: status.isEmpty ? null : int.tryParse(track?[1] ?? '') ?? 0,
+          behind: status.isEmpty ? null : int.tryParse(track?[2] ?? '') ?? 0,
+        ),
+      );
+    } else if (remoteHeadRegex.firstMatch(ref) case final remote?) {
+      refs.add(
+        IdeGitRef(
+          ref,
+          '${remote[1]}/${remote[2]}',
+          IdeGitRefKind.remote,
+          remote: remote[1],
+          commit: commit,
+          details: commitDetails,
+        ),
+      );
+    } else if (tagRegex.firstMatch(ref) case final tag?) {
+      refs.add(
+        IdeGitRef(
+          ref,
+          tag[1]!,
+          IdeGitRefKind.tag,
+          commit: tagCommit ?? commit,
+          details: commitDetails,
+        ),
+      );
+    }
+  }
+  return refs;
 }
 
 /// One commit of `git log`.

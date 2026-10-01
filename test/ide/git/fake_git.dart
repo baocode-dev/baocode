@@ -38,6 +38,14 @@ class FakeGit {
   /// Resolved refs (`rev-parse --verify -q <ref>`).
   final Map<String, String> refs = {};
 
+  /// `git for-each-ref --format=<ideGitRefsFormat>` output: [gitRefRecord]
+  /// lines.
+  String forEachRef = '';
+
+  /// The local branches' upstreams (`for-each-ref` of `refs/heads`), by
+  /// branch.
+  final Map<String, String> upstreams = {};
+
   /// Every command run, without `git`.
   final List<List<String>> calls = [];
 
@@ -76,6 +84,16 @@ class FakeGit {
             : IdeGitOutput(0, '$resolved\n');
       case ['status', ...]:
         return IdeGitOutput(0, status);
+      case ['for-each-ref', '--format', _, 'refs/heads']:
+        return IdeGitOutput(
+          0,
+          [
+            for (final MapEntry(:key, :value) in upstreams.entries)
+              '$key\x00$value',
+          ].join('\n'),
+        );
+      case ['for-each-ref', ...]:
+        return IdeGitOutput(0, forEachRef);
       case ['log', ...]:
         return IdeGitOutput(0, log);
       case ['diff', ..., '--no-index', '--', '/dev/null', final path]:
@@ -138,6 +156,31 @@ String gitBlameEntry(
   'filename $path',
   '',
 ].join('\n');
+
+/// A [ideGitRefsFormat] line: [ref] at [commit] (40 hex digits), which
+/// [author] committed at [time] with [subject]; [track] its upstream's
+/// tracking (`[ahead 1]`).
+String gitRefRecord(
+  String ref,
+  String commit, {
+  String author = 'Ada',
+  String subject = 'Change',
+  int time = 1767225600,
+  String track = '',
+}) => [
+  ref,
+  commit,
+  '',
+  'f' * 40,
+  '',
+  author,
+  '',
+  '$time',
+  '',
+  subject,
+  '',
+  track,
+].join('\x00');
 
 /// A [ideGitLogFormat] record.
 String gitLogRecord(

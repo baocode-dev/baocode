@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 
 import '../kernel/agent_kernel.dart';
 import '../kernel/kernel_event.dart';
@@ -12,6 +13,14 @@ import 'chat_feed.dart';
 import 'chat_models.dart';
 import 'composer/composer_draft.dart';
 import 'mock_conversation.dart';
+import 'review/change_review.dart';
+import 'review/review_store.dart';
+
+/// Opens the review of a project's changes (see [ChangeReview.open]).
+typedef ChangeReviewOpener = Future<ChangeReview?> Function(
+  String root, {
+  String? session,
+});
 
 /// A message submitted from the composer.
 class ComposerMessage {
@@ -64,9 +73,11 @@ class ModelSettingChoice {
 
 /// One agent conversation, as the UI sees it, over an [AgentKernel].
 ///
-/// It keeps only three things:
+/// It keeps only these things:
 /// - the [Transcript], the kernel's conversation as reported;
 /// - which kernel runs it, and where ([KernelContext]);
+/// - the review of what it changed in the project ([ChangeReview]), where
+///   there is one;
 /// - UI state the kernel never hears of (changes kept, what is typed and
 ///   not sent).
 ///
@@ -83,7 +94,10 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     List<FileChange> changes = const [],
     ContextUsage? usage,
     this.quietAfterText = const Duration(seconds: 5),
-  }) : kernels = kernels ?? KernelRegistry.all {
+    ChangeReviewOpener? openReview,
+  }) : kernels = kernels ?? KernelRegistry.all,
+       _openReview =
+           openReview ?? (ReviewStore.supported ? ChangeReview.open : null) {
     _transcript = Transcript(
       historyCount: historyCount,
       history: historyCount > 0 ? MockConversation.itemAt : null,
@@ -122,6 +136,10 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// Changes reported at or below this sequence were kept.
   int _keptSeq = -1;
 
+  /// Changes kept file by file: those to a path reported at or below its
+  /// sequence.
+  final Map<String, int> _keptPaths = {};
+
   void _connect(KernelDescriptor descriptor) {
     _kernel = descriptor.create(kernelContext);
     _subscription = _kernel.events.listen(_apply);
@@ -131,7 +149,79 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     if (event is KernelInfoChanged || _transcript.apply(event)) {
       _cache.clear();
       _timeQuiet();
+      _reviewEvent(event);
       notifyListeners();
+    }
+  }
+
+  // --- The review of its changes ----------------------------------------------
+
+  final ChangeReviewOpener? _openReview;
+
+  /// The review of the changes, while it opens; null when there is none.
+  Future<ChangeReview?>? _reviewOpening;
+  ChangeReview? _review;
+
+  /// Messages wait on the snapshot before them, and go in order.
+  Future<void> _sending = Future.value();
+
+  /// Gives the edits reported a moment to settle before a look.
+  Timer? _lookTimer;
+
+  /// The review, while it holds: null before it opened, or once it failed
+  /// (the changes are then those the kernel reported).
+  ChangeReview? get _activeReview => switch (_review) {
+    final review? when review.failure == null => review,
+    _ => null,
+  };
+
+  /// Opens the review of the project, the first time; and snapshots it,
+  /// so that the first message need not wait.
+  void _startReview() {
+    if (_reviewOpening != null) return;
+    final open = _openReview;
+    final root = kernelContext.cwd;
+    if (open == null || root == null) return;
+    _reviewOpening = open(root, session: kernelContext.resume?.id).then((
+      review,
+    ) {
+      if (review == null) return null;
+      if (_disposed) {
+        review.dispose();
+        return null;
+      }
+      _review = review
+        ..session = sessionId
+        ..addListener(_reviewChanged);
+      unawaited(review.begin());
+      notifyListeners();
+      return review;
+    }, onError: (Object _) => null);
+  }
+
+  void _reviewChanged() {
+    if (!_disposed) notifyListeners();
+  }
+
+  void _reviewEvent(KernelEvent event) {
+    final review = _review;
+    if (review == null) return;
+    review.session = sessionId;
+    switch (event) {
+      case TurnStarted():
+        review.working = true;
+      case TurnEnded():
+        review.working = isStreaming;
+        _lookTimer?.cancel();
+        unawaited(review.observe());
+      case FileEdited(:final change):
+        review.report(change);
+        _lookTimer?.cancel();
+        _lookTimer = Timer(
+          const Duration(milliseconds: 400),
+          () => unawaited(review.observe(full: false)),
+        );
+      default:
     }
   }
 
@@ -174,6 +264,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   void attach() {
     _views++;
     _kernel.prepare();
+    _startReview();
   }
 
   /// A view no longer shows it. With none left, an idle kernel frees what
@@ -483,36 +574,70 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   List<TodoEntry> get todos => _transcript.todos;
 
-  /// Files changed and neither kept nor reverted, one entry per file.
-  List<FileChange> get fileChanges => _cached(#fileChanges, () {
-    final byPath = <String, FileChange>{};
-    for (final (seq: _, :change, turnId: _) in _pendingEdits) {
-      final before = byPath[change.path];
-      byPath[change.path] = before == null
-          ? change
-          : FileChange(
-              path: change.path,
-              added: before.added + change.added,
-              removed: before.removed + change.removed,
-            );
-    }
-    return byPath.values.toList();
-  });
+  /// The project's directory, which [fileChanges]' paths are in.
+  String? get root => _activeReview?.root ?? kernelContext.cwd;
+
+  /// Files changed and neither kept nor undone, one entry per file, with
+  /// absolute paths where the project is known: as the review of the
+  /// project has them, else as the kernel reported them.
+  List<FileChange> get fileChanges {
+    if (_activeReview case final review?) return review.changes;
+    return _cached(#fileChanges, () {
+      final byPath = <String, FileChange>{};
+      for (final (seq: _, :change, turnId: _) in _pendingEdits) {
+        final path = _absolute(change.path);
+        final before = byPath[path];
+        byPath[path] = FileChange(
+          path: path,
+          added: (before?.added ?? 0) + change.added,
+          removed: (before?.removed ?? 0) + change.removed,
+        );
+      }
+      return byPath.values.toList();
+    });
+  }
+
+  String _absolute(String path) => switch (kernelContext.cwd) {
+    final cwd? when !p.isAbsolute(path) => p.join(cwd, path),
+    _ => path,
+  };
 
   Iterable<({int seq, FileChange change, String? turnId})> get _pendingEdits {
     final settled = math.max(_keptSeq, _transcript.revertedSeq);
-    return _transcript.edits.where((edit) => edit.seq > settled);
+    return _transcript.edits.where(
+      (edit) =>
+          edit.seq > settled &&
+          edit.seq > (_keptPaths[_absolute(edit.change.path)] ?? -1),
+    );
   }
 
   void keepAllChanges() {
     _keptSeq = _transcript.lastSeq;
+    _keptPaths.clear();
+    if (_activeReview case final review?) unawaited(review.keepAll());
     _cache.clear();
     notifyListeners();
   }
 
-  /// Puts the pending changes back; null when the kernel cannot, or does
-  /// not know the turn they began in.
+  /// Keeps the changes to [changes]' files: they are no longer listed.
+  void keepChanges(List<FileChange> changes) {
+    if (_activeReview case final review?) {
+      unawaited(review.keep([for (final change in changes) change.path]));
+      return;
+    }
+    for (final change in changes) {
+      _keptPaths[change.path] = _transcript.lastSeq;
+    }
+    _cache.clear();
+    notifyListeners();
+  }
+
+  /// Puts the pending changes back; null when there is no way to.
   VoidCallback? get undoAllChanges {
+    if (_activeReview case final review?) {
+      if (!review.changes.any((change) => change.tracked)) return null;
+      return () => unawaited(review.undoAll());
+    }
     if ((_kernel, _pendingEdits.firstOrNull?.turnId) case (
       final RevertsChanges kernel,
       final since?,
@@ -521,6 +646,20 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     }
     return null;
   }
+
+  /// Puts [changes]' files back; null when files cannot be undone one by
+  /// one (no review of the project).
+  ValueChanged<List<FileChange>>? get undoChanges => switch (_activeReview) {
+    final review? => (changes) => unawaited(
+      review.undo([for (final change in changes) change.path]),
+    ),
+    null => null,
+  };
+
+  /// Reads the text of [change]'s file before the agent changed it, for a
+  /// diff; null when it is not known.
+  Future<String> Function()? originalOf(FileChange change) =>
+      _activeReview?.original(change.path);
 
   final Map<Symbol, Object> _cache = {};
   int _cacheVersion = -1;
@@ -558,14 +697,35 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   void send(ComposerMessage message) {
     if (message.isEmpty || !canSend) return;
-    _kernel.send(
-      KernelTurn(
-        id: newTurnId(),
-        text: message.text.trim(),
-        mentions: message.mentions,
-        images: acceptsImages ? message.images : const [],
-      ),
+    final turn = KernelTurn(
+      id: newTurnId(),
+      text: message.text.trim(),
+      mentions: message.mentions,
+      images: acceptsImages ? message.images : const [],
     );
+    final opening = _reviewOpening;
+    if (opening == null) {
+      _kernel.send(turn);
+      return;
+    }
+    // A turn about to start, not one queued behind another: the project
+    // is snapshotted first, so that what the agent does is told apart.
+    final snapshot = !isStreaming;
+    _sending = _sending.then((_) async {
+      if (snapshot) {
+        final review = await opening;
+        if (review != null && !_disposed) {
+          review.working = true;
+          // Taken late, it would count some of the agent's work as what
+          // was there: the review gives way to what the kernel reports.
+          await review.begin().timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => review.abandon('The snapshot took too long.'),
+          );
+        }
+      }
+      if (!_disposed) _kernel.send(turn);
+    });
   }
 
   static final _random = math.Random.secure();
@@ -619,12 +779,19 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     if (_kernel case final RenamesSession kernel) kernel.rename(title);
   }
 
+  /// The conversation is deleted: what its review kept goes too.
+  void discardChanges() => unawaited(_review?.discard());
+
   bool _disposed = false;
 
   @override
   void dispose() {
     _disposed = true;
     _quietTimer?.cancel();
+    _lookTimer?.cancel();
+    _review
+      ?..removeListener(_reviewChanged)
+      ..dispose();
     unawaited(_subscription?.cancel());
     _kernel.dispose();
     super.dispose();

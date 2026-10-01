@@ -196,7 +196,6 @@ void main() {
       StepAction.use: 1,
     });
     expect(tally.thought, 8);
-    expect(tally.failed, 1);
   });
 
   test('a command that writes, chains or edits in place runs', () {

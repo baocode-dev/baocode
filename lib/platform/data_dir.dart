@@ -30,6 +30,7 @@ enum DataDirectorySource {
 /// <path>/keymaps/
 /// <path>/state/{state.json,storage.json,*-processes.json}
 /// <path>/servers/  <path>/language-packs/
+/// <path>/checkpoints/             snapshots of the projects agents change
 /// ```
 ///
 /// Other programs keep files there too (the web views' `Cookies`,
@@ -81,6 +82,10 @@ class DataDirectory {
   String get serversDir => p.join(path, 'servers');
   String get languagePacksDir => p.join(path, 'language-packs');
 
+  /// A Git repository per project, of snapshots of its files, which the
+  /// agents' changes are kept or undone against (see change_review.dart).
+  String get checkpointsDir => p.join(path, 'checkpoints');
+
   /// The app's own entries, all others' left alone: what moving the folder
   /// copies and removing old data deletes.
   static const items = [
@@ -90,6 +95,7 @@ class DataDirectory {
     'state',
     'servers',
     'language-packs',
+    'checkpoints',
   ];
 
   /// Entries that show a folder holds the app's data.

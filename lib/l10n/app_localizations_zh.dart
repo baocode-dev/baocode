@@ -250,6 +250,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdScmClearValidation => '清除验证';
 
   @override
+  String get cmdGitCheckout => '签出到...';
+
+  @override
   String get cmdScmClearInput => '清除输入';
 
   @override
@@ -1738,11 +1741,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String stepsFailed(int count) {
-    return '$count 个失败';
-  }
-
-  @override
   String turnWorked(String duration) {
     return '已处理 $duration';
   }
@@ -1856,6 +1854,33 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get stripKeepAll => '全部保留';
+
+  @override
+  String get stripKeep => '保留';
+
+  @override
+  String get stripUndo => '撤销';
+
+  @override
+  String get stripChangeAdded => '新增';
+
+  @override
+  String get stripChangeModified => '已修改';
+
+  @override
+  String get stripChangeDeleted => '已删除';
+
+  @override
+  String get stripChangeConflict => '智能体改完后这个文件又被改过，无法自动撤销智能体的改动。请手动处理后再保留。';
+
+  @override
+  String get stripChangeShared => '同一时间还有别的智能体在这个项目里工作，这处改动可能有一部分是它的。';
+
+  @override
+  String get stripChangeUntracked => '不在项目快照中（被忽略、文件过大或在项目之外）：只能保留，无法撤销。';
+
+  @override
+  String get stripChangesDiff => '智能体改动';
 
   @override
   String get usageUsed => '已用';
@@ -2837,6 +2862,62 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get gitCheckoutBranchTag => '签出分支/标记...';
+
+  @override
+  String get gitSelectBranchOrTag => '选择要签出的分支或标记';
+
+  @override
+  String get gitSelectBranchDetached => '选择要在分离模式下签出的分支';
+
+  @override
+  String get gitCreateBranch => '创建新分支...';
+
+  @override
+  String get gitCreateBranchFrom => '创建新分支依据...';
+
+  @override
+  String get gitCheckoutDetached => '签出已分离...';
+
+  @override
+  String get gitBranches => '分支';
+
+  @override
+  String get gitRemoteBranches => '远程分支';
+
+  @override
+  String get gitTags => '标记';
+
+  @override
+  String gitRemoteBranchAt(String commit) {
+    return '$commit 处的远程分支';
+  }
+
+  @override
+  String gitTagAt(String commit) {
+    return '$commit 处的标记';
+  }
+
+  @override
+  String get gitSelectRefToBranchFrom => '选择一个 ref 以从中创建分支';
+
+  @override
+  String get gitBranchName => '分支名称';
+
+  @override
+  String get gitProvideBranchName => '请提供新的分支名称';
+
+  @override
+  String gitBranchExists(String name) {
+    return '分支“$name”已存在';
+  }
+
+  @override
+  String gitNewBranchWillBe(String name) {
+    return '新分支将为“$name”';
+  }
+
+  @override
   String get timelineCopyCommitId => '复制提交 ID';
 
   @override
@@ -3381,6 +3462,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get wbQuickFiles => '按名称搜索文件(追加 : 转到行，追加 > 运行命令)';
+
+  @override
+  String get quickInputEntry => '按 \"Enter\" 以确认或按 \"Esc\" 以取消';
+
+  @override
+  String quickInputEntryWithPrompt(String prompt) {
+    return '$prompt (按 \"Enter\" 以确认或按 \"Esc\" 以取消)';
+  }
 
   @override
   String wbChordWaiting(String chord) {

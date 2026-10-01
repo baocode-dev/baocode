@@ -9,8 +9,8 @@ import 'agent_step.dart';
 import 'step_header.dart';
 
 /// A run of quick steps, folded: "Read 3 files, ran 2 commands", the
-/// counts standing out; then, fainter, how long it thought and how many
-/// steps failed. Opens to the steps.
+/// counts standing out; then, fainter, how long it thought. Opens to the
+/// steps.
 class StepsFoldLine extends StatelessWidget {
   const StepsFoldLine({
     super.key,
@@ -64,7 +64,6 @@ class StepsFoldLine extends StatelessWidget {
     return [
       _actions(tally, strings).map((a) => a.$1).join(strings.stepsSeparator),
       ?_thought(tally, strings),
-      if (tally.failed > 0) strings.stepsFailed(tally.failed),
     ].join(' · ');
   }
 
@@ -88,11 +87,6 @@ class StepsFoldLine extends StatelessWidget {
           ],
           if (_thought(tally, l10n) case final thought?)
             TextSpan(text: ' · $thought', style: faint),
-          if (tally.failed > 0)
-            TextSpan(
-              text: ' · ${l10n.stepsFailed(tally.failed)}',
-              style: TextStyle(color: themeColors['errorForeground']),
-            ),
         ],
       ),
     );

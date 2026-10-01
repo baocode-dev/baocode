@@ -108,6 +108,60 @@ void main() {
     );
   }, skip: hasGit ? false : 'Git is not installed');
 
+  test('refs, checkout and branch, as Checkout to… runs them', () async {
+    final service = IdeGitService(root);
+    await write('lib/a.dart', 'second\n');
+    await service.commit('Second commit', all: true);
+    final second = (await service.revParse('HEAD'))!;
+    final first = (await service.revParse('HEAD~'))!;
+    await git(['branch', 'older', first]);
+    await git(['tag', '-a', 'v1', '-m', 'Version 1', second]);
+    // A remote's branch as a fetch would have left it (never fetched).
+    await git(['remote', 'add', 'origin', p.join(root, 'nowhere')]);
+    await git(['update-ref', 'refs/remotes/origin/topic', first]);
+
+    final refs = await service.refs();
+    expect(
+      [for (final r in refs) (r.name, r.kind, r.remote)],
+      unorderedEquals([
+        ('main', IdeGitRefKind.branch, null),
+        ('older', IdeGitRefKind.branch, null),
+        ('origin/topic', IdeGitRefKind.remote, 'origin'),
+        ('v1', IdeGitRefKind.tag, null),
+      ]),
+    );
+    // The last committed first.
+    expect(refs.first.name, 'main');
+    final main = refs.first;
+    expect(main.commit, second);
+    expect(main.details!.subject, 'Second commit');
+    expect(main.details!.author, 'Ada');
+    expect(main.ahead, isNull);
+    // An annotated tag: its commit and that commit's details; a root
+    // commit has none (upstream `parseRefs` wants its parents).
+    final tag = refs.singleWhere((r) => r.name == 'v1');
+    expect(tag.commit, second);
+    expect(tag.details!.subject, 'Second commit');
+    expect(refs.singleWhere((r) => r.name == 'older').details, isNull);
+
+    // A remote branch is checked out as a new branch tracking it.
+    expect(await service.trackingBranches('origin/topic'), isEmpty);
+    await service.checkout('origin/topic', track: true);
+    expect((await service.status())!.head.branch, 'topic');
+    expect(await service.trackingBranches('origin/topic'), ['topic']);
+
+    await service.checkout(second, detached: true);
+    expect((await service.status())!.head.branch, isNull);
+
+    await service.branch('feature', ref: 'older');
+    expect((await service.status())!.head.branch, 'feature');
+    expect(await service.revParse('HEAD'), first);
+    await expectLater(
+      service.branch('feature', ref: 'HEAD'),
+      throwsA(isA<IdeGitException>()),
+    );
+  }, skip: hasGit ? false : 'Git is not installed');
+
   test('outside a repository there is no status', () async {
     final outside = await Directory.systemTemp.createTemp('baocode_nogit_');
     addTearDown(() => outside.delete(recursive: true));

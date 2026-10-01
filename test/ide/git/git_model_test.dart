@@ -2,6 +2,7 @@ import 'dart:ui' show Color;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:baocode/ide/git/git_checkout.dart';
 import 'package:baocode/ide/git/git_model.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 import 'package:path/path.dart' as p;
@@ -175,6 +176,91 @@ void main() {
         ],
       );
       expect(commits.last.parentIds, isEmpty);
+    });
+  });
+
+  group('refs', () {
+    test("parse as upstream's parseRefs: kinds, details, tracking", () {
+      final a = 'a' * 40;
+      final b = 'b' * 40;
+      final tag = 'c' * 40;
+      String record(
+        String ref,
+        String commit, {
+        String tagCommit = '',
+        String parents = '',
+        String author = '',
+        String date = '',
+        String subject = '',
+        String track = '',
+      }) => [
+        ref,
+        commit,
+        tagCommit,
+        parents,
+        '',
+        author,
+        '',
+        date,
+        '',
+        subject,
+        '',
+        track,
+      ].join('\x00');
+      final refs = parseGitRefs(
+        [
+          record(
+            'refs/heads/main',
+            a,
+            parents: b,
+            author: 'Ada',
+            date: '1767225600',
+            subject: 'Fix it',
+            track: '[ahead 2, behind 1]',
+          ),
+          record('refs/heads/gone', a, track: '[gone]'),
+          record('refs/heads/level', b),
+          record('refs/remotes/origin/HEAD', a),
+          record('refs/remotes/origin/feature/x', b),
+          // An annotated tag: the tag object, then its commit.
+          record('refs/tags/v1', tag, tagCommit: a),
+          record('refs/tags/light', b),
+          record('refs/stash', a),
+        ].join('\n'),
+      );
+      expect(
+        [for (final r in refs) (r.name, r.kind, r.remote, r.commit)],
+        [
+          ('main', IdeGitRefKind.branch, null, a),
+          ('gone', IdeGitRefKind.branch, null, a),
+          ('level', IdeGitRefKind.branch, null, b),
+          ('origin/HEAD', IdeGitRefKind.remote, 'origin', a),
+          ('origin/feature/x', IdeGitRefKind.remote, 'origin', b),
+          ('v1', IdeGitRefKind.tag, null, a),
+          ('light', IdeGitRefKind.tag, null, b),
+        ],
+      );
+      final main = refs.first;
+      expect((main.ahead, main.behind), (2, 1));
+      expect(main.details!.subject, 'Fix it');
+      expect(main.details!.author, 'Ada');
+      expect(
+        main.details!.date,
+        DateTime.fromMillisecondsSinceEpoch(1767225600000),
+      );
+      // Gone counts as level; no tracking (or level with it) as none.
+      expect((refs[1].ahead, refs[1].behind), (0, 0));
+      expect((refs[2].ahead, refs[2].behind), (null, null));
+      expect(refs[2].details, isNull);
+    });
+
+    test('branch names are sanitized as upstream sanitizes them', () {
+      expect(ideSanitizeBranchName(''), '');
+      expect(ideSanitizeBranchName('  my new branch '), 'my-new-branch');
+      expect(ideSanitizeBranchName('--fix..it~^:'), 'fix-it---');
+      expect(ideSanitizeBranchName('a.lock'), 'a-');
+      expect(ideSanitizeBranchName('feature/'), 'feature-');
+      expect(ideSanitizeBranchName('   '), '-');
     });
   });
 

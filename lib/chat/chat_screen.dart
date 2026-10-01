@@ -42,6 +42,7 @@ class ChatScreen extends StatefulWidget {
     this.windowTitleBar = true,
     this.focused = true,
     this.mentions = ComposerMockData.mentions,
+    this.onOpenChange,
   });
 
   final String title;
@@ -78,6 +79,11 @@ class ChatScreen extends StatefulWidget {
 
   /// What `@` offers: the project's files and other context.
   final List<Suggestion> mentions;
+
+  /// Opens a changed file's changes: against [original], its text before
+  /// the agent changed it, or the file alone where that is not known.
+  final void Function(FileChange change, Future<String> Function()? original)?
+  onOpenChange;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -340,11 +346,18 @@ class _ChatScreenState extends State<ChatScreen>
     final tasks = _session.tasks ?? const [];
     final changes = _session.fileChanges;
     if (!ActivityStrip.hasContent(tasks, changes)) return null;
+    final open = widget.onOpenChange;
     return ActivityStrip(
       tasks: tasks,
       changes: changes,
+      root: _session.root ?? '.',
       onKeep: _session.keepAllChanges,
       onUndo: _session.undoAllChanges,
+      onKeepFiles: _session.keepChanges,
+      onUndoFiles: _session.undoChanges,
+      onOpenFile: open == null
+          ? null
+          : (change) => open(change, _session.originalOf(change)),
       onStopTask: _session.stopTask,
       onOpenTask: (task) {
         if (_session.agentOf(task.toolUseId) case final agent?) {

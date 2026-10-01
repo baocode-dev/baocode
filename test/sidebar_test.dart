@@ -602,6 +602,31 @@ void main() {
     expect(width(), 200);
   });
 
+  testWidgets('collapsed groups stay so across a narrow window', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(inSidebar(find.text('api-gateway')));
+    await tester.pump();
+    expect(
+      inSidebar(find.textContaining('Rate limit per API key')),
+      findsNothing,
+    );
+
+    // Narrow, with the drawer closed, there is no sidebar; wide again, it
+    // is built anew.
+    tester.view.physicalSize = const Size(700, 900);
+    await tester.pumpAndSettle();
+    expect(find.byType(Sidebar), findsNothing);
+    tester.view.physicalSize = const Size(1400, 900);
+    await tester.pumpAndSettle();
+    expect(
+      inSidebar(find.textContaining('Rate limit per API key')),
+      findsNothing,
+    );
+    expect(inSidebar(find.text('3')), findsOneWidget);
+  });
+
   testWidgets('never wider than the window less 20', (tester) async {
     await pumpApp(tester);
     double width() => tester.getSize(find.byType(Sidebar)).width;

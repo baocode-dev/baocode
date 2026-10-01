@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import 'chat/chat_keys.dart';
+import 'chat/chat_models.dart' show FileChange, FileChangeKind;
 import 'chat/chat_screen.dart';
 import 'chat/panels/interaction_panel.dart';
 import 'ide/git/git_repository.dart';
@@ -290,6 +291,10 @@ class _WorkbenchState extends State<Workbench> {
 
   /// Reaches the sidebar, for the agents it lists and its search.
   final SidebarLink _sidebarLink = SidebarLink();
+
+  /// The sidebar's collapsed groups, kept here: the sidebar is built anew
+  /// as the window crosses [Workbench.narrowWidth].
+  final Set<String> _collapsedGroups = {};
 
   /// The agents as the sidebar lists them, top to bottom; without it, as it
   /// would by date (pinned ones first, no archived ones).
@@ -747,6 +752,7 @@ class _WorkbenchState extends State<Workbench> {
     return Sidebar(
       workspace: _workspace,
       link: _sidebarLink,
+      collapsed: _collapsedGroups,
       onCollapse: _toggle,
       onOpened: onOpened,
       onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
@@ -975,8 +981,37 @@ class _WorkbenchState extends State<Workbench> {
               ),
         windowTitleBar: place.top,
         focused: place.alone || identical(thread, _workspace.current),
+        onOpenChange: (change, original) =>
+            _openChange(thread, change, original),
       ),
     );
+  }
+
+  /// Opens a file [thread]'s agent changed in the IDE: a diff of its text
+  /// before the agent changed it ([original]) against the file, the text
+  /// alone where the agent deleted it, or the file where that is unknown.
+  void _openChange(
+    AgentThread thread,
+    FileChange change,
+    Future<String> Function()? original,
+  ) {
+    if (!identical(_workspace.current, thread)) _workspace.select(thread);
+    _workspace.layout = WorkspaceLayout.ide;
+    final ide = _ideSpace(thread.project);
+    final label = context.l10n.stripChangesDiff;
+    unawaited(switch ((original, change.kind)) {
+      (null, _) => ide.open(change.path),
+      (final read?, FileChangeKind.deleted) => ide.openRevision(
+        change.path,
+        label: label,
+        read: read,
+      ),
+      (final read?, _) => ide.openDiff(
+        change.path,
+        label: label,
+        original: read,
+      ),
+    });
   }
 }
 

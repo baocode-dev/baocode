@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -11,6 +12,8 @@ import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/kernel/claude_code/mock_claude_code_transport.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
+import 'package:baocode/workspace/agent_title.dart';
 import 'package:baocode/workspace/editor_launcher.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
@@ -55,21 +58,24 @@ final KernelDescriptor claude = KernelDescriptor(
     claude,
     context,
     start: MockClaudeCodeTransport.start,
-    readHistory: (session) async => [
-      for (final line in File(session.path!).readAsLinesSync())
-        if (line.isNotEmpty) (jsonDecode(line) as Map).cast<String, Object?>(),
-    ],
+    readHistory: _readHistory,
   ),
 );
 
 Future<Workspace> pumpLoaded(
   WidgetTester tester, {
   PreferenceStore? preferences,
+  KernelDescriptor? kernel,
+  AgentTitler? titler,
 }) async {
   tester.view.physicalSize = const Size(1400, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final workspace = Workspace(kernels: [claude], preferences: preferences);
+  final workspace = Workspace(
+    kernels: [kernel ?? claude],
+    preferences: preferences,
+    titler: titler,
+  );
   await tester.pumpWidget(BaoCodeApp(workspace: workspace));
   await tester.runAsync(workspace.load);
   await tester.pump();
@@ -78,6 +84,58 @@ Future<Workspace> pumpLoaded(
 
 Finder inSidebar(Finder finder) =>
     find.descendant(of: find.byType(Sidebar), matching: finder);
+
+/// Claude Code (the mock) keeping the titles it is given in [renames].
+KernelDescriptor titledClaude(List<String> renames) {
+  late final KernelDescriptor kernel;
+  return kernel = KernelDescriptor(
+    id: 'claude-code',
+    label: 'Claude Code',
+    icon: Icons.auto_awesome_rounded,
+    description: '',
+    catalog: FakeCatalog(),
+    create: (context) => ClaudeCodeKernel(
+      kernel,
+      context,
+      start: (launch) async =>
+          _Renames(await MockClaudeCodeTransport.start(launch), renames),
+      readHistory: _readHistory,
+    ),
+  );
+}
+
+Future<List<Map<String, Object?>>> _readHistory(SessionRecord session) async =>
+    [
+      for (final line in File(session.path!).readAsLinesSync())
+        if (line.isNotEmpty) (jsonDecode(line) as Map).cast<String, Object?>(),
+    ];
+
+class _Renames implements ClaudeCodeTransport {
+  _Renames(this._cli, this._renames);
+
+  final ClaudeCodeTransport _cli;
+  final List<String> _renames;
+
+  @override
+  Stream<Map<String, Object?>> get messages => _cli.messages;
+
+  @override
+  void write(Map<String, Object?> message) {
+    if (message case {
+      'type': 'control_request',
+      'request': {'subtype': 'rename_session', 'title': final String title},
+    }) {
+      _renames.add(title);
+    }
+    _cli.write(message);
+  }
+
+  @override
+  void close() => _cli.close();
+
+  @override
+  Future<void> get exited => _cli.exited;
+}
 
 void main() {
   testWidgets('lists the kept sessions; one opens with its history', (
@@ -136,6 +194,95 @@ void main() {
     expect(workspace.projects.first.path, '/tmp/other');
     expect(workspace.selected.project.path, '/tmp/other');
     expect(workspace.selected.session.kernelContext.cwd, '/tmp/other');
+  });
+
+  testWidgets('a new agent is titled after its first message worth it, and '
+      'the title is kept with its session', (tester) async {
+    final renames = <String>[];
+    final asked = <String>[];
+    final generated = Completer<String?>();
+    final workspace = await pumpLoaded(
+      tester,
+      kernel: titledClaude(renames),
+      titler: (message) {
+        asked.add(message);
+        return generated.future;
+      },
+    );
+    final thread = workspace.selected;
+    final session = thread.session;
+
+    // Too short to say what it is about, a message is the title as it is;
+    // a slash command is none.
+    session.send(const ComposerMessage(text: 'hi'));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    session.send(const ComposerMessage(text: '/review the diff'));
+    await tester.pump();
+    expect(asked, isEmpty);
+    expect(thread.title, 'hi');
+
+    session.send(const ComposerMessage(text: 'Fix the flaky login test in CI'));
+    await tester.pump();
+    expect(asked, ['Fix the flaky login test in CI']);
+    expect(thread.title, 'hi');
+    generated.complete('Flaky login test');
+    await tester.pump();
+    expect(thread.title, 'Flaky login test');
+    expect(inSidebar(find.text('Flaky login test')), findsOneWidget);
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    expect(renames, ['Flaky login test']);
+
+    // Once.
+    session.send(const ComposerMessage(text: 'And the signup test as well'));
+    await tester.pump();
+    expect(asked, hasLength(1));
+    session.stop();
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('a name the user gives stands over one generated meanwhile', (
+    tester,
+  ) async {
+    final renames = <String>[];
+    final generated = Completer<String?>();
+    final workspace = await pumpLoaded(
+      tester,
+      kernel: titledClaude(renames),
+      titler: (_) => generated.future,
+    );
+    final thread = workspace.selected;
+    thread.session.send(
+      const ComposerMessage(text: 'Fix the flaky login test in CI'),
+    );
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    workspace.rename(thread, 'Login');
+    generated.complete('Flaky login test');
+    await tester.pump();
+    expect(thread.title, 'Login');
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    expect(renames, ['Login']);
+    thread.session.stop();
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('a kept session keeps its title', (tester) async {
+    final asked = <String>[];
+    final workspace = await pumpLoaded(
+      tester,
+      titler: (message) async {
+        asked.add(message);
+        return 'Generated';
+      },
+    );
+    await tester.tap(inSidebar(find.text('Write a.txt and read it back')));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    expect(workspace.selected.record, FakeCatalog.kept);
+    expect(workspace.selected.session.itemCount, greaterThan(3));
+    expect(asked, isEmpty);
+    expect(workspace.selected.title, 'Write a.txt and read it back');
   });
 
   testWidgets('a new agent starts in the mode and approvals picked last', (

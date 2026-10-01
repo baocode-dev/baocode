@@ -215,14 +215,19 @@ extension _WorkbenchKeys on IdeWorkbenchState {
 
   /// The quick input's context keys; null for another's.
   Object? _quickInputContextKey(String key) {
-    final open = _quickInput != null || _quickPick != null;
+    final open = _quickInput != null || _quickModel != null;
     final state = _quickInputKey.currentState;
     final access = _quickInput == null
         ? null
         : _quickAccessOf(state?.text ?? _quickInput!).$1;
     return switch (key) {
       'inQuickOpen' || 'inQuickInput' => open,
-      'quickInputType' => open ? 'quickPick' : null,
+      'quickInputType' =>
+        !open
+            ? null
+            : _quickModel is IdeQuickInputBox
+            ? 'inputBox'
+            : 'quickPick',
       'cursorAtEndOfQuickInputBox' => open && (state?.cursorAtEnd ?? false),
       'inFilesPicker' => access == _QuickAccess.files,
       'inEditorsPicker' =>
@@ -1211,11 +1216,33 @@ extension _ScmKeys on IdeWorkbenchState {
     });
   }
 
-  /// Git: Commit, and Focus on Changes View, for the palette.
+  /// Git: Checkout to… (`git.checkout`), which the status bar's branch
+  /// runs too; what Git reports is an error notification.
+  void _gitCheckout() {
+    final git = widget.workspace.git;
+    if (git == null) return;
+    unawaited(
+      ideGitCheckout(
+        git,
+        show: (model) {
+          if (mounted) _showQuickModel(model);
+        },
+        l10n: context.l10n,
+      ).catchError(_report),
+    );
+  }
+
+  /// Git: Commit, Git: Checkout to… and Focus on Changes View, for the
+  /// palette.
   List<IdeCommand> _scmCommands() => [
     _catalogCommand(
       'git.commit',
       () => _onScmView((view) => unawaited(view.commit())),
+      enabled: widget.workspace.git?.state != null,
+    ),
+    _catalogCommand(
+      'git.checkout',
+      _gitCheckout,
       enabled: widget.workspace.git?.state != null,
     ),
     _catalogCommand(

@@ -169,6 +169,7 @@
   "cmdScmFocus": "Focus on Changes View",
   "cmdScmAcceptInput": "Accept Input",
   "cmdScmClearValidation": "Clear Validation",
+  "cmdGitCheckout": "Checkout to...",
   "cmdScmClearInput": "Clear Input",
   "cmdCategoryGit": "Git",
   "cmdProblemsFocus": "Focus Problems (Errors, Warnings, Infos)",
@@ -986,14 +987,6 @@
       }
     }
   },
-  "stepsFailed": "{count} failed",
-  "@stepsFailed": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "turnWorked": "Worked for {duration}",
   "@turnWorked": {
     "description": "A finished turn's work, folded before its answer, e.g. \"Worked for 4m 32s\".",
@@ -1100,6 +1093,21 @@
   },
   "stripUndoAll": "Undo all",
   "stripKeepAll": "Keep all",
+  "stripKeep": "Keep",
+  "stripUndo": "Undo",
+  "stripChangeAdded": "Added",
+  "stripChangeModified": "Modified",
+  "stripChangeDeleted": "Deleted",
+  "stripChangeConflict": "Changed again since the agent left it, so Undo could not take the agent's change out. Undo it by hand, then keep it.",
+  "stripChangeShared": "Another agent was working in this project at the same time: some of this change may be its.",
+  "@stripChangeShared": {
+    "description": "Tooltip of a changed file seen while another agent worked in the same project."
+  },
+  "stripChangeUntracked": "Not in the project's snapshots (ignored, too large, or outside the project): it can be kept, not undone.",
+  "stripChangesDiff": "Agent Changes",
+  "@stripChangesDiff": {
+    "description": "Label of the diff editor comparing a file before the agent changed it with the file now."
+  },
   "usageUsed": "Used",
   "@usageUsed": {
     "description": "The used part of the context window, without a breakdown."
@@ -1940,6 +1948,50 @@
       }
     }
   },
+  "gitCheckoutBranchTag": "Checkout Branch/Tag...",
+  "gitSelectBranchOrTag": "Select a branch or tag to checkout",
+  "gitSelectBranchDetached": "Select a branch to checkout in detached mode",
+  "gitCreateBranch": "Create new branch...",
+  "gitCreateBranchFrom": "Create new branch from...",
+  "gitCheckoutDetached": "Checkout detached...",
+  "gitBranches": "branches",
+  "gitRemoteBranches": "remote branches",
+  "gitTags": "tags",
+  "gitRemoteBranchAt": "Remote branch at {commit}",
+  "@gitRemoteBranchAt": {
+    "placeholders": {
+      "commit": {
+        "type": "String"
+      }
+    }
+  },
+  "gitTagAt": "Tag at {commit}",
+  "@gitTagAt": {
+    "placeholders": {
+      "commit": {
+        "type": "String"
+      }
+    }
+  },
+  "gitSelectRefToBranchFrom": "Select a ref to create the branch from",
+  "gitBranchName": "Branch name",
+  "gitProvideBranchName": "Please provide a new branch name",
+  "gitBranchExists": "Branch \"{name}\" already exists",
+  "@gitBranchExists": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "gitNewBranchWillBe": "The new branch will be \"{name}\"",
+  "@gitNewBranchWillBe": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "timelineCopyCommitId": "Copy Commit ID",
   "timelineNoEditor": "The active editor cannot provide timeline information.",
   "timelineNotConfigured": "No timeline information was provided. Source Control has not been configured.",
@@ -2474,6 +2526,15 @@
   "wbQuickCommands": "Type the name of a command to run.",
   "wbQuickSymbols": "Type the name of a symbol to go to.",
   "wbQuickFiles": "Search files by name (append : to go to a line or > to run a command)",
+  "quickInputEntry": "Press 'Enter' to confirm your input or 'Escape' to cancel",
+  "quickInputEntryWithPrompt": "{prompt} (Press 'Enter' to confirm or 'Escape' to cancel)",
+  "@quickInputEntryWithPrompt": {
+    "placeholders": {
+      "prompt": {
+        "type": "String"
+      }
+    }
+  },
   "wbChordWaiting": "({chord}) was pressed. Waiting for second key of chord...",
   "@wbChordWaiting": {
     "placeholders": {

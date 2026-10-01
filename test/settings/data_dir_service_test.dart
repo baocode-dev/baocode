@@ -34,6 +34,7 @@ void main() {
       ('state/lsp-processes.json.12.3.tmp', '[]'),
       ('servers/tool/bin/tool', '#!/bin/sh'),
       ('language-packs/toy/manifest.json', '{}'),
+      ('checkpoints/app-1f/HEAD', 'ref: refs/heads/main'),
       ('Cookies', 'chromium'),
       ('GPUCache/data_0', 'chromium'),
       ('Local Storage/leveldb/LOG', 'chromium'),
@@ -149,6 +150,9 @@ void main() {
       'User/keybindings.json',
       'User/settings.json',
       'argv.json',
+      'checkpoints',
+      'checkpoints/app-1f',
+      'checkpoints/app-1f/HEAD',
       'keymaps',
       'keymaps/vim.json',
       'language-packs',
@@ -173,8 +177,8 @@ void main() {
       Link(p.join(target, 'servers', 'tool-link')).targetSync(),
       p.join(target, 'servers', 'tool', 'bin', 'tool'),
     );
-    expect(progress.first, (0, 8));
-    expect(progress.last, (8, 8));
+    expect(progress.first, (0, 9));
+    expect(progress.last, (9, 9));
     // The old folder is as it was: the web view's files included.
     expect(File(p.join(current, 'Cookies')).existsSync(), isTrue);
     expect(File(p.join(current, 'state', 'state.json')).existsSync(), isTrue);

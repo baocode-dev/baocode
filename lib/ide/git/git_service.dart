@@ -7,12 +7,13 @@
 // them (extensions/git/src/git.ts at 6a598d4a13031703d483d103c1d934a36ad27971):
 // status with the branch and ignored paths, add, restore, checkout, clean,
 // commit, log for the graph and the timeline, show for the texts a diff
-// editor compares (`buffer`), blame for the editor's blame (`blame2`), and
-// pull and push for Sync Changes and Publish Branch.
+// editor compares (`buffer`), blame for the editor's blame (`blame2`),
+// pull and push for Sync Changes and Publish Branch, and for-each-ref,
+// checkout and checkout -b for Checkout to… (`getRefs`,
+// `findTrackingBranches`, `checkout`, `branch`).
 //
-// Deviations: no fetch, no stash or branch commands, and no credential
-// prompts (`GIT_TERMINAL_PROMPT=0`: a remote that asks for a password
-// fails).
+// Deviations: no fetch, no stash, and no credential prompts
+// (`GIT_TERMINAL_PROMPT=0`: a remote that asks for a password fails).
 
 import 'package:path/path.dart' as p;
 
@@ -323,6 +324,73 @@ class IdeGitService {
     _check(
       await _git(['push', if (setUpstream) '-u', remote, name]),
       'Cannot push.',
+    );
+  }
+
+  /// The branches, remote branches and tags with their commits' details,
+  /// the last committed first (`getRefs` with `git.branchSortOrder:
+  /// committerdate` and `git.showReferenceDetails`).
+  Future<List<IdeGitRef>> refs() async {
+    await _requireRoot();
+    final output = _check(
+      await _git([
+        'for-each-ref',
+        '--sort',
+        '-committerdate',
+        '--format',
+        ideGitRefsFormat,
+      ]),
+      'Cannot read the branches.',
+    );
+    return parseGitRefs(output.stdout);
+  }
+
+  /// The local branches whose upstream is [upstream] (`origin/main`).
+  Future<List<String>> trackingBranches(String upstream) async {
+    await _requireRoot();
+    final output = _check(
+      await _git([
+        'for-each-ref',
+        '--format',
+        '%(refname:short)%00%(upstream:short)',
+        'refs/heads',
+      ]),
+      'Cannot read the branches.',
+    );
+    return [
+      for (final line in output.stdout.trim().split('\n'))
+        if (line.trim().split('\x00') case [final name, final tracked]
+            when tracked == upstream)
+          name,
+    ];
+  }
+
+  /// `git checkout -q [--track] [--detach] <treeish>`.
+  Future<void> checkout(
+    String treeish, {
+    bool track = false,
+    bool detached = false,
+  }) async {
+    await _requireRoot();
+    _check(
+      await _git([
+        'checkout',
+        '-q',
+        if (track) '--track',
+        if (detached) '--detach',
+        treeish,
+      ]),
+      'Cannot check out $treeish.',
+    );
+  }
+
+  /// `git checkout -q -b <name> --no-track [<ref>]`: the new branch
+  /// [name], checked out.
+  Future<void> branch(String name, {String? ref}) async {
+    await _requireRoot();
+    _check(
+      await _git(['checkout', '-q', '-b', name, '--no-track', ?ref]),
+      'Cannot create the branch $name.',
     );
   }
 

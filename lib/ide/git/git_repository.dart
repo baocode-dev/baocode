@@ -202,6 +202,28 @@ class IdeGitRepository extends ChangeNotifier {
   /// The remotes' names.
   Future<List<String>> remotes() => service.remotes();
 
+  /// The branches, remote branches and tags, the last committed first.
+  Future<List<IdeGitRef>> refs() => service.refs();
+
+  /// The local branches tracking the remote branch [upstream].
+  Future<List<String>> trackingBranches(String upstream) =>
+      service.trackingBranches(upstream);
+
+  /// Checks [treeish] out (`Repository.checkout`); [detached] detaches HEAD
+  /// there.
+  Future<void> checkout(String treeish, {bool detached = false}) =>
+      _operate(() => service.checkout(treeish, detached: detached));
+
+  /// Checks the remote branch [treeish] out as a new branch tracking it
+  /// (`Repository.checkoutTracking`).
+  Future<void> checkoutTracking(String treeish) =>
+      _operate(() => service.checkout(treeish, track: true));
+
+  /// Creates the branch [name] at [ref] and checks it out
+  /// (`Repository.branch`).
+  Future<void> branch(String name, {String? ref}) =>
+      _operate(() => service.branch(name, ref: ref));
+
   /// Runs [operation] as [_operate] does, [syncing] from its asking until
   /// the refresh after it.
   Future<void> _whileSyncing(Future<void> Function() operation) async {

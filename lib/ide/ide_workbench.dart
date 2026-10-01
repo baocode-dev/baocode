@@ -35,6 +35,7 @@ import 'extensions/ide_extensions_view.dart';
 import 'file_service.dart' show localizedFileError;
 import 'git/commit_message.dart';
 import 'git/git_change_editor.dart';
+import 'git/git_checkout.dart';
 import 'git/git_model.dart';
 import 'git/git_repository.dart';
 import 'git/ide_scm_view.dart';
@@ -279,8 +280,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The quick input's text while it is open (its prefix picks the mode).
   String? _quickInput;
 
-  /// The quick pick the quick input shows instead (e.g. the color themes).
-  IdeQuickPick? _quickPick;
+  /// The quick pick (e.g. the color themes) or input box the quick input
+  /// shows instead.
+  IdeQuickInputModel? _quickModel;
   GlobalKey<IdeQuickInputState> _quickInputKey = GlobalKey();
   FocusNode? _focusBeforeQuickInput;
 
@@ -450,6 +452,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _gitChanged() {
     final state = _git?.state;
+    // The status bar's branch checks out once there is a repository.
+    final loaded = (state == null) != (_gitState == null);
     // The texts at revisions follow the repository, as `git:` documents do.
     if (!identical(state, _gitState)) {
       _gitState = state;
@@ -457,7 +461,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
     final count = state?.count ?? 0;
     final branch = state?.head.branch;
-    if (count == _gitCount && branch == _gitBranch) return;
+    if (count == _gitCount && branch == _gitBranch && !loaded) return;
     _gitCount = count;
     _gitBranch = branch;
     if (mounted) setState(() {});
@@ -535,9 +539,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     KeybindingService.instance.removeListener(_keybindingsChanged);
     _chordChecker?.cancel();
     _statusMessageTimer?.cancel();
-    // A quick pick going with the workbench hides (the color themes one
-    // applies the theme it started with again).
-    _quickPick?.onDidHide?.call();
+    // A quick pick or input box going with the workbench hides (the color
+    // themes one applies the theme it started with again).
+    _quickModel?.onDidHide?.call();
     _detach(widget.workspace);
     _workbenchFocus.dispose();
     _explorerFocus.dispose();
@@ -1121,7 +1125,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       }
       return;
     }
-    _showQuickPick(
+    _showQuickModel(
       terminalProfilePick(
         profiles: profiles.availableProfiles,
         defaultName: profiles.defaultProfileName,
@@ -1139,7 +1143,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (profiles == null || !profiles.canSetDefault) return;
     await profiles.refresh();
     if (!mounted) return;
-    _showQuickPick(
+    _showQuickModel(
       terminalProfilePick(
         profiles: profiles.availableProfiles,
         defaultName: profiles.defaultProfileName,
@@ -1326,7 +1330,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (_quickAccessOf(prefix).$1 == _QuickAccess.files) {
       unawaited(_fileIndex.refresh());
     }
-    final shown = _quickInput != null || _quickPick != null;
+    final shown = _quickInput != null || _quickModel != null;
     if (_quickInput != null &&
         itemActivation == null &&
         quickNavigate == null) {
@@ -1345,19 +1349,20 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     });
   }
 
-  /// Opens [pick] in the quick input, in place of what it shows.
-  void _showQuickPick(IdeQuickPick pick) =>
-      _openQuickInput(() => _quickPick = pick);
+  /// Opens [model], a quick pick or an input box, in the quick input in
+  /// place of what it shows.
+  void _showQuickModel(IdeQuickInputModel model) =>
+      _openQuickInput(() => _quickModel = model);
 
   void _openQuickInput(VoidCallback open) {
-    final replaced = _quickPick;
+    final replaced = _quickModel;
     if (_quickInput == null && replaced == null) {
       _focusBeforeQuickInput = FocusManager.instance.primaryFocus;
     }
     setState(() {
       _quickInputKey = GlobalKey();
       _quickInput = null;
-      _quickPick = null;
+      _quickModel = null;
       _quickActivation = IdeQuickPickFocus.first;
       _quickNavigateChords = null;
       _quickHideInput = false;
@@ -1368,11 +1373,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   void _closeQuickInput() {
-    final pick = _quickPick;
-    if (_quickInput == null && pick == null) return;
+    final model = _quickModel;
+    if (_quickInput == null && model == null) return;
     setState(() {
       _quickInput = null;
-      _quickPick = null;
+      _quickModel = null;
     });
     final previous = _focusBeforeQuickInput;
     _focusBeforeQuickInput = null;
@@ -1383,13 +1388,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     } else {
       _focusEditorOrWorkbench();
     }
-    pick?.onDidHide?.call();
+    model?.onDidHide?.call();
   }
 
   /// Preferences: Color Theme (see [ideColorThemePick]).
   void _selectColorTheme() {
     if (widget.colorThemes case final themes?) {
-      _showQuickPick(
+      _showQuickModel(
         ideColorThemePick(themes, onError: _report, l10n: context.l10n),
       );
     }
@@ -3024,15 +3029,29 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final keys = KeybindingService.instance;
     final left = [
       if (_gitBranch ?? _branch case final branch?)
-        IdeStatusBarItem(
-          branch,
-          icon: Codicons.gitBranch,
-          tooltip: keys.titleWithKeybinding(
-            l10n.scmTitle,
-            'workbench.view.scm',
+        // Upstream's `CheckoutStatusBar`: Checkout to…, its tooltip the
+        // repository's (`<folder> (Git) - `) before the command's.
+        if (_git?.state case final state?)
+          IdeStatusBarItem(
+            branch,
+            icon: Codicons.gitBranch,
+            tooltip: keys.titleWithKeybinding(
+              '${p.basename(state.root)} (Git) - '
+                  '$branch, ${l10n.gitCheckoutBranchTag}',
+              'git.checkout',
+            ),
+            onTap: _gitCheckout,
+          )
+        else
+          IdeStatusBarItem(
+            branch,
+            icon: Codicons.gitBranch,
+            tooltip: keys.titleWithKeybinding(
+              l10n.scmTitle,
+              'workbench.view.scm',
+            ),
+            onTap: () => _showView(IdeSideView.sourceControl),
           ),
-          onTap: () => _showView(IdeSideView.sourceControl),
-        ),
       IdeStatusBarItem(
         switch (_lspStatus) {
           'Language services' => l10n.wbLanguageServices,
@@ -3169,15 +3188,20 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     child: IdeNotificationToasts(notifications: _notifications),
                   ),
                 ),
-                if (_quickPick != null || _quickInput != null)
+                if (_quickModel != null || _quickInput != null)
                   Positioned.fill(
                     top: WindowControls.drawsHeader
                         ? 0
                         : AppMetrics.titleBarHeight,
-                    child: switch (_quickPick) {
-                      final pick? => IdeQuickInput.pick(
+                    child: switch (_quickModel) {
+                      final IdeQuickPick pick => IdeQuickInput.pick(
                         key: _quickInputKey,
                         pick: pick,
+                        onClose: _closeQuickInput,
+                      ),
+                      final IdeQuickInputBox box => IdeQuickInput.input(
+                        key: _quickInputKey,
+                        inputBox: box,
                         onClose: _closeQuickInput,
                       ),
                       null => IdeQuickInput(

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
@@ -324,6 +325,46 @@ void main() {
       expect(doc.text, 'abcd\r\n');
       expect(doc.savedText, 'abc\r\n');
       expect(doc.dirty, isTrue);
+    },
+  );
+
+  test(
+    'a file outside the project opens and saves as one inside does',
+    () async {
+      final temp = await Directory.systemTemp.createTemp('baocode-outside-');
+      addTearDown(() => temp.delete(recursive: true));
+      final base = await temp.resolveSymbolicLinks();
+      final project = await Directory(p.join(base, 'project')).create();
+      final notes = File(p.join(base, 'notes.md'))
+        ..writeAsStringSync('# notes\r\n');
+
+      final files = IdeFileService(project.path);
+      final workspace = IdeWorkspace(project.path, files: files);
+      addTearDown(workspace.dispose);
+      await workspace.open(notes.path);
+      final doc = workspace.active!;
+      expect(doc.openError, isNull);
+      expect(doc.readOnly, isFalse);
+      expect(doc.isFile, isTrue);
+
+      workspace.edit(notes.path, '# notes\nmore\n');
+      await workspace.save(doc);
+      // Its line endings kept, as for the project's files.
+      expect(notes.readAsStringSync(), '# notes\r\nmore\r\n');
+      expect(doc.dirty, isFalse);
+
+      // Changed elsewhere since: not written over.
+      notes.writeAsStringSync('theirs\n');
+      workspace.edit(notes.path, 'mine\n');
+      await expectLater(
+        workspace.save(doc),
+        throwsA(isA<IdeFileConflictException>()),
+      );
+      expect(notes.readAsStringSync(), 'theirs\n');
+
+      // The project folder itself is never deleted.
+      await expectLater(files.delete(project.path), throwsA(anything));
+      expect(project.existsSync(), isTrue);
     },
   );
 }

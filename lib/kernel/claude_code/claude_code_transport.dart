@@ -104,8 +104,12 @@ class ClaudeLaunch {
     if (!persist) '--no-session-persistence',
   ];
 
-  /// Lets the host rewind the files a turn changed.
-  static const environment = {'CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING': '1'};
+  /// Lets the host rewind the files a turn changed, and has the CLI say
+  /// when it is at work and when idle (`session_state_changed`).
+  static const environment = {
+    'CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING': '1',
+    'CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS': '1',
+  };
 }
 
 /// Starts Claude Code; throws [ClaudeUnavailable] when it cannot.

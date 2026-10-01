@@ -100,7 +100,7 @@ class Win32Window {
   // it is what those edges are grabbed by, outside the content), up to its
   // top; the monitor's work area while maximized (Windows sizes a maximized
   // window to cover the monitor, and that is what keeps the content off the
-  // taskbar).
+  // taskbar); empty while minimized.
   //
   // Answered before the engine, which would otherwise have the window keep a
   // frame — and draw a caption over the top of the client, whatever the

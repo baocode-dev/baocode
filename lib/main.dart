@@ -31,6 +31,7 @@ import 'settings/user_settings.dart';
 import 'theme/app_theme.dart';
 import 'theme/workbench_theme.dart';
 import 'workbench.dart';
+import 'workspace/agent_title.dart';
 import 'workspace/preference_store.dart';
 import 'workspace/window_controls.dart';
 import 'workspace/workspace.dart';
@@ -66,7 +67,10 @@ Future<void> main() async {
     CommitAttribution.current = () =>
         CommitAttribution.parse(files.settings[CommitAttribution.settingKey]);
   }
-  final workspace = Workspace(preferences: PreferenceStore.file())..load();
+  final workspace = Workspace(
+    preferences: PreferenceStore.file(),
+    titler: claudeAgentTitle,
+  )..load();
   // The first frame is in the kept theme, restored from storage as VS Code
   // does before the workbench shows; its file is read after. The setting
   // is settings.json's `workbench.colorTheme`, the theme's colors the

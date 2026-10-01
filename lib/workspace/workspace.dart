@@ -11,6 +11,7 @@ import '../kernel/kernel_registry.dart';
 import '../kernel/kernel_types.dart';
 import '../l10n/l10n.dart';
 import '../theme/workbench_theme.dart' show ColorThemeStorage;
+import 'agent_title.dart';
 import 'chat_grid.dart';
 import 'editor_launcher.dart';
 import 'preference_store.dart';
@@ -62,7 +63,8 @@ class AgentThread {
     this._title = '',
     this.pinned = false,
     bool unread = false,
-  }) : _seenSeq = unread ? -1 : 0;
+  }) : _seenSeq = unread ? -1 : 0,
+       _wantsTitle = record == null && _title.isEmpty;
 
   final Project project;
 
@@ -92,6 +94,17 @@ class AgentThread {
   /// [title] as shown: an untitled agent's in [l10n]'s language.
   String localizedTitle(AppLocalizations l10n) =>
       _title.isEmpty ? l10n.agentUntitled : _title;
+
+  /// A title is still to be generated for it: a new agent's, until one is
+  /// asked for or the user names it.
+  bool _wantsTitle;
+
+  /// How many items it had when last looked through for a message worth a
+  /// title: streamed text adds none.
+  int _titleScan = 0;
+
+  /// The user named it: a title generated meanwhile is dropped.
+  bool _named = false;
 
   /// Last time it started, stopped, or asked something.
   DateTime updatedAt;
@@ -164,6 +177,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     List<Project> projects = const [],
     List<KernelDescriptor>? kernels,
     PreferenceStore? preferences,
+    this.titler,
   }) : _projects = [...projects],
        kernels = kernels ?? KernelRegistry.all,
        _preferredKernel = (kernels ?? KernelRegistry.all).first,
@@ -171,6 +185,11 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   /// The kernels new agents may run on.
   final List<KernelDescriptor> kernels;
+
+  /// Titles a new agent after its first message worth it (see
+  /// [agentTitleWorthy]); without it, the first message's first line stays
+  /// its title.
+  final AgentTitler? titler;
 
   List<Project> get projects => List.unmodifiable(_projects);
   final List<Project> _projects;
@@ -642,6 +661,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         thread._title = text.trim().split('\n').first;
       }
     }
+    if (thread._wantsTitle && titler != null) _askTitle(thread);
     // What ends in view is seen, in any pane.
     if (_grid.contains(thread)) thread._markSeen();
     final before = _snapshots[thread];
@@ -764,11 +784,43 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     return thread;
   }
 
+  /// Has [titler] title [thread] once it has a message worth it, if its
+  /// kernel keeps the title (Claude Code's: the message goes to Claude).
+  void _askTitle(AgentThread thread) {
+    final session = thread.session;
+    // Not only added at the end: a message goes before the live status.
+    final count = session.itemCount;
+    if (count == thread._titleScan) return;
+    thread._titleScan = count;
+    for (var i = 0; i < count; i++) {
+      if (session.itemAt(i) case UserMessageItem(:final text)
+          when agentTitleWorthy(text)) {
+        thread._wantsTitle = false;
+        if (!session.canRename) return;
+        unawaited(
+          titler!(text).then((title) {
+            if (title == null || thread._named) return;
+            if (_disposed || !_threads.contains(thread)) return;
+            _retitle(thread, title);
+          }),
+        );
+        return;
+      }
+    }
+  }
+
   void rename(AgentThread thread, String title) {
     final trimmed = title.trim();
     if (trimmed.isEmpty || trimmed == thread._title) return;
-    thread._title = trimmed;
-    if (thread.isOpen) thread.session.rename(trimmed);
+    thread
+      .._named = true
+      .._wantsTitle = false;
+    _retitle(thread, trimmed);
+  }
+
+  void _retitle(AgentThread thread, String title) {
+    thread._title = title;
+    if (thread.isOpen) thread.session.rename(title);
     _snapshots[thread] = thread._snapshot;
     notifyListeners();
   }
@@ -801,6 +853,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (thread.isOpen) {
       thread.session
         ..stop()
+        ..discardChanges()
         ..dispose();
       stopped = thread.session.stopped;
     }
@@ -833,8 +886,11 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     }
   }
 
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     for (final MapEntry(key: thread, value: listener) in _listeners.entries) {
       thread.session
         ..removeListener(listener)

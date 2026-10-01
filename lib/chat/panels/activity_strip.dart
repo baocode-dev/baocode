@@ -8,26 +8,34 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../../ide/ide_hover.dart';
 import '../../kernel/kernel_types.dart';
 import '../chat_models.dart';
-import '../widgets/file_label.dart';
 import '../widgets/hover_builder.dart';
 import '../widgets/orbit_indicator.dart';
+import 'change_tree.dart';
 import 'interaction_panel.dart';
 
 /// Indicator area docked on top of the composer: background tasks still
-/// running and the files changed in this turn.
+/// running and the files changed and not yet kept or undone, as a tree
+/// (see [ChangeTree]).
 class ActivityStrip extends StatefulWidget {
   const ActivityStrip({
     super.key,
     required this.tasks,
     required this.changes,
     required this.onKeep,
+    this.root = '.',
     this.onUndo,
+    this.onKeepFiles,
+    this.onUndoFiles,
+    this.onOpenFile,
     this.onStopTask,
     this.onOpenTask,
   });
 
   final List<KernelTask> tasks;
   final List<FileChange> changes;
+
+  /// The project's directory, which [changes]' paths are in.
+  final String root;
 
   /// Stops a running task; null when tasks cannot be stopped.
   final ValueChanged<KernelTask>? onStopTask;
@@ -38,6 +46,14 @@ class ActivityStrip extends StatefulWidget {
 
   /// Null when the changes cannot be put back: no Undo then.
   final VoidCallback? onUndo;
+
+  final ValueChanged<List<FileChange>>? onKeepFiles;
+
+  /// Null when files cannot be put back one by one.
+  final ValueChanged<List<FileChange>>? onUndoFiles;
+
+  /// Opens a file's changes.
+  final ValueChanged<FileChange>? onOpenFile;
 
   static bool hasContent(List<KernelTask> tasks, List<FileChange> changes) =>
       tasks.isNotEmpty || changes.isNotEmpty;
@@ -139,12 +155,14 @@ class _ActivityStripState extends State<ActivityStrip> {
               onKeep: widget.onKeep,
             ),
             if (_filesExpanded)
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 150),
-                child: ListView(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.only(bottom: 2),
-                  children: [for (final change in changes) _FileRow(change)],
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: ChangeTree(
+                  root: widget.root,
+                  changes: changes,
+                  onOpen: widget.onOpenFile,
+                  onKeep: widget.onKeepFiles,
+                  onUndo: widget.onUndoFiles,
                 ),
               ),
           ],
@@ -387,52 +405,6 @@ class _FilesHeader extends StatelessWidget {
             ),
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _FileRow extends StatelessWidget {
-  const _FileRow(this.change);
-
-  final FileChange change;
-
-  @override
-  Widget build(BuildContext context) {
-    return _StripRow(
-      onTap: () {},
-      children: [
-        const SizedBox(width: 20),
-        FileLabel(change.fileName, fontSize: 12),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            change.directory,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: AppColors.textFaint, fontSize: 11.5),
-          ),
-        ),
-        // A count of none is left out.
-        if (change.added > 0)
-          Text(
-            '+${change.added}',
-            style: TextStyle(
-              color: themeColors['chat.linesAddedForeground'],
-              fontFamily: AppFonts.mono,
-              fontSize: 11,
-            ),
-          ),
-        if (change.added > 0 && change.removed > 0) const SizedBox(width: 4),
-        if (change.removed > 0)
-          Text(
-            '-${change.removed}',
-            style: TextStyle(
-              color: themeColors['chat.linesRemovedForeground'],
-              fontFamily: AppFonts.mono,
-              fontSize: 11,
-            ),
-          ),
       ],
     );
   }

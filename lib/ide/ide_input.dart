@@ -53,7 +53,7 @@ class IdeInputValidation {
   final IdeValidationSeverity severity;
 
   /// `inputValidation.{info,warning,error}{Background,Border,Foreground}`.
-  (Color background, Color border, Color foreground) get _colors {
+  (Color background, Color border, Color foreground) get colors {
     final kind = severity.name;
     return (
       themeColors['inputValidation.${kind}Background'],
@@ -162,7 +162,7 @@ class _IdeInputBoxState extends State<IdeInputBox> {
     final floating = widget.floatingValidation;
     final focused = _focus.hasFocus;
     final outline = validation != null
-        ? validation._colors.$2
+        ? validation.colors.$2
         : focused
         ? IdeInputColors.focusBorder
         : IdeInputColors.border;
@@ -290,7 +290,7 @@ class _IdeInputBoxState extends State<IdeInputBox> {
   }
 
   Widget _message(IdeInputValidation validation) {
-    final (background, border, foreground) = validation._colors;
+    final (background, border, foreground) = validation.colors;
     return Container(
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(

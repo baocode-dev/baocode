@@ -125,20 +125,26 @@ SessionRecord? _summarize(File file) {
   }
   String? cwd;
   String? firstPrompt;
-  String? title;
   // The last title wins; scan for the marker rather than decoding every
   // line of a long session.
-  final titleAt = text.lastIndexOf('"type":"custom-title"');
-  if (titleAt >= 0) {
-    final start = text.lastIndexOf('\n', titleAt) + 1;
-    final end = text.indexOf('\n', titleAt);
+  String? lastTitle(String type, String key) {
+    final at = text.lastIndexOf('"type":"$type"');
+    if (at < 0) return null;
+    final start = text.lastIndexOf('\n', at) + 1;
+    final end = text.indexOf('\n', at);
     final line = text.substring(start, end < 0 ? text.length : end);
     try {
-      title = (jsonDecode(line) as Map)['customTitle'] as String?;
+      final title = ((jsonDecode(line) as Map)[key] as String?)?.trim();
+      return title?.isEmpty ?? true ? null : title;
     } on Object {
-      title = null;
+      return null;
     }
   }
+
+  // The user's (`/rename`) before the one Claude Code generated.
+  final title =
+      lastTitle('custom-title', 'customTitle') ??
+      lastTitle('ai-title', 'aiTitle');
   for (final line in const LineSplitter().convert(text)) {
     if (!line.contains('"type":"user"')) continue;
     final Map<String, Object?> entry;
@@ -160,11 +166,11 @@ SessionRecord? _summarize(File file) {
   final firstLine = firstPrompt.trim().split('\n').first;
   return SessionRecord(
     id: name.substring(0, name.length - '.jsonl'.length),
-    title: (title?.trim().isNotEmpty ?? false)
-        ? title!.trim()
-        : firstLine.length > 120
-        ? '${firstLine.substring(0, 120)}…'
-        : firstLine,
+    title:
+        title ??
+        (firstLine.length > 120
+            ? '${firstLine.substring(0, 120)}…'
+            : firstLine),
     updatedAt: file.lastModifiedSync(),
     cwd: cwd,
     path: file.path,

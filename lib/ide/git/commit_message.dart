@@ -5,9 +5,7 @@
 
 import 'package:path/path.dart' as p;
 
-import 'commit_message_stub.dart'
-    if (dart.library.io) 'commit_message_io.dart'
-    as platform;
+import '../../kernel/claude_code/claude_haiku.dart';
 
 /// The most diff the model is given, in characters.
 const ideCommitDiffBudget = 4000;
@@ -45,7 +43,20 @@ class IdeCommitMessageException implements Exception {
 Future<String> ideClaudeCommitMessage(
   IdeCommitMessagePrompt prompt, {
   Future<void>? cancel,
-}) => platform.claudeCommitMessage(prompt, cancel: cancel);
+}) async {
+  try {
+    final reply = await askClaudeHaiku(
+      prompt.system,
+      prompt.user,
+      cancel: cancel,
+    );
+    return ideCleanCommitMessage(reply);
+  } on ClaudeHaikuCancelled {
+    throw const IdeCommitMessageCancelled();
+  } on ClaudeHaikuException catch (error) {
+    throw IdeCommitMessageException(error.message);
+  }
+}
 
 /// One line, so that it passes through a shell unchanged.
 const _system =

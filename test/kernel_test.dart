@@ -692,6 +692,210 @@ void main() {
       kernel.dispose();
     });
 
+    test('a turn the CLI takes up of its own (a background command done) '
+        'shows as under way, and stops', () async {
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(cli);
+      Map<String, Object?> requesting(String uuid) => {
+        'type': 'system',
+        'subtype': 'status',
+        'status': 'requesting',
+        'uuid': uuid,
+      };
+      const result = {'type': 'result', 'subtype': 'success', 'is_error': false};
+      Future<void> notified(String id) async {
+        cli
+          ..push({
+            'type': 'user',
+            'uuid': 'n$id',
+            'isReplay': true,
+            'origin': {'kind': 'task-notification'},
+            'parent_tool_use_id': null,
+            'message': {
+              'role': 'user',
+              'content':
+                  '<task-notification>\n<task-id>b1</task-id>\n'
+                  '<status>completed</status>\n</task-notification>',
+            },
+          })
+          ..push(requesting('s$id'));
+        await pumpEventQueue();
+      }
+
+      kernel.send(const KernelTurn(id: 'u1', text: 'run the tests'));
+      await pumpEventQueue();
+      cli
+        ..push(requesting('s1'))
+        ..push(result);
+      await pumpEventQueue();
+      expect(transcript.activeTurn, isNull);
+
+      await notified('2');
+      expect(transcript.activeTurn, 's2');
+      // A message meanwhile waits its turn, as the CLI has it.
+      kernel.send(const KernelTurn(id: 'u2', text: 'and lint'));
+      expect(
+        (transcript.itemAt(transcript.indexOf('u2')!) as UserMessageItem)
+            .queued,
+        isTrue,
+      );
+      cli.push(result);
+      await pumpEventQueue();
+      expect(transcript.activeTurn, isNull);
+      cli.push({
+        'type': 'command_lifecycle',
+        'command_uuid': 'u2',
+        'state': 'started',
+      });
+      await pumpEventQueue();
+      expect(transcript.activeTurn, 'u2');
+      cli
+        ..push(requesting('s3'))
+        ..push(result);
+      await pumpEventQueue();
+      expect(transcript.activeTurn, isNull);
+
+      await notified('4');
+      expect(transcript.activeTurn, 's4');
+      kernel.cancel();
+      await pumpEventQueue();
+      expect(cli.requests('interrupt'), hasLength(1));
+      expect(transcript.activeTurn, isNull);
+      kernel.dispose();
+    });
+
+    test('out of view, a process with work in the background is kept until '
+        'it is done; its tasks end with it', () async {
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(cli);
+      const result = {'type': 'result', 'subtype': 'success', 'is_error': false};
+      Future<void> backgrounded(String turn, String task) async {
+        kernel.send(KernelTurn(id: turn, text: 'run the tests'));
+        await pumpEventQueue();
+        cli
+          ..push({
+            'type': 'system',
+            'subtype': 'task_started',
+            'task_id': task,
+            'task_type': 'local_bash',
+            'description': 'Run the tests',
+            'is_backgrounded': true,
+          })
+          ..push(result);
+        await pumpEventQueue();
+      }
+
+      await backgrounded('u1', 'b1');
+      expect(transcript.activeTurn, isNull);
+      kernel.release();
+      expect(cli.closed, isFalse, reason: 'the agent awaits its notice');
+      cli.push({
+        'type': 'system',
+        'subtype': 'task_notification',
+        'task_id': 'b1',
+        'status': 'completed',
+      });
+      await pumpEventQueue();
+      kernel.release();
+      expect(cli.closed, isTrue);
+
+      // A process that exits takes its tasks along: they hold nothing up.
+      cli.closed = false;
+      await backgrounded('u2', 'b2');
+      cli.push(ClaudeExit.message(0, ''));
+      await pumpEventQueue();
+      expect(
+        transcript.tasks.last,
+        isA<KernelTask>()
+            .having((t) => t.id, 'id', 'b2')
+            .having((t) => t.status, 'status', CommandStatus.failed),
+      );
+      cli.closed = false;
+      kernel.send(const KernelTurn(id: 'u3', text: 'again'));
+      await pumpEventQueue();
+      cli.push(result);
+      await pumpEventQueue();
+      kernel.release();
+      expect(cli.closed, isTrue);
+      kernel.dispose();
+    });
+
+    test('out of view while busy, the process is freed once the CLI says it '
+        'is idle; back in view, it is kept', () async {
+      final cli = FakeCli();
+      final (:kernel, transcript: _, events: _) = claude(cli);
+      Map<String, Object?> state(String value) => {
+        'type': 'system',
+        'subtype': 'session_state_changed',
+        'state': value,
+      };
+      const result = {'type': 'result', 'subtype': 'success', 'is_error': false};
+      Future<void> push(Map<String, Object?> message) async {
+        cli.push(message);
+        await pumpEventQueue();
+      }
+
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      await push(state('running'));
+      await push(result);
+      // The turn is over, but the CLI may take up what it queued meanwhile.
+      kernel.release();
+      expect(cli.closed, isFalse);
+      await push(state('idle'));
+      expect(cli.closed, isTrue);
+
+      // A task in the background: freed only once the agent has had its
+      // notice, in a turn of the CLI's own.
+      cli.closed = false;
+      kernel.send(const KernelTurn(id: 'u2', text: 'run the tests'));
+      await pumpEventQueue();
+      await push(state('running'));
+      await push({
+        'type': 'system',
+        'subtype': 'task_started',
+        'task_id': 'b1',
+        'task_type': 'local_bash',
+        'description': 'Run the tests',
+        'is_backgrounded': true,
+      });
+      await push(result);
+      await push(state('idle'));
+      kernel.release();
+      expect(cli.closed, isFalse);
+      await push({
+        'type': 'system',
+        'subtype': 'task_notification',
+        'task_id': 'b1',
+        'status': 'completed',
+      });
+      expect(cli.closed, isFalse, reason: 'its notice is not taken up yet');
+      await push(state('running'));
+      await push({
+        'type': 'system',
+        'subtype': 'status',
+        'status': 'requesting',
+        'uuid': 's1',
+      });
+      await push(result);
+      expect(cli.closed, isFalse);
+      await push(state('idle'));
+      expect(cli.closed, isTrue);
+
+      // Shown again before the CLI is idle: it stays.
+      cli.closed = false;
+      kernel.send(const KernelTurn(id: 'u3', text: 'again'));
+      await pumpEventQueue();
+      await push(state('running'));
+      await push(result);
+      kernel
+        ..release()
+        ..prepare();
+      await push(state('idle'));
+      expect(cli.closed, isFalse);
+      kernel.dispose();
+    });
+
     test('undo rewinds the files since the turn; a rewind lands before '
         'the next message', () async {
       final cli = FakeCli(
@@ -1807,6 +2011,53 @@ void main() {
       final projects = await const ClaudeStorage().projects();
       expect(projects.map((project) => project.path), [cwd]);
       expect(projects.single.sessions.single.title, 'list the files');
+    });
+
+    test('a session is titled as the user named it, else as Claude Code '
+        'did, else after its first message', () async {
+      final root = await Directory.systemTemp.createTemp('baocode-storage-');
+      addTearDown(() => root.delete(recursive: true));
+      final config = '${root.path}/config';
+      final cwd = '${root.path}/project';
+      Directory(cwd).createSync(recursive: true);
+      void session(String id, List<Map<String, Object?>> titles) =>
+          File('$config/projects/-p/$id.jsonl')
+            ..createSync(recursive: true)
+            ..writeAsStringSync(
+              [
+                {
+                  'type': 'user',
+                  'uuid': 'aaaaaaaa-1111-4111-8111-111111111111',
+                  'cwd': cwd,
+                  'message': {'role': 'user', 'content': 'list the files'},
+                },
+                ...titles,
+              ].map((line) => '${jsonEncode(line)}\n').join(),
+            );
+      session('generated', [
+        {'type': 'ai-title', 'aiTitle': 'List files', 'sessionId': 'g'},
+        {'type': 'ai-title', 'aiTitle': 'List project files', 'sessionId': 'g'},
+      ]);
+      session('named', [
+        {'type': 'custom-title', 'customTitle': 'Files', 'sessionId': 'n'},
+        {'type': 'ai-title', 'aiTitle': 'List files', 'sessionId': 'n'},
+      ]);
+      session('untitled', [
+        {'type': 'ai-title', 'aiTitle': '  ', 'sessionId': 'u'},
+      ]);
+
+      final projects = await ClaudeStorage(configDir: config).projects();
+      expect(
+        {
+          for (final session in projects.single.sessions)
+            session.id: session.title,
+        },
+        {
+          'generated': 'List project files',
+          'named': 'Files',
+          'untitled': 'list the files',
+        },
+      );
     });
 
     test(

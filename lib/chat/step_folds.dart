@@ -187,11 +187,6 @@ class StepTally {
       };
       if (action != null) counts[action] = (counts[action] ?? 0) + 1;
       if (item case ThinkingItem(:final seconds?)) thought += seconds;
-      if (item
-          case ToolCallItem(status: ToolStatus.failed) ||
-              TerminalItem(status: CommandStatus.failed)) {
-        failed++;
-      }
     }
   }
 
@@ -200,7 +195,6 @@ class StepTally {
 
   /// Seconds spent thinking, all thoughts together.
   int thought = 0;
-  int failed = 0;
 }
 
 /// What a shell command does, as far as its words tell: one that only

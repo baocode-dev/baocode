@@ -532,6 +532,7 @@ final List<CommandInfo> workbenchExtraCommands = [
   // Source Control (scm.contribution.ts; the Git extension's
   // package.json).
   const CommandInfo('git.commit', 'Commit', category: _gitCategory),
+  const CommandInfo('git.checkout', 'Checkout to...', category: _gitCategory),
   const CommandInfo(
     'git.blame.toggleEditorDecoration',
     'Toggle Git Blame Editor Decoration',
