@@ -10,7 +10,7 @@ import 'commit_message_stub.dart'
     as platform;
 
 /// The most diff the model is given, in characters.
-const ideCommitDiffBudget = 40000;
+const ideCommitDiffBudget = 4000;
 
 /// What the model is told ([system]) and asked ([user]).
 class IdeCommitMessagePrompt {
@@ -89,7 +89,7 @@ IdeCommitMessagePrompt ideCommitMessagePrompt(
     out.writeln();
   }
   out.writeln('Changed files:');
-  const listed = 300;
+  const listed = 100;
   for (final file in files.take(listed)) {
     out.writeln(file.summary);
   }
