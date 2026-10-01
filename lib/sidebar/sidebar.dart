@@ -183,6 +183,27 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       SidebarGrouping.project;
   bool get _showArchived => _workspace.showArchived;
 
+  final ScrollController _listScroll = ScrollController();
+
+  /// Shows the archived agents or hides them; shown, they are scrolled to,
+  /// at the bottom of the list.
+  void _toggleArchived() {
+    final show = !_showArchived;
+    _workspace.showArchived = show;
+    if (!show) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_listScroll.hasClients) return;
+      final position = _listScroll.position;
+      unawaited(
+        position.animateTo(
+          position.maxScrollExtent,
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -212,6 +233,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     _clock.cancel();
     _search.dispose();
     _searchFocus.dispose();
+    _listScroll.dispose();
     super.dispose();
   }
 
@@ -630,6 +652,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
         slot: _listSlot,
         slots: _slots,
         child: ListView(
+          controller: _listScroll,
           padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
           children: children,
         ),
@@ -913,7 +936,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     return HoverBuilder(
       cursor: SystemMouseCursors.click,
       builder: (context, hovered) => GestureDetector(
-        onTap: () => _workspace.showArchived = !_showArchived,
+        onTap: _toggleArchived,
         child: Container(
           height: 26,
           padding: const EdgeInsets.symmetric(horizontal: 8),

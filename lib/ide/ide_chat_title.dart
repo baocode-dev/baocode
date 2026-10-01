@@ -507,6 +507,25 @@ class _ChatTab extends StatefulWidget {
 class _ChatTabState extends State<_ChatTab> {
   bool _hover = false;
 
+  /// The title's width in bold whether or not the tab is active, so that
+  /// selecting a tab does not widen it and nudge the tabs after it.
+  double _titleWidth(BuildContext context) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: widget.title,
+        style: DefaultTextStyle.of(context).style
+            .merge(const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      ),
+      maxLines: 1,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      locale: Localizations.maybeLocaleOf(context),
+    )..layout();
+    final width = painter.width.ceilToDouble();
+    painter.dispose();
+    return width > 140 ? 140 : width;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = themeColors;
@@ -546,8 +565,8 @@ class _ChatTabState extends State<_ChatTab> {
                       )
                     : const SizedBox.shrink(),
               ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 140),
+              SizedBox(
+                width: _titleWidth(context),
                 child: Text(
                   widget.title,
                   maxLines: 1,

@@ -30,6 +30,19 @@ void main() {
       notifications.dispose();
     });
 
+    testWidgets('a silent one is only in the center, unread', (tester) async {
+      final quiet = notifications.notify(
+        IdeSeverity.info,
+        'Install the server?',
+        sticky: true,
+        silent: true,
+      );
+      expect(notifications.toasts, isEmpty);
+      expect(notifications.notifications, [quiet]);
+      expect(notifications.unread, 1);
+      notifications.dispose();
+    });
+
     testWidgets('sticky toasts, and ones under the mouse, stay', (
       tester,
     ) async {

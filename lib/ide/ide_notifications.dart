@@ -165,7 +165,9 @@ class IdeNotifications extends ChangeNotifier {
   int get unread => _unread;
   bool get centerVisible => _centerVisible;
 
-  /// Shows a notification; one the same as another replaces it.
+  /// Shows a notification; one the same as another replaces it. A [silent]
+  /// one (upstream's `NotificationPriority.SILENT`) is only in the center,
+  /// counted as unread, with no toast.
   IdeNotification notify(
     IdeSeverity severity,
     String message, {
@@ -173,6 +175,7 @@ class IdeNotifications extends ChangeNotifier {
     List<IdeNotificationAction> primary = const [],
     List<IdeNotificationAction> secondary = const [],
     bool sticky = false,
+    bool silent = false,
     VoidCallback? onClose,
   }) {
     final notification = IdeNotification._(
@@ -191,8 +194,10 @@ class IdeNotifications extends ChangeNotifier {
     _all.insert(0, notification);
     if (!_centerVisible) {
       _unread++;
-      _toasts.add(notification);
-      _schedulePurge(notification);
+      if (!silent) {
+        _toasts.add(notification);
+        _schedulePurge(notification);
+      }
     }
     notifyListeners();
     return notification;

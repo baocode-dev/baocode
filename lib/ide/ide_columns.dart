@@ -54,7 +54,8 @@ class IdeColumns {
   /// chat down to its minimum, then from the side bar down to its minimum,
   /// then the side bar hides beside the chat. With too little room even
   /// so, the editor and the one left share it by their minimums.
-  /// [editorHidden], the chat has the room the side bar leaves it.
+  /// [editorHidden], the chat has the room the side bar leaves it, and
+  /// all of it where the two do not fit at their minimums.
   static IdeColumns fit(
     double room, {
     required double? sidebar,
@@ -63,11 +64,9 @@ class IdeColumns {
   }) {
     room = math.max(0, room);
     if (editorHidden && chat != null) {
-      final side = sidebar == null
+      final side = sidebar == null || room - minChat < minSidebar
           ? 0.0
-          : room - minChat >= minSidebar
-          ? math.min(math.max(sidebar, minSidebar), room - minChat)
-          : room * minSidebar / (minSidebar + minChat);
+          : math.min(math.max(sidebar, minSidebar), room - minChat);
       return IdeColumns(sidebar: side, chat: room - side, editorHidden: true);
     }
     var side = sidebar == null ? 0.0 : math.max(sidebar, minSidebar);

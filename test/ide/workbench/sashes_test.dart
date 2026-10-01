@@ -206,14 +206,19 @@ void main() {
     tester,
   ) async {
     // Where the chat used to go below.
-    await pumpWorkbench(tester, {'a.txt': 'a'}, size: const Size(740, 800));
+    await pumpWorkbench(
+      tester,
+      {'a.txt': 'a'},
+      open: ['a.txt'],
+      size: const Size(740, 800),
+    );
     final editor = tester.getRect(_part('ide-editor'));
     final chat = tester.getRect(_part('ide-chat'));
     expect(chat.top, editor.top);
     expect(chat.bottom, editor.bottom);
     expect(chat.left, editor.right + IdeModernUI.gap);
     expect(chat.width, IdeColumns.minChat);
-    // The side bar gave way first.
+    // The side bar gave way to the editor opened.
     expect(_part('ide-sidebar'), findsNothing);
   });
 }

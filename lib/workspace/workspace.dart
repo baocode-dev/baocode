@@ -268,6 +268,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (complete) _forgetGone(listed);
     _loading = false;
     if (_ideFolder case final folder?) _ensureIdeChat(folder);
+    _restoreChatView();
     if (_selected == null && _projects.isNotEmpty) {
       create(project: sidebarProjects.firstOrNull ?? _projects.first);
     } else {
@@ -575,6 +576,16 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   /// Recent folders and files kept, each.
   static const _keptRecent = 30;
+
+  /// How the IDE's window was left in [folder] (its widths, parts, view
+  /// and editors; see `IdeWorkbench.viewState`), for the next run.
+  Map<String, Object?>? ideView(String folder) => _ideViews[folder];
+  final Map<String, Map<String, Object?>> _ideViews = {};
+
+  void keepIdeView(String folder, Map<String, Object?> state) {
+    _ideViews[folder] = state;
+    _save();
+  }
 
   /// [path]'s project: the listed one, or one that is not (yet) listed.
   Project projectAt(String path) {
@@ -1306,6 +1317,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         }
       }
     }
+    if (kept['chat'] case final Map<Object?, Object?> chat) {
+      _keptChatView = chat;
+    }
     if (kept['ide'] case final Map<Object?, Object?> ide) {
       Iterable<String> list(Object? raw) => switch (raw) {
         final List<Object?> list => list.whereType<String>(),
@@ -1314,6 +1328,13 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       if (ide['folder'] case final String folder) _ideFolder = folder;
       _recentFolders.addAll(list(ide['recentFolders']));
       _recentFiles.addAll(list(ide['recentFiles']));
+      if (ide['views'] case final Map<Object?, Object?> views) {
+        for (final MapEntry(:key, :value) in views.entries) {
+          if ((key, value) case (final String folder, final Map view)) {
+            _ideViews[folder] = view.cast<String, Object?>();
+          }
+        }
+      }
       if (ide['chats'] case final Map<Object?, Object?> chats) {
         for (final MapEntry(:key, :value) in chats.entries) {
           if ((key, value) case (
@@ -1364,16 +1385,31 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         'folder': ?_ideFolder,
         'recentFolders': [..._recentFolders],
         'recentFiles': [..._recentFiles],
+        // Those of the folders still recent.
+        'views': {
+          for (final MapEntry(key: folder, :value) in _ideViews.entries)
+            if (folder == _ideFolder || _recentFolders.contains(folder))
+              folder: value,
+        },
         'chats': {
           for (final MapEntry(key: folder, value: tabs) in _ideChats.entries)
             if (_keptTabs(tabs) case final ids when ids.isNotEmpty)
               folder: {'tabs': ids, 'shown': ?_keptTab(_ideChatShown[folder])},
         },
       },
+      'chat': ?_chatViewToSave(),
       'colorTheme': ?_colorTheme,
       'colorThemeData': ?_colorThemeData,
     }),
   );
+
+  /// The panes to save: as kept, until [load] has shown them again.
+  Object? _chatViewToSave() {
+    if (!_chatViewRestored) return _keptChatView;
+    final view = _chatView;
+    _chatViewSaved = jsonEncode(view);
+    return view;
+  }
 
   /// An IDE tab as kept: its session's id, none for a new agent's.
   static String? _keptTab(Object? tab) => switch (tab) {
@@ -1528,6 +1564,106 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       changed = true;
     }
     return changed;
+  }
+
+  // --- The chat's panes, kept between runs ----------------------------------
+
+  /// The panes as the last run left them, until [load] shows them again.
+  Map<Object?, Object?>? _keptChatView;
+  bool _chatViewRestored = false;
+
+  /// What [_chatView] was last saved as.
+  String? _chatViewSaved;
+
+  /// The agents shown side by side, the grid's cells, the one focused and
+  /// where the lines are; an agent by its session's id, a new one by its
+  /// folder.
+  Map<String, Object?>? get _chatView {
+    if (_grid.isEmpty) return null;
+    final panes = _grid.panes;
+    final focused = _selected;
+    return {
+      'panes': [
+        for (final thread in panes) thread.id ?? {'new': thread.project.path},
+      ],
+      'cells': [for (final pane in _grid.cells) panes.indexOf(pane)],
+      if (focused != null && panes.contains(focused))
+        'focused': panes.indexOf(focused),
+      'columnRatio': _grid.columnRatio,
+      'rowRatio': _grid.rowRatio,
+    };
+  }
+
+  /// The panes as [_chatView] kept them, those whose agent is gone left
+  /// out; the agent focused focused. Nothing with none left.
+  void _restoreChatView() {
+    final kept = _keptChatView;
+    _keptChatView = null;
+    _chatViewRestored = true;
+    if (kept == null || _selected != null) return;
+    final panes = switch (kept['panes']) {
+      final List<Object?> panes => panes,
+      _ => const <Object?>[],
+    };
+    final cells = ChatGrid<int>();
+    if (kept['cells'] case final List<Object?> kept) {
+      cells.restore(kept.whereType<int>().toList());
+    }
+    final shown = <int, AgentThread>{};
+    for (final pane in cells.panes) {
+      final thread = switch (panes.elementAtOrNull(pane)) {
+        final String id =>
+          _threads.where((t) => t.id == id && !t.archived).firstOrNull,
+        {'new': final String path} => switch (_projects
+            .where((project) => project.path == path)
+            .firstOrNull) {
+          final project? =>
+            _threads
+                    .where(
+                      (t) =>
+                          t.project == project &&
+                          _isUntouched(t) &&
+                          !shown.containsValue(t),
+                    )
+                    .firstOrNull ??
+                _newThread(project),
+          null => null,
+        },
+        _ => null,
+      };
+      if (thread != null && !shown.containsValue(thread)) {
+        shown[pane] = thread;
+      }
+    }
+    for (final pane in cells.panes) {
+      if (!shown.containsKey(pane)) cells.remove(pane);
+    }
+    if (cells.isEmpty) return;
+    _grid.restore([for (final cell in cells.cells) shown[cell]!]);
+    if (kept['columnRatio'] case final num ratio when ratio > 0 && ratio < 1) {
+      _grid.columnRatio = ratio.toDouble();
+    }
+    if (kept['rowRatio'] case final num ratio when ratio > 0 && ratio < 1) {
+      _grid.rowRatio = ratio.toDouble();
+    }
+    final focused = switch (kept['focused']) {
+      final int pane => shown[pane],
+      _ => null,
+    };
+    _focus(focused ?? _grid.at(0)!);
+  }
+
+  /// A line between the panes moved: kept where it is now.
+  void keepGridLines() => _save();
+
+  /// Saves the panes whenever they change: an agent opened, split off,
+  /// closed or given its id.
+  @override
+  void notifyListeners() {
+    if (_chatViewRestored && jsonEncode(_chatView) != _chatViewSaved) {
+      _save();
+    }
+    super.notifyListeners();
   }
 
   /// Shows [thread] and focuses it: in its pane if it has one, else in

@@ -317,6 +317,24 @@ void main() {
     expect(row(), findsNothing);
   });
 
+  testWidgets('shown, the archived agents are scrolled to', (tester) async {
+    final workspace = await pumpApp(tester);
+    // Too short for them all.
+    tester.view.physicalSize = const Size(1400, 480);
+    final archived = workspace.threads.skip(1).toList();
+    for (final thread in archived) {
+      workspace.setArchived(thread, true);
+    }
+    await tester.pump();
+    await tester.tap(inSidebar(find.text('Archived · ${archived.length}')));
+    await tester.pumpAndSettle();
+    final list = tester.state<ScrollableState>(
+      inSidebar(find.byType(Scrollable)).last,
+    );
+    expect(list.position.maxScrollExtent, greaterThan(0));
+    expect(list.position.pixels, list.position.maxScrollExtent);
+  });
+
   testWidgets('hovered, a row offers pin and archive in place of its time', (
     tester,
   ) async {

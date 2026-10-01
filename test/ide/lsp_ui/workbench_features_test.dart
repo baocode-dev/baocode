@@ -8,6 +8,7 @@ import 'package:baocode/ide/lsp/language_features.dart';
 import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:baocode/ide/lsp_ui/document_symbols.dart';
 import 'package:baocode/ide/lsp_ui/semantic_tokens.dart';
+import 'package:baocode/theme/codicons.dart';
 
 import '../workbench/fake_files.dart';
 import 'fake_language_features.dart';
@@ -251,23 +252,22 @@ void main() {
     await pumpLanguageWorkbench(tester, {_a: _source}, languages, open: [_a]);
 
     expect(find.text('dart-analyzer not installed'), findsOneWidget);
-    // Opening the file recommends the server in a toast, as VS Code
-    // recommends a language's extension.
+    // Opening the file recommends the server only in the notification
+    // center, without a toast.
     const recommendation =
         "Do you want to install the recommended 'dart-analyzer' language "
         'server for the Dart language?';
-    expect(find.text(recommendation), findsOneWidget);
     await _toastIn(tester);
+    expect(find.text(recommendation), findsNothing);
+    expect(find.byIcon(Codicons.bellDot), findsOneWidget);
+    // The status bar entry recommends it in a toast.
+    await tester.tap(find.text('dart-analyzer not installed'));
+    await _toastIn(tester);
+    expect(find.text(recommendation), findsOneWidget);
     await tester.tap(find.text('Install'));
     await settle(tester);
     expect(languages.installed, ['dart-analyzer']);
     expect(find.text(recommendation), findsNothing);
-    // The status bar entry recommends it again.
-    await tester.tap(find.text('dart-analyzer not installed'));
-    await _toastIn(tester);
-    expect(find.text(recommendation), findsOneWidget);
-    await tester.tap(find.byTooltip('Clear Notification'));
-    await settle(tester);
 
     languages.setStatus(inRoot(_a), const [
       LanguageServerStatus(
@@ -331,8 +331,10 @@ void main() {
       onIgnoreRecommendation: ignored.add,
     );
     await _toastIn(tester);
-    // Under the toast's gear, as VS Code's "Don't Show Again for this
-    // Extension".
+    // In the notification center, under its gear, as VS Code's "Don't Show
+    // Again for this Extension".
+    await tester.tap(find.byIcon(Codicons.bellDot));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('More Actions...'));
     await tester.pumpAndSettle();
     await tester.tap(find.text("Don't Show Again for this Language Server"));

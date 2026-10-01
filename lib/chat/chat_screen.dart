@@ -662,9 +662,9 @@ class _TitleBarLayout extends MultiChildLayoutDelegate {
       oldDelegate.inset != inset;
 }
 
-/// [child] across the conversation's column (see [_columnWidth]), with a
-/// margin under it: 16, or 12 in a narrow pane. Worked out as it is laid out,
-/// so a new width only lays [child] out again.
+/// [child] 16 in from either side and no wider than [maxWidth], in the
+/// middle, with 12 under it, at any width. Worked out as it is laid out, so a
+/// new width only lays [child] out again.
 class _ConversationColumn extends SingleChildRenderObjectWidget {
   const _ConversationColumn({required this.maxWidth, required super.child});
 
@@ -694,36 +694,31 @@ class _RenderConversationColumn extends RenderShiftedBox {
     markNeedsLayout();
   }
 
-  static double _bottom(double width) => chatGutter(width) < 24 ? 12 : 16;
+  static const _gutter = 16.0;
+  static const _bottom = 12.0;
+
+  double _width(double width) =>
+      math.max(0, math.min(width - 2 * _gutter, _maxWidth));
 
   BoxConstraints _childConstraints(BoxConstraints constraints) {
-    final width = _columnWidth(constraints.maxWidth, _maxWidth);
-    return BoxConstraints.tightFor(width: width).copyWith(
-      maxHeight: math.max(
-        0.0,
-        constraints.maxHeight - _bottom(constraints.maxWidth),
-      ),
-    );
+    return BoxConstraints.tightFor(width: _width(constraints.maxWidth))
+        .copyWith(maxHeight: math.max(0.0, constraints.maxHeight - _bottom));
   }
 
   @override
   Size computeDryLayout(covariant BoxConstraints constraints) {
     final height =
         child?.getDryLayout(_childConstraints(constraints)).height ?? 0;
-    return constraints.constrain(
-      Size(constraints.maxWidth, height + _bottom(constraints.maxWidth)),
-    );
+    return constraints.constrain(Size(constraints.maxWidth, height + _bottom));
   }
 
   @override
   double computeMinIntrinsicHeight(double width) =>
-      (child?.getMinIntrinsicHeight(_columnWidth(width, _maxWidth)) ?? 0) +
-      _bottom(width);
+      (child?.getMinIntrinsicHeight(_width(width)) ?? 0) + _bottom;
 
   @override
   double computeMaxIntrinsicHeight(double width) =>
-      (child?.getMaxIntrinsicHeight(_columnWidth(width, _maxWidth)) ?? 0) +
-      _bottom(width);
+      (child?.getMaxIntrinsicHeight(_width(width)) ?? 0) + _bottom;
 
   @override
   void performLayout() {
@@ -739,7 +734,7 @@ class _RenderConversationColumn extends RenderShiftedBox {
       );
       height = child.size.height;
     }
-    size = constraints.constrain(Size(width, height + _bottom(width)));
+    size = constraints.constrain(Size(width, height + _bottom));
   }
 }
 

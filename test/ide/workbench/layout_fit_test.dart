@@ -18,8 +18,10 @@ double _width(WidgetTester tester, String key) =>
 
 void main() {
   testWidgets('with no room for the three, the side bar opened has the '
-      'editor give way, the panel below the two; the side bar hidden or an '
-      'editor opened, it is back', (tester) async {
+      'editor give way, the panel below the two; the side bar hidden, the '
+      'chat has its room; an editor opened, the editor is back', (
+    tester,
+  ) async {
     final workspace = await pumpWorkbench(
       tester,
       {'a.txt': 'a', 'b.txt': 'b'},
@@ -57,21 +59,84 @@ void main() {
     expect(panel.left, top.left + IdeModernUI.gap);
     expect(panel.right, beside.right);
 
-    // Hidden again, the editor is back.
+    // Hidden again, the chat has its room, not the editor.
     await tester.tap(find.byIcon(Codicons.files));
     await tester.pump();
     expect(_part('ide-sidebar'), findsNothing);
-    expect(_part('ide-editor'), findsOneWidget);
+    expect(_part('ide-editor'), findsNothing);
+    expect(workspace.layout.chatMaximized, isTrue);
     expect(tester.element(find.byKey(chatKey)), same(chat));
 
-    // An editor opened has the side bar give way instead.
+    // An editor opened beside the side bar has the chat give way.
     await tester.tap(find.byIcon(Codicons.files));
     await tester.pump();
     expect(_part('ide-editor'), findsNothing);
     await workspace.open(inRoot('b.txt'));
     await tester.pump();
     expect(_part('ide-editor'), findsOneWidget);
+    expect(_part('ide-sidebar'), findsOneWidget);
+    expect(find.byKey(chatKey), findsNothing);
+    expect(workspace.layout.chat, isFalse);
+
+    // The chat shown again, the editor gives way; the active one clicked in
+    // the explorer, it is back.
+    await tester.tap(find.byIcon(Codicons.layoutSidebarRightOff));
+    await tester.pump();
+    expect(_part('ide-editor'), findsNothing);
+    // The explorer's row, not the timeline's title.
+    await tester.tap(find.text('b.txt').first);
+    await tester.pumpAndSettle();
+    expect(_part('ide-editor'), findsOneWidget);
+    expect(_part('ide-sidebar'), findsOneWidget);
+    expect(find.byKey(chatKey), findsNothing);
+  });
+
+  testWidgets('with no room for the three, an editor opened with the side bar '
+      'hidden has the side bar give way', (tester) async {
+    final workspace = await pumpWorkbench(
+      tester,
+      {'a.txt': 'a', 'b.txt': 'b'},
+      open: ['a.txt'],
+      size: const Size(740, 800),
+    );
+    await tester.pump();
+    await tester.tap(find.byIcon(Codicons.files));
+    await tester.pump();
+    await tester.tap(find.byIcon(Codicons.files));
+    await tester.pump();
+    expect(workspace.layout.chatMaximized, isTrue);
+    await workspace.open(inRoot('b.txt'));
+    await tester.pump();
+    expect(_part('ide-editor'), findsOneWidget);
     expect(_part('ide-sidebar'), findsNothing);
+    expect(find.byKey(chatKey), findsOneWidget);
+  });
+
+  testWidgets('with no room for the three and no editor asked for, the '
+      'editor gives way first, then the side bar; both back as the window '
+      'widens', (tester) async {
+    final workspace = await pumpWorkbench(tester, {
+      'a.txt': 'a',
+    }, size: const Size(740, 800));
+    await tester.pump();
+    expect(_part('ide-editor'), findsNothing);
+    expect(_part('ide-sidebar'), findsOneWidget);
+    expect(find.byKey(chatKey), findsOneWidget);
+    expect(workspace.layout.editorHidden, isFalse);
+
+    // Too narrow even for the two: the chat alone.
+    tester.view.physicalSize = const Size(560, 800);
+    await tester.pump();
+    await tester.pump();
+    expect(_part('ide-sidebar'), findsNothing);
+    expect(workspace.layout.sidebar, isTrue);
+    expect(workspace.layout.chatMaximized, isTrue);
+
+    tester.view.physicalSize = const Size(1400, 800);
+    await tester.pump();
+    await tester.pump();
+    expect(_part('ide-editor'), findsOneWidget);
+    expect(_part('ide-sidebar'), findsOneWidget);
     expect(find.byKey(chatKey), findsOneWidget);
   });
 
@@ -222,8 +287,10 @@ void main() {
     await tester.pump(kDoubleTapTimeout);
   });
 
-  testWidgets('showing the side bar, hiding the chat, or opening an editor '
-      'ends the chat\'s maximizing', (tester) async {
+  testWidgets('showing the side bar puts it beside the maximized chat; '
+      'hiding the chat or opening an editor ends the maximizing', (
+    tester,
+  ) async {
     final workspace = await pumpWorkbench(
       tester,
       {'a.txt': 'a', 'b.txt': 'b'},
@@ -242,11 +309,13 @@ void main() {
     await tester.pump();
     expect(workspace.layout.chatMaximized, isFalse);
     expect(_part('ide-sidebar'), findsOneWidget);
-    expect(_part('ide-editor'), findsOneWidget);
-    // As wide as when the drag began.
-    expect(_width(tester, 'ide-chat'), IdeColumns.defaultChat);
+    expect(_part('ide-editor'), findsNothing);
+    // Hidden again, the chat is maximized again.
+    await tester.tap(find.byIcon(Codicons.files));
+    await tester.pump();
+    expect(workspace.layout.chatMaximized, isTrue);
+    expect(_part('ide-editor'), findsNothing);
 
-    await maximize();
     await tester.tap(find.byIcon(Codicons.layoutSidebarRight));
     await tester.pump();
     expect(workspace.layout.chatMaximized, isFalse);

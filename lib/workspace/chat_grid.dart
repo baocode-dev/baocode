@@ -31,6 +31,24 @@ class ChatGrid<T extends Object> {
 
   bool contains(T pane) => _cells.contains(pane);
 
+  /// The pane on each cell, row by row (see [at]); empty with none.
+  List<T> get cells => List.unmodifiable(_cells);
+
+  /// Has the panes on [cells] again (as [cells] gave them), when they make
+  /// a grid: four cells, each pane's a rectangle. Whether they did.
+  bool restore(List<T> cells) {
+    if (cells.length != 4) return false;
+    for (final pane in cells.toSet()) {
+      final own = {
+        for (final (cell, shown) in cells.indexed)
+          if (shown == pane) cell,
+      };
+      if (!_isRectangle(own)) return false;
+    }
+    _cells = [...cells];
+    return true;
+  }
+
   /// The pane on [cell] (0 top left, 1 top right, 2 bottom left, 3 bottom
   /// right); null with no pane.
   T? at(int cell) => _cells.elementAtOrNull(cell);

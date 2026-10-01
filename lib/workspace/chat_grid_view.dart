@@ -35,6 +35,7 @@ class ChatGridView extends StatefulWidget {
     required this.drag,
     required this.onFocus,
     required this.paneBuilder,
+    this.onLinesMoved,
   });
 
   final ChatGrid<AgentThread> grid;
@@ -49,6 +50,9 @@ class ChatGridView extends StatefulWidget {
     ChatPanePlace place,
   )
   paneBuilder;
+
+  /// A line dragged and let go, or put back in the middle.
+  final VoidCallback? onLinesMoved;
 
   /// Between two panes: the line in the middle, and the sash over it.
   static const gap = 5.0;
@@ -224,6 +228,7 @@ class _ChatGridViewState extends State<ChatGridView> {
         minPane: horizontal ? _min.width : _min.height,
       ),
       onDrag: (delta) => _dragLine(axis, delta),
+      onEnd: () => widget.onLinesMoved?.call(),
       onReset: () {
         if (horizontal) {
           grid.columnRatio = .5;
@@ -231,6 +236,7 @@ class _ChatGridViewState extends State<ChatGridView> {
           grid.rowRatio = .5;
         }
         _moved.value++;
+        widget.onLinesMoved?.call();
       },
     );
   }
@@ -435,6 +441,7 @@ class _GridSash extends StatefulWidget {
     required this.axis,
     required this.onStart,
     required this.onDrag,
+    required this.onEnd,
     required this.onReset,
   });
 
@@ -444,6 +451,9 @@ class _GridSash extends StatefulWidget {
 
   /// How far the pointer is from where the drag began, along [axis].
   final ValueChanged<double> onDrag;
+
+  /// The drag over.
+  final VoidCallback onEnd;
   final VoidCallback onReset;
 
   @override
@@ -481,6 +491,7 @@ class _GridSashState extends State<_GridSash> {
   void _end() {
     _removeShield();
     if (mounted) setState(() => _dragging = false);
+    widget.onEnd();
   }
 
   void _removeShield() {

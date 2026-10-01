@@ -69,19 +69,16 @@ void main() {
       );
       expect(beside.chatMaximized, isFalse);
       expect(beside.editor(1000), 0);
-      // The chat keeps its minimum; with too little room even so, the two
-      // share it by their minimums.
+      // The chat keeps its minimum; with too little room even so, the side
+      // bar gives way to it.
       expect(
         IdeColumns.fit(600, sidebar: 300, chat: 420, editorHidden: true),
         const IdeColumns(sidebar: 240, chat: 360, editorHidden: true),
       );
-      final tight = IdeColumns.fit(
-        500,
-        sidebar: 240,
-        chat: 420,
-        editorHidden: true,
+      expect(
+        IdeColumns.fit(500, sidebar: 240, chat: 420, editorHidden: true),
+        const IdeColumns(sidebar: 0, chat: 500, editorHidden: true),
       );
-      expect(tight.sidebar, closeTo(500 * 170 / 530, 0.01));
       expect(IdeColumns.roomForSides(529), isFalse);
       expect(IdeColumns.roomForSides(530), isTrue);
       // The chat hidden, the editor is not.

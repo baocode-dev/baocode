@@ -291,6 +291,34 @@ class IdeWorkspace extends ChangeNotifier {
     _add(doc, select: request == _selection);
   }
 
+  /// Opens [paths] again as the last run left them, in order, after any
+  /// tabs open already: those that cannot be read anymore are left out.
+  /// [active] is selected, unless another tab was meanwhile.
+  Future<void> restore(List<String> paths, {String? active}) async {
+    final request = _selection;
+    for (final path in paths) {
+      if (_disposed) return;
+      final normal = p.normalize(p.absolute(path));
+      if (_documents.any((d) => d.key == normal)) continue;
+      final IdeDocument doc;
+      if (ideIsImagePath(normal)) {
+        doc = IdeDocument.media(normal);
+      } else {
+        try {
+          doc = IdeDocument(normal, await files.read(normal));
+        } catch (_) {
+          continue;
+        }
+      }
+      _add(doc, select: false);
+    }
+    if (_disposed || _selection != request) return;
+    final shown =
+        _documents.where((d) => d.key == active).firstOrNull ??
+        _documents.firstOrNull;
+    if (shown != null && _activeKey == null) select(shown.key);
+  }
+
   /// Adds [doc] as a tab, [select]ed, unless one like it opened meanwhile.
   void _add(IdeDocument doc, {required bool select}) {
     if (_disposed) {

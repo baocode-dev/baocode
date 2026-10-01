@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -111,6 +112,8 @@ class IdeWorkbench extends StatefulWidget {
     this.recentFolders = const [],
     this.onOpenRecent,
     this.settings,
+    this.viewState,
+    this.onViewState,
   });
 
   final IdeWorkspace workspace;
@@ -171,6 +174,16 @@ class IdeWorkbench extends StatefulWidget {
   /// settings.json: where Source Control keeps the choices made in its
   /// dialogs; none under test.
   final UserSettings? settings;
+
+  /// How the last run left this folder's window: the side bar's and the
+  /// chat's widths, the panel's height, which parts and view showed, and
+  /// the editors open (as VS Code keeps a workspace's). Restored once,
+  /// as the workbench is made.
+  final Map<String, Object?>? viewState;
+
+  /// Told how the window is now, as it changes (a moment after), to keep
+  /// for the next run.
+  final ValueChanged<Map<String, Object?>>? onViewState;
 
   @override
   State<IdeWorkbench> createState() => IdeWorkbenchState();
@@ -359,10 +372,124 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   MarkerList<LspDiagnostic>? _markers;
   final List<_NavigationEntry> _backStack = [];
   final List<_NavigationEntry> _forwardStack = [];
-  bool _formatOnSave = false;
 
-  /// The editor's Git blame (`git.blame.editorDecoration.enabled`).
-  bool _gitBlame = true;
+  /// `editor.formatOnSave`, kept in settings.json as VS Code keeps it.
+  bool get _formatOnSave => _setting('editor.formatOnSave', false);
+  set _formatOnSave(bool value) => _setSetting('editor.formatOnSave', value);
+
+  /// The editor's Git blame (`git.blame.editorDecoration.enabled`), kept
+  /// as [_formatOnSave].
+  bool get _gitBlame => _setting('git.blame.editorDecoration.enabled', true);
+  set _gitBlame(bool value) =>
+      _setSetting('git.blame.editorDecoration.enabled', value);
+
+  /// The settings toggled here not written to settings.json yet (or with
+  /// none to write to, under test).
+  final Map<String, bool> _settingsSet = {};
+
+  bool _setting(String key, bool fallback) =>
+      _settingsSet[key] ??
+      switch (widget.settings?[key]) {
+        final bool value => value,
+        _ => fallback,
+      };
+
+  void _setSetting(String key, bool value) {
+    _settingsSet[key] = value;
+    unawaited(
+      widget.settings?.update(key, value).catchError((Object error) {
+        // A settings file that does not parse is left as it is; its error
+        // is shown.
+        debugPrint('$key not kept: $error');
+      }),
+    );
+  }
+
+  /// Whether the editors kept are being opened again: until they are, the
+  /// window is not kept, lest those not open yet be forgotten.
+  bool _restoring = false;
+  Timer? _keepTimer;
+  String? _kept;
+
+  /// [IdeWorkbench.viewState] applied: the widths, the view and the
+  /// editors (which parts show the workspace's layout was made with, see
+  /// [IdeLayout.restore]).
+  void _restoreView() {
+    final kept = widget.viewState;
+    if (kept == null) return;
+    double? size(String key) => switch (kept[key]) {
+      final num value when value.isFinite && value > 0 => value.toDouble(),
+      _ => null,
+    };
+    _sidebarWidth = size('sidebarWidth') ?? _sidebarWidth;
+    _chatWidth = size('chatWidth') ?? _chatWidth;
+    _panelHeight = size('panelHeight');
+    if (kept['view'] case final String name) {
+      _view = IdeSideView.values.asNameMap()[name] ?? _view;
+    }
+    // VS Code makes a terminal when its view shows with none.
+    if (_layout.panel == IdePanelTab.terminal) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _terminals?.ensureTerminal();
+      });
+    }
+    final editors = switch (kept['editors']) {
+      final List<Object?> paths => paths.whereType<String>().toList(),
+      _ => const <String>[],
+    };
+    if (editors.isEmpty) return;
+    _restoring = true;
+    unawaited(
+      widget.workspace
+          .restore(editors, active: kept['active'] as String?)
+          .whenComplete(() {
+            _restoring = false;
+            _keepViewSoon();
+          }),
+    );
+  }
+
+  /// The window as [IdeWorkbench.onViewState] is told it.
+  Map<String, Object?> get _viewState {
+    final editors = [
+      for (final doc in widget.workspace.documents)
+        if (doc.label == null && (doc.isFile || doc.isMedia)) doc.path,
+    ];
+    final active = widget.workspace.active?.key;
+    return {
+      'sidebarWidth': _sidebarWidth,
+      'chatWidth': _chatWidth,
+      'panelHeight': ?_panelHeight,
+      ..._layout.toJson(),
+      'view': _view.name,
+      'editors': editors,
+      if (editors.contains(active)) 'active': active,
+    };
+  }
+
+  /// A moment after a change, as a sash dragged changes it at each frame.
+  void _keepViewSoon() {
+    if (widget.onViewState == null || _restoring) return;
+    _keepTimer ??= Timer(const Duration(milliseconds: 300), _keepView);
+  }
+
+  void _keepView() {
+    _keepTimer?.cancel();
+    _keepTimer = null;
+    final keep = widget.onViewState;
+    if (keep == null || _restoring) return;
+    final state = _viewState;
+    final json = jsonEncode(state);
+    if (json == _kept) return;
+    _kept = json;
+    keep(state);
+  }
+
+  /// settings.json read again: what it says now, written here or not.
+  void _settingsChanged() {
+    _settingsSet.clear();
+    setState(() {});
+  }
 
   static const _sashWidth = IdeModernUI.gap;
 
@@ -379,12 +506,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     KeybindingService.instance.addListener(_keybindingsChanged);
     _registerCommandKeybindings();
     _notifications.addListener(_notificationsChanged);
+    widget.settings?.addListener(_settingsChanged);
     if (widget.terminalBackend.supported) {
       _terminals = TerminalService(
         root: widget.workspace.root,
         backend: widget.terminalBackend,
       )..addListener(_terminalsChanged);
     }
+    _restoreView();
     _attach();
     IdeLanguageNames.ensureLoaded(() {
       if (mounted) setState(() {});
@@ -553,6 +682,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (!identical(oldWidget.commands, widget.commands)) {
       _registerCommandKeybindings();
     }
+    if (oldWidget.settings != widget.settings) {
+      oldWidget.settings?.removeListener(_settingsChanged);
+      widget.settings?.addListener(_settingsChanged);
+    }
     if (oldWidget.workspace != widget.workspace) {
       _detach(oldWidget.workspace);
       _attach();
@@ -569,6 +702,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     FocusManager.instance.removeEarlyKeyEventHandler(_onChordKey);
     FocusManager.instance.removeLateKeyEventHandler(_onLateKey);
     KeybindingService.instance.removeListener(_keybindingsChanged);
+    widget.settings?.removeListener(_settingsChanged);
+    _keepView();
     _chordChecker?.cancel();
     _statusMessageTimer?.cancel();
     // A quick pick or input box going with the workbench hides (the color
@@ -607,6 +742,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Follows the active editor: remembers it for Quick Open and reveals it
   /// in the explorer, as VS Code's `explorer.autoReveal` does.
   void _workspaceChanged() {
+    _keepViewSoon();
     _symbols?.update(widget.workspace.active);
     _forgetClosedNavigation();
     _watchEdits();
@@ -691,6 +827,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       await _editor?.flush();
       await widget.workspace.open(path);
       if (!mounted) return;
+      // The active one opened again changes nothing [_workspaceChanged]
+      // follows, but is asked for all the same.
+      _layout.showEditor();
       if (line != null || range != null || focusEditor) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
@@ -1324,12 +1463,18 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           status.missingRuntime == null &&
           !widget.ignoredRecommendations.contains(status.serverId) &&
           _recommended.add(status.serverId)) {
-        _recommendServer(status, path);
+        // Only in the notification center: a toast for every file opened
+        // is too much.
+        _recommendServer(status, path, silent: true);
       }
     }
   }
 
-  void _recommendServer(LanguageServerStatus status, String path) {
+  void _recommendServer(
+    LanguageServerStatus status,
+    String path, {
+    bool silent = false,
+  }) {
     final id = status.serverId;
     final language = IdeLanguageNames.forPath(path);
     final l10n = context.l10n;
@@ -1337,6 +1482,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       IdeSeverity.info,
       l10n.wbRecommendServer(id, language),
       sticky: true,
+      silent: silent,
       primary: [
         IdeNotificationAction(l10n.extInstall, () => _install(id, path)),
       ],
@@ -3345,6 +3491,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   @override
   Widget build(BuildContext context) {
+    _keepViewSoon();
     return ListenableBuilder(
       listenable: widget.workspace,
       builder: (context, _) {

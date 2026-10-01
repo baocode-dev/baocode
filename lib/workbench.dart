@@ -973,6 +973,10 @@ class _WorkbenchState extends State<Workbench> {
             recentFolders: _workspace.recentFolders,
             onOpenRecent: _openIdeFolder,
             settings: widget.settings?.files?.settings,
+            viewState: _workspace.ideView(path),
+            onViewState: path == _noFolder
+                ? null
+                : (state) => _workspace.keepIdeView(path, state),
             terminalBackend:
                 widget.terminalBackend ??
                 const TerminalBackend(supported: false),
@@ -1146,6 +1150,12 @@ class _WorkbenchState extends State<Workbench> {
             languages: widget.languagesFor?.call(folder),
             git: widget.gitFor?.call(folder),
           );
+    // The parts as the last run left them, before anything shows them.
+    if (_workspace.ideView(folder) case final kept?) {
+      space.layout
+        ..terminals = (widget.terminalBackend?.supported ?? false)
+        ..restore(kept);
+    }
     return space..askSavePath = (doc) => _askSavePath(space, doc);
   });
 
@@ -1246,6 +1256,7 @@ class _WorkbenchState extends State<Workbench> {
       },
       paneBuilder: (context, thread, place) =>
           _buildChat(showToggle: showToggle, pane: thread, place: place),
+      onLinesMoved: _workspace.keepGridLines,
     );
   }
 

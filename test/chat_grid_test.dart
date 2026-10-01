@@ -117,4 +117,15 @@ void main() {
     );
     expect(rects['A']!.width, 248);
   });
+
+  test('cells are given back only where they make a grid', () {
+    final grid = ChatGrid<String>()..show('A');
+    expect(grid.restore(['A', 'B', 'A', 'C']), isTrue);
+    expect(cells(grid), 'AB/AC');
+    expect(grid.panes, ['A', 'B', 'C']);
+    // B's cells are not a rectangle; nor are three cells a grid.
+    expect(grid.restore(['A', 'B', 'B', 'A']), isFalse);
+    expect(grid.restore(['A', 'B', 'A']), isFalse);
+    expect(cells(grid), 'AB/AC');
+  });
 }

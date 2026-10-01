@@ -17,6 +17,7 @@ import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
 import 'package:baocode/workspace/agent_title.dart';
+import 'package:baocode/workspace/chat_grid.dart';
 import 'package:baocode/workspace/editor_launcher.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
@@ -693,6 +694,52 @@ void main() {
       workspace.clearRecent();
       expect(workspace.recentFolders, isEmpty);
       expect(workspace.recentFiles, isEmpty);
+    });
+  });
+
+  group('the chat panes', () {
+    testWidgets('the agents open, where they were, and the one focused are '
+        'kept between runs', (tester) async {
+      final store = MemoryPreferenceStore();
+      var workspace = await pumpLoaded(tester, preferences: store);
+      final draft = workspace.selected;
+      final kept = workspace.threads.firstWhere(
+        (thread) => thread.record?.id == FakeCatalog.kept.id,
+      );
+      workspace.openBeside(kept, draft, PaneSide.right);
+      workspace.grid.columnRatio = .3;
+      workspace.keepGridLines();
+
+      // The next run.
+      await tester.pumpWidget(const SizedBox());
+      workspace = await pumpLoaded(tester, preferences: store);
+      final panes = workspace.grid.panes;
+      expect(panes, hasLength(2));
+      // The new agent is one again, in its project.
+      expect(panes.first.id, isNull);
+      expect(panes.first.project.path, '/tmp/project');
+      expect(panes.last.record?.id, FakeCatalog.kept.id);
+      expect(workspace.grid.at(0), same(panes.first));
+      expect(workspace.grid.at(1), same(panes.last));
+      expect(workspace.selected, same(panes.last));
+      expect(workspace.grid.columnRatio, .3);
+    });
+
+    testWidgets("an agent that is no more leaves its pane to the others", (
+      tester,
+    ) async {
+      final store = MemoryPreferenceStore({
+        'chat': {
+          'panes': ['gone', FakeCatalog.kept.id],
+          'cells': [0, 1, 0, 1],
+          'focused': 0,
+          'columnRatio': .3,
+        },
+      });
+      final workspace = await pumpLoaded(tester, preferences: store);
+      expect(workspace.grid.panes.single.record?.id, FakeCatalog.kept.id);
+      expect(workspace.grid.at(3), same(workspace.grid.panes.single));
+      expect(workspace.selected, same(workspace.grid.panes.single));
     });
   });
 }

@@ -168,6 +168,8 @@ Future<IdeWorkspace> pumpWorkbench(
   VoidCallback? onBack,
   Widget chat = const SizedBox.expand(key: chatKey),
   UserSettings? settings,
+  Map<String, Object?>? viewState,
+  ValueChanged<Map<String, Object?>>? onViewState,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -204,6 +206,9 @@ Future<IdeWorkspace> pumpWorkbench(
         commitMessage: commitMessage ?? _noModel,
         onPinnedChanged: onPinnedChanged,
         colorThemes: colorThemes,
+        settings: settings,
+        viewState: viewState,
+        onViewState: onViewState,
         // Never a real shell under test.
         terminalBackend: TerminalBackend(
           launch: fakeTerminalLaunch,
