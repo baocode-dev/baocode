@@ -18,6 +18,7 @@ import 'ide/terminal/pty.dart';
 import 'ide/terminal/terminal_colors.dart';
 import 'ide/terminal/terminal_instance.dart';
 import 'kernel/claude_code/process_transport.dart';
+import 'kernel/commit_attribution.dart';
 import 'keybindings/keybindings_sync.dart';
 import 'keybindings/keymap.dart';
 import 'keybindings/vscode_import.dart';
@@ -60,6 +61,11 @@ Future<void> main() async {
   final files = kIsWeb ? null : SettingsFiles.instance;
   await files?.load();
   files?.watch();
+  // Read as each agent starts.
+  if (files != null) {
+    CommitAttribution.current = () =>
+        CommitAttribution.parse(files.settings[CommitAttribution.settingKey]);
+  }
   final workspace = Workspace(preferences: PreferenceStore.file())..load();
   // The first frame is in the kept theme, restored from storage as VS Code
   // does before the workbench shows; its file is read after. The setting

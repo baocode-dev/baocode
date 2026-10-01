@@ -4220,6 +4220,60 @@ abstract class AppLocalizations {
   /// **'Data Directory'**
   String get settingsSectionDataDirectory;
 
+  /// No description provided for @settingsSectionGeneral.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get settingsSectionGeneral;
+
+  /// No description provided for @generalSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get generalSettingsTitle;
+
+  /// No description provided for @generalSettingsCommitAttribution.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit Attribution'**
+  String get generalSettingsCommitAttribution;
+
+  /// No description provided for @generalSettingsCommitAttributionDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Who the commits and pull requests an agent writes credit. Applies to agents started after a change; Claude Code only for now.'**
+  String get generalSettingsCommitAttributionDescription;
+
+  /// The commit attribution dropdown, as read out: its setting and the choice in effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit Attribution: {name}'**
+  String generalSettingsCommitAttributionLabel(String name);
+
+  /// Commit attribution choice: whatever the agent (e.g. Claude Code) adds of its own.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow Agent'**
+  String get generalSettingsAttributionAgent;
+
+  /// No description provided for @generalSettingsAttributionAgentDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The agent\'s own, e.g. Claude Code\'s, or the attribution set in your ~/.claude/settings.json.'**
+  String get generalSettingsAttributionAgentDetail;
+
+  /// Commit attribution choice: nothing is added.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get generalSettingsAttributionNone;
+
+  /// No description provided for @generalSettingsAttributionNoneDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing is added to commits or pull requests.'**
+  String get generalSettingsAttributionNoneDetail;
+
   /// No description provided for @placeholderBinary.
   ///
   /// In en, this message translates to:

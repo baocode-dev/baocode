@@ -10,7 +10,7 @@ import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 
 /// The settings dialog's pages.
-enum SettingsSection { language, keyboard, dataDirectory }
+enum SettingsSection { general, language, keyboard, dataDirectory }
 
 /// Builds a section's page.
 typedef SettingsPageBuilder =
@@ -21,7 +21,7 @@ typedef SettingsPageBuilder =
 /// closes.
 Future<void> showSettingsDialog(
   BuildContext context, {
-  SettingsSection section = SettingsSection.language,
+  SettingsSection section = SettingsSection.general,
   required SettingsPageBuilder pageBuilder,
 }) => showGeneralDialog<void>(
   context: context,
@@ -41,7 +41,7 @@ Future<void> showSettingsDialog(
 class SettingsDialog extends StatefulWidget {
   const SettingsDialog({
     super.key,
-    this.section = SettingsSection.language,
+    this.section = SettingsSection.general,
     required this.pageBuilder,
   });
 
@@ -67,6 +67,7 @@ class SettingsDialogState extends State<SettingsDialog> {
   void show(SettingsSection section) => setState(() => _section = section);
 
   static IconData _icon(SettingsSection section) => switch (section) {
+    SettingsSection.general => Codicons.settingsGear,
     SettingsSection.language => Codicons.globe,
     SettingsSection.keyboard => Codicons.keyboard,
     SettingsSection.dataDirectory => Codicons.folder,
@@ -75,6 +76,7 @@ class SettingsDialogState extends State<SettingsDialog> {
   static String label(BuildContext context, SettingsSection section) {
     final l10n = context.l10n;
     return switch (section) {
+      SettingsSection.general => l10n.settingsSectionGeneral,
       SettingsSection.language => l10n.settingsSectionLanguage,
       SettingsSection.keyboard => l10n.settingsSectionKeyboard,
       SettingsSection.dataDirectory => l10n.settingsSectionDataDirectory,

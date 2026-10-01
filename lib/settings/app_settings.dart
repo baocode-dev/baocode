@@ -10,13 +10,15 @@ import '../keybindings/keymap.dart';
 import '../keybindings/vscode_import.dart';
 import 'app_locale.dart';
 import 'pages/data_dir_page.dart';
+import 'pages/general_page.dart';
 import 'pages/keybindings_page.dart';
 import 'pages/language_page.dart';
 import 'settings_dialog.dart';
 import 'user_settings.dart';
 
 /// What the settings dialog shows and changes, made once in main(): the
-/// display language, the keybindings, the data directory.
+/// general settings, the display language, the keybindings, the data
+/// directory.
 class AppSettings {
   AppSettings({
     required this.locale,
@@ -65,6 +67,8 @@ class AppSettings {
   /// [section]'s page of the settings dialog.
   Widget buildPage(BuildContext context, SettingsSection section) {
     switch (section) {
+      case SettingsSection.general:
+        return GeneralSettingsPage(settings: files?.settings);
       case SettingsSection.language:
         return LanguageSettingsPage(locale: locale);
       case SettingsSection.keyboard:

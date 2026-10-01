@@ -1458,6 +1458,29 @@
   "settingsSectionLanguage": "Region & Language",
   "settingsSectionKeyboard": "Keyboard Shortcuts",
   "settingsSectionDataDirectory": "Data Directory",
+  "settingsSectionGeneral": "General",
+  "generalSettingsTitle": "General",
+  "generalSettingsCommitAttribution": "Commit Attribution",
+  "generalSettingsCommitAttributionDescription": "Who the commits and pull requests an agent writes credit. Applies to agents started after a change; Claude Code only for now.",
+  "generalSettingsCommitAttributionLabel": "Commit Attribution: {name}",
+  "@generalSettingsCommitAttributionLabel": {
+    "description": "The commit attribution dropdown, as read out: its setting and the choice in effect.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "generalSettingsAttributionAgent": "Follow Agent",
+  "@generalSettingsAttributionAgent": {
+    "description": "Commit attribution choice: whatever the agent (e.g. Claude Code) adds of its own."
+  },
+  "generalSettingsAttributionAgentDetail": "The agent's own, e.g. Claude Code's, or the attribution set in your ~/.claude/settings.json.",
+  "generalSettingsAttributionNone": "None",
+  "@generalSettingsAttributionNone": {
+    "description": "Commit attribution choice: nothing is added."
+  },
+  "generalSettingsAttributionNoneDetail": "Nothing is added to commits or pull requests.",
   "placeholderBinary": "The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.",
   "placeholderTooLarge": "The file is not displayed in the text editor because it is very large ({size}).",
   "@placeholderTooLarge": {

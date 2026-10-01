@@ -17,6 +17,7 @@ import 'package:baocode/kernel/claude_code/cli_locator.dart';
 import 'package:baocode/kernel/claude_code/control_channel.dart';
 import 'package:baocode/kernel/codex/codex_kernel.dart';
 import 'package:baocode/kernel/codex/codex_transport.dart';
+import 'package:baocode/kernel/commit_attribution.dart';
 import 'package:baocode/kernel/kernel_event.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
@@ -1684,6 +1685,68 @@ void main() {
         'notice error: Claude Code is not installed',
       );
       kernel.dispose();
+    });
+  });
+
+  group('commit attribution', () {
+    /// What `--settings` gives Claude Code, if it is passed.
+    Object? flagSettings(ClaudeLaunch launch) {
+      final at = launch.arguments.indexOf('--settings');
+      return at < 0 ? null : jsonDecode(launch.arguments[at + 1]);
+    }
+
+    test('is the setting\'s, BaoCode when unset or unknown', () {
+      expect(CommitAttribution.parse(null), CommitAttribution.baocode);
+      expect(CommitAttribution.parse('none'), CommitAttribution.none);
+      expect(CommitAttribution.parse('agent'), CommitAttribution.agent);
+      expect(CommitAttribution.parse('claude'), CommitAttribution.baocode);
+      expect(CommitAttribution.parse(1), CommitAttribution.baocode);
+    });
+
+    test('is passed as Claude Code\'s attribution setting, but for the '
+        'agent\'s own', () {
+      ClaudeLaunch launch(CommitAttribution attribution) =>
+          ClaudeLaunch(cwd: '/p', attribution: attribution);
+      expect(flagSettings(launch(CommitAttribution.baocode)), {
+        'attribution': {
+          'commit': 'Co-Authored-By: BaoCode <noreply@baocode.dev>',
+          'pr': '🤖 Generated with [BaoCode](https://baocode.dev)',
+        },
+      });
+      expect(flagSettings(launch(CommitAttribution.none)), {
+        'attribution': {'commit': '', 'pr': ''},
+      });
+      expect(flagSettings(launch(CommitAttribution.agent)), isNull);
+      expect(flagSettings(const ClaudeLaunch(cwd: '/p')), isNull);
+    });
+
+    test('is read as each session starts', () async {
+      addTearDown(
+        () => CommitAttribution.current = () => CommitAttribution.fallback,
+      );
+      final launches = <ClaudeLaunch>[];
+      ClaudeCodeKernel start() => ClaudeCodeKernel(
+        MockKernels.claudeCode,
+        const KernelContext(cwd: '/p'),
+        start: (launch) async {
+          launches.add(launch);
+          return FakeCli();
+        },
+      )..prepare();
+
+      CommitAttribution.current = () => CommitAttribution.none;
+      final first = start();
+      await pumpEventQueue();
+      CommitAttribution.current = () => CommitAttribution.agent;
+      final second = start();
+      await pumpEventQueue();
+
+      expect(launches.map((launch) => launch.attribution), [
+        CommitAttribution.none,
+        CommitAttribution.agent,
+      ]);
+      first.dispose();
+      second.dispose();
     });
   });
 

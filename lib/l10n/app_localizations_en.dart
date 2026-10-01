@@ -2358,6 +2358,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSectionDataDirectory => 'Data Directory';
 
   @override
+  String get settingsSectionGeneral => 'General';
+
+  @override
+  String get generalSettingsTitle => 'General';
+
+  @override
+  String get generalSettingsCommitAttribution => 'Commit Attribution';
+
+  @override
+  String get generalSettingsCommitAttributionDescription =>
+      'Who the commits and pull requests an agent writes credit. Applies to agents started after a change; Claude Code only for now.';
+
+  @override
+  String generalSettingsCommitAttributionLabel(String name) {
+    return 'Commit Attribution: $name';
+  }
+
+  @override
+  String get generalSettingsAttributionAgent => 'Follow Agent';
+
+  @override
+  String get generalSettingsAttributionAgentDetail =>
+      'The agent\'s own, e.g. Claude Code\'s, or the attribution set in your ~/.claude/settings.json.';
+
+  @override
+  String get generalSettingsAttributionNone => 'None';
+
+  @override
+  String get generalSettingsAttributionNoneDetail =>
+      'Nothing is added to commits or pull requests.';
+
+  @override
   String get placeholderBinary =>
       'The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.';
 

@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import '../commit_attribution.dart';
+
 /// Claude Code's side of the adapter (the Adaptee): the messages of
 /// `claude -p --input-format stream-json --output-format stream-json`, one
 /// JSON object per line.
@@ -38,6 +42,7 @@ class ClaudeLaunch {
     this.permissionMode,
     this.effort,
     this.autocompact,
+    this.attribution = CommitAttribution.agent,
     this.persist = true,
   });
 
@@ -54,8 +59,22 @@ class ClaudeLaunch {
   /// but the session goes on with the one it started with.
   final int? autocompact;
 
+  /// Who its commits and pull requests credit, as Claude Code's
+  /// `attribution` setting, given as a flag setting (over the user's own);
+  /// none for [CommitAttribution.agent], so theirs stands.
+  final CommitAttribution attribution;
+
   /// Whether the session is saved, to be resumed and listed later.
   final bool persist;
+
+  Map<String, String>? get _attribution => switch (attribution) {
+    CommitAttribution.baocode => const {
+      'commit': CommitAttribution.baoCodeCommit,
+      'pr': CommitAttribution.baoCodePullRequest,
+    },
+    CommitAttribution.agent => null,
+    CommitAttribution.none => const {'commit': '', 'pr': ''},
+  };
 
   List<String> get arguments => [
     '-p',
@@ -78,6 +97,10 @@ class ClaudeLaunch {
     if (effort case final effort?) ...['--effort', effort],
     if (autocompact case final tokens?) ...['--autocompact', '$tokens'],
     if (resume case final id?) ...['--resume', id],
+    if (_attribution case final attribution?) ...[
+      '--settings',
+      jsonEncode({'attribution': attribution}),
+    ],
     if (!persist) '--no-session-persistence',
   ];
 

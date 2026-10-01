@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../chat/chat_models.dart';
 import '../agent_kernel.dart';
+import '../commit_attribution.dart';
 import '../kernel_event.dart';
 import '../kernel_types.dart';
 import 'claude_code_transport.dart';
@@ -204,6 +205,7 @@ class ClaudeCodeKernel
           permissionMode: _cliMode = _work == 'plan' ? _approval : _mode,
           effort: _effort,
           autocompact: _launchedWindow = _window,
+          attribution: CommitAttribution.current(),
         ),
       );
       if (_disposed) {

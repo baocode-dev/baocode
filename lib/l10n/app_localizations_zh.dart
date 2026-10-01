@@ -2280,6 +2280,38 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsSectionDataDirectory => '数据目录';
 
   @override
+  String get settingsSectionGeneral => '通用';
+
+  @override
+  String get generalSettingsTitle => '通用';
+
+  @override
+  String get generalSettingsCommitAttribution => '提交署名';
+
+  @override
+  String get generalSettingsCommitAttributionDescription =>
+      'Agent 在它写的提交和 Pull Request 中添加的署名。更改对之后启动的 Agent 生效；目前仅支持 Claude Code。';
+
+  @override
+  String generalSettingsCommitAttributionLabel(String name) {
+    return '提交署名: $name';
+  }
+
+  @override
+  String get generalSettingsAttributionAgent => '跟随 Agent';
+
+  @override
+  String get generalSettingsAttributionAgentDetail =>
+      'Agent 自带的署名（如 Claude Code 的），或你在 ~/.claude/settings.json 中设置的 attribution。';
+
+  @override
+  String get generalSettingsAttributionNone => '不署名';
+
+  @override
+  String get generalSettingsAttributionNoneDetail =>
+      '不在提交和 Pull Request 中添加任何署名。';
+
+  @override
   String get placeholderBinary => '此文件是二进制文件或使用了不支持的文本编码，所以无法在文本编辑器中显示。';
 
   @override

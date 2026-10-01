@@ -479,7 +479,7 @@ class _WorkbenchState extends State<Workbench> {
 
   /// Opens the settings dialog on [section].
   Future<void> openSettings([
-    SettingsSection section = SettingsSection.language,
+    SettingsSection section = SettingsSection.general,
   ]) async {
     if (_settingsOpen || !mounted) return;
     _settingsOpen = true;

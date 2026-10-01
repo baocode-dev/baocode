@@ -62,6 +62,7 @@ import '../../theme/codicons.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../jsonc_file.dart' show JsoncFileException;
+import 'settings_dropdown.dart';
 
 /// A keymap [KeybindingsSettingsPage] offers.
 typedef KeymapChoice = ({String id, String name});
@@ -854,8 +855,9 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
               style: TextStyle(color: AppColors.textMuted, fontSize: 12),
             ),
             const SizedBox(width: 8),
-            _KeymapPicker(
+            SettingsDropdown(
               current: current,
+              semanticLabel: l10n.kbKeymapLabel(current),
               entries: () => [
                 IdeMenuAction(
                   l10n.kbNone,
@@ -1207,88 +1209,6 @@ class _Columns {
 
   /// Zero: not shown.
   final double source;
-}
-
-/// The keymap in use, a dropdown (`.monaco-select-box`) of the others.
-class _KeymapPicker extends StatefulWidget {
-  const _KeymapPicker({required this.current, required this.entries});
-
-  final String current;
-  final List<IdeMenuEntry> Function() entries;
-
-  @override
-  State<_KeymapPicker> createState() => _KeymapPickerState();
-}
-
-class _KeymapPickerState extends State<_KeymapPicker> {
-  bool _hover = false;
-
-  void _open() {
-    final box = context.findRenderObject()! as RenderBox;
-    unawaited(
-      showIdeMenu(
-        context,
-        anchor: box.localToGlobal(Offset.zero) & box.size,
-        entries: widget.entries(),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = themeColors;
-    return Semantics(
-      button: true,
-      label: context.l10n.kbKeymapLabel(widget.current),
-      excludeSemantics: true,
-      onTap: _open,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _open,
-          child: Container(
-            height: 26,
-            constraints: const BoxConstraints(minWidth: 140, maxWidth: 240),
-            padding: const EdgeInsets.only(left: 8, right: 4),
-            decoration: BoxDecoration(
-              color: colors['dropdown.background'],
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: _hover
-                    ? colors['focusBorder']
-                    : colors.get('dropdown.border') ?? AppColors.border,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    widget.current,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors['dropdown.foreground'],
-                      fontSize: 12.5,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Icon(
-                  Codicons.chevronDown,
-                  size: 14,
-                  color: colors['dropdown.foreground'],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// "Recording Keys", beside the toggle while it is on.

@@ -55,8 +55,8 @@ void main() {
     await _pumpApp(tester);
     expect(_section(tester), isNull);
     await _press(tester, LogicalKeyboardKey.comma, meta: true);
-    expect(_section(tester), SettingsSection.language);
-    expect(find.text('Region & Language'), findsWidgets);
+    expect(_section(tester), SettingsSection.general);
+    expect(find.text('General'), findsWidgets);
     final size = tester.getSize(
       find
           .descendant(
@@ -103,7 +103,7 @@ void main() {
     );
     await tester.tap(gear);
     await tester.pumpAndSettle();
-    expect(_section(tester), SettingsSection.language);
+    expect(_section(tester), SettingsSection.general);
     await _press(tester, LogicalKeyboardKey.escape);
 
     // What the app menu's Preferences… sends (MainFlutterWindow.swift).
@@ -115,7 +115,7 @@ void main() {
       (_) {},
     );
     await tester.pumpAndSettle();
-    expect(_section(tester), SettingsSection.language);
+    expect(_section(tester), SettingsSection.general);
   }, variant: _mac);
 
   testWidgets('the chat runs its keybindings as the user set them', (
@@ -166,7 +166,7 @@ void main() {
     await _press(tester, LogicalKeyboardKey.escape);
     commands.firstWhere((command) => command.id == openSettingsCommandId).run();
     await tester.pumpAndSettle();
-    expect(_section(tester), SettingsSection.language);
+    expect(_section(tester), SettingsSection.general);
   }, variant: _mac);
 
   testWidgets('the dialog shrinks with the window, and switches pages', (
@@ -197,7 +197,7 @@ void main() {
         )
         .first;
     expect(tester.getSize(box), const Size(700 - 48, 500 - 48));
-    expect(find.text('page language'), findsOneWidget);
+    expect(find.text('page general'), findsOneWidget);
     await tester.tap(find.text('Data Directory'));
     await tester.pumpAndSettle();
     expect(find.text('page dataDirectory'), findsOneWidget);
