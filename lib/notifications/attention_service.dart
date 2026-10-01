@@ -24,6 +24,7 @@ class AttentionService {
     required this.l10n,
     required this.onOpen,
     this.settingsChanges,
+    this.shown,
     bool Function()? focused,
   }) : _focused = focused ?? _windowFocused;
 
@@ -35,6 +36,10 @@ class AttentionService {
 
   /// Notifies when [settings] may have changed.
   final Listenable? settingsChanges;
+
+  /// Whether an agent shows in the window (in the IDE's chat too); by
+  /// default, whether it is in one of the chat's panes.
+  final bool Function(AgentThread thread)? shown;
 
   /// The app's language now.
   final AppLocalizations Function() l10n;
@@ -176,10 +181,12 @@ class AttentionService {
   }
 
   /// Whether the user is looking at [thread]: the window in front, the
-  /// agent in one of its panes.
+  /// agent showing in it.
   bool _inView(AgentThread thread) =>
       _focused() &&
-      (workspace.grid.contains(thread) || identical(workspace.current, thread));
+      (shown?.call(thread) ??
+          (workspace.grid.contains(thread) ||
+              identical(workspace.current, thread)));
 
   void _notify(AgentThread thread, AttentionEvent event) {
     final settings = this.settings();
