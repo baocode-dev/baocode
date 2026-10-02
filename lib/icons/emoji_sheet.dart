@@ -11,10 +11,13 @@ import 'emoji_sheet_stub.dart'
     if (dart.library.io) 'emoji_sheet_io.dart'
     as platform;
 
-/// Where the [EmojiSheet]'s files are kept, and how they are fetched.
+/// Where the [EmojiSheet]s' files are kept, and how they are fetched.
 abstract interface class EmojiSheetStore {
   /// The data folder's `cache/emoji/<version>` (nothing on the web).
   factory EmojiSheetStore.cache() = platform.CacheEmojiSheetStore;
+
+  /// Whether the file [name] is there.
+  Future<bool> has(String name);
 
   /// The file [name]; null when it is not there.
   Future<Uint8List?> read(String name);
@@ -36,6 +39,9 @@ class MemoryEmojiSheetStore implements EmojiSheetStore {
   final List<Uri> downloaded = [];
 
   @override
+  Future<bool> has(String name) async => files.containsKey(name);
+
+  @override
   Future<Uint8List?> read(String name) async => files[name];
 
   @override
@@ -50,25 +56,51 @@ class MemoryEmojiSheetStore implements EmojiSheetStore {
   Future<void> delete(String name) async => files.remove(name);
 }
 
-/// The emoji as pictures, the same on every system: emoji-datasource's
-/// sprite sheet of Google's Noto Emoji, and where each emoji is on it.
-/// Not shipped with the app: fetched over HTTP the first run, in the
-/// background, and kept in the cache; until then (or offline) there are
-/// no emoji to pick, and a project's shows as its folder.
+/// Whose pictures of the emoji: one of emoji-datasource's sets.
+enum EmojiStyle {
+  apple('Apple'),
+  google('Google'),
+  twitter('Twitter');
+
+  const EmojiStyle(this.label);
+
+  /// Its maker's name, as the picker offers it.
+  final String label;
+
+  /// Its sheet's file in the store.
+  String get file => '$name.png';
+
+  /// Where its sheet is fetched from.
+  Uri get url => Uri.parse(
+    'https://cdn.jsdelivr.net/npm/emoji-datasource-$name@${EmojiSheet.version}/'
+    'img/$name/sheets-clean/64.png',
+  );
+
+  /// The system's own, where it is one of them.
+  static EmojiStyle get platform =>
+      defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.iOS
+      ? apple
+      : google;
+}
+
+/// The emoji as pictures, the same on every system: one of
+/// emoji-datasource's sprite sheets ([EmojiStyle]), and where each emoji
+/// is on it. Not shipped with the app: all of them fetched over HTTP the
+/// first run, in the background, and kept in the cache; until the [style]
+/// picked is (or offline) there are no emoji to pick, and a project's
+/// shows as its folder.
 class EmojiSheet {
-  EmojiSheet._(this.image, this._cells, this._columns);
+  EmojiSheet._(this.set, this.image, this._cells, this._columns);
 
   static const version = '16.0.0';
 
-  static final Uri _base = Uri.parse(
-    'https://cdn.jsdelivr.net/npm/emoji-datasource-google@$version/',
+  /// Where each emoji is, on every sheet (from the Google set's package;
+  /// the same in each).
+  static const catalog = 'emoji.json';
+  static final Uri catalogUrl = Uri.parse(
+    'https://cdn.jsdelivr.net/npm/emoji-datasource-google@$version/emoji.json',
   );
-
-  /// The files kept, and where each is fetched from.
-  static final Map<String, Uri> files = {
-    'emoji.json': _base.resolve('emoji.json'),
-    'sheet.png': _base.resolve('img/google/sheets-clean/64.png'),
-  };
 
   /// A cell of the sheet: the picture, 1 pixel of space around it.
   static const _cell = 66;
@@ -78,6 +110,8 @@ class EmojiSheet {
   /// decoded no larger than that needs.
   static const largest = 24.0;
 
+  /// Whose pictures these are.
+  final EmojiStyle set;
   final ui.Image image;
 
   /// Each emoji's cell, by [key]: its column and row packed.
@@ -105,64 +139,114 @@ class EmojiSheet {
       if (rune != 0xFE0F) rune.toRadixString(16).toUpperCase().padLeft(4, '0'),
   ].join('-');
 
-  /// The sheet, once fetched and read; null until then.
+  /// The set emoji are drawn from (the user's pick, see Workspace).
+  static final ValueNotifier<EmojiStyle> style = ValueNotifier(
+    EmojiStyle.platform,
+  );
+
+  /// The sets fetched, to pick from.
+  static final ValueNotifier<Set<EmojiStyle>> fetched = ValueNotifier(const {});
+
+  /// The sheet emoji are drawn from: [style]'s, once fetched and read
+  /// (the one before it until then); null until there is one.
   static final ValueNotifier<EmojiSheet?> loaded = ValueNotifier(null);
 
   static EmojiSheetStore? _store;
 
-  /// Whether the files are in the cache: fetched the first run.
-  static Future<bool>? _fetched;
-  static Future<void>? _loading;
+  /// Whether each set's files are in the cache.
+  static Map<EmojiStyle, Completer<bool>> _fetching = {};
 
-  /// Fetches what the cache does not have yet, in the background; a
-  /// fetch that fails is tried again the next run.
+  /// The sets being read, or read: by [style] only, one at a time kept.
+  static final Map<EmojiStyle, Future<void>> _loading = {};
+
+  /// Whether an emoji was drawn: the sheets are read from then on.
+  static bool _requested = false;
+
+  /// Fetches what the cache does not have yet, in the background, the
+  /// [style]'s set first; a fetch that fails is tried again the next run.
   static void start(EmojiSheetStore store) {
     _store = store;
-    _fetched = _fetch(store);
+    _fetching = {for (final set in EmojiStyle.values) set: Completer()};
+    style.addListener(_restyled);
+    unawaited(_fetch(store, _fetching));
   }
 
-  static Future<bool> _fetch(EmojiSheetStore store) async {
-    try {
-      for (final MapEntry(key: name, value: url) in files.entries) {
-        if (await store.read(name) == null) await store.download(url, name);
+  static Future<void> _fetch(
+    EmojiSheetStore store,
+    Map<EmojiStyle, Completer<bool>> fetching,
+  ) async {
+    Future<bool> file(String name, Uri url) async {
+      try {
+        if (!await store.has(name)) await store.download(url, name);
+        return true;
+      } on Object catch (error) {
+        debugPrint('Emoji sheet not fetched: $error');
+        return false;
       }
-      return true;
-    } on Object catch (error) {
-      debugPrint('Emoji sheet not fetched: $error');
-      return false;
+    }
+
+    final catalogFetched = await file(catalog, catalogUrl);
+    final first = style.value;
+    for (final set in [first, ...EmojiStyle.values.where((s) => s != first)]) {
+      final done = catalogFetched && await file(set.file, set.url);
+      if (!identical(fetching, _fetching)) return;
+      if (done) fetched.value = {...fetched.value, set};
+      fetching[set]!.complete(done);
     }
   }
 
-  /// Reads the sheet, when an emoji is first drawn: decoding it costs.
+  /// Once each set is fetched, or not.
+  @visibleForTesting
+  static Future<void> get settled =>
+      Future.wait([for (final done in _fetching.values) done.future]);
+
+  /// Reads [style]'s sheet, when an emoji is first drawn: decoding it
+  /// costs.
   static Future<void> request() {
     final store = _store;
-    final fetched = _fetched;
-    if (store == null || fetched == null) return Future.value();
-    return _loading ??= _load(store, fetched);
+    if (store == null) return Future.value();
+    _requested = true;
+    final set = style.value;
+    if (loaded.value?.set == set) return Future.value();
+    return _loading[set] ??= _load(store, set);
   }
 
-  static Future<void> _load(EmojiSheetStore store, Future<bool> fetched) async {
-    if (!await fetched) return;
-    final json = await store.read('emoji.json');
-    final png = await store.read('sheet.png');
+  static void _restyled() {
+    if (_requested) unawaited(request());
+  }
+
+  /// Reads [set]'s sheet into [loaded]; once (a failure is not tried
+  /// again this run) unless another is picked meanwhile or after.
+  static Future<void> _load(EmojiSheetStore store, EmojiStyle set) async {
+    if (await _fetching[set]?.future != true) return;
+    final json = await store.read(catalog);
+    final png = await store.read(set.file);
     if (json == null || png == null) return;
     try {
-      final (cells, columns) = await Isolate.run(() => parse(json));
+      final (cells, columns) = await Isolate.run(() => parse(json, set));
       final image = await _decode(png, columns);
-      loaded.value = EmojiSheet._(image, cells, columns);
+      if (style.value != set || !identical(_store, store)) {
+        // Picked another meanwhile: not kept, read again if picked back.
+        image.dispose();
+        _loading.remove(set);
+        return;
+      }
+      loaded.value = EmojiSheet._(set, image, cells, columns);
+      // One kept at a time: the others are read again if picked back.
+      _loading.removeWhere((other, _) => other != set);
     } on Object catch (error) {
       // Broken: fetched again the next run.
       debugPrint('Emoji sheet not read: $error');
-      for (final name in files.keys) {
-        await store.delete(name);
-      }
+      fetched.value = {...fetched.value}..remove(set);
+      await store.delete(set.file);
     }
   }
 
   /// emoji-datasource's emoji.json: each emoji's cell, and how many
   /// columns the sheet has.
   @visibleForTesting
-  static (Map<String, int>, int) parse(Uint8List json) {
+  static (Map<String, int>, int) parse(Uint8List json, EmojiStyle style) {
+    final has = 'has_img_${style.name}';
     final cells = <String, int>{};
     var columns = 0;
     for (final entry in jsonDecode(utf8.decode(json)) as List<Object?>) {
@@ -172,7 +256,7 @@ class EmojiSheet {
             'sheet_x': final int x,
             'sheet_y': final int y,
           }
-          when entry['has_img_google'] != false) {
+          when entry[has] != false) {
         final packed = x << 8 | y;
         columns = math.max(columns, x + 1);
         for (final code in [unified, entry['non_qualified']]) {
@@ -220,9 +304,13 @@ class EmojiSheet {
 
   @visibleForTesting
   static void reset() {
+    style.removeListener(_restyled);
     _store = null;
-    _fetched = null;
-    _loading = null;
+    _fetching = {};
+    _loading.clear();
+    _requested = false;
+    style.value = EmojiStyle.platform;
+    fetched.value = const {};
     loaded.value = null;
   }
 }

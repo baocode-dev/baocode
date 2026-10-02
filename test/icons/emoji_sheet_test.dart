@@ -22,31 +22,54 @@ final Uint8List catalog = utf8.encode(
       'non_qualified': null,
       'sheet_x': 1,
       'sheet_y': 0,
+      'has_img_apple': false,
       'has_img_google': true,
+      'has_img_twitter': true,
     },
     {
       'unified': '0023-FE0F-20E3',
       'non_qualified': '0023-20E3',
       'sheet_x': 0,
       'sheet_y': 1,
+      'has_img_apple': true,
       'has_img_google': true,
+      'has_img_twitter': true,
     },
     {
       'unified': '1F680',
       'non_qualified': null,
       'sheet_x': 0,
       'sheet_y': 0,
+      'has_img_apple': true,
       'has_img_google': false,
+      'has_img_twitter': true,
     },
   ]),
 );
 
+Uri sheetUrl(String set) => Uri.parse(
+  'https://cdn.jsdelivr.net/npm/emoji-datasource-$set@16.0.0/'
+  'img/$set/sheets-clean/64.png',
+);
+
+final Uri catalogUrl = Uri.parse(
+  'https://cdn.jsdelivr.net/npm/emoji-datasource-google@16.0.0/emoji.json',
+);
+
 MemoryEmojiSheetStore remoteStore() => MemoryEmojiSheetStore(
   remote: {
-    EmojiSheet.files['emoji.json']!: catalog,
-    EmojiSheet.files['sheet.png']!: sheet,
+    catalogUrl: catalog,
+    for (final set in ['apple', 'google', 'twitter']) sheetUrl(set): sheet,
   },
 );
+
+/// Once fetched and read; [pick]ed first, read out of the fake clock.
+Future<void> settle(WidgetTester tester, {EmojiStyle? pick}) =>
+    tester.runAsync(() async {
+      if (pick != null) EmojiSheet.style.value = pick;
+      await EmojiSheet.settled;
+      await EmojiSheet.request();
+    });
 
 /// The color drawn in the middle of [emoji]'s glyph.
 Future<Color> drawn(WidgetTester tester, String emoji) async {
@@ -76,7 +99,7 @@ void main() {
   tearDown(EmojiSheet.reset);
 
   test('emoji are found with or without their variation selector', () {
-    final (cells, columns) = EmojiSheet.parse(catalog);
+    final (cells, columns) = EmojiSheet.parse(catalog, EmojiStyle.google);
     expect(columns, 2);
     expect(cells[EmojiSheet.key('😀')], 1 << 8 | 0);
     expect(cells[EmojiSheet.key('#️⃣')], 0 << 8 | 1);
@@ -86,23 +109,37 @@ void main() {
     expect(EmojiSheet.key('#️⃣'), '0023-20E3');
   });
 
-  testWidgets('fetched the first run, kept, and drawn from', (tester) async {
+  test("each set has those it has pictures of", () {
+    final (apple, _) = EmojiSheet.parse(catalog, EmojiStyle.apple);
+    expect(apple.containsKey(EmojiSheet.key('😀')), isFalse);
+    expect(apple.containsKey(EmojiSheet.key('🚀')), isTrue);
+    final (twitter, _) = EmojiSheet.parse(catalog, EmojiStyle.twitter);
+    expect(twitter, hasLength(3));
+  });
+
+  testWidgets('all three fetched the first run, kept, and drawn from', (
+    tester,
+  ) async {
     final store = remoteStore();
     EmojiSheet.start(store);
-    await tester.runAsync(EmojiSheet.request);
+    await settle(tester);
+    // The one drawn from first.
     expect(store.downloaded, [
-      Uri.parse(
-        'https://cdn.jsdelivr.net/npm/emoji-datasource-google@16.0.0/'
-        'emoji.json',
-      ),
-      Uri.parse(
-        'https://cdn.jsdelivr.net/npm/emoji-datasource-google@16.0.0/'
-        'img/google/sheets-clean/64.png',
-      ),
+      catalogUrl,
+      sheetUrl('google'),
+      sheetUrl('apple'),
+      sheetUrl('twitter'),
     ]);
-    expect(store.files.keys, {'emoji.json', 'sheet.png'});
+    expect(store.files.keys, {
+      'emoji.json',
+      'google.png',
+      'apple.png',
+      'twitter.png',
+    });
+    expect(EmojiSheet.fetched.value, EmojiStyle.values.toSet());
 
     final loaded = EmojiSheet.loaded.value!;
+    expect(loaded.set, EmojiStyle.google);
     // The picture, without the space around it.
     expect(loaded.cell('😀'), const Rect.fromLTWH(67, 1, 64, 64));
     expect(await drawn(tester, '😀'), const Color(0xFF00FF00));
@@ -112,9 +149,26 @@ void main() {
     EmojiSheet.reset();
     store.downloaded.clear();
     EmojiSheet.start(store);
-    await tester.runAsync(EmojiSheet.request);
+    await settle(tester);
     expect(store.downloaded, isEmpty);
     expect(EmojiSheet.loaded.value, isNotNull);
+  });
+
+  testWidgets('another set picked is drawn from', (tester) async {
+    EmojiSheet.start(remoteStore());
+    await settle(tester);
+    final google = EmojiSheet.loaded.value!;
+    expect(google.cell('😀'), isNotNull);
+
+    await settle(tester, pick: EmojiStyle.apple);
+    final apple = EmojiSheet.loaded.value!;
+    expect(apple.set, EmojiStyle.apple);
+    expect(apple.cell('😀'), isNull);
+    expect(apple.cell('🚀'), isNotNull);
+
+    // And back: read again.
+    await settle(tester, pick: EmojiStyle.google);
+    expect(EmojiSheet.loaded.value!.set, EmojiStyle.google);
   });
 
   testWidgets('offline, no emoji are drawn; fetched again the next run', (
@@ -122,8 +176,9 @@ void main() {
   ) async {
     final store = MemoryEmojiSheetStore();
     EmojiSheet.start(store);
-    await tester.runAsync(EmojiSheet.request);
+    await settle(tester);
     expect(EmojiSheet.loaded.value, isNull);
+    expect(EmojiSheet.fetched.value, isEmpty);
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -144,23 +199,46 @@ void main() {
     expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
 
     EmojiSheet.reset();
+    store.downloaded.clear();
     store.remote.addAll(remoteStore().remote);
     EmojiSheet.start(store);
-    await tester.runAsync(EmojiSheet.request);
+    await settle(tester);
     expect(EmojiSheet.loaded.value, isNotNull);
-    expect(store.downloaded, hasLength(3));
+    expect(store.downloaded, hasLength(4));
+  });
+
+  testWidgets('a set not fetched is fetched alone the next run', (
+    tester,
+  ) async {
+    final store = remoteStore();
+    final twitter = store.remote.remove(sheetUrl('twitter'))!;
+    EmojiSheet.start(store);
+    await settle(tester);
+    expect(EmojiSheet.fetched.value, {EmojiStyle.google, EmojiStyle.apple});
+    expect(EmojiSheet.loaded.value, isNotNull);
+
+    EmojiSheet.reset();
+    store.downloaded.clear();
+    store.remote[sheetUrl('twitter')] = twitter;
+    EmojiSheet.start(store);
+    await settle(tester);
+    expect(store.downloaded, [sheetUrl('twitter')]);
+    expect(EmojiSheet.fetched.value, EmojiStyle.values.toSet());
   });
 
   testWidgets('a broken file is thrown away, to be fetched again', (
     tester,
   ) async {
-    final store = MemoryEmojiSheetStore()
+    final store = remoteStore()
       ..files['emoji.json'] = catalog
-      ..files['sheet.png'] = Uint8List.fromList([1, 2, 3]);
+      ..files['google.png'] = Uint8List.fromList([1, 2, 3])
+      ..files['apple.png'] = sheet
+      ..files['twitter.png'] = sheet;
     EmojiSheet.start(store);
-    await tester.runAsync(EmojiSheet.request);
+    await settle(tester);
     expect(EmojiSheet.loaded.value, isNull);
     expect(store.downloaded, isEmpty);
-    expect(store.files, isEmpty);
+    expect(store.files.keys, {'emoji.json', 'apple.png', 'twitter.png'});
+    expect(EmojiSheet.fetched.value, {EmojiStyle.apple, EmojiStyle.twitter});
   });
 }

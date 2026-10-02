@@ -21,6 +21,7 @@ import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -153,8 +154,11 @@ void main() {
     EmojiSheet.start(
       MemoryEmojiSheetStore()
         ..files['emoji.json'] = utf8.encode(json)
-        ..files['sheet.png'] = fixture('emoji_sheet.png'),
+        ..files['google.png'] = fixture('emoji_sheet.png')
+        ..files['apple.png'] = fixture('emoji_sheet.png')
+        ..files['twitter.png'] = fixture('emoji_sheet.png'),
     );
+    await EmojiSheet.settled;
     await EmojiSheet.request();
     expect(EmojiSheet.loaded.value, isNotNull);
   });
@@ -506,6 +510,52 @@ void main() {
         ),
         findsNothing,
       );
+    });
+
+    testWidgets('the emoji are drawn from the set picked, the next run too', (
+      tester,
+    ) async {
+      final preferences = MemoryPreferenceStore();
+      var workspace = await pumpApp(tester, preferences: preferences);
+      await openPicker(tester);
+      Finder style(String label) => inPicker(
+        find.ancestor(
+          of: find.text(label),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is Semantics && widget.properties.button == true,
+          ),
+        ),
+      );
+      SemanticsProperties of(String label) =>
+          tester.widget<Semantics>(style(label).first).properties;
+      expect(of('Google').selected, isTrue);
+      expect(of('Apple').selected, isFalse);
+
+      // Not fetched yet: not to pick.
+      final fetched = EmojiSheet.fetched.value;
+      EmojiSheet.fetched.value = {EmojiStyle.google, EmojiStyle.apple};
+      addTearDown(() => EmojiSheet.fetched.value = fetched);
+      await tester.pump();
+      expect(of('Twitter').enabled, isFalse);
+      await tester.tap(find.text('Twitter'));
+      await tester.pump();
+      expect(EmojiSheet.style.value, EmojiStyle.google);
+
+      await tester.tap(find.text('Apple'));
+      await settle(tester);
+      expect(EmojiSheet.style.value, EmojiStyle.apple);
+      expect(EmojiSheet.loaded.value!.set, EmojiStyle.apple);
+      expect(of('Apple').selected, isTrue);
+      expect((await preferences.read())['emojiStyle'], 'apple');
+
+      await tester.pumpWidget(const SizedBox());
+      EmojiSheet.style.value = EmojiStyle.google;
+      workspace = await pumpApp(tester, preferences: preferences);
+      expect(EmojiSheet.style.value, EmojiStyle.apple);
+
+      workspace.setEmojiStyle(EmojiStyle.google);
+      await settle(tester);
+      expect(EmojiSheet.loaded.value!.set, EmojiStyle.google);
     });
 
     testWidgets('the project menu opens it too', (tester) async {

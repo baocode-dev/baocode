@@ -4,6 +4,7 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
+import 'code_citation.dart';
 import 'step_header.dart';
 
 /// A file edit as a step: "Edited main.dart +12 -3", opening to its diff.
@@ -57,22 +58,100 @@ class EditStep extends StatelessWidget {
         ),
         if (expanded)
           StepBody(
-            maxHeight: 320,
+            maxHeight: CodeCitationCard.maxCodeHeight,
             padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [for (final line in item.lines) _DiffLineRow(line)],
-            ),
+            child: _Diff(item),
           ),
       ],
     );
   }
 }
 
+/// The diff's lines, in the editor's colors once [CodeCitationScope]
+/// colors them: the old side (context and removed) and the new (context
+/// and added) each as code of its own, so what spans lines stays right.
+class _Diff extends StatefulWidget {
+  const _Diff(this.item);
+
+  final CodeDiffItem item;
+
+  @override
+  State<_Diff> createState() => _DiffState();
+}
+
+class _DiffState extends State<_Diff> {
+  CodeColorizer? _colorize;
+  List<DiffLine>? _colored;
+
+  /// By line, null for those not colored.
+  List<List<TextSpan>?> _colors = const [];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _colorSoon();
+  }
+
+  @override
+  void didUpdateWidget(_Diff oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _colorSoon();
+  }
+
+  void _colorSoon() {
+    final colorize = CodeCitationScope.maybeOf(context)?.colorize;
+    final lines = widget.item.lines;
+    if (colorize == _colorize && identical(lines, _colored)) return;
+    _colorize = colorize;
+    _colored = lines;
+    // Built next anyway: the old colors are of other lines.
+    _colors = const [];
+    if (colorize == null) return;
+    final path = widget.item.fileName;
+    final old = [
+      for (final (i, line) in lines.indexed)
+        if (line.type != DiffLineType.added) i,
+    ];
+    final now = [
+      for (final (i, line) in lines.indexed)
+        if (line.type != DiffLineType.removed) i,
+    ];
+    String code(List<int> side) =>
+        [for (final i in side) lines[i].text].join('\n');
+    Future.wait([colorize(path, code(old)), colorize(path, code(now))]).then((
+      sides,
+    ) {
+      if (!mounted || colorize != _colorize || !identical(lines, _colored)) {
+        return;
+      }
+      final colors = List<List<TextSpan>?>.filled(lines.length, null);
+      for (final (side, indices) in [(sides[0], old), (sides[1], now)]) {
+        if (side == null) continue;
+        for (final (j, i) in indices.indexed) {
+          if (j < side.length) colors[i] = side[j];
+        }
+      }
+      setState(() => _colors = colors);
+    }, onError: (_) {});
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (final (i, line) in widget.item.lines.indexed)
+        _DiffLineRow(line, i < _colors.length ? _colors[i] : null),
+    ],
+  );
+}
+
 class _DiffLineRow extends StatelessWidget {
-  const _DiffLineRow(this.line);
+  const _DiffLineRow(this.line, this.colors);
 
   final DiffLine line;
+
+  /// [line]'s text in the editor's colors.
+  final List<TextSpan>? colors;
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +167,7 @@ class _DiffLineRow extends StatelessWidget {
     const mono = TextStyle(
       fontFamily: AppFonts.mono,
       fontSize: 12,
-      height: 1.6,
+      height: 1.5,
     );
 
     return ColoredBox(
@@ -113,13 +192,18 @@ class _DiffLineRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(
-              line.text,
+            child: Text.rich(
+              TextSpan(
+                children: colors,
+                text: colors == null ? line.text : null,
+              ),
               maxLines: 1,
               softWrap: false,
               overflow: TextOverflow.ellipsis,
               style: mono.copyWith(
-                color: line.type == DiffLineType.context
+                color: colors != null
+                    ? themeColors['editor.foreground']
+                    : line.type == DiffLineType.context
                     ? AppColors.textMuted
                     : AppColors.textPrimary,
               ),

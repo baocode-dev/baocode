@@ -10,6 +10,7 @@ import '../chat/chat_models.dart';
 import '../chat/chat_session.dart';
 import '../chat/composer/composer_draft.dart';
 import '../chat/mock_conversation.dart';
+import '../icons/emoji_sheet.dart';
 import '../icons/icon_library.dart';
 import '../icons/project_icon.dart';
 import '../kernel/agent_kernel.dart';
@@ -1103,6 +1104,18 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     notifyListeners();
   }
 
+  /// Whose pictures the emoji are drawn from ([EmojiSheet.style]); null
+  /// until the user picks, for the system's own.
+  EmojiStyle? _emojiStyle;
+
+  void setEmojiStyle(EmojiStyle style) {
+    if (style == _emojiStyle) return;
+    _emojiStyle = style;
+    EmojiSheet.style.value = style;
+    _save();
+    notifyListeners();
+  }
+
   /// A picture deleted from the library: the projects that showed it show
   /// their folder again.
   void _forgetIconImage(String id) {
@@ -1403,6 +1416,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (kept['recentIcons'] case final List<Object?> recent) {
       _recentIcons.addAll(recent.map(ProjectIcon.fromJson).nonNulls);
     }
+    if (EmojiStyle.values.asNameMap()[kept['emojiStyle']] case final style?) {
+      _emojiStyle = style;
+      EmojiSheet.style.value = style;
+    }
     if (kept['chat'] case final Map<Object?, Object?> chat) {
       _keptChatView = chat;
     }
@@ -1488,6 +1505,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
           key: value.toJson(),
       },
       'recentIcons': [for (final icon in _recentIcons) icon.toJson()],
+      'emojiStyle': ?_emojiStyle?.name,
       'chat': ?_chatViewToSave(),
       'colorTheme': ?_colorTheme,
       'colorThemeData': ?_colorThemeData,

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:path/path.dart' as p;
 
 import '../../ide/ide_hover.dart';
@@ -58,6 +59,65 @@ class CodeCitation {
 
   @override
   int get hashCode => Object.hash(start, end, path);
+}
+
+/// The fence a [CodeCitation] opens. Markdown closes a fence at the first
+/// bare one in it, so code that has one (a markdown sample, a prompt)
+/// would end early, the rest spilling out as text; but a citation says how
+/// many lines it holds, and a bare fence just after that many closes it.
+/// Without one there (lines left out, still being written), the first does.
+class CodeCitationFenceSyntax extends md.BlockSyntax {
+  const CodeCitationFenceSyntax();
+
+  @override
+  RegExp get pattern => _opening;
+
+  static final _opening = RegExp(r'^( {0,3})(?:(`{3,})([^`]*)|(~{3,})(.*))$');
+
+  @override
+  bool canParse(md.BlockParser parser) {
+    final match = _opening.firstMatch(parser.current.content);
+    return match != null && CodeCitation.parse(match[3] ?? match[5]) != null;
+  }
+
+  @override
+  md.Node parse(md.BlockParser parser) {
+    final match = _opening.firstMatch(parser.current.content)!;
+    final indent = match[1]!.length;
+    final marker = match[2] ?? match[4]!;
+    final info = (match[3] ?? match[5]!).trim();
+    final citation = CodeCitation.parse(info)!;
+    final close = RegExp(
+      '^ {0,3}${RegExp.escape(marker[0])}{${marker.length},}[ \\t]*\$',
+    );
+    final cited = citation.end - citation.start + 1;
+    // Lines ahead of the opening fence to the closing one.
+    int? end;
+    for (var i = 1; i <= cited + 1; i++) {
+      final line = parser.peek(i);
+      if (line == null) break;
+      if (!close.hasMatch(line.content)) continue;
+      end ??= i;
+      if (i == cited + 1) end = i;
+    }
+    parser.advance();
+    final lines = <String>[];
+    for (var i = 1; !parser.isDone && i != end; i++) {
+      final line = parser.current.content;
+      final spaces = line.length - line.trimLeft().length;
+      lines.add(line.substring(spaces < indent ? spaces : indent));
+      parser.advance();
+    }
+    if (end != null) {
+      parser.advance();
+    } else if (lines.isNotEmpty && lines.last.trim().isEmpty) {
+      lines.removeLast();
+    }
+    final text = lines.isEmpty ? '' : '${lines.join('\n')}\n';
+    return md.Element('pre', [
+      md.Element.text('code', text)..attributes['class'] = 'language-$info',
+    ]);
+  }
 }
 
 /// [code], from the file at [path], in the editor's colors a line at a

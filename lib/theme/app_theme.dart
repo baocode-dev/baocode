@@ -100,6 +100,14 @@ abstract final class AppColors {
   /// web.
   static Color get inlineCodeBackground => _colors['textPreformat.background'];
 
+  /// Selected text's background: `editor.selectionBackground`, see-through
+  /// (see [seeThroughSelection]), as the composer's editor (flutter_quill)
+  /// paints it over the text rather than under.
+  static Color get textSelection => seeThroughSelection(
+    _colors['editor.selectionBackground'],
+    _colors['editor.background'],
+  );
+
   /// `gitDecoration.addedResourceForeground`.
   static Color get added => _colors['gitDecoration.addedResourceForeground'];
 
@@ -215,7 +223,7 @@ ThemeData buildAppTheme() {
     dividerColor: AppColors.border,
     visualDensity: VisualDensity.compact,
     textSelectionTheme: TextSelectionThemeData(
-      selectionColor: colors['editor.selectionBackground'],
+      selectionColor: AppColors.textSelection,
       cursorColor: colors['editorCursor.foreground'],
     ),
     scrollbarTheme: ScrollbarThemeData(
@@ -226,5 +234,30 @@ ThemeData buildAppTheme() {
       radius: const Radius.circular(4),
       minThumbLength: 48,
     ),
+  );
+}
+
+/// [selection] at most [maxAlpha] opaque, so text under it keeps its color
+/// all but a little: many themes' are opaque (the default dark one's,
+/// `#264F78`), or nearly. Over [background] it looks as the theme's own as
+/// near as that allows.
+Color seeThroughSelection(
+  Color selection,
+  Color background, {
+  double maxAlpha = 0.3,
+}) {
+  if (selection.a <= maxAlpha) return selection;
+  // The theme's color as shown over the background, and the one that, as
+  // see-through, shows so.
+  double channel(double color, double under) {
+    final shown = color * selection.a + under * (1 - selection.a);
+    return ((shown - under * (1 - maxAlpha)) / maxAlpha).clamp(0.0, 1.0);
+  }
+
+  return Color.from(
+    alpha: maxAlpha,
+    red: channel(selection.r, background.r),
+    green: channel(selection.g, background.g),
+    blue: channel(selection.b, background.b),
   );
 }

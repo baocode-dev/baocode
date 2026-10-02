@@ -119,6 +119,49 @@ import 'icons/icon_storage.dart';
       expect(texts(tester), contains('final a = 1;'));
     });
 
+    testWidgets('a fence in the code does not close it before its lines', (
+      tester,
+    ) async {
+      await pumpMarkdown(tester, '''
+```3:6:lib/prompt.dart
+const prompt = \'\'\'
+```1:2:a.dart
+```
+Cite so.\'\'\';
+```
+
+After.''');
+      expect(find.byType(CodeCitationCard), findsOneWidget);
+      expect(find.byType(MarkdownCodeBlock), findsNothing);
+      final shown = texts(tester);
+      expect(shown, contains('3\n4\n5\n6'));
+      expect(shown, contains(contains("Cite so.''';")));
+      expect(shown, contains('After.'));
+    });
+
+    testWidgets('lines left out, the first fence closes it', (tester) async {
+      await pumpMarkdown(tester, '''
+```3:40:lib/a.dart
+final a = 1;
+// ...
+```
+
+Then:
+
+```dart
+void main() {}
+```''');
+      expect(find.byType(CodeCitationCard), findsOneWidget);
+      expect(find.byType(MarkdownCodeBlock), findsOneWidget);
+      expect(texts(tester), contains('Then:'));
+    });
+
+    testWidgets('a longer fence holds shorter ones', (tester) async {
+      await pumpMarkdown(tester, '````1:3:a.md\n```\nx\n```\n````\n\nAfter.');
+      expect(find.byType(CodeCitationCard), findsOneWidget);
+      expect(texts(tester), containsAll(['1\n2\n3', 'After.']));
+    });
+
     testWidgets('taller than its height, the code scrolls inside', (
       tester,
     ) async {

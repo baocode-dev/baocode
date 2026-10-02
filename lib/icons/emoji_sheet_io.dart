@@ -9,13 +9,13 @@ import 'emoji_sheet.dart';
 
 /// [DataDirectory.cacheDir]'s `emoji/<version>`.
 class CacheEmojiSheetStore implements EmojiSheetStore {
-  String get _dir => p.join(
-    DataDirectory.current.cacheDir,
-    'emoji',
-    'google-${EmojiSheet.version}',
-  );
+  String get _dir =>
+      p.join(DataDirectory.current.cacheDir, 'emoji', EmojiSheet.version);
 
   File _file(String name) => File(p.join(_dir, p.basename(name)));
+
+  @override
+  Future<bool> has(String name) => _file(name).exists();
 
   @override
   Future<Uint8List?> read(String name) async {
@@ -30,6 +30,17 @@ class CacheEmojiSheetStore implements EmojiSheetStore {
   @override
   Future<void> download(Uri url, String name) async {
     await Directory(_dir).create(recursive: true);
+    // The Google set alone, as kept before the others were.
+    final before = p.join(
+      DataDirectory.current.cacheDir,
+      'emoji',
+      'google-${EmojiSheet.version}',
+    );
+    try {
+      await Directory(before).delete(recursive: true);
+    } on Object {
+      // Not there.
+    }
     await HttpDownloader().download(url, _file(name).path);
   }
 

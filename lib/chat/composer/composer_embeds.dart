@@ -795,7 +795,7 @@ class _SelectableToken extends SingleChildRenderObjectWidget {
 
   static Color _selectionColor(BuildContext context) =>
       DefaultSelectionStyle.of(context).selectionColor ??
-      themeColors['editor.selectionBackground'];
+      AppColors.textSelection;
 }
 
 class _RenderSelectableToken extends RenderProxyBox

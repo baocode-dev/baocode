@@ -157,36 +157,49 @@ class _PickerLayout extends StatelessWidget {
         ? overlay.localToGlobal(Offset.zero)
         : Offset.zero;
     return CustomSingleChildLayout(
-      delegate: _Below(anchor.shift(-origin)),
+      delegate: _Below(anchor.shift(-origin), top: _titleBar - origin.dy),
       child: child,
     );
   }
+
+  /// What the window's top takes, not to be covered: macOS's title bar
+  /// (its traffic lights), Windows' header.
+  static double get _titleBar => AppPlatform.isMacOS
+      ? AppMetrics.titleBarHeight
+      : AppPlatform.isWindows
+      ? AppMetrics.headerHeight
+      : 0;
 }
 
 class _Below extends SingleChildLayoutDelegate {
-  const _Below(this.anchor);
+  const _Below(this.anchor, {required double top}) : top = top < 0 ? 0 : top;
 
   final Rect anchor;
+
+  /// Where the room for it starts: under the title bar.
+  final double top;
   static const _margin = 8.0;
+
+  EdgeInsets get _insets =>
+      const EdgeInsets.all(_margin).copyWith(top: top + _margin);
 
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
-      BoxConstraints.loose(
-        const EdgeInsets.all(_margin).deflateSize(constraints.biggest),
-      );
+      BoxConstraints.loose(_insets.deflateSize(constraints.biggest));
 
   @override
   Offset getPositionForChild(Size size, Size childSize) =>
       computeFloatingPosition(
         anchor: anchor,
         size: childSize,
-        bounds: (Offset.zero & size).deflate(_margin),
+        bounds: _insets.deflateRect(Offset.zero & size),
         placement: (side: FloatingSide.bottom, align: FloatingAlign.start),
         gap: 4,
       ).offset;
 
   @override
-  bool shouldRelayout(_Below oldDelegate) => oldDelegate.anchor != anchor;
+  bool shouldRelayout(_Below oldDelegate) =>
+      oldDelegate.anchor != anchor || oldDelegate.top != top;
 }
 
 /// One choice of the grid: [icon], or uploading one when null.
@@ -265,6 +278,8 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
     _query.addListener(_queryChanged);
     _workspace.addListener(_changed);
     EmojiSheet.loaded.addListener(_changed);
+    EmojiSheet.fetched.addListener(_changed);
+    EmojiSheet.style.addListener(_changed);
     unawaited(EmojiSheet.request());
     if (EmojiCatalog.loaded == null) {
       unawaited(
@@ -289,6 +304,8 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
     widget.onDisposed?.call();
     _workspace.removeListener(_changed);
     EmojiSheet.loaded.removeListener(_changed);
+    EmojiSheet.fetched.removeListener(_changed);
+    EmojiSheet.style.removeListener(_changed);
     _query.dispose();
     _search.dispose();
     _scroll.dispose();
@@ -690,6 +707,7 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
           _buildTabs(l10n, current),
           _buildSearch(l10n),
           if (_tab == IconPickerTab.icons) _buildColors(l10n),
+          if (_tab == IconPickerTab.emoji) _buildStyles(),
           SizedBox(
             height: ProjectIconPicker._gridHeight,
             child: _buildGrid(l10n, current),
@@ -819,6 +837,23 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
               _color = color;
               _build();
             }),
+          ),
+      ],
+    ),
+  );
+
+  /// Whose pictures of the emoji: those fetched can be picked.
+  Widget _buildStyles() => Padding(
+    padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
+    child: Row(
+      children: [
+        for (final style in EmojiStyle.values)
+          _StyleButton(
+            label: style.label,
+            selected: style == EmojiSheet.style.value,
+            onTap: EmojiSheet.fetched.value.contains(style)
+                ? () => _workspace.setEmojiStyle(style)
+                : null,
           ),
       ],
     ),
@@ -1225,6 +1260,56 @@ class _IconButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(6),
           ),
           child: Icon(icon, size: 16, color: AppColors.textMuted),
+        ),
+      ),
+    ),
+  );
+}
+
+/// An emoji set to pick; [onTap] null while it is not fetched yet.
+class _StyleButton extends StatelessWidget {
+  const _StyleButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    enabled: onTap != null,
+    selected: selected,
+    child: HoverBuilder(
+      cursor: onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
+      builder: (context, hovered) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 24,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected
+                ? themeColors['toolbar.activeBackground']
+                : hovered && onTap != null
+                ? themeColors['toolbar.hoverBackground']
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(5),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: onTap == null
+                  ? AppColors.textFaint
+                  : selected
+                  ? AppColors.text
+                  : AppColors.textMuted,
+            ),
+          ),
         ),
       ),
     ),

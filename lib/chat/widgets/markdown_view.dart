@@ -33,7 +33,7 @@ class MarkdownView extends StatelessWidget {
 
   static final _document = md.Document(
     extensionSet: md.ExtensionSet.gitHubFlavored,
-    blockSyntaxes: const [MathBlockSyntax()],
+    blockSyntaxes: const [CodeCitationFenceSyntax(), MathBlockSyntax()],
     inlineSyntaxes: [InlineMathSyntax()],
     encodeHtml: false,
   );
