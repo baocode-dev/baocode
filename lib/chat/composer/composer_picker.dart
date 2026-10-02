@@ -431,7 +431,8 @@ class ComposerPickerState extends State<ComposerPicker> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(widget.selected.icon, size: 13, color: color),
+          widget.selected.iconBuilder?.call(13, color) ??
+              Icon(widget.selected.icon, size: 13, color: color),
           const SizedBox(width: 4),
           Text(
             widget.label ?? widget.selected.label,
@@ -657,11 +658,15 @@ class _PickerRow extends StatelessWidget {
           foregroundDecoration: _highlightOutline(highlighted),
           child: Row(
             children: [
-              Icon(
-                option.icon,
-                size: 15,
-                color: caution ? AppColors.caution : AppColors.textMuted,
-              ),
+              option.iconBuilder?.call(
+                    15,
+                    caution ? AppColors.caution : AppColors.textMuted,
+                  ) ??
+                  Icon(
+                    option.icon,
+                    size: 15,
+                    color: caution ? AppColors.caution : AppColors.textMuted,
+                  ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(

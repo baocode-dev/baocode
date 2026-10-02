@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:bao_editor/textmate/textmate_syntax.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,7 @@ import 'ide/ide_quick_input.dart';
 import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
 import 'ide/lsp/language_features.dart';
+import 'ide/lsp/lsp_protocol.dart';
 import 'ide/terminal/terminal_instance.dart';
 import 'keybindings/chat_keybindings.dart';
 import 'keybindings/default_keybindings.dart';
@@ -245,6 +247,7 @@ class _WorkbenchState extends State<Workbench> {
 
   @override
   void dispose() {
+    _citedCode?.dispose();
     _drag.dispose();
     _width.dispose();
     _lifecycle.dispose();
@@ -1371,6 +1374,8 @@ class _WorkbenchState extends State<Workbench> {
         focused: place.alone || identical(thread, _workspace.current),
         onOpenChange: (change, original) =>
             _openChange(thread, change, original),
+        onOpenCode: (path, start, end) => _openCode(thread, path, start, end),
+        colorizeCode: _colorizeCode,
         // Where a new agent is to work: the IDE's chat works in the IDE's
         // project, and a kept session where it was.
         start: embedded || thread.record != null
@@ -1404,6 +1409,30 @@ class _WorkbenchState extends State<Workbench> {
         original: read,
       ),
     });
+  }
+
+  /// Opens a file [thread]'s agent cited in the IDE, lines [start] to
+  /// [end] (from 1) selected.
+  void _openCode(AgentThread thread, String path, int start, int end) {
+    _workspace.openInIde(thread);
+    final range = LspRange(
+      LspPosition(start - 1, 0),
+      // To the end of the line: positions keep to theirs.
+      LspPosition(end - 1, 1 << 30),
+    );
+    unawaited(_ideSpace(thread.project.path).openAt(path, range));
+  }
+
+  /// The code agents cite in the editor's colors, by TextMate: started as
+  /// the first is shown.
+  TextMateSyntax? _citedCode;
+
+  Future<List<List<TextSpan>>?> _colorizeCode(String path, String code) async {
+    final syntax = _citedCode ??= TextMateSyntax(
+      themes: WorkbenchThemeService.instance,
+    );
+    final language = await syntax.languageIdForPath(path);
+    return language == null ? null : syntax.colorize(language, code);
   }
 }
 

@@ -747,6 +747,22 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _forgetClosedNavigation();
     _watchEdits();
     final active = widget.workspace.active;
+    if (widget.workspace.takeReveal() case final range? when active != null) {
+      final location = IdeLocation(active.path, range);
+      // Once the editor shows it.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _layout.showEditor();
+        unawaited(
+          _openLocation(
+            location,
+            select: true,
+            record: false,
+            afterReveal: () => _editor?.focus(),
+          ),
+        );
+      });
+    }
     if (active?.key == _activeKey) return;
     _activeKey = active?.key;
     // Upstream resets the recently used stack when an editor comes to the

@@ -789,6 +789,41 @@
   "sidebarRemoveFromList": "Remove from List",
   "sidebarDropToPin": "Drop here to pin",
   "sidebarMoreActions": "More Actions…",
+  "sidebarChangeIcon": "Change Icon…",
+  "sidebarProjectIcon": "Change icon of {project}",
+  "@sidebarProjectIcon": {
+    "placeholders": {
+      "project": {
+        "type": "String"
+      }
+    }
+  },
+  "iconPickerEmoji": "Emoji",
+  "iconPickerIcons": "Icons",
+  "iconPickerCustom": "Custom",
+  "iconPickerRemove": "Remove",
+  "iconPickerSearch": "Search…",
+  "iconPickerRandom": "Random",
+  "iconPickerRecent": "Recent",
+  "iconPickerNoResults": "No results",
+  "iconPickerDefaultColor": "Default color",
+  "iconPickerUpload": "Upload an image",
+  "iconPickerUploadHint": "Upload, drop or paste an image: PNG, JPG, WebP, GIF or SVG, up to 5 MB",
+  "iconPickerDropHere": "Drop the image here",
+  "iconPickerUploaded": "Uploaded",
+  "iconPickerDeleteFromLibrary": "Delete from Library",
+  "iconUploadTooLarge": "The file is larger than 5 MB",
+  "iconUploadUnsupported": "Not a PNG, JPG, WebP, GIF or SVG image",
+  "iconUploadUnreadable": "The file could not be read",
+  "emojiGroupSmileys": "Smileys & Emotion",
+  "emojiGroupPeople": "People & Body",
+  "emojiGroupAnimals": "Animals & Nature",
+  "emojiGroupFood": "Food & Drink",
+  "emojiGroupTravel": "Travel & Places",
+  "emojiGroupActivities": "Activities",
+  "emojiGroupObjects": "Objects",
+  "emojiGroupSymbols": "Symbols",
+  "emojiGroupFlags": "Flags",
   "workspaceBackToChat": "Back to chat",
   "@workspaceBackToChat": {
     "description": "Title bar button leaving the IDE layout."

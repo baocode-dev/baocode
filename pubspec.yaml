@@ -41,6 +41,8 @@ dependencies:
     path: packages/bao_pty
   bao_xterm:
     path: packages/bao_xterm
+  # The names project icons are kept under (lib/icons/icon_library.dart).
+  crypto: ^3.0.6
   flutter:
     sdk: flutter
   flutter_localizations:
@@ -83,6 +85,8 @@ flutter:
     - assets/keymaps/LICENSES/
     # The notifications' "ding" (see lib/notifications/notification_sound.dart).
     - assets/sounds/
+    # Emojibase's emoji, for project icons (tool/generate_emoji.mjs).
+    - assets/emoji/
     # VS Code TextMate grammars and color themes (tool/generate_textmate_assets.mjs).
 
   # VS Code's icon font (tool/generate_codicons.mjs; lib/theme/codicons.dart).

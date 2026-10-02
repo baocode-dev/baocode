@@ -1905,6 +1905,14 @@ void main() {
     });
   });
 
+  test('Claude Code is asked to cite code in the chat\'s format', () {
+    final arguments = const ClaudeLaunch(cwd: '/p').arguments;
+    final at = arguments.indexOf('--append-system-prompt');
+    expect(at, isNot(-1));
+    expect(arguments[at + 1], ClaudeLaunch.citingCode);
+    expect(ClaudeLaunch.citingCode, contains('```startLine:endLine:filepath'));
+  });
+
   group('commit attribution', () {
     /// What `--settings` gives Claude Code, if it is passed.
     Object? flagSettings(ClaudeLaunch launch) {

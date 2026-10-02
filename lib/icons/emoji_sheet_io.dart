@@ -1,0 +1,44 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:path/path.dart' as p;
+
+import '../ide/lsp/install/install_io.dart' show HttpDownloader;
+import '../platform/data_dir.dart';
+import 'emoji_sheet.dart';
+
+/// [DataDirectory.cacheDir]'s `emoji/<version>`.
+class CacheEmojiSheetStore implements EmojiSheetStore {
+  String get _dir => p.join(
+    DataDirectory.current.cacheDir,
+    'emoji',
+    'google-${EmojiSheet.version}',
+  );
+
+  File _file(String name) => File(p.join(_dir, p.basename(name)));
+
+  @override
+  Future<Uint8List?> read(String name) async {
+    try {
+      return await _file(name).readAsBytes();
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Into a temporary file, renamed once whole.
+  @override
+  Future<void> download(Uri url, String name) async {
+    await Directory(_dir).create(recursive: true);
+    await HttpDownloader().download(url, _file(name).path);
+  }
+
+  @override
+  Future<void> delete(String name) async {
+    try {
+      await _file(name).delete();
+    } on Object {
+      // Gone already.
+    }
+  }
+}

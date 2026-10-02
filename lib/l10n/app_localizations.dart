@@ -3020,6 +3020,174 @@ abstract class AppLocalizations {
   /// **'More Actions…'**
   String get sidebarMoreActions;
 
+  /// No description provided for @sidebarChangeIcon.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Icon…'**
+  String get sidebarChangeIcon;
+
+  /// No description provided for @sidebarProjectIcon.
+  ///
+  /// In en, this message translates to:
+  /// **'Change icon of {project}'**
+  String sidebarProjectIcon(String project);
+
+  /// No description provided for @iconPickerEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji'**
+  String get iconPickerEmoji;
+
+  /// No description provided for @iconPickerIcons.
+  ///
+  /// In en, this message translates to:
+  /// **'Icons'**
+  String get iconPickerIcons;
+
+  /// No description provided for @iconPickerCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get iconPickerCustom;
+
+  /// No description provided for @iconPickerRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get iconPickerRemove;
+
+  /// No description provided for @iconPickerSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search…'**
+  String get iconPickerSearch;
+
+  /// No description provided for @iconPickerRandom.
+  ///
+  /// In en, this message translates to:
+  /// **'Random'**
+  String get iconPickerRandom;
+
+  /// No description provided for @iconPickerRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent'**
+  String get iconPickerRecent;
+
+  /// No description provided for @iconPickerNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No results'**
+  String get iconPickerNoResults;
+
+  /// No description provided for @iconPickerDefaultColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Default color'**
+  String get iconPickerDefaultColor;
+
+  /// No description provided for @iconPickerUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload an image'**
+  String get iconPickerUpload;
+
+  /// No description provided for @iconPickerUploadHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload, drop or paste an image: PNG, JPG, WebP, GIF or SVG, up to 5 MB'**
+  String get iconPickerUploadHint;
+
+  /// No description provided for @iconPickerDropHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop the image here'**
+  String get iconPickerDropHere;
+
+  /// No description provided for @iconPickerUploaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploaded'**
+  String get iconPickerUploaded;
+
+  /// No description provided for @iconPickerDeleteFromLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete from Library'**
+  String get iconPickerDeleteFromLibrary;
+
+  /// No description provided for @iconUploadTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'The file is larger than 5 MB'**
+  String get iconUploadTooLarge;
+
+  /// No description provided for @iconUploadUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Not a PNG, JPG, WebP, GIF or SVG image'**
+  String get iconUploadUnsupported;
+
+  /// No description provided for @iconUploadUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'The file could not be read'**
+  String get iconUploadUnreadable;
+
+  /// No description provided for @emojiGroupSmileys.
+  ///
+  /// In en, this message translates to:
+  /// **'Smileys & Emotion'**
+  String get emojiGroupSmileys;
+
+  /// No description provided for @emojiGroupPeople.
+  ///
+  /// In en, this message translates to:
+  /// **'People & Body'**
+  String get emojiGroupPeople;
+
+  /// No description provided for @emojiGroupAnimals.
+  ///
+  /// In en, this message translates to:
+  /// **'Animals & Nature'**
+  String get emojiGroupAnimals;
+
+  /// No description provided for @emojiGroupFood.
+  ///
+  /// In en, this message translates to:
+  /// **'Food & Drink'**
+  String get emojiGroupFood;
+
+  /// No description provided for @emojiGroupTravel.
+  ///
+  /// In en, this message translates to:
+  /// **'Travel & Places'**
+  String get emojiGroupTravel;
+
+  /// No description provided for @emojiGroupActivities.
+  ///
+  /// In en, this message translates to:
+  /// **'Activities'**
+  String get emojiGroupActivities;
+
+  /// No description provided for @emojiGroupObjects.
+  ///
+  /// In en, this message translates to:
+  /// **'Objects'**
+  String get emojiGroupObjects;
+
+  /// No description provided for @emojiGroupSymbols.
+  ///
+  /// In en, this message translates to:
+  /// **'Symbols'**
+  String get emojiGroupSymbols;
+
+  /// No description provided for @emojiGroupFlags.
+  ///
+  /// In en, this message translates to:
+  /// **'Flags'**
+  String get emojiGroupFlags;
+
   /// Title bar button leaving the IDE layout.
   ///
   /// In en, this message translates to:

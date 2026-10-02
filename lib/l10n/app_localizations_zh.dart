@@ -1523,6 +1523,92 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarMoreActions => '更多操作…';
 
   @override
+  String get sidebarChangeIcon => '更改图标…';
+
+  @override
+  String sidebarProjectIcon(String project) {
+    return '更改 $project 的图标';
+  }
+
+  @override
+  String get iconPickerEmoji => 'Emoji';
+
+  @override
+  String get iconPickerIcons => '图标';
+
+  @override
+  String get iconPickerCustom => '自定义';
+
+  @override
+  String get iconPickerRemove => '移除';
+
+  @override
+  String get iconPickerSearch => '搜索…';
+
+  @override
+  String get iconPickerRandom => '随机';
+
+  @override
+  String get iconPickerRecent => '最近使用';
+
+  @override
+  String get iconPickerNoResults => '没有找到';
+
+  @override
+  String get iconPickerDefaultColor => '默认颜色';
+
+  @override
+  String get iconPickerUpload => '上传图片';
+
+  @override
+  String get iconPickerUploadHint => '上传、拖入或粘贴图片：PNG、JPG、WebP、GIF、SVG，5 MB 以内';
+
+  @override
+  String get iconPickerDropHere => '将图片拖到这里';
+
+  @override
+  String get iconPickerUploaded => '已上传';
+
+  @override
+  String get iconPickerDeleteFromLibrary => '从图库删除';
+
+  @override
+  String get iconUploadTooLarge => '文件超过 5 MB';
+
+  @override
+  String get iconUploadUnsupported => '不是 PNG、JPG、WebP、GIF 或 SVG 图片';
+
+  @override
+  String get iconUploadUnreadable => '无法读取文件';
+
+  @override
+  String get emojiGroupSmileys => '笑脸和情感';
+
+  @override
+  String get emojiGroupPeople => '人物和身体';
+
+  @override
+  String get emojiGroupAnimals => '动物和自然';
+
+  @override
+  String get emojiGroupFood => '食物和饮料';
+
+  @override
+  String get emojiGroupTravel => '旅行和地点';
+
+  @override
+  String get emojiGroupActivities => '活动';
+
+  @override
+  String get emojiGroupObjects => '物品';
+
+  @override
+  String get emojiGroupSymbols => '符号';
+
+  @override
+  String get emojiGroupFlags => '旗帜';
+
+  @override
   String get workspaceBackToChat => '返回聊天';
 
   @override

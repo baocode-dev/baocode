@@ -102,7 +102,22 @@ class ClaudeLaunch {
       jsonEncode({'attribution': attribution}),
     ],
     if (!persist) '--no-session-persistence',
+    '--append-system-prompt',
+    citingCode,
   ];
+
+  /// Has the agent cite code as ```` ```12:15:path ```` blocks, which the
+  /// chat shows as cards that open the file there (see code_citation.dart).
+  static const citingCode = '''
+<citing_code>
+You MUST use the following format when citing code regions or blocks:
+
+```12:15:app/components/Todo.tsx
+// ... existing code ...
+```
+
+This is the ONLY acceptable format for code citations. The format is ```startLine:endLine:filepath where startLine and endLine are line numbers.
+</citing_code>''';
 
   /// Lets the host rewind the files a turn changed, and has the CLI say
   /// when it is at work and when idle (`session_state_changed`).

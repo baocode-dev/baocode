@@ -5,6 +5,8 @@ import 'package:markdown/markdown.dart' as md;
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../workspace/editor_launcher.dart';
+import 'code_citation.dart';
+import 'inline_code.dart';
 import 'markdown_math.dart';
 
 /// GitHub-flavored markdown as plain widgets (so a surrounding
@@ -22,11 +24,11 @@ class MarkdownView extends StatelessWidget {
   static TextStyle get baseStyle =>
       TextStyle(color: AppColors.text, fontSize: 13.5, height: 1.6);
 
+  /// Inline code's, its background painted by [InlineCodeText].
   static TextStyle get codeStyle => TextStyle(
     color: AppColors.inlineCode,
     fontFamily: AppFonts.mono,
     fontSize: 12.5,
-    backgroundColor: AppColors.inlineCodeBackground,
   );
 
   static final _document = md.Document(
@@ -81,7 +83,7 @@ Widget? _block(md.Node node, TextStyle style) {
     case 'math':
       return MathView(node.textContent, display: true);
     case 'p':
-      return Text.rich(_inlines(node.children ?? const [], style));
+      return InlineCodeText(_inlines(node.children ?? const [], style));
     case 'h1' || 'h2' || 'h3' || 'h4' || 'h5' || 'h6':
       final size = switch (node.tag) {
         'h1' => 19.0,
@@ -91,7 +93,7 @@ Widget? _block(md.Node node, TextStyle style) {
       };
       return Padding(
         padding: const EdgeInsets.only(top: 2),
-        child: Text.rich(
+        child: InlineCodeText(
           _inlines(
             node.children ?? const [],
             style.copyWith(
@@ -111,10 +113,13 @@ Widget? _block(md.Node node, TextStyle style) {
       final language = code is md.Element
           ? code.attributes['class']?.replaceFirst('language-', '')
           : null;
-      return MarkdownCodeBlock(
-        code: text.endsWith('\n') ? text.substring(0, text.length - 1) : text,
-        language: language,
-      );
+      final body = text.endsWith('\n')
+          ? text.substring(0, text.length - 1)
+          : text;
+      if (CodeCitation.parse(language) case final citation?) {
+        return CodeCitationCard(citation: citation, code: body);
+      }
+      return MarkdownCodeBlock(code: body, language: language);
     case 'blockquote':
       return Container(
         padding: const EdgeInsets.only(left: 12),
@@ -145,7 +150,7 @@ Widget? _block(md.Node node, TextStyle style) {
     case 'table':
       return _Table(node: node, style: style);
     default:
-      return Text.rich(_inlines([node], style));
+      return InlineCodeText(_inlines([node], style));
   }
 }
 
@@ -213,7 +218,7 @@ class _List extends StatelessWidget {
     final blocks = <Widget>[];
     void flush() {
       if (inline.isEmpty) return;
-      blocks.add(Text.rich(_inlines([...inline], style)));
+      blocks.add(InlineCodeText(_inlines([...inline], style)));
       inline.clear();
     }
 
@@ -319,7 +324,7 @@ class _TableState extends State<_Table> {
                     vertical: 5,
                   ),
                   child: i < cells.length
-                      ? Text.rich(
+                      ? InlineCodeText(
                           _inlines(
                             cells[i].children ?? const [],
                             header
@@ -436,7 +441,7 @@ InlineSpan _inline(md.Node node) {
       style: const TextStyle(decoration: TextDecoration.lineThrough),
       children: inner(),
     ),
-    'code' => TextSpan(
+    'code' => InlineCodeSpan(
       text: ' ${_unescape(node.textContent)} ',
       style: MarkdownView.codeStyle,
     ),
@@ -478,6 +483,8 @@ GestureRecognizer? _linkRecognizer(String? href) {
 /// innermost span, which does not inherit its parent's recognizer.
 InlineSpan _linked(InlineSpan span, GestureRecognizer recognizer) =>
     switch (span) {
+      // Code in a link keeps its background (and is not tappable).
+      InlineCodeSpan() => span,
       TextSpan(:final text, :final style, :final children) => TextSpan(
         text: text,
         style: style,

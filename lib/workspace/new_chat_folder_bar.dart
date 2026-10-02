@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../chat/composer/composer_picker.dart';
 import '../chat/widgets/hover_builder.dart';
+import '../icons/project_icon_view.dart';
 import '../kernel/kernel_types.dart';
 import '../l10n/l10n.dart';
 import '../platform/app_platform.dart';
@@ -62,8 +63,30 @@ class NewChatFolderBar extends StatelessWidget {
             Codicons.deviceDesktop,
             l10n.newChatNoFolderDetail,
           );
-    KernelOption option(Project project) =>
-        KernelOption(project.path, project.name, Codicons.folder, project.path);
+    KernelOption option(Project project) => KernelOption(
+      project.path,
+      project.name,
+      Codicons.folder,
+      project.path,
+      iconBuilder: switch (workspace.iconOf(project)) {
+        null => null,
+        // Takes the room of a glyph of [size]; a picture spills over it a
+        // little, as large as the glyph looks.
+        final icon => (size, color) => SizedBox.square(
+          dimension: size,
+          child: OverflowBox(
+            maxWidth: size + 3,
+            maxHeight: size + 3,
+            child: ProjectIconView(
+              icon: icon,
+              library: workspace.icons,
+              size: size + 3,
+              color: color,
+            ),
+          ),
+        ),
+      },
+    );
     final projects = [
       for (final project in workspace.projects)
         if (project.path != desktop) project,

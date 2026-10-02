@@ -1575,6 +1575,93 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarMoreActions => 'More Actions…';
 
   @override
+  String get sidebarChangeIcon => 'Change Icon…';
+
+  @override
+  String sidebarProjectIcon(String project) {
+    return 'Change icon of $project';
+  }
+
+  @override
+  String get iconPickerEmoji => 'Emoji';
+
+  @override
+  String get iconPickerIcons => 'Icons';
+
+  @override
+  String get iconPickerCustom => 'Custom';
+
+  @override
+  String get iconPickerRemove => 'Remove';
+
+  @override
+  String get iconPickerSearch => 'Search…';
+
+  @override
+  String get iconPickerRandom => 'Random';
+
+  @override
+  String get iconPickerRecent => 'Recent';
+
+  @override
+  String get iconPickerNoResults => 'No results';
+
+  @override
+  String get iconPickerDefaultColor => 'Default color';
+
+  @override
+  String get iconPickerUpload => 'Upload an image';
+
+  @override
+  String get iconPickerUploadHint =>
+      'Upload, drop or paste an image: PNG, JPG, WebP, GIF or SVG, up to 5 MB';
+
+  @override
+  String get iconPickerDropHere => 'Drop the image here';
+
+  @override
+  String get iconPickerUploaded => 'Uploaded';
+
+  @override
+  String get iconPickerDeleteFromLibrary => 'Delete from Library';
+
+  @override
+  String get iconUploadTooLarge => 'The file is larger than 5 MB';
+
+  @override
+  String get iconUploadUnsupported => 'Not a PNG, JPG, WebP, GIF or SVG image';
+
+  @override
+  String get iconUploadUnreadable => 'The file could not be read';
+
+  @override
+  String get emojiGroupSmileys => 'Smileys & Emotion';
+
+  @override
+  String get emojiGroupPeople => 'People & Body';
+
+  @override
+  String get emojiGroupAnimals => 'Animals & Nature';
+
+  @override
+  String get emojiGroupFood => 'Food & Drink';
+
+  @override
+  String get emojiGroupTravel => 'Travel & Places';
+
+  @override
+  String get emojiGroupActivities => 'Activities';
+
+  @override
+  String get emojiGroupObjects => 'Objects';
+
+  @override
+  String get emojiGroupSymbols => 'Symbols';
+
+  @override
+  String get emojiGroupFlags => 'Flags';
+
+  @override
   String get workspaceBackToChat => 'Back to chat';
 
   @override

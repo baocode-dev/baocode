@@ -9,6 +9,8 @@ import '../chat/chat_keys.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../chat/widgets/inline_rename_field.dart';
+import '../icons/project_icon_picker.dart';
+import '../icons/project_icon_view.dart';
 import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
 import '../keybindings/chat_keybindings.dart';
@@ -674,6 +676,17 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       onCreate: project == null ? null : () => _create(project),
       menu: project == null ? null : () => _projectItems(project),
       dragged: project != null && identical(project, _draggedProject),
+      icon: project == null
+          ? null
+          : _Slot(
+              slot: _iconSlot(project),
+              slots: _slots,
+              child: _HeaderIcon(
+                project: project,
+                workspace: _workspace,
+                onTap: () => _openIconPicker(project),
+              ),
+            ),
     );
     // Projects are ordered by dragging their headers, where there are
     // several to order.
@@ -694,6 +707,15 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       shown: _workspace.grid.contains(thread),
       drag: widget.drag,
       showProject: group.project == null && _projectsShown,
+      projectIcon: switch (_workspace.iconOf(thread.project)) {
+        null => null,
+        final icon => ProjectIconView(
+          icon: icon,
+          library: _workspace.icons,
+          size: 14,
+          color: AppColors.textFaint,
+        ),
+      },
       renaming: identical(thread, _renaming),
       onTap: () => _handleRowTap(thread),
       onRename: () => setState(() => _renaming = thread),
@@ -731,6 +753,11 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
           onSelected: () => _openInEditor(project, editor),
         ),
       SidebarMenuItem(
+        l10n.sidebarChangeIcon,
+        icon: Icons.emoji_emotions_outlined,
+        onSelected: () => _openIconPicker(project),
+      ),
+      SidebarMenuItem(
         l10n.workspaceCopyPath,
         icon: Icons.content_copy_rounded,
         onSelected: () =>
@@ -753,6 +780,21 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
         onSelected: () => _workspace.hideProject(project),
       ),
     ];
+  }
+
+  static Object _iconSlot(Project project) => (#icon, project.path);
+
+  /// [project]'s icon picker, under its icon in its header.
+  void _openIconPicker(Project project) {
+    final box =
+        _box(_iconSlot(project)) ?? _box(Workspace.projectGroup(project.path));
+    if (box == null) return;
+    ProjectIconPicker.toggle(
+      context,
+      workspace: _workspace,
+      project: project,
+      anchor: box.localToGlobal(Offset.zero) & box.size,
+    );
   }
 
   /// The Fast Ide opens [project]'s folder, as the window header's button
@@ -1138,6 +1180,7 @@ class _GroupHeader extends StatelessWidget {
     this.onCreate,
     this.menu,
     this.dragged = false,
+    this.icon,
   });
 
   final _Group group;
@@ -1155,6 +1198,9 @@ class _GroupHeader extends StatelessWidget {
 
   /// Being dragged to another place among the projects.
   final bool dragged;
+
+  /// The project's icon, before its name.
+  final Widget? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -1205,15 +1251,19 @@ class _GroupHeader extends StatelessWidget {
                   ),
                   const SizedBox(width: 2),
                 ],
-                if (project != null) ...[
-                  Icon(
-                    Icons.folder_outlined,
-                    size: 13,
-                    color: AppColors.textMuted,
+                if (icon case final icon?) ...[icon, const SizedBox(width: 4)],
+                // The dot right after the name, the rest of the row after.
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(child: _label(project)),
+                      if (_hiddenStatus(context) case final status?) ...[
+                        const SizedBox(width: 6),
+                        status,
+                      ],
+                    ],
                   ),
-                  const SizedBox(width: 6),
-                ],
-                Expanded(child: _label(project)),
+                ),
                 if (collapsed && !light && group.threads.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
@@ -1248,6 +1298,26 @@ class _GroupHeader extends StatelessWidget {
     return header;
   }
 
+  /// Folded, the dot of the agent in it that most needs attention: one
+  /// waiting on a question, else one finished unseen.
+  Widget? _hiddenStatus(BuildContext context) {
+    if (!collapsed) return null;
+    final statuses = {for (final thread in group.threads) thread.status};
+    final (status, label) = switch (statuses) {
+      _ when statuses.contains(ThreadStatus.needsInput) => (
+        ThreadStatus.needsInput,
+        context.l10n.sidebarNeedsInput,
+      ),
+      _ when statuses.contains(ThreadStatus.unread) => (
+        ThreadStatus.unread,
+        context.l10n.sidebarUnread,
+      ),
+      _ => (null, null),
+    };
+    if (status == null) return null;
+    return Semantics(label: label, child: StatusIndicator(status));
+  }
+
   Widget _label(Project? project) {
     final label = Text(
       group.label,
@@ -1264,7 +1334,11 @@ class _GroupHeader extends StatelessWidget {
     // not the buttons beside it, which come and go with the pointer.
     return _RowHover(
       content: (_) => Text(project.path),
-      child: Align(alignment: Alignment.centerLeft, child: label),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        widthFactor: 1,
+        child: label,
+      ),
     );
   }
 }
@@ -1568,6 +1642,7 @@ class _ThreadRow extends StatelessWidget {
     required this.shown,
     required this.drag,
     required this.showProject,
+    this.projectIcon,
     required this.renaming,
     required this.onTap,
     required this.onRename,
@@ -1585,6 +1660,9 @@ class _ThreadRow extends StatelessWidget {
   final bool shown;
   final ChatDrag? drag;
   final bool showProject;
+
+  /// Before the project's name, when it shows and has an icon.
+  final Widget? projectIcon;
   final bool renaming;
   final VoidCallback onTap;
   final VoidCallback onRename;
@@ -1740,15 +1818,21 @@ class _ThreadRow extends StatelessWidget {
       TextSpan(
         children: [
           TextSpan(text: thread.localizedTitle(l10n)),
-          if (showProject)
+          if (showProject) ...[
+            const TextSpan(text: '  '),
+            if (projectIcon case final icon?) ...[
+              WidgetSpan(alignment: PlaceholderAlignment.middle, child: icon),
+              const TextSpan(text: ' '),
+            ],
             TextSpan(
-              text: '  ${thread.project.name}',
+              text: thread.project.name,
               style: TextStyle(
                 color: AppColors.textFaint,
                 fontSize: 11.5,
                 fontWeight: FontWeight.normal,
               ),
             ),
+          ],
         ],
       ),
       maxLines: 1,
@@ -2069,4 +2153,52 @@ class _DialogButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A project's icon in its header (its folder, when it has none): a click
+/// opens the icon picker, or closes it.
+class _HeaderIcon extends StatelessWidget {
+  const _HeaderIcon({
+    required this.project,
+    required this.workspace,
+    required this.onTap,
+  });
+
+  final Project project;
+  final Workspace workspace;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => TapRegion(
+    groupId: ProjectIconPicker.tapRegion,
+    child: Semantics(
+      button: true,
+      label: context.l10n.sidebarProjectIcon(project.name),
+      child: HoverBuilder(
+        cursor: SystemMouseCursors.click,
+        builder: (context, hovered) => GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: hovered
+                  ? themeColors['toolbar.hoverBackground']
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: ExcludeSemantics(
+              child: ProjectIconView(
+                icon: workspace.iconOf(project),
+                library: workspace.icons,
+                size: 22,
+                color: AppColors.textMuted,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }

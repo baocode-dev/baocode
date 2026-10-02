@@ -91,6 +91,10 @@ class DataDirectory {
   /// summaries of Claude Code's sessions).
   String get cacheDir => p.join(path, 'cache');
 
+  /// The pictures uploaded as project icons, and `index.json` listing them
+  /// (see icon_library.dart).
+  String get iconsDir => p.join(path, 'icons');
+
   /// The app's own entries, all others' left alone: what moving the folder
   /// copies and removing old data deletes.
   static const items = [
@@ -102,6 +106,7 @@ class DataDirectory {
     'language-packs',
     'checkpoints',
     'cache',
+    'icons',
   ];
 
   /// Entries that show a folder holds the app's data.

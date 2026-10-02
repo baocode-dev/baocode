@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
@@ -211,6 +212,40 @@ void main() {
 
     await runUntilQuestion(tester, background.session);
     expect(background.status, ThreadStatus.needsInput);
+
+    // Folded away, its project's header shows its dot, after the name.
+    Finder dot() => find.descendant(
+      of: find.byType(Sidebar),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics && widget.properties.label == 'Needs input',
+      ),
+    );
+    expect(dot(), findsNothing);
+    await tester.tap(inSidebar(find.text('api-gateway')));
+    await tester.pump();
+    expect(dot(), findsOneWidget);
+    final name = tester.getRect(inSidebar(find.text('api-gateway')));
+    final at = tester.getRect(dot());
+    expect(at.left, greaterThan(name.right));
+    expect(at.left - name.right, lessThan(12));
+    expect(at.center.dy, moreOrLessEquals(name.center.dy, epsilon: 1));
+    // The count at the end of the row; the name whole, the room between
+    // them not split with it.
+    expect(
+      tester.getRect(find.byType(Sidebar)).right -
+          tester.getRect(inSidebar(find.text('3'))).right,
+      lessThan(20),
+    );
+    expect(
+      tester
+          .renderObject<RenderParagraph>(inSidebar(find.text('api-gateway')))
+          .didExceedMaxLines,
+      isFalse,
+    );
+    await tester.tap(inSidebar(find.text('api-gateway')));
+    await tester.pump();
+    expect(dot(), findsNothing);
 
     // Grouped by status, it is at the top.
     await tester.tap(inSidebar(find.text('By project')));

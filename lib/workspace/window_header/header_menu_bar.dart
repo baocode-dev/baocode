@@ -208,7 +208,7 @@ class _MenuRow extends StatelessWidget {
                   width: 16,
                   child: item.checked
                       ? Icon(Icons.check_rounded, size: 14, color: foreground)
-                      : null,
+                      : item.leading?.call(foreground),
                 ),
                 Expanded(
                   child: Text(

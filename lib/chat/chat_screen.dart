@@ -22,6 +22,7 @@ import 'panels/health_banner.dart';
 import 'panels/interaction_panel.dart';
 import 'panels/context_usage_panel.dart';
 import 'panels/todo_panel.dart';
+import 'widgets/code_citation.dart';
 import 'widgets/inline_rename_field.dart';
 
 /// Layout, top to bottom:
@@ -42,6 +43,8 @@ class ChatScreen extends StatefulWidget {
     this.windowTitleBar = true,
     this.focused = true,
     this.onOpenChange,
+    this.onOpenCode,
+    this.colorizeCode,
     this.start,
   });
 
@@ -81,6 +84,13 @@ class ChatScreen extends StatefulWidget {
   /// the agent changed it, or the file alone where that is not known.
   final void Function(FileChange change, Future<String> Function()? original)?
   onOpenChange;
+
+  /// Opens a file the agent cited (see [CodeCitationCard]) with lines
+  /// [start] to [end] (from 1) selected.
+  final void Function(String path, int start, int end)? onOpenCode;
+
+  /// Colors the code the agent cites.
+  final CodeColorizer? colorizeCode;
 
   /// Over the composer while nothing was sent, e.g. where the agent is to
   /// work: given, the composer waits in the middle of the screen until then.
@@ -413,8 +423,15 @@ class _ChatScreenState extends State<ChatScreen>
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: _session,
-      builder: (context, child) =>
-          ComposerVocabulary(commands: _commandSuggestions(), child: child!),
+      builder: (context, child) => CodeCitationScope(
+        root: _session.root,
+        onOpen: widget.onOpenCode,
+        colorize: widget.colorizeCode,
+        child: ComposerVocabulary(
+          commands: _commandSuggestions(),
+          child: child!,
+        ),
+      ),
       child: _buildBody(),
     );
   }

@@ -10,6 +10,8 @@ import '../chat/chat_models.dart';
 import '../chat/chat_session.dart';
 import '../chat/composer/composer_draft.dart';
 import '../chat/mock_conversation.dart';
+import '../icons/icon_library.dart';
+import '../icons/project_icon.dart';
 import '../kernel/agent_kernel.dart';
 import '../kernel/kernel_registry.dart';
 import '../kernel/kernel_types.dart';
@@ -191,14 +193,20 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     List<KernelDescriptor>? kernels,
     PreferenceStore? preferences,
     PreferenceStore? drafts,
+    IconLibrary? icons,
     this.titler,
     AppLocalizations Function()? l10n,
   }) : _projects = [...projects],
+       icons = icons ?? IconLibrary(),
        l10n = l10n ?? (() => englishLocalizations),
        kernels = kernels ?? KernelRegistry.all,
        _preferredKernel = (kernels ?? KernelRegistry.all).first,
        _store = preferences,
-       _draftStore = drafts;
+       _draftStore = drafts {
+    this.icons
+      ..onRemoved = _forgetIconImage
+      ..addListener(notifyListeners);
+  }
 
   /// The kernels new agents may run on.
   final List<KernelDescriptor> kernels;
@@ -240,6 +248,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   Future<void> load() async {
     _loading = true;
     notifyListeners();
+    unawaited(icons.load());
     await (_restoring = _restore());
     var complete = true;
     final listed = <String>{};
@@ -1058,6 +1067,54 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     notifyListeners();
   }
 
+  // --- Project icons --------------------------------------------------------
+
+  /// The pictures uploaded as icons, shared by the projects.
+  final IconLibrary icons;
+
+  /// What each project shows in place of its folder, by path.
+  final Map<String, ProjectIcon> _projectIcons = {};
+
+  /// The icons last picked, the last first.
+  List<ProjectIcon> get recentIcons => List.unmodifiable(_recentIcons);
+  final List<ProjectIcon> _recentIcons = [];
+  static const _keptRecentIcons = 16;
+
+  /// [project]'s icon; null for its folder.
+  ProjectIcon? iconOf(Project project) => _projectIcons[project.path];
+
+  /// Gives [project] [icon], or its folder back when null; [remember]
+  /// notes it among the [recentIcons].
+  void setIcon(Project project, ProjectIcon? icon, {bool remember = true}) {
+    if (icon == null) {
+      _projectIcons.remove(project.path);
+    } else {
+      _projectIcons[project.path] = icon;
+      if (remember) {
+        _recentIcons
+          ..remove(icon)
+          ..insert(0, icon);
+        if (_recentIcons.length > _keptRecentIcons) {
+          _recentIcons.removeRange(_keptRecentIcons, _recentIcons.length);
+        }
+      }
+    }
+    _save();
+    notifyListeners();
+  }
+
+  /// A picture deleted from the library: the projects that showed it show
+  /// their folder again.
+  void _forgetIconImage(String id) {
+    final icon = LibraryIcon(id);
+    final count = _projectIcons.length + _recentIcons.length;
+    _projectIcons.removeWhere((_, value) => value == icon);
+    _recentIcons.remove(icon);
+    if (_projectIcons.length + _recentIcons.length == count) return;
+    _save();
+    notifyListeners();
+  }
+
   /// Names the user gave sessions whose CLI was not running, by id: it
   /// takes them once it is, until then the catalog lists the old title.
   final Map<String, String> _names = {};
@@ -1089,6 +1146,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       _projectOrder.length,
       _hiddenProjects.length,
       _order.length,
+      _projectIcons.length,
       for (final order in _order.values) order.length,
     ]);
     final before = size();
@@ -1097,6 +1155,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     _projectOrder.retainWhere(paths.contains);
     _hiddenProjects.removeWhere((path, _) => !paths.contains(path));
     _order.removeWhere((path, _) => !paths.contains(path));
+    _projectIcons.removeWhere((path, _) => !paths.contains(path));
     for (final order in _order.values) {
       order.retainWhere(titles.containsKey);
     }
@@ -1331,6 +1390,19 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         }
       }
     }
+    if (kept['projectIcons'] case final Map<Object?, Object?> icons) {
+      for (final MapEntry(:key, :value) in icons.entries) {
+        if ((key, ProjectIcon.fromJson(value)) case (
+          final String path,
+          final icon?,
+        )) {
+          _projectIcons[path] = icon;
+        }
+      }
+    }
+    if (kept['recentIcons'] case final List<Object?> recent) {
+      _recentIcons.addAll(recent.map(ProjectIcon.fromJson).nonNulls);
+    }
     if (kept['chat'] case final Map<Object?, Object?> chat) {
       _keptChatView = chat;
     }
@@ -1411,6 +1483,11 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
               folder: {'tabs': ids, 'shown': ?_keptTab(_ideChatShown[folder])},
         },
       },
+      'projectIcons': {
+        for (final MapEntry(:key, :value) in _projectIcons.entries)
+          key: value.toJson(),
+      },
+      'recentIcons': [for (final icon in _recentIcons) icon.toJson()],
       'chat': ?_chatViewToSave(),
       'colorTheme': ?_colorTheme,
       'colorThemeData': ?_colorThemeData,
@@ -1932,6 +2009,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   @override
   void dispose() {
     _disposed = true;
+    icons.removeListener(notifyListeners);
     if (_draftTimer?.isActive ?? false) {
       _draftTimer!.cancel();
       _writeDrafts();

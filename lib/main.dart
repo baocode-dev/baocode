@@ -18,6 +18,9 @@ import 'ide/lsp/packs/language_packs.dart';
 import 'ide/terminal/pty.dart';
 import 'ide/terminal/terminal_colors.dart';
 import 'ide/terminal/terminal_instance.dart';
+import 'icons/emoji_sheet.dart';
+import 'icons/icon_library.dart';
+import 'icons/icon_storage.dart';
 import 'kernel/claude_code/process_transport.dart';
 import 'kernel/commit_attribution.dart';
 import 'keybindings/keybindings_sync.dart';
@@ -56,6 +59,9 @@ Future<void> main() async {
   unawaited(reapLspProcesses());
   unawaited(reapPtyProcesses());
   WidgetsFlutterBinding.ensureInitialized();
+  // Emoji as pictures: fetched into the cache the first run, in the
+  // background.
+  EmojiSheet.start(EmojiSheetStore.cache());
   // The editor's language packs are the language servers' (README.md in
   // lib/ide/lsp/packs).
   MonacoLanguageAssets.defaultPacks = () => LanguagePackRegistry.instance;
@@ -79,6 +85,8 @@ Future<void> main() async {
         : PreferenceStore.file(
             p.join(DataDirectory.current.stateDir, 'drafts.json'),
           ),
+    // The data folder's icons/.
+    icons: IconLibrary(storage: IconStorage.directory()),
     titler: claudeAgentTitle,
     l10n: () =>
         lookupAppLocalizations(locale.locale ?? AppLocale.systemLocale()),

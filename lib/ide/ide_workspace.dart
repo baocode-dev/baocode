@@ -267,6 +267,7 @@ class IdeWorkspace extends ChangeNotifier {
   Future<void> open(String path) async {
     if (_disposed) return;
     path = p.normalize(p.absolute(path));
+    _dropReveal(path);
     final request = ++_selection;
     if (_documents.any((d) => d.key == path)) {
       select(path);
@@ -289,6 +290,34 @@ class IdeWorkspace extends ChangeNotifier {
       }
     }
     _add(doc, select: request == _selection);
+  }
+
+  /// Opens [path] as [open] does, for the workbench to reveal and select
+  /// [range] in once it shows it ([takeReveal]): e.g. code the agent cited.
+  Future<void> openAt(String path, LspRange range) async {
+    if (_disposed) return;
+    path = p.normalize(p.absolute(path));
+    _reveal = (path, range);
+    await open(path);
+    // Already the active one, opening it changed nothing to be told of.
+    if (!_disposed) notifyListeners();
+  }
+
+  /// [openAt]'s, until the workbench takes it (one not built yet does as
+  /// it starts) or another file is opened or selected.
+  (String, LspRange)? _reveal;
+
+  void _dropReveal(String key) {
+    if (_reveal?.$1 != key) _reveal = null;
+  }
+
+  /// The range [openAt] asked for, once, while its file is the active one.
+  LspRange? takeReveal() {
+    if (_reveal case (final path, final range) when active?.path == path) {
+      _reveal = null;
+      return range;
+    }
+    return null;
   }
 
   /// Opens [paths] again as the last run left them, in order, after any
@@ -346,6 +375,7 @@ class IdeWorkspace extends ChangeNotifier {
   }) async {
     if (_disposed) return;
     path = p.normalize(p.absolute(path));
+    _dropReveal(path);
     final request = ++_selection;
     final key = '$path\u0000$label';
     if (_documents.where((d) => d.key == key).firstOrNull case final open?) {
@@ -398,6 +428,7 @@ class IdeWorkspace extends ChangeNotifier {
   }) async {
     if (_disposed) return;
     path = p.normalize(p.absolute(path));
+    _dropReveal(path);
     final request = ++_selection;
     final key = '$path\u0000$label';
     if (_documents.any((d) => d.key == key)) {
@@ -580,6 +611,7 @@ class IdeWorkspace extends ChangeNotifier {
   /// [IdeDocument.key]).
   void select(String key) {
     if (_disposed || !_documents.any((d) => d.key == key)) return;
+    _dropReveal(key);
     _selection++;
     if (_activeKey == key) return;
     _activeKey = key;

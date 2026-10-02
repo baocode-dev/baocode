@@ -10,6 +10,7 @@ class KernelOption {
     this.icon,
     this.description, {
     this.caution = false,
+    this.iconBuilder,
   });
 
   /// What the kernel is told (a model name, a permission mode, …).
@@ -20,6 +21,10 @@ class KernelOption {
 
   /// Risky to pick (e.g. no permission checks): shown as a warning.
   final bool caution;
+
+  /// Drawn in place of [icon], at a size and in a color (a project's own
+  /// icon).
+  final Widget Function(double size, Color color)? iconBuilder;
 
   @override
   bool operator ==(Object other) =>

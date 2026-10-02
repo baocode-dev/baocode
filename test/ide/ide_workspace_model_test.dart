@@ -6,6 +6,7 @@ import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:path/path.dart' as p;
 
 import 'workbench/fake_files.dart';
@@ -79,6 +80,32 @@ void main() {
       expect(files.reads, [first]);
     },
   );
+
+  test('a range opened at is for the workbench to reveal, once', () async {
+    final files = _FakeIdeFileService({first: 'one\n', second: 'two\n'});
+    final workspace = IdeWorkspace(root, files: files);
+    addTearDown(workspace.dispose);
+    const range = LspRange(LspPosition(0, 0), LspPosition(0, 3));
+    var told = 0;
+    workspace.addListener(() => told++);
+
+    await workspace.openAt(first, range);
+    expect(workspace.active!.path, first);
+    expect(workspace.takeReveal(), range);
+    expect(workspace.takeReveal(), isNull);
+
+    // Already the active file: told all the same.
+    told = 0;
+    await workspace.openAt(first, range);
+    expect(told, greaterThan(0));
+    expect(workspace.takeReveal(), range);
+
+    // Another file opened meanwhile: not there anymore.
+    await workspace.openAt(first, range);
+    await workspace.open(second);
+    await workspace.open(first);
+    expect(workspace.takeReveal(), isNull);
+  });
 
   test('open files follow changes made on disk, unless edited', () async {
     final files = _FakeIdeFileService({first: 'one\n', second: 'two\n'});

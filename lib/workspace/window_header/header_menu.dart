@@ -30,6 +30,7 @@ class HeaderMenuItem {
     required this.onSelected,
     this.shortcut,
     this.checked = false,
+    this.leading,
   }) : rule = false;
 
   /// A line between groups.
@@ -38,6 +39,7 @@ class HeaderMenuItem {
       onSelected = null,
       shortcut = null,
       checked = false,
+      leading = null,
       rule = true;
 
   final String label;
@@ -51,6 +53,10 @@ class HeaderMenuItem {
 
   /// Shown with a tick: one that is on (the sidebar, the window pinned).
   final bool checked;
+
+  /// Drawn where the tick is, in the item's color, when it has none (a
+  /// project's own icon).
+  final Widget Function(Color color)? leading;
 
   final bool rule;
 }

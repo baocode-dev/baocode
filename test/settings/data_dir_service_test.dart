@@ -36,6 +36,7 @@ void main() {
       ('language-packs/toy/manifest.json', '{}'),
       ('checkpoints/app-1f/HEAD', 'ref: refs/heads/main'),
       ('cache/claude-sessions.json', '{}'),
+      ('icons/index.json', '[]'),
       ('Cookies', 'chromium'),
       ('GPUCache/data_0', 'chromium'),
       ('Local Storage/leveldb/LOG', 'chromium'),
@@ -156,6 +157,8 @@ void main() {
       'checkpoints',
       'checkpoints/app-1f',
       'checkpoints/app-1f/HEAD',
+      'icons',
+      'icons/index.json',
       'keymaps',
       'keymaps/vim.json',
       'language-packs',
@@ -180,8 +183,8 @@ void main() {
       Link(p.join(target, 'servers', 'tool-link')).targetSync(),
       p.join(target, 'servers', 'tool', 'bin', 'tool'),
     );
-    expect(progress.first, (0, 10));
-    expect(progress.last, (10, 10));
+    expect(progress.first, (0, 11));
+    expect(progress.last, (11, 11));
     // The old folder is as it was: the web view's files included.
     expect(File(p.join(current, 'Cookies')).existsSync(), isTrue);
     expect(File(p.join(current, 'state', 'state.json')).existsSync(), isTrue);

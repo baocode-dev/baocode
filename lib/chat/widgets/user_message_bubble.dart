@@ -10,6 +10,7 @@ import '../composer/composer_embeds.dart';
 import 'assistant_text.dart';
 import 'fade_curve.dart';
 import 'image_thumbnails.dart';
+import 'inline_code.dart';
 
 /// A sent user message, echoed as text: `@paths`, `[path:lines]` and a
 /// leading `/command` in it show as the same inline tags as in the composer.
@@ -206,7 +207,7 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
                 _Collapsed(
                   collapsedHeight: _lineHeight * _collapsedLines,
                   collapseAbove: _lineHeight * (_collapsedLines + 1),
-                  content: Text.rich(
+                  content: InlineCodeText(
                     _messageSpan(
                       widget.text,
                       ComposerVocabulary.of(context),

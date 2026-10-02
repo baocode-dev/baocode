@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../../chat/chat_keys.dart';
+import '../../icons/project_icon_view.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_layout.dart';
 import '../../ide/ide_modern_ui.dart';
@@ -335,6 +336,15 @@ class _WindowHeaderState extends State<WindowHeader> {
           HeaderMenuItem(
             project.name,
             onSelected: () => widget.workspace.openFolder(project.path),
+            leading: switch (widget.workspace.iconOf(project)) {
+              null => null,
+              final icon => (color) => ProjectIconView(
+                icon: icon,
+                library: widget.workspace.icons,
+                size: 16,
+                color: color,
+              ),
+            },
           ),
         ],
         if (widget.onOpenSettings case final openSettings?) ...[
