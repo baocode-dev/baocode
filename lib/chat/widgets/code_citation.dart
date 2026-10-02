@@ -244,70 +244,77 @@ class _CodeCitationCardState extends State<CodeCitationCard> {
       null => null,
     };
     final l10n = context.l10n;
-    Widget file = HoverBuilder(
-      cursor: open != null && path != null
-          ? SystemMouseCursors.click
-          : MouseCursor.defer,
-      builder: (context, hovered) {
-        final link = hovered && open != null && path != null;
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FileIcon(citation.fileName, size: 15),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                citation.fileName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: link ? AppColors.accent : AppColors.text,
-                  fontSize: 12.5,
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              citation.lines,
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-            ),
-          ],
-        );
-      },
+    final opens = open != null && path != null;
+    Widget file = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FileIcon(citation.fileName, size: 15),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            citation.fileName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: AppColors.text, fontSize: 12.5),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          citation.lines,
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+        ),
+      ],
     );
-    if (open != null && path != null) {
-      file = GestureDetector(
-        onTap: () => open(path, citation.start, citation.end),
-        child: file,
+    if (opens) {
+      file = MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () => open(path, citation.start, citation.end),
+          child: file,
+        ),
       );
     }
+    final hover = AppColors.hover;
     return SelectionContainer.disabled(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => setState(() => _expanded = !_expanded),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
-          child: Row(
-            children: [
-              _IconButton(
-                icon: _expanded ? Codicons.chevronDown : Codicons.chevronRight,
-                tooltip: _expanded ? l10n.cmdListCollapse : l10n.cmdListExpand,
-                onTap: () => setState(() => _expanded = !_expanded),
-              ),
-              const SizedBox(width: 2),
-              Flexible(
-                child: IdeHover(message: citation.path, child: file),
-              ),
-              const Spacer(),
-              Visibility.maintain(
-                visible: _hovered || _copied,
-                child: _IconButton(
-                  icon: _copied ? Codicons.check : Codicons.copy,
-                  tooltip: l10n.commonCopy,
-                  onTap: _copy,
+      child: HoverBuilder(
+        builder: (context, hovered) => GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Container(
+            // Faintly lit while hovered.
+            color: hovered
+                ? hover.withValues(alpha: hover.a * 0.6)
+                : Colors.transparent,
+            padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+            child: Row(
+              children: [
+                _IconButton(
+                  icon: _expanded
+                      ? Codicons.chevronDown
+                      : Codicons.chevronRight,
+                  tooltip: _expanded
+                      ? l10n.cmdListCollapse
+                      : l10n.cmdListExpand,
+                  onTap: () => setState(() => _expanded = !_expanded),
                 ),
-              ),
-            ],
+                const SizedBox(width: 2),
+                // The rest of the row, the copy button at its end.
+                Expanded(
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: IdeHover(message: citation.path, child: file),
+                  ),
+                ),
+                Visibility.maintain(
+                  visible: _hovered || _copied,
+                  child: _IconButton(
+                    icon: _copied ? Codicons.check : Codicons.copy,
+                    tooltip: l10n.commonCopy,
+                    onTap: _copy,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

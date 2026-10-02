@@ -100,6 +100,13 @@ import 'icons/icon_storage.dart';
       expect(shown, contains(contains("import 'icons/icon_storage.dart';")));
     });
 
+    testWidgets('the copy button keeps to the title\'s end', (tester) async {
+      await pumpMarkdown(tester, cited);
+      final card = tester.getRect(find.byType(CodeCitationCard));
+      final copy = tester.getRect(find.byIcon(Codicons.copy));
+      expect(card.right - copy.right, lessThan(16));
+    });
+
     testWidgets('other fences stay code blocks', (tester) async {
       await pumpMarkdown(tester, '```dart\nvoid main() {}\n```');
       expect(find.byType(CodeCitationCard), findsNothing);
