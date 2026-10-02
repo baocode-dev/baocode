@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/ide/ide_chat_title.dart';
@@ -388,5 +390,55 @@ void main() {
     expect(tabs, hasLength(1));
     expect(tabs.single.untouched, isTrue);
     expect(workspace.threads, containsAll([thread, ...others]));
+  });
+
+  testWidgets('⌘W/Ctrl+W from the chat closes its tab shown, the next '
+      'then; from an editor, the editor', (tester) async {
+    final workspace = await _pumpApp(tester);
+    final thread = workspace.current!;
+    final folder = thread.project.path;
+    final other = workspace.threads.firstWhere(
+      (t) => t.project == thread.project && t != thread && !t.archived,
+    );
+    workspace.openInIde(thread);
+    workspace.openIdeChat(folder, other);
+    await tester.pump();
+    await tester.pump();
+    _ide(tester).runCommand('workbench.action.files.newUntitledFile');
+    await tester.pump();
+    List<Object> docs() => tester
+        .widget<IdeWorkbench>(find.byType(IdeWorkbench))
+        .workspace
+        .documents;
+    expect(docs(), hasLength(1));
+
+    Future<void> closeKey() async {
+      final modifier = defaultTargetPlatform == TargetPlatform.macOS
+          ? LogicalKeyboardKey.metaLeft
+          : LogicalKeyboardKey.controlLeft;
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyW);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pumpAndSettle();
+    }
+
+    await tester.tap(find.byType(QuillEditor));
+    await tester.pumpAndSettle();
+    await closeKey();
+    expect(workspace.ideChats(folder), [thread]);
+    expect(docs(), hasLength(1));
+
+    // The keyboard went to the chat shown next.
+    await closeKey();
+    final tabs = workspace.ideChats(folder);
+    expect(tabs, hasLength(1));
+    expect(tabs.single.untouched, isTrue);
+    expect(docs(), hasLength(1));
+
+    _ide(tester).runCommand('workbench.action.focusActiveEditorGroup');
+    await tester.pumpAndSettle();
+    await closeKey();
+    expect(docs(), isEmpty);
+    expect(workspace.ideChats(folder), tabs);
   });
 }

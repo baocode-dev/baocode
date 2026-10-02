@@ -296,6 +296,12 @@ abstract class AppLocalizations {
   /// **'Close Pane'**
   String get cmdChatClosePane;
 
+  /// No description provided for @cmdChatCloseTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Close Chat'**
+  String get cmdChatCloseTab;
+
   /// No description provided for @cmdChatNextAgent.
   ///
   /// In en, this message translates to:

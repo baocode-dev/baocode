@@ -106,6 +106,7 @@
   },
   "cmdChatNewAgent": "New Chat",
   "cmdChatClosePane": "Close Pane",
+  "cmdChatCloseTab": "Close Chat",
   "cmdChatNextAgent": "Open Next Agent",
   "cmdChatPreviousAgent": "Open Previous Agent",
   "cmdChatOpenAgentAtIndex": "Open Agent at Index {index}",

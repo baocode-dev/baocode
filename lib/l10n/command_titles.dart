@@ -100,6 +100,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     ChatCommandIds.focusPreviousPane => l10n.cmdChatFocusPreviousPane,
     ChatCommandIds.searchAgents => l10n.cmdChatSearchAgents,
     ChatCommandIds.openIde => l10n.cmdChatOpenIde,
+    ChatCommandIds.closeTab => l10n.cmdChatCloseTab,
     ChatCommandIds.focusInput => l10n.cmdChatFocusInput,
     ChatCommandIds.focusList => l10n.cmdChatFocusList,
     ChatCommandIds.cancel => l10n.cmdChatCancel,

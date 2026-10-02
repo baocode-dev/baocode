@@ -16,8 +16,10 @@
 // Deviations:
 // - New Chat starts a new agent, anywhere in the chat window (upstream: in
 //   the chat), on ⌘N/Ctrl+N only: its secondary ⌃L/Ctrl+L is Focus Chat
-//   Input's, which also has ⌘L/Ctrl+L, as Cursor has it. From a subagent's
-//   conversation, Focus Chat Input goes back to the chat's.
+//   Input's, which also has ⌘L/Ctrl+L, as Cursor has it. In the IDE, from
+//   its chat, ⌘N/Ctrl+N starts a chat there and ⌘W/Ctrl+W closes its tab
+//   (BaoCode's `baocode.chat.closeTab`), as Close Editor an editor's. From
+//   a subagent's conversation, Focus Chat Input goes back to the chat's.
 // - Cancel also takes a plain Escape in the input while a turn runs, as the
 //   agents' own terminals do; Accept and Skip need no focus in the chat (in
 //   the chat window they act on the agent focused, as Cancel and Focus Chat
@@ -55,6 +57,9 @@ abstract final class ChatCommandIds {
   static const focusPreviousPane = 'baocode.chat.focusPreviousPane';
   static const searchAgents = 'baocode.chat.searchAgents';
   static const openIde = 'baocode.chat.openIde';
+
+  /// The IDE's chat's: closes the tab shown.
+  static const closeTab = 'baocode.chat.closeTab';
 
   // A chat's (see ChatScreen).
   static const focusInput = 'workbench.action.chat.focusInput';
@@ -157,6 +162,7 @@ final List<CommandInfo> chatExtraCommands = [
     (ChatCommandIds.focusPreviousPane, 'Focus Previous Pane'),
     (ChatCommandIds.searchAgents, 'Search Agents'),
     (ChatCommandIds.openIde, 'Open in Fast Ide'),
+    (ChatCommandIds.closeTab, 'Close Chat'),
     (ChatCommandIds.focusInput, 'Focus Chat Input'),
     (ChatCommandIds.focusList, 'Focus Chat List'),
     (ChatCommandIds.cancel, 'Cancel'),
@@ -220,6 +226,20 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     key: 'ctrl+n',
     mac: 'cmd+n',
     command: ChatCommandIds.newChat,
+    when: 'ideMode && auxiliaryBarFocus',
+  ),
+  // From its chat, as Close Editor: the chat's tab shown (elsewhere the
+  // editor).
+  const KeybindingEntry(
+    win: 'ctrl+f4',
+    linux: 'ctrl+f4',
+    command: ChatCommandIds.closeTab,
+    when: 'ideMode && auxiliaryBarFocus',
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+w',
+    mac: 'cmd+w',
+    command: ChatCommandIds.closeTab,
     when: 'ideMode && auxiliaryBarFocus',
   ),
   const KeybindingEntry(

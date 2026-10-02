@@ -118,6 +118,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdChatClosePane => 'Close Pane';
 
   @override
+  String get cmdChatCloseTab => 'Close Chat';
+
+  @override
   String get cmdChatNextAgent => 'Open Next Agent';
 
   @override

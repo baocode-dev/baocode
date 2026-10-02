@@ -399,6 +399,34 @@ void main() {
     expect(list.position.pixels, list.position.maxScrollExtent);
   });
 
+  testWidgets('shown from the top of a long list, the archived agents are '
+      'scrolled to', (tester) async {
+    // Far more than shows: the list's extent is an estimate until its
+    // bottom rows are laid out, short of the archived ones.
+    final records = [
+      for (var p = 0; p < 12; p++)
+        for (var i = 0; i < 8; i++)
+          kept('p${p}t$i', '/proj$p', 60 * (p * 8 + i + 1)),
+    ];
+    final store = MemoryPreferenceStore({
+      'sidebar': {
+        'archived': [for (var i = 0; i < 7; i++) records[i * 10].id],
+      },
+    });
+    await pumpKept(tester, KeptCatalog(records), preferences: store);
+    await tester.tap(inSidebar(find.text('Archived · 7')));
+    await tester.pumpAndSettle();
+    final scrollable = inSidebar(find.byType(Scrollable)).last;
+    final list = tester.state<ScrollableState>(scrollable);
+    expect(list.position.pixels, list.position.maxScrollExtent);
+    expect(
+      tester
+          .getRect(scrollable)
+          .contains(tester.getCenter(inSidebar(find.text('Archived')))),
+      isTrue,
+    );
+  });
+
   testWidgets('hovered, a row offers pin and archive in place of its time', (
     tester,
   ) async {

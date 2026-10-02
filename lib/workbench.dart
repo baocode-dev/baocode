@@ -620,6 +620,12 @@ class _WorkbenchState extends State<Workbench> {
               category: 'Chat',
               run: () => _newIdeChat(folder),
             ),
+            IdeCommand(
+              id: ChatCommandIds.closeTab,
+              label: 'Close Chat',
+              category: 'Chat',
+              run: () => _closeIdeChat(folder),
+            ),
           ],
           if (ShellCommand.supported) ...[
             command(
@@ -800,6 +806,15 @@ class _WorkbenchState extends State<Workbench> {
   // --- The IDE's chat ----------------------------------------------------------
 
   void _newIdeChat(String folder) => _focusChat(_workspace.newIdeChat(folder));
+
+  /// Closes [folder]'s chat tab shown; the keyboard goes to the one shown
+  /// next, so ⌘W goes on closing them.
+  void _closeIdeChat(String folder) {
+    final current = _workspace.ideChat(folder);
+    if (current == null) return;
+    _workspace.closeIdeChat(folder, current);
+    if (_workspace.ideChat(folder) case final next?) _focusChat(next);
+  }
 
   void _openIdeChat(String folder, AgentThread thread) {
     _workspace.openIdeChat(folder, thread);

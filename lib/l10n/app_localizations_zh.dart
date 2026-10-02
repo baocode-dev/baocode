@@ -117,6 +117,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdChatClosePane => '关闭窗格';
 
   @override
+  String get cmdChatCloseTab => '关闭对话';
+
+  @override
   String get cmdChatNextAgent => '打开下一个智能体';
 
   @override

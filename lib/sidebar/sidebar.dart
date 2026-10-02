@@ -194,16 +194,26 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     _workspace.showArchived = show;
     if (!show) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_scrollToEnd());
+    });
+  }
+
+  /// Scrolls to the bottom of the list. The list lays out only the rows
+  /// near what shows, so its extent is an estimate until the bottom ones
+  /// are reached (short of the archived ones, from far above): the bottom
+  /// is chased until it stays put.
+  Future<void> _scrollToEnd() async {
+    for (var i = 0; i < 4; i++) {
       if (!mounted || !_listScroll.hasClients) return;
       final position = _listScroll.position;
-      unawaited(
-        position.animateTo(
-          position.maxScrollExtent,
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeOutCubic,
-        ),
+      final end = position.maxScrollExtent;
+      if (position.pixels >= end) return;
+      await position.animateTo(
+        end,
+        duration: Duration(milliseconds: i == 0 ? 240 : 120),
+        curve: Curves.easeOutCubic,
       );
-    });
+    }
   }
 
   @override

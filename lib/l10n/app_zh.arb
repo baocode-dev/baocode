@@ -33,6 +33,7 @@
   "cmdCategoryChat": "聊天",
   "cmdChatNewAgent": "新对话",
   "cmdChatClosePane": "关闭窗格",
+  "cmdChatCloseTab": "关闭对话",
   "cmdChatNextAgent": "打开下一个智能体",
   "cmdChatPreviousAgent": "打开上一个智能体",
   "cmdChatOpenAgentAtIndex": "打开第 {index} 个智能体",
