@@ -521,6 +521,7 @@ class _ChatScreenState extends State<ChatScreen>
                         key: ObjectKey(request),
                         request: request,
                         onAnswer: _answer,
+                        kernel: _session.kernel.id,
                       ),
                       null => null,
                     },

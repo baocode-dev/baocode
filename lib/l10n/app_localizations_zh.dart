@@ -190,6 +190,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdChatOpenModePicker => '打开模式选择器';
 
   @override
+  String get cmdChatNextMode => '切换到下一个模式';
+
+  @override
   String get cmdChatOpenModelPicker => '打开模型选择器';
 
   @override
@@ -1810,6 +1813,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toolSent => '已发送';
 
   @override
+  String get toolAsking => '正在提问';
+
+  @override
+  String get toolAsked => '提问';
+
+  @override
+  String get toolQuestionSkipped => '已跳过提问';
+
+  @override
   String get toolUsing => '正在使用';
 
   @override
@@ -1965,24 +1977,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get composerModeAgent => '自主';
-
-  @override
-  String get composerModeAgentDetail => '自行规划、编辑和运行';
-
-  @override
-  String get composerModeAsk => '问答';
-
-  @override
-  String get composerModeAskDetail => '只讨论，给出修改建议';
-
-  @override
-  String get composerModePlan => '规划';
-
-  @override
-  String get composerModePlanDetail => '先调研规划，再动手';
-
-  @override
   String get composerApprovalDefault => '逐项批准';
 
   @override
@@ -1998,10 +1992,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get composerApprovalAuto => '替我批准';
 
   @override
-  String get composerApprovalAutoDetail => '仅在看起来有风险时询问';
+  String get composerApprovalAutoDetail => '安全的自动通过，有风险的拦下';
 
   @override
-  String get composerApprovalDontAsk => '不询问';
+  String get composerApprovalDontAsk => '仅限已允许';
 
   @override
   String get composerApprovalDontAskDetail => '未预先允许的一律拒绝';
@@ -2010,7 +2004,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get composerApprovalFullAccess => '完全访问';
 
   @override
-  String get composerApprovalFullAccessDetail => '不做检查：任意文件、任意命令、联网';
+  String get composerApprovalFullAccessDetail => '不做任何检查，执行时也不提问';
 
   @override
   String get composerContextUsage => '上下文用量';
@@ -2170,6 +2164,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get interactionDenyHint => '告诉智能体改做什么';
+
+  @override
+  String get interactionPlanTitle => '准备好开始了吗？';
+
+  @override
+  String get interactionStartBuilding => '是，开始构建';
+
+  @override
+  String interactionStartWith(String approvals) {
+    return '是，开始 · $approvals';
+  }
 
   @override
   String get interactionKeepPlanningOption => '不，继续规划';

@@ -505,36 +505,59 @@ void main() {
     expect(ActivityRow.musingsFor(_zh), hasLength(ActivityRow.musings.length));
   });
 
-  test('Claude Code\'s modes and approvals are localized', () {
+  test('Claude Code\'s approvals are localized, its modes are not', () {
     final kernel = ClaudeCodeKernel(
       MockKernels.claudeCode,
       const KernelContext(cwd: '/p'),
       start: (_) => throw UnimplementedError(),
     );
     addTearDown(kernel.dispose);
-    final choices = {
-      KernelChoiceKind.mode: kernel.mode.options,
-      KernelChoiceKind.permission: kernel.permission.options,
-    };
-    for (final MapEntry(key: kind, value: options) in choices.entries) {
-      for (final option in options) {
-        // English is the kernel's own; Chinese is another, but the option.
-        final en = localizedKernelOption(
-          englishLocalizations,
-          'claude-code',
-          kind,
-          option,
-        );
-        expect(en, option);
-        final zh = localizedKernelOption(_zh, 'claude-code', kind, option);
-        expect(zh.label, isNot(option.label));
-        expect(zh.description, isNot(option.description));
-        expect(
-          (zh.id, zh.icon, zh.caution),
-          (option.id, option.icon, option.caution),
-        );
-      }
+    for (final option in kernel.permission.options) {
+      // English is the kernel's own; Chinese is another, but the option.
+      final en = localizedKernelOption(
+        englishLocalizations,
+        'claude-code',
+        KernelChoiceKind.permission,
+        option,
+      );
+      expect(en, option);
+      final zh = localizedKernelOption(
+        _zh,
+        'claude-code',
+        KernelChoiceKind.permission,
+        option,
+      );
+      expect(zh.label, isNot(option.label));
+      expect(zh.description, isNot(option.description));
+      expect(
+        (zh.id, zh.icon, zh.caution),
+        (option.id, option.icon, option.caution),
+      );
     }
+    // The modes are named alike in every language.
+    for (final option in kernel.mode.options) {
+      expect(
+        localizedKernelOption(
+          _zh,
+          'claude-code',
+          KernelChoiceKind.mode,
+          option,
+        ),
+        same(option),
+      );
+    }
+    final acceptEdits = kernel.permission.options[1];
+    expect(
+      _zh.interactionStartWith(
+        localizedKernelOption(
+          _zh,
+          'claude-code',
+          KernelChoiceKind.permission,
+          acceptEdits,
+        ).label,
+      ),
+      '是，开始 · 自动接受编辑',
+    );
     final other = kernel.mode.options.first;
     expect(
       localizedKernelOption(_zh, 'codex', KernelChoiceKind.mode, other),

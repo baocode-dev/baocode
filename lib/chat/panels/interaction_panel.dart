@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../ide/ide_hover.dart';
+import '../../kernel/agent_kernel.dart';
 import '../../kernel/kernel_types.dart';
 import '../../keybindings/chat_keybindings.dart';
 import '../../l10n/l10n.dart';
@@ -9,6 +10,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_keys.dart';
 import '../chat_models.dart';
+import '../composer/kernel_option_text.dart';
 import '../widgets/hover_builder.dart';
 import '../widgets/markdown_view.dart';
 import 'panel_card.dart';
@@ -23,10 +25,14 @@ class InteractionPanel extends StatefulWidget {
     super.key,
     required this.request,
     required this.onAnswer,
+    this.kernel,
   });
 
   final InteractionRequest request;
   final ValueChanged<InteractionAnswer> onAnswer;
+
+  /// The id of the kernel asking: what it names, in the display language.
+  final String? kernel;
 
   @override
   State<InteractionPanel> createState() => _InteractionPanelState();
@@ -89,7 +95,7 @@ class _InteractionPanelState extends State<InteractionPanel>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _steps = _stepsFor(widget.request, context.l10n);
+    _steps = _stepsFor(widget.request, context.l10n, widget.kernel);
   }
 
   @override
@@ -107,6 +113,7 @@ class _InteractionPanelState extends State<InteractionPanel>
   static List<_Step> _stepsFor(
     InteractionRequest request,
     AppLocalizations l10n,
+    String? kernel,
   ) => switch (request) {
     QuestionRequest(:final questions) => [
       for (final question in questions)
@@ -140,12 +147,23 @@ class _InteractionPanelState extends State<InteractionPanel>
         ],
       ),
     ],
-    PlanReviewRequest(:final plan, :final approveLabel) => [
+    PlanReviewRequest(:final plan, :final approvals, :final approveLabel) => [
       _Step(
         prompt: '',
         detail: _PlanPreview(plan),
         rows: [
-          _Row(approveLabel),
+          _Row(switch ((kernel, approvals)) {
+            (final kernel?, final approvals?) => l10n.interactionStartWith(
+              localizedKernelOption(
+                l10n,
+                kernel,
+                KernelChoiceKind.permission,
+                approvals,
+              ).label,
+            ),
+            (_, null) => l10n.interactionStartBuilding,
+            _ => approveLabel,
+          }),
           _Row(
             l10n.interactionKeepPlanningOption,
             textHint: l10n.interactionWhatShouldChange,
@@ -359,7 +377,11 @@ class _InteractionPanelState extends State<InteractionPanel>
                   children: [
                     Flexible(
                       child: Text(
-                        widget.request.title,
+                        switch (widget.request) {
+                          PlanReviewRequest() =>
+                            context.l10n.interactionPlanTitle,
+                          final request => request.title,
+                        },
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

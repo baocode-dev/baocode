@@ -171,12 +171,12 @@ void main() {
     await tester.tapAt(tester.getCenter(mode));
     await settleAnimations(tester);
     expect(find.byType(SuggestionMenu), findsNothing);
-    expect(find.text('Plan, edit and run on its own'), findsOneWidget);
+    expect(find.text('Plan, edit and run code'), findsOneWidget);
 
     // The other picker closes the first.
     await tester.tapAt(tester.getCenter(model));
     await settleAnimations(tester);
-    expect(find.text('Plan, edit and run on its own'), findsNothing);
+    expect(find.text('Plan, edit and run code'), findsNothing);
     expect(find.text('Haiku 4.5'), findsOneWidget);
   });
 

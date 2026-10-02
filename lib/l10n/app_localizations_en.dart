@@ -191,6 +191,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdChatOpenModePicker => 'Open Mode Picker';
 
   @override
+  String get cmdChatNextMode => 'Switch to Next Mode';
+
+  @override
   String get cmdChatOpenModelPicker => 'Open Model Picker';
 
   @override
@@ -1866,6 +1869,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolSent => 'Sent';
 
   @override
+  String get toolAsking => 'Asking';
+
+  @override
+  String get toolAsked => 'Asked';
+
+  @override
+  String get toolQuestionSkipped => 'Skipped question';
+
+  @override
   String get toolUsing => 'Using';
 
   @override
@@ -2029,24 +2041,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get composerModeAgent => 'Agent';
-
-  @override
-  String get composerModeAgentDetail => 'Plan, edit and run on its own';
-
-  @override
-  String get composerModeAsk => 'Ask';
-
-  @override
-  String get composerModeAskDetail => 'Talk it through, suggest changes';
-
-  @override
-  String get composerModePlan => 'Plan';
-
-  @override
-  String get composerModePlanDetail => 'Research and plan, then build';
-
-  @override
   String get composerApprovalDefault => 'Ask for approval';
 
   @override
@@ -2063,7 +2057,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get composerApprovalAuto => 'Approve for me';
 
   @override
-  String get composerApprovalAutoDetail => 'Ask only for what looks risky';
+  String get composerApprovalAutoDetail =>
+      'Run what is safe, block what looks risky';
 
   @override
   String get composerApprovalDontAsk => 'Don\'t ask';
@@ -2077,7 +2072,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get composerApprovalFullAccessDetail =>
-      'No checks: any file, any command, the internet';
+      'No checks, and no questions while it works';
 
   @override
   String get composerContextUsage => 'Context usage';
@@ -2243,6 +2238,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get interactionDenyHint => 'Tell the agent what to do instead';
+
+  @override
+  String get interactionPlanTitle => 'Ready to code?';
+
+  @override
+  String get interactionStartBuilding => 'Yes, start building';
+
+  @override
+  String interactionStartWith(String approvals) {
+    return 'Yes, start · $approvals';
+  }
 
   @override
   String get interactionKeepPlanningOption => 'No, keep planning';

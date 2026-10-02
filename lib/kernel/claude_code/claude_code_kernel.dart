@@ -781,11 +781,13 @@ class ClaudeCodeKernel
     final input = (request['input'] as Map?)?.cast<String, Object?>() ?? {};
     final suggestions = request['permission_suggestions'] as List? ?? const [];
     // Answered here, with nothing shown: in full access no one is waited
-    // on for a question, and in Don't ask nothing that is not pre-approved
-    // is asked about (the CLI asks in Plan all the same). A plan is always
+    // on for a question while it builds (in Plan and Ask, questions are
+    // the point), and in Don't ask nothing that is not pre-approved is
+    // asked about (the CLI asks in Plan all the same). A plan is always
     // the user's to approve.
     if (switch ((_approval, tool)) {
-          ('bypassPermissions', 'AskUserQuestion') => _unattendedAnswer,
+          ('bypassPermissions', 'AskUserQuestion') when _work == 'agent' =>
+            ClaudeTranslator.unattendedAnswer,
           ('dontAsk', != 'AskUserQuestion' && != 'ExitPlanMode') => _notAsked,
           _ => null,
         }
@@ -833,14 +835,16 @@ class ClaudeCodeKernel
             plan = null;
           }
         }
+        final approvals = _approvals
+            .where((a) => a.id == _approval)
+            .firstOrNull;
         interaction = PlanReviewRequest(
           id: requestId,
           title: 'Ready to code?',
           plan: plan ?? '(The plan could not be read.)',
-          approveLabel: switch (_approvals
-              .where((a) => a.id == _approval)
-              .firstOrNull) {
-            final approval? => 'Yes, start · ${approval.label}',
+          approvals: approvals,
+          approveLabel: switch (approvals) {
+            final approvals? => 'Yes, start · ${approvals.label}',
             null => 'Yes, start building',
           },
         );
@@ -1640,7 +1644,7 @@ class ClaudeCodeKernel
       'agent',
       'Agent',
       Icons.all_inclusive_rounded,
-      'Plan, edit and run on its own',
+      'Plan, edit and run code',
     ),
     KernelOption(
       'ask',
@@ -1673,7 +1677,7 @@ class ClaudeCodeKernel
       'auto',
       'Approve for me',
       Icons.shield_outlined,
-      'Ask only for what looks risky',
+      'Run what is safe, block what looks risky',
     ),
     KernelOption(
       'dontAsk',
@@ -1685,7 +1689,7 @@ class ClaudeCodeKernel
       'bypassPermissions',
       'Full access',
       Icons.gpp_maybe_outlined,
-      'No checks: any file, any command, the internet',
+      'No checks, and no questions while it works',
       caution: true,
     ),
   ];
@@ -1702,12 +1706,6 @@ class ClaudeCodeKernel
   static const _askEndedNote =
       '<system-reminder>The user has left Ask mode: you may now edit files '
       'and run commands as the task needs.</system-reminder>';
-
-  /// The answer to a question in full access.
-  static const _unattendedAnswer =
-      'The user has given full access and is not here to answer questions. '
-      'Do not ask again: go with what seems best, say what you assumed, '
-      'and carry on.';
 
   /// The answer to what would be asked in Don't ask.
   static const _notAsked =

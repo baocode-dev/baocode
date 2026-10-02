@@ -46,7 +46,7 @@ class ToolCallRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget header = StepHeader(
-      verb: label ?? toolVerb(kind, running: _running, l10n: context.l10n),
+      verb: label ?? toolVerb(kind, status: status, l10n: context.l10n),
       object: target,
       detail: detail,
       running: _running,
@@ -104,10 +104,15 @@ class ToolCallRow extends StatelessWidget {
   }
 }
 
-/// What a kind of tool call did, or does while [running]; in [l10n]'s
-/// language (English when null).
-String toolVerb(ToolKind kind, {bool running = false, AppLocalizations? l10n}) {
+/// What a kind of tool call did, or does while running, as its [status]
+/// says; in [l10n]'s language (English when null).
+String toolVerb(
+  ToolKind kind, {
+  ToolStatus status = ToolStatus.succeeded,
+  AppLocalizations? l10n,
+}) {
   final s = l10n ?? englishLocalizations;
+  final running = status == ToolStatus.running;
   return switch (kind) {
     ToolKind.read => running ? s.toolReading : s.toolRead,
     ToolKind.grep => running ? s.toolGrepping : s.toolGrepped,
@@ -120,6 +125,13 @@ String toolVerb(ToolKind kind, {bool running = false, AppLocalizations? l10n}) {
     ToolKind.mcp => 'MCP',
     ToolKind.todo => running ? s.toolUpdatingTodos : s.toolUpdatedTodos,
     ToolKind.message => running ? s.toolSending : s.toolSent,
+    // Refused: answered for the user, not asked.
+    ToolKind.question =>
+      running
+          ? s.toolAsking
+          : status == ToolStatus.denied
+          ? s.toolQuestionSkipped
+          : s.toolAsked,
     ToolKind.other => running ? s.toolUsing : s.toolUsed,
   };
 }

@@ -434,6 +434,12 @@ abstract class AppLocalizations {
   /// **'Open Mode Picker'**
   String get cmdChatOpenModePicker;
 
+  /// No description provided for @cmdChatNextMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to Next Mode'**
+  String get cmdChatNextMode;
+
   /// No description provided for @cmdChatOpenModelPicker.
   ///
   /// In en, this message translates to:
@@ -3548,6 +3554,24 @@ abstract class AppLocalizations {
   /// **'Sent'**
   String get toolSent;
 
+  /// No description provided for @toolAsking.
+  ///
+  /// In en, this message translates to:
+  /// **'Asking'**
+  String get toolAsking;
+
+  /// No description provided for @toolAsked.
+  ///
+  /// In en, this message translates to:
+  /// **'Asked'**
+  String get toolAsked;
+
+  /// A question the agent asked in full access, answered for the user without asking them.
+  ///
+  /// In en, this message translates to:
+  /// **'Skipped question'**
+  String get toolQuestionSkipped;
+
   /// No description provided for @toolUsing.
   ///
   /// In en, this message translates to:
@@ -3734,42 +3758,6 @@ abstract class AppLocalizations {
   /// **'How should {agent} get approval?'**
   String composerApprovalTitle(String agent);
 
-  /// No description provided for @composerModeAgent.
-  ///
-  /// In en, this message translates to:
-  /// **'Agent'**
-  String get composerModeAgent;
-
-  /// No description provided for @composerModeAgentDetail.
-  ///
-  /// In en, this message translates to:
-  /// **'Plan, edit and run on its own'**
-  String get composerModeAgentDetail;
-
-  /// No description provided for @composerModeAsk.
-  ///
-  /// In en, this message translates to:
-  /// **'Ask'**
-  String get composerModeAsk;
-
-  /// Ask is only said to the model: it does not stop changes, the approvals do.
-  ///
-  /// In en, this message translates to:
-  /// **'Talk it through, suggest changes'**
-  String get composerModeAskDetail;
-
-  /// No description provided for @composerModePlan.
-  ///
-  /// In en, this message translates to:
-  /// **'Plan'**
-  String get composerModePlan;
-
-  /// No description provided for @composerModePlanDetail.
-  ///
-  /// In en, this message translates to:
-  /// **'Research and plan, then build'**
-  String get composerModePlanDetail;
-
   /// No description provided for @composerApprovalDefault.
   ///
   /// In en, this message translates to:
@@ -3803,7 +3791,7 @@ abstract class AppLocalizations {
   /// No description provided for @composerApprovalAutoDetail.
   ///
   /// In en, this message translates to:
-  /// **'Ask only for what looks risky'**
+  /// **'Run what is safe, block what looks risky'**
   String get composerApprovalAutoDetail;
 
   /// No description provided for @composerApprovalDontAsk.
@@ -3827,7 +3815,7 @@ abstract class AppLocalizations {
   /// No description provided for @composerApprovalFullAccessDetail.
   ///
   /// In en, this message translates to:
-  /// **'No checks: any file, any command, the internet'**
+  /// **'No checks, and no questions while it works'**
   String get composerApprovalFullAccessDetail;
 
   /// No description provided for @composerContextUsage.
@@ -4093,6 +4081,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Tell the agent what to do instead'**
   String get interactionDenyHint;
+
+  /// No description provided for @interactionPlanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready to code?'**
+  String get interactionPlanTitle;
+
+  /// No description provided for @interactionStartBuilding.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes, start building'**
+  String get interactionStartBuilding;
+
+  /// Approves a plan, to be carried out with the approvals named (e.g. Accept edits).
+  ///
+  /// In en, this message translates to:
+  /// **'Yes, start · {approvals}'**
+  String interactionStartWith(String approvals);
 
   /// No description provided for @interactionKeepPlanningOption.
   ///

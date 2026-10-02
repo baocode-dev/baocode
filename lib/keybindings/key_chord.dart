@@ -75,7 +75,12 @@ class KeyChord {
     final pressed = keyboard ?? HardwareKeyboard.instance;
     var key = event.logicalKey;
     if (_modifierKeys.contains(key)) return null;
-    final shift = pressed.isShiftPressed;
+    // macOS types Shift+Tab as a back tab (U+0019). The Shift itself may
+    // not reach the app (an input method keeps it, e.g. Pinyin's to switch
+    // between Chinese and English), but the character says it was held.
+    final shift =
+        pressed.isShiftPressed ||
+        (key == LogicalKeyboardKey.tab && event.character == '\u0019');
     // A key the US layout types with Shift (`}`, `!`) is the key under it
     // (`]`, `1`), as the shortcut is written.
     if (_shifted[key] case final base?) key = base;

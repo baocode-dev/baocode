@@ -78,6 +78,7 @@ abstract final class ChatCommandIds {
   static const showNextPrompt = 'baocode.chat.showNextPrompt';
   static const acceptPromptSuggestion = 'baocode.chat.acceptPromptSuggestion';
   static const openModePicker = 'workbench.action.chat.openModePicker';
+  static const nextMode = 'baocode.chat.nextMode';
   static const openModelPicker = 'workbench.action.chat.openModelPicker';
   static const attachContext = 'workbench.action.chat.attachContext';
   static const selectNextSuggestion = 'baocode.chat.selectNextSuggestion';
@@ -177,6 +178,7 @@ final List<CommandInfo> chatExtraCommands = [
     (ChatCommandIds.showNextPrompt, 'Show Next Prompt'),
     (ChatCommandIds.acceptPromptSuggestion, 'Accept Suggested Prompt'),
     (ChatCommandIds.openModePicker, 'Open Mode Picker'),
+    (ChatCommandIds.nextMode, 'Switch to Next Mode'),
     (ChatCommandIds.openModelPicker, 'Open Model Picker'),
     (ChatCommandIds.attachContext, 'Add Context…'),
     (ChatCommandIds.selectNextSuggestion, 'Select Next Suggestion'),
@@ -412,6 +414,12 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     mac: 'cmd+.',
     command: ChatCommandIds.openModePicker,
     when: _input,
+  ),
+  // As Claude Code's own Shift+Tab, through the modes.
+  const KeybindingEntry(
+    key: 'shift+tab',
+    command: ChatCommandIds.nextMode,
+    when: '$_input && !${ChatContextKeys.suggestWidgetVisible}',
   ),
   const KeybindingEntry(
     key: 'ctrl+alt+.',

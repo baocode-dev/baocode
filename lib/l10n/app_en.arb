@@ -143,6 +143,7 @@
   "cmdChatShowNextPrompt": "Show Next Prompt",
   "cmdChatAcceptPromptSuggestion": "Accept Suggested Prompt",
   "cmdChatOpenModePicker": "Open Mode Picker",
+  "cmdChatNextMode": "Switch to Next Mode",
   "cmdChatOpenModelPicker": "Open Model Picker",
   "cmdChatAttachContext": "Add Context…",
   "cmdChatSelectNextSuggestion": "Select Next Suggestion",
@@ -1002,6 +1003,12 @@
   "toolUpdatedTodos": "Updated todos",
   "toolSending": "Sending",
   "toolSent": "Sent",
+  "toolAsking": "Asking",
+  "toolAsked": "Asked",
+  "toolQuestionSkipped": "Skipped question",
+  "@toolQuestionSkipped": {
+    "description": "A question the agent asked in full access, answered for the user without asking them."
+  },
   "toolUsing": "Using",
   "toolUsed": "Used",
   "imageChip": "Image {number}",
@@ -1152,25 +1159,16 @@
       }
     }
   },
-  "composerModeAgent": "Agent",
-  "composerModeAgentDetail": "Plan, edit and run on its own",
-  "composerModeAsk": "Ask",
-  "composerModeAskDetail": "Talk it through, suggest changes",
-  "@composerModeAskDetail": {
-    "description": "Ask is only said to the model: it does not stop changes, the approvals do."
-  },
-  "composerModePlan": "Plan",
-  "composerModePlanDetail": "Research and plan, then build",
   "composerApprovalDefault": "Ask for approval",
   "composerApprovalDefaultDetail": "Ask before edits and commands",
   "composerApprovalAcceptEdits": "Accept edits",
   "composerApprovalAcceptEditsDetail": "Edit files freely, ask before commands",
   "composerApprovalAuto": "Approve for me",
-  "composerApprovalAutoDetail": "Ask only for what looks risky",
+  "composerApprovalAutoDetail": "Run what is safe, block what looks risky",
   "composerApprovalDontAsk": "Don't ask",
   "composerApprovalDontAskDetail": "Deny whatever is not pre-approved",
   "composerApprovalFullAccess": "Full access",
-  "composerApprovalFullAccessDetail": "No checks: any file, any command, the internet",
+  "composerApprovalFullAccessDetail": "No checks, and no questions while it works",
   "composerContextUsage": "Context usage",
   "composerSend": "Send  ↵",
   "composerStop": "Stop",
@@ -1321,6 +1319,17 @@
   "interactionAllowOnce": "Allow once",
   "interactionDeny": "Deny",
   "interactionDenyHint": "Tell the agent what to do instead",
+  "interactionPlanTitle": "Ready to code?",
+  "interactionStartBuilding": "Yes, start building",
+  "interactionStartWith": "Yes, start · {approvals}",
+  "@interactionStartWith": {
+    "description": "Approves a plan, to be carried out with the approvals named (e.g. Accept edits).",
+    "placeholders": {
+      "approvals": {
+        "type": "String"
+      }
+    }
+  },
   "interactionKeepPlanningOption": "No, keep planning",
   "interactionWhatShouldChange": "What should change?",
   "interactionStepOf": "{step} / {total}",

@@ -861,7 +861,7 @@ void main() {
     await pumpScreen(tester);
     await settleAnimations(tester);
     final modePill = find.byType(ComposerPicker).first;
-    final menuRow = find.text('Plan, edit and run on its own');
+    final menuRow = find.text('Plan, edit and run code');
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: tester.getCenter(modePill));
 
@@ -924,6 +924,37 @@ void main() {
     await settleAnimations(tester);
     expect(menuRow, findsNothing);
     await mouse.removePointer();
+  });
+
+  testWidgets('Shift+Tab in the input goes through the modes', (tester) async {
+    await pumpScreen(tester);
+    await settleAnimations(tester);
+    final focus = tester
+        .widget<QuillEditor>(find.byType(QuillEditor))
+        .focusNode;
+    expect(focus.hasFocus, isTrue);
+    await typeText(tester, 'hi');
+    final modePill = find.byType(ComposerPicker).first;
+    Future<String> next() async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      return tester
+          .widgetList<Text>(
+            find.descendant(of: modePill, matching: find.byType(Text)),
+          )
+          .first
+          .data!;
+    }
+
+    expect(
+      [await next(), await next(), await next()],
+      ['Ask', 'Plan', 'Agent'],
+    );
+    // The input keeps its focus and its text.
+    expect(focus.hasFocus, isTrue);
+    expect(composerController(tester).document.toPlainText(), 'hi\n');
   });
 
   testWidgets('the suggestion menu shows on the next frame and fades out', (

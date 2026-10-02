@@ -87,6 +87,19 @@ void main() {
       );
     });
 
+    testWidgets('a back tab is Shift+Tab, its Shift unseen or not', (
+      tester,
+    ) async {
+      expect(
+        KeyChord.fromEvent(down(LogicalKeyboardKey.tab, character: '\u0019')),
+        KeyChord.parse('shift+tab'),
+      );
+      expect(
+        KeyChord.fromEvent(down(LogicalKeyboardKey.tab, character: '\t')),
+        KeyChord.parse('tab'),
+      );
+    });
+
     testWidgets('a modifier alone is no chord', (tester) async {
       expect(KeyChord.fromEvent(down(LogicalKeyboardKey.shiftLeft)), isNull);
       expect(KeyChord.fromEvent(down(LogicalKeyboardKey.metaRight)), isNull);

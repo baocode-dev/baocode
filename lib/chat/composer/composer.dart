@@ -731,6 +731,8 @@ class ChatComposerState extends State<ChatComposer>
         ChatCommandIds.acceptPromptSuggestion: _acceptSuggestion,
       if (_modePickerKey.currentState case final picker?)
         ChatCommandIds.openModePicker: picker.toggle,
+      if (widget.session.modes case final modes?)
+        ChatCommandIds.nextMode: () => _nextMode(modes),
       if (_modelPickerKey.currentState case final picker?)
         ChatCommandIds.openModelPicker: picker.toggle,
       if (WindowControls.canPickFiles)
@@ -747,6 +749,14 @@ class ChatComposerState extends State<ChatComposer>
 
   @override
   bool get chatComposing => _isComposing;
+
+  /// Picks the mode after the one picked, back to the first after the
+  /// last.
+  void _nextMode(KernelChoice modes) {
+    final options = modes.options;
+    final at = options.indexWhere((o) => o.id == modes.selected.id);
+    modes.onSelected(options[(at + 1) % options.length]);
+  }
 
   /// Asks for files (the system's open panel) and puts them in at the
   /// caret (upstream's Add Context… picks them in a picker of its own).
@@ -1350,8 +1360,12 @@ class ChatComposerState extends State<ChatComposer>
     final model = session.models;
     final context = session.context;
     final l10n = this.context.l10n;
-    KernelOption localized(KernelChoiceKind kind, KernelOption option) =>
-        localizedKernelOption(l10n, session.kernel.id, kind, option);
+    KernelOption localized(KernelOption option) => localizedKernelOption(
+      l10n,
+      session.kernel.id,
+      KernelChoiceKind.permission,
+      option,
+    );
     // The pickers' and the ring's hovers, with the keys that do the same in
     // the input.
     const input = {ChatContextKeys.inChatInput: true};
@@ -1379,11 +1393,8 @@ class ChatComposerState extends State<ChatComposer>
                   if (mode != null) ...[
                     ComposerPicker(
                       key: _modePickerKey,
-                      options: [
-                        for (final option in mode.options)
-                          localized(KernelChoiceKind.mode, option),
-                      ],
-                      selected: localized(KernelChoiceKind.mode, mode.selected),
+                      options: mode.options,
+                      selected: mode.selected,
                       emphasized: true,
                       tooltip: ChatKeys.titleWithKey(
                         l10n.composerSetMode,
@@ -1400,12 +1411,9 @@ class ChatComposerState extends State<ChatComposer>
                     ComposerPicker(
                       options: [
                         for (final option in permission.options)
-                          localized(KernelChoiceKind.permission, option),
+                          localized(option),
                       ],
-                      selected: localized(
-                        KernelChoiceKind.permission,
-                        permission.selected,
-                      ),
+                      selected: localized(permission.selected),
                       // `context` is the session's here.
                       title: l10n.composerApprovalTitle(session.kernel.label),
                       menuWidth: 290,

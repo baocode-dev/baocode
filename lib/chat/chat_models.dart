@@ -116,6 +116,9 @@ enum ToolKind {
 
   /// A message to another agent.
   message,
+
+  /// A question for the user.
+  question,
   other,
 }
 

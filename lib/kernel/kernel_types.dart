@@ -369,11 +369,16 @@ class PlanReviewRequest extends InteractionRequest {
     required super.id,
     required super.title,
     required this.plan,
+    this.approvals,
     this.approveLabel = 'Yes, start building',
   });
 
   /// Markdown.
   final String plan;
+
+  /// The approvals it is carried out with, when the kernel picks them
+  /// (one of its permission options).
+  final KernelOption? approvals;
 
   /// The choice to go ahead, saying how it will (e.g. with what approvals).
   final String approveLabel;

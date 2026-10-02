@@ -174,12 +174,7 @@ String chatItemPlainText(
     ) =>
       [
         StepHeader.text(
-          label ??
-              toolVerb(
-                kind,
-                running: status == ToolStatus.running,
-                l10n: strings,
-              ),
+          label ?? toolVerb(kind, status: status, l10n: strings),
           target,
           detail,
         ),

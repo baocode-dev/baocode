@@ -19,6 +19,13 @@ class ClaudeTranslator {
   final void Function(KernelEvent event) emit;
   final int Function() nextSeq;
 
+  /// What a question is answered with in full access, the user not asked:
+  /// a question so answered shows as skipped.
+  static const unattendedAnswer =
+      'The user has given full access and is not here to answer questions. '
+      'Do not ask again: go with what seems best, say what you assumed, '
+      'and carry on.';
+
   /// The turn changes belong to (the user message uuid that began it).
   String? turnId;
 
@@ -656,8 +663,7 @@ class ClaudeTranslator {
         status: status,
       ),
       'AskUserQuestion' => ToolCallItem(
-        kind: ToolKind.other,
-        label: tense('Asked', 'Asking'),
+        kind: ToolKind.question,
         target: [
           for (final q in _list(input['questions']))
             _string(_map(q)['header']) ?? _string(_map(q)['question']) ?? '',
@@ -701,7 +707,9 @@ class ClaudeTranslator {
     final error = block['is_error'] == true;
     final text = _resultText(block['content']);
     final structured = result is Map ? result.cast<String, Object?>() : null;
-    final outcome = _denied.contains(id)
+    final outcome =
+        _denied.contains(id) ||
+            (tool.name == 'AskUserQuestion' && text.contains(unattendedAnswer))
         ? _Outcome.denied
         : error
         ? _Outcome.failed

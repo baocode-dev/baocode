@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/widgets/tool_call_row.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
@@ -272,6 +273,65 @@ void main() {
             .whereType<UserMessageItem>(),
         hasLength(1),
       );
+    });
+
+    test('a question answered for the user shows as skipped', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      )..turnId = '11111111-1111-4111-8111-111111111111';
+      void ask(String id, String answer) => translator
+        ..translate({
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'message': {
+            'id': 'msg-$id',
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': id,
+                'name': 'AskUserQuestion',
+                'input': {
+                  'questions': [
+                    {'question': 'Red or blue?', 'header': 'Color'},
+                  ],
+                },
+              },
+            ],
+          },
+        })
+        ..translate({
+          'type': 'user',
+          'parent_tool_use_id': null,
+          'message': {
+            'role': 'user',
+            'content': [
+              {
+                'type': 'tool_result',
+                'tool_use_id': id,
+                'content': answer,
+                'is_error': true,
+              },
+            ],
+          },
+        });
+      ask('q1', ClaudeTranslator.unattendedAnswer);
+      ask('q2', 'The user dismissed the questions without answering.');
+      final items = [
+        for (var i = 0; i < transcript.length; i++) transcript.itemAt(i),
+      ].whereType<ToolCallItem>();
+      expect(items.map((item) => (item.kind, item.target, item.status)), [
+        (ToolKind.question, 'Color', ToolStatus.denied),
+        (ToolKind.question, 'Color', ToolStatus.failed),
+      ]);
+      expect(
+        toolVerb(ToolKind.question, status: ToolStatus.denied),
+        'Skipped question',
+      );
+      expect(toolVerb(ToolKind.question), 'Asked');
     });
 
     test('a notebook edit shows its cell changed, line by line', () {
@@ -599,6 +659,10 @@ void main() {
         (transcript.pendingInteraction as PlanReviewRequest).approveLabel,
         'Yes, start · Accept edits',
       );
+      expect(
+        (transcript.pendingInteraction as PlanReviewRequest).approvals?.id,
+        'acceptEdits',
+      );
       kernel.answer('r3', const PlanAnswer(PlanDecision.approve));
       expect(cli.responses.last['updatedPermissions'], [
         {'type': 'setMode', 'mode': 'acceptEdits', 'destination': 'session'},
@@ -643,7 +707,16 @@ void main() {
       await pumpEventQueue();
       expect(transcript.pendingInteraction, isNull);
       expect(cli.responses.last['behavior'], 'deny');
-      expect(cli.responses.last['message'], contains('full access'));
+      expect(cli.responses.last['message'], ClaudeTranslator.unattendedAnswer);
+      // In Plan and Ask, questions are the point: asked.
+      for (final mode in ['plan', 'ask']) {
+        kernel.mode.select(mode);
+        ask('r1-$mode', 'AskUserQuestion', question);
+        await pumpEventQueue();
+        expect(transcript.pendingInteraction, isA<QuestionRequest>());
+        kernel.answer('r1-$mode', const QuestionAnswer([], skipped: true));
+      }
+      kernel.mode.select('agent');
       // What the CLI still asks, and the plan, are the user's.
       ask('r2', 'Bash', command);
       await pumpEventQueue();
