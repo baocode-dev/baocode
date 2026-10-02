@@ -42,6 +42,7 @@ class ClaudeLaunch {
     this.permissionMode,
     this.effort,
     this.autocompact,
+    this.autoModeDuringPlan,
     this.attribution = CommitAttribution.agent,
     this.persist = true,
   });
@@ -59,6 +60,11 @@ class ClaudeLaunch {
   /// but the session goes on with the one it started with.
   final int? autocompact;
 
+  /// Whether Plan's commands are left to the auto mode classifier, as
+  /// Claude Code's `useAutoModeDuringPlan` setting; null for the user's
+  /// own.
+  final bool? autoModeDuringPlan;
+
   /// Who its commits and pull requests credit, as Claude Code's
   /// `attribution` setting, given as a flag setting (over the user's own);
   /// none for [CommitAttribution.agent], so theirs stands.
@@ -74,6 +80,12 @@ class ClaudeLaunch {
     },
     CommitAttribution.agent => null,
     CommitAttribution.none => const {'commit': '', 'pr': ''},
+  };
+
+  /// Given as flag settings, over the user's own.
+  Map<String, Object?> get _settings => {
+    'attribution': ?_attribution,
+    'useAutoModeDuringPlan': ?autoModeDuringPlan,
   };
 
   List<String> get arguments => [
@@ -97,9 +109,9 @@ class ClaudeLaunch {
     if (effort case final effort?) ...['--effort', effort],
     if (autocompact case final tokens?) ...['--autocompact', '$tokens'],
     if (resume case final id?) ...['--resume', id],
-    if (_attribution case final attribution?) ...[
+    if (_settings case final settings when settings.isNotEmpty) ...[
       '--settings',
-      jsonEncode({'attribution': attribution}),
+      jsonEncode(settings),
     ],
     if (!persist) '--no-session-persistence',
     '--append-system-prompt',

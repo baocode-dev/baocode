@@ -3734,6 +3734,102 @@ abstract class AppLocalizations {
   /// **'How should {agent} get approval?'**
   String composerApprovalTitle(String agent);
 
+  /// No description provided for @composerModeAgent.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent'**
+  String get composerModeAgent;
+
+  /// No description provided for @composerModeAgentDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan, edit and run on its own'**
+  String get composerModeAgentDetail;
+
+  /// No description provided for @composerModeAsk.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask'**
+  String get composerModeAsk;
+
+  /// Ask is only said to the model: it does not stop changes, the approvals do.
+  ///
+  /// In en, this message translates to:
+  /// **'Talk it through, suggest changes'**
+  String get composerModeAskDetail;
+
+  /// No description provided for @composerModePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan'**
+  String get composerModePlan;
+
+  /// No description provided for @composerModePlanDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Research and plan, then build'**
+  String get composerModePlanDetail;
+
+  /// No description provided for @composerApprovalDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask for approval'**
+  String get composerApprovalDefault;
+
+  /// No description provided for @composerApprovalDefaultDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask before edits and commands'**
+  String get composerApprovalDefaultDetail;
+
+  /// No description provided for @composerApprovalAcceptEdits.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept edits'**
+  String get composerApprovalAcceptEdits;
+
+  /// No description provided for @composerApprovalAcceptEditsDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit files freely, ask before commands'**
+  String get composerApprovalAcceptEditsDetail;
+
+  /// No description provided for @composerApprovalAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve for me'**
+  String get composerApprovalAuto;
+
+  /// No description provided for @composerApprovalAutoDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask only for what looks risky'**
+  String get composerApprovalAutoDetail;
+
+  /// No description provided for @composerApprovalDontAsk.
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t ask'**
+  String get composerApprovalDontAsk;
+
+  /// No description provided for @composerApprovalDontAskDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Deny whatever is not pre-approved'**
+  String get composerApprovalDontAskDetail;
+
+  /// No description provided for @composerApprovalFullAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Full access'**
+  String get composerApprovalFullAccess;
+
+  /// No description provided for @composerApprovalFullAccessDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'No checks: any file, any command, the internet'**
+  String get composerApprovalFullAccessDetail;
+
   /// No description provided for @composerContextUsage.
   ///
   /// In en, this message translates to:

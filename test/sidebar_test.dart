@@ -375,9 +375,16 @@ void main() {
     expect(workspace.threads.where((thread) => thread.archived), hasLength(13));
 
     expect(inSidebar(find.text('Archived')), findsOneWidget);
-    expect(inSidebar(find.text('Chat here0')), findsOneWidget);
-    // Not listed under a project of its own, but among the archived ones.
-    expect(inSidebar(find.text('Chat monad0')), findsOneWidget);
+    expect(
+      inSidebar(find.textContaining(RegExp(r'^Chat here0 .*here$'))),
+      findsOneWidget,
+    );
+    // Not listed under a project of its own, but among the archived ones,
+    // its project named on its row, as any there.
+    expect(
+      inSidebar(find.textContaining(RegExp(r'^Chat monad0 .*monad$'))),
+      findsOneWidget,
+    );
     expect(inSidebar(find.text('monad')), findsNothing);
   });
 
@@ -1193,17 +1200,18 @@ void main() {
       ..setPinned(a2, true)
       ..setPinned(a1, true);
     await tester.pump();
+    // Their rows name the project too (`Chat a1  a`).
+    Finder row(String title) => inSidebar(find.textContaining(title));
+    double rowTop(String title) => tester.getTopLeft(row(title)).dy;
     // The last pinned on top.
-    expect(top(tester, 'Chat a1'), lessThan(top(tester, 'Chat a2')));
+    expect(rowTop('Chat a1'), lessThan(rowTop('Chat a2')));
 
     await mouseDrag(
       tester,
-      tester.getCenter(inSidebar(find.text('Chat a2'))),
-      () =>
-          tester.getTopLeft(inSidebar(find.text('Chat a1'))) +
-          const Offset(20, 2),
+      tester.getCenter(row('Chat a2')),
+      () => tester.getTopLeft(row('Chat a1')) + const Offset(20, 2),
     );
-    expect(top(tester, 'Chat a2'), lessThan(top(tester, 'Chat a1')));
+    expect(rowTop('Chat a2'), lessThan(rowTop('Chat a1')));
     expect(workspace.inPinnedOrder([a1, a2]), [a2, a1]);
   });
 }

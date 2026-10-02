@@ -558,8 +558,8 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
     }, result: MockScript.searchMatches.join('\n'));
     if (!await _wait(run, 400)) return;
 
-    if (_permissionMode == 'dontAsk') {
-      // Ask: nothing may change, so it answers.
+    if (prompt.contains('in Ask mode') || _permissionMode == 'dontAsk') {
+      // Told to only discuss, or nothing may change: it answers.
       if (!await _text(run, MockScript.discussion)) return;
       _finish(run);
       return;

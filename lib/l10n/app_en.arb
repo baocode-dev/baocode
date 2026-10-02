@@ -1152,6 +1152,25 @@
       }
     }
   },
+  "composerModeAgent": "Agent",
+  "composerModeAgentDetail": "Plan, edit and run on its own",
+  "composerModeAsk": "Ask",
+  "composerModeAskDetail": "Talk it through, suggest changes",
+  "@composerModeAskDetail": {
+    "description": "Ask is only said to the model: it does not stop changes, the approvals do."
+  },
+  "composerModePlan": "Plan",
+  "composerModePlanDetail": "Research and plan, then build",
+  "composerApprovalDefault": "Ask for approval",
+  "composerApprovalDefaultDetail": "Ask before edits and commands",
+  "composerApprovalAcceptEdits": "Accept edits",
+  "composerApprovalAcceptEditsDetail": "Edit files freely, ask before commands",
+  "composerApprovalAuto": "Approve for me",
+  "composerApprovalAutoDetail": "Ask only for what looks risky",
+  "composerApprovalDontAsk": "Don't ask",
+  "composerApprovalDontAskDetail": "Deny whatever is not pre-approved",
+  "composerApprovalFullAccess": "Full access",
+  "composerApprovalFullAccessDetail": "No checks: any file, any command, the internet",
   "composerContextUsage": "Context usage",
   "composerSend": "Send  ↵",
   "composerStop": "Stop",

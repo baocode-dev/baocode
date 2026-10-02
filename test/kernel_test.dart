@@ -608,6 +608,107 @@ void main() {
       kernel.dispose();
     });
 
+    test('full access answers questions itself; Don\'t ask refuses what '
+        'it would ask', () async {
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel.send(const KernelTurn(id: 'u1', text: 'go'));
+      await pumpEventQueue();
+      void ask(String id, String tool, Map<String, Object?> input) => cli.push({
+        'type': 'control_request',
+        'request_id': id,
+        'request': {
+          'subtype': 'can_use_tool',
+          'tool_name': tool,
+          'input': input,
+        },
+      });
+      const question = {
+        'questions': [
+          {
+            'question': 'Red or blue?',
+            'header': 'Color',
+            'options': [
+              {'label': 'Red'},
+              {'label': 'Blue'},
+            ],
+          },
+        ],
+      };
+      const command = {'command': 'npm test', 'description': 'Test'};
+
+      // Full access: a question is answered, in English, nothing shown.
+      kernel.permission.select('bypassPermissions');
+      ask('r1', 'AskUserQuestion', question);
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isNull);
+      expect(cli.responses.last['behavior'], 'deny');
+      expect(cli.responses.last['message'], contains('full access'));
+      // What the CLI still asks, and the plan, are the user's.
+      ask('r2', 'Bash', command);
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isA<ApprovalRequest>());
+      kernel.answer('r2', const ApprovalAnswer(ApprovalDecision.allowOnce));
+      ask('r3', 'ExitPlanMode', {'plan': '1. Do it'});
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isA<PlanReviewRequest>());
+      kernel.answer('r3', const PlanAnswer(PlanDecision.keepPlanning));
+
+      // Don't ask: what it would ask about is refused; questions and the
+      // plan are asked.
+      kernel.permission.select('dontAsk');
+      final answered = cli.responses.length;
+      ask('r4', 'Bash', command);
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isNull);
+      expect(cli.responses, hasLength(answered + 1));
+      expect(cli.responses.last['behavior'], 'deny');
+      ask('r5', 'AskUserQuestion', question);
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isA<QuestionRequest>());
+      kernel.answer('r5', const QuestionAnswer([], skipped: true));
+      ask('r6', 'ExitPlanMode', {'plan': '1. Do it'});
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isA<PlanReviewRequest>());
+      kernel.dispose();
+    });
+
+    test('Plan\'s commands are left to the classifier with the approvals '
+        'that approve for the user', () async {
+      final cli = FakeCli();
+      final launches = <ClaudeLaunch>[];
+      final kernel = ClaudeCodeKernel(
+        MockKernels.claudeCode,
+        const KernelContext(cwd: '/p', settings: {'permission': 'auto'}),
+        start: (launch) async {
+          launches.add(launch);
+          return cli;
+        },
+      );
+      List<Object?> sent() => [
+        for (final request in cli.requests('apply_flag_settings'))
+          (request['settings'] as Map)['useAutoModeDuringPlan'],
+      ];
+      kernel.prepare();
+      await pumpEventQueue();
+      expect(launches.single.autoModeDuringPlan, isTrue);
+
+      kernel.permission.select('default');
+      kernel.permission.select('acceptEdits');
+      kernel.permission.select('bypassPermissions');
+      await pumpEventQueue();
+      expect(sent(), [false, true]);
+      // As when the CLI takes up another mode itself.
+      cli.push({
+        'type': 'system',
+        'subtype': 'status',
+        'permissionMode': 'dontAsk',
+      });
+      await pumpEventQueue();
+      expect(sent(), [false, true, false]);
+      kernel.dispose();
+    });
+
     test('messages sent while busy queue, start in turn, or are taken '
         'back', () async {
       final cli = FakeCli(
@@ -1395,7 +1496,7 @@ void main() {
       kernel.dispose();
     });
 
-    test('mode and approvals make the CLI\'s one permission mode', () async {
+    test('mode and approvals are picked apart', () async {
       final cli = FakeCli();
       final launches = <ClaudeLaunch>[];
       final kernel = ClaudeCodeKernel(
@@ -1415,6 +1516,13 @@ void main() {
         for (final request in cli.requests('set_permission_mode'))
           request['mode'],
       ];
+      List<Object?> notes(int i) => [
+        for (final part
+            in ((cli.users[i]['message'] as Map)['content'] as List)
+                .cast<Map<Object?, Object?>>()
+                .skip(1))
+          part['text'],
+      ];
 
       // Plan is entered once started, so the CLI keeps the approvals.
       kernel.prepare();
@@ -1422,28 +1530,39 @@ void main() {
       expect(launches.single.permissionMode, 'acceptEdits');
       expect(modesSent(), ['plan']);
 
-      // Ask runs read-only, and says so to the model, unseen.
+      // Ask keeps the approvals, and is only said to the model, unseen.
       kernel.mode.select('ask');
-      expect(modesSent(), ['plan', 'dontAsk']);
+      expect(modesSent(), ['plan', 'acceptEdits']);
       expect(kernel.permission.selected, 'acceptEdits');
       kernel.send(const KernelTurn(id: 'u1', text: 'why is it slow?'));
       await pumpEventQueue();
       final content = ((cli.users.single['message'] as Map)['content'] as List)
           .cast<Map<Object?, Object?>>();
       expect(content.first['text'], 'why is it slow?');
-      expect(content.last['text'], startsWith('<system-reminder>'));
+      expect(notes(0), [contains('in Ask mode')]);
       cli.push({...cli.users.single, 'isReplay': true});
       await pumpEventQueue();
       expect(shown(transcript), ['user: why is it slow?']);
 
+      // An approval the CLI takes up in Ask stays in Ask.
+      cli.push({
+        'type': 'system',
+        'subtype': 'status',
+        'permissionMode': 'default',
+      });
+      await pumpEventQueue();
+      expect(kernel.mode.selected, 'ask');
+      expect(kernel.permission.selected, 'default');
+
+      // Out of Ask: the CLI is told nothing, the model once.
       kernel.mode.select('agent');
       kernel.permission.select('bypassPermissions');
-      expect(modesSent(), [
-        'plan',
-        'dontAsk',
-        'acceptEdits',
-        'bypassPermissions',
-      ]);
+      expect(modesSent(), ['plan', 'acceptEdits', 'bypassPermissions']);
+      kernel.send(const KernelTurn(id: 'u2', text: 'fix it'));
+      kernel.send(const KernelTurn(id: 'u3', text: 'and test it'));
+      await pumpEventQueue();
+      expect(notes(1), [contains('left Ask mode')]);
+      expect(notes(2), isEmpty);
 
       // Changes the CLI makes itself move the picks along.
       cli.push({
@@ -1462,7 +1581,7 @@ void main() {
       await pumpEventQueue();
       expect(kernel.mode.selected, 'agent');
       expect(kernel.permission.selected, 'default');
-      expect(modesSent(), hasLength(4), reason: 'nothing echoed back');
+      expect(modesSent(), hasLength(3), reason: 'nothing echoed back');
       expect(
         kernel.permission.options.last,
         isA<KernelOption>().having((o) => o.caution, 'caution', isTrue),
@@ -1943,6 +2062,19 @@ void main() {
       });
       expect(flagSettings(launch(CommitAttribution.agent)), isNull);
       expect(flagSettings(const ClaudeLaunch(cwd: '/p')), isNull);
+      expect(
+        flagSettings(
+          const ClaudeLaunch(
+            cwd: '/p',
+            attribution: CommitAttribution.none,
+            autoModeDuringPlan: false,
+          ),
+        ),
+        {
+          'attribution': {'commit': '', 'pr': ''},
+          'useAutoModeDuringPlan': false,
+        },
+      );
     });
 
     test('is read as each session starts', () async {

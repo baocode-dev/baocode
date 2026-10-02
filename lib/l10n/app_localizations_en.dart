@@ -2029,6 +2029,57 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get composerModeAgent => 'Agent';
+
+  @override
+  String get composerModeAgentDetail => 'Plan, edit and run on its own';
+
+  @override
+  String get composerModeAsk => 'Ask';
+
+  @override
+  String get composerModeAskDetail => 'Talk it through, suggest changes';
+
+  @override
+  String get composerModePlan => 'Plan';
+
+  @override
+  String get composerModePlanDetail => 'Research and plan, then build';
+
+  @override
+  String get composerApprovalDefault => 'Ask for approval';
+
+  @override
+  String get composerApprovalDefaultDetail => 'Ask before edits and commands';
+
+  @override
+  String get composerApprovalAcceptEdits => 'Accept edits';
+
+  @override
+  String get composerApprovalAcceptEditsDetail =>
+      'Edit files freely, ask before commands';
+
+  @override
+  String get composerApprovalAuto => 'Approve for me';
+
+  @override
+  String get composerApprovalAutoDetail => 'Ask only for what looks risky';
+
+  @override
+  String get composerApprovalDontAsk => 'Don\'t ask';
+
+  @override
+  String get composerApprovalDontAskDetail =>
+      'Deny whatever is not pre-approved';
+
+  @override
+  String get composerApprovalFullAccess => 'Full access';
+
+  @override
+  String get composerApprovalFullAccessDetail =>
+      'No checks: any file, any command, the internet';
+
+  @override
   String get composerContextUsage => 'Context usage';
 
   @override

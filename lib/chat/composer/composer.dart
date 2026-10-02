@@ -31,6 +31,7 @@ import 'composer_files.dart';
 import 'composer_images.dart';
 import 'composer_mock_data.dart';
 import 'composer_picker.dart';
+import 'kernel_option_text.dart';
 import 'file_drop.dart';
 import 'suggestion_menu.dart';
 import '../../ide/ide_hover.dart';
@@ -1349,6 +1350,8 @@ class ChatComposerState extends State<ChatComposer>
     final model = session.models;
     final context = session.context;
     final l10n = this.context.l10n;
+    KernelOption localized(KernelChoiceKind kind, KernelOption option) =>
+        localizedKernelOption(l10n, session.kernel.id, kind, option);
     // The pickers' and the ring's hovers, with the keys that do the same in
     // the input.
     const input = {ChatContextKeys.inChatInput: true};
@@ -1376,8 +1379,11 @@ class ChatComposerState extends State<ChatComposer>
                   if (mode != null) ...[
                     ComposerPicker(
                       key: _modePickerKey,
-                      options: mode.options,
-                      selected: mode.selected,
+                      options: [
+                        for (final option in mode.options)
+                          localized(KernelChoiceKind.mode, option),
+                      ],
+                      selected: localized(KernelChoiceKind.mode, mode.selected),
                       emphasized: true,
                       tooltip: ChatKeys.titleWithKey(
                         l10n.composerSetMode,
@@ -1392,8 +1398,14 @@ class ChatComposerState extends State<ChatComposer>
                   ],
                   if (permission != null) ...[
                     ComposerPicker(
-                      options: permission.options,
-                      selected: permission.selected,
+                      options: [
+                        for (final option in permission.options)
+                          localized(KernelChoiceKind.permission, option),
+                      ],
+                      selected: localized(
+                        KernelChoiceKind.permission,
+                        permission.selected,
+                      ),
                       // `context` is the session's here.
                       title: l10n.composerApprovalTitle(session.kernel.label),
                       menuWidth: 290,

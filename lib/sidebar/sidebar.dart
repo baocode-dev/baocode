@@ -716,7 +716,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       selected: identical(thread, selected),
       shown: _workspace.grid.contains(thread),
       drag: widget.drag,
-      showProject: group.project == null && _projectsShown,
+      showProject: group.project == null,
       projectIcon: switch (_workspace.iconOf(thread.project)) {
         null => null,
         final icon => ProjectIconView(
@@ -952,7 +952,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     return null;
   }
 
-  /// Project names are worth showing on rows only when there are several.
+  /// Several projects in the sidebar: their groups fold.
   bool get _projectsShown => _workspace.sidebarProjects.length > 1;
 
   /// The archived toggle, when there are archived agents, and the

@@ -130,12 +130,21 @@ class ClaudeCodeKernel
   String? _model;
   String? _reportedModel;
   // What the agent does (Agent, Ask, Plan) and how its actions are
-  // approved: the CLI has one permission mode for both (see _cliMode).
+  // approved, picked apart: the CLI runs the approvals as they are, but in
+  // Plan, which is a permission mode of its own (see _cliMode). Ask is only
+  // said to the model.
   String _work = 'agent';
   String _approval = 'default';
 
+  /// The last message went out in Ask: the next one, out of it, says so.
+  bool _inAsk = false;
+
   /// The permission mode the CLI was last told, or last reported.
   String _cliMode = 'default';
+
+  /// Whether the CLI was last told to leave Plan's commands to the auto
+  /// mode classifier (`useAutoModeDuringPlan`).
+  bool? _planReviewed;
 
   /// The effort asked for, and the one the CLI has in effect (it may
   /// step down one the model does not take).
@@ -207,10 +216,9 @@ class ClaudeCodeKernel
           cwd: _cwd,
           resume: _sessionId,
           model: _model,
-          // Plan is entered once started: the CLI then keeps the
-          // approvals it had, for the plan's research and for carrying it
-          // out.
-          permissionMode: _cliMode = _work == 'plan' ? _approval : _mode,
+          // Plan is entered once started.
+          permissionMode: _cliMode = _approval,
+          autoModeDuringPlan: _planReviewed = _reviewsPlan,
           effort: _effort,
           autocompact: _launchedWindow = _window,
           attribution: CommitAttribution.current(),
@@ -406,6 +414,10 @@ class ClaudeCodeKernel
         UserMessageItem(text: turn.text, queued: busy, images: turn.images),
       ),
     );
+    // Taken now: the message may wait for the CLI to start.
+    final ask = _work == 'ask';
+    final askEnded = _inAsk && !ask;
+    _inAsk = ask;
     _whenReady(
       (transport) => transport.write({
         'type': 'user',
@@ -430,7 +442,10 @@ class ClaudeCodeKernel
               },
             ],
             if (turn.text.isNotEmpty) {'type': 'text', 'text': turn.text},
-            if (_work == 'ask') {'type': 'text', 'text': _askNote},
+            if (ask)
+              {'type': 'text', 'text': _askNote}
+            else if (askEnded)
+              {'type': 'text', 'text': _askEndedNote},
           ],
         },
       }),
@@ -765,6 +780,19 @@ class ClaudeCodeKernel
     final tool = request['tool_name'] as String? ?? 'Tool';
     final input = (request['input'] as Map?)?.cast<String, Object?>() ?? {};
     final suggestions = request['permission_suggestions'] as List? ?? const [];
+    // Answered here, with nothing shown: in full access no one is waited
+    // on for a question, and in Don't ask nothing that is not pre-approved
+    // is asked about (the CLI asks in Plan all the same). A plan is always
+    // the user's to approve.
+    if (switch ((_approval, tool)) {
+          ('bypassPermissions', 'AskUserQuestion') => _unattendedAnswer,
+          ('dontAsk', != 'AskUserQuestion' && != 'ExitPlanMode') => _notAsked,
+          _ => null,
+        }
+        case final message?) {
+      _control!.respond(requestId, {'behavior': 'deny', 'message': message});
+      return;
+    }
     final InteractionRequest interaction;
     var questions = const <String>[];
     switch (tool) {
@@ -1618,7 +1646,7 @@ class ClaudeCodeKernel
       'ask',
       'Ask',
       Icons.chat_bubble_outline_rounded,
-      'Discuss and read, no changes',
+      'Talk it through, suggest changes',
     ),
     KernelOption(
       'plan',
@@ -1662,27 +1690,44 @@ class ClaudeCodeKernel
     ),
   ];
 
-  /// Sent with a message in Ask, so the model knows from the start (the
-  /// CLI refuses changes either way). Not shown: a note, not the message.
+  /// Sent with each message in Ask: all there is to it, the approvals
+  /// stay as picked. Not shown: a note, not the message.
   static const _askNote =
       '<system-reminder>The user is in Ask mode: discuss and answer only. '
       'Read and search as needed, but do not edit files or run commands '
       'that change anything; suggest changes instead.</system-reminder>';
 
+  /// Sent with the first message out of Ask, or the model goes on by the
+  /// notes before it.
+  static const _askEndedNote =
+      '<system-reminder>The user has left Ask mode: you may now edit files '
+      'and run commands as the task needs.</system-reminder>';
+
+  /// The answer to a question in full access.
+  static const _unattendedAnswer =
+      'The user has given full access and is not here to answer questions. '
+      'Do not ask again: go with what seems best, say what you assumed, '
+      'and carry on.';
+
+  /// The answer to what would be asked in Don't ask.
+  static const _notAsked =
+      'The user is not asked in this mode, and this is not pre-approved.';
+
   static String _pick(String? id, List<KernelOption> options, String or) =>
       options.any((option) => option.id == id) ? id! : or;
 
-  /// The CLI's permission mode for what is picked. Ask runs as `dontAsk`:
-  /// reading needs no approval, and whatever would change something is
-  /// refused by the CLI itself.
-  String get _mode => switch (_work) {
-    'plan' => 'plan',
-    'ask' => 'dontAsk',
-    _ => _approval,
-  };
+  /// The CLI's permission mode for what is picked: the approvals, but in
+  /// Plan.
+  String get _mode => _work == 'plan' ? 'plan' : _approval;
+
+  /// Plan's commands are left to the classifier with the approvals that
+  /// approve for the user; asked about with the others.
+  bool get _reviewsPlan =>
+      _approval == 'auto' || _approval == 'bypassPermissions';
 
   /// Tells a running CLI what is picked now.
   void _applyMode() {
+    _applyPlanReview();
     emitInfoChanged();
     final mode = _mode;
     if (!_running || mode == _cliMode) return;
@@ -1704,11 +1749,26 @@ class ClaudeCodeKernel
     _cliMode = mode;
     if (mode == 'plan') {
       _work = 'plan';
-    } else if (!(mode == 'dontAsk' && _work == 'ask')) {
-      _work = 'agent';
+    } else {
+      if (_work == 'plan') _work = 'agent';
       _approval = mode;
+      _applyPlanReview();
     }
     emitInfoChanged();
+  }
+
+  void _applyPlanReview() {
+    final reviewed = _reviewsPlan;
+    if (!_running || reviewed == _planReviewed) return;
+    _planReviewed = reviewed;
+    _change([
+      (
+        'apply_flag_settings',
+        {
+          'settings': {'useAutoModeDuringPlan': reviewed},
+        },
+      ),
+    ]);
   }
 
   @override

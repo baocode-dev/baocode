@@ -1965,6 +1965,54 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get composerModeAgent => '自主';
+
+  @override
+  String get composerModeAgentDetail => '自行规划、编辑和运行';
+
+  @override
+  String get composerModeAsk => '问答';
+
+  @override
+  String get composerModeAskDetail => '只讨论，给出修改建议';
+
+  @override
+  String get composerModePlan => '规划';
+
+  @override
+  String get composerModePlanDetail => '先调研规划，再动手';
+
+  @override
+  String get composerApprovalDefault => '逐项批准';
+
+  @override
+  String get composerApprovalDefaultDetail => '编辑和命令前都先询问';
+
+  @override
+  String get composerApprovalAcceptEdits => '自动接受编辑';
+
+  @override
+  String get composerApprovalAcceptEditsDetail => '直接编辑文件，运行命令前询问';
+
+  @override
+  String get composerApprovalAuto => '替我批准';
+
+  @override
+  String get composerApprovalAutoDetail => '仅在看起来有风险时询问';
+
+  @override
+  String get composerApprovalDontAsk => '不询问';
+
+  @override
+  String get composerApprovalDontAskDetail => '未预先允许的一律拒绝';
+
+  @override
+  String get composerApprovalFullAccess => '完全访问';
+
+  @override
+  String get composerApprovalFullAccessDetail => '不做检查：任意文件、任意命令、联网';
+
+  @override
   String get composerContextUsage => '上下文用量';
 
   @override

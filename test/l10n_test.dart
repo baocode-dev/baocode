@@ -5,10 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:baocode/chat/composer/kernel_option_text.dart';
 import 'package:baocode/chat/widgets/activity_row.dart';
 import 'package:bao_editor/monaco/flutter/editor_keybindings.dart';
 import 'package:baocode/ide/ide_commands.dart';
 import 'package:baocode/ide/ide_quick_open.dart';
+import 'package:baocode/kernel/agent_kernel.dart';
+import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
+import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/keybindings/default_keybindings.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
@@ -499,5 +503,42 @@ void main() {
   test('the English musings are the activity row\'s', () {
     expect(ActivityRow.musingsFor(englishLocalizations), ActivityRow.musings);
     expect(ActivityRow.musingsFor(_zh), hasLength(ActivityRow.musings.length));
+  });
+
+  test('Claude Code\'s modes and approvals are localized', () {
+    final kernel = ClaudeCodeKernel(
+      MockKernels.claudeCode,
+      const KernelContext(cwd: '/p'),
+      start: (_) => throw UnimplementedError(),
+    );
+    addTearDown(kernel.dispose);
+    final choices = {
+      KernelChoiceKind.mode: kernel.mode.options,
+      KernelChoiceKind.permission: kernel.permission.options,
+    };
+    for (final MapEntry(key: kind, value: options) in choices.entries) {
+      for (final option in options) {
+        // English is the kernel's own; Chinese is another, but the option.
+        final en = localizedKernelOption(
+          englishLocalizations,
+          'claude-code',
+          kind,
+          option,
+        );
+        expect(en, option);
+        final zh = localizedKernelOption(_zh, 'claude-code', kind, option);
+        expect(zh.label, isNot(option.label));
+        expect(zh.description, isNot(option.description));
+        expect(
+          (zh.id, zh.icon, zh.caution),
+          (option.id, option.icon, option.caution),
+        );
+      }
+    }
+    final other = kernel.mode.options.first;
+    expect(
+      localizedKernelOption(_zh, 'codex', KernelChoiceKind.mode, other),
+      same(other),
+    );
   });
 }
