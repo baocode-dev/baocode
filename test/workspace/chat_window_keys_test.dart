@@ -10,7 +10,7 @@ import 'package:baocode/keybindings/chat_keybindings.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
-import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/search/search_palette.dart';
 import 'package:baocode/workspace/chat_grid.dart';
 import 'package:baocode/workspace/window_header/header_menu_bar.dart';
 import 'package:baocode/workspace/workspace.dart';
@@ -180,26 +180,34 @@ void main() {
     expect(workspace.grid.panes, [first]);
   });
 
-  testWidgets('Ctrl+Shift+F shows the sidebar and focuses its search; '
-      'Ctrl+L goes back to the chat', (tester) async {
+  testWidgets('Ctrl+Shift+F searches the agents in the palette; Ctrl+L '
+      'goes back to the chat', (tester) async {
     final workspace = await pumpApp(tester);
-    final search = find.descendant(
-      of: find.byType(Sidebar),
-      matching: find.byType(TextField),
-    );
-    FocusNode searchFocus() => tester.widget<TextField>(search).focusNode!;
-    // Hidden first.
-    await press(tester, LogicalKeyboardKey.keyB, control: true);
-    await tester.pumpAndSettle();
-    expect(find.bySemanticsLabel('Show sidebar'), findsOneWidget);
-
     await press(tester, LogicalKeyboardKey.keyF, control: true, shift: true);
     await tester.pumpAndSettle();
-    expect(find.bySemanticsLabel('Show sidebar'), findsNothing);
-    expect(searchFocus().hasFocus, isTrue);
+    final palette = find.byType(SearchPalette);
+    expect(palette, findsOneWidget);
+    final input = tester.widget<TextField>(
+      find.descendant(of: palette, matching: find.byType(TextField)),
+    );
+    expect(input.focusNode!.hasFocus, isTrue);
+    expect(
+      find.descendant(of: palette, matching: find.text('Recent Agents')),
+      findsOneWidget,
+    );
+    // The agents alone: no actions.
+    expect(
+      find.descendant(
+        of: palette,
+        matching: find.textContaining('New Chat', findRichText: true),
+      ),
+      findsNothing,
+    );
 
+    await press(tester, LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(palette, findsNothing);
     await press(tester, LogicalKeyboardKey.keyL, control: true);
-    expect(searchFocus().hasFocus, isFalse);
     expect(inputFocused(tester, workspace.selected), isTrue);
   });
 

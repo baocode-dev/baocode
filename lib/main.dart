@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 
 import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
+import 'customize/customization_store.dart';
 import 'ide/git/git_repository.dart';
 import 'ide/git/git_service.dart';
 import 'ide/lsp/catalog/standard_lsp.dart';
@@ -28,6 +29,8 @@ import 'keybindings/keymap.dart';
 import 'keybindings/vscode_import.dart';
 import 'l10n/l10n.dart';
 import 'platform/data_dir.dart';
+import 'search/claude_conversation_search.dart';
+import 'search/conversation_search.dart';
 import 'settings/app_locale.dart';
 import 'settings/app_settings.dart';
 import 'settings/data_dir_startup.dart';
@@ -140,6 +143,10 @@ Future<void> main() async {
       gitFor: (root) => IdeGitRepository(IdeGitService(root)),
       // The default profile and the user's profiles are settings.json's.
       terminalBackend: TerminalBackend(settings: files?.settings),
+      // What Claude Code keeps: its sessions to search, its skills, agents,
+      // commands, rules, servers, hooks and plugins to customize.
+      conversations: ClaudeConversationSearch(),
+      customizations: CustomizationStore(),
     ),
   );
 }
@@ -153,7 +160,15 @@ class BaoCodeApp extends StatefulWidget {
     this.terminalBackend,
     this.appLocale,
     this.settings,
+    this.conversations,
+    this.customizations,
   });
+
+  /// What the search palette searches conversations with; none when null.
+  final ConversationSearch? conversations;
+
+  /// Claude Code's customizations; no Customize when null.
+  final CustomizationStore? customizations;
 
   /// Defaults to the projects and sessions the kernels keep.
   final Workspace? workspace;
@@ -272,6 +287,9 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
               gitFor: widget.gitFor,
               terminalBackend: widget.terminalBackend,
               settings: _settings,
+              conversations:
+                  widget.conversations ?? const NoConversationSearch(),
+              customizations: widget.customizations,
             ),
           ),
         ),

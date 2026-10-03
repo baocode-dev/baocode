@@ -7,15 +7,15 @@ import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
-/// A setting's choice, a dropdown (`.monaco-select-box`) of the others:
-/// [width] wide whatever the choice, its chevron at the right end.
+/// A setting's choice, a dropdown of the others: as wide as the choice
+/// shown (or [width]), its chevron after it.
 class SettingsDropdown extends StatefulWidget {
   const SettingsDropdown({
     super.key,
     required this.current,
     required this.semanticLabel,
     required this.entries,
-    this.width = 200,
+    this.width,
   });
 
   /// The choice in effect, as shown.
@@ -24,7 +24,7 @@ class SettingsDropdown extends StatefulWidget {
   /// The setting and its choice, as read out.
   final String semanticLabel;
   final List<IdeMenuEntry> Function() entries;
-  final double width;
+  final double? width;
 
   @override
   State<SettingsDropdown> createState() => _SettingsDropdownState();
@@ -61,20 +61,19 @@ class _SettingsDropdownState extends State<SettingsDropdown> {
           onTap: _open,
           child: Container(
             width: widget.width,
-            height: 28,
-            padding: const EdgeInsets.only(left: 10, right: 6),
+            height: 26,
+            constraints: const BoxConstraints(maxWidth: 260),
+            padding: const EdgeInsets.only(left: 9, right: 6),
             decoration: BoxDecoration(
-              color: colors['dropdown.background'],
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(
-                color: _hover
-                    ? colors['focusBorder']
-                    : colors.get('dropdown.border') ?? AppColors.border,
-              ),
+              color: _hover ? AppColors.hover : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppColors.borderStrong),
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
+                Flexible(
+                  fit: widget.width == null ? FlexFit.loose : FlexFit.tight,
                   child: Text(
                     widget.current,
                     maxLines: 1,
@@ -85,10 +84,10 @@ class _SettingsDropdownState extends State<SettingsDropdown> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 Icon(
                   Codicons.chevronDown,
-                  size: 14,
+                  size: 13,
                   color: colors['dropdown.foreground'],
                 ),
               ],

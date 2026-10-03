@@ -1,0 +1,192 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/customize/customization_store.dart';
+import 'package:baocode/customize/customizations.dart';
+import 'package:baocode/customize/customize_view.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
+import 'package:baocode/main.dart';
+import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/workspace/workspace.dart';
+
+/// Skills kept in memory, by file.
+class _MemoryStore implements CustomizationStore {
+  final Map<String, String> files = {
+    '/c/skills/pdf/SKILL.md':
+        '---\nname: pdf\ndescription: Reads PDF files\n---\n\nBody\n',
+  };
+
+  @override
+  String? get configDir => '/c';
+
+  @override
+  String? get homeDir => null;
+
+  @override
+  bool get supported => true;
+
+  @override
+  Future<String> config() async => '/c';
+
+  @override
+  Future<List<Customization>> list(
+    CustomizationKind kind, {
+    String? project,
+  }) async => [
+    if (kind == CustomizationKind.skills)
+      for (final MapEntry(key: path, value: text) in files.entries)
+        Customization(
+          kind: kind,
+          scope: path.startsWith('/c/')
+              ? CustomizationScope.user
+              : CustomizationScope.project,
+          name: parseFrontMatter(text)['name'] ?? path,
+          description: describeMarkdown(text),
+          path: path,
+          removePath: path.substring(0, path.lastIndexOf('/')),
+        ),
+  ];
+
+  @override
+  Future<String> read(String path) async => files[path]!;
+
+  @override
+  Future<void> write(String path, String text) async => files[path] = text;
+
+  @override
+  Future<String> create(
+    CustomizationKind kind,
+    CustomizationScope scope,
+    String name, {
+    String? project,
+  }) async {
+    final path = scope == CustomizationScope.user
+        ? '/c/skills/$name/SKILL.md'
+        : '$project/.claude/skills/$name/SKILL.md';
+    files[path] = template(kind, name);
+    return path;
+  }
+
+  @override
+  Future<void> delete(Customization item) async => files.remove(item.path);
+}
+
+final _mac = TargetPlatformVariant.only(TargetPlatform.macOS);
+
+Future<Workspace> _pumpApp(
+  WidgetTester tester,
+  CustomizationStore store,
+) async {
+  tester.view.physicalSize = const Size(1400, 900);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  KeybindingService.instance = KeybindingService();
+  addTearDown(() => KeybindingService.instance = KeybindingService());
+  final workspace = Workspace.mock();
+  await tester.pumpWidget(
+    BaoCodeApp(workspace: workspace, customizations: store),
+  );
+  await tester.pump();
+  return workspace;
+}
+
+Finder _inSidebar(Finder finder) =>
+    find.descendant(of: find.byType(Sidebar), matching: finder);
+
+Finder _inView(Finder finder) =>
+    find.descendant(of: find.byType(CustomizeView), matching: finder);
+
+void main() {
+  testWidgets('Customize lists the skills, in place of the chat', (
+    tester,
+  ) async {
+    final store = _MemoryStore();
+    final workspace = await _pumpApp(tester, store);
+    await tester.tap(_inSidebar(find.text('Customize')));
+    await tester.pumpAndSettle();
+    expect(find.byType(CustomizeView), findsOneWidget);
+    expect(find.byType(ChatScreen), findsNothing);
+    expect(_inView(find.text('pdf')), findsOneWidget);
+    expect(_inView(find.text('Reads PDF files')), findsOneWidget);
+    for (final chip in ['Plugins', 'MCPs', 'Skills', 'Subagents', 'Rules']) {
+      expect(_inView(find.text(chip)), findsOneWidget);
+    }
+
+    // Searching keeps the ones that match.
+    await tester.enterText(_inView(find.byType(TextField)), 'docx');
+    await tester.pump();
+    expect(_inView(find.text('Reads PDF files')), findsNothing);
+    await tester.enterText(_inView(find.byType(TextField)), 'PDF files');
+    await tester.pump();
+    expect(_inView(find.text('Reads PDF files')), findsOneWidget);
+
+    // An agent picked in the sidebar shows instead.
+    await tester.tap(_inSidebar(find.textContaining('Rate limit per API key')));
+    await tester.pumpAndSettle();
+    expect(find.byType(CustomizeView), findsNothing);
+    expect(workspace.selected.title, 'Rate limit per API key');
+  }, variant: _mac);
+
+  testWidgets('a skill is edited and saved with ⌘S; a new one made', (
+    tester,
+  ) async {
+    final store = _MemoryStore();
+    await _pumpApp(tester, store);
+    await tester.tap(_inSidebar(find.text('Customize')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(_inView(find.text('pdf')));
+    await tester.pumpAndSettle();
+    final editor = _inView(find.byType(TextField));
+    expect(tester.widget<TextField>(editor).controller!.text, contains('Body'));
+    await tester.enterText(
+      editor,
+      '---\nname: pdf\ndescription: Reads and fills PDFs\n---\n',
+    );
+    await tester.pump();
+    expect(_inView(find.text('Unsaved changes')), findsOneWidget);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.pumpAndSettle();
+    expect(store.files['/c/skills/pdf/SKILL.md'], contains('fills PDFs'));
+    expect(_inView(find.text('Saved')), findsOneWidget);
+
+    await tester.tap(
+      _inView(
+        find.byWidgetPredicate(
+          (widget) => widget is SidebarIconButton && widget.tooltip == 'Back',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(_inView(find.text('Reads and fills PDFs')), findsOneWidget);
+
+    // New, under the user's: named, then open to edit.
+    await tester.tap(_inView(find.text('New')).first);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'bad name');
+    await tester.pump();
+    expect(
+      find.text('Letters, digits, - and _ only (up to 64)'),
+      findsOneWidget,
+    );
+    await tester.enterText(find.byType(TextField).last, 'pdf');
+    await tester.pump();
+    expect(find.text('One by that name already exists'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).last, 'release-notes');
+    await tester.pump();
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+    expect(store.files, contains('/c/skills/release-notes/SKILL.md'));
+    expect(
+      tester
+          .widget<TextField>(_inView(find.byType(TextField)))
+          .controller!
+          .text,
+      contains('name: release-notes'),
+    );
+  }, variant: _mac);
+}

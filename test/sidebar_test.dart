@@ -12,6 +12,7 @@ import 'package:baocode/kernel/claude_code/mock_claude_code_transport.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/main.dart';
+import 'package:baocode/search/search_palette.dart';
 import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/codicons.dart';
@@ -276,7 +277,9 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
   });
 
-  testWidgets('groups by date and filters by search', (tester) async {
+  testWidgets('groups by date; Search finds agents in the palette', (
+    tester,
+  ) async {
     final workspace = await pumpApp(tester);
     // The mock's times are ages back from now, so their calendar days depend
     // on the time of day: its only unpinned thread of a day ago (a day and
@@ -293,21 +296,34 @@ void main() {
       expect(inSidebar(find.text(label)), findsOneWidget);
     }
 
-    await tester.enterText(inSidebar(find.byType(TextField)), 'flaky');
-    await tester.pump();
-    expect(
-      inSidebar(find.textContaining('Flaky integration test on CI')),
-      findsOneWidget,
-    );
-    expect(inSidebar(find.textContaining('Rate limit')), findsNothing);
-    expect(inSidebar(find.text('Today')), findsNothing);
-
+    await tester.tap(inSidebar(find.text('Search')));
+    await tester.pumpAndSettle();
+    final palette = find.byType(SearchPalette);
+    Finder inPalette(Finder finder) =>
+        find.descendant(of: palette, matching: finder);
     await tester.enterText(
-      inSidebar(find.byType(TextField)),
+      inPalette(find.byType(TextField)),
       'nothing like it',
     );
-    await tester.pump();
-    expect(inSidebar(find.text('No matching agents')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(inPalette(find.text('No results')), findsOneWidget);
+
+    await tester.enterText(inPalette(find.byType(TextField)), 'flaky');
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(
+      inPalette(
+        find.textContaining('Flaky integration test on CI', findRichText: true),
+      ),
+      findsWidgets,
+    );
+    expect(
+      inPalette(find.textContaining('Rate limit', findRichText: true)),
+      findsNothing,
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(palette, findsNothing);
+    expect(workspace.selected.title, 'Flaky integration test on CI');
   });
 
   testWidgets('renames, pins, archives and deletes from the menu', (
@@ -942,12 +958,6 @@ void main() {
           .map((thread) => thread.record?.id),
       ['a1', 'a2', 'a3', 'a4', 'a5', 'a7'],
     );
-
-    // A search shows every match.
-    await tester.enterText(inSidebar(find.byType(TextField)), 'Chat a');
-    await tester.pump();
-    expect(inSidebar(find.text('Chat a6')), findsOneWidget);
-    expect(inSidebar(find.textContaining('Show more')), findsNothing);
   });
 
   testWidgets('the only project has a plain header that does not fold', (

@@ -10,11 +10,10 @@ import '../../notifications/attention_host.dart';
 import '../../notifications/attention_settings.dart';
 import '../../notifications/notification_sound.dart';
 import '../../platform/app_platform.dart';
-import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
-import '../../theme/workbench_theme.dart' show themeColors;
 import '../user_settings.dart';
 import 'settings_dropdown.dart';
+import 'settings_widgets.dart';
 
 /// Settings → Notifications: when agents notify, with what sound, and the
 /// tray icon (see [AttentionSettings] for the settings.json keys). A choice
@@ -112,118 +111,109 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
       current.sound,
     );
     final enabled = current.enabled;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+    return SettingsPage(
+      title: l10n.notificationsSettingsTitle,
       children: [
-        Text(
-          l10n.notificationsSettingsTitle,
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 18),
-        _SettingsCheckbox(
-          label: l10n.notificationsEnabled,
-          description: l10n.notificationsEnabledDescription,
-          value: enabled,
-          onChanged: (value) =>
-              _write(AttentionSettings.enabledKey, value ? null : false),
-        ),
-        const SizedBox(height: 18),
-        _Heading(l10n.notificationsEvents),
-        const SizedBox(height: 8),
-        for (final (event, label, detail) in [
-          (
-            AttentionEvent.needsInput,
-            l10n.notificationsEventNeedsInput,
-            l10n.notificationsEventNeedsInputDetail,
-          ),
-          (
-            AttentionEvent.finished,
-            l10n.notificationsEventFinished,
-            l10n.notificationsEventFinishedDetail,
-          ),
-        ])
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _SettingsCheckbox(
-              label: label,
-              description: detail,
-              value: current.events.contains(event),
-              enabled: enabled,
-              onChanged: (value) => _write(
-                AttentionSettings.eventsKey,
-                AttentionSettings.encodeEvents(
-                  value
-                      ? {...current.events, event}
-                      : ({...current.events}..remove(event)),
-                ),
-              ),
-            ),
-          ),
-        const SizedBox(height: 10),
-        _Heading(l10n.notificationsWhen),
-        const SizedBox(height: 4),
-        _Description(l10n.notificationsWhenDescription),
-        const SizedBox(height: 10),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: SettingsDropdown(
-            current: whenName,
-            semanticLabel: l10n.notificationsWhenLabel(whenName),
-            entries: () => [
-              for (final when in NotifyWhen.values)
-                IdeMenuAction(
-                  NotificationsSettingsPage.whenName(context, when),
-                  checked: when == current.when,
-                  onSelected: () => _write(
-                    AttentionSettings.whenKey,
-                    when == AttentionSettings.defaults.when ? null : when.name,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
-        _Heading(l10n.notificationsSound),
-        const SizedBox(height: 10),
-        Row(
+        SettingsCard(
           children: [
-            Flexible(
-              child: SettingsDropdown(
-                current: soundName,
-                semanticLabel: l10n.notificationsSoundLabel(soundName),
-                entries: () => _soundEntries(context, current.sound),
-              ),
-            ),
-            const SizedBox(width: 8),
-            IdeButton(
-              label: l10n.notificationsSoundPlay,
-              icon: Codicons.play,
-              secondary: true,
-              onPressed: current.sound == NotificationSoundValue.none
-                  ? null
-                  : () =>
-                        unawaited(NotificationSound.play(_host, current.sound)),
+            SettingsSwitchRow(
+              label: l10n.notificationsEnabled,
+              description: l10n.notificationsEnabledDescription,
+              value: enabled,
+              onChanged: (value) =>
+                  _write(AttentionSettings.enabledKey, value ? null : false),
             ),
           ],
         ),
-        if (AppPlatform.isMacOS || AppPlatform.isWindows) ...[
-          const SizedBox(height: 22),
-          _Heading(l10n.traySettings),
-          const SizedBox(height: 8),
-          _SettingsCheckbox(
-            label: AppPlatform.isWindows
-                ? l10n.trayEnabledWindows
-                : l10n.trayEnabledMacOS,
-            description: l10n.trayEnabledDescription,
-            value: current.tray,
-            onChanged: (value) =>
-                _write(AttentionSettings.trayKey, value ? null : false),
+        SettingsGroup(
+          title: l10n.notificationsEvents,
+          children: [
+            for (final (event, label, detail) in [
+              (
+                AttentionEvent.needsInput,
+                l10n.notificationsEventNeedsInput,
+                l10n.notificationsEventNeedsInputDetail,
+              ),
+              (
+                AttentionEvent.finished,
+                l10n.notificationsEventFinished,
+                l10n.notificationsEventFinishedDetail,
+              ),
+            ])
+              SettingsSwitchRow(
+                label: label,
+                description: detail,
+                value: current.events.contains(event),
+                enabled: enabled,
+                onChanged: (value) => _write(
+                  AttentionSettings.eventsKey,
+                  AttentionSettings.encodeEvents(
+                    value
+                        ? {...current.events, event}
+                        : ({...current.events}..remove(event)),
+                  ),
+                ),
+              ),
+            SettingsRow(
+              label: l10n.notificationsWhen,
+              description: l10n.notificationsWhenDescription,
+              trailing: SettingsDropdown(
+                current: whenName,
+                semanticLabel: l10n.notificationsWhenLabel(whenName),
+                entries: () => [
+                  for (final when in NotifyWhen.values)
+                    IdeMenuAction(
+                      NotificationsSettingsPage.whenName(context, when),
+                      checked: when == current.when,
+                      onSelected: () => _write(
+                        AttentionSettings.whenKey,
+                        when == AttentionSettings.defaults.when
+                            ? null
+                            : when.name,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            SettingsRow(
+              label: l10n.notificationsSound,
+              trailing: SettingsButtons(
+                children: [
+                  SettingsDropdown(
+                    current: soundName,
+                    semanticLabel: l10n.notificationsSoundLabel(soundName),
+                    entries: () => _soundEntries(context, current.sound),
+                  ),
+                  IdeButton(
+                    label: l10n.notificationsSoundPlay,
+                    icon: Codicons.play,
+                    secondary: true,
+                    onPressed: current.sound == NotificationSoundValue.none
+                        ? null
+                        : () => unawaited(
+                            NotificationSound.play(_host, current.sound),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (AppPlatform.isMacOS || AppPlatform.isWindows)
+          SettingsGroup(
+            title: l10n.traySettings,
+            children: [
+              SettingsSwitchRow(
+                label: AppPlatform.isWindows
+                    ? l10n.trayEnabledWindows
+                    : l10n.trayEnabledMacOS,
+                description: l10n.trayEnabledDescription,
+                value: current.tray,
+                onChanged: (value) =>
+                    _write(AttentionSettings.trayKey, value ? null : false),
+              ),
+            ],
           ),
-        ],
       ],
     );
   }
@@ -252,117 +242,5 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
         onSelected: () => unawaited(_chooseSound()),
       ),
     ];
-  }
-}
-
-class _Heading extends StatelessWidget {
-  const _Heading(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    text,
-    style: TextStyle(
-      color: AppColors.textPrimary,
-      fontSize: 13,
-      fontWeight: FontWeight.w600,
-    ),
-  );
-}
-
-class _Description extends StatelessWidget {
-  const _Description(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    text,
-    style: TextStyle(color: AppColors.textMuted, fontSize: 12, height: 1.5),
-  );
-}
-
-/// A setting that is on or off: VS Code's settings checkbox
-/// (`.monaco-custom-toggle.monaco-checkbox`), its label beside it and its
-/// description below.
-class _SettingsCheckbox extends StatelessWidget {
-  const _SettingsCheckbox({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-    this.description,
-    this.enabled = true,
-  });
-
-  final String label;
-  final String? description;
-  final bool value;
-  final bool enabled;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = themeColors;
-    final description = this.description;
-    return Opacity(
-      opacity: enabled ? 1 : 0.5,
-      child: Semantics(
-        checked: value,
-        enabled: enabled,
-        label: label,
-        excludeSemantics: true,
-        onTap: enabled ? () => onChanged(!value) : null,
-        child: MouseRegion(
-          cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: enabled ? () => onChanged(!value) : null,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 18,
-                  height: 18,
-                  margin: const EdgeInsets.only(top: 1),
-                  decoration: BoxDecoration(
-                    color: colors['checkbox.background'],
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: colors['checkbox.border']),
-                  ),
-                  child: value
-                      ? Icon(
-                          Codicons.check,
-                          size: 16,
-                          color: colors['checkbox.foreground'],
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 13,
-                          height: 1.5,
-                        ),
-                      ),
-                      if (description != null) ...[
-                        const SizedBox(height: 2),
-                        _Description(description),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

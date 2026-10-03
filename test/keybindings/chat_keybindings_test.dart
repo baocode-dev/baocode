@@ -71,6 +71,9 @@ void main() {
     expect(mac('${ChatCommandIds.focusPane}2'), '⌘2');
     expect(windows('${ChatCommandIds.focusPane}2'), 'Ctrl+2');
     expect(mac(ChatCommandIds.focusNextPane), isNull);
+    // Search: ⇧⌘P shown, ⌘P too.
+    expect(mac(ChatCommandIds.search), '⇧⌘P');
+    expect(windows(ChatCommandIds.search), 'Ctrl+Shift+P');
     expect(mac(ChatCommandIds.searchAgents), '⇧⌘F');
     expect(linux(ChatCommandIds.searchAgents), 'Ctrl+Shift+F');
     expect(mac(ChatCommandIds.openIde), '⌃⌘I');

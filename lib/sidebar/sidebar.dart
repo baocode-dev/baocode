@@ -105,23 +105,21 @@ class _Spot {
 typedef _Rows = ({List<AgentThread> threads, int more, bool less});
 
 /// What the window asks of its sidebar, for the chat's keybindings: the
-/// agents in the order it lists them, and its search.
+/// agents in the order it lists them.
 class SidebarLink {
   _SidebarState? _state;
 
   /// Whether a sidebar is built (shown, or tucked away beside the chat).
   bool get attached => _state != null;
 
-  /// The agents listed, top to bottom (not those of collapsed groups, but
-  /// while searching); null without a sidebar.
+  /// The agents listed, top to bottom (not those of collapsed groups);
+  /// null without a sidebar.
   List<AgentThread>? get visibleThreads => _state?._visibleThreads();
-
-  /// Focuses the search field, its text selected.
-  void focusSearch() => _state?._focusSearch();
 }
 
-/// Agents list: new agent, search, grouped by project, date or status,
-/// pinned ones on top and archived ones tucked away at the bottom.
+/// Agents list: new agent, search and customize, the agents grouped by
+/// project, date or status, pinned ones on top and archived ones tucked
+/// away at the bottom.
 class Sidebar extends StatefulWidget {
   const Sidebar({
     super.key,
@@ -130,6 +128,9 @@ class Sidebar extends StatefulWidget {
     this.onOpened,
     this.onOpenFolder,
     this.onOpenSettings,
+    this.onSearch,
+    this.onCustomize,
+    this.customizing = false,
     this.drag,
     this.link,
   });
@@ -153,6 +154,17 @@ class Sidebar extends StatefulWidget {
   /// Opens the settings: the gear at the bottom; none without it.
   final VoidCallback? onOpenSettings;
 
+  /// Opens the search palette (agents, what was said in them, files,
+  /// actions); no Search row without it.
+  final VoidCallback? onSearch;
+
+  /// Shows Claude Code's customizations in place of the chat; no
+  /// Customize row without it.
+  final VoidCallback? onCustomize;
+
+  /// They show: the Customize row is selected.
+  final bool customizing;
+
   /// An agent was opened or created from here (the drawer closes).
   final VoidCallback? onOpened;
 
@@ -169,8 +181,6 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   /// The agents a project shows until asked for more (pinned ones apart).
   static const _recent = 5;
 
-  final TextEditingController _search = TextEditingController();
-  final FocusNode _searchFocus = FocusNode();
   AgentThread? _renaming;
 
   /// Keeps the relative times current.
@@ -220,7 +230,6 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   void initState() {
     super.initState();
     _clock = Timer.periodic(const Duration(minutes: 1), (_) => setState(() {}));
-    _search.addListener(() => setState(() {}));
     widget.link?._state = this;
     _attachDrag(widget.drag);
   }
@@ -243,13 +252,9 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     if (widget.link?._state == this) widget.link!._state = null;
     _detachDrag(widget.drag);
     _clock.cancel();
-    _search.dispose();
-    _searchFocus.dispose();
     _listScroll.dispose();
     super.dispose();
   }
-
-  bool get _searching => _search.text.trim().isNotEmpty;
 
   /// The agents listed, top to bottom (see [_buildList]).
   List<AgentThread> _visibleThreads() => [
@@ -260,14 +265,14 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   bool _collapsible(_Group group) => group.project == null || _projectsShown;
 
   bool _collapsed(_Group group) =>
-      !_searching && _collapsible(group) && _workspace.isCollapsed(group.id);
+      _collapsible(group) && _workspace.isCollapsed(group.id);
 
   /// A project's most recent agents, unless asked for all (the open one
-  /// too, wherever it is); every one while searching.
+  /// too, wherever it is).
   _Rows _rows(_Group group) {
     if (_collapsed(group)) return (threads: const [], more: 0, less: false);
     final all = group.threads;
-    if (_searching || group.project == null || all.length <= _recent) {
+    if (group.project == null || all.length <= _recent) {
       return (threads: all, more: 0, less: false);
     }
     if (_workspace.isExpanded(group.id)) {
@@ -288,14 +293,6 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       (!thread.untouched ||
           identical(thread, _workspace.current) ||
           _workspace.grid.contains(thread));
-
-  void _focusSearch() {
-    _search.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: _search.text.length,
-    );
-    _searchFocus.requestFocus();
-  }
 
   void _open(AgentThread thread) {
     _workspace.select(thread);
@@ -326,13 +323,6 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     widget.onOpened?.call();
   }
 
-  bool _matches(AgentThread thread) {
-    final query = _search.text.trim().toLowerCase();
-    if (query.isEmpty) return true;
-    return thread.localizedTitle(context.l10n).toLowerCase().contains(query) ||
-        thread.project.name.toLowerCase().contains(query);
-  }
-
   List<_Group> _groups() {
     final l10n = context.l10n;
     final threads = [
@@ -341,8 +331,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
         // counts them all, so one of a project taken off the sidebar (see
         // [Workspace.hideProject]) would be counted with no way back.
         if ((thread.archived || _listed(thread)) &&
-            _workspace.listsInSidebar(thread) &&
-            _matches(thread))
+            _workspace.listsInSidebar(thread))
           thread,
     ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     final active = [
@@ -369,7 +358,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
 
     return [
       // While an agent is dragged, a place to pin it, if none is yet.
-      if (pinned.isNotEmpty || (_pinZone && !_searching))
+      if (pinned.isNotEmpty || _pinZone)
         _Group(_pinnedGroup, l10n.sidebarPinned, pinned),
       ...switch (_grouping) {
         SidebarGrouping.project => [
@@ -456,10 +445,26 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
                     : _create,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
-              child: _SearchField(controller: _search, focusNode: _searchFocus),
-            ),
+            if (widget.onSearch case final search?)
+              _NavRow(
+                icon: Codicons.search,
+                label: context.l10n.sidebarSearch,
+                hover: ChatKeys.titleWithKey(
+                  context.l10n.cmdChatSearch,
+                  ChatCommandIds.search,
+                  ChatKeys.chatLayout,
+                ),
+                onTap: search,
+              ),
+            if (widget.onCustomize case final customize?)
+              _NavRow(
+                icon: Codicons.extensions,
+                label: context.l10n.sidebarCustomize,
+                selected: widget.customizing,
+                onTap: customize,
+              ),
+            if (widget.onSearch != null || widget.onCustomize != null)
+              const SizedBox(height: 4),
             _buildGroupingBar(),
             Expanded(child: _buildList()),
             _buildFooter(),
@@ -566,14 +571,11 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   static const _listSlot = #list;
 
   Widget _buildList() {
-    final searching = _searching;
     final groups = [
       for (final group in _groups())
         // Empty projects stay, to start an agent in; other empty groups go
         // (but the place to pin a dragged agent).
-        if (group.threads.isNotEmpty ||
-            (group.project != null && !searching) ||
-            group.pinned)
+        if (group.threads.isNotEmpty || group.project != null || group.pinned)
           group,
     ];
     _laidOut = const [];
@@ -581,9 +583,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       return Padding(
         padding: const EdgeInsets.all(16),
         child: Text(
-          searching
-              ? context.l10n.sidebarNoMatchingAgents
-              : context.l10n.sidebarNoAgentsYet,
+          context.l10n.sidebarNoAgentsYet,
           textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.textFaint, fontSize: 12),
         ),
@@ -700,7 +700,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     );
     // Projects are ordered by dragging their headers, where there are
     // several to order.
-    if (project == null || projects.length < 2 || _searching) return header;
+    if (project == null || projects.length < 2) return header;
     return _ProjectDragSource(
       onStart: () => setState(() => _draggedProject = project),
       onUpdate: (position) => _moveProjectDrag(position, projects),
@@ -930,11 +930,9 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   }
 
   /// Whether [thread] can be dropped in [group]: pinned there, or ordered
-  /// among its project's (not into another's, nor while searching).
+  /// among its project's (not into another's).
   bool _takes(_Group group, AgentThread thread) =>
-      !thread.archived &&
-      !_searching &&
-      (group.pinned || group.project == thread.project);
+      !thread.archived && (group.pinned || group.project == thread.project);
 
   _Spot? _spotAt(AgentThread thread, Offset position) {
     for (final (:group, thread: row, :slot) in _laidOut) {
@@ -1101,83 +1099,89 @@ class _NewAgentButton extends StatelessWidget {
   }
 }
 
-class _SearchField extends StatelessWidget {
-  const _SearchField({required this.controller, required this.focusNode});
+/// A row under New Agent that opens something of the window's (Search,
+/// Customize): an icon and a label, as Cursor's sidebar has them.
+class _NavRow extends StatelessWidget {
+  const _NavRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.hover,
+    this.selected = false,
+  });
 
-  final TextEditingController controller;
-  final FocusNode focusNode;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  /// Its hover's text, e.g. with the keys that do the same; none when null.
+  final String? hover;
+
+  /// What it opens shows.
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
-    // An input box; its hover with the keys that focus it, as upstream's
-    // command center has (`Search baocode (⌘P)`).
-    final colors = themeColors;
-    final box = SizedBox(
-      height: 28,
-      child: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.escape): () {
-            controller.clear();
-            focusNode.unfocus();
-          },
-        },
-        child: TextField(
-          controller: controller,
-          focusNode: focusNode,
-          style: TextStyle(color: colors['input.foreground'], fontSize: 12.5),
-          cursorColor: AppColors.text,
-          cursorHeight: 14,
-          decoration: InputDecoration(
-            isDense: true,
-            hintText: context.l10n.sidebarSearchAgents,
-            hintStyle: TextStyle(
-              color: colors['input.placeholderForeground'],
-              fontSize: 12.5,
+    final row = Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: HoverBuilder(
+        cursor: SystemMouseCursors.click,
+        builder: (context, hovered) => GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            height: 28,
+            margin: const EdgeInsets.symmetric(horizontal: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: selected
+                  ? themeColors['list.activeSelectionBackground']
+                  : hovered
+                  ? AppColors.hover
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(5),
             ),
-            prefixIcon: Icon(
-              Icons.search_rounded,
-              size: 15,
-              color: AppColors.textFaint,
-            ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 30),
-            suffixIcon: controller.text.isEmpty
-                ? null
-                : GestureDetector(
-                    onTap: controller.clear,
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 14,
-                        color: AppColors.textMuted,
+            child: ExcludeSemantics(
+              child: Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 15,
+                    color: selected
+                        ? themeColors['list.activeSelectionForeground']
+                        : AppColors.textMuted,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected
+                            ? themeColors['list.activeSelectionForeground']
+                            : AppColors.text,
+                        fontSize: 12.5,
                       ),
                     ),
                   ),
-            suffixIconConstraints: const BoxConstraints(minWidth: 28),
-            contentPadding: const EdgeInsets.symmetric(vertical: 7),
-            filled: true,
-            fillColor: colors['input.background'],
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: BorderSide(color: AppColors.borderStrong),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: BorderSide(color: colors['focusBorder']),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
-    return IdeHover(
-      message: ChatKeys.titleWithKey(
-        context.l10n.cmdChatSearchAgents,
-        ChatCommandIds.searchAgents,
-        ChatKeys.chatLayout,
+    return switch (hover) {
+      final message? => IdeHover(
+        message: message,
+        excludeFromSemantics: true,
+        child: row,
       ),
-      excludeFromSemantics: true,
-      child: box,
-    );
+      null => row,
+    };
   }
 }
 
