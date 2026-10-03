@@ -277,7 +277,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     // Only once all were read: what one failed to list is not gone.
     if (complete) _forgetGone(listed);
     _loading = false;
-    if (_ideFolder case final folder?) _ensureIdeChat(folder);
+    for (final folder in {?_ideFolder, ..._windowFolders}) {
+      _ensureIdeChat(folder);
+    }
     _restoreChatView();
     if (_selected == null && _projects.isNotEmpty) {
       create(project: sidebarProjects.firstOrNull ?? _projects.first);
@@ -610,11 +612,59 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   /// Has the IDE show [path], with a chat of its own there.
   void openIdeFolder(String path) {
+    if (ideWindows case final route?) {
+      noteIdeFolder(path);
+      route(path, null);
+      return;
+    }
     _ideFolder = path;
     _recent(_recentFolders, path);
     _ensureIdeChat(path);
     _save();
     notifyListeners();
+  }
+
+  // --- The IDE's windows ------------------------------------------------------
+
+  /// Where the IDE shows once it has windows of its own (see
+  /// lib/window/app_windows.dart): asked for [folder]'s window (null: the
+  /// one last in front, or an empty one) with [thread] its chat's tab.
+  /// Unset, the IDE is this window's [layout], at [ideFolder].
+  void Function(String? folder, AgentThread? thread)? ideWindows;
+
+  /// The folders the IDE's windows show, and whether the chat's window
+  /// shows: what [isShown] counts.
+  Set<String> _windowFolders = const {};
+  bool _chatWindowShown = true;
+
+  void showWindows({required Iterable<String> folders, required bool chat}) {
+    final shown = folders.toSet();
+    final added = shown.difference(_windowFolders);
+    _windowFolders = shown;
+    _chatWindowShown = chat;
+    added.forEach(_ensureIdeChat);
+    if (_markShownSeen() || added.isNotEmpty) notifyListeners();
+  }
+
+  /// [path] opened by the IDE's window of its own: among the recent, with a
+  /// chat of its own there.
+  void noteIdeFolder(String path) {
+    _recent(_recentFolders, path);
+    _ensureIdeChat(path);
+    _save();
+    notifyListeners();
+  }
+
+  /// The IDE's folder and whether it showed, as a run before the IDE's
+  /// windows left them in the one window: taken, for its own window to
+  /// open them (the chat shows here from now on).
+  ({String? folder, bool shown}) takeSingleWindowIde() {
+    final taken = (folder: _ideFolder, shown: _layout == WorkspaceLayout.ide);
+    if (taken.folder == null && !taken.shown) return taken;
+    _ideFolder = null;
+    _layout = WorkspaceLayout.chat;
+    _save();
+    return taken;
   }
 
   /// Back to the IDE's empty window.
@@ -652,6 +702,15 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Shows [thread] in the IDE: its folder, with it the chat there.
   void openInIde(AgentThread thread) {
     final folder = thread.project.path;
+    if (ideWindows case final route?) {
+      _recent(_recentFolders, folder);
+      _addIdeChat(folder, thread);
+      _markShownSeen();
+      _save();
+      notifyListeners();
+      route(folder, thread);
+      return;
+    }
     _ideFolder = folder;
     _recent(_recentFolders, folder);
     _addIdeChat(folder, thread);
@@ -805,7 +864,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       if (identical(_ideChatShown[folder], thread)) {
         _ideChatShown.remove(folder);
       }
-      if (folder == _ideFolder) _ensureIdeChat(folder);
+      if (folder == _ideFolder || _windowFolders.contains(folder)) {
+        _ensureIdeChat(folder);
+      }
       _save();
     }
   }
@@ -815,6 +876,11 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   WorkspaceLayout get layout => _layout;
   WorkspaceLayout _layout = WorkspaceLayout.chat;
   set layout(WorkspaceLayout layout) {
+    // The IDE has windows of its own: the one last in front shows.
+    if (ideWindows case final route? when layout == WorkspaceLayout.ide) {
+      route(null, null);
+      return;
+    }
     if (_layout == layout) return;
     _layout = layout;
     _markShownSeen();
@@ -1652,8 +1718,13 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   }
 
   /// Whether [thread] shows in the window: in one of the chat's panes, or,
-  /// while the IDE shows, as its folder's chat.
-  bool isShown(AgentThread thread) => switch (_layout) {
+  /// while the IDE shows, as its folder's chat. With the IDE's windows,
+  /// in the chat's panes while its window shows, or as the chat of one of
+  /// theirs.
+  bool isShown(AgentThread thread) => ideWindows != null
+      ? (_chatWindowShown && _grid.contains(thread)) ||
+            _windowFolders.any((folder) => identical(ideChat(folder), thread))
+      : switch (_layout) {
     WorkspaceLayout.chat => _grid.contains(thread),
     WorkspaceLayout.ide => switch (_ideFolder) {
       final folder? => identical(ideChat(folder), thread),

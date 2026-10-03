@@ -15,6 +15,7 @@ import 'key_chord.dart';
 
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 
+import 'window_keybindings.dart';
 import 'workbench_keybindings.dart';
 
 /// Open Settings: the settings dialog, from either layout.
@@ -348,6 +349,7 @@ final Map<String, CommandInfo> commandCatalog = {
         in editorKeyboardCommandLabels.entries)
       CommandInfo(id, title, category: 'Editor'),
     ...workbenchExtraCommands,
+    ...windowCommands,
     ...chatExtraCommands,
     for (final MapEntry(key: id, value: title)
         in editorLanguageCommandLabels.entries)
@@ -714,6 +716,7 @@ final List<KeybindingEntry> defaultKeybindings = List.unmodifiable([
     if (!id.startsWith('editor.action.marker.'))
       _editorSequenceEntry(id, bindings.$1, bindings.$2),
   ...editorExtraKeybindings,
+  ...windowKeybindings,
   ...chatExtraKeybindings,
 ]);
 

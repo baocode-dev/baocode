@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 
 import '../kernel/claude_code/claude_environment.dart';
+import '../window/code_args.dart';
 import 'app_platform.dart';
 import 'shell_command.dart';
 
@@ -97,31 +98,22 @@ class MacShellCommand implements ShellCommandInstaller {
   @override
   String get location => target;
 
-  /// The script: paths that are there go to the app (relative ones from
-  /// the terminal's folder, which `open` resolves); options are left out,
-  /// and a path that is not there is said so, as `ls` would. With no path
-  /// named, the app only comes to the front.
+  /// The script: what it was given, and the terminal's folder, written to
+  /// a request file the app is handed to open (see CodeArgs), which reads
+  /// it as VS Code's CLI would its arguments (`-n`, `-r`, `-g`, the paths).
   String get script =>
       '''
 #!/usr/bin/env bash
 # $shellCommandMarker
 # Opens files and folders in BaoCode (installed by BaoCode's "Install '${ShellCommand.name}' command in PATH").
-paths=()
-named=0
-for arg in "\$@"; do
-  case "\$arg" in
-    -*) continue ;;
-  esac
-  named=1
-  if [ -e "\$arg" ]; then
-    paths+=("\$arg")
-  else
-    echo "${ShellCommand.name}: \$arg: No such file or directory" >&2
-  fi
-done
-if [ "\$named" -eq 0 ]; then exec open -b $bundleId; fi
-if [ "\${#paths[@]}" -eq 0 ]; then exit 1; fi
-exec open -b $bundleId "\${paths[@]}"
+tmp=\$(mktemp "\${TMPDIR:-/tmp}/baocode-XXXXXX") || exit 1
+request="\$tmp${CodeArgs.requestFileSuffix}"
+mv "\$tmp" "\$request" || exit 1
+{
+  printf '%s\\n' "\$PWD"
+  for arg in "\$@"; do printf '%s\\n' "\$arg"; done
+} > "\$request" || exit 1
+exec open -b $bundleId "\$request"
 ''';
 
   @override
@@ -300,11 +292,13 @@ class WindowsShellCommand implements ShellCommandInstaller {
       : p.join(binDirectory, '${ShellCommand.name}.cmd');
 
   /// The script: the app, started apart from the console (`start`), with
-  /// all it was given. `%` doubled, which cmd would otherwise expand.
+  /// a request of the `code` command: its marker, the console's folder,
+  /// then all it was given (see open_requests.cpp). `%` doubled, which cmd
+  /// would otherwise expand.
   String get script => [
     '@echo off',
     'REM $shellCommandMarker',
-    'start "" "${executable.replaceAll('%', '%%')}" %*',
+    'start "" "${executable.replaceAll('%', '%%')}" ${CodeArgs.windowsRequestFlag} "%CD%\\." %*',
     '',
   ].join('\r\n');
 

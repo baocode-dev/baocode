@@ -29,10 +29,11 @@ class WindowButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final viewId = View.maybeOf(context)?.viewId ?? 0;
     return ValueListenableBuilder<WindowButton?>(
-      valueListenable: WindowControls.hoveredWindowButton,
+      valueListenable: WindowControls.hoveredButtonOf(viewId),
       builder: (context, hovered, _) => ValueListenableBuilder<bool>(
-        valueListenable: WindowControls.maximized,
+        valueListenable: WindowControls.maximizedOf(viewId),
         builder: (context, maximized, _) => Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -42,7 +43,8 @@ class WindowButtons extends StatelessWidget {
                 label: context.l10n.windowMinimize,
                 glyph: Glyph.minimize,
                 hovered: hovered == WindowButton.minimize,
-                onPressed: () => WindowControls.windowCommand('minimize'),
+                onPressed: () =>
+                    WindowControls.windowCommand('minimize', viewId: viewId),
               ),
             ),
             KeyedSubtree(
@@ -53,7 +55,8 @@ class WindowButtons extends StatelessWidget {
                     : context.l10n.windowMaximize,
                 glyph: maximized ? Glyph.restore : Glyph.maximize,
                 hovered: hovered == WindowButton.maximize,
-                onPressed: () => WindowControls.windowCommand('maximize'),
+                onPressed: () =>
+                    WindowControls.windowCommand('maximize', viewId: viewId),
               ),
             ),
             KeyedSubtree(
@@ -62,7 +65,8 @@ class WindowButtons extends StatelessWidget {
                 label: context.l10n.windowClose,
                 glyph: Glyph.close,
                 hovered: hovered == WindowButton.close,
-                onPressed: () => WindowControls.windowCommand('close'),
+                onPressed: () =>
+                    WindowControls.windowCommand('close', viewId: viewId),
                 closes: true,
               ),
             ),

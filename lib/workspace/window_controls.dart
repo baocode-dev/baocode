@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -14,8 +15,42 @@ enum WindowButton { minimize, maximize, close }
 
 /// Controls of the native window, where there is one (the desktop app; see
 /// MainFlutterWindow.swift and windows/runner/window_channel.cpp).
+///
+/// Each of the app's windows has its own channel: the main one's is
+/// `baocode/window`, another's `baocode/window.<viewId>` (see
+/// lib/window/). What is asked without saying of which window (a dialog,
+/// a menu) is the window in front's, [activeViewId].
 abstract final class WindowControls {
-  static const _channel = MethodChannel('baocode/window');
+  static const _main = MethodChannel('baocode/window');
+  static final Map<int, MethodChannel> _channels = {};
+
+  /// The channel of [viewId]'s window.
+  static MethodChannel channelFor(int viewId) => viewId == 0
+      ? _main
+      : _channels.putIfAbsent(
+          viewId,
+          () => MethodChannel('baocode/window.$viewId'),
+        );
+
+  /// The window in front, the keyboard's: where a dialog or a menu asked
+  /// for without a window shows. A press in a window makes it the one, as
+  /// its coming in front does (see AppWindows).
+  static int activeViewId = 0;
+
+  static MethodChannel get _channel => channelFor(activeViewId);
+
+  static MethodChannel _of(int? viewId) => channelFor(viewId ?? activeViewId);
+
+  /// Follows the presses in the app's windows for [activeViewId].
+  static void trackActiveView() {
+    if (_tracking) return;
+    _tracking = true;
+    GestureBinding.instance.pointerRouter.addGlobalRoute((event) {
+      if (event is PointerDownEvent) activeViewId = event.viewId;
+    });
+  }
+
+  static bool _tracking = false;
 
   /// Whether the app runs in a window to command: the desktop app, not a
   /// browser tab.
@@ -34,20 +69,21 @@ abstract final class WindowControls {
   /// Makes the window's own parts light or dark as the color theme is: on
   /// macOS the material under the sidebar, the traffic lights and the
   /// system's menus (MainFlutterWindow.swift keeps it for the next start).
+  /// All the app's windows take it.
   static Future<void> setDarkAppearance(bool dark) async {
     if (!AppPlatform.isMacOS) return;
     try {
-      await _channel.invokeMethod<void>('setAppearance', dark);
+      await _main.invokeMethod<void>('setAppearance', dark);
     } on MissingPluginException {
       // A host without the channel (e.g. tests).
     }
   }
 
   /// Keeps the window above other apps' windows, or not.
-  static Future<void> setAlwaysOnTop(bool onTop) async {
+  static Future<void> setAlwaysOnTop(bool onTop, {int? viewId}) async {
     if (!canKeepOnTop) return;
     try {
-      await _channel.invokeMethod<void>('setAlwaysOnTop', onTop);
+      await _of(viewId).invokeMethod<void>('setAlwaysOnTop', onTop);
     } on MissingPluginException {
       // A host without the channel (e.g. tests).
     }
@@ -60,10 +96,10 @@ abstract final class WindowControls {
   /// How much wider and taller the window can get on its screen: none while
   /// it fills it (full screen, maximized); null where there is no window to
   /// ask (the web, a host without the channel).
-  static Future<Size?> growRoom() async {
+  static Future<Size?> growRoom({int? viewId}) async {
     if (!canGrow) return null;
     try {
-      final room = await _channel.invokeMapMethod<String, Object?>(
+      final room = await _of(viewId).invokeMapMethod<String, Object?>(
         'windowRoom',
       );
       if (room == null) return null;
@@ -77,10 +113,10 @@ abstract final class WindowControls {
   /// Makes the window [by] wider and taller, as far as its screen goes: its
   /// top left stays, unless that would take it past the screen's edge,
   /// where it moves back onto it.
-  static Future<void> grow(Size by) async {
+  static Future<void> grow(Size by, {int? viewId}) async {
     if (!canGrow) return;
     try {
-      await _channel.invokeMethod<void>('growWindow', {
+      await _of(viewId).invokeMethod<void>('growWindow', {
         'width': by.width,
         'height': by.height,
       });
@@ -98,38 +134,69 @@ abstract final class WindowControls {
   /// Does what the system's settings say a double click on the title bar
   /// does: zoom (by default), fill, minimize or nothing (see
   /// MainFlutterWindow.swift).
-  static Future<void> handleTitleDoubleClick() async {
+  static Future<void> handleTitleDoubleClick({int? viewId}) async {
     if (!handlesTitleDoubleClick) return;
     try {
-      await _channel.invokeMethod<void>('handleTitleDoubleClick');
+      await _of(viewId).invokeMethod<void>('handleTitleDoubleClick');
     } on MissingPluginException {
       // A host without the channel (e.g. tests).
     }
   }
 
   /// Which of them the pointer is over, or null; the window reports it.
-  static final ValueNotifier<WindowButton?> hoveredWindowButton = ValueNotifier(
-    null,
-  );
+  static final ValueNotifier<WindowButton?> hoveredWindowButton =
+      hoveredButtonOf(0);
 
   /// Whether the window fills the screen, so its button offers the way back
   /// down; the window reports it.
-  static final ValueNotifier<bool> maximized = ValueNotifier(false);
+  static final ValueNotifier<bool> maximized = maximizedOf(0);
 
-  /// Starts taking what the window reports back: which button the pointer is
-  /// over, whether it is maximized. The channel takes one handler, so this
-  /// and [handleEditCommands] are for different platforms.
-  static void handleWindowEvents() {
+  static final Map<int, ValueNotifier<WindowButton?>> _hovered = {};
+  static final Map<int, ValueNotifier<bool>> _maximized = {};
+
+  /// [hoveredWindowButton] of [viewId]'s window.
+  static ValueNotifier<WindowButton?> hoveredButtonOf(int viewId) =>
+      _hovered.putIfAbsent(viewId, () => ValueNotifier(null));
+
+  /// [maximized] of [viewId]'s window.
+  static ValueNotifier<bool> maximizedOf(int viewId) =>
+      _maximized.putIfAbsent(viewId, () => ValueNotifier(false));
+
+  /// Starts taking what [viewId]'s window reports back: which button the
+  /// pointer is over, whether it is maximized (Windows); the menu bar's
+  /// commands (macOS). One handler takes both (see [handleEditCommands]).
+  static void handleWindowEvents([int viewId = 0]) {
     if (!drawsHeader) return;
-    _channel.setMethodCallHandler((call) async {
+    _listen(viewId);
+  }
+
+  static void _listen(int viewId) {
+    channelFor(viewId).setMethodCallHandler((call) async {
       switch (call.method) {
         case 'captionHover':
-          hoveredWindowButton.value = _buttonNamed('${call.arguments}');
+          hoveredButtonOf(viewId).value = _buttonNamed('${call.arguments}');
         case 'maximized':
-          maximized.value = call.arguments == true;
+          maximizedOf(viewId).value = call.arguments == true;
+        case 'editCommand':
+          activeViewId = viewId;
+          runEditCommand('${call.arguments}');
+        case 'menuCommand':
+          activeViewId = viewId;
+          (_menuCommands[viewId] ?? _menuCommands[0])?.call(
+            '${call.arguments}',
+          );
       }
       return null;
     });
+  }
+
+  /// Stops taking what [viewId]'s window reports (it is gone).
+  static void stopListening(int viewId) {
+    channelFor(viewId).setMethodCallHandler(null);
+    _menuCommands.remove(viewId);
+    _hovered.remove(viewId)?.dispose();
+    _maximized.remove(viewId)?.dispose();
+    _channels.remove(viewId);
   }
 
   static WindowButton? _buttonNamed(String name) => switch (name) {
@@ -147,6 +214,7 @@ abstract final class WindowControls {
   /// window: [controls] are the ones Flutter keeps for itself (the menu bar
   /// and the buttons beside it), the other three are the window buttons.
   static Future<void> setHitTestAreas({
+    int? viewId,
     required double height,
     required List<Rect> controls,
     required Rect minimize,
@@ -155,7 +223,7 @@ abstract final class WindowControls {
   }) async {
     if (!drawsHeader) return;
     try {
-      await _channel.invokeMethod<void>('setHitTestAreas', {
+      await _of(viewId).invokeMethod<void>('setHitTestAreas', {
         'height': height,
         'controls': [for (final rect in controls) _encoded(rect)],
         'buttons': {
@@ -178,10 +246,10 @@ abstract final class WindowControls {
 
   /// Runs one of the window's own commands: `minimize`, `maximize` (which
   /// gives the way back while it is maximized) or `close`.
-  static Future<void> windowCommand(String command) async {
+  static Future<void> windowCommand(String command, {int? viewId}) async {
     if (!drawsHeader) return;
     try {
-      await _channel.invokeMethod<void>('windowCommand', command);
+      await _of(viewId).invokeMethod<void>('windowCommand', command);
     } on MissingPluginException {
       // A host without the channel (e.g. tests).
     }
@@ -262,24 +330,34 @@ abstract final class WindowControls {
   /// Carries out the Edit menu's commands (undo, cut, copy, paste, select
   /// all…) where the focus is: the composer, or the conversation's
   /// selection. The menu is the system's own on macOS only; on Windows the
-  /// framework handles those shortcuts itself.
-  static void handleEditCommands() {
+  /// framework handles those shortcuts itself. The menu bar's are the key
+  /// window's: each window's channel brings them.
+  static void handleEditCommands([int viewId = 0]) {
     if (!hasEditMenu) return;
-    _channel.setMethodCallHandler((call) async {
-      switch (call.method) {
-        case 'editCommand':
-          runEditCommand('${call.arguments}');
-        case 'menuCommand':
-          onMenuCommand?.call('${call.arguments}');
-      }
-      return null;
-    });
+    _listen(viewId);
   }
 
   /// Runs a command the system's menu bar picked (the app menu's
   /// Preferences…: `workbench.action.openSettings`; the File menu's, see
-  /// [setFileMenuTitles]); set by the workbench.
-  static void Function(String command)? onMenuCommand;
+  /// [setFileMenuTitles]); set by the workbench. The main window's.
+  static void Function(String command)? get onMenuCommand => _menuCommands[0];
+  static set onMenuCommand(void Function(String command)? run) =>
+      setMenuCommands(0, run);
+
+  /// [onMenuCommand] of [viewId]'s window, where the menu bar's commands go
+  /// while it is the key window.
+  static void setMenuCommands(int viewId, void Function(String command)? run) {
+    if (run == null) {
+      _menuCommands.remove(viewId);
+    } else {
+      _menuCommands[viewId] = run;
+    }
+  }
+
+  static void Function(String command)? menuCommandsOf(int viewId) =>
+      _menuCommands[viewId];
+
+  static final Map<int, void Function(String command)> _menuCommands = {};
 
   /// Whether the OS has a menu bar of its own to carry the Edit commands
   /// (macOS), where the engine's own handling of them falls short.
@@ -312,11 +390,12 @@ abstract final class WindowControls {
   /// menu).
   static Future<String?> showContextMenu(
     Offset position,
-    List<NativeMenuItem> items,
-  ) async {
+    List<NativeMenuItem> items, {
+    int? viewId,
+  }) async {
     if (!hasNativeMenus) return null;
     try {
-      return await _channel.invokeMethod<String>('showContextMenu', {
+      return await _of(viewId).invokeMethod<String>('showContextMenu', {
         'x': position.dx,
         'y': position.dy,
         'items': [for (final item in items) item._encoded],
@@ -438,7 +517,7 @@ abstract final class WindowControls {
   static Future<void> setFileMenuTitles(Map<String, String> titles) async {
     if (!hasEditMenu) return;
     try {
-      await _channel.invokeMethod<void>('setFileMenuTitles', titles);
+      await _main.invokeMethod<void>('setFileMenuTitles', titles);
     } on MissingPluginException {
       // A host without the channel (e.g. tests).
     }
@@ -451,7 +530,7 @@ abstract final class WindowControls {
   static Future<void> setRecentItems(List<String> paths) async {
     if (!hasEditMenu) return;
     try {
-      await _channel.invokeMethod<void>('setRecentItems', paths);
+      await _main.invokeMethod<void>('setRecentItems', paths);
     } on MissingPluginException {
       // A host without the channel (e.g. tests).
     }

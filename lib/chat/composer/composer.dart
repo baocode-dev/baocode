@@ -280,13 +280,24 @@ class ChatComposerState extends State<ChatComposer>
     _hasContent = _controller.document.toPlainText().trim().isNotEmpty;
     _controller.addListener(_handleEditorChanged);
     _focusNode.addListener(_handleFocusChanged);
+    widget.draft?.addListener(_handleDraftChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focusNode.requestFocus();
     });
   }
 
   @override
+  void didUpdateWidget(covariant ChatComposer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.draft, widget.draft)) {
+      oldWidget.draft?.removeListener(_handleDraftChanged);
+      widget.draft?.addListener(_handleDraftChanged);
+    }
+  }
+
+  @override
   void dispose() {
+    widget.draft?.removeListener(_handleDraftChanged);
     FloatingRegistry.closePopover(_menuOwner);
     _controller.dispose();
     _focusNode.dispose();
@@ -506,11 +517,54 @@ class ChatComposerState extends State<ChatComposer>
   }
 
   /// Keeps what is typed, and where the caret is, in the draft.
-  void _saveDraft() => widget.draft?.save(
-    _controller.document.toDelta(),
-    _controller.selection,
-    _pool.values.toList(),
-  );
+  void _saveDraft() {
+    if (_takingDraft) return;
+    widget.draft?.save(
+      _controller.document.toDelta(),
+      _controller.selection,
+      _pool.values.toList(),
+      by: this,
+    );
+  }
+
+  /// Taking up [_handleDraftChanged]'s text: not the user's edit.
+  bool _takingDraft = false;
+
+  /// The draft typed in by another composer (the same agent's, in another
+  /// window): its text here too, the caret kept where it was.
+  void _handleDraftChanged() {
+    final draft = widget.draft;
+    if (draft == null || identical(draft.savedBy, this) || !draft.saved) {
+      return;
+    }
+    final current = _controller.document.toDelta();
+    final change = current.diff(draft.content!);
+    if (change.isEmpty) return;
+    _pool = {..._pool, for (final image in draft.images) ?image.number: image};
+    final selection = _controller.selection;
+    final end = draft.content!.length - 1;
+    final history = _controller.document.history;
+    final ignoring = history.ignoreChange;
+    _takingDraft = true;
+    history.ignoreChange = true;
+    try {
+      _controller.compose(
+        change,
+        TextSelection(
+          baseOffset: change
+              .transformPosition(selection.baseOffset)
+              .clamp(0, end),
+          extentOffset: change
+              .transformPosition(selection.extentOffset)
+              .clamp(0, end),
+        ),
+        ChangeSource.remote,
+      );
+    } finally {
+      history.ignoreChange = ignoring;
+      _takingDraft = false;
+    }
+  }
 
   void _handleEditorChanged() {
     // The placeholder of a drag coming and going: not the user's edit.

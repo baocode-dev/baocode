@@ -9,14 +9,17 @@ import '../theme/codicons.dart';
 /// other buttons: in the IDE's own title bar (macOS), and in the header
 /// Windows draws.
 class BackToChatButton extends StatelessWidget {
-  const BackToChatButton({super.key, required this.onPressed});
+  const BackToChatButton({super.key, required this.onPressed, this.label});
 
   final VoidCallback onPressed;
+
+  /// Back to Chat, by default.
+  final String? label;
 
   @override
   Widget build(BuildContext context) => IdeButton(
     icon: Codicons.commentDiscussion,
-    label: context.l10n.workspaceBackToChat,
+    label: label ?? context.l10n.workspaceBackToChat,
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     onPressed: onPressed,
   );

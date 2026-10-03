@@ -7,6 +7,7 @@ project(runner LANGUAGES CXX)
 #
 # Any new source files that you add to the application should be added here.
 add_executable(${BINARY_NAME} WIN32
+  "app_windows.cpp"
   "attention.cpp"
   "caption_areas.cpp"
   "clipboard_images.cpp"
@@ -16,6 +17,7 @@ add_executable(${BINARY_NAME} WIN32
   "main.cpp"
   "open_requests.cpp"
   "utils.cpp"
+  "view_window.cpp"
   "win32_window.cpp"
   "window_channel.cpp"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"

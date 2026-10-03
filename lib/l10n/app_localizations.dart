@@ -7785,6 +7785,18 @@ abstract class AppLocalizations {
   /// **'Recent'**
   String get ideWelcomeRecent;
 
+  /// No description provided for @ideStartRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent projects'**
+  String get ideStartRecent;
+
+  /// No description provided for @ideStartViewAll.
+  ///
+  /// In en, this message translates to:
+  /// **'View all ({count})'**
+  String ideStartViewAll(int count);
+
   /// No description provided for @ideOpenRecentPlaceholder.
   ///
   /// In en, this message translates to:
@@ -7950,7 +7962,7 @@ abstract class AppLocalizations {
   /// No description provided for @generalSettingsMainWindowDescription.
   ///
   /// In en, this message translates to:
-  /// **'The window BaoCode opens to. The \'code\' command always opens files and folders in the IDE.'**
+  /// **'What BaoCode shows at launch: the chat window, the IDE windows (as Restore Windows says), or whichever was shown when it last quit.'**
   String get generalSettingsMainWindowDescription;
 
   /// No description provided for @generalSettingsMainWindowLabel.
@@ -7976,6 +7988,282 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Last used'**
   String get generalSettingsMainWindowLast;
+
+  /// No description provided for @generalSettingsWindows.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows'**
+  String get generalSettingsWindows;
+
+  /// No description provided for @generalSettingsIdeWindows.
+  ///
+  /// In en, this message translates to:
+  /// **'Fast Ide Windows'**
+  String get generalSettingsIdeWindows;
+
+  /// No description provided for @generalSettingsIdeWindowsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Where the Fast Ide opens: in windows of its own, one per folder (New Window, ⇧⌘N / Ctrl+Shift+N, opens an empty one), or in the main window in place of the chat, one folder at a time. Applies at once. (window.ideWindows)'**
+  String get generalSettingsIdeWindowsDescription;
+
+  /// No description provided for @generalSettingsIdeWindowsSeparate.
+  ///
+  /// In en, this message translates to:
+  /// **'Separate windows'**
+  String get generalSettingsIdeWindowsSeparate;
+
+  /// No description provided for @generalSettingsIdeWindowsMain.
+  ///
+  /// In en, this message translates to:
+  /// **'In the main window'**
+  String get generalSettingsIdeWindowsMain;
+
+  /// No description provided for @generalSettingsWindowLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{setting}: {name}'**
+  String generalSettingsWindowLabel(String setting, String name);
+
+  /// No description provided for @generalSettingsOpenFolders.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Folders in New Window'**
+  String get generalSettingsOpenFolders;
+
+  /// No description provided for @generalSettingsOpenFoldersDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Whether a folder opened from a window (Open Folder…, Open Recent) takes a new window. By default it replaces the current one, unless ⌘/Ctrl is held. (window.openFoldersInNewWindow)'**
+  String get generalSettingsOpenFoldersDescription;
+
+  /// No description provided for @generalSettingsOpenFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Files in New Window'**
+  String get generalSettingsOpenFiles;
+
+  /// No description provided for @generalSettingsOpenFilesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Whether a file opened from a window takes a new window. By default it opens in the current one. (window.openFilesInNewWindow)'**
+  String get generalSettingsOpenFilesDescription;
+
+  /// No description provided for @generalSettingsOpenDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get generalSettingsOpenDefault;
+
+  /// No description provided for @generalSettingsOpenOn.
+  ///
+  /// In en, this message translates to:
+  /// **'In a new window'**
+  String get generalSettingsOpenOn;
+
+  /// No description provided for @generalSettingsOpenOff.
+  ///
+  /// In en, this message translates to:
+  /// **'In the current window'**
+  String get generalSettingsOpenOff;
+
+  /// No description provided for @generalSettingsRestoreWindows.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore Windows'**
+  String get generalSettingsRestoreWindows;
+
+  /// No description provided for @generalSettingsRestoreWindowsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The IDE windows that open again at launch, where they were. (window.restoreWindows)'**
+  String get generalSettingsRestoreWindowsDescription;
+
+  /// No description provided for @generalSettingsRestoreAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All windows'**
+  String get generalSettingsRestoreAll;
+
+  /// No description provided for @generalSettingsRestoreOne.
+  ///
+  /// In en, this message translates to:
+  /// **'The last active window'**
+  String get generalSettingsRestoreOne;
+
+  /// No description provided for @generalSettingsRestoreFolders.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows with a folder'**
+  String get generalSettingsRestoreFolders;
+
+  /// No description provided for @generalSettingsRestoreNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get generalSettingsRestoreNone;
+
+  /// No description provided for @generalSettingsNewWindowDimensions.
+  ///
+  /// In en, this message translates to:
+  /// **'New Window Size'**
+  String get generalSettingsNewWindowDimensions;
+
+  /// No description provided for @generalSettingsNewWindowDimensionsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The size of a new window. (window.newWindowDimensions)'**
+  String get generalSettingsNewWindowDimensionsDescription;
+
+  /// No description provided for @generalSettingsDimensionsDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get generalSettingsDimensionsDefault;
+
+  /// No description provided for @generalSettingsDimensionsInherit.
+  ///
+  /// In en, this message translates to:
+  /// **'As the last active window'**
+  String get generalSettingsDimensionsInherit;
+
+  /// No description provided for @generalSettingsDimensionsMaximized.
+  ///
+  /// In en, this message translates to:
+  /// **'Maximized'**
+  String get generalSettingsDimensionsMaximized;
+
+  /// No description provided for @generalSettingsDimensionsFullscreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Full screen'**
+  String get generalSettingsDimensionsFullscreen;
+
+  /// No description provided for @generalSettingsConfirmBeforeClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm Before Close'**
+  String get generalSettingsConfirmBeforeClose;
+
+  /// No description provided for @generalSettingsConfirmBeforeCloseDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Whether closing a window asks first, even with nothing unsaved. (window.confirmBeforeClose)'**
+  String get generalSettingsConfirmBeforeCloseDescription;
+
+  /// No description provided for @generalSettingsConfirmNever.
+  ///
+  /// In en, this message translates to:
+  /// **'Never'**
+  String get generalSettingsConfirmNever;
+
+  /// No description provided for @generalSettingsConfirmKeyboard.
+  ///
+  /// In en, this message translates to:
+  /// **'When closed with the keyboard'**
+  String get generalSettingsConfirmKeyboard;
+
+  /// No description provided for @generalSettingsConfirmAlways.
+  ///
+  /// In en, this message translates to:
+  /// **'Always'**
+  String get generalSettingsConfirmAlways;
+
+  /// No description provided for @cmdNewWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'New Window'**
+  String get cmdNewWindow;
+
+  /// No description provided for @cmdCloseWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Close Window'**
+  String get cmdCloseWindow;
+
+  /// No description provided for @cmdSwitchWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch Window...'**
+  String get cmdSwitchWindow;
+
+  /// No description provided for @cmdShowChatWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Chat Window'**
+  String get cmdShowChatWindow;
+
+  /// No description provided for @windowChatTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get windowChatTitle;
+
+  /// No description provided for @windowWelcomeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome'**
+  String get windowWelcomeTitle;
+
+  /// No description provided for @windowConfirmClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to close the window?'**
+  String get windowConfirmClose;
+
+  /// No description provided for @windowTerminateTerminals.
+  ///
+  /// In en, this message translates to:
+  /// **'Do you want to terminate the running processes in the window\'s terminals?'**
+  String get windowTerminateTerminals;
+
+  /// No description provided for @windowTerminate.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminate'**
+  String get windowTerminate;
+
+  /// No description provided for @windowSaveChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Do you want to save the changes to the following {count} files?'**
+  String windowSaveChanges(int count);
+
+  /// No description provided for @windowSaveAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Save All'**
+  String get windowSaveAll;
+
+  /// No description provided for @windowCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current'**
+  String get windowCurrent;
+
+  /// No description provided for @windowSwitchPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a window to switch to'**
+  String get windowSwitchPlaceholder;
+
+  /// No description provided for @windowCycle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cycle Through Windows'**
+  String get windowCycle;
+
+  /// No description provided for @windowMenuWindows.
+  ///
+  /// In en, this message translates to:
+  /// **'Windows'**
+  String get windowMenuWindows;
+
+  /// No description provided for @windowOpened.
+  ///
+  /// In en, this message translates to:
+  /// **'Opened'**
+  String get windowOpened;
 
   /// No description provided for @generalSettingsShellCommand.
   ///

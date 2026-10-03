@@ -66,20 +66,55 @@ class RenderFileDropRegion extends RenderProxyBoxWithHitTestBehavior {
 ///   dragExit                   the drag left the window, or was cancelled
 ///   drop {x, y, files}         let go at x, y. Answers whether a region
 ///                              took them.
+///
+/// Each of the app's windows has its own: the main one's `baocode/drop`,
+/// another's `baocode/drop.<viewId>`.
 abstract final class FileDrops {
   static const channel = MethodChannel('baocode/drop');
 
-  /// Starts taking the window's drags (once, from the workbench).
-  static void listen() {
+  /// The channel of [viewId]'s window.
+  static MethodChannel channelFor(int viewId) =>
+      viewId == 0 ? channel : MethodChannel('baocode/drop.$viewId');
+
+  /// Starts taking [viewId]'s window's drags (once, from its workbench).
+  static void listen([int viewId = 0]) {
     if (!WindowControls.isDesktop) return;
-    channel.setMethodCallHandler(handle);
+    channelFor(viewId).setMethodCallHandler((call) => handle(call, viewId));
   }
+
+  /// Stops taking [viewId]'s window's drags (it is gone).
+  static void stopListening(int viewId) {
+    channelFor(viewId).setMethodCallHandler(null);
+    _unhandled.remove(viewId);
+  }
+
+  /// What takes files let go where no region is, in [viewId]'s window
+  /// (opening them, as a folder dropped on a window opens it): whether it
+  /// took them. Over such a place the drag shows it can be let go.
+  static void setUnhandledDrop(
+    int viewId,
+    bool Function(List<ComposerFile> files)? take,
+  ) {
+    if (take == null) {
+      _unhandled.remove(viewId);
+    } else {
+      _unhandled[viewId] = take;
+    }
+  }
+
+  static final Map<int, bool Function(List<ComposerFile> files)> _unhandled =
+      {};
+
+  /// What [setUnhandledDrop] set for [viewId]'s window.
+  static bool Function(List<ComposerFile> files)? unhandledDropOf(int viewId) =>
+      _unhandled[viewId];
 
   static RenderFileDropRegion? _over;
   static List<ComposerFile> _files = const [];
 
   @visibleForTesting
-  static Future<Object?> handle(MethodCall call) async {
+  static Future<Object?> handle(MethodCall call, [int viewId = 0]) async {
+    final unhandled = _unhandled[viewId];
     final arguments = call.arguments is Map
         ? (call.arguments as Map).cast<Object?, Object?>()
         : const <Object?, Object?>{};
@@ -92,16 +127,16 @@ abstract final class FileDrops {
         if (arguments['files'] case final List<Object?> files) {
           _files = decode(files);
         }
-        final region = _regionAt(position);
+        final region = _regionAt(position, viewId);
         _moveTo(region);
         region?.delegate.fileDragOver(position, _files);
-        return region != null;
+        return region != null || unhandled != null;
       case 'dragExit':
         _moveTo(null);
         _files = const [];
         return null;
       case 'drop':
-        final region = _regionAt(position) ?? _over;
+        final region = _regionAt(position, viewId) ?? _over;
         final files = arguments['files'] is List
             ? decode(arguments['files'] as List<Object?>)
             : _files;
@@ -109,6 +144,9 @@ abstract final class FileDrops {
         _moveTo(region);
         _over = null;
         _files = const [];
+        if (region == null && unhandled != null && files.isNotEmpty) {
+          return unhandled(files);
+        }
         if (region == null || files.isEmpty) {
           region?.delegate.fileDragLeave();
           return false;
@@ -133,10 +171,12 @@ abstract final class FileDrops {
         ComposerFile(path, directory: file['directory'] == true),
   ];
 
-  /// The topmost region at [position] of the window.
-  static RenderFileDropRegion? _regionAt(Offset position) {
+  /// The topmost region at [position] of [viewId]'s window.
+  static RenderFileDropRegion? _regionAt(Offset position, int viewId) {
     final binding = WidgetsBinding.instance;
-    final view = binding.platformDispatcher.implicitView;
+    final view =
+        binding.platformDispatcher.view(id: viewId) ??
+        (viewId == 0 ? binding.platformDispatcher.implicitView : null);
     if (view == null) return null;
     final result = HitTestResult();
     binding.hitTestInView(result, position, view.viewId);

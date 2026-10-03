@@ -49,6 +49,12 @@ class WindowHeader extends StatefulWidget {
     this.onFileCommand,
     this.project,
     this.ideLayout,
+    this.ide,
+    this.hasFolder,
+    this.onBack,
+    this.backLabel,
+    this.onNewWindow,
+    this.onCloseWindow,
   });
 
   final Workspace workspace;
@@ -64,6 +70,25 @@ class WindowHeader extends StatefulWidget {
 
   /// Over the IDE, which of its parts show, for its layout toggles.
   final IdeLayout? ideLayout;
+
+  /// Whether it is over the IDE; by default, whether the workspace shows
+  /// it ([Workspace.layout]). An IDE window's always is.
+  final bool? ide;
+
+  /// Whether the IDE has a folder (Close Folder); by default, whether the
+  /// workspace's has one.
+  final bool? hasFolder;
+
+  /// The IDE's way back to the chat, labelled [backLabel] (Back to Chat, by
+  /// default); by default, the workspace's chat layout.
+  final VoidCallback? onBack;
+  final String? backLabel;
+
+  /// The File menu's New Window, where windows can be opened.
+  final VoidCallback? onNewWindow;
+
+  /// The File menu's Close Window; by default, the window's close button.
+  final VoidCallback? onCloseWindow;
 
   /// The window is kept above other apps' windows.
   final bool pinned;
@@ -131,9 +156,7 @@ class _WindowHeaderState extends State<WindowHeader> {
 
   @override
   Widget build(BuildContext context) {
-    final layout = widget.workspace.layout == WorkspaceLayout.ide
-        ? widget.ideLayout
-        : null;
+    final layout = _ide ? widget.ideLayout : null;
     final ide = layout != null;
     // A Material of its own, as the sidebar has: the strip is outside the
     // chat's Scaffold, and this is what gives its text the app's own style.
@@ -217,14 +240,16 @@ class _WindowHeaderState extends State<WindowHeader> {
                   // own title bar.
                   child: IdeHover(
                     message: ChatKeys.titleWithKey(
-                      context.l10n.workspaceBackToChat,
+                      widget.backLabel ?? context.l10n.workspaceBackToChat,
                       _backToChatCommand,
                       ChatKeys.ideLayout,
                     ),
                     excludeFromSemantics: true,
                     child: BackToChatButton(
-                      onPressed: () =>
-                          widget.workspace.layout = WorkspaceLayout.chat,
+                      label: widget.backLabel,
+                      onPressed:
+                          widget.onBack ??
+                          () => widget.workspace.layout = WorkspaceLayout.chat,
                     ),
                   ),
                 ),
@@ -257,6 +282,7 @@ class _WindowHeaderState extends State<WindowHeader> {
     if (listEquals(_reported, [minimize, maximize, close, ...controls])) return;
     _reported = [minimize, maximize, close, ...controls];
     WindowControls.setHitTestAreas(
+      viewId: View.maybeOf(context)?.viewId ?? 0,
       height: AppMetrics.headerHeight,
       controls: controls,
       minimize: minimize,
@@ -274,12 +300,32 @@ class _WindowHeaderState extends State<WindowHeader> {
     return box.localToGlobal(Offset.zero) & box.size;
   }
 
+  bool get _ide => widget.ide ?? widget.workspace.layout == WorkspaceLayout.ide;
+
+  /// New Window, where windows can be opened.
+  List<HeaderMenuItem> _newWindow() => [
+    if (widget.onNewWindow case final open?)
+      HeaderMenuItem(
+        context.l10n.cmdNewWindow,
+        shortcut: _shortcut('workbench.action.newWindow', ChatKeys.ideLayout),
+        onSelected: open,
+      ),
+  ];
+
+  void _closeWindow() {
+    if (widget.onCloseWindow case final close?) return close();
+    WindowControls.windowCommand(
+      'close',
+      viewId: View.maybeOf(context)?.viewId,
+    );
+  }
+
   /// What a menu holds: this app's own commands, in the order such menus
   /// usually keep them. Read when the menu opens, so what is ticked and the
   /// recent projects are the ones there are now.
   List<HeaderMenuItem> _items(HeaderMenu menu) {
     final l10n = context.l10n;
-    final ide = widget.workspace.layout == WorkspaceLayout.ide;
+    final ide = _ide;
     // The chat's commands, with their keybindings (in the chat only).
     final run = ide ? null : widget.onCommand;
     HeaderMenuItem command(String label, String id) => HeaderMenuItem(
@@ -299,6 +345,7 @@ class _WindowHeaderState extends State<WindowHeader> {
           l10n.cmdNewUntitledFile,
           'workbench.action.files.newUntitledFile',
         ),
+        ..._newWindow(),
         const HeaderMenuItem.rule(),
         fileCommand(l10n.cmdOpenFile, 'workbench.action.files.openFile'),
         fileCommand(l10n.cmdOpenFolder, 'workbench.action.files.openFolder'),
@@ -306,7 +353,7 @@ class _WindowHeaderState extends State<WindowHeader> {
         const HeaderMenuItem.rule(),
         fileCommand(l10n.cmdSave, 'workbench.action.files.save'),
         fileCommand(l10n.cmdSaveAs, 'workbench.action.files.saveAs'),
-        if (widget.workspace.ideFolder != null) ...[
+        if (widget.hasFolder ?? widget.workspace.ideFolder != null) ...[
           const HeaderMenuItem.rule(),
           fileCommand(l10n.cmdCloseFolder, 'workbench.action.closeFolder'),
         ],
@@ -322,12 +369,16 @@ class _WindowHeaderState extends State<WindowHeader> {
         HeaderMenuItem(
           l10n.menuCloseWindow,
           shortcut: 'Alt+F4',
-          onSelected: () => WindowControls.windowCommand('close'),
+          onSelected: _closeWindow,
         ),
       ],
       HeaderMenu.file => [
         if (run != null) ...[
           command(l10n.sidebarNewAgent, ChatCommandIds.newChat),
+          ..._newWindow(),
+          const HeaderMenuItem.rule(),
+        ] else if (widget.onNewWindow != null) ...[
+          ..._newWindow(),
           const HeaderMenuItem.rule(),
         ],
         HeaderMenuItem(l10n.menuOpenFolder, onSelected: widget.onOpenFolder),
@@ -359,7 +410,7 @@ class _WindowHeaderState extends State<WindowHeader> {
         HeaderMenuItem(
           l10n.menuCloseWindow,
           shortcut: 'Alt+F4',
-          onSelected: () => WindowControls.windowCommand('close'),
+          onSelected: _closeWindow,
         ),
       ],
       HeaderMenu.edit => [

@@ -2,23 +2,42 @@ import Cocoa
 import FlutterMacOS
 import UniformTypeIdentifiers
 
-class MainFlutterWindow: NSWindow {
+/// What each of the app's windows is: the main one (the chat's, from
+/// MainMenu.xib, the engine's implicit view) and those the IDE opens beside
+/// it (see AppWindows.swift), each a view of the one engine. A see-through
+/// title bar over Flutter's own, the sidebar's material under it, files
+/// dragged onto it, and the window controls Flutter asks for over its
+/// channel: `baocode/window` (the main one's) or `baocode/window.<viewId>`.
+class BaoWindow: NSWindow {
   /// Opens wider than the 720 at which the sidebar docks beside the
   /// chat (below it, it is a drawer): room for the sidebar and the full
   /// chat column.
-  private static let defaultSize = NSSize(width: 1024, height: 760)
+  static let defaultSize = NSSize(width: 1024, height: 760)
 
   /// Still fits the title bar (traffic lights, title, Open button) and the
   /// composer's toolbar.
-  private static let minimumSize = NSSize(width: 400, height: 540)
+  static let minimumSize = NSSize(width: 400, height: 540)
 
-  override func awakeFromNib() {
-    let flutterViewController = FlutterViewController()
+  private(set) var flutterViewController: FlutterViewController?
+
+  private(set) var channel: FlutterMethodChannel?
+
+  /// The window's view, as Flutter counts them; the main one's is 0.
+  var viewId: Int64 { flutterViewController?.viewIdentifier ?? 0 }
+
+  /// Sets the window up around [flutter]: its style, the material under
+  /// the Flutter view, the drop view and the channels, named with
+  /// [suffix] (none for the main window's). Sized [size], centered on its
+  /// screen.
+  func setUp(flutter flutterViewController: FlutterViewController, suffix: String, size: NSSize) {
+    self.flutterViewController = flutterViewController
     // Keep the traffic lights, but let Flutter own the title bar appearance.
     titleVisibility = .hidden
     titlebarAppearsTransparent = true
     styleMask.insert(.fullSizeContentView)
     isMovableByWindowBackground = true
+    // One window a folder: no system tabs (the IDE has its own).
+    tabbingMode = .disallowed
     // See-through, for the sidebar's material (see VibrantContent); light
     // or dark as the app's color theme is, whatever the system's appearance.
     // The last theme's until Flutter says (setAppearance).
@@ -32,8 +51,8 @@ class MainFlutterWindow: NSWindow {
     var windowFrame = self.frame
     if let visible = (self.screen ?? NSScreen.main)?.visibleFrame {
       let content = NSSize(
-        width: min(Self.defaultSize.width, visible.width),
-        height: min(Self.defaultSize.height, visible.height - 40)
+        width: min(size.width, visible.width),
+        height: min(size.height, visible.height - 40)
       )
       windowFrame.size = self.frameRect(
         forContentRect: NSRect(origin: .zero, size: content)
@@ -49,250 +68,197 @@ class MainFlutterWindow: NSWindow {
     self.setFrame(windowFrame, display: true)
     self.contentMinSize = Self.minimumSize
 
-    RegisterGeneratedPlugins(registry: flutterViewController)
+    let messenger = flutterViewController.engine.binaryMessenger
 
     // Files dragged onto the window from other apps (see file_drop.dart).
     let drops = FileDropView(channel: FlutterMethodChannel(
-      name: "baocode/drop",
-      binaryMessenger: flutterViewController.engine.binaryMessenger
-    ))
+      name: "baocode/drop" + suffix, binaryMessenger: messenger))
     drops.frame = flutterViewController.view.frame
     drops.autoresizingMask = [.width, .height]
     flutterViewController.view.superview?.addSubview(
       drops, positioned: .above, relativeTo: flutterViewController.view)
-
-    // Notifications, the Dock's badge and the menu bar icon (see
-    // lib/notifications/).
-    attention = Attention(
-      messenger: flutterViewController.engine.binaryMessenger, window: self)
+    self.drops = drops
 
     // Window controls the Flutter side asks for (see window_controls.dart).
     let channel = FlutterMethodChannel(
-      name: "baocode/window",
-      binaryMessenger: flutterViewController.engine.binaryMessenger
-    )
+      name: "baocode/window" + suffix, binaryMessenger: messenger)
     self.channel = channel
-
-    // Paths the system asks the app to open (see AppDelegate.swift).
-    OpenRequests.shared.attach(to: flutterViewController.engine.binaryMessenger)
-
-    // The menu bar's File menu, once the nib has made the menu bar (it
-    // has none of its own; see FileMenu).
-    let fileMenu = FileMenu(channel: channel)
-    self.fileMenu = fileMenu
-    DispatchQueue.main.async {
-      if let mainMenu = NSApp.mainMenu { fileMenu.install(in: mainMenu) }
-    }
-
     channel.setMethodCallHandler { [weak self] call, result in
-      switch call.method {
-      case "setAppearance":
-        // The color theme's type: the material under the sidebar, the
-        // traffic lights and system menus follow it. Kept for the next start.
-        let dark = call.arguments as? Bool ?? true
-        self?.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-        UserDefaults.standard.set(dark, forKey: Self.darkAppearanceKey)
+      guard let self else {
         result(nil)
-      case "setAlwaysOnTop":
-        // Floating: above other apps' windows, as a pinned window should be.
-        self?.level = (call.arguments as? Bool ?? false) ? .floating : .normal
-        result(nil)
-      case "windowRoom":
-        // How much wider and taller the window can get on its screen (see
-        // growWindow): none in full screen.
-        guard let window = self, !window.styleMask.contains(.fullScreen),
-              let visible = (window.screen ?? NSScreen.main)?.visibleFrame
-        else {
-          result(["width": 0.0, "height": 0.0])
-          return
-        }
-        result([
-          "width": max(0, visible.width - window.frame.width),
-          "height": max(0, visible.height - window.frame.height),
-        ])
-      case "growWindow":
-        // Room for conversations side by side (see chat_grid_view.dart).
-        let arguments = call.arguments as? [String: Any]
-        self?.grow(by: NSSize(
-          width: arguments?["width"] as? Double ?? 0,
-          height: arguments?["height"] as? Double ?? 0
-        ))
-        result(nil)
-      case "handleTitleDoubleClick":
-        // A double click on the empty part of the title bar Flutter draws
-        // (see title_bar_double_click.dart): AppKit only handles its own.
-        self?.titleBarDoubleClicked()
-        result(nil)
-      case "pickDirectory":
-        // A project folder to run agents in.
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Open"
-        panel.message = "Choose a project folder"
-        guard let window = self else {
-          result(nil)
-          return
-        }
-        panel.beginSheetModal(for: window) { response in
-          result(response == .OK ? panel.url?.path : nil)
-        }
-      case "readPasteboardImages":
-        result(Self.pasteboardImages())
-      case "readPasteboardFiles":
-        // Files copied in Finder (or the IDE's explorer, see below).
-        result(FileDropView.files(on: NSPasteboard.general))
-      case "writePasteboardFiles":
-        // As Finder copies files: pasted there they are copied, pasted in
-        // the composer they are referred to.
-        let urls = (call.arguments as? [String] ?? []).map {
-          URL(fileURLWithPath: $0) as NSURL
-        }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        result(!urls.isEmpty && pasteboard.writeObjects(urls))
-      case "readImageFile":
-        // An image file dropped or pasted, as the composer takes it.
-        guard let path = call.arguments as? String else {
-          result(nil)
-          return
-        }
-        result(Self.image(at: URL(fileURLWithPath: path)))
-      case "pickFiles":
-        // Files and folders to put in the composer (Add Context…).
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = true
-        panel.prompt = "Add"
-        guard let window = self else {
-          result([])
-          return
-        }
-        panel.beginSheetModal(for: window) { response in
-          result(response == .OK ? panel.urls.map(FileDropView.entry) : [])
-        }
-      case "pickOpenFiles":
-        // Files for the IDE to open (Open File…), in the folder given.
-        let arguments = call.arguments as? [String: Any]
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = arguments?["multiple"] as? Bool ?? true
-        if let directory = arguments?["directory"] as? String {
-          panel.directoryURL = URL(fileURLWithPath: directory, isDirectory: true)
-        }
-        guard let window = self else {
-          result([])
-          return
-        }
-        panel.beginSheetModal(for: window) { response in
-          result(response == .OK ? panel.urls.map(\.path) : [])
-        }
-      case "pickSaveFile":
-        // Where the IDE saves a file (Save As…, an untitled one's Save):
-        // the panel asks itself before replacing one.
-        let arguments = call.arguments as? [String: Any]
-        let panel = NSSavePanel()
-        panel.canCreateDirectories = true
-        if let directory = arguments?["directory"] as? String {
-          panel.directoryURL = URL(fileURLWithPath: directory, isDirectory: true)
-        }
-        if let name = arguments?["name"] as? String {
-          panel.nameFieldStringValue = name
-        }
-        guard let window = self else {
-          result(nil)
-          return
-        }
-        panel.beginSheetModal(for: window) { response in
-          result(response == .OK ? panel.url?.path : nil)
-        }
-      case "setFileMenuTitles":
-        self?.fileMenu?.setTitles(call.arguments as? [String: String] ?? [:])
-        result(nil)
-      case "setRecentItems":
-        self?.fileMenu?.setRecent(call.arguments as? [String] ?? [])
-        result(nil)
-      case "writePasteboardImage":
-        guard let arguments = call.arguments as? [String: Any],
-              let bytes = arguments["bytes"] as? FlutterStandardTypedData
-        else {
-          result(false)
-          return
-        }
-        result(Self.writePasteboardImage(
-          bytes.data, png: arguments["type"] as? String == "image/png"))
-      case "canPaste":
-        let pasteboard = NSPasteboard.general
-        result(pasteboard.canReadObject(
-          forClasses: [NSString.self, NSURL.self, NSImage.self], options: nil))
-      case "trashItem":
-        // The IDE's Move to Trash (Finder's Put Back works on it).
-        guard let path = call.arguments as? String else {
-          result(false)
-          return
-        }
-        do {
-          try FileManager.default.trashItem(
-            at: URL(fileURLWithPath: path), resultingItemURL: nil)
-          result(true)
-        } catch {
-          result(FlutterError(
-            code: "trash", message: error.localizedDescription, details: nil))
-        }
-      case "revealInFinder":
-        // The IDE's Reveal in Finder: a Finder window with the item selected.
-        if let path = call.arguments as? String {
-          NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
-        }
-        result(nil)
-      case "showContextMenu":
-        // A context menu of the system's own, where the user clicked;
-        // answers the chosen item's id (nil for none) once it closes.
-        guard let arguments = call.arguments as? [String: Any],
-              let items = arguments["items"] as? [[String: Any]],
-              let x = arguments["x"] as? Double, let y = arguments["y"] as? Double
-        else {
-          result(nil)
-          return
-        }
-        let view = flutterViewController.view
-        let point = NSPoint(x: x, y: view.isFlipped ? y : view.bounds.height - y)
-        ContextMenu(items: items, answer: result).show(at: point, in: view)
-      default:
-        result(FlutterMethodNotImplemented)
+        return
       }
+      self.handle(call, result: result)
     }
-
-    super.awakeFromNib()
   }
 
-  private var channel: FlutterMethodChannel?
+  private var drops: FileDropView?
 
-  private var fileMenu: FileMenu?
-
-  private var attention: Attention?
-
-  /// The close button hides the window while the menu bar icon can bring
-  /// it back (see Attention); without one, it quits as ⌘Q does, asking
-  /// first: the window is the app's only one, and closed it would quit
-  /// anyway, past the question.
-  @objc func windowShouldClose(_ sender: NSWindow) -> Bool {
-    if attention?.hidesOnClose ?? false {
-      orderOut(sender)
-      return false
-    }
-    NSApp.terminate(sender)
-    return false
+  /// Lets go of the channels (the window is gone).
+  func tearDown() {
+    channel?.setMethodCallHandler(nil)
+    drops?.stop()
   }
 
-  private static let darkAppearanceKey = "BaoCodeDarkAppearance"
+  /// The window controls Flutter asks this window for.
+  func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "setAlwaysOnTop":
+      // Floating: above other apps' windows, as a pinned window should be.
+      level = (call.arguments as? Bool ?? false) ? .floating : .normal
+      result(nil)
+    case "windowRoom":
+      // How much wider and taller the window can get on its screen (see
+      // growWindow): none in full screen.
+      guard !styleMask.contains(.fullScreen),
+            let visible = (screen ?? NSScreen.main)?.visibleFrame
+      else {
+        result(["width": 0.0, "height": 0.0])
+        return
+      }
+      result([
+        "width": max(0, visible.width - frame.width),
+        "height": max(0, visible.height - frame.height),
+      ])
+    case "growWindow":
+      // Room for conversations side by side (see chat_grid_view.dart).
+      let arguments = call.arguments as? [String: Any]
+      grow(by: NSSize(
+        width: arguments?["width"] as? Double ?? 0,
+        height: arguments?["height"] as? Double ?? 0
+      ))
+      result(nil)
+    case "handleTitleDoubleClick":
+      // A double click on the empty part of the title bar Flutter draws
+      // (see title_bar_double_click.dart): AppKit only handles its own.
+      titleBarDoubleClicked()
+      result(nil)
+    case "pickDirectory":
+      // A project folder to run agents in.
+      let panel = NSOpenPanel()
+      panel.canChooseDirectories = true
+      panel.canChooseFiles = false
+      panel.allowsMultipleSelection = false
+      panel.canCreateDirectories = true
+      panel.prompt = "Open"
+      panel.message = "Choose a project folder"
+      panel.beginSheetModal(for: self) { response in
+        result(response == .OK ? panel.url?.path : nil)
+      }
+    case "readPasteboardImages":
+      result(Self.pasteboardImages())
+    case "readPasteboardFiles":
+      // Files copied in Finder (or the IDE's explorer, see below).
+      result(FileDropView.files(on: NSPasteboard.general))
+    case "writePasteboardFiles":
+      // As Finder copies files: pasted there they are copied, pasted in
+      // the composer they are referred to.
+      let urls = (call.arguments as? [String] ?? []).map {
+        URL(fileURLWithPath: $0) as NSURL
+      }
+      let pasteboard = NSPasteboard.general
+      pasteboard.clearContents()
+      result(!urls.isEmpty && pasteboard.writeObjects(urls))
+    case "readImageFile":
+      // An image file dropped or pasted, as the composer takes it.
+      guard let path = call.arguments as? String else {
+        result(nil)
+        return
+      }
+      result(Self.image(at: URL(fileURLWithPath: path)))
+    case "pickFiles":
+      // Files and folders to put in the composer (Add Context…).
+      let panel = NSOpenPanel()
+      panel.canChooseFiles = true
+      panel.canChooseDirectories = true
+      panel.allowsMultipleSelection = true
+      panel.prompt = "Add"
+      panel.beginSheetModal(for: self) { response in
+        result(response == .OK ? panel.urls.map(FileDropView.entry) : [])
+      }
+    case "pickOpenFiles":
+      // Files for the IDE to open (Open File…), in the folder given.
+      let arguments = call.arguments as? [String: Any]
+      let panel = NSOpenPanel()
+      panel.canChooseFiles = true
+      panel.canChooseDirectories = false
+      panel.allowsMultipleSelection = arguments?["multiple"] as? Bool ?? true
+      if let directory = arguments?["directory"] as? String {
+        panel.directoryURL = URL(fileURLWithPath: directory, isDirectory: true)
+      }
+      panel.beginSheetModal(for: self) { response in
+        result(response == .OK ? panel.urls.map(\.path) : [])
+      }
+    case "pickSaveFile":
+      // Where the IDE saves a file (Save As…, an untitled one's Save):
+      // the panel asks itself before replacing one.
+      let arguments = call.arguments as? [String: Any]
+      let panel = NSSavePanel()
+      panel.canCreateDirectories = true
+      if let directory = arguments?["directory"] as? String {
+        panel.directoryURL = URL(fileURLWithPath: directory, isDirectory: true)
+      }
+      if let name = arguments?["name"] as? String {
+        panel.nameFieldStringValue = name
+      }
+      panel.beginSheetModal(for: self) { response in
+        result(response == .OK ? panel.url?.path : nil)
+      }
+    case "writePasteboardImage":
+      guard let arguments = call.arguments as? [String: Any],
+            let bytes = arguments["bytes"] as? FlutterStandardTypedData
+      else {
+        result(false)
+        return
+      }
+      result(Self.writePasteboardImage(
+        bytes.data, png: arguments["type"] as? String == "image/png"))
+    case "canPaste":
+      let pasteboard = NSPasteboard.general
+      result(pasteboard.canReadObject(
+        forClasses: [NSString.self, NSURL.self, NSImage.self], options: nil))
+    case "trashItem":
+      // The IDE's Move to Trash (Finder's Put Back works on it).
+      guard let path = call.arguments as? String else {
+        result(false)
+        return
+      }
+      do {
+        try FileManager.default.trashItem(
+          at: URL(fileURLWithPath: path), resultingItemURL: nil)
+        result(true)
+      } catch {
+        result(FlutterError(
+          code: "trash", message: error.localizedDescription, details: nil))
+      }
+    case "revealInFinder":
+      // The IDE's Reveal in Finder: a Finder window with the item selected.
+      if let path = call.arguments as? String {
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+      }
+      result(nil)
+    case "showContextMenu":
+      // A context menu of the system's own, where the user clicked;
+      // answers the chosen item's id (nil for none) once it closes.
+      guard let arguments = call.arguments as? [String: Any],
+            let items = arguments["items"] as? [[String: Any]],
+            let x = arguments["x"] as? Double, let y = arguments["y"] as? Double,
+            let view = flutterViewController?.view
+      else {
+        result(nil)
+        return
+      }
+      let point = NSPoint(x: x, y: view.isFlipped ? y : view.bounds.height - y)
+      ContextMenu(items: items, answer: result).show(at: point, in: view)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  static let darkAppearanceKey = "BaoCodeDarkAppearance"
 
   /// Whether the last color theme was dark; dark the first time.
-  private static var keptDarkAppearance: Bool {
+  static var keptDarkAppearance: Bool {
     UserDefaults.standard.object(forKey: darkAppearanceKey) as? Bool ?? true
   }
 
@@ -340,10 +306,22 @@ class MainFlutterWindow: NSWindow {
     // "None", or a value not known: nothing.
   }
 
+  /// The close button, ⌘W from the menu, the Dock's or Mission Control's
+  /// Close: with windows of the app's own, the app decides (unsaved files,
+  /// terminals at work) and closes it itself (see AppWindows.swift).
+  @objc func windowShouldClose(_ sender: NSWindow) -> Bool {
+    if let windows = AppWindows.shared, windows.started {
+      windows.closeRequested(self)
+      return false
+    }
+    return true
+  }
+
   // The Edit menu's commands (see MainMenu.xib), for what has focus in
   // Flutter. The system's own (undo:, copy:, selectAll:…) would stop at the
   // engine's hidden text view, which edits nothing shown, or at nothing.
-  // They come here too when a shortcut Flutter did not take matches them.
+  // They come here too when a shortcut Flutter did not take matches them:
+  // to the key window, whose channel takes them.
 
   @objc func baocodeUndo(_ sender: Any?) { editCommand("undo") }
   @objc func baocodeRedo(_ sender: Any?) { editCommand("redo") }
@@ -359,7 +337,13 @@ class MainFlutterWindow: NSWindow {
   // The app menu's Preferences… (⌘,): the app's settings, which ⌘, opens
   // too while Flutter takes the key (it comes here when Flutter did not).
   @objc func baocodePreferences(_ sender: Any?) {
-    channel?.invokeMethod("menuCommand", arguments: "workbench.action.openSettings")
+    menuCommand("workbench.action.openSettings")
+  }
+
+  /// Runs a workbench command in this window (see
+  /// WindowControls.onMenuCommand).
+  func menuCommand(_ command: String) {
+    channel?.invokeMethod("menuCommand", arguments: command)
   }
 
   /// Types sent as they are; others are converted to PNG.
@@ -424,6 +408,104 @@ class MainFlutterWindow: NSWindow {
   }
 }
 
+/// The main window: the chat's, the engine's implicit view (MainMenu.xib).
+/// It also answers for the app what is the app's, not a window's: the color
+/// theme's appearance, the File menu.
+class MainFlutterWindow: BaoWindow {
+  override func awakeFromNib() {
+    let flutterViewController = FlutterViewController()
+    setUp(flutter: flutterViewController, suffix: "", size: Self.defaultSize)
+
+    RegisterGeneratedPlugins(registry: flutterViewController)
+
+    let messenger = flutterViewController.engine.binaryMessenger
+
+    // Notifications, the Dock's badge and the menu bar icon (see
+    // lib/notifications/).
+    attention = Attention(messenger: messenger, window: self)
+
+    // Paths the system asks the app to open (see AppDelegate.swift).
+    OpenRequests.shared.attach(to: messenger)
+
+    // The IDE's windows, views of this one's engine (see AppWindows.swift).
+    // Shown or not at launch as the app last said: the IDE's windows
+    // alone, it stays hidden (Flutter shows it if it is to after all).
+    AppWindows.shared = AppWindows(engine: flutterViewController.engine, main: self)
+    holdingBack = !AppWindows.mainShownAtLaunch
+    if holdingBack {
+      DispatchQueue.main.async { [weak self] in self?.holdingBack = false }
+    }
+
+    // The menu bar's File menu, once the nib has made the menu bar (it
+    // has none of its own; see FileMenu).
+    let fileMenu = FileMenu()
+    self.fileMenu = fileMenu
+    DispatchQueue.main.async {
+      if let mainMenu = NSApp.mainMenu { fileMenu.install(in: mainMenu) }
+    }
+
+    super.awakeFromNib()
+  }
+
+  override func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "setAppearance":
+      // The color theme's type: the material under the sidebar, the
+      // traffic lights and system menus follow it, in every window. Kept
+      // for the next start.
+      let dark = call.arguments as? Bool ?? true
+      UserDefaults.standard.set(dark, forKey: Self.darkAppearanceKey)
+      for window in NSApp.windows where window is BaoWindow {
+        window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+      }
+      result(nil)
+    case "setFileMenuTitles":
+      fileMenu?.setTitles(call.arguments as? [String: String] ?? [:])
+      result(nil)
+    case "setRecentItems":
+      fileMenu?.setRecent(call.arguments as? [String] ?? [])
+      result(nil)
+    default:
+      super.handle(call, result: result)
+    }
+  }
+
+  private var fileMenu: FileMenu?
+
+  private var attention: Attention?
+
+  /// Kept out of sight while the nib shows it at launch, when the app
+  /// last said so (setMainShownAtLaunch).
+  private var holdingBack = false
+
+  override func makeKeyAndOrderFront(_ sender: Any?) {
+    if holdingBack { return }
+    super.makeKeyAndOrderFront(sender)
+  }
+
+  override func orderFront(_ sender: Any?) {
+    if holdingBack { return }
+    super.orderFront(sender)
+  }
+
+  /// The close button hides the window while the menu bar icon can bring
+  /// it back (see Attention); without one, it quits as ⌘Q does, asking
+  /// first: the window is the app's only one, and closed it would quit
+  /// anyway, past the question. With the IDE's windows beside it, the app
+  /// decides (see BaoWindow).
+  override func windowShouldClose(_ sender: NSWindow) -> Bool {
+    if AppWindows.shared?.started ?? false {
+      return super.windowShouldClose(sender)
+    }
+    if attention?.hidesOnClose ?? false {
+      orderOut(sender)
+      return false
+    }
+    NSApp.terminate(sender)
+    return false
+  }
+}
+
 /// The window's content: the system's sidebar material, blurring what is
 /// behind the window, under the Flutter view. Flutter paints over it all
 /// but the sidebar, which only tints it (see AppColors.sidebarSurface).
@@ -481,6 +563,9 @@ private class FileDropView: NSView {
   }
 
   override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+  /// Takes no more drags (its window is gone).
+  func stop() { unregisterDraggedTypes() }
 
   /// Where the drag is, as Flutter counts: from the top left, in points.
   private func position(_ sender: NSDraggingInfo) -> [String: Any] {
@@ -586,7 +671,8 @@ private class FileDropView: NSView {
 
 /// The menu bar's File menu, which MainMenu.xib has none of: its items
 /// are the workbench's commands, sent to Flutter as the app menu's
-/// Preferences… is (`menuCommand`, see WindowControls.onMenuCommand). None
+/// Preferences… is (`menuCommand`, see WindowControls.onMenuCommand), for
+/// the window in front (the main one's, when none of the app's is). None
 /// has a key equivalent: Flutter takes the keys (⌘O, ⌘S…) itself, and one
 /// here would have them first. Titled in English until Flutter names them
 /// in the app's language (`setFileMenuTitles`).
@@ -595,7 +681,6 @@ private class FileDropView: NSView {
 /// opened as a path the system asks the app to open (see OpenRequests), as
 /// `code <path>` would.
 private class FileMenu: NSObject {
-  private let channel: FlutterMethodChannel
   private let menu = NSMenu(title: "File")
   private let recentMenu = NSMenu(title: "Open Recent")
   private var titles: [String: String] = [
@@ -607,6 +692,8 @@ private class FileMenu: NSObject {
     "save": "Save",
     "saveAs": "Save As…",
     "closeFolder": "Close Folder",
+    "newWindow": "New Window",
+    "closeWindow": "Close Window",
     "clearRecent": "Clear Recently Opened",
     "more": "More…",
   ]
@@ -616,6 +703,8 @@ private class FileMenu: NSObject {
   /// runs (Open Recent's is its submenu); an empty key is a separator.
   private let layout: [(key: String, command: String)] = [
     ("newUntitledFile", "workbench.action.files.newUntitledFile"),
+    ("newWindow", "workbench.action.newWindow"),
+    ("", ""),
     ("openFile", "workbench.action.files.openFile"),
     ("openFolder", "workbench.action.files.openFolder"),
     ("openRecent", ""),
@@ -624,10 +713,10 @@ private class FileMenu: NSObject {
     ("saveAs", "workbench.action.files.saveAs"),
     ("", ""),
     ("closeFolder", "workbench.action.closeFolder"),
+    ("closeWindow", "workbench.action.closeWindow"),
   ]
 
-  init(channel: FlutterMethodChannel) {
-    self.channel = channel
+  override init() {
     super.init()
     recentMenu.autoenablesItems = false
   }
@@ -703,7 +792,10 @@ private class FileMenu: NSObject {
 
   @objc private func runCommand(_ sender: NSMenuItem) {
     guard let command = sender.representedObject as? String else { return }
-    channel.invokeMethod("menuCommand", arguments: command)
+    let window = NSApp.keyWindow as? BaoWindow
+      ?? NSApp.mainWindow as? BaoWindow
+      ?? AppWindows.shared?.main
+    window?.menuCommand(command)
   }
 
   @objc private func openRecent(_ sender: NSMenuItem) {

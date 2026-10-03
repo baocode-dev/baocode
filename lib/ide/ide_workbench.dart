@@ -94,6 +94,7 @@ class IdeWorkbench extends StatefulWidget {
     required this.visible,
     required this.chat,
     required this.onBack,
+    this.backLabel,
     this.editorBuilder,
     this.nativeEditorEnabled = const bool.fromEnvironment(
       'BAOCODE_NATIVE_EDITOR',
@@ -126,6 +127,10 @@ class IdeWorkbench extends StatefulWidget {
   final bool visible;
   final Widget chat;
   final VoidCallback onBack;
+
+  /// The title bar's way back's label: Back to Chat, by default; in a
+  /// window of its own, Show Chat Window.
+  final String? backLabel;
 
   /// Optional editor override for widget tests.
   final Widget Function(BuildContext, IdeWorkspace)? editorBuilder;
@@ -1620,6 +1625,25 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Shows the chat, if hidden (e.g. for an agent a notification opens).
   void showChat() => _layout.showChat();
 
+  /// Has the editor's last keys in its document, for what is unsaved to be
+  /// all of it (before its window closes, or the app quits).
+  Future<void> flush() async => _editor?.flush();
+
+  /// Whether the panel's terminals run: a shell alive, or
+  /// ([childProcesses]) one running a command
+  /// (`terminal.integrated.confirmOnExit`).
+  bool terminalsRunning({required bool childProcesses}) {
+    for (final terminal
+        in _terminals?.instances ?? const <TerminalInstance>[]) {
+      if (terminal.exited) continue;
+      if (!childProcesses) return true;
+      final command =
+          terminal.shellIntegration?.commandDetection?.executingCommand;
+      if (command != null && command.isNotEmpty) return true;
+    }
+    return false;
+  }
+
   /// Tells of [message] as the IDE's own notifications do.
   void notify(IdeSeverity severity, String message) =>
       _notifications.notify(severity, message);
@@ -2821,18 +2845,21 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           ],
           Expanded(
             child: active == null && !widget.workspace.hasFolder
-                ? IdeWelcome(
-                    commands: [
+                ? IdeStartPage(
+                    actions: [
                       for (final id in const [
-                        'workbench.action.files.newUntitledFile',
-                        'workbench.action.files.openFile',
                         'workbench.action.files.openFolder',
-                        'workbench.action.openRecent',
+                        'workbench.action.files.openFile',
+                        'workbench.action.files.newUntitledFile',
                       ])
                         ...commands.where((command) => command.id == id),
                     ],
                     recent: widget.recentFolders,
                     onOpenRecent: widget.onOpenRecent,
+                    onShowAllRecent: commands
+                        .where((c) => c.id == 'workbench.action.openRecent')
+                        .firstOrNull
+                        ?.run,
                   )
                 : active == null
                 ? IdeWelcome(
@@ -3369,10 +3396,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   // Its label, and the keys that do the same.
                   IdeHover(
                     message: keys.titleWithKeybinding(
-                      l10n.workspaceBackToChat,
+                      widget.backLabel ?? l10n.workspaceBackToChat,
                       'baocode.ide.backToChat',
                     ),
                     child: BackToChatButton(
+                      label: widget.backLabel,
                       onPressed: () => unawaited(_back()),
                     ),
                   ),

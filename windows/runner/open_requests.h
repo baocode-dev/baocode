@@ -34,11 +34,15 @@ class OpenRequests {
   OpenRequests& operator=(const OpenRequests&) = delete;
 
   // Hands |paths| (UTF-8, absolute) to Flutter, or keeps them until it is
-  // ready.
+  // ready; or a request of the `code` command (see IsCodeRequest), which
+  // goes as it came, its flag made the marker Flutter knows it by
+  // (lib/window/code_args.dart's requestMarker).
   void Deliver(std::vector<std::string> paths);
 
  private:
+  // Kept: the paths, and the requests after them (in the order they came).
   std::vector<std::string> pending_;
+  std::vector<std::vector<std::string>> pending_requests_;
   bool ready_ = false;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
 };
@@ -47,9 +51,20 @@ class OpenRequests {
 // any other app's copy data by it.
 constexpr ULONG_PTR kOpenRequestData = 0x42414F43;  // "BAOC"
 
+// The flag code.cmd starts the app with (see
+// lib/platform/shell_command_io.dart): the console's folder comes next, then
+// the arguments as typed (`-n`, `-r`, `-g file:line`, the paths), which
+// Flutter reads as VS Code's CLI does.
+constexpr char kCodeRequestFlag[] = "--baocode-cli";
+
+// Whether |paths| are a request of the `code` command: kCodeRequestFlag
+// first.
+bool IsCodeRequest(const std::vector<std::string>& paths);
+
 // The paths in the command line the app was started with, made absolute
 // from the folder it was started in, in UTF-8; its options (from `-`) left
-// out.
+// out. Started by code.cmd, the request it makes instead, as it came (see
+// IsCodeRequest).
 std::vector<std::string> OpenPathsFromCommandLine();
 
 // Marks |window| as the one that takes the paths a second copy of the app

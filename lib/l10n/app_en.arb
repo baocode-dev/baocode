@@ -3325,6 +3325,15 @@
   "explorerOpenFolder": "Open Folder",
   "ideSearchOpenFiles": "Search open files",
   "ideWelcomeRecent": "Recent",
+  "ideStartRecent": "Recent projects",
+  "ideStartViewAll": "View all ({count})",
+  "@ideStartViewAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "ideOpenRecentPlaceholder": "Select a folder or file to open",
   "ideRecentFolders": "folders",
   "ideRecentFiles": "files",
@@ -3420,7 +3429,7 @@
     }
   },
   "generalSettingsMainWindow": "Main Window",
-  "generalSettingsMainWindowDescription": "The window BaoCode opens to. The 'code' command always opens files and folders in the IDE.",
+  "generalSettingsMainWindowDescription": "What BaoCode shows at launch: the chat window, the IDE windows (as Restore Windows says), or whichever was shown when it last quit.",
   "generalSettingsMainWindowLabel": "Main Window: {name}",
   "@generalSettingsMainWindowLabel": {
     "placeholders": {
@@ -3432,6 +3441,69 @@
   "generalSettingsMainWindowChat": "Chat",
   "generalSettingsMainWindowIde": "IDE",
   "generalSettingsMainWindowLast": "Last used",
+  "generalSettingsWindows": "Windows",
+  "generalSettingsIdeWindows": "Fast Ide Windows",
+  "generalSettingsIdeWindowsDescription": "Where the Fast Ide opens: in windows of its own, one per folder (New Window, ⇧⌘N / Ctrl+Shift+N, opens an empty one), or in the main window in place of the chat, one folder at a time. Applies at once. (window.ideWindows)",
+  "generalSettingsIdeWindowsSeparate": "Separate windows",
+  "generalSettingsIdeWindowsMain": "In the main window",
+  "generalSettingsWindowLabel": "{setting}: {name}",
+  "@generalSettingsWindowLabel": {
+    "placeholders": {
+      "setting": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "generalSettingsOpenFolders": "Open Folders in New Window",
+  "generalSettingsOpenFoldersDescription": "Whether a folder opened from a window (Open Folder…, Open Recent) takes a new window. By default it replaces the current one, unless ⌘/Ctrl is held. (window.openFoldersInNewWindow)",
+  "generalSettingsOpenFiles": "Open Files in New Window",
+  "generalSettingsOpenFilesDescription": "Whether a file opened from a window takes a new window. By default it opens in the current one. (window.openFilesInNewWindow)",
+  "generalSettingsOpenDefault": "Default",
+  "generalSettingsOpenOn": "In a new window",
+  "generalSettingsOpenOff": "In the current window",
+  "generalSettingsRestoreWindows": "Restore Windows",
+  "generalSettingsRestoreWindowsDescription": "The IDE windows that open again at launch, where they were. (window.restoreWindows)",
+  "generalSettingsRestoreAll": "All windows",
+  "generalSettingsRestoreOne": "The last active window",
+  "generalSettingsRestoreFolders": "Windows with a folder",
+  "generalSettingsRestoreNone": "None",
+  "generalSettingsNewWindowDimensions": "New Window Size",
+  "generalSettingsNewWindowDimensionsDescription": "The size of a new window. (window.newWindowDimensions)",
+  "generalSettingsDimensionsDefault": "Default",
+  "generalSettingsDimensionsInherit": "As the last active window",
+  "generalSettingsDimensionsMaximized": "Maximized",
+  "generalSettingsDimensionsFullscreen": "Full screen",
+  "generalSettingsConfirmBeforeClose": "Confirm Before Close",
+  "generalSettingsConfirmBeforeCloseDescription": "Whether closing a window asks first, even with nothing unsaved. (window.confirmBeforeClose)",
+  "generalSettingsConfirmNever": "Never",
+  "generalSettingsConfirmKeyboard": "When closed with the keyboard",
+  "generalSettingsConfirmAlways": "Always",
+  "cmdNewWindow": "New Window",
+  "cmdCloseWindow": "Close Window",
+  "cmdSwitchWindow": "Switch Window...",
+  "cmdShowChatWindow": "Show Chat Window",
+  "windowChatTitle": "Chat",
+  "windowWelcomeTitle": "Welcome",
+  "windowConfirmClose": "Are you sure you want to close the window?",
+  "windowTerminateTerminals": "Do you want to terminate the running processes in the window's terminals?",
+  "windowTerminate": "Terminate",
+  "windowSaveChanges": "Do you want to save the changes to the following {count} files?",
+  "@windowSaveChanges": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "windowSaveAll": "Save All",
+  "windowCurrent": "Current",
+  "windowSwitchPlaceholder": "Select a window to switch to",
+  "windowCycle": "Cycle Through Windows",
+  "windowMenuWindows": "Windows",
+  "windowOpened": "Opened",
   "generalSettingsShellCommand": "Shell Command",
   "generalSettingsShellCommandDescription": "Open files and folders in BaoCode from a terminal: 'code <path>'. Installed at {location}.",
   "@generalSettingsShellCommandDescription": {

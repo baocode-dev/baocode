@@ -4737,6 +4737,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ideWelcomeRecent => 'Recent';
 
   @override
+  String get ideStartRecent => 'Recent projects';
+
+  @override
+  String ideStartViewAll(int count) {
+    return 'View all ($count)';
+  }
+
+  @override
   String get ideOpenRecentPlaceholder => 'Select a folder or file to open';
 
   @override
@@ -4836,7 +4844,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get generalSettingsMainWindowDescription =>
-      'The window BaoCode opens to. The \'code\' command always opens files and folders in the IDE.';
+      'What BaoCode shows at launch: the chat window, the IDE windows (as Restore Windows says), or whichever was shown when it last quit.';
 
   @override
   String generalSettingsMainWindowLabel(String name) {
@@ -4851,6 +4859,155 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get generalSettingsMainWindowLast => 'Last used';
+
+  @override
+  String get generalSettingsWindows => 'Windows';
+
+  @override
+  String get generalSettingsIdeWindows => 'Fast Ide Windows';
+
+  @override
+  String get generalSettingsIdeWindowsDescription =>
+      'Where the Fast Ide opens: in windows of its own, one per folder (New Window, ⇧⌘N / Ctrl+Shift+N, opens an empty one), or in the main window in place of the chat, one folder at a time. Applies at once. (window.ideWindows)';
+
+  @override
+  String get generalSettingsIdeWindowsSeparate => 'Separate windows';
+
+  @override
+  String get generalSettingsIdeWindowsMain => 'In the main window';
+
+  @override
+  String generalSettingsWindowLabel(String setting, String name) {
+    return '$setting: $name';
+  }
+
+  @override
+  String get generalSettingsOpenFolders => 'Open Folders in New Window';
+
+  @override
+  String get generalSettingsOpenFoldersDescription =>
+      'Whether a folder opened from a window (Open Folder…, Open Recent) takes a new window. By default it replaces the current one, unless ⌘/Ctrl is held. (window.openFoldersInNewWindow)';
+
+  @override
+  String get generalSettingsOpenFiles => 'Open Files in New Window';
+
+  @override
+  String get generalSettingsOpenFilesDescription =>
+      'Whether a file opened from a window takes a new window. By default it opens in the current one. (window.openFilesInNewWindow)';
+
+  @override
+  String get generalSettingsOpenDefault => 'Default';
+
+  @override
+  String get generalSettingsOpenOn => 'In a new window';
+
+  @override
+  String get generalSettingsOpenOff => 'In the current window';
+
+  @override
+  String get generalSettingsRestoreWindows => 'Restore Windows';
+
+  @override
+  String get generalSettingsRestoreWindowsDescription =>
+      'The IDE windows that open again at launch, where they were. (window.restoreWindows)';
+
+  @override
+  String get generalSettingsRestoreAll => 'All windows';
+
+  @override
+  String get generalSettingsRestoreOne => 'The last active window';
+
+  @override
+  String get generalSettingsRestoreFolders => 'Windows with a folder';
+
+  @override
+  String get generalSettingsRestoreNone => 'None';
+
+  @override
+  String get generalSettingsNewWindowDimensions => 'New Window Size';
+
+  @override
+  String get generalSettingsNewWindowDimensionsDescription =>
+      'The size of a new window. (window.newWindowDimensions)';
+
+  @override
+  String get generalSettingsDimensionsDefault => 'Default';
+
+  @override
+  String get generalSettingsDimensionsInherit => 'As the last active window';
+
+  @override
+  String get generalSettingsDimensionsMaximized => 'Maximized';
+
+  @override
+  String get generalSettingsDimensionsFullscreen => 'Full screen';
+
+  @override
+  String get generalSettingsConfirmBeforeClose => 'Confirm Before Close';
+
+  @override
+  String get generalSettingsConfirmBeforeCloseDescription =>
+      'Whether closing a window asks first, even with nothing unsaved. (window.confirmBeforeClose)';
+
+  @override
+  String get generalSettingsConfirmNever => 'Never';
+
+  @override
+  String get generalSettingsConfirmKeyboard => 'When closed with the keyboard';
+
+  @override
+  String get generalSettingsConfirmAlways => 'Always';
+
+  @override
+  String get cmdNewWindow => 'New Window';
+
+  @override
+  String get cmdCloseWindow => 'Close Window';
+
+  @override
+  String get cmdSwitchWindow => 'Switch Window...';
+
+  @override
+  String get cmdShowChatWindow => 'Show Chat Window';
+
+  @override
+  String get windowChatTitle => 'Chat';
+
+  @override
+  String get windowWelcomeTitle => 'Welcome';
+
+  @override
+  String get windowConfirmClose => 'Are you sure you want to close the window?';
+
+  @override
+  String get windowTerminateTerminals =>
+      'Do you want to terminate the running processes in the window\'s terminals?';
+
+  @override
+  String get windowTerminate => 'Terminate';
+
+  @override
+  String windowSaveChanges(int count) {
+    return 'Do you want to save the changes to the following $count files?';
+  }
+
+  @override
+  String get windowSaveAll => 'Save All';
+
+  @override
+  String get windowCurrent => 'Current';
+
+  @override
+  String get windowSwitchPlaceholder => 'Select a window to switch to';
+
+  @override
+  String get windowCycle => 'Cycle Through Windows';
+
+  @override
+  String get windowMenuWindows => 'Windows';
+
+  @override
+  String get windowOpened => 'Opened';
 
   @override
   String get generalSettingsShellCommand => 'Shell Command';

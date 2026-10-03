@@ -85,6 +85,8 @@ flutter:
     - assets/keymaps/LICENSES/
     # The notifications' "ding" (see lib/notifications/notification_sound.dart).
     - assets/sounds/
+    # The app's icon, on the IDE's start page (lib/ide/ide_welcome.dart).
+    - assets/branding/
     # Emojibase's emoji, for project icons (tool/generate_emoji.mjs).
     - assets/emoji/
     # VS Code TextMate grammars and color themes (tool/generate_textmate_assets.mjs).

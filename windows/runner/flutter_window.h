@@ -9,19 +9,21 @@
 #include <string>
 #include <vector>
 
+#include "app_windows.h"
 #include "attention.h"
-#include "drop_target.h"
 #include "open_requests.h"
-#include "win32_window.h"
-#include "window_channel.h"
+#include "view_window.h"
 
-// A window that hosts a Flutter view, and answers the window commands
-// Flutter asks for over `baocode/window` (see window_channel.h).
-class FlutterWindow : public Win32Window {
+// The main window: the chat's, the one the app starts with, which hosts the
+// engine's first view (the implicit one) and owns the engine; it answers the
+// window commands Flutter asks for over `baocode/window` (see
+// window_channel.h), and keeps the IDE's windows (see app_windows.h), the
+// paths the app is asked to open and the tray.
+class FlutterWindow : public ViewWindow {
  public:
   // Creates a new FlutterWindow hosting a Flutter view running |project|,
-  // asked to open |open_paths| (UTF-8, absolute; see OpenRequests) once
-  // Flutter is ready for them.
+  // asked to open |open_paths| (UTF-8, absolute, or a request of the `code`
+  // command; see OpenRequests) once Flutter is ready for them.
   explicit FlutterWindow(const flutter::DartProject& project,
                          std::vector<std::string> open_paths = {});
   virtual ~FlutterWindow();
@@ -33,52 +35,29 @@ class FlutterWindow : public Win32Window {
   LRESULT MessageHandler(HWND window, UINT const message, WPARAM const wparam,
                          LPARAM const lparam) noexcept override;
 
+  // ViewWindow:
+  std::optional<LRESULT> EngineMessage(HWND window, UINT message,
+                                       WPARAM wparam, LPARAM lparam) override;
+  void ReloadSystemFonts() override;
+
  private:
-  // What the pointer at |point| (client pixels) is over, when it is the
-  // window's own: one of its buttons, its frame, the header Flutter draws.
-  // nullopt where it is Flutter's (its controls in the header, and
-  // everything under it) — this is the one answer both the window
-  // (WM_NCHITTEST, and what it runs when such a part is pressed) and the
-  // view (see ViewProc) go by.
-  std::optional<LRESULT> WindowPart(POINT point) const;
-
-  // The Flutter view's own procedure, which takes the view's place on create
-  // (see OnCreate): it hands the cursor's hit test up to this window for the
-  // parts of it that are this window's, and leaves every other message as the
-  // view had it.
-  static LRESULT CALLBACK ViewProc(HWND window, UINT message, WPARAM wparam,
-                                   LPARAM lparam) noexcept;
-
   // The project to run.
   flutter::DartProject project_;
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
 
-  // What Flutter asks of this window.
-  std::unique_ptr<WindowChannel> window_channel_;
-
   // The paths the app is asked to open, for Flutter; until it is made (see
-  // OnCreate), those kept for it.
+  // OnCreate), those kept for it, as they came.
   std::unique_ptr<OpenRequests> open_requests_;
-  std::vector<std::string> open_paths_;
+  std::vector<std::vector<std::string>> open_paths_;
+
+  // The IDE's windows (see app_windows.h).
+  std::unique_ptr<AppWindows> app_windows_;
 
   // Notifications, the taskbar button's count and the tray icon, which the
   // close button hides the window to (see attention.h).
   std::unique_ptr<Attention> attention_;
-
-  // Takes the files other apps drag onto the view, for Flutter; a COM object,
-  // released when the window goes.
-  DropTarget* drop_target_ = nullptr;
-
-  // The window button pressed, until the press is let go: the button acts
-  // then, and only if the pointer is still on it, as the system's own do.
-  std::optional<LRESULT> pressed_button_;
-
-  // The Flutter view's window, and the procedure it had before ViewProc took
-  // its place (put back when the window goes).
-  HWND view_ = nullptr;
-  WNDPROC view_proc_ = nullptr;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

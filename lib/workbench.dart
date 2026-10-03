@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:bao_editor/textmate/textmate_syntax.dart';
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, listEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +11,7 @@ import 'package:path/path.dart' as p;
 import 'chat/chat_keys.dart';
 import 'chat/chat_models.dart' show FileChange, FileChangeKind;
 import 'chat/chat_screen.dart';
+import 'chat/composer/composer_files.dart' show ComposerFile;
 import 'chat/composer/file_drop.dart';
 import 'chat/panels/interaction_panel.dart';
 import 'customize/customization_store.dart';
@@ -34,6 +35,7 @@ import 'keybindings/chat_keybindings.dart';
 import 'keybindings/default_keybindings.dart';
 import 'keybindings/key_chord.dart';
 import 'keybindings/keybinding_service.dart';
+import 'keybindings/window_keybindings.dart';
 import 'l10n/command_titles.dart';
 import 'l10n/l10n.dart';
 import 'notifications/attention_host.dart';
@@ -54,6 +56,9 @@ import 'sidebar/sidebar.dart';
 import 'theme/codicons.dart';
 import 'theme/app_theme.dart';
 import 'theme/workbench_theme.dart' show WorkbenchThemeService, themeColors;
+import 'window/app_windows.dart';
+import 'window/code_args.dart';
+import 'window/window_settings.dart';
 import 'workspace/chat_drag.dart';
 import 'workspace/chat_grid_view.dart';
 import 'workspace/new_chat_folder_bar.dart';
@@ -67,6 +72,11 @@ import 'workspace/workspace.dart';
 /// The window: the agents sidebar on the left, the selected agent's chat
 /// on the right, and up to three more beside it, dragged there from the
 /// sidebar (see [ChatGridView]).
+///
+/// With [windows] that open windows of their own ([AppWindows.multi]), one
+/// is built in each: the chat's window ([AppWindows.chat]) has the chat
+/// alone; an IDE window, the IDE of its folder. Without, the IDE shows in
+/// this one, as [Workspace.layout] says.
 ///
 /// The sidebar can be dragged wider or narrower and hidden (⌘B or its
 /// button). In a narrow window it is hidden by default and opens over the
@@ -82,9 +92,17 @@ class Workbench extends StatefulWidget {
     this.settings,
     this.conversations = const NoConversationSearch(),
     this.customizations,
+    this.windows,
+    this.window,
   });
 
   final Workspace workspace;
+
+  /// The app's windows; none under test, where the IDE shows in this one.
+  final AppWindows? windows;
+
+  /// The one this is built in (the chat's, by default).
+  final AppWindow? window;
 
   /// What the search palette searches the agents' conversations with.
   final ConversationSearch conversations;
@@ -124,7 +142,7 @@ class Workbench extends StatefulWidget {
   State<Workbench> createState() => _WorkbenchState();
 }
 
-class _WorkbenchState extends State<Workbench> {
+class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   static const _duration = Duration(milliseconds: 200);
 
   /// The border between sidebar and chat: a line at the left of a strip
@@ -176,9 +194,56 @@ class _WorkbenchState extends State<Workbench> {
   /// The key of the IDE's empty window, with no folder open.
   static const _noFolder = '';
 
-  /// The IDE shown, or to be shown: that of its folder.
-  String get _ideFolder => _workspace.ideFolder ?? _noFolder;
+  /// The IDE shown, or to be shown: that of its folder (an IDE window's
+  /// own).
+  String get _ideFolder => _ideWindow
+      ? widget.window!.folder ?? _noFolder
+      : _workspace.ideFolder ?? _noFolder;
   IdeWorkbenchState? get _ide => _ideKeys[_ideFolder]?.currentState;
+
+  AppWindows? get _windows => widget.windows;
+
+  /// Whether the IDE has windows of its own.
+  bool get _multi => _windows?.multi ?? false;
+
+  /// Whether this is one of them.
+  bool get _ideWindow => _multi && !(widget.window?.isChat ?? true);
+
+  /// Whether this is the app's main window, the chat's: what the app does
+  /// once (its notifications, the system's requests, the File menu) is
+  /// done here.
+  bool get _main => !_ideWindow;
+
+  int get _viewId => widget.window?.viewId ?? 0;
+
+  /// Whether the IDE shows: always in its own window; without them, as the
+  /// workspace's layout says.
+  bool get _showsIde =>
+      _ideWindow || (!_multi && _workspace.layout == WorkspaceLayout.ide);
+
+  WindowSettings get _windowSettings =>
+      WindowSettings.parse(widget.settings?.files?.settings.values ?? const {});
+
+  /// Whether ⌘ (Ctrl) is held: a folder or file picked then opens in a new
+  /// window.
+  static bool get _newWindowHeld {
+    final keyboard = HardwareKeyboard.instance;
+    return defaultTargetPlatform == TargetPlatform.macOS
+        ? keyboard.isMetaPressed
+        : keyboard.isControlPressed;
+  }
+
+  /// Whether the keyboard is in this window (each window's workbench sees
+  /// every key).
+  bool get _hasKeyboard {
+    if (!_multi) return true;
+    final focus = FocusManager.instance.primaryFocus?.context;
+    if (focus != null && focus.mounted) {
+      final view = focus.findAncestorWidgetOfExactType<View>();
+      if (view != null) return view.view.viewId == _viewId;
+    }
+    return WindowControls.activeViewId == _viewId;
+  }
 
   /// The window is kept above other apps' windows.
   bool _pinned = false;
@@ -188,26 +253,32 @@ class _WorkbenchState extends State<Workbench> {
 
   void _setPinned(bool pinned) {
     setState(() => _pinned = pinned);
-    WindowControls.setAlwaysOnTop(pinned);
+    WindowControls.setAlwaysOnTop(pinned, viewId: _viewId);
   }
 
   /// Back in the app, the list picks up sessions started elsewhere (e.g.
   /// in a terminal) meanwhile.
-  late final AppLifecycleListener _lifecycle;
+  AppLifecycleListener? _lifecycle;
 
   /// Notifies of the agents that want the user, keeps the count on the
-  /// app's icon and the tray icon (see lib/notifications/).
-  late final AttentionService _attention = AttentionService(
-    workspace: _workspace,
-    host: ChannelAttentionHost.instance,
-    settings: () => AttentionSettings.parse(
-      widget.settings?.files?.settings.values ?? const {},
-    ),
-    settingsChanges: widget.settings?.files?.settings,
-    l10n: () => context.l10n,
-    shown: _workspace.isShown,
-    onOpen: _openNotifiedAgent,
-  );
+  /// app's icon and the tray icon (see lib/notifications/): the main
+  /// window's, once for the app. One picked shows in the IDE window it is
+  /// a tab of, else here.
+  late final AttentionService? _attention = _main
+      ? AttentionService(
+          workspace: _workspace,
+          host: ChannelAttentionHost.instance,
+          settings: () => AttentionSettings.parse(
+            widget.settings?.files?.settings.values ?? const {},
+          ),
+          settingsChanges: widget.settings?.files?.settings,
+          l10n: () => context.l10n,
+          shown: _workspace.isShown,
+          onOpen: (thread) => _windows != null
+              ? _windows!.showAgent(thread)
+              : _openNotifiedAgent(thread),
+        )
+      : null;
 
   /// The keybindings the buttons' tooltips show (`New Agent (⌘N)`): they
   /// follow a keymap picked, keybindings.json edited.
@@ -222,20 +293,50 @@ class _WorkbenchState extends State<Workbench> {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKey);
     _keybindings.addListener(_keybindingsChanged);
-    WindowControls.onMenuCommand = _runMenuCommand;
-    WindowControls.handleEditCommands();
-    WindowControls.handleWindowEvents();
-    FileDrops.listen();
-    OpenRequests.listen((paths) => unawaited(_openPaths(paths)));
-    _workspace.addListener(_syncRecentMenu);
-    _syncRecentMenu();
-    _lifecycle = AppLifecycleListener(
-      onResume: () => unawaited(_workspace.refresh()),
-    );
+    // The window's own channels: its menu bar's commands (the key window's,
+    // on macOS), its Edit menu, its buttons, the files dropped on it.
+    WindowControls.setMenuCommands(_viewId, _runMenuCommand);
+    WindowControls.handleEditCommands(_viewId);
+    WindowControls.handleWindowEvents(_viewId);
+    FileDrops.listen(_viewId);
+    if (_windows?.started ?? false) {
+      FileDrops.setUnhandledDrop(_viewId, _dropped);
+    }
+    widget.window?.attach(this);
+    _windows?.addListener(_windowsChanged);
+    if (_main) {
+      OpenRequests.listen((paths) => unawaited(_openPaths(paths)));
+      _workspace.addListener(_syncRecentMenu);
+      _syncRecentMenu();
+      _lifecycle = AppLifecycleListener(
+        onResume: () => unawaited(_workspace.refresh()),
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) => _afterFirstFrame());
+    }
     widget.settings?.files?.changes.addListener(_settingsFilesChanged);
     _settingsFilesChanged();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _afterFirstFrame());
   }
+
+  /// The IDE moved to windows of its own (`window.ideWindows`): the main
+  /// window's goes, its editors, terminals and language servers with it.
+  void _windowsChanged() {
+    if (!_multi || _ideWindow || _ideSpaces.isEmpty) return;
+    final spaces = _ideSpaces.values.toList();
+    setState(() {
+      _ideSpaces.clear();
+      _ideKeys.clear();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final space in spaces) {
+        space.dispose();
+      }
+    });
+  }
+
+  /// Files dropped on the window where nothing in it takes them: opened
+  /// as the `code` command opens them.
+  bool _dropped(List<ComposerFile> files) =>
+      _windows?.dropped(_viewId, files) ?? false;
 
   bool _attentionStarted = false;
 
@@ -244,10 +345,10 @@ class _WorkbenchState extends State<Workbench> {
     super.didChangeDependencies();
     // Once the app's language is in scope; the tray's menu follows it.
     if (_attentionStarted) {
-      _attention.refresh();
+      _attention?.refresh();
     } else {
       _attentionStarted = true;
-      _attention.start();
+      _attention?.start();
     }
   }
 
@@ -267,16 +368,30 @@ class _WorkbenchState extends State<Workbench> {
     _citedCode?.dispose();
     _drag.dispose();
     _width.dispose();
-    _lifecycle.dispose();
-    _attention.dispose();
+    _lifecycle?.dispose();
+    _attention?.dispose();
     HardwareKeyboard.instance.removeHandler(_handleKey);
     _keybindings.removeListener(_keybindingsChanged);
-    if (WindowControls.onMenuCommand == _runMenuCommand) {
-      WindowControls.onMenuCommand = null;
+    // The window's channels stay: a folder replaced builds the next
+    // workbench before this one goes, and AppWindows stops them with the
+    // window.
+    if (WindowControls.menuCommandsOf(_viewId) == _runMenuCommand) {
+      WindowControls.setMenuCommands(_viewId, null);
+    }
+    if (FileDrops.unhandledDropOf(_viewId) == _dropped) {
+      FileDrops.setUnhandledDrop(_viewId, null);
+    }
+    widget.window?.detach(this);
+    _windows?.removeListener(_windowsChanged);
+    _editedTimer?.cancel();
+    for (final subscription in _editedSubscriptions.values) {
+      unawaited(subscription.cancel());
     }
     _chordTimer?.cancel();
-    OpenRequests.stop();
-    _workspace.removeListener(_syncRecentMenu);
+    if (_main) {
+      OpenRequests.stop();
+      _workspace.removeListener(_syncRecentMenu);
+    }
     widget.settings?.files?.changes.removeListener(_settingsFilesChanged);
     _notifications.dispose();
     for (final index in _fileIndexes.values) {
@@ -372,6 +487,34 @@ class _WorkbenchState extends State<Workbench> {
       if (widget.customizations != null) _customizeCommand: _showCustomize,
       if (current != null)
         ChatCommandIds.openIde: () => _workspace.openInIde(current),
+      ..._windowCommands(),
+    };
+  }
+
+  /// New Window, Close Window, Switch Window… and Show Chat Window, where
+  /// the app has windows (the IDE in the main one: New Window shows its
+  /// empty window there, Show Chat Window the chat).
+  Map<String, VoidCallback> _windowCommands() {
+    final windows = _windows;
+    final window = widget.window;
+    if (windows == null || window == null || !windows.started) {
+      return const {};
+    }
+    return {
+      WindowCommandIds.newWindow: () => unawaited(windows.newWindow()),
+      WindowCommandIds.closeWindow: () => unawaited(
+        windows.requestClose(
+          window,
+          // A menu clicked, or a shortcut (its keys still down).
+          byKeyboard: HardwareKeyboard.instance.logicalKeysPressed.isNotEmpty,
+        ),
+      ),
+      WindowCommandIds.switchWindow: () => windows.switchWindow(window),
+      WindowCommandIds.showChat: () {
+        if (windows.multi) return windows.showChat();
+        windows.focus(window);
+        _workspace.layout = WorkspaceLayout.chat;
+      },
     };
   }
 
@@ -510,6 +653,12 @@ class _WorkbenchState extends State<Workbench> {
         filter: filter,
         onOpenAgent: _openAgent,
         onOpenFile: (path) {
+          if (_windows case final windows? when _multi) {
+            unawaited(
+              windows.showFolder(project?.path, files: [CodeTarget(path)]),
+            );
+            return;
+          }
           if (project != null) _openIdeFolder(project.path);
           _openIdeFiles([path]);
         },
@@ -626,9 +775,10 @@ class _WorkbenchState extends State<Workbench> {
   /// keys.
   bool _handleKey(KeyEvent event) {
     if (event is KeyUpEvent ||
-        _workspace.layout == WorkspaceLayout.ide ||
+        _showsIde ||
         KeyChord.fromEvent(event) == null ||
-        !mounted) {
+        !mounted ||
+        !_hasKeyboard) {
       return false;
     }
     // A dialog over the window (the settings' key recorder) keeps its keys.
@@ -711,26 +861,49 @@ class _WorkbenchState extends State<Workbench> {
 
   /// A command of the system's menu bar: the app menu's Preferences…, and
   /// the File menu's, which are the IDE's (Open Folder… in the chat layout
-  /// is its own, a project there).
+  /// is its own, a project there). The window's own: New Window, Close
+  /// Window.
   void _runMenuCommand(String command) {
     if (command == openSettingsCommandId) {
       unawaited(openSettings());
       return;
     }
-    final chat = _workspace.layout == WorkspaceLayout.chat;
+    if (_windowCommands()[command] case final run?) {
+      run();
+      return;
+    }
+    final chat = !_showsIde;
     if (chat && command == 'workbench.action.files.openFolder') {
       unawaited(_openFolder());
       return;
     }
     if (_ideCommandsFor(_ideFolder).where((c) => c.id == command).firstOrNull
-        case final host?) {
+        case final host? when !(chat && _multi && _inIdeWindow(command))) {
       host.run();
+      return;
+    }
+    if (_multi && chat) {
+      // The IDE's own, in its window last in front (an empty one, if none).
+      final windows = _windows!;
+      unawaited(() async {
+        final window = await windows.showFolder(null);
+        (await window?.ready)?.runCommand(command);
+      }());
+      return;
+    }
+    if (_ideWindow) {
+      _ide?.runCommand(command);
       return;
     }
     // The IDE's own (New Text File, Save, Save As…): once it shows.
     _workspace.layout = WorkspaceLayout.ide;
     _afterBuild(() => _ide?.runCommand(command));
   }
+
+  /// The host's commands the chat's window has the IDE's window run: those
+  /// over the IDE (Open Recent's pick).
+  static bool _inIdeWindow(String command) =>
+      command == 'workbench.action.openRecent';
 
   /// Runs [action] once the frame being scheduled is built.
   void _afterBuild(VoidCallback action) {
@@ -775,8 +948,10 @@ class _WorkbenchState extends State<Workbench> {
             'workbench.action.clearRecentlyOpened',
             () => unawaited(_clearRecent()),
           ),
+          for (final MapEntry(key: id, value: run) in _windowCommands().entries)
+            command(id, run),
           if (folder != _noFolder) ...[
-            command('workbench.action.closeFolder', _workspace.closeIdeFolder),
+            command('workbench.action.closeFolder', _closeIdeFolder),
             IdeCommand(
               id: ChatCommandIds.newChat,
               label: 'New Chat',
@@ -803,21 +978,57 @@ class _WorkbenchState extends State<Workbench> {
         ];
       });
 
-  /// Shows [folder] in the IDE.
-  void _openIdeFolder(String folder) {
+  /// Shows [folder] in the IDE. With windows of its own: in this one, in
+  /// place of its folder (its unsaved files asked about first), unless
+  /// ⌘ (Ctrl) was [held] or `window.openFoldersInNewWindow` says a new
+  /// one; from the chat's window, in the folder's (opened, if it is not).
+  void _openIdeFolder(String folder, {bool held = false}) {
+    if (_multi) {
+      final windows = _windows!;
+      if (_ideWindow && !_windowSettings.folderInNewWindow(held: held)) {
+        unawaited(windows.replaceFolder(widget.window!, folder));
+      } else {
+        unawaited(windows.showFolder(folder));
+      }
+      return;
+    }
     _workspace.openIdeFolder(folder);
     _workspace.layout = WorkspaceLayout.ide;
   }
 
+  /// Close Folder: an IDE window's, its welcome in its place.
+  void _closeIdeFolder() {
+    if (_ideWindow) {
+      unawaited(_windows!.replaceFolder(widget.window!, null));
+      return;
+    }
+    _workspace.closeIdeFolder();
+  }
+
   Future<void> _pickIdeFolder() async {
+    final held = _newWindowHeld;
     final path = await WindowControls.pickDirectory();
     if (path == null || !mounted) return;
-    _openIdeFolder(path);
+    _openIdeFolder(path, held: held);
   }
 
   /// Opens [paths] in editors of the IDE's folder (or its empty window).
-  void _openIdeFiles(List<String> paths) {
+  /// With windows of its own: in this one, unless ⌘ (Ctrl) was [held] or
+  /// `window.openFilesInNewWindow` says a new one; from the chat's window,
+  /// as the `code` command opens them.
+  void _openIdeFiles(List<String> paths, {bool held = false}) {
     if (paths.isEmpty) return;
+    if (_multi) {
+      final targets = [for (final path in paths) CodeTarget(path)];
+      final newWindow = _windowSettings.fileInNewWindow(held: held);
+      if (_ideWindow && !newWindow) {
+        paths.forEach(_workspace.addRecentFile);
+        unawaited(openFiles(targets));
+      } else {
+        unawaited(_windows!.openFiles(targets, newWindow: newWindow));
+      }
+      return;
+    }
     paths.forEach(_workspace.addRecentFile);
     _workspace.layout = WorkspaceLayout.ide;
     _afterBuild(() async {
@@ -828,17 +1039,20 @@ class _WorkbenchState extends State<Workbench> {
   }
 
   Future<void> _pickIdeFiles() async {
+    final held = _newWindowHeld;
     final paths = await WindowControls.pickOpenFiles(
-      directory: _workspace.ideFolder,
+      directory: _ideFolder == _noFolder ? null : _ideFolder,
     );
     if (!mounted) return;
-    _openIdeFiles(paths);
+    _openIdeFiles(paths, held: held);
   }
 
   /// What the system asks to open (the `code` command, Finder's Open With,
   /// the File menu's Open Recent): folders and files alike in the IDE,
-  /// whichever the main window is; the chat is left as it was.
+  /// whichever the main window is; the chat is left as it was. With the
+  /// app's windows, as they open them (see [AppWindows.openRequested]).
   Future<void> _openPaths(List<String> paths) async {
+    if (_windows case final windows?) return windows.openRequested(paths);
     final folders = <String>[];
     final files = <String>[];
     for (final path in paths) {
@@ -855,21 +1069,39 @@ class _WorkbenchState extends State<Workbench> {
     final ide = _ide;
     if (ide == null) return;
     final l10n = context.l10n;
-    IdeQuickPickItem item(String path, IconData icon, VoidCallback open) =>
-        IdeQuickPickItem(
-          label: p.basename(path).isEmpty ? path : p.basename(path),
-          description: p.dirname(path),
-          icon: Icon(icon),
-          onAccept: open,
-        );
+    IdeQuickPickItem item(
+      String path,
+      IconData icon,
+      VoidCallback open, {
+      bool opened = false,
+    }) => IdeQuickPickItem(
+      label: p.basename(path).isEmpty ? path : p.basename(path),
+      description: opened
+          ? '${p.dirname(path)}  ·  ${l10n.windowOpened}'
+          : p.dirname(path),
+      icon: Icon(icon),
+      onAccept: open,
+    );
+    // With the IDE's windows, those open are marked; picked, they come
+    // in front.
+    final windows = _multi ? _windows : null;
     final folders = [
       for (final folder in _workspace.recentFolders)
-        if (folder != _workspace.ideFolder)
-          item(folder, Codicons.folder, () => _openIdeFolder(folder)),
+        if (folder != _ideFolder)
+          item(
+            folder,
+            Codicons.folder,
+            () => _openIdeFolder(folder, held: _newWindowHeld),
+            opened: windows?.windowFor(folder) != null,
+          ),
     ];
     final files = [
       for (final file in _workspace.recentFiles)
-        item(file, Codicons.file, () => _openIdeFiles([file])),
+        item(
+          file,
+          Codicons.file,
+          () => _openIdeFiles([file], held: _newWindowHeld),
+        ),
     ];
     ide.showQuickPick(
       IdeQuickPick(
@@ -911,7 +1143,7 @@ class _WorkbenchState extends State<Workbench> {
     final outcome = await action(context);
     if (outcome == null || !mounted) return;
     final ide = _ide;
-    if (ide != null && _workspace.layout == WorkspaceLayout.ide) {
+    if (ide != null && _showsIde) {
       ide.notify(outcome.severity, outcome.message);
     } else {
       _notifications.notify(outcome.severity, outcome.message);
@@ -962,6 +1194,8 @@ class _WorkbenchState extends State<Workbench> {
         'closeFolder': l10n.cmdCloseFolder,
         'clearRecent': l10n.cmdClearRecentlyOpened,
         'more': l10n.menuMore,
+        'newWindow': l10n.cmdNewWindow,
+        'closeWindow': l10n.menuCloseWindow,
       }),
     );
   }
@@ -1064,7 +1298,7 @@ class _WorkbenchState extends State<Workbench> {
 
   @override
   Widget build(BuildContext context) {
-    _syncFileMenu(context.l10n);
+    if (_main) _syncFileMenu(context.l10n);
     return LayoutBuilder(
       builder: (context, constraints) {
         _windowWidth = constraints.maxWidth;
@@ -1099,7 +1333,7 @@ class _WorkbenchState extends State<Workbench> {
               // As the IDE's toasts: above its status bar.
               Positioned(
                 right: 8,
-                bottom: _workspace.layout == WorkspaceLayout.ide ? 36 : 12,
+                bottom: _showsIde ? 36 : 12,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxWidth: math.max(0, constraints.maxWidth - 16),
@@ -1115,8 +1349,10 @@ class _WorkbenchState extends State<Workbench> {
   }
 
   Widget _buildContent(bool narrow) {
-    final ide = _workspace.layout == WorkspaceLayout.ide;
     final folder = _ideFolder;
+    // An IDE window has its folder's alone.
+    if (_ideWindow) return _buildIde(folder, _ideSpace(folder), shown: true);
+    final ide = _showsIde;
     if (ide) _ideSpace(folder);
     return Stack(
       fit: StackFit.expand,
@@ -1144,7 +1380,11 @@ class _WorkbenchState extends State<Workbench> {
                 ? Project.at(space.root)
                 : _workspace.projectAt(path),
             visible: shown,
-            onBack: () => _workspace.layout = WorkspaceLayout.chat,
+            // An IDE window's way back shows the chat's window.
+            onBack: _ideWindow
+                ? _windows!.showChat
+                : () => _workspace.layout = WorkspaceLayout.chat,
+            backLabel: _ideWindow ? context.l10n.cmdShowChatWindow : null,
             pinned: _pinned,
             onPinnedChanged: _setPinned,
             editorBuilder: widget.ideEditorBuilder,
@@ -1153,7 +1393,8 @@ class _WorkbenchState extends State<Workbench> {
             colorThemes: WorkbenchThemeService.instance,
             commands: _ideCommandsFor(path),
             recentFolders: _workspace.recentFolders,
-            onOpenRecent: _openIdeFolder,
+            onOpenRecent: (folder) =>
+                _openIdeFolder(folder, held: _newWindowHeld),
             settings: widget.settings?.files?.settings,
             viewState: _workspace.ideView(path),
             onViewState: path == _noFolder
@@ -1346,20 +1587,68 @@ class _WorkbenchState extends State<Workbench> {
         ..terminals = (widget.terminalBackend?.supported ?? false)
         ..restore(kept);
     }
+    if (_ideWindow) _trackEdited(space);
     return space..askSavePath = (doc) => _askSavePath(space, doc);
   });
 
+  // --- Unsaved files -----------------------------------------------------------
+
+  Timer? _editedTimer;
+  final Map<Object, StreamSubscription<Object?>> _editedSubscriptions = {};
+
+  /// An IDE window shows whether it has unsaved files (the dot in macOS'
+  /// close button): followed as [space]'s files open and close, and as
+  /// they are typed in.
+  void _trackEdited(IdeWorkspace space) {
+    void changed() {
+      _editedTimer?.cancel();
+      _editedTimer = Timer(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        _windows?.setEdited(
+          widget.window!,
+          space.documents.any((doc) => doc.dirty),
+        );
+      });
+    }
+
+    void follow() {
+      final models = {for (final doc in space.documents) doc.model};
+      _editedSubscriptions.removeWhere((model, subscription) {
+        if (models.contains(model)) return false;
+        unawaited(subscription.cancel());
+        return true;
+      });
+      for (final model in models) {
+        _editedSubscriptions[model] ??= model.changes.listen((_) => changed());
+      }
+      changed();
+    }
+
+    space.addListener(follow);
+  }
+
   Widget _buildHeader() {
-    final ide = _workspace.layout == WorkspaceLayout.ide;
+    final ide = _showsIde;
     final project = ide
-        ? switch (_workspace.ideFolder) {
-            final folder? => _workspace.projectAt(folder),
-            null => null,
+        ? switch (_ideFolder) {
+            _noFolder => null,
+            final folder => _workspace.projectAt(folder),
           }
         : _workspace.current?.project;
+    final windows = _multi ? _windows : null;
     return WindowHeader(
       workspace: _workspace,
       project: project,
+      ide: ide,
+      hasFolder: _ideFolder != _noFolder,
+      onBack: _ideWindow ? windows!.showChat : null,
+      backLabel: _ideWindow ? context.l10n.cmdShowChatWindow : null,
+      onNewWindow: windows == null
+          ? null
+          : () => unawaited(windows.newWindow()),
+      onCloseWindow: windows == null
+          ? null
+          : _windowCommands()[WindowCommandIds.closeWindow],
       sidebarShown: _narrow ? _drawerOpen : _docked,
       onToggleSidebar: _toggle,
       ideLayout: ide ? _ideSpace(_ideFolder).layout : null,
@@ -1379,7 +1668,9 @@ class _WorkbenchState extends State<Workbench> {
 
   /// The chat of [thread]: a state of its own for each (and kept as it
   /// moves between the wide and narrow layouts), reached by the header.
-  static GlobalKey _chatKey(Object thread) => GlobalObjectKey(thread);
+  /// Each window's own: the same agent may show in two.
+  GlobalKey _chatKey(AgentThread thread) => _chatKeys[thread] ??= GlobalKey();
+  final Expando<GlobalKey> _chatKeys = Expando();
 
   void _endDrag() {
     setState(() {
@@ -1477,10 +1768,7 @@ class _WorkbenchState extends State<Workbench> {
       titleBarInset: !header && showToggle
           ? AppMetrics.trafficLightsWidth + 8
           : 12.0,
-      onOpenFile: (path) {
-        _workspace.layout = WorkspaceLayout.ide;
-        _openIdeFiles([path]);
-      },
+      onOpenFile: (path) => _openIdeFiles([path]),
     );
   }
 
@@ -1613,35 +1901,176 @@ class _WorkbenchState extends State<Workbench> {
     FileChange change,
     Future<String> Function()? original,
   ) {
-    _workspace.openInIde(thread);
-    final ide = _ideSpace(thread.project.path);
     final label = context.l10n.stripChangesDiff;
-    unawaited(switch ((original, change.kind)) {
-      (null, _) => ide.open(change.path),
-      (final read?, FileChangeKind.deleted) => ide.openRevision(
-        change.path,
-        label: label,
-        read: read,
-      ),
-      (final read?, _) => ide.openDiff(
-        change.path,
-        label: label,
-        original: read,
-      ),
-    });
+    _inIdeOf(
+      thread,
+      (ide) => switch ((original, change.kind)) {
+        (null, _) => ide.open(change.path),
+        (final read?, FileChangeKind.deleted) => ide.openRevision(
+          change.path,
+          label: label,
+          read: read,
+        ),
+        (final read?, _) => ide.openDiff(
+          change.path,
+          label: label,
+          original: read,
+        ),
+      },
+    );
+  }
+
+  /// Shows [thread] in the IDE (its project's window, with the IDE's
+  /// windows), the tab of its chat there, then [open]s in its workspace.
+  void _inIdeOf(
+    AgentThread thread,
+    Future<Object?> Function(IdeWorkspace ide) open,
+  ) {
+    if (_windows case final windows? when _multi) {
+      unawaited(() async {
+        final window = await windows.showFolder(
+          thread.project.path,
+          thread: thread,
+        );
+        if ((await window?.ready)?.ideSpace case final ide?) await open(ide);
+      }());
+      return;
+    }
+    _workspace.openInIde(thread);
+    unawaited(open(_ideSpace(thread.project.path)));
   }
 
   /// Opens a file [thread]'s agent cited in the IDE, lines [start] to
   /// [end] (from 1) selected.
   void _openCode(AgentThread thread, String path, int start, int end) {
-    _workspace.openInIde(thread);
     final range = LspRange(
       LspPosition(start - 1, 0),
       // To the end of the line: positions keep to theirs.
       LspPosition(end - 1, 1 << 30),
     );
-    unawaited(_ideSpace(thread.project.path).openAt(path, range));
+    _inIdeOf(thread, (ide) => ide.openAt(path, range));
   }
+
+  // --- For AppWindows (WindowDelegate) -------------------------------------------
+
+  @override
+  BuildContext? get windowContext => mounted ? context : null;
+
+  @override
+  IdeWorkspace? get ideSpace => _showsIde ? _ideSpace(_ideFolder) : null;
+
+  @override
+  Future<void> openFiles(List<CodeTarget> files) async {
+    if (!_showsIde) _workspace.layout = WorkspaceLayout.ide;
+    setState(() {});
+    // Once the IDE shows.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    final space = _ideSpace(_ideFolder);
+    for (final file in files) {
+      if (file.line case final line?) {
+        final at = LspPosition(
+          math.max(0, line - 1),
+          math.max(0, (file.column ?? 1) - 1),
+        );
+        await space.openAt(file.path, LspRange(at, at));
+      } else {
+        await _ide?.openFile(file.path);
+      }
+    }
+  }
+
+  @override
+  void showAgent(AgentThread thread) {
+    if (_ideWindow) {
+      _openIdeChat(_ideFolder, thread);
+      _afterBuild(() => _ide?.showChat());
+    } else if (_multi) {
+      _openAgent(thread);
+    } else {
+      _openNotifiedAgent(thread);
+    }
+  }
+
+  @override
+  void showIdeFolder(String? folder) {
+    if (folder == null) {
+      _workspace.layout = WorkspaceLayout.ide;
+    } else {
+      _openIdeFolder(folder);
+    }
+  }
+
+  @override
+  Future<List<IdeDocument>> unsavedDocuments() async {
+    for (final key in _ideKeys.values) {
+      await key.currentState?.flush();
+    }
+    return [
+      for (final space in _ideSpaces.values)
+        ...space.documents.where((doc) => doc.dirty),
+    ];
+  }
+
+  @override
+  Future<bool> saveDocuments(List<IdeDocument> documents) async {
+    try {
+      for (final doc in documents) {
+        for (final space in _ideSpaces.values) {
+          if (space.documents.contains(doc)) await space.save(doc);
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        _notifications.notify(IdeSeverity.error, '$error');
+      }
+      return false;
+    }
+    // An untitled one whose Save As was cancelled is still there.
+    return !_ideSpaces.values.any(
+      (space) =>
+          space.documents.any((doc) => doc.dirty && documents.contains(doc)),
+    );
+  }
+
+  @override
+  bool terminalsRunning({required bool childProcesses}) => _ideKeys.values.any(
+    (key) =>
+        key.currentState?.terminalsRunning(childProcesses: childProcesses) ??
+        false,
+  );
+
+  @override
+  void showQuickPick(IdeQuickPick pick) {
+    if (_ide case final ide? when _showsIde) {
+      ide.showQuickPick(pick);
+      return;
+    }
+    // The chat's window: over it, as the IDE shows one.
+    var closed = false;
+    unawaited(
+      showGeneralDialog<void>(
+        context: context,
+        barrierColor: Colors.transparent,
+        pageBuilder: (context, _, _) => Padding(
+          padding: EdgeInsets.only(
+            top: WindowControls.drawsHeader ? 0 : AppMetrics.titleBarHeight,
+          ),
+          child: IdeQuickInput.pick(
+            pick: pick,
+            onClose: () {
+              if (closed) return;
+              closed = true;
+              Navigator.of(context).pop();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void runCommand(String command) => _runMenuCommand(command);
 
   /// The code agents cite in the editor's colors, by TextMate: started as
   /// the first is shown.

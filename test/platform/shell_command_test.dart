@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/platform/shell_command.dart';
 import 'package:baocode/platform/shell_command_io.dart';
+import 'package:baocode/window/code_args.dart';
 import 'package:path/path.dart' as p;
 
 /// The `code` command, installed into temporary folders only: what it
@@ -220,36 +221,52 @@ void main() {
       List<String> openedWith() =>
           File(opened).existsSync() ? File(opened).readAsLinesSync() : [];
 
-      test('hands what is there to the app', () async {
-        await command().install();
-        final project = Directory(p.join(root.path, 'my project'))
-          ..createSync();
-        write(p.join(project.path, 'a file.txt'), '');
+      test(
+        'hands the app a request: the folder, then what it was given',
+        () async {
+          await command().install();
+          final project = Directory(p.join(root.path, 'my project'))
+            ..createSync();
 
-        final result = await run([
-          '-n',
-          '.',
-          'a file.txt',
-          'gone',
-        ], project.path);
+          final result = await run([
+            '-n',
+            '.',
+            'a file.txt',
+            '-g',
+            'gone:3',
+          ], project.path);
+          expect(result.exitCode, 0);
+          final opened = openedWith();
+          expect(opened, hasLength(3));
+          expect(opened.take(2), ['-b', 'dev.baocode.desktop']);
+          expect(opened.last, endsWith('.baocode-cli'));
+          final request = CodeArgs.fromRequestFile(
+            File(opened.last).readAsStringSync(),
+          );
+          File(opened.last).deleteSync();
+          expect(request.newWindow, isTrue);
+          expect(request.goto, isTrue);
+          expect(
+            [for (final target in request.paths) target.path],
+            [
+              project.resolveSymbolicLinksSync(),
+              p.join(project.resolveSymbolicLinksSync(), 'a file.txt'),
+              p.join(project.resolveSymbolicLinksSync(), 'gone'),
+            ],
+          );
+          expect(request.paths.last.line, 3);
+        },
+      );
+
+      test('with nothing named, a request of none', () async {
+        await command().install();
+        final result = await run([], root.path);
         expect(result.exitCode, 0);
-        expect(openedWith(), ['-b', 'dev.baocode.desktop', '.', 'a file.txt']);
-        expect(result.stderr, 'code: gone: No such file or directory\n');
-      });
-
-      test('with nothing named, only brings it up', () async {
-        await command().install();
-        final result = await run(['--wait'], root.path);
-        expect(result.exitCode, 0);
-        expect(openedWith(), ['-b', 'dev.baocode.desktop']);
-      });
-
-      test('with nothing there, says so and fails', () async {
-        await command().install();
-        final result = await run(['nope'], root.path);
-        expect(result.exitCode, 1);
-        expect(openedWith(), isEmpty);
-        expect(result.stderr, contains('nope: No such file or directory'));
+        final opened = openedWith();
+        final contents = File(opened.last).readAsStringSync();
+        File(opened.last).deleteSync();
+        expect(contents, '${root.resolveSymbolicLinksSync()}\n');
+        expect(CodeArgs.fromRequestFile(contents).paths, isEmpty);
       });
     });
   });
@@ -282,12 +299,14 @@ void main() {
       },
     );
 
-    test('the script starts the app with what it is given', () {
+    test('the script starts the app with a request: the folder, then what it '
+        'is given', () {
       expect(
         command().script,
         '@echo off\r\n'
         'REM BaoCode shell command\r\n'
-        'start "" "C:\\Program Files\\BaoCode %%1\\baocode.exe" %*\r\n',
+        'start "" "C:\\Program Files\\BaoCode %%1\\baocode.exe" '
+        '--baocode-cli "%CD%\\." %*\r\n',
       );
     });
 
