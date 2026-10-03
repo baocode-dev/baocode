@@ -430,69 +430,74 @@ class CustomizeViewState extends State<CustomizeView> {
     if (items.isEmpty && (searching || !shownEmpty)) return const [];
     return [
       const SizedBox(height: 20),
-      Row(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Text(
-                  scope.label(l10n),
-                  style: TextStyle(
-                    color: AppColors.text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '${items.length}',
-                  style: TextStyle(color: AppColors.textFaint, fontSize: 12),
-                ),
-                if (scope == CustomizationScope.project &&
-                    _project != null) ...[
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      _project!.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.textFaint,
-                        fontSize: 12,
-                      ),
+      // As tall as its button, with one or not: the groups line up from
+      // kind to kind.
+      SizedBox(
+        height: _Chip.height,
+        child: Row(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  Text(
+                    scope.label(l10n),
+                    style: TextStyle(
+                      color: AppColors.text,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                ],
-              ],
-            ),
-          ),
-          if (creatable)
-            _Chip(
-              outlined: true,
-              onTap: () => unawaited(_create(scope)),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.add_rounded, size: 14, color: AppColors.text),
-                  const SizedBox(width: 3),
-                  Text(l10n.customizeNew),
-                ],
-              ),
-            ),
-          if (configurable)
-            _Chip(
-              outlined: true,
-              onTap: () => unawaited(_openConfig(scope)),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Codicons.edit, size: 13, color: AppColors.text),
-                  const SizedBox(width: 5),
-                  Text(l10n.customizeEditFile(_configName(scope))),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${items.length}',
+                    style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+                  ),
+                  if (scope == CustomizationScope.project &&
+                      _project != null) ...[
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        _project!.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.textFaint,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-        ],
+            if (creatable)
+              _Chip(
+                outlined: true,
+                onTap: () => unawaited(_create(scope)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_rounded, size: 14, color: AppColors.text),
+                    const SizedBox(width: 3),
+                    Text(l10n.customizeNew),
+                  ],
+                ),
+              ),
+            if (configurable)
+              _Chip(
+                outlined: true,
+                onTap: () => unawaited(_openConfig(scope)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Codicons.edit, size: 13, color: AppColors.text),
+                    const SizedBox(width: 5),
+                    Text(l10n.customizeEditFile(_configName(scope))),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
       const SizedBox(height: 8),
       if (items.isEmpty)
@@ -665,13 +670,15 @@ class _Chip extends StatelessWidget {
   final bool selected;
   final bool outlined;
 
+  static const height = 26.0;
+
   @override
   Widget build(BuildContext context) => HoverBuilder(
     cursor: SystemMouseCursors.click,
     builder: (context, hovered) => GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 26,
+        height: height,
         padding: const EdgeInsets.symmetric(horizontal: 11),
         decoration: BoxDecoration(
           color: selected
