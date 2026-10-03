@@ -65,11 +65,13 @@ std::optional<int64_t> IntOf(const flutter::EncodableValue* value) {
   if (value == nullptr) {
     return std::nullopt;
   }
-  if (const auto* small = std::get_if<int32_t>(value)) {
-    return *small;
+  // Not "small": rpcndr.h defines that as a macro for char, and the
+  // declaration would not survive it.
+  if (const auto* narrow = std::get_if<int32_t>(value)) {
+    return *narrow;
   }
-  if (const auto* large = std::get_if<int64_t>(value)) {
-    return *large;
+  if (const auto* wide = std::get_if<int64_t>(value)) {
+    return *wide;
   }
   return std::nullopt;
 }
