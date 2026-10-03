@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "hang_watchdog.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project,
                              std::vector<std::string> open_paths)
@@ -125,6 +126,12 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  // The watchdog's ping (see hang_watchdog.h): this thread takes messages.
+  if (message == hang_watchdog::kPingMessage) {
+    hang_watchdog::Answer();
+    return 0;
+  }
+
   // The app quits (see AppWindows::kQuitMessage): this window goes, and the
   // engine and the IDE's windows with it, in OnDestroy.
   if (message == AppWindows::kQuitMessage) {

@@ -86,7 +86,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   const HANDLE single_instance =
       ::CreateMutexW(nullptr, FALSE, kSingleInstanceMutex);
   if (single_instance != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
-    ForwardToRunningWindow(open_paths);
+    // Not taken (or no window to take them): the copy running is written
+    // down, as it may hang (see hang_watchdog.h).
+    if (!ForwardToRunningWindow(open_paths)) {
+      hang_watchdog::ReportRunningCopy();
+    }
     ::CloseHandle(single_instance);
     return EXIT_SUCCESS;
   }

@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <cstdio>
+#include <cwchar>
 #include <string>
 #include <vector>
 
@@ -16,7 +17,7 @@ namespace {
 
 // How long the windows' thread may not answer before it counts as hung, and
 // how long the app may still be there once its message loop is over.
-constexpr UINT kHangMilliseconds = 6000;
+constexpr ULONGLONG kHangMilliseconds = 6000;
 constexpr ULONGLONG kExitMilliseconds = 10000;
 
 // The most reports a run writes: a hang that comes and goes is written a
@@ -27,6 +28,7 @@ constexpr int kMaxReports = 3;
 constexpr int kMaxFrames = 64;
 
 std::atomic<HWND> g_window{nullptr};
+std::atomic<ULONGLONG> g_answered{0};
 std::atomic<ULONGLONG> g_loop_ended{0};
 DWORD g_windows_thread = 0;
 
@@ -126,10 +128,10 @@ std::string Describe(HANDLE process, DWORD64 address) {
   return line;
 }
 
-// Each thread of the app (but this one), its name and stack, to |out|.
-void WriteThreads(FILE* out) {
-  const HANDLE process = ::GetCurrentProcess();
-  const DWORD process_id = ::GetCurrentProcessId();
+// Each thread of |process_id| (but the caller), its name and stack, to
+// |out|; |windows_thread| marked as the one the windows run on.
+void WriteThreads(FILE* out, HANDLE process, DWORD process_id,
+                  DWORD windows_thread) {
   const DWORD self = ::GetCurrentThreadId();
   const HANDLE snapshot = ::CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
   if (snapshot == INVALID_HANDLE_VALUE) {
@@ -153,7 +155,7 @@ void WriteThreads(FILE* out) {
     }
     std::fprintf(out, "\nThread %lu %s%s\n", entry.th32ThreadID,
                  ThreadName(thread).c_str(),
-                 entry.th32ThreadID == g_windows_thread
+                 entry.th32ThreadID == windows_thread
                      ? " [the windows' thread: Flutter's platform and UI]"
                      : "");
     // Only the context while it is held: nothing that could wait on a
@@ -177,7 +179,10 @@ void WriteThreads(FILE* out) {
   ::CloseHandle(snapshot);
 }
 
-void WriteReport(const char* reason) {
+// The report of |process| (this one, or the copy running: see
+// ReportRunningCopy), for |reason|: a minidump and a text report.
+void WriteReport(HANDLE process, DWORD process_id, DWORD windows_thread,
+                 const char* reason) {
   const std::wstring folder = ReportFolder();
   if (folder.empty()) {
     return;
@@ -185,15 +190,14 @@ void WriteReport(const char* reason) {
   SYSTEMTIME now = {};
   ::GetLocalTime(&now);
   wchar_t stamp[64];
-  std::swprintf(stamp, 64, L"\\hang-%04u%02u%02u-%02u%02u%02u",
+  std::swprintf(stamp, 64, L"\\hang-%04u%02u%02u-%02u%02u%02u-%lu",
                 static_cast<unsigned>(now.wYear),
                 static_cast<unsigned>(now.wMonth),
                 static_cast<unsigned>(now.wDay),
                 static_cast<unsigned>(now.wHour),
                 static_cast<unsigned>(now.wMinute),
-                static_cast<unsigned>(now.wSecond));
+                static_cast<unsigned>(now.wSecond), process_id);
   const std::wstring base = folder + stamp;
-  const HANDLE process = ::GetCurrentProcess();
 
   // The minidump first: it stands on its own, for a debugger.
   const HANDLE dump =
@@ -201,7 +205,7 @@ void WriteReport(const char* reason) {
                     CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (dump != INVALID_HANDLE_VALUE) {
     ::MiniDumpWriteDump(
-        process, ::GetCurrentProcessId(), dump,
+        process, process_id, dump,
         static_cast<MINIDUMP_TYPE>(MiniDumpWithThreadInfo |
                                    MiniDumpWithUnloadedModules |
                                    MiniDumpWithProcessThreadData),
@@ -216,7 +220,7 @@ void WriteReport(const char* reason) {
 #ifdef FLUTTER_VERSION
   std::fprintf(out, "BaoCode %s\n", FLUTTER_VERSION);
 #endif
-  std::fprintf(out, "%s\n", reason);
+  std::fprintf(out, "Process %lu: %s\n", process_id, reason);
   // The symbols of the modules loaded, from beside them only (the
   // executable's folder first): no network, no prompts.
   char executable[MAX_PATH] = {};
@@ -226,11 +230,16 @@ void WriteReport(const char* reason) {
   ::SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS |
                   SYMOPT_FAIL_CRITICAL_ERRORS | SYMOPT_NO_PROMPTS);
   const bool symbols = ::SymInitialize(process, search.c_str(), TRUE) != FALSE;
-  WriteThreads(out);
+  WriteThreads(out, process, process_id, windows_thread);
   if (symbols) {
     ::SymCleanup(process);
   }
   std::fclose(out);
+}
+
+void WriteOwnReport(const char* reason) {
+  WriteReport(::GetCurrentProcess(), ::GetCurrentProcessId(),
+              g_windows_thread, reason);
 }
 
 DWORD WINAPI Watch(LPVOID) {
@@ -240,33 +249,43 @@ DWORD WINAPI Watch(LPVOID) {
   bool written = false;
   while (reports < kMaxReports) {
     ::Sleep(1000);
+    const ULONGLONG now = ::GetTickCount64();
     const ULONGLONG ended = g_loop_ended.load();
     if (ended != 0) {
-      if (::GetTickCount64() - ended >= kExitMilliseconds) {
-        WriteReport("Still running 10 s after the message loop ended.");
+      if (now - ended >= kExitMilliseconds) {
+        WriteOwnReport("Still running 10 s after the message loop ended.");
         return 0;
       }
       continue;
     }
     const HWND window = g_window.load();
-    // Paused in a debugger, the thread answers no one.
-    if (window == nullptr || !::IsWindow(window) || ::IsDebuggerPresent()) {
+    if (window == nullptr || !::IsWindow(window)) {
       continue;
     }
-    DWORD_PTR answer = 0;
-    if (::SendMessageTimeoutW(window, WM_NULL, 0, 0, SMTO_BLOCK,
-                              kHangMilliseconds, &answer)) {
+    // Paused in a debugger, the thread answers no one.
+    if (::IsDebuggerPresent()) {
+      g_answered.store(now);
+      continue;
+    }
+    ::PostMessageW(window, kPingMessage, 0, 0);
+    if (now - g_answered.load() < kHangMilliseconds) {
       written = false;
       continue;
     }
-    if (::GetLastError() != ERROR_TIMEOUT || written) {
+    if (written) {
       continue;
     }
     written = true;
     ++reports;
-    WriteReport("The windows' thread did not answer for 6 s.");
+    WriteOwnReport("The windows' thread took no message for 6 s.");
   }
   return 0;
+}
+
+// The file name |path| ends in.
+const wchar_t* FileName(const wchar_t* path) {
+  const wchar_t* slash = std::wcsrchr(path, L'\\');
+  return slash == nullptr ? path : slash + 1;
 }
 
 }  // namespace
@@ -276,14 +295,74 @@ void Start(HWND window) {
     return;
   }
   g_windows_thread = ::GetCurrentThreadId();
+  g_answered.store(::GetTickCount64());
+  // There from the start: this copy watches itself.
+  ReportFolder();
   const HANDLE thread = ::CreateThread(nullptr, 0, Watch, nullptr, 0, nullptr);
   if (thread != nullptr) {
     ::CloseHandle(thread);
   }
 }
 
+void Answer() {
+  g_answered.store(::GetTickCount64());
+}
+
 void LoopEnded() {
   g_loop_ended.store(::GetTickCount64());
+}
+
+void ReportRunningCopy() {
+  // The other process of this executable's name: the copy running.
+  wchar_t executable[MAX_PATH] = {};
+  ::GetModuleFileNameW(nullptr, executable, MAX_PATH);
+  const wchar_t* name = FileName(executable);
+  const DWORD self = ::GetCurrentProcessId();
+  DWORD running = 0;
+  const HANDLE snapshot = ::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (snapshot == INVALID_HANDLE_VALUE) {
+    return;
+  }
+  PROCESSENTRY32W entry = {};
+  entry.dwSize = sizeof(entry);
+  for (BOOL more = ::Process32FirstW(snapshot, &entry); more;
+       more = ::Process32NextW(snapshot, &entry)) {
+    if (entry.th32ProcessID != self && _wcsicmp(entry.szExeFile, name) == 0) {
+      running = entry.th32ProcessID;
+      break;
+    }
+  }
+  ::CloseHandle(snapshot);
+  if (running == 0) {
+    return;
+  }
+  const HANDLE process =
+      ::OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ |
+                        PROCESS_DUP_HANDLE,
+                    FALSE, running);
+  if (process == nullptr) {
+    return;
+  }
+  // Its windows' thread: the one that made its first thread's windows, its
+  // main thread (the first the snapshot lists of it).
+  DWORD windows_thread = 0;
+  const HANDLE threads = ::CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+  if (threads != INVALID_HANDLE_VALUE) {
+    THREADENTRY32 thread = {};
+    thread.dwSize = sizeof(thread);
+    for (BOOL more = ::Thread32First(threads, &thread); more;
+         more = ::Thread32Next(threads, &thread)) {
+      if (thread.th32OwnerProcessID == running) {
+        windows_thread = thread.th32ThreadID;
+        break;
+      }
+    }
+    ::CloseHandle(threads);
+  }
+  WriteReport(process, running, windows_thread,
+              "Another copy, started to open paths, found this one not "
+              "taking them (or without a window).");
+  ::CloseHandle(process);
 }
 
 }  // namespace hang_watchdog
