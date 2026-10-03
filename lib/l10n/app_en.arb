@@ -3689,7 +3689,7 @@
   "modelsProtocolDescription": "OpenAI's APIs go through the local proxy, which translates Claude Code's requests and the answers.",
   "modelsBaseUrl": "Base URL",
   "modelsBaseUrlAnthropicHint": "Without /v1, as ANTHROPIC_BASE_URL: Claude Code adds /v1/messages.",
-  "modelsBaseUrlOpenAIHint": "With its version (…/v1); a host alone gets /v1.",
+  "modelsBaseUrlOpenAIHint": "As the upstream documents it; without a version in its path (…/v1), /v1 is added.",
   "modelsApiKey": "API Key",
   "modelsApiKeyDescription": "Kept in the system's keychain, not in settings.json.",
   "modelsApiKeyShow": "Show the key",
