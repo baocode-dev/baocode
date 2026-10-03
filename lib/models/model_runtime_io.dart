@@ -47,8 +47,9 @@ Future<List<RemoteModel>> listUpstreamModels(
       );
       final text = await utf8.decodeStream(response);
       if (response.statusCode >= 400) {
+        // Where it was asked: a wrong base URL shows in it.
         throw UpstreamException(
-          upstreamErrorMessage(response.statusCode, text),
+          '${upstreamErrorMessage(response.statusCode, text)} (GET $pageUrl)',
         );
       }
       final Object? json;

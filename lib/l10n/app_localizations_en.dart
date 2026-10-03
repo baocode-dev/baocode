@@ -5351,7 +5351,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get modelsBaseUrlOpenAIHint =>
-      'With its version (…/v1); a host alone gets /v1.';
+      'As the upstream documents it; without a version in its path (…/v1), /v1 is added.';
 
   @override
   String get modelsApiKey => 'API Key';

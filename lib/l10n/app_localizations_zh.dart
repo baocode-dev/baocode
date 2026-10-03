@@ -5003,7 +5003,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '不带 /v1，同 ANTHROPIC_BASE_URL：Claude Code 会自己加 /v1/messages。';
 
   @override
-  String get modelsBaseUrlOpenAIHint => '包含版本路径（…/v1）；只填域名时自动加 /v1。';
+  String get modelsBaseUrlOpenAIHint => '按上游文档填写；路径里没有版本号（…/v1）时自动加 /v1。';
 
   @override
   String get modelsApiKey => 'API Key';

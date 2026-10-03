@@ -205,6 +205,21 @@ void main() {
         UpstreamUrls.openaiBase('https://openrouter.ai/api/v1/'),
         'https://openrouter.ai/api/v1',
       );
+      // A gateway's prefix, without a version: /v1 under it.
+      expect(
+        UpstreamUrls.openaiBase('https://api.commandcode.ai/provider'),
+        'https://api.commandcode.ai/provider/v1',
+      );
+      expect(
+        UpstreamUrls.openaiBase('https://open.bigmodel.cn/api/paas/v4'),
+        'https://open.bigmodel.cn/api/paas/v4',
+      );
+      expect(
+        UpstreamUrls.openaiBase(
+          'https://generativelanguage.googleapis.com/v1beta/openai',
+        ),
+        'https://generativelanguage.googleapis.com/v1beta/openai',
+      );
       expect(
         UpstreamUrls.models(at('https://api.anthropic.com')).toString(),
         'https://api.anthropic.com/v1/models',

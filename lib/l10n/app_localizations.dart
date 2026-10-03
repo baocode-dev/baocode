@@ -8856,7 +8856,7 @@ abstract class AppLocalizations {
   /// No description provided for @modelsBaseUrlOpenAIHint.
   ///
   /// In en, this message translates to:
-  /// **'With its version (…/v1); a host alone gets /v1.'**
+  /// **'As the upstream documents it; without a version in its path (…/v1), /v1 is added.'**
   String get modelsBaseUrlOpenAIHint;
 
   /// No description provided for @modelsApiKey.

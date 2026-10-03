@@ -15,7 +15,8 @@ class RemoteModel {
 /// Anthropic's without the version (`https://api.anthropic.com`, Claude
 /// Code adds `/v1/messages`), OpenAI's with it
 /// (`https://api.openai.com/v1`, `/chat/completions` added). An OpenAI
-/// URL that is a bare host gets `/v1`.
+/// URL without a version in its path gets `/v1`: a bare host, or a
+/// gateway's prefix (`https://x.example/provider`).
 abstract final class UpstreamUrls {
   /// [baseUrl] without trailing slashes; null when it is not an http(s)
   /// URL.
@@ -38,12 +39,16 @@ abstract final class UpstreamUrls {
     return text.endsWith('/v1') ? text.substring(0, text.length - 3) : text;
   }
 
-  /// The base OpenAI's paths go under: with its version.
+  /// The base OpenAI's paths go under: with its version (`v1`, `v4`,
+  /// `v1beta`, anywhere in the path), `/v1` added if it has none.
   static String? openaiBase(String baseUrl) {
     final uri = parse(baseUrl);
     if (uri == null) return null;
-    return uri.path.isEmpty || uri.path == '/' ? '$uri/v1' : '$uri';
+    final versioned = uri.pathSegments.any(_version.hasMatch);
+    return versioned ? '$uri' : '$uri/v1';
   }
+
+  static final _version = RegExp(r'^v\d+[a-z0-9.]*$', caseSensitive: false);
 
   /// Where [provider] lists its models.
   static Uri? models(ModelProvider provider) => switch (provider.protocol) {
