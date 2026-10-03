@@ -56,6 +56,10 @@ abstract final class ChatCommandIds {
   static const focusNextPane = 'baocode.chat.focusNextPane';
   static const focusPreviousPane = 'baocode.chat.focusPreviousPane';
   static const searchAgents = 'baocode.chat.searchAgents';
+
+  /// The search palette, on everything: agents, what was said in them,
+  /// files, actions, settings.
+  static const search = 'baocode.chat.search';
   static const openIde = 'baocode.chat.openIde';
 
   /// The IDE's chat's: closes the tab shown.
@@ -161,6 +165,7 @@ final List<CommandInfo> chatExtraCommands = [
       ('${ChatCommandIds.focusPane}$i', 'Focus Pane $i'),
     (ChatCommandIds.focusNextPane, 'Focus Next Pane'),
     (ChatCommandIds.focusPreviousPane, 'Focus Previous Pane'),
+    (ChatCommandIds.search, 'Search'),
     (ChatCommandIds.searchAgents, 'Search Agents'),
     (ChatCommandIds.openIde, 'Open in Fast Ide'),
     (ChatCommandIds.closeTab, 'Close Chat'),
@@ -296,6 +301,20 @@ final List<KeybindingEntry> chatExtraKeybindings = [
       command: '${ChatCommandIds.focusPane}$i',
       when: _window,
     ),
+  // Search: over Go to File and Show All Commands in the chat layout (the
+  // IDE keeps them), ⇧⌘P the one shown.
+  const KeybindingEntry(
+    key: 'ctrl+p',
+    mac: 'cmd+p',
+    command: ChatCommandIds.search,
+    when: _window,
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+shift+p',
+    mac: 'shift+cmd+p',
+    command: ChatCommandIds.search,
+    when: _window,
+  ),
   const KeybindingEntry(
     key: 'ctrl+shift+f',
     mac: 'shift+cmd+f',

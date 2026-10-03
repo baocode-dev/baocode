@@ -338,6 +338,12 @@ abstract class AppLocalizations {
   /// **'Focus Previous Pane'**
   String get cmdChatFocusPreviousPane;
 
+  /// No description provided for @cmdChatSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get cmdChatSearch;
+
   /// No description provided for @cmdChatSearchAgents.
   ///
   /// In en, this message translates to:
@@ -8018,6 +8024,366 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'More…'**
   String get menuMore;
+
+  /// No description provided for @sidebarSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get sidebarSearch;
+
+  /// No description provided for @sidebarCustomize.
+  ///
+  /// In en, this message translates to:
+  /// **'Customize'**
+  String get sidebarCustomize;
+
+  /// No description provided for @palettePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Search agents, conversations, files, actions…'**
+  String get palettePlaceholder;
+
+  /// No description provided for @paletteFilterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get paletteFilterAll;
+
+  /// No description provided for @paletteFilterAgents.
+  ///
+  /// In en, this message translates to:
+  /// **'Agents'**
+  String get paletteFilterAgents;
+
+  /// No description provided for @paletteFilterFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get paletteFilterFiles;
+
+  /// No description provided for @paletteFilterActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Actions'**
+  String get paletteFilterActions;
+
+  /// No description provided for @paletteFilterSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get paletteFilterSettings;
+
+  /// No description provided for @paletteRecentAgents.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent Agents'**
+  String get paletteRecentAgents;
+
+  /// No description provided for @paletteRecentActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent Actions'**
+  String get paletteRecentActions;
+
+  /// No description provided for @paletteMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'In Conversations'**
+  String get paletteMessages;
+
+  /// No description provided for @paletteFilesIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Files in {project}'**
+  String paletteFilesIn(String project);
+
+  /// No description provided for @paletteSearching.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching…'**
+  String get paletteSearching;
+
+  /// No description provided for @paletteNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No results'**
+  String get paletteNoResults;
+
+  /// No description provided for @paletteNoProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a project to search its files'**
+  String get paletteNoProject;
+
+  /// No description provided for @paletteTypeToSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Type to search'**
+  String get paletteTypeToSearch;
+
+  /// No description provided for @paletteHintSelect.
+  ///
+  /// In en, this message translates to:
+  /// **'Select'**
+  String get paletteHintSelect;
+
+  /// No description provided for @paletteHintOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get paletteHintOpen;
+
+  /// No description provided for @paletteHintChangeFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Filter'**
+  String get paletteHintChangeFilter;
+
+  /// No description provided for @customizeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Customize'**
+  String get customizeTitle;
+
+  /// No description provided for @customizeSearchPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Search plugins, skills, MCPs…'**
+  String get customizeSearchPlaceholder;
+
+  /// No description provided for @customizeKindPlugins.
+  ///
+  /// In en, this message translates to:
+  /// **'Plugins'**
+  String get customizeKindPlugins;
+
+  /// No description provided for @customizeKindMcps.
+  ///
+  /// In en, this message translates to:
+  /// **'MCPs'**
+  String get customizeKindMcps;
+
+  /// No description provided for @customizeKindSkills.
+  ///
+  /// In en, this message translates to:
+  /// **'Skills'**
+  String get customizeKindSkills;
+
+  /// No description provided for @customizeKindSubagents.
+  ///
+  /// In en, this message translates to:
+  /// **'Subagents'**
+  String get customizeKindSubagents;
+
+  /// No description provided for @customizeKindRules.
+  ///
+  /// In en, this message translates to:
+  /// **'Rules'**
+  String get customizeKindRules;
+
+  /// No description provided for @customizeKindCommands.
+  ///
+  /// In en, this message translates to:
+  /// **'Commands'**
+  String get customizeKindCommands;
+
+  /// No description provided for @customizeKindHooks.
+  ///
+  /// In en, this message translates to:
+  /// **'Hooks'**
+  String get customizeKindHooks;
+
+  /// No description provided for @customizeScopeUser.
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get customizeScopeUser;
+
+  /// No description provided for @customizeScopeProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Project'**
+  String get customizeScopeProject;
+
+  /// No description provided for @customizeScopeLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Local'**
+  String get customizeScopeLocal;
+
+  /// No description provided for @customizeScopePlugin.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed'**
+  String get customizeScopePlugin;
+
+  /// No description provided for @customizeUserOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'User only'**
+  String get customizeUserOnly;
+
+  /// No description provided for @customizeNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New'**
+  String get customizeNew;
+
+  /// No description provided for @customizeEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing here yet'**
+  String get customizeEmpty;
+
+  /// No description provided for @customizeNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No matches'**
+  String get customizeNoMatches;
+
+  /// No description provided for @customizeUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Customizing Claude Code needs the desktop app.'**
+  String get customizeUnsupported;
+
+  /// No description provided for @customizeSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get customizeSave;
+
+  /// No description provided for @customizeRevert.
+  ///
+  /// In en, this message translates to:
+  /// **'Revert'**
+  String get customizeRevert;
+
+  /// No description provided for @customizeSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get customizeSaved;
+
+  /// No description provided for @customizeUnsaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsaved changes'**
+  String get customizeUnsaved;
+
+  /// No description provided for @customizeEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get customizeEdit;
+
+  /// No description provided for @customizeReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Read only: Claude Code keeps this file itself.'**
+  String get customizeReadOnly;
+
+  /// No description provided for @customizeEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled'**
+  String get customizeEnabled;
+
+  /// No description provided for @customizeDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get customizeDisabled;
+
+  /// No description provided for @customizeBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get customizeBack;
+
+  /// No description provided for @customizeClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close Customize'**
+  String get customizeClose;
+
+  /// No description provided for @customizeDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {name}?'**
+  String customizeDeleteTitle(String name);
+
+  /// No description provided for @customizeDeleteMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes {path} and cannot be undone.'**
+  String customizeDeleteMessage(String path);
+
+  /// No description provided for @customizeNewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New {kind}'**
+  String customizeNewTitle(String kind);
+
+  /// No description provided for @customizeNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'name'**
+  String get customizeNameHint;
+
+  /// No description provided for @customizeNameInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Letters, digits, - and _ only (up to 64)'**
+  String get customizeNameInvalid;
+
+  /// No description provided for @customizeNameTaken.
+  ///
+  /// In en, this message translates to:
+  /// **'One by that name already exists'**
+  String get customizeNameTaken;
+
+  /// No description provided for @customizeCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get customizeCreate;
+
+  /// No description provided for @customizeLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t read: {error}'**
+  String customizeLoadFailed(String error);
+
+  /// No description provided for @customizeSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save: {error}'**
+  String customizeSaveFailed(String error);
+
+  /// No description provided for @settingsBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get settingsBack;
+
+  /// No description provided for @settingsSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Settings'**
+  String get settingsSearch;
+
+  /// No description provided for @customizeScopeSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Synced from claude.ai'**
+  String get customizeScopeSynced;
+
+  /// No description provided for @customizeSyncedReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Read only: synced from claude.ai, which would write over changes made here.'**
+  String get customizeSyncedReadOnly;
 }
 
 class _AppLocalizationsDelegate

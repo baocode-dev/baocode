@@ -142,6 +142,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdChatFocusPreviousPane => '聚焦上一个窗格';
 
   @override
+  String get cmdChatSearch => '搜索';
+
+  @override
   String get cmdChatSearchAgents => '搜索智能体';
 
   @override
@@ -4545,4 +4548,196 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get menuMore => '更多…';
+
+  @override
+  String get sidebarSearch => '搜索';
+
+  @override
+  String get sidebarCustomize => '自定义';
+
+  @override
+  String get palettePlaceholder => '搜索智能体、对话内容、文件、操作…';
+
+  @override
+  String get paletteFilterAll => '全部';
+
+  @override
+  String get paletteFilterAgents => '智能体';
+
+  @override
+  String get paletteFilterFiles => '文件';
+
+  @override
+  String get paletteFilterActions => '操作';
+
+  @override
+  String get paletteFilterSettings => '设置';
+
+  @override
+  String get paletteRecentAgents => '最近的智能体';
+
+  @override
+  String get paletteRecentActions => '最近的操作';
+
+  @override
+  String get paletteMessages => '对话内容';
+
+  @override
+  String paletteFilesIn(String project) {
+    return '$project 中的文件';
+  }
+
+  @override
+  String get paletteSearching => '正在搜索…';
+
+  @override
+  String get paletteNoResults => '无结果';
+
+  @override
+  String get paletteNoProject => '打开项目后可搜索其文件';
+
+  @override
+  String get paletteTypeToSearch => '输入以搜索';
+
+  @override
+  String get paletteHintSelect => '选择';
+
+  @override
+  String get paletteHintOpen => '打开';
+
+  @override
+  String get paletteHintChangeFilter => '切换筛选';
+
+  @override
+  String get customizeTitle => '自定义';
+
+  @override
+  String get customizeSearchPlaceholder => '搜索插件、技能、MCP…';
+
+  @override
+  String get customizeKindPlugins => '插件';
+
+  @override
+  String get customizeKindMcps => 'MCP';
+
+  @override
+  String get customizeKindSkills => '技能';
+
+  @override
+  String get customizeKindSubagents => '子智能体';
+
+  @override
+  String get customizeKindRules => '规则';
+
+  @override
+  String get customizeKindCommands => '命令';
+
+  @override
+  String get customizeKindHooks => '钩子';
+
+  @override
+  String get customizeScopeUser => '用户';
+
+  @override
+  String get customizeScopeProject => '项目';
+
+  @override
+  String get customizeScopeLocal => '本地';
+
+  @override
+  String get customizeScopePlugin => '已安装';
+
+  @override
+  String get customizeUserOnly => '仅用户';
+
+  @override
+  String get customizeNew => '新建';
+
+  @override
+  String get customizeEmpty => '暂无内容';
+
+  @override
+  String get customizeNoMatches => '无匹配项';
+
+  @override
+  String get customizeUnsupported => '自定义 Claude Code 需要桌面版应用。';
+
+  @override
+  String get customizeSave => '保存';
+
+  @override
+  String get customizeRevert => '还原';
+
+  @override
+  String get customizeSaved => '已保存';
+
+  @override
+  String get customizeUnsaved => '有未保存的更改';
+
+  @override
+  String get customizeEdit => '编辑';
+
+  @override
+  String get customizeReadOnly => '只读：此文件由 Claude Code 自行维护。';
+
+  @override
+  String get customizeEnabled => '已启用';
+
+  @override
+  String get customizeDisabled => '已停用';
+
+  @override
+  String get customizeBack => '返回';
+
+  @override
+  String get customizeClose => '关闭自定义';
+
+  @override
+  String customizeDeleteTitle(String name) {
+    return '删除 $name？';
+  }
+
+  @override
+  String customizeDeleteMessage(String path) {
+    return '将删除 $path，且无法撤销。';
+  }
+
+  @override
+  String customizeNewTitle(String kind) {
+    return '新建$kind';
+  }
+
+  @override
+  String get customizeNameHint => '名称';
+
+  @override
+  String get customizeNameInvalid => '只能使用字母、数字、- 和 _（最多 64 个）';
+
+  @override
+  String get customizeNameTaken => '已存在同名项';
+
+  @override
+  String get customizeCreate => '创建';
+
+  @override
+  String customizeLoadFailed(String error) {
+    return '无法读取：$error';
+  }
+
+  @override
+  String customizeSaveFailed(String error) {
+    return '无法保存：$error';
+  }
+
+  @override
+  String get settingsBack => '返回';
+
+  @override
+  String get settingsSearch => '搜索设置';
+
+  @override
+  String get customizeScopeSynced => '从 claude.ai 同步';
+
+  @override
+  String get customizeSyncedReadOnly => '只读：此技能从 claude.ai 同步，本地修改会在下次同步时被覆盖。';
 }

@@ -138,6 +138,8 @@ void main() {
         ),
       ),
     );
+    await tester.ensureVisible(find.text('Quit Now'));
+    await tester.pump();
     await tester.tap(find.text('Quit Now'));
     await tester.pump();
     expect(calls.map((call) => call.method), ['quit']);

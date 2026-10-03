@@ -1,10 +1,9 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
+import '../workspace/title_bar_double_click.dart';
+import '../workspace/window_controls.dart';
 import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
@@ -48,10 +47,8 @@ Future<void> showSettingsDialog(
   required SettingsPageBuilder pageBuilder,
 }) => showGeneralDialog<void>(
   context: context,
-  barrierDismissible: true,
   barrierLabel: 'Dismiss',
-  // Black, not the theme's: as upstream's dialogs dim the window.
-  barrierColor: const Color(0x88000000),
+  barrierColor: const Color(0x00000000),
   transitionDuration: const Duration(milliseconds: 120),
   transitionBuilder: (context, animation, _, child) =>
       FadeTransition(opacity: animation, child: child),
@@ -59,8 +56,9 @@ Future<void> showSettingsDialog(
       SettingsDialog(section: section, pageBuilder: pageBuilder),
 );
 
-/// The dialog [showSettingsDialog] shows: about 900×640, smaller in a
-/// smaller window.
+/// What [showSettingsDialog] shows, over the whole window: the pages
+/// listed at the left under Back and a search of them, as Cursor's
+/// settings; the page shown at the right, in a column of its own width.
 class SettingsDialog extends StatefulWidget {
   const SettingsDialog({
     super.key,
@@ -71,11 +69,9 @@ class SettingsDialog extends StatefulWidget {
   final SettingsSection section;
   final SettingsPageBuilder pageBuilder;
 
-  static const maxWidth = 900.0;
-  static const maxHeight = 640.0;
-
-  /// Kept between it and the window's edges.
-  static const margin = 24.0;
+  /// The pages' list, narrower in a narrow window.
+  static const navWidth = 240.0;
+  static const narrowNavWidth = 180.0;
 
   @override
   State<SettingsDialog> createState() => SettingsDialogState();
@@ -89,7 +85,7 @@ class SettingsDialogState extends State<SettingsDialog> {
   /// Shows [section]'s page.
   void show(SettingsSection section) => setState(() => _section = section);
 
-  static IconData _icon(SettingsSection section) => switch (section) {
+  static IconData icon(SettingsSection section) => switch (section) {
     SettingsSection.general => Codicons.settingsGear,
     SettingsSection.notifications => Codicons.bell,
     SettingsSection.language => Codicons.globe,
@@ -116,79 +112,65 @@ class SettingsDialogState extends State<SettingsDialog> {
     };
   }
 
+  final TextEditingController _search = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _search.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _close() => Navigator.of(context).maybePop();
+
   @override
   Widget build(BuildContext context) {
-    final colors = themeColors;
-    final size = MediaQuery.sizeOf(context);
-    final width = math.max(
-      0.0,
-      math.min(SettingsDialog.maxWidth, size.width - 2 * SettingsDialog.margin),
-    );
-    final height = math.max(
-      0.0,
-      math.min(
-        SettingsDialog.maxHeight,
-        size.height - 2 * SettingsDialog.margin,
-      ),
-    );
-    // The list narrows before the page does.
-    final navWidth = width < 640 ? 150.0 : 200.0;
+    final width = MediaQuery.sizeOf(context).width;
+    // On Windows the window's own header stays above it.
+    final top = WindowControls.drawsHeader ? AppMetrics.headerHeight : 0.0;
     return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): () =>
-            Navigator.of(context).maybePop(),
-      },
+      bindings: {const SingleActivator(LogicalKeyboardKey.escape): _close},
       child: FocusScope(
         autofocus: true,
-        child: Center(
+        child: Padding(
+          padding: EdgeInsets.only(top: top),
           child: Material(
-            type: MaterialType.transparency,
-            child: Container(
-              width: width,
-              height: height,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(10),
-                border: switch (colors.get('contrastBorder')) {
-                  final border? => Border.all(color: border),
-                  null => Border.all(color: AppColors.border),
-                },
-                boxShadow: [
-                  BoxShadow(
-                    color: colors['widget.shadow'],
-                    blurRadius: 32,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(width: navWidth, child: _nav(context)),
-                  Container(width: 1, color: AppColors.border),
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: KeyedSubtree(
-                            key: ValueKey(_section),
-                            child: widget.pageBuilder(context, _section),
-                          ),
+            color: AppColors.code,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: width < 720
+                      ? SettingsDialog.narrowNavWidth
+                      : SettingsDialog.navWidth,
+                  child: _nav(context),
+                ),
+                Container(width: 1, color: AppColors.border),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Room for the window to be dragged by, as the chat's
+                      // title bar has.
+                      if (top == 0)
+                        const TitleBarDoubleClick(
+                          child: SizedBox(height: AppMetrics.titleBarHeight),
                         ),
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: _CloseButton(
-                            tooltip: context.l10n.commonClose,
-                            onTap: () => Navigator.of(context).maybePop(),
-                          ),
+                      Expanded(
+                        child: KeyedSubtree(
+                          key: ValueKey(_section),
+                          child: widget.pageBuilder(context, _section),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -196,45 +178,102 @@ class SettingsDialogState extends State<SettingsDialog> {
     );
   }
 
+  /// The sections whose name has what is searched for.
+  bool _matches(SettingsSection section) {
+    final query = _search.text.trim().toLowerCase();
+    return query.isEmpty ||
+        label(context, section).toLowerCase().contains(query) ||
+        section.name.toLowerCase().contains(query);
+  }
+
   Widget _nav(BuildContext context) {
+    final l10n = context.l10n;
+    final colors = themeColors;
+    final groups = [
+      for (final category in SettingsCategory.values)
+        [
+          for (final section in category.sections)
+            if (_matches(section)) section,
+        ],
+    ].where((sections) => sections.isNotEmpty).toList();
     return ColoredBox(
       color: AppColors.background,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Under the traffic lights.
+          if (!WindowControls.drawsHeader)
+            const TitleBarDoubleClick(
+              child: SizedBox(height: AppMetrics.titleBarHeight),
+            ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-            child: Text(
-              context.l10n.settingsTitle,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+            child: _NavItem(
+              icon: Codicons.arrowLeft,
+              label: l10n.settingsBack,
+              selected: false,
+              muted: true,
+              onTap: _close,
             ),
           ),
-          for (final (i, category) in SettingsCategory.values.indexed) ...[
-            Padding(
-              padding: EdgeInsets.fromLTRB(10, i == 0 ? 0 : 14, 10, 6),
-              child: Text(
-                categoryLabel(context, category),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
+            child: SizedBox(
+              height: 28,
+              child: TextField(
+                controller: _search,
                 style: TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+                  color: colors['input.foreground'],
+                  fontSize: 12.5,
+                ),
+                cursorColor: AppColors.text,
+                cursorHeight: 14,
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: l10n.settingsSearch,
+                  hintStyle: TextStyle(
+                    color: colors['input.placeholderForeground'],
+                    fontSize: 12.5,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    size: 15,
+                    color: AppColors.textFaint,
+                  ),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 30),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 7),
+                  filled: true,
+                  fillColor: colors['input.background'],
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: AppColors.borderStrong),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: colors['focusBorder']),
+                  ),
                 ),
               ),
             ),
-            for (final section in category.sections)
-              _NavItem(
-                icon: _icon(section),
-                label: label(context, section),
-                selected: section == _section,
-                onTap: () => show(section),
-              ),
-          ],
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              children: [
+                for (final (i, sections) in groups.indexed) ...[
+                  // Groups apart, as Cursor's: by room, not headings.
+                  if (i > 0) const SizedBox(height: 14),
+                  for (final section in sections)
+                    _NavItem(
+                      icon: icon(section),
+                      label: label(context, section),
+                      selected: section == _section,
+                      onTap: () => show(section),
+                    ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -247,12 +286,16 @@ class _NavItem extends StatefulWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.muted = false,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
+
+  /// Not a page: Back.
+  final bool muted;
 
   @override
   State<_NavItem> createState() => _NavItemState();
@@ -277,7 +320,7 @@ class _NavItemState extends State<_NavItem> {
           onTap: widget.onTap,
           child: Container(
             height: 30,
-            margin: const EdgeInsets.only(bottom: 2),
+            margin: const EdgeInsets.only(bottom: 1),
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
               color: selected
@@ -292,7 +335,9 @@ class _NavItemState extends State<_NavItem> {
                 Icon(
                   widget.icon,
                   size: 15,
-                  color: selected ? AppColors.text : AppColors.textMuted,
+                  color: selected && !widget.muted
+                      ? AppColors.text
+                      : AppColors.textMuted,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -301,53 +346,17 @@ class _NavItemState extends State<_NavItem> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: selected ? AppColors.textPrimary : AppColors.text,
+                      color: widget.muted
+                          ? AppColors.textMuted
+                          : selected
+                          ? AppColors.textPrimary
+                          : AppColors.text,
                       fontSize: 13,
                     ),
                   ),
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CloseButton extends StatefulWidget {
-  const _CloseButton({required this.tooltip, required this.onTap});
-
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  State<_CloseButton> createState() => _CloseButtonState();
-}
-
-class _CloseButtonState extends State<_CloseButton> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    // The workbench hover, as the app's other buttons have. Escape closes
-    // the dialog too, but is no keybinding of a command: not shown.
-    return IdeHover(
-      message: widget.tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              color: _hover ? AppColors.hover : null,
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Icon(Codicons.close, size: 15, color: AppColors.textMuted),
           ),
         ),
       ),

@@ -57,15 +57,8 @@ void main() {
     await _press(tester, LogicalKeyboardKey.comma, meta: true);
     expect(_section(tester), SettingsSection.general);
     expect(find.text('General'), findsWidgets);
-    final size = tester.getSize(
-      find
-          .descendant(
-            of: find.byType(SettingsDialog),
-            matching: find.byType(Container),
-          )
-          .first,
-    );
-    expect(size, const Size(SettingsDialog.maxWidth, SettingsDialog.maxHeight));
+    // Over the whole window, as Cursor's settings.
+    expect(tester.getSize(find.byType(SettingsDialog)), const Size(1400, 900));
 
     await _press(tester, LogicalKeyboardKey.escape);
     expect(_section(tester), isNull);
@@ -169,7 +162,7 @@ void main() {
     expect(_section(tester), SettingsSection.general);
   }, variant: _mac);
 
-  testWidgets('the dialog shrinks with the window, and switches pages', (
+  testWidgets('the settings fill the window, find and switch pages', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(700, 500);
@@ -190,29 +183,21 @@ void main() {
     );
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
-    final box = find
-        .descendant(
-          of: find.byType(SettingsDialog),
-          matching: find.byType(Container),
-        )
-        .first;
-    expect(tester.getSize(box), const Size(700 - 48, 500 - 48));
+    expect(tester.getSize(find.byType(SettingsDialog)), const Size(700, 500));
     expect(find.text('page general'), findsOneWidget);
-    // The pages listed under their headings.
-    expect(find.text('Preferences'), findsOneWidget);
-    expect(find.text('Advanced'), findsOneWidget);
-    expect(
-      tester.getTopLeft(find.text('Advanced')).dy,
-      greaterThan(tester.getTopLeft(find.text('Keyboard Shortcuts')).dy),
-    );
+    // The pages listed in their groups' order.
     expect(
       tester.getTopLeft(find.text('Data Directory')).dy,
-      greaterThan(tester.getTopLeft(find.text('Advanced')).dy),
+      greaterThan(tester.getTopLeft(find.text('Keyboard Shortcuts')).dy),
     );
+    // The search keeps the pages it names.
+    await tester.enterText(find.byType(TextField), 'data');
+    await tester.pump();
+    expect(find.text('Keyboard Shortcuts'), findsNothing);
     await tester.tap(find.text('Data Directory'));
     await tester.pumpAndSettle();
     expect(find.text('page dataDirectory'), findsOneWidget);
-    await tester.tap(find.byTooltip('Close'));
+    await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
     expect(find.byType(SettingsDialog), findsNothing);
   });

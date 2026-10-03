@@ -143,6 +143,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdChatFocusPreviousPane => 'Focus Previous Pane';
 
   @override
+  String get cmdChatSearch => 'Search';
+
+  @override
   String get cmdChatSearchAgents => 'Search Agents';
 
   @override
@@ -4875,4 +4878,200 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get menuMore => 'More…';
+
+  @override
+  String get sidebarSearch => 'Search';
+
+  @override
+  String get sidebarCustomize => 'Customize';
+
+  @override
+  String get palettePlaceholder =>
+      'Search agents, conversations, files, actions…';
+
+  @override
+  String get paletteFilterAll => 'All';
+
+  @override
+  String get paletteFilterAgents => 'Agents';
+
+  @override
+  String get paletteFilterFiles => 'Files';
+
+  @override
+  String get paletteFilterActions => 'Actions';
+
+  @override
+  String get paletteFilterSettings => 'Settings';
+
+  @override
+  String get paletteRecentAgents => 'Recent Agents';
+
+  @override
+  String get paletteRecentActions => 'Recent Actions';
+
+  @override
+  String get paletteMessages => 'In Conversations';
+
+  @override
+  String paletteFilesIn(String project) {
+    return 'Files in $project';
+  }
+
+  @override
+  String get paletteSearching => 'Searching…';
+
+  @override
+  String get paletteNoResults => 'No results';
+
+  @override
+  String get paletteNoProject => 'Open a project to search its files';
+
+  @override
+  String get paletteTypeToSearch => 'Type to search';
+
+  @override
+  String get paletteHintSelect => 'Select';
+
+  @override
+  String get paletteHintOpen => 'Open';
+
+  @override
+  String get paletteHintChangeFilter => 'Change Filter';
+
+  @override
+  String get customizeTitle => 'Customize';
+
+  @override
+  String get customizeSearchPlaceholder => 'Search plugins, skills, MCPs…';
+
+  @override
+  String get customizeKindPlugins => 'Plugins';
+
+  @override
+  String get customizeKindMcps => 'MCPs';
+
+  @override
+  String get customizeKindSkills => 'Skills';
+
+  @override
+  String get customizeKindSubagents => 'Subagents';
+
+  @override
+  String get customizeKindRules => 'Rules';
+
+  @override
+  String get customizeKindCommands => 'Commands';
+
+  @override
+  String get customizeKindHooks => 'Hooks';
+
+  @override
+  String get customizeScopeUser => 'User';
+
+  @override
+  String get customizeScopeProject => 'Project';
+
+  @override
+  String get customizeScopeLocal => 'Local';
+
+  @override
+  String get customizeScopePlugin => 'Installed';
+
+  @override
+  String get customizeUserOnly => 'User only';
+
+  @override
+  String get customizeNew => 'New';
+
+  @override
+  String get customizeEmpty => 'Nothing here yet';
+
+  @override
+  String get customizeNoMatches => 'No matches';
+
+  @override
+  String get customizeUnsupported =>
+      'Customizing Claude Code needs the desktop app.';
+
+  @override
+  String get customizeSave => 'Save';
+
+  @override
+  String get customizeRevert => 'Revert';
+
+  @override
+  String get customizeSaved => 'Saved';
+
+  @override
+  String get customizeUnsaved => 'Unsaved changes';
+
+  @override
+  String get customizeEdit => 'Edit';
+
+  @override
+  String get customizeReadOnly =>
+      'Read only: Claude Code keeps this file itself.';
+
+  @override
+  String get customizeEnabled => 'Enabled';
+
+  @override
+  String get customizeDisabled => 'Disabled';
+
+  @override
+  String get customizeBack => 'Back';
+
+  @override
+  String get customizeClose => 'Close Customize';
+
+  @override
+  String customizeDeleteTitle(String name) {
+    return 'Delete $name?';
+  }
+
+  @override
+  String customizeDeleteMessage(String path) {
+    return 'This removes $path and cannot be undone.';
+  }
+
+  @override
+  String customizeNewTitle(String kind) {
+    return 'New $kind';
+  }
+
+  @override
+  String get customizeNameHint => 'name';
+
+  @override
+  String get customizeNameInvalid => 'Letters, digits, - and _ only (up to 64)';
+
+  @override
+  String get customizeNameTaken => 'One by that name already exists';
+
+  @override
+  String get customizeCreate => 'Create';
+
+  @override
+  String customizeLoadFailed(String error) {
+    return 'Couldn\'t read: $error';
+  }
+
+  @override
+  String customizeSaveFailed(String error) {
+    return 'Couldn\'t save: $error';
+  }
+
+  @override
+  String get settingsBack => 'Back';
+
+  @override
+  String get settingsSearch => 'Search Settings';
+
+  @override
+  String get customizeScopeSynced => 'Synced from claude.ai';
+
+  @override
+  String get customizeSyncedReadOnly =>
+      'Read only: synced from claude.ai, which would write over changes made here.';
 }

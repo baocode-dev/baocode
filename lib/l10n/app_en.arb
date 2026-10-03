@@ -127,6 +127,7 @@
   },
   "cmdChatFocusNextPane": "Focus Next Pane",
   "cmdChatFocusPreviousPane": "Focus Previous Pane",
+  "cmdChatSearch": "Search",
   "cmdChatSearchAgents": "Search Agents",
   "cmdChatOpenIde": "Open in Fast Ide",
   "cmdChatFocusInput": "Focus Chat Input",
@@ -3445,5 +3446,107 @@
   "generalSettingsShellCommandOccupied": "Another app's command is installed",
   "generalSettingsShellCommandInstall": "Install",
   "generalSettingsShellCommandUninstall": "Uninstall",
-  "menuMore": "More…"
+  "menuMore": "More…",
+  "sidebarSearch": "Search",
+  "sidebarCustomize": "Customize",
+  "palettePlaceholder": "Search agents, conversations, files, actions…",
+  "paletteFilterAll": "All",
+  "paletteFilterAgents": "Agents",
+  "paletteFilterFiles": "Files",
+  "paletteFilterActions": "Actions",
+  "paletteFilterSettings": "Settings",
+  "paletteRecentAgents": "Recent Agents",
+  "paletteRecentActions": "Recent Actions",
+  "paletteMessages": "In Conversations",
+  "paletteFilesIn": "Files in {project}",
+  "@paletteFilesIn": {
+    "placeholders": {
+      "project": {
+        "type": "String"
+      }
+    }
+  },
+  "paletteSearching": "Searching…",
+  "paletteNoResults": "No results",
+  "paletteNoProject": "Open a project to search its files",
+  "paletteTypeToSearch": "Type to search",
+  "paletteHintSelect": "Select",
+  "paletteHintOpen": "Open",
+  "paletteHintChangeFilter": "Change Filter",
+  "customizeTitle": "Customize",
+  "customizeSearchPlaceholder": "Search plugins, skills, MCPs…",
+  "customizeKindPlugins": "Plugins",
+  "customizeKindMcps": "MCPs",
+  "customizeKindSkills": "Skills",
+  "customizeKindSubagents": "Subagents",
+  "customizeKindRules": "Rules",
+  "customizeKindCommands": "Commands",
+  "customizeKindHooks": "Hooks",
+  "customizeScopeUser": "User",
+  "customizeScopeProject": "Project",
+  "customizeScopeLocal": "Local",
+  "customizeScopePlugin": "Installed",
+  "customizeUserOnly": "User only",
+  "customizeNew": "New",
+  "customizeEmpty": "Nothing here yet",
+  "customizeNoMatches": "No matches",
+  "customizeUnsupported": "Customizing Claude Code needs the desktop app.",
+  "customizeSave": "Save",
+  "customizeRevert": "Revert",
+  "customizeSaved": "Saved",
+  "customizeUnsaved": "Unsaved changes",
+  "customizeEdit": "Edit",
+  "customizeReadOnly": "Read only: Claude Code keeps this file itself.",
+  "customizeEnabled": "Enabled",
+  "customizeDisabled": "Disabled",
+  "customizeBack": "Back",
+  "customizeClose": "Close Customize",
+  "customizeDeleteTitle": "Delete {name}?",
+  "@customizeDeleteTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "customizeDeleteMessage": "This removes {path} and cannot be undone.",
+  "@customizeDeleteMessage": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "customizeNewTitle": "New {kind}",
+  "@customizeNewTitle": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "customizeNameHint": "name",
+  "customizeNameInvalid": "Letters, digits, - and _ only (up to 64)",
+  "customizeNameTaken": "One by that name already exists",
+  "customizeCreate": "Create",
+  "customizeLoadFailed": "Couldn't read: {error}",
+  "@customizeLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "customizeSaveFailed": "Couldn't save: {error}",
+  "@customizeSaveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsBack": "Back",
+  "settingsSearch": "Search Settings",
+  "customizeScopeSynced": "Synced from claude.ai",
+  "customizeSyncedReadOnly": "Read only: synced from claude.ai, which would write over changes made here."
 }

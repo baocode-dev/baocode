@@ -13,13 +13,18 @@ import 'chat/chat_models.dart' show FileChange, FileChangeKind;
 import 'chat/chat_screen.dart';
 import 'chat/composer/file_drop.dart';
 import 'chat/panels/interaction_panel.dart';
+import 'customize/customization_store.dart';
+import 'customize/customizations.dart';
+import 'customize/customize_view.dart';
 import 'ide/git/git_repository.dart';
 import 'ide/ide_chat_title.dart';
 import 'ide/ide_commands.dart';
 import 'ide/ide_dialog.dart';
 import 'ide/ide_modern_ui.dart';
 import 'ide/ide_notifications.dart';
+import 'ide/file_service.dart';
 import 'ide/ide_quick_input.dart';
+import 'ide/ide_quick_open.dart';
 import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
 import 'ide/lsp/language_features.dart';
@@ -29,6 +34,7 @@ import 'keybindings/chat_keybindings.dart';
 import 'keybindings/default_keybindings.dart';
 import 'keybindings/key_chord.dart';
 import 'keybindings/keybinding_service.dart';
+import 'l10n/command_titles.dart';
 import 'l10n/l10n.dart';
 import 'notifications/attention_host.dart';
 import 'notifications/attention_service.dart';
@@ -37,6 +43,8 @@ import 'platform/local_paths.dart'
     if (dart.library.io) 'platform/local_paths_io.dart';
 import 'platform/open_requests.dart';
 import 'platform/shell_command.dart';
+import 'search/conversation_search.dart';
+import 'search/search_palette.dart';
 import 'settings/app_settings.dart';
 import 'settings/data_dir_startup.dart';
 import 'settings/jsonc_file.dart';
@@ -72,9 +80,18 @@ class Workbench extends StatefulWidget {
     this.gitFor,
     this.terminalBackend,
     this.settings,
+    this.conversations = const NoConversationSearch(),
+    this.customizations,
   });
 
   final Workspace workspace;
+
+  /// What the search palette searches the agents' conversations with.
+  final ConversationSearch conversations;
+
+  /// Claude Code's customizations, shown by the sidebar's Customize; no
+  /// Customize without them.
+  final CustomizationStore? customizations;
 
   /// What the settings dialog shows; without it, only what needs nothing
   /// more (e.g. under test).
@@ -262,6 +279,9 @@ class _WorkbenchState extends State<Workbench> {
     _workspace.removeListener(_syncRecentMenu);
     widget.settings?.files?.changes.removeListener(_settingsFilesChanged);
     _notifications.dispose();
+    for (final index in _fileIndexes.values) {
+      index.dispose();
+    }
     for (final ide in _ideSpaces.values) {
       ide.dispose();
     }
@@ -348,6 +368,8 @@ class _WorkbenchState extends State<Workbench> {
         ChatCommandIds.focusPreviousPane: () => _focusPaneBy(-1),
       },
       ChatCommandIds.searchAgents: _searchAgents,
+      ChatCommandIds.search: () => unawaited(_openPalette()),
+      if (widget.customizations != null) _customizeCommand: _showCustomize,
       if (current != null)
         ChatCommandIds.openIde: () => _workspace.openInIde(current),
     };
@@ -374,6 +396,7 @@ class _WorkbenchState extends State<Workbench> {
   /// focuses its input.
   void _openAgent(AgentThread thread) {
     _closeDrawer();
+    _closeCustomize();
     if (!identical(thread, _workspace.current)) _workspace.select(thread);
     _focusChat(thread);
   }
@@ -415,16 +438,156 @@ class _WorkbenchState extends State<Workbench> {
 
   void _newAgent() {
     _closeDrawer();
+    _closeCustomize();
     _focusChat(_workspace.create());
   }
 
-  /// Shows the sidebar if hidden, and focuses its search.
-  void _searchAgents() {
-    final shown = _narrow ? _drawerOpen : _docked;
-    if (!shown) _toggle();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _sidebarLink.focusSearch();
+  /// The search palette, on its agents.
+  void _searchAgents() => unawaited(_openPalette(SearchFilter.agents));
+
+  // --- Search and Customize ---------------------------------------------------
+
+  /// Customize's command, for the palette.
+  static const _customizeCommand = 'baocode.chat.customize';
+
+  /// Claude Code's customizations show in place of the chat.
+  bool _customizing = false;
+  CustomizationKind _customizeKind = CustomizationKind.skills;
+  final GlobalKey<CustomizeViewState> _customizeKey = GlobalKey();
+
+  void _showCustomize([CustomizationKind? kind]) {
+    _closeDrawer();
+    if (kind != null) _customizeKey.currentState?.show(kind);
+    setState(() {
+      _customizing = true;
+      if (kind != null) _customizeKind = kind;
     });
+  }
+
+  void _closeCustomize() {
+    if (_customizing) setState(() => _customizing = false);
+  }
+
+  bool _paletteOpen = false;
+
+  /// The ids of the palette's actions last run, the last first.
+  final List<String> _recentActions = [];
+
+  /// Each project's files, for the palette: listed again as it opens.
+  final Map<String, IdeFileIndex> _fileIndexes = {};
+
+  /// The project the palette's files are of: the current agent's, else the
+  /// first listed.
+  Project? get _paletteProject =>
+      _workspace.current?.project ?? _workspace.sidebarProjects.firstOrNull;
+
+  /// Opens the search palette over the chat layout, on [filter].
+  Future<void> _openPalette([SearchFilter filter = SearchFilter.all]) async {
+    if (_paletteOpen || !mounted) return;
+    _paletteOpen = true;
+    try {
+      _closeDrawer();
+      final project = _paletteProject;
+      final files = project == null
+          ? null
+          : _fileIndexes.putIfAbsent(
+              project.path,
+              () => IdeFileIndex(IdeFileService(project.path), project.path),
+            );
+      await showSearchPalette(
+        context,
+        agents: [
+          for (final thread
+              in _workspace.threads.toList()
+                ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt)))
+            if (_workspace.listsInSidebar(thread) && !thread.untouched) thread,
+        ],
+        conversations: widget.conversations,
+        files: files,
+        actions: _paletteActions(),
+        recentActions: List.of(_recentActions),
+        settings: _paletteSettings(),
+        filter: filter,
+        onOpenAgent: _openAgent,
+        onOpenFile: (path) {
+          if (project != null) _openIdeFolder(project.path);
+          _openIdeFiles([path]);
+        },
+        onRunAction: (action) {
+          _recentActions
+            ..remove(action.id)
+            ..insert(0, action.id);
+          if (_recentActions.length > 5) _recentActions.removeLast();
+          action.run();
+        },
+      );
+    } finally {
+      _paletteOpen = false;
+    }
+  }
+
+  /// The window's commands the palette runs, as they can be now.
+  List<PaletteAction> _paletteActions() {
+    final l10n = context.l10n;
+    final commands = _chatCommands();
+    PaletteAction? action(String id, IconData icon, [VoidCallback? run]) {
+      final command = run ?? commands[id];
+      if (command == null) return null;
+      return PaletteAction(
+        id: id,
+        label: id == _customizeCommand
+            ? l10n.sidebarCustomize
+            : localizedCommandLabel(l10n, id, commandCatalog[id]?.title ?? id),
+        icon: icon,
+        keybinding: ChatKeys.keyLabel(id, ChatKeys.chatLayout),
+        run: command,
+      );
+    }
+
+    return [
+      ?action(ChatCommandIds.newChat, Codicons.add),
+      ?action(_customizeCommand, Codicons.extensions),
+      ?action(openSettingsCommandId, Codicons.settingsGear),
+      ?action(openKeybindingsCommandId, Codicons.keyboard),
+      ?action(
+        'workbench.action.toggleSidebarVisibility',
+        Codicons.layoutSidebarLeft,
+      ),
+      ?action(ChatCommandIds.openIde, Codicons.code),
+      if (WindowControls.canPickDirectory)
+        ?action(
+          'workbench.action.files.openFolder',
+          Codicons.folderOpened,
+          () => unawaited(_openFolder()),
+        ),
+      ?action(ChatCommandIds.nextAgent, Codicons.arrowDown),
+      ?action(ChatCommandIds.previousAgent, Codicons.arrowUp),
+      ?action(ChatCommandIds.focusNextPane, Codicons.arrowRight),
+      ?action(ChatCommandIds.focusPreviousPane, Codicons.arrowLeft),
+      ?action(ChatCommandIds.closePane, Codicons.close),
+    ];
+  }
+
+  /// The settings' pages, and Customize's, for the palette.
+  List<PaletteAction> _paletteSettings() {
+    final l10n = context.l10n;
+    return [
+      for (final section in SettingsSection.values)
+        PaletteAction(
+          id: 'settings.${section.name}',
+          label: SettingsDialogState.label(context, section),
+          icon: SettingsDialogState.icon(section),
+          run: () => unawaited(openSettings(section)),
+        ),
+      if (widget.customizations != null)
+        for (final kind in CustomizationKind.values)
+          PaletteAction(
+            id: 'customize.${kind.name}',
+            label: '${l10n.sidebarCustomize}: ${kind.label(l10n)}',
+            icon: kind.icon,
+            run: () => _showCustomize(kind),
+          ),
+    ];
   }
 
   /// Focuses [thread]'s input once its chat is built.
@@ -1146,9 +1309,17 @@ class _WorkbenchState extends State<Workbench> {
       workspace: _workspace,
       link: _sidebarLink,
       onCollapse: _toggle,
-      onOpened: onOpened,
+      onOpened: () {
+        _closeCustomize();
+        onOpened?.call();
+      },
       onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
       onOpenSettings: () => unawaited(openSettings()),
+      onSearch: () => unawaited(_openPalette()),
+      onCustomize: widget.customizations == null
+          ? null
+          : () => _customizing ? _closeCustomize() : _showCustomize(),
+      customizing: _customizing,
       drag: _drag,
     );
   }
@@ -1265,6 +1436,11 @@ class _WorkbenchState extends State<Workbench> {
 
   /// The open agents side by side (see [ChatGridView]).
   Widget _buildPanes({required bool showToggle}) {
+    if (_customizing) {
+      if (widget.customizations case final store?) {
+        return _buildCustomize(store, showToggle: showToggle);
+      }
+    }
     final grid = _workspace.grid;
     if (grid.isEmpty) return _buildChat(showToggle: showToggle);
     return ChatGridView(
@@ -1276,6 +1452,35 @@ class _WorkbenchState extends State<Workbench> {
       paneBuilder: (context, thread, place) =>
           _buildChat(showToggle: showToggle, pane: thread, place: place),
       onLinesMoved: _workspace.keepGridLines,
+    );
+  }
+
+  /// Customize, in place of the conversations: its title bar as a chat's,
+  /// the sidebar's toggle by the traffic lights while it is hidden.
+  Widget _buildCustomize(CustomizationStore store, {required bool showToggle}) {
+    final header = WindowControls.drawsHeader;
+    return CustomizeView(
+      key: _customizeKey,
+      store: store,
+      projects: _workspace.sidebarProjects,
+      project: _paletteProject,
+      kind: _customizeKind,
+      onClose: _closeCustomize,
+      leading: !header && showToggle
+          ? SidebarIconButton(
+              icon: Codicons.layoutSidebarLeftOff,
+              tooltip: context.l10n.windowShowSidebar,
+              command: 'workbench.action.toggleSidebarVisibility',
+              onTap: _toggle,
+            )
+          : null,
+      titleBarInset: !header && showToggle
+          ? AppMetrics.trafficLightsWidth + 8
+          : 12.0,
+      onOpenFile: (path) {
+        _workspace.layout = WorkspaceLayout.ide;
+        _openIdeFiles([path]);
+      },
     );
   }
 
