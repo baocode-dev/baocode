@@ -647,6 +647,33 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (_markShownSeen() || added.isNotEmpty) notifyListeners();
   }
 
+  /// The agents shown each in a window of its own (Explorer's Open with
+  /// BaoCode; see AppWindows.openAgent): what [isShown] counts too.
+  Set<AgentThread> _windowAgents = const {};
+
+  void showAgentWindows(Iterable<AgentThread> threads) {
+    _windowAgents = threads.toSet();
+    if (_markShownSeen()) notifyListeners();
+  }
+
+  /// A new agent in [path] (opened as a project if it was not), for a
+  /// window of its own: not in the chat's panes, nor reused (each window
+  /// its own agent).
+  AgentThread newWindowAgent(String path) {
+    final thread = _newThread(_openProject(path));
+    notifyListeners();
+    return thread;
+  }
+
+  /// [thread]'s window closed: a new agent nothing was sent to is dropped,
+  /// unless it shows elsewhere too.
+  void closeWindowAgent(AgentThread thread) {
+    if (!_threads.contains(thread) || !_isUntouched(thread)) return;
+    if (_grid.contains(thread)) return;
+    if (_ideChats.values.any((tabs) => tabs.contains(thread))) return;
+    _discard(thread);
+  }
+
   /// [path] opened by the IDE's window of its own: among the recent, with a
   /// chat of its own there.
   void noteIdeFolder(String path) {
@@ -1721,17 +1748,21 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Whether [thread] shows in the window: in one of the chat's panes, or,
   /// while the IDE shows, as its folder's chat. With the IDE's windows,
   /// in the chat's panes while its window shows, or as the chat of one of
-  /// theirs.
-  bool isShown(AgentThread thread) => ideWindows != null
-      ? (_chatWindowShown && _grid.contains(thread)) ||
-            _windowFolders.any((folder) => identical(ideChat(folder), thread))
-      : switch (_layout) {
-          WorkspaceLayout.chat => _grid.contains(thread),
-          WorkspaceLayout.ide => switch (_ideFolder) {
-            final folder? => identical(ideChat(folder), thread),
-            null => false,
-          },
-        };
+  /// theirs. Either way, in a window of its own.
+  bool isShown(AgentThread thread) =>
+      _windowAgents.contains(thread) ||
+      (ideWindows != null
+          ? (_chatWindowShown && _grid.contains(thread)) ||
+                _windowFolders.any(
+                  (folder) => identical(ideChat(folder), thread),
+                )
+          : switch (_layout) {
+              WorkspaceLayout.chat => _grid.contains(thread),
+              WorkspaceLayout.ide => switch (_ideFolder) {
+                final folder? => identical(ideChat(folder), thread),
+                null => false,
+              },
+            });
 
   /// Marks what shows as seen, while the window is in front; whether any
   /// was unread.

@@ -55,6 +55,8 @@ class WindowHeader extends StatefulWidget {
     this.backLabel,
     this.onNewWindow,
     this.onCloseWindow,
+    this.compact = false,
+    this.title,
   });
 
   final Workspace workspace;
@@ -66,7 +68,9 @@ class WindowHeader extends StatefulWidget {
   /// Whether the sidebar is shown (the toggle offers the other way).
   final bool sidebarShown;
 
-  final VoidCallback onToggleSidebar;
+  /// Shows or hides the sidebar; with none (an agent's window has no
+  /// sidebar), its toggle is not offered.
+  final VoidCallback? onToggleSidebar;
 
   /// Over the IDE, which of its parts show, for its layout toggles.
   final IdeLayout? ideLayout;
@@ -89,6 +93,16 @@ class WindowHeader extends StatefulWidget {
 
   /// The File menu's Close Window; by default, the window's close button.
   final VoidCallback? onCloseWindow;
+
+  /// The narrow window's: the menus fold into one button, to leave room for
+  /// the rest of the strip.
+  final bool compact;
+
+  /// Over the chat, the session's title, after the sidebar's toggle in
+  /// place of a row of the chat's own: the narrow window's, as macOS's
+  /// title bar has it. The strip is then the conversation's, its background
+  /// and no line under it.
+  final String? title;
 
   /// The window is kept above other apps' windows.
   final bool pinned;
@@ -120,6 +134,10 @@ class _WindowHeaderState extends State<WindowHeader> {
   static const _toggleSidebarCommand =
       'workbench.action.toggleSidebarVisibility';
   static const _backToChatCommand = 'baocode.ide.backToChat';
+
+  /// The most of the strip the session's title takes (see
+  /// [WindowHeader.title]): a long one is cut short well before the tools.
+  static const _maxTitleWidth = 320.0;
 
   /// The controls the window leaves to Flutter, read back as rectangles
   /// after each layout (see [_report]).
@@ -158,6 +176,7 @@ class _WindowHeaderState extends State<WindowHeader> {
   Widget build(BuildContext context) {
     final layout = _ide ? widget.ideLayout : null;
     final ide = layout != null;
+    final title = ide ? null : widget.title;
     // A Material of its own, as the sidebar has: the strip is outside the
     // chat's Scaffold, and this is what gives its text the app's own style.
     // Over the chat, the line under it is what tells it apart from what it
@@ -166,13 +185,18 @@ class _WindowHeaderState extends State<WindowHeader> {
     // The same tint as the sidebar, so the material shows through the strip
     // too (on Windows 10, where there is none, that tint is opaque).
     // Over the IDE it is the IDE's title bar: its color, no line, and the
-    // way back to the chat on the right, as on macOS.
+    // way back to the chat on the right, as on macOS. With the session's
+    // title, it is the top of the conversation.
     final colors = themeColors;
     return Material(
-      color: ide ? IdeModernUI.shell : AppColors.sidebarSurface,
+      color: ide
+          ? IdeModernUI.shell
+          : title != null
+          ? AppColors.windowCanvas
+          : AppColors.sidebarSurface,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          border: ide
+          border: ide || title != null
               ? null
               : Border(
                   bottom: BorderSide(
@@ -187,28 +211,58 @@ class _WindowHeaderState extends State<WindowHeader> {
               const SizedBox(width: 6),
               KeyedSubtree(
                 key: _menus,
-                child: HeaderMenuBar(items: _items),
+                child: HeaderMenuBar(items: _items, compact: widget.compact),
               ),
               const SizedBox(width: 4),
               KeyedSubtree(
                 key: _toggle,
                 child: switch (layout) {
                   final layout? => IdeLayoutToggle.sidebar(layout),
-                  // The IDE's layout icons: the icon shows whether it is
-                  // open.
-                  null => SidebarIconButton(
-                    icon: widget.sidebarShown
-                        ? Codicons.layoutSidebarLeft
-                        : Codicons.layoutSidebarLeftOff,
-                    tooltip: widget.sidebarShown
-                        ? context.l10n.windowHideSidebar
-                        : context.l10n.windowShowSidebar,
-                    command: _toggleSidebarCommand,
-                    onTap: widget.onToggleSidebar,
-                  ),
+                  null => switch (widget.onToggleSidebar) {
+                    null => const SizedBox.shrink(),
+                    // The IDE's layout icons: the icon shows whether it is
+                    // open.
+                    final toggle => SidebarIconButton(
+                      icon: widget.sidebarShown
+                          ? Codicons.layoutSidebarLeft
+                          : Codicons.layoutSidebarLeftOff,
+                      tooltip: widget.sidebarShown
+                          ? context.l10n.windowHideSidebar
+                          : context.l10n.windowShowSidebar,
+                      command: _toggleSidebarCommand,
+                      onTap: toggle,
+                    ),
+                  },
                 },
               ),
-              const Spacer(),
+              if (title != null)
+                // Its own pixels drag the window, as the rest of the strip.
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8, right: 12),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: _maxTitleWidth,
+                        ),
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          // As the chat's own title row.
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                const Spacer(),
               if (layout != null) ...[
                 KeyedSubtree(key: _panel, child: IdeLayoutToggle.panel(layout)),
                 KeyedSubtree(key: _chat, child: IdeLayoutToggle.chat(layout)),
@@ -454,11 +508,11 @@ class _WindowHeaderState extends State<WindowHeader> {
             shortcut: _shortcut(_backToChatCommand, ChatKeys.ideLayout),
             onSelected: () => widget.workspace.layout = WorkspaceLayout.chat,
           )
-        else
+        else if (widget.onToggleSidebar case final toggle?)
           HeaderMenuItem(
             widget.sidebarShown ? l10n.menuHideSidebar : l10n.menuShowSidebar,
             shortcut: _shortcut(_toggleSidebarCommand),
-            onSelected: widget.onToggleSidebar,
+            onSelected: toggle,
           ),
         if (run != null) ...[
           command(l10n.cmdChatSearchAgents, ChatCommandIds.searchAgents),

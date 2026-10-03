@@ -1329,6 +1329,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuHelp => 'Help';
 
   @override
+  String get menuApplication => 'Application Menu';
+
+  @override
   String get menuOpenFolder => 'Open Folder…';
 
   @override

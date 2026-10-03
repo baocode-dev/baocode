@@ -41,6 +41,7 @@ class ChatScreen extends StatefulWidget {
     this.autofocus = false,
     this.embedded = false,
     this.windowTitleBar = true,
+    this.titleBar = true,
     this.focused = true,
     this.onOpenChange,
     this.onOpenCode,
@@ -76,6 +77,10 @@ class ChatScreen extends StatefulWidget {
   /// macOS traffic lights' row): a double click on it does what one on the
   /// system's does. Not so for a pane below another.
   final bool windowTitleBar;
+
+  /// Whether it shows its title row: not where the window's header shows
+  /// the title (Windows' narrow window); renaming shows it all the same.
+  final bool titleBar;
 
   /// Whether it is the conversation focused, of several side by side: the
   /// others' titles are dimmer.
@@ -459,7 +464,8 @@ class _ChatScreenState extends State<ChatScreen>
         children: [
           // The session's title, in the row the window's header leaves it
           // (macOS draws a title bar of its own over it; see AppMetrics).
-          if (!widget.embedded) _buildTitleBar(),
+          if (!widget.embedded && (widget.titleBar || _renaming))
+            _buildTitleBar(),
           // Esc goes back from a subagent: a keybinding of the chat's
           // (closeSubagent).
           Expanded(

@@ -67,10 +67,6 @@ constexpr char kAgentRequestFlag[] = "--baocode-agent";
 // kAgentRequestFlag first.
 bool IsRequest(const std::vector<std::string>& paths);
 
-// Whether the app was started for Open with BaoCode (kAgentRequestFlag): its
-// window then opens narrow, for the conversation alone.
-bool StartedForAgent();
-
 // The paths in the command line the app was started with, made absolute
 // from the folder it was started in, in UTF-8; its options (from `-`) left
 // out. Started by code.cmd, the request it makes instead, as it came; by

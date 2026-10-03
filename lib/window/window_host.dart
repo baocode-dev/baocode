@@ -76,9 +76,14 @@ abstract class WindowHost {
   /// The view of [viewId], once the engine has it.
   FlutterView? viewOf(int viewId);
 
-  /// A new window, shown at [frame] (where the system puts one, without),
-  /// titled [title]: its view's id; null if none could be made.
-  Future<int?> create({WindowFrame? frame, required String title});
+  /// A new window, shown at [frame] (where the system puts one, without,
+  /// [width] wide if given: logical pixels), titled [title]: its view's
+  /// id; null if none could be made.
+  Future<int?> create({
+    WindowFrame? frame,
+    required String title,
+    double? width,
+  });
 
   /// Waits until the engine has [viewId]'s view.
   Future<FlutterView?> waitForView(int viewId);
@@ -111,11 +116,6 @@ abstract class WindowHost {
   /// Where the window is.
   Future<WindowFrame?> frame(int viewId);
 
-  /// Makes [viewId]'s window [width] wide (logical pixels), its height and
-  /// top left kept, on its screen; a maximized one stays so. (Windows';
-  /// nothing elsewhere.)
-  Future<void> setWidth(int viewId, double width);
-
   /// The screens' usable areas.
   Future<List<ScreenArea>> screens();
 
@@ -133,13 +133,12 @@ abstract class WindowHost {
 ///
 ///   start                        whether windows can be opened (the
 ///                                engine's multiple views)
-///   create {frame?, title, engineId}
+///   create {frame?, title, width?, engineId}
 ///                                a window: its view's id
 ///   close viewId, focus viewId, hide viewId
 ///   setTitle {viewId, title, path?}, setEdited {viewId, edited}
 ///   frame viewId                 {x, y, width, height, maximized,
 ///                                fullscreen, screen}
-///   setWidth {viewId, width}     (Windows)
 ///   screens                      [{id, x, y, width, height}]
 ///   setWindowList {windows: [{viewId, title, edited}], labels}
 ///   setMainShownAtLaunch bool
@@ -235,10 +234,15 @@ class ChannelWindowHost extends WindowHost {
   }
 
   @override
-  Future<int?> create({WindowFrame? frame, required String title}) async {
+  Future<int?> create({
+    WindowFrame? frame,
+    required String title,
+    double? width,
+  }) async {
     final id = await _invoke<int>('create', {
       'frame': ?frame?.toJson(),
       'title': title,
+      'width': ?width,
       'engineId': _dispatcher.engineId,
     });
     return id;
@@ -271,10 +275,6 @@ class ChannelWindowHost extends WindowHost {
   @override
   Future<WindowFrame?> frame(int viewId) async =>
       WindowFrame.fromJson(await _invoke<Object?>('frame', viewId));
-
-  @override
-  Future<void> setWidth(int viewId, double width) =>
-      _invoke('setWidth', {'viewId': viewId, 'width': width});
 
   @override
   Future<List<ScreenArea>> screens() async {

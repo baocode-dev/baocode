@@ -2612,6 +2612,12 @@ abstract class AppLocalizations {
   /// **'Help'**
   String get menuHelp;
 
+  /// Tooltip of the button the menu bar folds into in a narrow window (Windows).
+  ///
+  /// In en, this message translates to:
+  /// **'Application Menu'**
+  String get menuApplication;
+
   /// No description provided for @menuOpenFolder.
   ///
   /// In en, this message translates to:

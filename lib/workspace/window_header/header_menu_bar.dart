@@ -6,19 +6,26 @@ import '../../chat/floating/floating_placement.dart';
 import '../../chat/floating/floating_registry.dart';
 import '../../chat/widgets/hover_builder.dart';
 import '../../l10n/l10n.dart';
+import '../../sidebar/sidebar.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'header_menu.dart';
 
 /// The header's menu bar: a label for each menu, opening its commands under
 /// it. Once one is open, resting on another opens that one, as the bars the
 /// platforms draw themselves do.
+///
+/// [compact], the labels fold into one button, as an editor's narrow window
+/// has it: its list of the menus, each opening its commands beside it.
 class HeaderMenuBar extends StatefulWidget {
-  const HeaderMenuBar({super.key, required this.items});
+  const HeaderMenuBar({super.key, required this.items, this.compact = false});
 
   /// What a menu holds, asked for when it is opened: what is ticked and the
   /// recent projects are the app's, and change as it does.
   final List<HeaderMenuItem> Function(HeaderMenu menu) items;
+
+  final bool compact;
 
   @override
   State<HeaderMenuBar> createState() => _HeaderMenuBarState();
@@ -27,6 +34,10 @@ class HeaderMenuBar extends StatefulWidget {
 class _HeaderMenuBarState extends State<HeaderMenuBar> {
   /// The menu whose commands are down, if any.
   HeaderMenu? _open;
+
+  /// Compact, whether the list of the menus is down ([_open], the one of
+  /// them whose commands are beside it).
+  bool _listOpen = false;
 
   /// One group for the whole bar, so that a click on a label of it counts as
   /// inside and does not close what that label opens.
@@ -39,10 +50,25 @@ class _HeaderMenuBarState extends State<HeaderMenuBar> {
     FloatingRegistry.openPopover(this, _close, onKey: _handleKey);
   }
 
+  void _openList() {
+    setState(() => _listOpen = true);
+    FloatingRegistry.openPopover(this, _close, onKey: _handleKey);
+  }
+
   void _close() {
-    if (_open == null) return;
-    setState(() => _open = null);
+    if (_open == null && !_listOpen) return;
+    setState(() {
+      _open = null;
+      _listOpen = false;
+    });
     FloatingRegistry.closePopover(this);
+  }
+
+  @override
+  void didUpdateWidget(HeaderMenuBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Folded or unfolded, what was down goes.
+    if (oldWidget.compact != widget.compact) _close();
   }
 
   KeyEventResult? _handleKey(KeyEvent event) =>
@@ -52,9 +78,58 @@ class _HeaderMenuBarState extends State<HeaderMenuBar> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.compact) return _buildFolded();
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [for (final menu in HeaderMenu.values) _buildLabel(menu)],
+    );
+  }
+
+  /// The one button, and the menus' list under it.
+  Widget _buildFolded() {
+    return FloatingLayer(
+      visible: _listOpen,
+      placement: (side: FloatingSide.bottom, align: FloatingAlign.start),
+      gap: 2,
+      tapRegionGroupId: _tapRegion,
+      onTapOutside: _close,
+      builder: (context) => _panel(
+        width: 160,
+        children: [for (final menu in HeaderMenu.values) _buildEntry(menu)],
+      ),
+      child: TapRegion(
+        groupId: _tapRegion,
+        child: SidebarIconButton(
+          icon: Codicons.menu,
+          tooltip: context.l10n.menuApplication,
+          onTap: () => _listOpen ? _close() : _openList(),
+        ),
+      ),
+    );
+  }
+
+  /// A menu in the list: its commands beside it, as the pointer rests on it
+  /// (or it is clicked).
+  Widget _buildEntry(HeaderMenu menu) {
+    final open = _open == menu;
+    return FloatingLayer(
+      visible: open,
+      placement: (side: FloatingSide.right, align: FloatingAlign.start),
+      gap: 6,
+      tapRegionGroupId: _tapRegion,
+      builder: (context) => _buildCommands(menu),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _open = menu),
+        child: _MenuRow(
+          item: HeaderMenuItem(
+            menu.localizedLabel(context.l10n),
+            onSelected: () {},
+          ),
+          selected: open,
+          submenu: true,
+          onSelected: (_) => setState(() => _open = menu),
+        ),
+      ),
     );
   }
 
@@ -122,12 +197,29 @@ class _HeaderMenuBarState extends State<HeaderMenuBar> {
     );
   }
 
-  /// The menu's commands, in a panel of the same make as the app's other
-  /// menus (see SidebarMenu).
-  Widget _buildCommands(HeaderMenu menu) {
+  /// The menu's commands.
+  Widget _buildCommands(HeaderMenu menu) => _panel(
+    width: 224,
+    children: [
+      for (final item in widget.items(menu))
+        if (item.rule)
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+            child: SizedBox(
+              height: 1,
+              child: ColoredBox(color: themeColors['menu.separatorBackground']),
+            ),
+          )
+        else
+          _MenuRow(item: item, onSelected: _select),
+    ],
+  );
+
+  /// A panel of the same make as the app's other menus (see SidebarMenu).
+  Widget _panel({required double width, required List<Widget> children}) {
     final colors = themeColors;
     return Container(
-      width: 224,
+      width: width,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: colors['menu.background'],
@@ -144,19 +236,7 @@ class _HeaderMenuBarState extends State<HeaderMenuBar> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final item in widget.items(menu))
-            if (item.rule)
-              Padding(
-                padding: EdgeInsets.symmetric(vertical: 4, horizontal: 6),
-                child: SizedBox(
-                  height: 1,
-                  child: ColoredBox(color: colors['menu.separatorBackground']),
-                ),
-              )
-            else
-              _MenuRow(item: item, onSelected: _select),
-        ],
+        children: children,
       ),
     );
   }
@@ -167,12 +247,22 @@ class _HeaderMenuBarState extends State<HeaderMenuBar> {
   }
 }
 
-/// One command of a menu: its label, a tick when it is on, its shortcut.
+/// One command of a menu: its label, a tick when it is on, its shortcut;
+/// or, [submenu], a menu of the folded bar's list, its arrow at the right.
 class _MenuRow extends StatelessWidget {
-  const _MenuRow({required this.item, required this.onSelected});
+  const _MenuRow({
+    required this.item,
+    required this.onSelected,
+    this.selected = false,
+    this.submenu = false,
+  });
 
   final HeaderMenuItem item;
   final ValueChanged<HeaderMenuItem> onSelected;
+
+  /// Shown as hovered: the menu whose commands are open beside it.
+  final bool selected;
+  final bool submenu;
 
   @override
   Widget build(BuildContext context) {
@@ -180,6 +270,7 @@ class _MenuRow extends StatelessWidget {
     return HoverBuilder(
       cursor: SystemMouseCursors.basic,
       builder: (context, hovered) {
+        hovered = hovered || selected;
         // As upstream's menus: the hovered item selected.
         final foreground =
             colors[hovered ? 'menu.selectionForeground' : 'menu.foreground'];
@@ -218,7 +309,9 @@ class _MenuRow extends StatelessWidget {
                     style: TextStyle(color: foreground, fontSize: 12.5),
                   ),
                 ),
-                if (item.shortcut case final shortcut?) ...[
+                if (submenu)
+                  Icon(Codicons.chevronRight, size: 14, color: foreground)
+                else if (item.shortcut case final shortcut?) ...[
                   const SizedBox(width: 16),
                   Text(
                     shortcut,

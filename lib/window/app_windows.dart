@@ -26,9 +26,10 @@ import 'window_frame.dart';
 import 'window_host.dart';
 import 'window_settings.dart';
 
-/// The two kinds of window: the chat's, the app's main one (there is one),
-/// and the IDE's, one per folder (or none: its welcome).
-enum AppWindowKind { chat, ide }
+/// The kinds of window: the chat's, the app's main one (there is one);
+/// the IDE's, one per folder (or none: its welcome); and an agent's, its
+/// conversation alone (Explorer's Open with BaoCode, a new one each time).
+enum AppWindowKind { chat, ide, agent }
 
 /// What a window's workbench does for [AppWindows]: it is the one to open
 /// files in it, show an agent there, and answer for what it has unsaved.
@@ -69,7 +70,7 @@ abstract interface class WindowDelegate {
 
 /// One of the app's windows.
 class AppWindow {
-  AppWindow._(this.kind, this.viewId, this._folder, {this.frame});
+  AppWindow._(this.kind, this.viewId, this._folder, {this.frame, this.thread});
 
   final AppWindowKind kind;
 
@@ -77,6 +78,11 @@ class AppWindow {
   final int viewId;
 
   bool get isChat => kind == AppWindowKind.chat;
+  bool get isIde => kind == AppWindowKind.ide;
+  bool get isAgent => kind == AppWindowKind.agent;
+
+  /// The agent an agent's window shows.
+  final AgentThread? thread;
 
   /// The folder an IDE window shows; null for its welcome (and the chat's).
   String? get folder => _folder;
@@ -131,6 +137,7 @@ class AppWindow {
   /// Its name, as menus list it.
   String label(AppLocalizations l10n) => switch ((kind, _folder)) {
     (AppWindowKind.chat, _) => l10n.windowChatTitle,
+    (AppWindowKind.agent, _) => thread!.localizedTitle(l10n),
     (_, final folder?) => _folderName(folder),
     (_, null) => l10n.windowWelcomeTitle,
   };
@@ -263,17 +270,19 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   /// it was before (see [closeForQuit]).
   bool _quitting = false;
 
-  /// The IDE's windows closed as the app goes (Windows'), as [requestClose]
-  /// closes one: their widgets first, then their views. Left to the main
-  /// window's going, a view the engine still draws goes in the middle of
-  /// it, and the engine, waiting for it to be let go of, hangs the app.
-  /// They are kept for the next launch as they were.
+  /// The IDE's windows (and the agents') closed as the app goes
+  /// (Windows'), as [requestClose] closes one: their widgets first, then
+  /// their views. Left to the main window's going, a view the engine still
+  /// draws goes in the middle of it, and the engine, waiting for it to be
+  /// let go of, hangs the app. They are kept for the next launch as they
+  /// were.
   @visibleForTesting
   Future<void> closeForQuit() async {
-    if (_ide.isEmpty) return;
+    if (_ide.isEmpty && _agents.isEmpty) return;
     _quitting = true;
-    final closing = [..._ide];
+    final closing = [..._ide, ..._agents];
     _ide.clear();
+    _agents.clear();
     notifyListeners();
     await _nextFrame();
     for (final window in closing) {
@@ -310,6 +319,10 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   List<AppWindow> get ideWindows => List.unmodifiable(_ide);
   final List<AppWindow> _ide = [];
 
+  /// The agents', in the order they opened.
+  List<AppWindow> get agentWindows => List.unmodifiable(_agents);
+  final List<AppWindow> _agents = [];
+
   AppWindow? windowOf(int viewId) =>
       _mru.where((window) => window.viewId == viewId).firstOrNull;
 
@@ -326,8 +339,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
       _mru.where((window) => window.shown).firstOrNull ?? chat;
 
   /// The IDE's window last in front.
-  AppWindow? get recentIde =>
-      _mru.where((window) => !window.isChat).firstOrNull;
+  AppWindow? get recentIde => _mru.where((window) => window.isIde).firstOrNull;
 
   static String _key(String path) => p.canonicalize(path);
 
@@ -380,24 +392,22 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   /// in front, if any were left, gives it its folder.
   ///
   /// Started for a [request] (Explorer's Open with BaoCode or Fast Ide, the
-  /// `code` command), it opens to that alone, at once: the chat's window
-  /// for an agent, else what the request opens, nothing of the last run.
+  /// `code` command), it opens to that alone, at once, in a window of its
+  /// own: the agent's (see [openAgent]), else what the request opens;
+  /// nothing of the last run, the chat's window hidden.
   Future<void> prepareLaunch({
     LaunchRequest request = LaunchRequest.none,
   }) async {
     if (!_started) return;
-    if (_separate && request != LaunchRequest.none) {
-      final chatShown = request == LaunchRequest.agent;
-      _wasInIde = !chatShown;
-      _launch = (
-        windows: const [_KeptWindow(chat: true)],
-        chatShown: chatShown,
-      );
-      chat._shown = chatShown;
+    if (request == LaunchRequest.agent ||
+        (_separate && request == LaunchRequest.ide)) {
+      _wasInIde = request == LaunchRequest.ide;
+      _launch = (windows: const [_KeptWindow(chat: true)], chatShown: false);
+      chat._shown = false;
       _syncWorkspace();
       // Read for this launch as well: after Dart starts, on Windows.
-      await host.setMainShownAtLaunch(chatShown);
-      _mainShownNext = chatShown;
+      await host.setMainShownAtLaunch(false);
+      _mainShownNext = false;
       return;
     }
     final kept = await _store?.read() ?? const <String, Object?>{};
@@ -747,13 +757,13 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     );
   }
 
-  /// How wide the chat's window opens for [openAgent], when it did not
-  /// show: the conversation alone, the sidebar out of the way (as
-  /// windows/runner/main.cpp's kAgentWidth starts it).
+  /// How wide an agent's window opens (see [openAgent]): the
+  /// conversation alone.
   static const agentWidth = 520.0;
 
-  /// Explorer's Open with BaoCode: a new agent in the chat's window, ready
-  /// to type to. A folder is its project (opened as one if it was not); a
+  /// Explorer's Open with BaoCode: a new agent, ready to type to, in a new
+  /// window of its own each time ([agentWidth] wide; without windows, in
+  /// the chat's). A folder is its project (opened as one if it was not); a
   /// file goes in the composer as if pasted, the agent in the project it is
   /// in, else in its folder.
   Future<AgentThread?> openAgent(List<String> paths) async {
@@ -769,15 +779,85 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     }
     if (folder == null && files.isEmpty) return null;
     folder ??= _projectOf(files.first.path) ?? p.dirname(files.first.path);
-    final thread = await workspace.openFolder(folder);
-    thread.session.draft.insertFiles(files);
-    if (!multi) workspace.layout = WorkspaceLayout.chat;
-    if (_started) {
-      if (!chat.shown) await host.setWidth(chat.viewId, agentWidth);
-      focus(chat);
+    if (!_started) {
+      final thread = await workspace.openFolder(folder);
+      thread.session.draft.insertFiles(files);
+      workspace.layout = WorkspaceLayout.chat;
+      (await chat.ready)?.showAgent(thread);
+      return thread;
     }
-    (await chat.ready)?.showAgent(thread);
-    return thread;
+    final thread = workspace.newWindowAgent(folder);
+    thread.session.draft.insertFiles(files);
+    final window = await _serial(() => _createAgent(thread));
+    if (window == null) workspace.closeWindowAgent(thread);
+    return window == null ? null : thread;
+  }
+
+  /// Opens a window of [thread]'s own, [agentWidth] wide.
+  Future<AppWindow?> _createAgent(AgentThread thread) async {
+    final l10n = _l10n();
+    final pending = AppWindow._(AppWindowKind.agent, -1, null, thread: thread);
+    final viewId = await host.create(
+      title: pending.title(l10n),
+      width: agentWidth,
+    );
+    if (viewId == null) return null;
+    if (await host.waitForView(viewId) == null) {
+      await host.close(viewId);
+      return null;
+    }
+    final created = AppWindow._(
+      AppWindowKind.agent,
+      viewId,
+      null,
+      thread: thread,
+    );
+    _agents.add(created);
+    _mru.insert(0, created);
+    _titles[created] = pending.title(l10n);
+    _watchAgents();
+    _changed();
+    // Shown once it has something to show.
+    await _nextFrame();
+    _focus(created);
+    return created;
+  }
+
+  /// The agents' windows' titles, as last set: an agent titled after its
+  /// first message (or renamed), its window's title follows.
+  final Map<AppWindow, String> _titles = {};
+  bool _watching = false;
+
+  void _watchAgents() {
+    if (_watching) return;
+    _watching = true;
+    workspace.addListener(_agentsChanged);
+  }
+
+  void _agentsChanged() {
+    if (!_started) return;
+    final l10n = _l10n();
+    var retitled = false;
+    for (final window in [..._agents]) {
+      // Deleted (or dropped) meanwhile: its window goes.
+      if (!workspace.threads.contains(window.thread)) {
+        unawaited(_remove(window));
+        continue;
+      }
+      final title = window.title(l10n);
+      if (_titles[window] == title) continue;
+      _titles[window] = title;
+      unawaited(host.setTitle(window.viewId, title));
+      retitled = true;
+    }
+    _titles.removeWhere((window, _) => !_agents.contains(window));
+    if (retitled) _syncMenus();
+  }
+
+  @override
+  void dispose() {
+    if (_watching) workspace.removeListener(_agentsChanged);
+    super.dispose();
   }
 
   /// The project [path] is in (the deepest), if any.
@@ -806,7 +886,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
       await openFiles([
         for (final file in files)
           if (!file.directory) CodeTarget(file.path),
-      ], from: window == null || window.isChat ? null : window);
+      ], from: window != null && window.isIde ? window : null);
     }());
     return true;
   }
@@ -815,7 +895,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   /// asked about first); a window that has it already comes in front.
   /// None: Close Folder, its welcome.
   Future<void> replaceFolder(AppWindow window, String? folder) async {
-    if (!multi || window.isChat) {
+    if (!multi || !window.isIde) {
       await showFolder(folder);
       return;
     }
@@ -845,13 +925,19 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
 
   /// Closes [window] as its close button, Close Window or ⌘W do
   /// ([byKeyboard] for a shortcut), asking first as the settings say: the
-  /// chat's hides; an IDE's asks about its unsaved files and its running
-  /// terminals, and goes with its editors, terminals and language
-  /// servers. Whether it closed.
+  /// chat's hides; an agent's goes (the agent goes on, in the sidebar); an
+  /// IDE's asks about its unsaved files and its running terminals, and
+  /// goes with its editors, terminals and language servers. Whether it
+  /// closed.
   Future<bool> requestClose(AppWindow window, {bool byKeyboard = false}) async {
     if (!_started) return false;
     if (window.isChat) {
       await _hideChat();
+      return true;
+    }
+    if (window.isAgent) {
+      if (!_agents.contains(window)) return false;
+      await _remove(window);
       return true;
     }
     if (!_ide.contains(window) || !_closing.add(window)) return false;
@@ -898,6 +984,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
 
   Future<void> _remove(AppWindow window) async {
     _ide.remove(window);
+    _agents.remove(window);
     _mru.remove(window);
     _changed();
     // Its view's widgets go first, then the view.
@@ -905,6 +992,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     WindowControls.stopListening(window.viewId);
     FileDrops.stopListening(window.viewId);
     await host.close(window.viewId);
+    if (window.thread case final thread?) workspace.closeWindowAgent(thread);
     _save();
     if (_mru.firstWhereOrNull((w) => w.shown) case final front?) {
       WindowControls.activeViewId = front.viewId;
@@ -1139,9 +1227,14 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
 
   // --- Agents ------------------------------------------------------------------
 
-  /// An agent a notification (or the tray's menu) picked: in the IDE's
-  /// window it is a tab of, that tab shown; else in the chat's window.
+  /// An agent a notification (or the tray's menu) picked: in its own
+  /// window, if it has one; in the IDE's window it is a tab of, that tab
+  /// shown; else in the chat's window.
   void showAgent(AgentThread thread) {
+    if (_agents.firstWhereOrNull((w) => w.thread == thread) case final own?) {
+      focus(own);
+      return;
+    }
     if (!multi) {
       if (_started) _focus(chat);
       chat.delegate?.showAgent(thread);
@@ -1204,6 +1297,8 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
           icon: Icon(
             window.isChat
                 ? Codicons.commentDiscussion
+                : window.isAgent
+                ? Codicons.comment
                 : window.folder == null
                 ? Codicons.emptyWindow
                 : Codicons.folder,
@@ -1229,7 +1324,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     if (!_started) return;
     final l10n = _l10n();
     final menus = [
-      for (final window in [chat, ..._ide])
+      for (final window in [chat, ..._ide, ..._agents])
         WindowMenuEntry(
           viewId: window.viewId,
           title: window.label(l10n),
@@ -1254,8 +1349,9 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   // --- Keeping them ------------------------------------------------------------
 
   /// What the workspace counts as shown: the chat's panes while its window
-  /// shows, and the tabs of the IDE's windows.
+  /// shows, the tabs of the IDE's windows, and the agents' windows'.
   void _syncWorkspace() {
+    workspace.showAgentWindows([for (final window in _agents) ?window.thread]);
     if (!multi) return;
     workspace.showWindows(
       folders: [for (final window in _ide) ?window.folder],
@@ -1280,7 +1376,8 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     final data = <String, Object?>{
       'version': _version,
       'windows': [
-        for (final window in _mru)
+        // An agent's window is not opened again.
+        for (final window in _mru.where((w) => !w.isAgent))
           (window.isChat
                   ? const _KeptWindow(chat: true)
                   : _KeptWindow(folder: window.folder, frame: window.frame))
@@ -1298,11 +1395,11 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   }
 
   /// Whether the app is left in the IDE: an IDE's window in front of
-  /// those that show. With none showing (the last closed, as on Windows
-  /// it quits the app), where it was before.
+  /// those that show (the agents' aside). With none showing (the last
+  /// closed, as on Windows it quits the app), where it was before.
   bool get _leftInIde {
-    if (_mru.firstWhereOrNull((w) => w.shown) case final front?) {
-      _wasInIde = !front.isChat;
+    if (_mru.firstWhereOrNull((w) => w.shown && !w.isAgent) case final front?) {
+      _wasInIde = front.isIde;
     }
     return _wasInIde;
   }

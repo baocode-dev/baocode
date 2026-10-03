@@ -94,7 +94,8 @@ final class AppWindows: NSObject {
       let arguments = call.arguments as? [String: Any] ?? [:]
       result(create(
         title: arguments["title"] as? String ?? "BaoCode",
-        frame: arguments["frame"] as? [String: Any]))
+        frame: arguments["frame"] as? [String: Any],
+        width: arguments["width"] as? Double))
     case "close":
       if let viewId = Self.id(call.arguments) { close(viewId) }
       result(nil)
@@ -181,18 +182,21 @@ final class AppWindows: NSObject {
   }
 
   /// A window for a view of its own, shown in front: the view's id.
-  private func create(title: String, frame: [String: Any]?) -> Int64? {
+  private func create(title: String, frame: [String: Any]?, width: Double? = nil) -> Int64? {
     guard started else { return nil }
     let flutter = FlutterViewController(engine: engine, nibName: nil, bundle: nil)
     let viewId = flutter.viewIdentifier
+    // An agent's window (AppWindows.openAgent) asks to be narrower.
+    var size = BaoWindow.defaultSize
+    if let width, width > 0 { size.width = width }
     let window = IdeWindow(
-      contentRect: NSRect(origin: .zero, size: BaoWindow.defaultSize),
+      contentRect: NSRect(origin: .zero, size: size),
       styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false
     // The app brings its windows back itself (windows.json).
     window.isRestorable = false
-    window.setUp(flutter: flutter, suffix: ".\(viewId)", size: BaoWindow.defaultSize)
+    window.setUp(flutter: flutter, suffix: ".\(viewId)", size: size)
     window.title = title
     windows[viewId] = window
     var fullScreen = false

@@ -94,11 +94,12 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; \
   ValueData: "{olddata};{app}"; Tasks: addtopath; \
   Check: (not IsAdminInstallMode) and NeedsAddPath(ExpandConstant('{app}'), False)
 
-; Explorer's context menu, on a file, a folder and a folder's background:
-; Open with BaoCode, a new agent in the chat's window (narrow, a file in its
-; composer; see AppWindows.openAgent), and Open with Fast Ide, as the `code`
-; command opens it. HKA is the install mode's hive (HKLM per machine, HKCU
-; per user). Windows 11 lists them under "Show more options". Unticked on a
+; Explorer's context menu, on a file, a folder and a folder's background,
+; each in a new window: Open with BaoCode, a new agent in a narrow window of
+; its own (a file in its composer; see AppWindows.openAgent), and Open with
+; Fast Ide, as `code -n` opens it (the path its own working folder: it is
+; absolute). HKA is the install mode's hive (HKLM per machine, HKCU per
+; user). Windows 11 lists them under "Show more options". Unticked on a
 ; reinstall, they go.
 Root: HKA; Subkey: "Software\Classes\*\shell\BaoCode"; ValueType: string; \
   ValueName: ""; ValueData: "{code:MenuLabel|BaoCode}"; Tasks: contextmenu; \
@@ -133,7 +134,8 @@ Root: HKA; Subkey: "Software\Classes\*\shell\BaoCodeFastIde"; \
   ValueType: string; ValueName: "Icon"; ValueData: """{app}\baocode.exe"""; \
   Tasks: contextmenu
 Root: HKA; Subkey: "Software\Classes\*\shell\BaoCodeFastIde\command"; \
-  ValueType: string; ValueName: ""; ValueData: """{app}\baocode.exe"" ""%1"""; \
+  ValueType: string; ValueName: ""; \
+  ValueData: """{app}\baocode.exe"" --baocode-cli ""%1"" -n ""%1"""; \
   Tasks: contextmenu
 Root: HKA; Subkey: "Software\Classes\Directory\shell\BaoCodeFastIde"; \
   ValueType: string; ValueName: ""; ValueData: "{code:MenuLabel|Fast Ide}"; \
@@ -142,7 +144,8 @@ Root: HKA; Subkey: "Software\Classes\Directory\shell\BaoCodeFastIde"; \
   ValueType: string; ValueName: "Icon"; ValueData: """{app}\baocode.exe"""; \
   Tasks: contextmenu
 Root: HKA; Subkey: "Software\Classes\Directory\shell\BaoCodeFastIde\command"; \
-  ValueType: string; ValueName: ""; ValueData: """{app}\baocode.exe"" ""%V"""; \
+  ValueType: string; ValueName: ""; \
+  ValueData: """{app}\baocode.exe"" --baocode-cli ""%V"" -n ""%V"""; \
   Tasks: contextmenu
 Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCodeFastIde"; \
   ValueType: string; ValueName: ""; ValueData: "{code:MenuLabel|Fast Ide}"; \
@@ -151,7 +154,8 @@ Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCodeFastIde";
   ValueType: string; ValueName: "Icon"; ValueData: """{app}\baocode.exe"""; \
   Tasks: contextmenu
 Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCodeFastIde\command"; \
-  ValueType: string; ValueName: ""; ValueData: """{app}\baocode.exe"" ""%V"""; \
+  ValueType: string; ValueName: ""; \
+  ValueData: """{app}\baocode.exe"" --baocode-cli ""%V"" -n ""%V"""; \
   Tasks: contextmenu
 ; Unticked: what an earlier install added goes.
 Root: HKA; Subkey: "Software\Classes\*\shell\BaoCode"; ValueType: none; \

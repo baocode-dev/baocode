@@ -1,11 +1,13 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/ide/ide_chat_title.dart';
 import 'package:baocode/ide/ide_welcome.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/main.dart';
+import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/window/app_windows.dart';
 import 'package:baocode/window/window_settings.dart';
 import 'package:baocode/workbench.dart';
@@ -121,6 +123,35 @@ void main() {
     );
     expect(title.tabs, contains(same(thread)));
     expect(title.current, same(thread));
+  });
+
+  _testWindows('an agent\'s window (Open with BaoCode): its agent\'s '
+      'conversation alone, a view of its own; closed, it goes', (tester) async {
+    final (windows, host, workspace) = await _pumpApp(tester);
+    final opening = windows.openAgent(['~/code/baocode']);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump();
+    }
+    final thread = (await opening)!;
+    final window = windows.agentWindows.single;
+    expect(find.byType(Workbench), findsNWidgets(2));
+    final chat = _inView(window.viewId, find.byType(ChatScreen));
+    expect(chat, findsOneWidget);
+    expect(tester.widget<ChatScreen>(chat).session, same(thread.session));
+    expect(_inView(window.viewId, find.byType(Sidebar)), findsNothing);
+    expect(_inView(window.viewId, find.byType(IdeWorkbench)), findsNothing);
+    // The chat's window keeps its own.
+    expect(_inView(0, find.byType(Sidebar)), findsOneWidget);
+    expect(workspace.current, isNot(same(thread)));
+
+    final closing = windows.requestClose(window);
+    for (var i = 0; i < 3; i++) {
+      await tester.pump();
+    }
+    expect(await closing, isTrue);
+    expect(find.byType(Workbench), findsOneWidget);
+    expect(host.views, isEmpty);
+    expect(workspace.threads, isNot(contains(thread)));
   });
 
   _testWindows('a window closed goes, its view and its workbench', (

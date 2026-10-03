@@ -45,7 +45,8 @@ class FakeWindowHost extends WindowHost {
 
   /// What was asked, in order: `create 1`, `focus 0`, `hide 0`…
   final List<String> log = [];
-  final List<({int viewId, WindowFrame? frame, String title})> created = [];
+  final List<({int viewId, WindowFrame? frame, String title, double? width})>
+  created = [];
   final Map<int, String> titles = {};
   final Map<int, bool> edited = {};
   final Map<int, WindowFrame> frames = {};
@@ -65,10 +66,14 @@ class FakeWindowHost extends WindowHost {
       viewId == mainViewId ? implicit : views[viewId];
 
   @override
-  Future<int?> create({WindowFrame? frame, required String title}) async {
+  Future<int?> create({
+    WindowFrame? frame,
+    required String title,
+    double? width,
+  }) async {
     final id = _next++;
     views[id] = FakeView(implicit, viewId: id);
-    created.add((viewId: id, frame: frame, title: title));
+    created.add((viewId: id, frame: frame, title: title, width: width));
     if (frame != null) frames[id] = frame;
     log.add('create $id');
     return id;
@@ -106,10 +111,6 @@ class FakeWindowHost extends WindowHost {
 
   @override
   Future<WindowFrame?> frame(int viewId) async => frames[viewId];
-
-  @override
-  Future<void> setWidth(int viewId, double width) async =>
-      log.add('setWidth $viewId ${width.round()}');
 
   @override
   Future<List<ScreenArea>> screens() async => screenAreas;

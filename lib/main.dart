@@ -139,7 +139,8 @@ Future<void> main(List<String> arguments) async {
   final request = LaunchRequest.of(arguments);
   await windows.prepareLaunch(request: request);
   if (request == LaunchRequest.agent) {
-    workspace.layout = WorkspaceLayout.chat;
+    // In a window of its own; without them, in the main window's chat.
+    if (!windows.started) workspace.layout = WorkspaceLayout.chat;
   } else if (files != null && !windows.multi) {
     workspace.layout = MainWindow.parse(files.settings[MainWindow.settingKey])
         .layoutAtLaunch(workspace.layout);
@@ -341,6 +342,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
                       for (final window in [
                         _windows.chat,
                         ..._windows.ideWindows,
+                        ..._windows.agentWindows,
                       ])
                         if (_windows.host.viewOf(window.viewId)
                             case final view?)

@@ -89,18 +89,6 @@ bool IsRequest(const std::vector<std::string>& paths) {
                             paths.front() == kAgentRequestFlag);
 }
 
-bool StartedForAgent() {
-  int count = 0;
-  wchar_t** arguments = ::CommandLineToArgvW(::GetCommandLineW(), &count);
-  if (arguments == nullptr) {
-    return false;
-  }
-  const bool agent =
-      count > 1 && Utf8FromUtf16(arguments[1]) == kAgentRequestFlag;
-  ::LocalFree(arguments);
-  return agent;
-}
-
 OpenRequests::OpenRequests(flutter::BinaryMessenger* messenger,
                            std::vector<std::string> pending)
     : pending_(std::move(pending)),
