@@ -87,4 +87,18 @@ void main() {
     final none = CodeArgs.fromRequestFile('/home/me\n');
     expect(none.paths, isEmpty);
   });
+
+  test('what the app was started for, by its command line', () {
+    expect(LaunchRequest.of(const []), LaunchRequest.none);
+    expect(LaunchRequest.of(const ['--some-flag']), LaunchRequest.none);
+    expect(
+      LaunchRequest.of(const [CodeArgs.windowsAgentFlag, r'C:\w\a.dart']),
+      LaunchRequest.agent,
+    );
+    expect(
+      LaunchRequest.of(const [CodeArgs.windowsRequestFlag, r'C:\w']),
+      LaunchRequest.ide,
+    );
+    expect(LaunchRequest.of(const [r'C:\w']), LaunchRequest.ide);
+  });
 }

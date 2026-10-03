@@ -20,6 +20,11 @@ namespace {
 constexpr unsigned int kDefaultWidth = 1024;
 constexpr unsigned int kDefaultHeight = 760;
 
+// Started for Open with BaoCode (see StartedForAgent): the conversation
+// alone, the sidebar out of the way — lib/window/app_windows.dart's
+// agentWidth.
+constexpr unsigned int kAgentWidth = 520;
+
 // Still fits the title bar and the composer's toolbar (client area, in
 // logical pixels — the same numbers as macOS's contentMinSize).
 constexpr unsigned int kMinClientWidth = 400;
@@ -111,7 +116,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project, std::move(open_paths));
   Win32Window::Point origin(10, 10);
-  Win32Window::Size size(kDefaultWidth, kDefaultHeight);
+  Win32Window::Size size(StartedForAgent() ? kAgentWidth : kDefaultWidth,
+                         kDefaultHeight);
   Win32Window::Point placed = origin;
   PlaceOnMonitor(origin, &size, &placed);
   if (!window.Create(L"BaoCode", placed, size)) {

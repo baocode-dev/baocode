@@ -200,7 +200,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
        _isDirectory = isDirectory ?? local.isDirectory,
        _takeFile = takeFile ?? local.takeFile,
        _hasTray = hasTray ?? (() => false),
-       _quit = quit ?? (() => _exit(host)),
+       _quitOverride = quit,
        _nextFrame = nextFrame ?? (() => WidgetsBinding.instance.endOfFrame),
        _quitsWithLastWindow =
            quitsWithLastWindow ??
@@ -226,21 +226,61 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   final Future<bool> Function(String path) _isDirectory;
   final Future<String?> Function(String path) _takeFile;
   final bool Function() _hasTray;
-  final Future<AppExitResponse> Function() _quit;
+  final Future<AppExitResponse> Function()? _quitOverride;
+
+  Future<AppExitResponse> _quit() => (_quitOverride ?? _exit)();
+
+  /// The quit under way: the windows' closing all ask once (the taskbar's
+  /// Close all windows closes each, and the last of them quits).
+  Future<AppExitResponse>? _exiting;
 
   /// Quits the app, asked first (see main.dart's onExitRequested). On
   /// Windows the engine's way (exitApplication) ends the message loop with
   /// the windows still up, and the app hangs taking Flutter down outside
-  /// it: the app is asked here, and its main window closed in the loop
-  /// (see app_windows.h' kQuitMessage).
-  static Future<AppExitResponse> _exit(WindowHost host) async {
+  /// it: the app is asked here, its IDE windows closed (see
+  /// [closeForQuit]), and its main window closed in the loop (see
+  /// app_windows.h' kQuitMessage).
+  Future<AppExitResponse> _exit() {
     final binding = ServicesBinding.instance;
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
       return binding.exitApplication(AppExitType.cancelable);
     }
-    final response = await binding.handleRequestAppExit();
-    if (response == AppExitResponse.exit) await host.quit();
-    return response;
+    return _exiting ??= () async {
+      try {
+        final response = await binding.handleRequestAppExit();
+        if (response == AppExitResponse.exit) {
+          await closeForQuit();
+          await host.quit();
+        }
+        return response;
+      } finally {
+        _exiting = null;
+      }
+    }();
+  }
+
+  /// Whether the app is going: what is kept for the next launch stays as
+  /// it was before (see [closeForQuit]).
+  bool _quitting = false;
+
+  /// The IDE's windows closed as the app goes (Windows'), as [requestClose]
+  /// closes one: their widgets first, then their views. Left to the main
+  /// window's going, a view the engine still draws goes in the middle of
+  /// it, and the engine, waiting for it to be let go of, hangs the app.
+  /// They are kept for the next launch as they were.
+  @visibleForTesting
+  Future<void> closeForQuit() async {
+    if (_ide.isEmpty) return;
+    _quitting = true;
+    final closing = [..._ide];
+    _ide.clear();
+    notifyListeners();
+    await _nextFrame();
+    for (final window in closing) {
+      WindowControls.stopListening(window.viewId);
+      FileDrops.stopListening(window.viewId);
+      await host.close(window.viewId);
+    }
   }
 
   final Future<void> Function() _nextFrame;
@@ -1235,7 +1275,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   /// Keeps the windows for the next launch (`windows.json`), the one in
   /// front first, and tells the system whether the chat's shows then.
   void _save() {
-    if (!_started || _launch != null) return;
+    if (!_started || _launch != null || _quitting) return;
     final store = _store;
     final data = <String, Object?>{
       'version': _version,

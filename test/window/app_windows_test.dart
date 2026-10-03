@@ -369,6 +369,61 @@ void main() {
     });
   });
 
+  group('Open with BaoCode', () {
+    testWidgets('a folder: a new agent in it, as its project, in the chat\'s '
+        'window, which comes in front', (tester) async {
+      final harness = _Harness(tester);
+      await harness.start();
+      await harness.windows.showFolder('/w/b');
+      harness.host.log.clear();
+      await harness.windows.openRequested([
+        CodeArgs.agentRequestMarker,
+        '/w/a',
+      ]);
+      final thread = harness.chatDelegate.agents.single;
+      expect(thread.project.path, '/w/a');
+      expect(harness.workspace.current, same(thread));
+      expect(thread.session.draft.pendingFiles, isEmpty);
+      expect(harness.order.first, 'chat');
+      // It showed: as wide as it was.
+      expect(harness.host.log, ['focus 0']);
+    });
+
+    testWidgets('a file: in the composer, as if pasted; the agent in the '
+        'project it is in, else in its folder', (tester) async {
+      final harness = _Harness(tester);
+      await harness.start();
+      final thread = (await harness.windows.openAgent([
+        '~/code/baocode/lib/main.dart',
+      ]))!;
+      expect(thread.project.path, '~/code/baocode');
+      expect(thread.session.draft.pendingFiles, const [
+        ComposerFile('~/code/baocode/lib/main.dart'),
+      ]);
+
+      final loose = (await harness.windows.openAgent(['/tmp/notes/a.md']))!;
+      expect(loose.project.path, '/tmp/notes');
+      expect(loose.session.draft.pendingFiles, const [
+        ComposerFile('/tmp/notes/a.md'),
+      ]);
+    });
+
+    testWidgets('the chat\'s window, closed, opens narrow', (tester) async {
+      final harness = _Harness(tester);
+      await harness.start();
+      await harness.windows.showFolder('/w/b');
+      harness.windows.showChat();
+      await harness.windows.requestClose(harness.windows.chat);
+      harness.host.log.clear();
+      await harness.windows.openAgent(['/w/a']);
+      expect(harness.host.log, [
+        'setWidth 0 ${AppWindows.agentWidth.round()}',
+        'focus 0',
+      ]);
+      expect(harness.windows.chat.shown, isTrue);
+    });
+  });
+
   group('Open Folder in a window', () {
     testWidgets('replaces its folder; a folder open elsewhere comes in front '
         'instead', (tester) async {
@@ -675,6 +730,47 @@ void main() {
     expect(host.log, contains('quit'));
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
+  testWidgets('Windows: quitting closes the IDE\'s windows first (left to '
+      'the main window\'s going, a view still drawn hangs the engine), '
+      'kept for the next launch as they were; asked once', (tester) async {
+    final host = FakeWindowHost(tester.view);
+    final store = MemoryPreferenceStore();
+    final windows = AppWindows(
+      host: host,
+      workspace: Workspace.mock(),
+      l10n: () => englishLocalizations,
+      store: store,
+      nextFrame: () async {},
+    );
+    var asked = 0;
+    final listener = AppLifecycleListener(
+      onExitRequested: () async {
+        asked++;
+        return AppExitResponse.exit;
+      },
+    );
+    addTearDown(listener.dispose);
+    await windows.start();
+    final a = (await windows.newWindow())!;
+    final b = (await windows.newWindow())!;
+    host.events!.windowFocused(b.viewId);
+    await windows.saved;
+    final kept = store.preferences['windows'];
+    expect(kept, hasLength(3));
+    host.log.clear();
+
+    // The taskbar's Close all windows: the last of them quits, as may the
+    // tray's Quit beside it.
+    windows.quitRequested();
+    windows.quitRequested();
+    await tester.pump();
+    expect(asked, 1);
+    expect(host.log, ['close ${a.viewId}', 'close ${b.viewId}', 'quit']);
+    expect(windows.ideWindows, isEmpty);
+    await windows.saved;
+    expect(store.preferences['windows'], kept);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
   testWidgets('quitting, cancelled at the unsaved files, does not quit', (
     tester,
   ) async {
@@ -757,6 +853,37 @@ void main() {
     testWidgets('one: the one in front', (tester) async {
       final harness = await restored(tester, restore: RestoreWindows.one);
       expect(harness.folders, ['/w/a']);
+    });
+
+    testWidgets('started for an agent (Open with BaoCode): the chat\'s '
+        'window alone', (tester) async {
+      final harness = _Harness(tester, kept: kept(), mainWindow: MainWindow.ide)
+        ..host.screenAreas = const [_screen];
+      await harness.start();
+      await harness.windows.prepareLaunch(request: LaunchRequest.agent);
+      // Shown this launch; the next, as the setting says.
+      expect(harness.host.mainShownAtLaunch, isTrue);
+      await harness.windows.restore();
+      expect(harness.folders, isEmpty);
+      expect(harness.windows.chat.shown, isTrue);
+      expect(harness.host.mainShownAtLaunch, isFalse);
+    });
+
+    testWidgets('started for paths (Open with Fast Ide, `code`): what they '
+        'open alone, the chat not shown', (tester) async {
+      final harness = _Harness(
+        tester,
+        kept: kept(),
+        mainWindow: MainWindow.chat,
+      )..host.screenAreas = const [_screen];
+      await harness.start();
+      await harness.windows.prepareLaunch(request: LaunchRequest.ide);
+      expect(harness.host.mainShownAtLaunch, isFalse);
+      await harness.windows.restore();
+      await harness.windows.openRequested(['/w/c']);
+      expect(harness.folders, ['/w/c']);
+      expect(harness.windows.chat.shown, isFalse);
+      expect(harness.host.mainShownAtLaunch, isTrue);
     });
 
     testWidgets('none: an empty window, the chat still not shown', (

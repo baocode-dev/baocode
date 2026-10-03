@@ -84,6 +84,8 @@ class IdeWindow : public ViewWindow {
 //   frame viewId                  {x, y, width, height, maximized,
 //                                 fullscreen, screen}, in physical pixels
 //                                 of the virtual screen
+//   setWidth {viewId, width}      that wide (logical pixels), its height
+//                                 and top left kept, on its monitor
 //   screens                       [{id, x, y, width, height}]: the
 //                                 monitors' work areas
 //   setWindowList {windows, labels}

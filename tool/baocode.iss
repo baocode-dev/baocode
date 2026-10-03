@@ -67,6 +67,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; \
   GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "addtopath"; Description: "Add BaoCode to the PATH"; \
   GroupDescription: "Other:"; Flags: unchecked
+Name: "contextmenu"; \
+  Description: "Add ""Open with BaoCode"" and ""Open with Fast Ide"" to Explorer's context menu"; \
+  GroupDescription: "Other:"
 
 [Files]
 ; The whole bundle: baocode.exe, the engine and plugin DLLs, and data\ (the
@@ -91,11 +94,95 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; \
   ValueData: "{olddata};{app}"; Tasks: addtopath; \
   Check: (not IsAdminInstallMode) and NeedsAddPath(ExpandConstant('{app}'), False)
 
+; Explorer's context menu, on a file, a folder and a folder's background:
+; Open with BaoCode, a new agent in the chat's window (narrow, a file in its
+; composer; see AppWindows.openAgent), and Open with Fast Ide, as the `code`
+; command opens it. HKA is the install mode's hive (HKLM per machine, HKCU
+; per user). Windows 11 lists them under "Show more options". Unticked on a
+; reinstall, they go.
+Root: HKA; Subkey: "Software\Classes\*\shell\BaoCode"; ValueType: string; \
+  ValueName: ""; ValueData: "{code:MenuLabel|BaoCode}"; Tasks: contextmenu; \
+  Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\*\shell\BaoCode"; ValueType: string; \
+  ValueName: "Icon"; ValueData: """{app}\baocode.exe"""; Tasks: contextmenu
+Root: HKA; Subkey: "Software\Classes\*\shell\BaoCode\command"; \
+  ValueType: string; ValueName: ""; \
+  ValueData: """{app}\baocode.exe"" --baocode-agent ""%1"""; Tasks: contextmenu
+Root: HKA; Subkey: "Software\Classes\Directory\shell\BaoCode"; \
+  ValueType: string; ValueName: ""; ValueData: "{code:MenuLabel|BaoCode}"; \
+  Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\Directory\shell\BaoCode"; \
+  ValueType: string; ValueName: "Icon"; ValueData: """{app}\baocode.exe"""; \
+  Tasks: contextmenu
+Root: HKA; Subkey: "Software\Classes\Directory\shell\BaoCode\command"; \
+  ValueType: string; ValueName: ""; \
+  ValueData: """{app}\baocode.exe"" --baocode-agent ""%V"""; Tasks: contextmenu
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCode"; \
+  ValueType: string; ValueName: ""; ValueData: "{code:MenuLabel|BaoCode}"; \
+  Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCode"; \
+  ValueType: string; ValueName: "Icon"; ValueData: """{app}\baocode.exe"""; \
+  Tasks: contextmenu
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCode\command"; \
+  ValueType: string; ValueName: ""; \
+  ValueData: """{app}\baocode.exe"" --baocode-agent ""%V"""; Tasks: contextmenu
+Root: HKA; Subkey: "Software\Classes\*\shell\BaoCodeFastIde"; \
+  ValueType: string; ValueName: ""; ValueData: "{code:MenuLabel|Fast Ide}"; \
+  Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\*\shell\BaoCodeFastIde"; \
+  ValueType: string; ValueName: "Icon"; ValueData: """{app}\baocode.exe"""; \
+  Tasks: contextmenu
+Root: HKA; Subkey: "Software\Classes\*\shell\BaoCodeFastIde\command"; \
+  ValueType: string; ValueName: ""; ValueData: """{app}\baocode.exe"" ""%1"""; \
+  Tasks: contextmenu
+Root: HKA; Subkey: "Software\Classes\Directory\shell\BaoCodeFastIde"; \
+  ValueType: string; ValueName: ""; ValueData: "{code:MenuLabel|Fast Ide}"; \
+  Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\Directory\shell\BaoCodeFastIde"; \
+  ValueType: string; ValueName: "Icon"; ValueData: """{app}\baocode.exe"""; \
+  Tasks: contextmenu
+Root: HKA; Subkey: "Software\Classes\Directory\shell\BaoCodeFastIde\command"; \
+  ValueType: string; ValueName: ""; ValueData: """{app}\baocode.exe"" ""%V"""; \
+  Tasks: contextmenu
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCodeFastIde"; \
+  ValueType: string; ValueName: ""; ValueData: "{code:MenuLabel|Fast Ide}"; \
+  Tasks: contextmenu; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCodeFastIde"; \
+  ValueType: string; ValueName: "Icon"; ValueData: """{app}\baocode.exe"""; \
+  Tasks: contextmenu
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCodeFastIde\command"; \
+  ValueType: string; ValueName: ""; ValueData: """{app}\baocode.exe"" ""%V"""; \
+  Tasks: contextmenu
+; Unticked: what an earlier install added goes.
+Root: HKA; Subkey: "Software\Classes\*\shell\BaoCode"; ValueType: none; \
+  Tasks: not contextmenu; Flags: deletekey
+Root: HKA; Subkey: "Software\Classes\Directory\shell\BaoCode"; ValueType: none; \
+  Tasks: not contextmenu; Flags: deletekey
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCode"; \
+  ValueType: none; Tasks: not contextmenu; Flags: deletekey
+Root: HKA; Subkey: "Software\Classes\*\shell\BaoCodeFastIde"; ValueType: none; \
+  Tasks: not contextmenu; Flags: deletekey
+Root: HKA; Subkey: "Software\Classes\Directory\shell\BaoCodeFastIde"; \
+  ValueType: none; Tasks: not contextmenu; Flags: deletekey
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCodeFastIde"; \
+  ValueType: none; Tasks: not contextmenu; Flags: deletekey
+
 [Run]
 Filename: "{app}\baocode.exe"; Description: "{cm:LaunchProgram,BaoCode}"; \
   Flags: nowait postinstall skipifsilent
 
 [Code]
+// The context menu's labels (see [Registry]): "Open with BaoCode", in
+// Chinese where Windows is. Written as code points, so the script's encoding
+// does not matter.
+function MenuLabel(Param: String): String;
+begin
+  if (GetUILanguage and $3FF) = $04 then
+    Result := #$7528 + ' ' + Param + ' ' + #$6253#$5F00
+  else
+    Result := 'Open with ' + Param;
+end;
+
 // Whether {app} is already on the PATH the install will write, so a reinstall
 // does not append it a second time. Machine reads the machine's PATH, user the
 // user's, matching [Registry] above.

@@ -455,6 +455,29 @@ void AppWindows::HandleMethodCall(
                                       : FrameOf(window));
     return;
   }
+  if (method == "setWidth") {
+    // Open with BaoCode's narrow chat (see AppWindows.openAgent): hidden
+    // still, so it shows at that width; a maximized one stays so.
+    const HWND window = id ? HandleOf(*id) : nullptr;
+    const std::optional<double> width = NumberOf(Find(arguments, "width"));
+    RECT bounds;
+    if (window != nullptr && width && !::IsZoomed(window) &&
+        !::IsIconic(window) && ::GetWindowRect(window, &bounds)) {
+      const HMONITOR monitor =
+          ::MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+      MONITORINFO info = {};
+      info.cbSize = sizeof(info);
+      ::GetMonitorInfoW(monitor, &info);
+      const double scale = ::FlutterDesktopGetDpiForHWND(window) / 96.0;
+      bounds.right = bounds.left + static_cast<LONG>(*width * scale);
+      bounds = Within(bounds, info.rcWork);
+      ::SetWindowPos(window, nullptr, bounds.left, bounds.top,
+                     bounds.right - bounds.left, bounds.bottom - bounds.top,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+    result->Success();
+    return;
+  }
   if (method == "screens") {
     result->Success(Screens());
     return;
