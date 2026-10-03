@@ -5258,4 +5258,375 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get customizeConnectorReadOnly =>
       'Read only: a claude.ai connector, managed in claude.ai\'s settings, under Connectors.';
+
+  @override
+  String get settingsSectionModels => 'Models';
+
+  @override
+  String get modelsTitle => 'Models';
+
+  @override
+  String get modelsDescription =>
+      'Where Claude Code\'s models come from: Claude Code as set up on this machine, and upstreams you add. Anthropic-compatible upstreams are spoken to by Claude Code itself; OpenAI\'s APIs through a local proxy of BaoCode\'s that translates.';
+
+  @override
+  String get modelsDefault => 'Default Model for New Sessions';
+
+  @override
+  String get modelsDefaultDescription =>
+      'Unset, a new session starts with the model last picked.';
+
+  @override
+  String get modelsDefaultLast => 'Last picked';
+
+  @override
+  String modelsChoiceLabel(String label, String value) {
+    return '$label: $value';
+  }
+
+  @override
+  String get modelsBuiltinName => 'Claude Code (this machine\'s setup)';
+
+  @override
+  String get modelsBuiltinDefault => 'Claude Code default';
+
+  @override
+  String get modelsBuiltinBadge => 'Built-in';
+
+  @override
+  String get modelsBuiltinDescription =>
+      'Your own login and settings, nothing changed';
+
+  @override
+  String get modelsProviders => 'Upstreams';
+
+  @override
+  String modelsEnableProvider(String name) {
+    return 'Offer $name in the model picker';
+  }
+
+  @override
+  String get modelsAddProvider => 'Add Upstream';
+
+  @override
+  String get modelsNewProviderName => 'New Upstream';
+
+  @override
+  String get modelsProviderNoUrl => 'No base URL';
+
+  @override
+  String modelsModelCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count models',
+      one: '1 model',
+      zero: 'no models',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get modelsProtocolAnthropic => 'Anthropic-compatible';
+
+  @override
+  String get modelsConnection => 'Connection';
+
+  @override
+  String get modelsName => 'Name';
+
+  @override
+  String get modelsProtocol => 'Protocol';
+
+  @override
+  String get modelsProtocolDescription =>
+      'OpenAI\'s APIs go through the local proxy, which translates Claude Code\'s requests and the answers.';
+
+  @override
+  String get modelsBaseUrl => 'Base URL';
+
+  @override
+  String get modelsBaseUrlAnthropicHint =>
+      'Without /v1, as ANTHROPIC_BASE_URL: Claude Code adds /v1/messages.';
+
+  @override
+  String get modelsBaseUrlOpenAIHint =>
+      'With its version (…/v1); a host alone gets /v1.';
+
+  @override
+  String get modelsApiKey => 'API Key';
+
+  @override
+  String get modelsApiKeyDescription =>
+      'Kept in the system\'s keychain, not in settings.json.';
+
+  @override
+  String get modelsApiKeyShow => 'Show the key';
+
+  @override
+  String get modelsApiKeyHide => 'Hide the key';
+
+  @override
+  String modelsApiKeyError(String error) {
+    return 'The key could not be kept: $error';
+  }
+
+  @override
+  String get modelsTest => 'Test Connection';
+
+  @override
+  String get modelsTesting => 'Connecting…';
+
+  @override
+  String modelsTestOk(int count) {
+    return 'Connected: the upstream lists $count models.';
+  }
+
+  @override
+  String modelsTestFailed(String error) {
+    return 'Could not connect: $error';
+  }
+
+  @override
+  String get modelsModelsGroup => 'Models';
+
+  @override
+  String get modelsModelsDescription =>
+      'Those checked are offered in the model picker.';
+
+  @override
+  String get modelsFetch => 'Fetch from Upstream…';
+
+  @override
+  String get modelsAddModel => 'Add Model…';
+
+  @override
+  String get modelsSearch => 'Search models';
+
+  @override
+  String get modelsNone =>
+      'No models yet: fetch them from the upstream, or add them by hand.';
+
+  @override
+  String get modelsNoMatch => 'No model matches.';
+
+  @override
+  String get modelsMissing => 'Gone upstream';
+
+  @override
+  String get modelsMissingTooltip =>
+      'No longer listed by the upstream; kept until you remove it.';
+
+  @override
+  String get modelsCustom => 'Manual';
+
+  @override
+  String get modelsThinking => 'Supports thinking';
+
+  @override
+  String get modelsImages => 'Supports images';
+
+  @override
+  String get modelsEdit => 'Edit…';
+
+  @override
+  String get modelsRemove => 'Remove';
+
+  @override
+  String get modelsMore => 'More Actions';
+
+  @override
+  String modelsEnableModel(String name) {
+    return 'Offer $name';
+  }
+
+  @override
+  String get modelsRoles => 'Roles';
+
+  @override
+  String get modelsRolesDescription =>
+      'Which model Claude Code uses for each part of its work. Unset, the model picked stands in.';
+
+  @override
+  String get modelsRoleUnset => 'Unset';
+
+  @override
+  String get modelsRoleMain => 'Main Model';
+
+  @override
+  String get modelsRoleMainDescription =>
+      'Used when the model a session picked of this upstream is gone.';
+
+  @override
+  String get modelsRoleOpus => 'Opus Tier';
+
+  @override
+  String get modelsRoleOpusDescription =>
+      'ANTHROPIC_DEFAULT_OPUS_MODEL: what “opus” means, as in Plan mode.';
+
+  @override
+  String get modelsRoleSonnet => 'Sonnet Tier';
+
+  @override
+  String get modelsRoleSonnetDescription =>
+      'ANTHROPIC_DEFAULT_SONNET_MODEL: what “sonnet” means.';
+
+  @override
+  String get modelsRoleHaiku => 'Haiku Tier';
+
+  @override
+  String get modelsRoleHaikuDescription =>
+      'ANTHROPIC_DEFAULT_HAIKU_MODEL: Claude Code\'s background work, and agents\' titles.';
+
+  @override
+  String get modelsRoleHaikuWarning =>
+      'Unset, background work runs on the model picked, which may be slower and cost more. Pick a small, fast model.';
+
+  @override
+  String get modelsRoleSubagent => 'Subagents';
+
+  @override
+  String get modelsRoleSubagentDescription =>
+      'CLAUDE_CODE_SUBAGENT_MODEL: the model subagents run on.';
+
+  @override
+  String get modelsAdvanced => 'Advanced';
+
+  @override
+  String get modelsAuth => 'Authentication';
+
+  @override
+  String get modelsAuthDescription =>
+      'How the key is sent. Automatic: x-api-key to api.anthropic.com, a bearer token elsewhere.';
+
+  @override
+  String get modelsAuthAuto => 'Automatic';
+
+  @override
+  String get modelsNonessential => 'Disable Nonessential Traffic';
+
+  @override
+  String get modelsNonessentialDescription =>
+      'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: no telemetry, error reports or update checks, which upstreams other than Anthropic do not answer.';
+
+  @override
+  String get modelsPreserveThinking => 'Send Reasoning Back';
+
+  @override
+  String get modelsPreserveThinkingDescription =>
+      'Replays the model\'s reasoning (reasoning_content) in later requests, as DeepSeek and others want.';
+
+  @override
+  String get modelsEnv => 'Extra Environment';
+
+  @override
+  String get modelsEnvDescription =>
+      'One KEY=VALUE a line, given to Claude Code after the settings above.';
+
+  @override
+  String get modelsDelete => 'Delete Upstream';
+
+  @override
+  String get modelsDeleteDescription =>
+      'Removes it, and its key from the keychain.';
+
+  @override
+  String modelsDeleteConfirm(String name) {
+    return 'Delete “$name”?';
+  }
+
+  @override
+  String get modelsDeleteDetail =>
+      'Sessions on its models go back to Claude Code\'s own when they next start.';
+
+  @override
+  String modelsFetchTitle(String name) {
+    return 'Models of $name';
+  }
+
+  @override
+  String get modelsFetchLoading => 'Asking the upstream…';
+
+  @override
+  String modelsFetchFailed(String error) {
+    return 'Could not fetch the models: $error';
+  }
+
+  @override
+  String get modelsFetchEmpty => 'The upstream lists no models.';
+
+  @override
+  String get modelsFetchSelectAll => 'Select All';
+
+  @override
+  String get modelsFetchSelectNone => 'Select None';
+
+  @override
+  String modelsFetchSelected(int count, int total) {
+    return '$count of $total checked';
+  }
+
+  @override
+  String get modelsFetchNew => 'New';
+
+  @override
+  String get modelsFetchApply => 'Apply';
+
+  @override
+  String get modelsRetry => 'Retry';
+
+  @override
+  String get modelsAddTitle => 'Add Model';
+
+  @override
+  String get modelsEditTitle => 'Edit Model';
+
+  @override
+  String get modelsModelId => 'Model ID';
+
+  @override
+  String get modelsModelIdHint => 'As the upstream names it, e.g. gpt-5';
+
+  @override
+  String get modelsModelIdTaken => 'This upstream has that model already.';
+
+  @override
+  String get modelsModelLabel => 'Display Name';
+
+  @override
+  String get modelsModelLabelHint => 'Optional';
+
+  @override
+  String get modelsContextWindow => 'Context Window';
+
+  @override
+  String get modelsContextWindowHint => 'Tokens, e.g. 128000 or 128K';
+
+  @override
+  String get modelsContextInvalid => 'A number of tokens, e.g. 200K.';
+
+  @override
+  String get modelsSupportsThinking =>
+      'Supports thinking (its effort can be picked)';
+
+  @override
+  String get modelsSupportsImages => 'Supports images';
+
+  @override
+  String get modelsSave => 'Save';
+
+  @override
+  String get modelsManage => 'Manage Models…';
+
+  @override
+  String modelsSwitchTitle(String name) {
+    return 'Switch to $name?';
+  }
+
+  @override
+  String get modelsSwitchDetail =>
+      'Claude Code restarts on the other upstream and resumes this conversation (--resume). Its history is sent to the new model as it is; some upstreams take it slower the first time.';
+
+  @override
+  String get modelsSwitchConfirm => 'Switch';
 }

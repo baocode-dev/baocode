@@ -37,6 +37,8 @@ class ComposerPicker extends StatefulWidget {
     this.menuWidth = 248,
     this.tapRegionGroupId,
     this.focusNode,
+    this.searchPlaceholder,
+    this.footer,
   });
 
   final List<KernelOption> options;
@@ -72,9 +74,26 @@ class ComposerPicker extends StatefulWidget {
   /// open menu through it ([FloatingRegistry.handleKey]).
   final FocusNode? focusNode;
 
+  /// Many options are filtered as the user types, this shown until then;
+  /// never when null.
+  final String? searchPlaceholder;
+
+  /// An action under the options (Manage Models…).
+  final ComposerPickerFooter? footer;
+
+  /// Options from which the search shows.
+  static const searchFrom = 10;
+
   @override
   State<ComposerPicker> createState() => ComposerPickerState();
 }
+
+/// [ComposerPicker.footer]: closes the menu and runs [onTap].
+typedef ComposerPickerFooter = ({
+  String label,
+  IconData icon,
+  VoidCallback onTap,
+});
 
 class ComposerPickerState extends State<ComposerPicker> {
   /// Opens its menu, or closes it, as a press on it does (the mode and
@@ -85,6 +104,55 @@ class ComposerPickerState extends State<ComposerPicker> {
   late List<GlobalKey> _rowKeys = _keysFor(widget.options);
   bool _open = false;
   int _highlighted = 0;
+
+  /// What was typed to filter the options.
+  String _query = '';
+
+  bool get _searches =>
+      widget.searchPlaceholder != null &&
+      widget.options.length >= ComposerPicker.searchFrom;
+
+  /// The options shown, by index: those [_query] matches.
+  List<int> get _visible {
+    final query = _query.trim().toLowerCase();
+    return [
+      for (final (i, option) in widget.options.indexed)
+        if (query.isEmpty ||
+            option.label.toLowerCase().contains(query) ||
+            option.id.toLowerCase().contains(query) ||
+            option.description.toLowerCase().contains(query) ||
+            (option.group?.label.toLowerCase().contains(query) ?? false))
+          i,
+    ];
+  }
+
+  void _search(String query) {
+    final visible = (_query = query).isEmpty ? null : _visible;
+    setState(() {
+      _settingsOf = null;
+      _setting = null;
+      if (visible != null && visible.isNotEmpty) {
+        if (!visible.contains(_highlighted)) _highlighted = visible.first;
+      }
+    });
+  }
+
+  /// Option [index] scrolled into view, after the keys moved to it.
+  void _reveal(int index, {required bool down}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (index >= _rowKeys.length) return;
+      final row = _rowKeys[index].currentContext;
+      if (row == null || !row.mounted) return;
+      unawaited(
+        Scrollable.ensureVisible(
+          row,
+          alignmentPolicy: down
+              ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
+              : ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+        ),
+      );
+    });
+  }
 
   // An option's settings are one menu, moved from option to option (not
   // one per option): switching between them neither fades nor flickers.
@@ -140,6 +208,7 @@ class ComposerPickerState extends State<ComposerPicker> {
     if (open == _open) return;
     setState(() {
       _open = open;
+      _query = '';
       if (open) {
         _highlighted = widget.options
             .indexOf(widget.selected)
@@ -272,15 +341,19 @@ class ComposerPickerState extends State<ComposerPicker> {
     if (event is KeyUpEvent) return null;
     final key = event.logicalKey;
     if (_setting case final setting?) return _handleSettingKey(event, setting);
-    final count = widget.options.length;
+    final visible = _visible;
+    final count = visible.length;
     if (key == LogicalKeyboardKey.arrowDown ||
         key == LogicalKeyboardKey.arrowUp) {
+      if (count == 0) return KeyEventResult.handled;
       final step = key == LogicalKeyboardKey.arrowDown ? 1 : -1;
+      final at = visible.indexOf(_highlighted);
       _cancelSwitch();
       setState(() {
-        _highlighted = (_highlighted + step + count) % count;
+        _highlighted = visible[at < 0 ? 0 : (at + step + count) % count];
         _settingsOf = null;
       });
+      _reveal(_highlighted, down: step > 0);
     } else if (key == LogicalKeyboardKey.arrowRight) {
       final settings = _settingsFor(_highlighted);
       if (settings.isEmpty) return null;
@@ -294,13 +367,38 @@ class ComposerPickerState extends State<ComposerPicker> {
       });
     } else if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter) {
-      if (event is KeyDownEvent) _select(_highlighted);
+      if (event is KeyDownEvent && count > 0) {
+        _select(visible.contains(_highlighted) ? _highlighted : visible.first);
+      }
     } else if (key == LogicalKeyboardKey.escape) {
-      if (event is KeyDownEvent) _setOpen(false);
+      // Typed: the search is cleared first.
+      if (event is KeyDownEvent) {
+        _query.isEmpty ? _setOpen(false) : _search('');
+      }
+    } else if (_searches && key == LogicalKeyboardKey.backspace) {
+      if (_query.isNotEmpty) {
+        _search(_query.substring(0, _query.length - 1));
+      }
+    } else if ((_searches ? _typed(event) : null) case final text?) {
+      _search(_query + text);
     } else {
       return null;
     }
     return KeyEventResult.handled;
+  }
+
+  /// What [event] types, if it is a character, not a shortcut.
+  static String? _typed(KeyEvent event) {
+    final character = event.character;
+    if (character == null || character.isEmpty) return null;
+    final keys = HardwareKeyboard.instance;
+    if (keys.isControlPressed || keys.isMetaPressed || keys.isAltPressed) {
+      return null;
+    }
+    if (character.runes.any((rune) => rune < 0x20 || rune == 0x7f)) {
+      return null;
+    }
+    return character;
   }
 
   KeyEventResult? _handleSettingKey(KeyEvent event, int setting) {
@@ -555,7 +653,37 @@ class ComposerPickerState extends State<ComposerPicker> {
     );
   }
 
+  /// The options' list at most this high; it scrolls past it.
+  static const _maxListHeight = 380.0;
+
   Widget _buildOptions() {
+    final options = widget.options;
+    // Headings only when there is more than one group to tell apart.
+    final grouped = {for (final option in options) option.group?.id}.length > 1;
+    final visible = _visible;
+    final rows = <Widget>[];
+    KernelOptionGroup? group;
+    for (final (n, i) in visible.indexed) {
+      final option = options[i];
+      if (grouped && (n == 0 || option.group?.id != group?.id)) {
+        rows.add(_GroupHeading(group: option.group, first: n == 0));
+      }
+      group = option.group;
+      rows.add(
+        _PickerRow(
+          key: _rowKeys[i],
+          option: option,
+          height: _rowHeight,
+          describes: widget.describes,
+          hasSettings: _settingsFor(i).isNotEmpty,
+          selected: option == widget.selected,
+          highlighted: i == _highlighted,
+          onHover: (position) => _pointAt(i, position),
+          onTap: () => _select(i),
+        ),
+      );
+    }
+    final footer = widget.footer;
     final menu = Container(
       key: _menuKey,
       width: widget.menuWidth,
@@ -573,18 +701,41 @@ class ComposerPickerState extends State<ComposerPicker> {
                 style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
               ),
             ),
-          for (var i = 0; i < widget.options.length; i++)
-            _PickerRow(
-              key: _rowKeys[i],
-              option: widget.options[i],
-              height: _rowHeight,
-              describes: widget.describes,
-              hasSettings: _settingsFor(i).isNotEmpty,
-              selected: widget.options[i] == widget.selected,
-              highlighted: i == _highlighted,
-              onHover: (position) => _pointAt(i, position),
-              onTap: () => _select(i),
+          if (_searches)
+            _SearchLine(query: _query, placeholder: widget.searchPlaceholder!),
+          if (visible.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+              child: Text(
+                context.l10n.modelsNoMatch,
+                style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+              ),
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: _maxListHeight),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: rows,
+                ),
+              ),
             ),
+          if (footer != null) ...[
+            Container(
+              height: 1,
+              margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+              color: themeColors['editorHoverWidget.border'],
+            ),
+            _FooterRow(
+              footer: footer,
+              onTap: () {
+                _setOpen(false);
+                footer.onTap();
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -611,6 +762,121 @@ class ComposerPickerState extends State<ComposerPicker> {
       child: menu,
     );
   }
+}
+
+/// A group's heading among the options (an upstream's name), marked when
+/// something went wrong with it.
+class _GroupHeading extends StatelessWidget {
+  const _GroupHeading({required this.group, required this.first});
+
+  final KernelOptionGroup? group;
+  final bool first;
+
+  @override
+  Widget build(BuildContext context) {
+    final warning = group?.warning;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(8, first ? 4 : 8, 8, 3),
+      child: Row(
+        children: [
+          Flexible(
+            child: Text(
+              group?.label ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: AppColors.textFaint, fontSize: 11),
+            ),
+          ),
+          if (warning != null) ...[
+            const SizedBox(width: 4),
+            IdeHover(
+              message: warning,
+              child: Icon(
+                Icons.warning_amber_rounded,
+                size: 13,
+                color: AppColors.caution,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// What was typed to filter the options, over them.
+class _SearchLine extends StatelessWidget {
+  const _SearchLine({required this.query, required this.placeholder});
+
+  final String query;
+  final String placeholder;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 28,
+    margin: const EdgeInsets.only(bottom: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    decoration: BoxDecoration(
+      border: Border(
+        bottom: BorderSide(color: themeColors['editorHoverWidget.border']),
+      ),
+    ),
+    child: Row(
+      children: [
+        Icon(Icons.search_rounded, size: 14, color: AppColors.textFaint),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            query.isEmpty ? placeholder : query,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: query.isEmpty ? AppColors.textFaint : AppColors.text,
+              fontSize: 12.5,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _FooterRow extends StatelessWidget {
+  const _FooterRow({required this.footer, required this.onTap});
+
+  final ComposerPickerFooter footer;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => HoverBuilder(
+    cursor: SystemMouseCursors.click,
+    builder: (context, hovered) => GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: hovered ? AppColors.hover : Colors.transparent,
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: Row(
+          children: [
+            Icon(footer.icon, size: 15, color: AppColors.textMuted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                footer.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 12.5),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _PickerRow extends StatelessWidget {

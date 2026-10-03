@@ -8,10 +8,12 @@ import '../keybindings/keybindings_editing.dart';
 import '../keybindings/keybindings_sync.dart';
 import '../keybindings/keymap.dart';
 import '../keybindings/vscode_import.dart';
+import '../models/model_providers.dart';
 import 'app_locale.dart';
 import 'pages/data_dir_page.dart';
 import 'pages/general_page.dart';
 import 'pages/keybindings_page.dart';
+import 'pages/models_page.dart';
 import 'pages/language_page.dart';
 import 'pages/notifications_page.dart';
 import 'settings_dialog.dart';
@@ -70,6 +72,8 @@ class AppSettings {
     switch (section) {
       case SettingsSection.general:
         return GeneralSettingsPage(settings: files?.settings);
+      case SettingsSection.models:
+        return ModelsSettingsPage(providers: ModelProviders.current);
       case SettingsSection.notifications:
         return NotificationsSettingsPage(settings: files?.settings);
       case SettingsSection.language:

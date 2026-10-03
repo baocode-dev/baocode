@@ -621,6 +621,31 @@ void main() {
     expect(harness.quits, 1);
   });
 
+  testWidgets('Windows: quitting asks the app, then has the system close '
+      'the windows (not the engine\'s exitApplication, which hangs)', (
+    tester,
+  ) async {
+    final host = FakeWindowHost(tester.view);
+    final windows = AppWindows(
+      host: host,
+      workspace: Workspace.mock(),
+      l10n: () => englishLocalizations,
+    );
+    var answer = AppExitResponse.cancel;
+    final listener = AppLifecycleListener(onExitRequested: () async => answer);
+    addTearDown(listener.dispose);
+    await windows.start();
+
+    windows.quitRequested();
+    await tester.pump();
+    expect(host.log, isNot(contains('quit')));
+
+    answer = AppExitResponse.exit;
+    windows.quitRequested();
+    await tester.pump();
+    expect(host.log, contains('quit'));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
   testWidgets('quitting, cancelled at the unsaved files, does not quit', (
     tester,
   ) async {

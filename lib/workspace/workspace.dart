@@ -17,6 +17,7 @@ import '../kernel/agent_kernel.dart';
 import '../kernel/kernel_registry.dart';
 import '../kernel/kernel_types.dart';
 import '../l10n/l10n.dart';
+import '../models/model_providers.dart';
 import '../theme/workbench_theme.dart' show ColorThemeStorage;
 import 'agent_title.dart';
 import 'chat_grid.dart';
@@ -1725,12 +1726,12 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       ? (_chatWindowShown && _grid.contains(thread)) ||
             _windowFolders.any((folder) => identical(ideChat(folder), thread))
       : switch (_layout) {
-    WorkspaceLayout.chat => _grid.contains(thread),
-    WorkspaceLayout.ide => switch (_ideFolder) {
-      final folder? => identical(ideChat(folder), thread),
-      null => false,
-    },
-  };
+          WorkspaceLayout.chat => _grid.contains(thread),
+          WorkspaceLayout.ide => switch (_ideFolder) {
+            final folder? => identical(ideChat(folder), thread),
+            null => false,
+          },
+        };
 
   /// Marks what shows as seen, while the window is in front; whether any
   /// was unread.
@@ -1919,7 +1920,11 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// A new, empty agent in [project], listed here but not shown.
   AgentThread _newThread(Project project) {
     final kernel = _preferredKernel;
-    final settings = _preferredSettings;
+    final settings = {
+      ..._preferredSettings,
+      // Settings → Models' pick, if any, over the last one.
+      KernelChoiceKind.model.name: ?ModelProviders.current.defaultModel,
+    };
     final cwd = project.path;
     final thread = AgentThread._(
       project: project,
@@ -1974,7 +1979,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         }
         if (titler == null || !session.canRename) return;
         unawaited(
-          titler!(text).then((title) {
+          titler!(text, model: session.selected(KernelChoiceKind.model)).then((
+            title,
+          ) {
             if (title == null || thread._named) return;
             if (_disposed || !_threads.contains(thread)) return;
             _retitle(thread, title);

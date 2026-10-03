@@ -8708,6 +8708,636 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Read only: a claude.ai connector, managed in claude.ai\'s settings, under Connectors.'**
   String get customizeConnectorReadOnly;
+
+  /// No description provided for @settingsSectionModels.
+  ///
+  /// In en, this message translates to:
+  /// **'Models'**
+  String get settingsSectionModels;
+
+  /// No description provided for @modelsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Models'**
+  String get modelsTitle;
+
+  /// No description provided for @modelsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Where Claude Code\'s models come from: Claude Code as set up on this machine, and upstreams you add. Anthropic-compatible upstreams are spoken to by Claude Code itself; OpenAI\'s APIs through a local proxy of BaoCode\'s that translates.'**
+  String get modelsDescription;
+
+  /// No description provided for @modelsDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default Model for New Sessions'**
+  String get modelsDefault;
+
+  /// No description provided for @modelsDefaultDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Unset, a new session starts with the model last picked.'**
+  String get modelsDefaultDescription;
+
+  /// No description provided for @modelsDefaultLast.
+  ///
+  /// In en, this message translates to:
+  /// **'Last picked'**
+  String get modelsDefaultLast;
+
+  /// No description provided for @modelsChoiceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{label}: {value}'**
+  String modelsChoiceLabel(String label, String value);
+
+  /// No description provided for @modelsBuiltinName.
+  ///
+  /// In en, this message translates to:
+  /// **'Claude Code (this machine\'s setup)'**
+  String get modelsBuiltinName;
+
+  /// No description provided for @modelsBuiltinDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Claude Code default'**
+  String get modelsBuiltinDefault;
+
+  /// No description provided for @modelsBuiltinBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in'**
+  String get modelsBuiltinBadge;
+
+  /// No description provided for @modelsBuiltinDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Your own login and settings, nothing changed'**
+  String get modelsBuiltinDescription;
+
+  /// No description provided for @modelsProviders.
+  ///
+  /// In en, this message translates to:
+  /// **'Upstreams'**
+  String get modelsProviders;
+
+  /// No description provided for @modelsEnableProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Offer {name} in the model picker'**
+  String modelsEnableProvider(String name);
+
+  /// No description provided for @modelsAddProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Upstream'**
+  String get modelsAddProvider;
+
+  /// No description provided for @modelsNewProviderName.
+  ///
+  /// In en, this message translates to:
+  /// **'New Upstream'**
+  String get modelsNewProviderName;
+
+  /// No description provided for @modelsProviderNoUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'No base URL'**
+  String get modelsProviderNoUrl;
+
+  /// No description provided for @modelsModelCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{no models} =1{1 model} other{{count} models}}'**
+  String modelsModelCount(int count);
+
+  /// No description provided for @modelsProtocolAnthropic.
+  ///
+  /// In en, this message translates to:
+  /// **'Anthropic-compatible'**
+  String get modelsProtocolAnthropic;
+
+  /// No description provided for @modelsConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection'**
+  String get modelsConnection;
+
+  /// No description provided for @modelsName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get modelsName;
+
+  /// No description provided for @modelsProtocol.
+  ///
+  /// In en, this message translates to:
+  /// **'Protocol'**
+  String get modelsProtocol;
+
+  /// No description provided for @modelsProtocolDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'OpenAI\'s APIs go through the local proxy, which translates Claude Code\'s requests and the answers.'**
+  String get modelsProtocolDescription;
+
+  /// No description provided for @modelsBaseUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Base URL'**
+  String get modelsBaseUrl;
+
+  /// No description provided for @modelsBaseUrlAnthropicHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Without /v1, as ANTHROPIC_BASE_URL: Claude Code adds /v1/messages.'**
+  String get modelsBaseUrlAnthropicHint;
+
+  /// No description provided for @modelsBaseUrlOpenAIHint.
+  ///
+  /// In en, this message translates to:
+  /// **'With its version (…/v1); a host alone gets /v1.'**
+  String get modelsBaseUrlOpenAIHint;
+
+  /// No description provided for @modelsApiKey.
+  ///
+  /// In en, this message translates to:
+  /// **'API Key'**
+  String get modelsApiKey;
+
+  /// No description provided for @modelsApiKeyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Kept in the system\'s keychain, not in settings.json.'**
+  String get modelsApiKeyDescription;
+
+  /// No description provided for @modelsApiKeyShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the key'**
+  String get modelsApiKeyShow;
+
+  /// No description provided for @modelsApiKeyHide.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide the key'**
+  String get modelsApiKeyHide;
+
+  /// No description provided for @modelsApiKeyError.
+  ///
+  /// In en, this message translates to:
+  /// **'The key could not be kept: {error}'**
+  String modelsApiKeyError(String error);
+
+  /// No description provided for @modelsTest.
+  ///
+  /// In en, this message translates to:
+  /// **'Test Connection'**
+  String get modelsTest;
+
+  /// No description provided for @modelsTesting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting…'**
+  String get modelsTesting;
+
+  /// No description provided for @modelsTestOk.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected: the upstream lists {count} models.'**
+  String modelsTestOk(int count);
+
+  /// No description provided for @modelsTestFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not connect: {error}'**
+  String modelsTestFailed(String error);
+
+  /// No description provided for @modelsModelsGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Models'**
+  String get modelsModelsGroup;
+
+  /// No description provided for @modelsModelsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Those checked are offered in the model picker.'**
+  String get modelsModelsDescription;
+
+  /// No description provided for @modelsFetch.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetch from Upstream…'**
+  String get modelsFetch;
+
+  /// No description provided for @modelsAddModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Model…'**
+  String get modelsAddModel;
+
+  /// No description provided for @modelsSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search models'**
+  String get modelsSearch;
+
+  /// No description provided for @modelsNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No models yet: fetch them from the upstream, or add them by hand.'**
+  String get modelsNone;
+
+  /// No description provided for @modelsNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'No model matches.'**
+  String get modelsNoMatch;
+
+  /// No description provided for @modelsMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Gone upstream'**
+  String get modelsMissing;
+
+  /// No description provided for @modelsMissingTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'No longer listed by the upstream; kept until you remove it.'**
+  String get modelsMissingTooltip;
+
+  /// No description provided for @modelsCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual'**
+  String get modelsCustom;
+
+  /// No description provided for @modelsThinking.
+  ///
+  /// In en, this message translates to:
+  /// **'Supports thinking'**
+  String get modelsThinking;
+
+  /// No description provided for @modelsImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Supports images'**
+  String get modelsImages;
+
+  /// No description provided for @modelsEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit…'**
+  String get modelsEdit;
+
+  /// No description provided for @modelsRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get modelsRemove;
+
+  /// No description provided for @modelsMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More Actions'**
+  String get modelsMore;
+
+  /// No description provided for @modelsEnableModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Offer {name}'**
+  String modelsEnableModel(String name);
+
+  /// No description provided for @modelsRoles.
+  ///
+  /// In en, this message translates to:
+  /// **'Roles'**
+  String get modelsRoles;
+
+  /// No description provided for @modelsRolesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Which model Claude Code uses for each part of its work. Unset, the model picked stands in.'**
+  String get modelsRolesDescription;
+
+  /// No description provided for @modelsRoleUnset.
+  ///
+  /// In en, this message translates to:
+  /// **'Unset'**
+  String get modelsRoleUnset;
+
+  /// No description provided for @modelsRoleMain.
+  ///
+  /// In en, this message translates to:
+  /// **'Main Model'**
+  String get modelsRoleMain;
+
+  /// No description provided for @modelsRoleMainDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Used when the model a session picked of this upstream is gone.'**
+  String get modelsRoleMainDescription;
+
+  /// No description provided for @modelsRoleOpus.
+  ///
+  /// In en, this message translates to:
+  /// **'Opus Tier'**
+  String get modelsRoleOpus;
+
+  /// No description provided for @modelsRoleOpusDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'ANTHROPIC_DEFAULT_OPUS_MODEL: what “opus” means, as in Plan mode.'**
+  String get modelsRoleOpusDescription;
+
+  /// No description provided for @modelsRoleSonnet.
+  ///
+  /// In en, this message translates to:
+  /// **'Sonnet Tier'**
+  String get modelsRoleSonnet;
+
+  /// No description provided for @modelsRoleSonnetDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'ANTHROPIC_DEFAULT_SONNET_MODEL: what “sonnet” means.'**
+  String get modelsRoleSonnetDescription;
+
+  /// No description provided for @modelsRoleHaiku.
+  ///
+  /// In en, this message translates to:
+  /// **'Haiku Tier'**
+  String get modelsRoleHaiku;
+
+  /// No description provided for @modelsRoleHaikuDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'ANTHROPIC_DEFAULT_HAIKU_MODEL: Claude Code\'s background work, and agents\' titles.'**
+  String get modelsRoleHaikuDescription;
+
+  /// No description provided for @modelsRoleHaikuWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Unset, background work runs on the model picked, which may be slower and cost more. Pick a small, fast model.'**
+  String get modelsRoleHaikuWarning;
+
+  /// No description provided for @modelsRoleSubagent.
+  ///
+  /// In en, this message translates to:
+  /// **'Subagents'**
+  String get modelsRoleSubagent;
+
+  /// No description provided for @modelsRoleSubagentDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'CLAUDE_CODE_SUBAGENT_MODEL: the model subagents run on.'**
+  String get modelsRoleSubagentDescription;
+
+  /// No description provided for @modelsAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get modelsAdvanced;
+
+  /// No description provided for @modelsAuth.
+  ///
+  /// In en, this message translates to:
+  /// **'Authentication'**
+  String get modelsAuth;
+
+  /// No description provided for @modelsAuthDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'How the key is sent. Automatic: x-api-key to api.anthropic.com, a bearer token elsewhere.'**
+  String get modelsAuthDescription;
+
+  /// No description provided for @modelsAuthAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic'**
+  String get modelsAuthAuto;
+
+  /// No description provided for @modelsNonessential.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable Nonessential Traffic'**
+  String get modelsNonessential;
+
+  /// No description provided for @modelsNonessentialDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: no telemetry, error reports or update checks, which upstreams other than Anthropic do not answer.'**
+  String get modelsNonessentialDescription;
+
+  /// No description provided for @modelsPreserveThinking.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Reasoning Back'**
+  String get modelsPreserveThinking;
+
+  /// No description provided for @modelsPreserveThinkingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Replays the model\'s reasoning (reasoning_content) in later requests, as DeepSeek and others want.'**
+  String get modelsPreserveThinkingDescription;
+
+  /// No description provided for @modelsEnv.
+  ///
+  /// In en, this message translates to:
+  /// **'Extra Environment'**
+  String get modelsEnv;
+
+  /// No description provided for @modelsEnvDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'One KEY=VALUE a line, given to Claude Code after the settings above.'**
+  String get modelsEnvDescription;
+
+  /// No description provided for @modelsDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Upstream'**
+  String get modelsDelete;
+
+  /// No description provided for @modelsDeleteDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Removes it, and its key from the keychain.'**
+  String get modelsDeleteDescription;
+
+  /// No description provided for @modelsDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete “{name}”?'**
+  String modelsDeleteConfirm(String name);
+
+  /// No description provided for @modelsDeleteDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Sessions on its models go back to Claude Code\'s own when they next start.'**
+  String get modelsDeleteDetail;
+
+  /// No description provided for @modelsFetchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Models of {name}'**
+  String modelsFetchTitle(String name);
+
+  /// No description provided for @modelsFetchLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Asking the upstream…'**
+  String get modelsFetchLoading;
+
+  /// No description provided for @modelsFetchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not fetch the models: {error}'**
+  String modelsFetchFailed(String error);
+
+  /// No description provided for @modelsFetchEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The upstream lists no models.'**
+  String get modelsFetchEmpty;
+
+  /// No description provided for @modelsFetchSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select All'**
+  String get modelsFetchSelectAll;
+
+  /// No description provided for @modelsFetchSelectNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Select None'**
+  String get modelsFetchSelectNone;
+
+  /// No description provided for @modelsFetchSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} of {total} checked'**
+  String modelsFetchSelected(int count, int total);
+
+  /// No description provided for @modelsFetchNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New'**
+  String get modelsFetchNew;
+
+  /// No description provided for @modelsFetchApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get modelsFetchApply;
+
+  /// No description provided for @modelsRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get modelsRetry;
+
+  /// No description provided for @modelsAddTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Model'**
+  String get modelsAddTitle;
+
+  /// No description provided for @modelsEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Model'**
+  String get modelsEditTitle;
+
+  /// No description provided for @modelsModelId.
+  ///
+  /// In en, this message translates to:
+  /// **'Model ID'**
+  String get modelsModelId;
+
+  /// No description provided for @modelsModelIdHint.
+  ///
+  /// In en, this message translates to:
+  /// **'As the upstream names it, e.g. gpt-5'**
+  String get modelsModelIdHint;
+
+  /// No description provided for @modelsModelIdTaken.
+  ///
+  /// In en, this message translates to:
+  /// **'This upstream has that model already.'**
+  String get modelsModelIdTaken;
+
+  /// No description provided for @modelsModelLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Display Name'**
+  String get modelsModelLabel;
+
+  /// No description provided for @modelsModelLabelHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional'**
+  String get modelsModelLabelHint;
+
+  /// No description provided for @modelsContextWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Context Window'**
+  String get modelsContextWindow;
+
+  /// No description provided for @modelsContextWindowHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tokens, e.g. 128000 or 128K'**
+  String get modelsContextWindowHint;
+
+  /// No description provided for @modelsContextInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'A number of tokens, e.g. 200K.'**
+  String get modelsContextInvalid;
+
+  /// No description provided for @modelsSupportsThinking.
+  ///
+  /// In en, this message translates to:
+  /// **'Supports thinking (its effort can be picked)'**
+  String get modelsSupportsThinking;
+
+  /// No description provided for @modelsSupportsImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Supports images'**
+  String get modelsSupportsImages;
+
+  /// No description provided for @modelsSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get modelsSave;
+
+  /// No description provided for @modelsManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Models…'**
+  String get modelsManage;
+
+  /// No description provided for @modelsSwitchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to {name}?'**
+  String modelsSwitchTitle(String name);
+
+  /// No description provided for @modelsSwitchDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Claude Code restarts on the other upstream and resumes this conversation (--resume). Its history is sent to the new model as it is; some upstreams take it slower the first time.'**
+  String get modelsSwitchDetail;
+
+  /// No description provided for @modelsSwitchConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch'**
+  String get modelsSwitchConfirm;
 }
 
 class _AppLocalizationsDelegate

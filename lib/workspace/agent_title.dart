@@ -8,8 +8,10 @@ import '../chat/chat_models.dart';
 import '../kernel/claude_code/claude_haiku.dart';
 import '../l10n/l10n.dart';
 
-/// Titles a conversation after [message]; null when it cannot.
-typedef AgentTitler = Future<String?> Function(String message);
+/// Titles a conversation after [message], held with [model] (the
+/// session's: a provider's model has the provider asked); null when it
+/// cannot.
+typedef AgentTitler = Future<String?> Function(String message, {String? model});
 
 /// The most of a message the model is given, in characters.
 const agentTitleMessageBudget = 2000;
@@ -45,14 +47,18 @@ const _system =
 
 /// Claude Haiku's title for [message], through Claude Code; null when it
 /// gives none (e.g. Claude Code is not there).
-Future<String?> claudeAgentTitle(String message) async {
+Future<String?> claudeAgentTitle(String message, {String? model}) async {
   var text = message.trim();
   if (text.length > agentTitleMessageBudget) {
     text = '${text.substring(0, agentTitleMessageBudget)}…';
   }
   try {
     return cleanAgentTitle(
-      await askClaudeHaiku(_system, '<message>\n$text\n</message>'),
+      await askClaudeHaiku(
+        _system,
+        '<message>\n$text\n</message>',
+        model: model,
+      ),
     );
   } on Object {
     return null;

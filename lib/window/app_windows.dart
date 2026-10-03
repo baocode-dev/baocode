@@ -200,11 +200,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
        _isDirectory = isDirectory ?? local.isDirectory,
        _takeFile = takeFile ?? local.takeFile,
        _hasTray = hasTray ?? (() => false),
-       _quit =
-           quit ??
-           (() => ServicesBinding.instance.exitApplication(
-             AppExitType.cancelable,
-           )),
+       _quit = quit ?? (() => _exit(host)),
        _nextFrame = nextFrame ?? (() => WidgetsBinding.instance.endOfFrame),
        _quitsWithLastWindow =
            quitsWithLastWindow ??
@@ -231,6 +227,22 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   final Future<String?> Function(String path) _takeFile;
   final bool Function() _hasTray;
   final Future<AppExitResponse> Function() _quit;
+
+  /// Quits the app, asked first (see main.dart's onExitRequested). On
+  /// Windows the engine's way (exitApplication) ends the message loop with
+  /// the windows still up, and the app hangs taking Flutter down outside
+  /// it: the app is asked here, and its main window closed in the loop
+  /// (see app_windows.h' kQuitMessage).
+  static Future<AppExitResponse> _exit(WindowHost host) async {
+    final binding = ServicesBinding.instance;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
+      return binding.exitApplication(AppExitType.cancelable);
+    }
+    final response = await binding.handleRequestAppExit();
+    if (response == AppExitResponse.exit) await host.quit();
+    return response;
+  }
+
   final Future<void> Function() _nextFrame;
 
   /// Windows': the app quits as its last window closes (the tray aside).
