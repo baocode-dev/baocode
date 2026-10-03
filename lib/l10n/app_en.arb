@@ -3840,8 +3840,8 @@
   },
   "modelsSwitchDetail": "Claude Code restarts on the other upstream and resumes this conversation (--resume). Its history is sent to the new model as it is; some upstreams take it slower the first time.",
   "modelsSwitchConfirm": "Switch",
-  "modelsCommit": "Commit Message Model",
-  "modelsCommitDescription": "What Generate Commit Message asks. Following new sessions' default, a model of an upstream is asked by its Haiku tier.",
-  "modelsCommitFollow": "Same as new sessions",
-  "modelsCommitBuiltin": "Claude Code Haiku (this machine's setup)"
+  "modelsAuxiliary": "Auxiliary Model",
+  "modelsAuxiliaryDescription": "Used for auxiliary work, such as generating conversation titles and commit messages. Automatic: the session's model (for commit messages, new sessions' default); an upstream's by its Haiku tier.",
+  "modelsAuxiliaryAuto": "Automatic",
+  "modelsAuxiliaryBuiltin": "Claude Code Haiku (this machine's setup)"
 }

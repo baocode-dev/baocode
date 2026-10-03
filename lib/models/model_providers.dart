@@ -62,7 +62,7 @@ class ModelProviders extends ChangeNotifier {
   static const providersKey = 'models.providers';
   static const builtinHiddenKey = 'models.builtin.hidden';
   static const defaultKey = 'models.default';
-  static const commitMessageKey = 'models.commitMessage';
+  static const auxiliaryKey = 'models.auxiliary';
 
   final Object? Function(String key) _read;
   final Future<void> Function(String key, Object? value) _write;
@@ -124,26 +124,26 @@ class ModelProviders extends ChangeNotifier {
     _ => null,
   };
 
-  /// The model picked for commit messages, as kept: a [modelRef], or
-  /// [builtinProviderId] for Claude Code's own Haiku; null to follow
-  /// [defaultModel].
-  String? get commitMessageModel => switch (_read(commitMessageKey)) {
+  /// The auxiliary model, as kept: what the app's own small jobs ask
+  /// (agents' titles, commit messages). A [modelRef], or
+  /// [builtinProviderId] for Claude Code's own Haiku; null for automatic.
+  String? get auxiliaryModel => switch (_read(auxiliaryKey)) {
     final String model when model.isNotEmpty => model,
     _ => null,
   };
 
-  /// What commit messages are asked of: the model picked for them, as it
-  /// is ([exact]); else new sessions' default, by its provider's Haiku
-  /// tier. A null [model] is Claude Code's own Haiku.
-  ({String? model, bool exact}) get commitMessage =>
-      switch (commitMessageModel) {
+  /// What a small job is asked of: the auxiliary model, as it is
+  /// ([exact]); automatic, [model] (the session's, or new sessions'
+  /// default), by its provider's Haiku tier. A null model is Claude
+  /// Code's own Haiku.
+  ({String? model, bool exact}) auxiliary(String? model) =>
+      switch (auxiliaryModel) {
         builtinProviderId => (model: null, exact: true),
-        final String model => (model: model, exact: true),
-        null => (model: defaultModel, exact: false),
+        final String picked => (model: picked, exact: true),
+        null => (model: model, exact: false),
       };
 
-  Future<void> setCommitMessageModel(String? model) =>
-      _write(commitMessageKey, model);
+  Future<void> setAuxiliaryModel(String? model) => _write(auxiliaryKey, model);
 
   /// Adds [provider], or replaces the one of its id.
   Future<void> save(ModelProvider provider) async {
@@ -166,8 +166,8 @@ class ModelProviders extends ChangeNotifier {
     if (parseModelRef(defaultModel)?.provider == id) {
       await setDefaultModel(null);
     }
-    if (parseModelRef(commitMessageModel)?.provider == id) {
-      await setCommitMessageModel(null);
+    if (parseModelRef(auxiliaryModel)?.provider == id) {
+      await setAuxiliaryModel(null);
     }
     _errors.remove(id);
     try {

@@ -149,7 +149,7 @@ void main() {
     );
   });
 
-  testWidgets('a model is picked for commit messages', (tester) async {
+  testWidgets('an auxiliary model is picked', (tester) async {
     await providers.save(
       const ModelProvider(
         id: 'gw',
@@ -159,14 +159,14 @@ void main() {
       ),
     );
     await pump(tester);
-    expect(find.text('Commit Message Model'), findsOneWidget);
-    await tester.tap(find.text('Same as new sessions'));
+    expect(find.text('Auxiliary Model'), findsOneWidget);
+    await tester.tap(find.text('Automatic'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Gateway').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Flash').last);
     await tester.pumpAndSettle();
-    expect(providers.commitMessageModel, '@gw/flash');
+    expect(providers.auxiliaryModel, '@gw/flash');
     expect(find.text('Gateway · Flash'), findsOneWidget);
   });
 

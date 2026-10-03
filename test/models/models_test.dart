@@ -134,20 +134,22 @@ void main() {
       expect(await secrets.read('provider.gw'), isNull);
     });
 
-    test('commit messages follow the default unless a model is picked for '
-        'them', () async {
+    test('small jobs ask the auxiliary model; automatic, the model they '
+        'are given', () async {
       final providers = ModelProviders.memory(providers: [_gateway]);
-      expect(providers.commitMessage, (model: null, exact: false));
-      await providers.setDefaultModel('@gw/gpt-5');
-      // The default's provider, by its Haiku tier.
-      expect(providers.commitMessage, (model: '@gw/gpt-5', exact: false));
-      await providers.setCommitMessageModel(builtinProviderId);
-      expect(providers.commitMessage, (model: null, exact: true));
-      await providers.setCommitMessageModel('@gw/mini');
-      expect(providers.commitMessage, (model: '@gw/mini', exact: true));
-      // Its provider gone, it follows the default again.
+      // Automatic: by the provider's Haiku tier, or Claude Code's own.
+      expect(providers.auxiliary(null), (model: null, exact: false));
+      expect(providers.auxiliary('@gw/gpt-5'), (
+        model: '@gw/gpt-5',
+        exact: false,
+      ));
+      await providers.setAuxiliaryModel(builtinProviderId);
+      expect(providers.auxiliary('@gw/gpt-5'), (model: null, exact: true));
+      await providers.setAuxiliaryModel('@gw/mini');
+      expect(providers.auxiliary(null), (model: '@gw/mini', exact: true));
+      // Its provider gone, it is automatic again.
       await providers.remove('gw');
-      expect(providers.commitMessageModel, isNull);
+      expect(providers.auxiliaryModel, isNull);
     });
 
     test('a provider without models offered is not in the picker', () {

@@ -88,35 +88,34 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
     return value;
   }
 
-  String _commitName(BuildContext context, String? value) {
+  String _auxiliaryName(BuildContext context, String? value) {
     final l10n = context.l10n;
-    if (value == null) return l10n.modelsCommitFollow;
-    if (value == builtinProviderId) return l10n.modelsCommitBuiltin;
+    if (value == null) return l10n.modelsAuxiliaryAuto;
+    if (value == builtinProviderId) return l10n.modelsAuxiliaryBuiltin;
     return _defaultName(context, value);
   }
 
-  /// The model commit messages are asked of.
-  Widget _commitRow(BuildContext context) {
+  /// The auxiliary model: what titles and commit messages ask.
+  Widget _auxiliaryRow(BuildContext context) {
     final l10n = context.l10n;
-    final current = _providers.commitMessageModel;
-    final shown = _commitName(context, current);
-    void set(String? model) =>
-        unawaited(_providers.setCommitMessageModel(model));
+    final current = _providers.auxiliaryModel;
+    final shown = _auxiliaryName(context, current);
+    void set(String? model) => unawaited(_providers.setAuxiliaryModel(model));
     return SettingsRow(
-      label: l10n.modelsCommit,
-      description: l10n.modelsCommitDescription,
+      label: l10n.modelsAuxiliary,
+      description: l10n.modelsAuxiliaryDescription,
       trailing: SettingsDropdown(
         current: shown,
-        semanticLabel: l10n.modelsChoiceLabel(l10n.modelsCommit, shown),
+        semanticLabel: l10n.modelsChoiceLabel(l10n.modelsAuxiliary, shown),
         entries: () => [
           IdeMenuAction(
-            l10n.modelsCommitFollow,
+            l10n.modelsAuxiliaryAuto,
             checked: current == null,
             onSelected: () => set(null),
           ),
           const IdeMenuSeparator(),
           IdeMenuAction(
-            l10n.modelsCommitBuiltin,
+            l10n.modelsAuxiliaryBuiltin,
             checked: current == builtinProviderId,
             onSelected: () => set(builtinProviderId),
           ),
@@ -192,7 +191,7 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
                 ],
               ),
             ),
-            _commitRow(context),
+            _auxiliaryRow(context),
           ],
         ),
         SettingsGroup(

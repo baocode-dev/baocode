@@ -5634,15 +5634,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsSwitchConfirm => 'Switch';
 
   @override
-  String get modelsCommit => 'Commit Message Model';
+  String get modelsAuxiliary => 'Auxiliary Model';
 
   @override
-  String get modelsCommitDescription =>
-      'What Generate Commit Message asks. Following new sessions\' default, a model of an upstream is asked by its Haiku tier.';
+  String get modelsAuxiliaryDescription =>
+      'Used for auxiliary work, such as generating conversation titles and commit messages. Automatic: the session\'s model (for commit messages, new sessions\' default); an upstream\'s by its Haiku tier.';
 
   @override
-  String get modelsCommitFollow => 'Same as new sessions';
+  String get modelsAuxiliaryAuto => 'Automatic';
 
   @override
-  String get modelsCommitBuiltin => 'Claude Code Haiku (this machine\'s setup)';
+  String get modelsAuxiliaryBuiltin =>
+      'Claude Code Haiku (this machine\'s setup)';
 }
