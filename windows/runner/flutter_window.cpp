@@ -132,6 +132,16 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     return 0;
   }
 
+  // The session ends, or an installer closes the app for the files it
+  // replaces (the Restart Manager: ENDSESSION_CLOSEAPP). It goes the same
+  // way, unasked: no one is there to answer, and the engine does nothing
+  // with it, which left the app running and the installer unable to close
+  // it. What it ran (agents, terminals) is ended at the next launch.
+  if (message == WM_ENDSESSION && wparam) {
+    ::DestroyWindow(hwnd);
+    return 0;
+  }
+
   // Once the app keeps windows of its own, the close button is the app's to
   // decide about (see AppWindows): the tray, if any, is what keeps it.
   const bool app_closes =
