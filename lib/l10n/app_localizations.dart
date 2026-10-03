@@ -7956,37 +7956,37 @@ abstract class AppLocalizations {
   /// No description provided for @generalSettingsMainWindow.
   ///
   /// In en, this message translates to:
-  /// **'Main Window'**
+  /// **'Open at Launch'**
   String get generalSettingsMainWindow;
 
   /// No description provided for @generalSettingsMainWindowDescription.
   ///
   /// In en, this message translates to:
-  /// **'What BaoCode shows at launch: the chat window, the IDE windows (as Restore Windows says), or whichever was shown when it last quit.'**
+  /// **'What BaoCode opens to: the agents, or the IDE windows (as Restore Windows says), never both. By default, wherever it was left when it last quit.'**
   String get generalSettingsMainWindowDescription;
 
   /// No description provided for @generalSettingsMainWindowLabel.
   ///
   /// In en, this message translates to:
-  /// **'Main Window: {name}'**
+  /// **'Open at Launch: {name}'**
   String generalSettingsMainWindowLabel(String name);
 
   /// No description provided for @generalSettingsMainWindowChat.
   ///
   /// In en, this message translates to:
-  /// **'Chat'**
+  /// **'Always Agent'**
   String get generalSettingsMainWindowChat;
 
   /// No description provided for @generalSettingsMainWindowIde.
   ///
   /// In en, this message translates to:
-  /// **'IDE'**
+  /// **'Always IDE'**
   String get generalSettingsMainWindowIde;
 
   /// No description provided for @generalSettingsMainWindowLast.
   ///
   /// In en, this message translates to:
-  /// **'Last used'**
+  /// **'Where you left off'**
   String get generalSettingsMainWindowLast;
 
   /// No description provided for @generalSettingsWindows.

@@ -3428,9 +3428,9 @@
       }
     }
   },
-  "generalSettingsMainWindow": "Main Window",
-  "generalSettingsMainWindowDescription": "What BaoCode shows at launch: the chat window, the IDE windows (as Restore Windows says), or whichever was shown when it last quit.",
-  "generalSettingsMainWindowLabel": "Main Window: {name}",
+  "generalSettingsMainWindow": "Open at Launch",
+  "generalSettingsMainWindowDescription": "What BaoCode opens to: the agents, or the IDE windows (as Restore Windows says), never both. By default, wherever it was left when it last quit.",
+  "generalSettingsMainWindowLabel": "Open at Launch: {name}",
   "@generalSettingsMainWindowLabel": {
     "placeholders": {
       "name": {
@@ -3438,9 +3438,9 @@
       }
     }
   },
-  "generalSettingsMainWindowChat": "Chat",
-  "generalSettingsMainWindowIde": "IDE",
-  "generalSettingsMainWindowLast": "Last used",
+  "generalSettingsMainWindowChat": "Always Agent",
+  "generalSettingsMainWindowIde": "Always IDE",
+  "generalSettingsMainWindowLast": "Where you left off",
   "generalSettingsWindows": "Windows",
   "generalSettingsIdeWindows": "Fast Ide Windows",
   "generalSettingsIdeWindowsDescription": "Where the Fast Ide opens: in windows of its own, one per folder (New Window, ⇧⌘N / Ctrl+Shift+N, opens an empty one), or in the main window in place of the chat, one folder at a time. Applies at once. (window.ideWindows)",

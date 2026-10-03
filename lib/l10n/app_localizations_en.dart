@@ -4840,25 +4840,25 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get generalSettingsMainWindow => 'Main Window';
+  String get generalSettingsMainWindow => 'Open at Launch';
 
   @override
   String get generalSettingsMainWindowDescription =>
-      'What BaoCode shows at launch: the chat window, the IDE windows (as Restore Windows says), or whichever was shown when it last quit.';
+      'What BaoCode opens to: the agents, or the IDE windows (as Restore Windows says), never both. By default, wherever it was left when it last quit.';
 
   @override
   String generalSettingsMainWindowLabel(String name) {
-    return 'Main Window: $name';
+    return 'Open at Launch: $name';
   }
 
   @override
-  String get generalSettingsMainWindowChat => 'Chat';
+  String get generalSettingsMainWindowChat => 'Always Agent';
 
   @override
-  String get generalSettingsMainWindowIde => 'IDE';
+  String get generalSettingsMainWindowIde => 'Always IDE';
 
   @override
-  String get generalSettingsMainWindowLast => 'Last used';
+  String get generalSettingsMainWindowLast => 'Where you left off';
 
   @override
   String get generalSettingsWindows => 'Windows';

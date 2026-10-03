@@ -4511,25 +4511,25 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get generalSettingsMainWindow => '主要窗口';
+  String get generalSettingsMainWindow => '启动时打开';
 
   @override
   String get generalSettingsMainWindowDescription =>
-      'BaoCode 启动时显示什么：对话窗口、IDE 窗口（按“恢复窗口”恢复），或上次退出时显示的窗口。';
+      'BaoCode 启动时打开 Agent 还是 IDE 窗口（IDE 窗口按“恢复窗口”恢复），二者不会同时出现。默认是上次退出时所在的那个。';
 
   @override
   String generalSettingsMainWindowLabel(String name) {
-    return '主要窗口：$name';
+    return '启动时打开：$name';
   }
 
   @override
-  String get generalSettingsMainWindowChat => '对话';
+  String get generalSettingsMainWindowChat => '固定 Agent';
 
   @override
-  String get generalSettingsMainWindowIde => 'IDE';
+  String get generalSettingsMainWindowIde => '固定 IDE';
 
   @override
-  String get generalSettingsMainWindowLast => '上次使用';
+  String get generalSettingsMainWindowLast => '最后离开';
 
   @override
   String get generalSettingsWindows => '窗口';

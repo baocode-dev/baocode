@@ -4,7 +4,6 @@ import 'dart:math' as math;
 import 'package:bao_editor/monaco/vs/base/common/labels.dart' show tildify;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path/path.dart' as p;
 
 import '../l10n/command_titles.dart';
@@ -32,8 +31,6 @@ class IdeWelcome extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const _Letterpress(),
-              const SizedBox(height: 28),
               for (final command in commands) _WelcomeEntry(command: command),
             ],
           ),
@@ -48,34 +45,8 @@ Color get _emptyBackground =>
     themeColors.get('editorGroup.emptyBackground') ??
     themeColors['editor.background'];
 
-/// The app's logo as VS Code's letterpress (`.editor-group-watermark
-/// .letterpress`): large, in the text's color, faint. Its pixels are
-/// 56 × 42, three screen points each: whole, so its edges stay sharp.
-class _Letterpress extends StatelessWidget {
-  const _Letterpress();
-
-  static const _scale = 3.0;
-
-  @override
-  Widget build(BuildContext context) {
-    const width = 56 * _scale, height = 42 * _scale;
-    return SvgPicture.asset(
-      'assets/branding/logo.svg',
-      width: width,
-      height: height,
-      semanticsLabel: 'BaoCode',
-      colorFilter: ColorFilter.mode(
-        themeColors['foreground'].withValues(alpha: .1),
-        BlendMode.srcIn,
-      ),
-      // Where the asset is missing.
-      errorBuilder: (_, _, _) => const SizedBox(width: width, height: height),
-    );
-  }
-}
-
 /// A window without a folder, VS Code's New Window as the Fast Ide shows
-/// it: the app's logo, tiles for what to start with ([actions], each with
+/// it: tiles for what to start with ([actions], each with
 /// its keys), and the [recent] folders, the last opened first, with all of
 /// them a click away ([onShowAllRecent], Open Recent).
 class IdeStartPage extends StatelessWidget {
@@ -127,8 +98,6 @@ class IdeStartPage extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Center(child: _Letterpress()),
-                    const SizedBox(height: 36),
                     Wrap(
                       spacing: gap,
                       runSpacing: gap,

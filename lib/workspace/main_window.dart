@@ -1,19 +1,24 @@
 import 'workspace.dart';
 
 /// The window the app opens to: the `workbench.mainWindow` setting. Chat
-/// is the app's own; the IDE is beside it. (The `code` command opens in
-/// the IDE whichever it is.)
+/// is the app's own; the IDE is beside it. One or the other, never both
+/// (see AppWindows.prepareLaunch). (The `code` command opens in the IDE
+/// whichever it is.)
 enum MainWindow {
-  chat,
-  ide,
+  /// Where it was left: the chat or the IDE, whichever was in front when
+  /// the app last quit (the default).
+  last,
 
-  /// Whichever was shown when the app last quit.
-  last;
+  /// The chat (the agents), always.
+  chat,
+
+  /// The IDE, always.
+  ide;
 
   static const settingKey = 'workbench.mainWindow';
 
   /// When the setting is unset, or not one of these.
-  static const fallback = chat;
+  static const fallback = last;
 
   static MainWindow parse(Object? setting) =>
       values.where((value) => value.name == setting).firstOrNull ?? fallback;

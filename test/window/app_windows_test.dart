@@ -638,7 +638,7 @@ void main() {
   });
 
   group('restoring', () {
-    Map<String, Object?> kept({bool chatShown = true}) => {
+    Map<String, Object?> kept({bool chatShown = true, String? leftIn}) => {
       'version': 1,
       'windows': [
         {
@@ -658,17 +658,19 @@ void main() {
         {'folder': '/w/b'},
       ],
       'chatShown': chatShown,
+      'leftIn': ?leftIn,
     };
 
     Future<_Harness> restored(
       WidgetTester tester, {
       RestoreWindows restore = RestoreWindows.all,
-      MainWindow main = MainWindow.chat,
+      MainWindow main = MainWindow.ide,
       bool chatShown = true,
+      String? leftIn,
     }) async {
       final harness = _Harness(
         tester,
-        kept: kept(chatShown: chatShown),
+        kept: kept(chatShown: chatShown, leftIn: leftIn),
         mainWindow: main,
       )..settings = WindowSettings(restoreWindows: restore);
       harness.host.screenAreas = const [_screen];
@@ -678,19 +680,19 @@ void main() {
       return harness;
     }
 
-    testWidgets('all: the windows as they were, the one in front again; '
-        'one off the screens moved back; a folder gone left out', (
-      tester,
-    ) async {
+    testWidgets('to the IDE, all: its windows as they were, the one in front '
+        'again; one off the screens moved back; a folder gone left out; '
+        'the chat not shown', (tester) async {
       final harness = await restored(tester);
       expect(harness.folders, ['/w/b', null, '/w/a']);
-      expect(harness.order, ['/w/a', 'chat', null, '/w/b']);
+      expect(harness.order.first, '/w/a');
       expect(harness.host.focused, harness.window('/w/a').viewId);
       final frame = harness.host.created.last.frame!;
       expect(frame.screen, 'main');
       expect(frame.bounds, const Rect.fromLTWH(640, 200, 800, 600));
-      expect(harness.windows.chat.shown, isTrue);
-      expect(harness.host.mainShownAtLaunch, isTrue);
+      expect(harness.windows.chat.shown, isFalse);
+      expect(harness.host.log.first, 'hide 0');
+      expect(harness.host.mainShownAtLaunch, isFalse);
     });
 
     testWidgets('folders: those with a folder', (tester) async {
@@ -703,29 +705,60 @@ void main() {
       expect(harness.folders, ['/w/a']);
     });
 
-    testWidgets('none: the chat alone', (tester) async {
+    testWidgets('none: an empty window, the chat still not shown', (
+      tester,
+    ) async {
       final harness = await restored(tester, restore: RestoreWindows.none);
+      expect(harness.folders, [null]);
+      expect(harness.windows.chat.shown, isFalse);
+    });
+
+    testWidgets('to the chat: its window alone, none of the IDE\'s', (
+      tester,
+    ) async {
+      final harness = await restored(tester, main: MainWindow.chat);
+      expect(harness.folders, isEmpty);
+      expect(harness.host.created, isEmpty);
+      expect(harness.windows.chat.shown, isTrue);
+      expect(harness.host.mainShownAtLaunch, isTrue);
+    });
+
+    testWidgets('where it was left (the default): the IDE, if it was', (
+      tester,
+    ) async {
+      final harness = await restored(
+        tester,
+        main: MainWindow.fallback,
+        leftIn: 'ide',
+      );
+      expect(harness.folders, ['/w/b', null, '/w/a']);
+      expect(harness.windows.chat.shown, isFalse);
+    });
+
+    testWidgets('where it was left: the chat alone, if it was, though the '
+        'IDE\'s windows were open too', (tester) async {
+      final harness = await restored(
+        tester,
+        main: MainWindow.last,
+        leftIn: 'chat',
+      );
       expect(harness.folders, isEmpty);
       expect(harness.windows.chat.shown, isTrue);
     });
 
-    testWidgets('workbench.mainWindow last: the chat hidden if it was; none '
-        'restored, an empty window', (tester) async {
+    testWidgets('where it was left, kept before it was: the IDE when the chat '
+        'was hidden', (tester) async {
       final harness = await restored(
         tester,
-        restore: RestoreWindows.none,
         main: MainWindow.last,
         chatShown: false,
       );
+      expect(harness.folders, ['/w/b', null, '/w/a']);
       expect(harness.windows.chat.shown, isFalse);
-      expect(harness.host.log.first, 'hide 0');
-      expect(harness.folders, [null]);
-      expect(harness.host.mainShownAtLaunch, isFalse);
     });
 
-    testWidgets('kept as they move, open and close, the one in front first', (
-      tester,
-    ) async {
+    testWidgets('kept as they move, open and close, the one in front first, '
+        'and where the app is left', (tester) async {
       final harness = _Harness(tester);
       await harness.start();
       final a = (await harness.windows.showFolder('/w/a'))!;
@@ -740,6 +773,23 @@ void main() {
         {'chat': true},
       ]);
       expect(harness.store.preferences['chatShown'], isTrue);
+      expect(harness.store.preferences['leftIn'], 'ide');
+
+      harness.host.events!.windowFocused(harness.windows.chat.viewId);
+      await harness.windows.saved;
+      expect(harness.store.preferences['leftIn'], 'chat');
+    });
+
+    testWidgets('the IDE\'s last window closed with the chat hidden (on '
+        'Windows, quitting): still left in the IDE', (tester) async {
+      final harness = _Harness(tester, mainWindow: MainWindow.last);
+      await harness.start();
+      final a = (await harness.windows.showFolder('/w/a'))!;
+      await harness.windows.requestClose(harness.windows.chat);
+      expect(await harness.windows.requestClose(a), isTrue);
+      await harness.windows.saved;
+      expect(harness.store.preferences['leftIn'], 'ide');
+      expect(harness.host.mainShownAtLaunch, isFalse);
     });
   });
 
@@ -759,17 +809,28 @@ void main() {
       return harness;
     }
 
-    testWidgets('the IDE\'s folder opens its window; the chat shows, as '
-        'mainWindow says', (tester) async {
+    testWidgets('mainWindow chat: the chat alone, the IDE\'s folder not '
+        'opened', (tester) async {
       final harness = await migrated(
         tester,
         main: MainWindow.chat,
         ideShown: true,
       );
-      expect(harness.folders, ['/w/a']);
+      expect(harness.folders, isEmpty);
       expect(harness.windows.chat.shown, isTrue);
       expect(harness.workspace.ideFolder, isNull);
       expect(harness.workspace.layout, WorkspaceLayout.chat);
+    });
+
+    testWidgets('mainWindow ide: the IDE\'s folder in its window, though it '
+        'was not shown', (tester) async {
+      final harness = await migrated(
+        tester,
+        main: MainWindow.ide,
+        ideShown: false,
+      );
+      expect(harness.folders, ['/w/a']);
+      expect(harness.windows.chat.shown, isFalse);
     });
 
     testWidgets('mainWindow last, the IDE shown: its window alone', (
