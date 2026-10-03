@@ -125,6 +125,13 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  // The app quits (see AppWindows::kQuitMessage): this window goes, and the
+  // engine and the IDE's windows with it, in OnDestroy.
+  if (message == AppWindows::kQuitMessage) {
+    ::DestroyWindow(hwnd);
+    return 0;
+  }
+
   // Once the app keeps windows of its own, the close button is the app's to
   // decide about (see AppWindows): the tray, if any, is what keeps it.
   const bool app_closes =

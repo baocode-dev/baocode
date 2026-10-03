@@ -94,6 +94,9 @@ class FakeWindowHost extends WindowHost {
       mainShownAtLaunch = shown;
 
   @override
+  Future<void> quit() async => log.add('quit');
+
+  @override
   Future<void> setTitle(int viewId, String title, {String? path}) async =>
       titles[viewId] = title;
 
