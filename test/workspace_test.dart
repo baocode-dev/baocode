@@ -270,7 +270,7 @@ void main() {
     final workspace = await pumpLoaded(
       tester,
       kernel: titledClaude(renames),
-      titler: (message) {
+      titler: (message, {model}) {
         asked.add(message);
         return generated.future;
       },
@@ -306,7 +306,7 @@ void main() {
     final workspace = await pumpLoaded(
       tester,
       kernel: titledClaude(renames),
-      titler: (message) async {
+      titler: (message, {model}) async {
         asked.add(message);
         return 'Generated';
       },
@@ -343,7 +343,7 @@ void main() {
     final workspace = await pumpLoaded(
       tester,
       kernel: titledClaude(renames),
-      titler: (_) => generated.future,
+      titler: (_, {model}) => generated.future,
     );
     final thread = workspace.selected;
     thread.session.send(
@@ -365,7 +365,7 @@ void main() {
     final asked = <String>[];
     final workspace = await pumpLoaded(
       tester,
-      titler: (message) async {
+      titler: (message, {model}) async {
         asked.add(message);
         return 'Generated';
       },

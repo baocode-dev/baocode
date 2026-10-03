@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../models/launch_environment.dart';
 import '../commit_attribution.dart';
 
 /// Claude Code's side of the adapter (the Adaptee): the messages of
@@ -45,6 +46,8 @@ class ClaudeLaunch {
     this.autoModeDuringPlan,
     this.attribution = CommitAttribution.agent,
     this.persist = true,
+    this.env,
+    this.settingsPath,
   });
 
   final String cwd;
@@ -73,6 +76,40 @@ class ClaudeLaunch {
   /// Whether the session is saved, to be resumed and listed later.
   final bool persist;
 
+  /// The environment of a session on a provider of the user's
+  /// (`ANTHROPIC_BASE_URL`, its key, its models: see
+  /// [launchEnvironment]), as the flag settings' `env`, over the user's
+  /// own; null for Claude Code as the user set it up.
+  final Map<String, String>? env;
+
+  /// A file the flag settings ([settings]) are written to, given in their
+  /// place: so that a key in them is in no command line.
+  final String? settingsPath;
+
+  /// Whether [settings] hold a secret: they then go in a file
+  /// ([settingsPath]), not the command line.
+  bool get hasSecrets => switch (env) {
+    final env? => ClaudeModelVariables.secrets.any(
+      (name) => env[name]?.isNotEmpty ?? false,
+    ),
+    null => false,
+  };
+
+  /// This launch with its flag settings in the file at [path].
+  ClaudeLaunch withSettingsFile(String path) => ClaudeLaunch(
+    cwd: cwd,
+    resume: resume,
+    model: model,
+    permissionMode: permissionMode,
+    effort: effort,
+    autocompact: autocompact,
+    autoModeDuringPlan: autoModeDuringPlan,
+    attribution: attribution,
+    persist: persist,
+    env: env,
+    settingsPath: path,
+  );
+
   Map<String, String>? get _attribution => switch (attribution) {
     CommitAttribution.baocode => const {
       'commit': CommitAttribution.baoCodeCommit,
@@ -82,10 +119,11 @@ class ClaudeLaunch {
     CommitAttribution.none => const {'commit': '', 'pr': ''},
   };
 
-  /// Given as flag settings, over the user's own.
-  Map<String, Object?> get _settings => {
+  /// Given as flag settings, over the user's own: one `--settings`.
+  Map<String, Object?> get settings => {
     'attribution': ?_attribution,
     'useAutoModeDuringPlan': ?autoModeDuringPlan,
+    if (env case final env? when env.isNotEmpty) 'env': env,
   };
 
   List<String> get arguments => [
@@ -109,7 +147,10 @@ class ClaudeLaunch {
     if (effort case final effort?) ...['--effort', effort],
     if (autocompact case final tokens?) ...['--autocompact', '$tokens'],
     if (resume case final id?) ...['--resume', id],
-    if (_settings case final settings when settings.isNotEmpty) ...[
+    if (settingsPath case final path?) ...[
+      '--settings',
+      path,
+    ] else if (settings case final settings when settings.isNotEmpty) ...[
       '--settings',
       jsonEncode(settings),
     ],

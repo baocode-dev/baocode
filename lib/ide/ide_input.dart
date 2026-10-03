@@ -86,6 +86,7 @@ class IdeInputBox extends StatefulWidget {
     this.autofocus = false,
     this.semanticsLabel,
     this.floatingValidation = false,
+    this.obscureText = false,
   });
 
   final TextEditingController controller;
@@ -115,6 +116,9 @@ class IdeInputBox extends StatefulWidget {
   /// Shows [validation] over what is below instead of pushing it down, as
   /// the explorer's inline inputs do.
   final bool floatingValidation;
+
+  /// Its text as dots (a key, a password): one line only.
+  final bool obscureText;
 
   @override
   State<IdeInputBox> createState() => _IdeInputBoxState();
@@ -179,6 +183,7 @@ class _IdeInputBoxState extends State<IdeInputBox> {
       controller: widget.controller,
       focusNode: _focus,
       autofocus: widget.autofocus,
+      obscureText: widget.obscureText,
       minLines: widget.minLines,
       // Several lines: as many as it has, scrolled around it (below).
       maxLines: multiline ? null : widget.maxLines,

@@ -28,6 +28,8 @@ import 'keybindings/keybindings_sync.dart';
 import 'keybindings/keymap.dart';
 import 'keybindings/vscode_import.dart';
 import 'l10n/l10n.dart';
+import 'models/model_providers.dart';
+import 'models/model_runtime.dart';
 import 'notifications/attention_settings.dart';
 import 'platform/data_dir.dart';
 import 'search/claude_conversation_search.dart';
@@ -81,6 +83,8 @@ Future<void> main() async {
   if (files != null) {
     CommitAttribution.current = () =>
         CommitAttribution.parse(files.settings[CommitAttribution.settingKey]);
+    // Settings → Models: the upstreams, kept in settings.json.
+    ModelProviders.current = ModelProviders.settings(files.settings);
   }
   final locale = AppLocale(storage: files?.argv);
   final workspace = Workspace(
@@ -264,6 +268,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
       if (!await _windows.confirmQuit()) return AppExitResponse.cancel;
       await Future.wait([
         stopClaudeProcesses(),
+        stopModelProxy(),
         stopLspProcesses(),
         stopPtyProcesses(),
       ]);

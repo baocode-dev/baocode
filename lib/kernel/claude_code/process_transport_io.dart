@@ -4,10 +4,12 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
+import '../../models/launch_environment.dart';
 import '../../platform/data_dir.dart';
 import '../../platform/child_process_registry.dart';
 import 'claude_code_transport.dart';
 import 'claude_environment.dart';
+import 'claude_settings_file.dart';
 import 'cli_locator.dart';
 
 /// Claude Code as a child process, over its stdin and stdout.
@@ -87,13 +89,24 @@ class ProcessTransport implements ClaudeCodeTransport {
     if (!Directory(launch.cwd).existsSync()) {
       throw ClaudeUnavailable('The project folder is gone: ${launch.cwd}');
     }
+    // A key goes in a file only the user reads, not the command line.
+    final settingsFile = launch.hasSecrets
+        ? await ClaudeSettingsFile.write(launch.settings)
+        : null;
+    final started = switch (settingsFile) {
+      final path? => launch.withSettingsFile(path),
+      null => launch,
+    };
     try {
       final process = await Process.start(
         cli.executable,
-        launch.arguments,
+        started.arguments,
         workingDirectory: launch.cwd,
         environment: {
           ...cli.environment,
+          // A provider's session: none of the user's own model setup.
+          if (launch.env != null)
+            for (final name in ClaudeModelVariables.inherited) name: '',
           ...ClaudeLaunch.environment,
           ...ClaudeEnvironment.stateDirectory(cli.environment),
         },
@@ -104,8 +117,15 @@ class ProcessTransport implements ClaudeCodeTransport {
         // An npm shim is a `.cmd`, which only the shell can run.
         runInShell: cli.throughShell,
       );
+      if (settingsFile != null) {
+        // Read as it starts; gone with it.
+        unawaited(
+          process.exitCode.then((_) => ClaudeSettingsFile.delete(settingsFile)),
+        );
+      }
       return ProcessTransport._(process);
     } on ProcessException catch (error) {
+      if (settingsFile != null) await ClaudeSettingsFile.delete(settingsFile);
       throw ClaudeUnavailable(
         'Claude Code could not start',
         detail: error.message,
