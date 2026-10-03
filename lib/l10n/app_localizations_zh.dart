@@ -4409,6 +4409,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ideWelcomeRecent => '最近';
 
   @override
+  String get ideStartRecent => '最近的项目';
+
+  @override
+  String ideStartViewAll(int count) {
+    return '查看全部（$count）';
+  }
+
+  @override
   String get ideOpenRecentPlaceholder => '选择要打开的文件夹或文件';
 
   @override
@@ -4507,7 +4515,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get generalSettingsMainWindowDescription =>
-      'BaoCode 启动时打开的窗口。“code”命令始终在 IDE 中打开文件和文件夹。';
+      'BaoCode 启动时显示什么：对话窗口、IDE 窗口（按“恢复窗口”恢复），或上次退出时显示的窗口。';
 
   @override
   String generalSettingsMainWindowLabel(String name) {
@@ -4522,6 +4530,154 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get generalSettingsMainWindowLast => '上次使用';
+
+  @override
+  String get generalSettingsWindows => '窗口';
+
+  @override
+  String get generalSettingsIdeWindows => 'Fast Ide 窗口';
+
+  @override
+  String get generalSettingsIdeWindowsDescription =>
+      'Fast Ide 在哪里打开：独立窗口，每个文件夹一个（新建窗口 ⇧⌘N / Ctrl+Shift+N 打开一个空窗口）；或在主窗口中替换对话，一次一个文件夹。立即生效。（window.ideWindows）';
+
+  @override
+  String get generalSettingsIdeWindowsSeparate => '独立窗口';
+
+  @override
+  String get generalSettingsIdeWindowsMain => '在主窗口中';
+
+  @override
+  String generalSettingsWindowLabel(String setting, String name) {
+    return '$setting：$name';
+  }
+
+  @override
+  String get generalSettingsOpenFolders => '在新窗口中打开文件夹';
+
+  @override
+  String get generalSettingsOpenFoldersDescription =>
+      '从窗口里打开文件夹（打开文件夹…、打开最近的文件）时是否使用新窗口。默认替换当前窗口，按住 ⌘/Ctrl 时用新窗口。（window.openFoldersInNewWindow）';
+
+  @override
+  String get generalSettingsOpenFiles => '在新窗口中打开文件';
+
+  @override
+  String get generalSettingsOpenFilesDescription =>
+      '从窗口里打开文件时是否使用新窗口。默认在当前窗口中打开。（window.openFilesInNewWindow）';
+
+  @override
+  String get generalSettingsOpenDefault => '默认';
+
+  @override
+  String get generalSettingsOpenOn => '在新窗口中';
+
+  @override
+  String get generalSettingsOpenOff => '在当前窗口中';
+
+  @override
+  String get generalSettingsRestoreWindows => '恢复窗口';
+
+  @override
+  String get generalSettingsRestoreWindowsDescription =>
+      '启动时重新打开哪些 IDE 窗口，各自回到原来的位置。（window.restoreWindows）';
+
+  @override
+  String get generalSettingsRestoreAll => '全部窗口';
+
+  @override
+  String get generalSettingsRestoreOne => '最近活动的窗口';
+
+  @override
+  String get generalSettingsRestoreFolders => '有文件夹的窗口';
+
+  @override
+  String get generalSettingsRestoreNone => '不恢复';
+
+  @override
+  String get generalSettingsNewWindowDimensions => '新窗口大小';
+
+  @override
+  String get generalSettingsNewWindowDimensionsDescription =>
+      '新打开的窗口的大小。（window.newWindowDimensions）';
+
+  @override
+  String get generalSettingsDimensionsDefault => '默认';
+
+  @override
+  String get generalSettingsDimensionsInherit => '与最近活动的窗口相同';
+
+  @override
+  String get generalSettingsDimensionsMaximized => '最大化';
+
+  @override
+  String get generalSettingsDimensionsFullscreen => '全屏';
+
+  @override
+  String get generalSettingsConfirmBeforeClose => '关闭前确认';
+
+  @override
+  String get generalSettingsConfirmBeforeCloseDescription =>
+      '关闭窗口前是否先询问，即使没有未保存的内容。（window.confirmBeforeClose）';
+
+  @override
+  String get generalSettingsConfirmNever => '从不';
+
+  @override
+  String get generalSettingsConfirmKeyboard => '用快捷键关闭时';
+
+  @override
+  String get generalSettingsConfirmAlways => '总是';
+
+  @override
+  String get cmdNewWindow => '新建窗口';
+
+  @override
+  String get cmdCloseWindow => '关闭窗口';
+
+  @override
+  String get cmdSwitchWindow => '切换窗口...';
+
+  @override
+  String get cmdShowChatWindow => '显示对话窗口';
+
+  @override
+  String get windowChatTitle => '对话';
+
+  @override
+  String get windowWelcomeTitle => '欢迎';
+
+  @override
+  String get windowConfirmClose => '确定要关闭窗口吗？';
+
+  @override
+  String get windowTerminateTerminals => '是否终止窗口中终端里正在运行的进程？';
+
+  @override
+  String get windowTerminate => '终止';
+
+  @override
+  String windowSaveChanges(int count) {
+    return '是否保存对以下 $count 个文件的更改？';
+  }
+
+  @override
+  String get windowSaveAll => '全部保存';
+
+  @override
+  String get windowCurrent => '当前';
+
+  @override
+  String get windowSwitchPlaceholder => '选择要切换到的窗口';
+
+  @override
+  String get windowCycle => '循环切换窗口';
+
+  @override
+  String get windowMenuWindows => '窗口';
+
+  @override
+  String get windowOpened => '已打开';
 
   @override
   String get generalSettingsShellCommand => 'Shell 命令';

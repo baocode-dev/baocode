@@ -50,10 +50,11 @@ flutter::EncodableList FileEntries(const std::vector<std::wstring>& paths) {
   return entries;
 }
 
-DropTarget::DropTarget(flutter::BinaryMessenger* messenger, HWND view)
+DropTarget::DropTarget(flutter::BinaryMessenger* messenger, HWND view,
+                       const std::string& name)
     : view_(view),
       channel_(std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
-          messenger, "baocode/drop",
+          messenger, name,
           &flutter::StandardMethodCodec::GetInstance())) {
   ::CoCreateInstance(CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER,
                      IID_PPV_ARGS(&helper_));

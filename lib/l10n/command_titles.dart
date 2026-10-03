@@ -4,6 +4,7 @@
 import '../ide/ide_commands.dart';
 import '../keybindings/chat_keybindings.dart';
 import '../keybindings/default_keybindings.dart';
+import '../keybindings/window_keybindings.dart';
 import '../platform/shell_command.dart';
 import 'l10n.dart';
 
@@ -78,6 +79,10 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
           : l10n.cmdToggleFormatOnSave,
     'baocode.ide.retryLanguageServices' => l10n.cmdRetryLanguageServices,
     'baocode.ide.backToChat' => l10n.cmdBackToChat,
+    WindowCommandIds.newWindow => l10n.cmdNewWindow,
+    WindowCommandIds.closeWindow => l10n.cmdCloseWindow,
+    WindowCommandIds.switchWindow => l10n.cmdSwitchWindow,
+    WindowCommandIds.showChat => l10n.cmdShowChatWindow,
     'workbench.action.openSettings' => l10n.cmdOpenSettings,
     'workbench.action.openGlobalKeybindings' => l10n.cmdOpenKeyboardShortcuts,
     // The chat's (chatExtraCommands).

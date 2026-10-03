@@ -15,7 +15,8 @@
 
 #include "caption_areas.h"
 
-// What Flutter asks of the window, over the `baocode/window` channel: the
+// What Flutter asks of the window, over the `baocode/window` channel (an
+// IDE window's: `baocode/window.<its view's id>`, see app_windows.h): the
 // methods the macOS app answers in MainFlutterWindow.swift, which are asked
 // for in lib/workspace/window_controls.dart.
 //
@@ -47,7 +48,8 @@
 // Flutter draws carries.
 class WindowChannel {
  public:
-  WindowChannel(flutter::BinaryMessenger* messenger, HWND window);
+  WindowChannel(flutter::BinaryMessenger* messenger, HWND window,
+                const std::string& name = "baocode/window");
   ~WindowChannel();
 
   WindowChannel(const WindowChannel&) = delete;

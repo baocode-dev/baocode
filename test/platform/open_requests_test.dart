@@ -75,6 +75,31 @@ void main() {
     expect(opened, hasLength(1));
   });
 
+  test('requests of the `code` command go each as they came, after the '
+      'paths kept', () async {
+    const marker = OpenRequests.codeRequestMarker;
+    pending = [
+      r'C:\notes.md',
+      marker,
+      r'C:\work',
+      '-n',
+      '.',
+      marker,
+      r'C:\other',
+    ];
+    final opened = <List<String>>[];
+    OpenRequests.listen(opened.add);
+    await pumpEventQueue();
+    expect(opened, [
+      [r'C:\notes.md'],
+      [marker, r'C:\work', '-n', '.'],
+      [marker, r'C:\other'],
+    ]);
+
+    await send([marker, r'C:\work', '-g', 'a.dart:3']);
+    expect(opened.last, [marker, r'C:\work', '-g', 'a.dart:3']);
+  });
+
   test('stopped, it delivers nothing and tells the window', () async {
     final opened = <List<String>>[];
     OpenRequests.listen(opened.add);

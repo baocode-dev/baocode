@@ -163,9 +163,14 @@ final class Attention: NSObject, UNUserNotificationCenterDelegate {
     NSApp.activate(ignoringOtherApps: true)
   }
 
-  /// The window, on the agent [id] when there is one.
+  /// The window, on the agent [id] when there is one. With the IDE's
+  /// windows, the app shows the one the agent is a tab of (else this one).
   private func open(_ id: String?) {
-    showWindow()
+    if id != nil && AppWindows.shared?.started ?? false {
+      NSApp.activate(ignoringOtherApps: true)
+    } else {
+      showWindow()
+    }
     channel.invokeMethod("open", arguments: id)
   }
 
@@ -181,10 +186,20 @@ final class Attention: NSObject, UNUserNotificationCenterDelegate {
     }
     let item = statusItem ?? NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     statusItem = item
+    trayState = state
     let dot = state["dot"] as? Bool ?? false
     item.button?.image = Self.trayImage(dot: dot)
     item.button?.toolTip = state["tooltip"] as? String
     item.menu = menu(state)
+  }
+
+  /// What Flutter last said of the menu bar icon.
+  private var trayState: [String: Any]?
+
+  /// The menu again: the app's windows changed (see AppWindows).
+  func refreshTray() {
+    guard let statusItem, let trayState else { return }
+    statusItem.menu = menu(trayState)
   }
 
   private func menu(_ state: [String: Any]) -> NSMenu {
@@ -192,6 +207,15 @@ final class Attention: NSObject, UNUserNotificationCenterDelegate {
     let menu = NSMenu()
     menu.autoenablesItems = false
     menu.addItem(action(labels["show"] ?? "Show", #selector(showChosen)))
+    // The app's windows, to switch to, and New Window.
+    if let windows = AppWindows.shared {
+      let items = windows.menuItems(
+        target: windows,
+        choose: #selector(AppWindows.windowChosen(_:)),
+        newWindow: #selector(AppWindows.newWindowChosen(_:)))
+      if !items.isEmpty { menu.addItem(.separator()) }
+      for item in items { menu.addItem(item) }
+    }
     let waiting = state["waiting"] as? [[String: Any]] ?? []
     if !waiting.isEmpty {
       menu.addItem(.separator())
@@ -228,9 +252,14 @@ final class Attention: NSObject, UNUserNotificationCenterDelegate {
     open(sender.representedObject as? String)
   }
 
-  /// Quits as ⌘Q does: the app asks first, in its window.
+  /// Quits as ⌘Q does: the app asks first, in its window (the one in
+  /// front, with the IDE's).
   @objc private func quitChosen() {
-    showWindow()
+    if let windows = AppWindows.shared, windows.started {
+      windows.bringFront()
+    } else {
+      showWindow()
+    }
     NSApp.terminate(nil)
   }
 

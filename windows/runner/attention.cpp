@@ -11,6 +11,7 @@
 #include <cwctype>
 #include <utility>
 
+#include "app_windows.h"
 #include "resource.h"
 #include "utils.h"
 
@@ -22,10 +23,13 @@ using Microsoft::WRL::ComPtr;
 constexpr UINT kTrayMessage = WM_APP + 0x41;
 constexpr UINT kTrayId = 1;
 
-// The tray menu's commands; an agent's is kAgentCommand plus its place.
+// The tray menu's commands; an agent's is kAgentCommand plus its place, a
+// window's kWindowCommand plus its.
 constexpr UINT kShowCommand = 1;
 constexpr UINT kQuitCommand = 2;
+constexpr UINT kNewWindowCommand = 3;
 constexpr UINT kAgentCommand = 100;
+constexpr UINT kWindowCommand = 1000;
 
 // The alias of a sound MCI plays (a file PlaySound does not: not a WAV).
 constexpr wchar_t kSoundAlias[] = L"baocode_sound";
@@ -245,8 +249,10 @@ const flutter::EncodableValue* Argument(
 
 }  // namespace
 
-Attention::Attention(flutter::BinaryMessenger* messenger, HWND window)
+Attention::Attention(flutter::BinaryMessenger* messenger, HWND window,
+                     AppWindows* windows)
     : window_(window),
+      windows_(windows),
       channel_(std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           messenger, "baocode/attention",
           &flutter::StandardMethodCodec::GetInstance())),
@@ -301,7 +307,7 @@ void Attention::HandleMethodCall(
     // Until the window is in front again; nothing while it is.
     FLASHWINFO flash = {};
     flash.cbSize = sizeof(flash);
-    flash.hwnd = window_;
+    flash.hwnd = windows_ != nullptr ? windows_->FrontWindow() : window_;
     flash.dwFlags = FLASHW_TRAY | FLASHW_TIMERNOFG;
     ::FlashWindowEx(&flash);
     result->Success();
@@ -370,7 +376,8 @@ std::optional<LRESULT> Attention::HandleMessage(HWND window, UINT message,
     }
     return std::nullopt;
   }
-  if (message == WM_COPYDATA && !::IsWindowVisible(window)) {
+  if (message == WM_COPYDATA && !::IsWindowVisible(window) &&
+      !(windows_ != nullptr && windows_->started())) {
     // A second copy of the app hands this one what to open (see main.cpp):
     // the window hidden to the tray comes back for it.
     ::ShowWindow(window, SW_SHOW);
@@ -385,9 +392,7 @@ std::optional<LRESULT> Attention::HandleMessage(HWND window, UINT message,
   }
   if (message == taskbar_button_created_ && taskbar_button_created_ != 0) {
     // A taskbar button made anew (the window shown again) has no count.
-    if (badge_ > 0) {
-      SetBadge(badge_);
-    }
+    BadgeWindow(window);
     return std::nullopt;
   }
   if (message == WM_SETTINGCHANGE && lparam != 0 &&
@@ -526,6 +531,23 @@ void Attention::ShowMenu() {
     ::AppendMenuW(menu, MF_STRING | MF_GRAYED, 0,
                   MenuText(tray.running).c_str());
   }
+  // The app's windows, the one in front checked, and a new one. A copy:
+  // Flutter may list them anew before this returns.
+  std::vector<AppWindows::Entry> windows;
+  if (windows_ != nullptr && windows_->started()) {
+    windows = windows_->entries();
+    ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    const HWND foreground = ::GetForegroundWindow();
+    for (size_t index = 0; index < windows.size(); index++) {
+      const bool front =
+          windows_->HandleOf(windows[index].view_id) == foreground;
+      ::AppendMenuW(menu, MF_STRING | (front ? MF_CHECKED : MF_UNCHECKED),
+                    kWindowCommand + index,
+                    MenuText(windows[index].title).c_str());
+    }
+    ::AppendMenuW(menu, MF_STRING, kNewWindowCommand,
+                  MenuText(windows_->NewWindowLabel()).c_str());
+  }
   ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
   ::AppendMenuW(menu, MF_STRING, kQuitCommand, MenuText(tray.quit).c_str());
 
@@ -548,6 +570,15 @@ void Attention::ShowMenu() {
     Open(std::nullopt);
   } else if (command == kQuitCommand) {
     Quit();
+  } else if (command == kNewWindowCommand) {
+    if (windows_ != nullptr) {
+      windows_->RequestNewWindow();
+    }
+  } else if (command >= kWindowCommand &&
+             command - kWindowCommand < windows.size()) {
+    if (windows_ != nullptr) {
+      windows_->Focus(windows[command - kWindowCommand].view_id);
+    }
   } else if (command >= kAgentCommand &&
              command - kAgentCommand < tray.waiting.size()) {
     // A copy: Flutter may set the tray anew before this returns.
@@ -641,7 +672,18 @@ void Attention::SetBadge(int count) {
   HICON icon = badge_ > 0 ? BadgeIcon(badge_) : nullptr;
   const std::wstring description =
       badge_ > 0 ? std::to_wstring(badge_) : std::wstring();
-  taskbar_->SetOverlayIcon(window_, icon, description.c_str());
+  // One count for the app, over each of its windows' buttons.
+  std::vector<HWND> windows = {window_};
+  if (windows_ != nullptr) {
+    for (const HWND shown : windows_->ShownWindows()) {
+      if (shown != window_) {
+        windows.push_back(shown);
+      }
+    }
+  }
+  for (const HWND window : windows) {
+    taskbar_->SetOverlayIcon(window, icon, description.c_str());
+  }
   // The taskbar keeps a copy of its own.
   if (icon != nullptr) {
     ::DestroyIcon(icon);
@@ -678,19 +720,52 @@ std::optional<std::string> Attention::PickSound() {
   return picked;
 }
 
+void Attention::BadgeWindow(HWND window) {
+  if (badge_ == 0) {
+    return;
+  }
+  if (window == window_ || !taskbar_) {
+    SetBadge(badge_);
+    return;
+  }
+  HICON icon = BadgeIcon(badge_);
+  taskbar_->SetOverlayIcon(window, icon, std::to_wstring(badge_).c_str());
+  if (icon != nullptr) {
+    ::DestroyIcon(icon);
+  }
+}
+
 void Attention::BringBack() {
   ::ShowWindow(window_, ::IsIconic(window_) ? SW_RESTORE : SW_SHOW);
   ::SetForegroundWindow(window_);
 }
 
 void Attention::Open(const std::optional<std::string>& id) {
-  BringBack();
+  // An agent's window is Flutter's to bring, once the app keeps windows of
+  // its own: the IDE's it is a tab of, or this one. So is the window the
+  // tray's icon brings back when none shows (an IDE's, when the app opens
+  // to the IDE).
+  if (windows_ == nullptr || !windows_->started()) {
+    BringBack();
+  } else if (!id) {
+    if (windows_->ShownWindows().empty()) {
+      windows_->RequestReopen();
+    } else {
+      BringBack();
+    }
+  }
   channel_->InvokeMethod(
       "open", std::make_unique<flutter::EncodableValue>(
                   id ? flutter::EncodableValue(*id) : flutter::EncodableValue()));
 }
 
 void Attention::Quit() {
+  if (windows_ != nullptr && windows_->started()) {
+    // The close button is the app's then (it would hide this window): the
+    // app asks, in the window in front, and quits.
+    windows_->RequestQuit();
+    return;
+  }
   BringBack();
   quitting_ = true;
   ::PostMessageW(window_, WM_CLOSE, 0, 0);

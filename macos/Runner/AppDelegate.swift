@@ -5,27 +5,41 @@ import FlutterMacOS
 class AppDelegate: FlutterAppDelegate {
   /// Closing the window quits, unless the menu bar icon is up: the close
   /// button only hides the window then, and AppKit counts a window ordered
-  /// out as closed (see Attention.swift).
+  /// out as closed (see Attention.swift). With the IDE's windows, the app
+  /// stays, as a Mac app does: the Dock's icon opens the main window again.
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    if AppWindows.shared?.started ?? false { return false }
     return !(Attention.shared?.hidesOnClose ?? false)
   }
 
   /// The app asks before it quits (see quit_confirmation.dart), in its
-  /// window: brought up for it, from the Dock's Quit too.
+  /// window (the one in front, with the IDE's): brought up for it, from
+  /// the Dock's Quit too.
   override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     bringWindowFront()
     return super.applicationShouldTerminate(sender)
   }
 
   /// A click on the Dock icon brings back the window the close button hid
-  /// (see Attention.swift).
+  /// (see Attention.swift); the main one, once all are closed. With the
+  /// IDE's windows, Flutter decides which (an IDE's window, when the app
+  /// opens to the IDE); a minimized one is brought back as AppKit does.
   override func applicationShouldHandleReopen(
     _ sender: NSApplication, hasVisibleWindows flag: Bool
   ) -> Bool {
-    if !flag, let window = mainFlutterWindow, !window.isMiniaturized {
+    if flag || sender.windows.contains(where: { $0.isMiniaturized }) { return true }
+    if let windows = AppWindows.shared, windows.started {
+      windows.reopen()
+    } else if let window = mainFlutterWindow {
       window.makeKeyAndOrderFront(nil)
     }
     return true
+  }
+
+  /// The Dock icon's menu: the app's windows, and New Window (see
+  /// AppWindows.swift).
+  override func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+    AppWindows.shared?.dockMenu()
   }
 
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
@@ -40,13 +54,20 @@ class AppDelegate: FlutterAppDelegate {
     let paths = urls.filter(\.isFileURL).map { $0.standardizedFileURL.path }
     if !paths.isEmpty {
       OpenRequests.shared.deliver(paths)
-      bringWindowFront()
+      // With the IDE's windows, the app shows the one they open in.
+      if AppWindows.shared?.started ?? false {
+        NSApp.activate(ignoringOtherApps: true)
+      } else {
+        bringWindowFront()
+      }
     }
     super.application(application, open: urls)
   }
 
   private func bringWindowFront() {
-    if let window = mainFlutterWindow {
+    if let windows = AppWindows.shared, windows.started {
+      windows.bringFront()
+    } else if let window = mainFlutterWindow {
       if window.isMiniaturized { window.deminiaturize(nil) }
       window.makeKeyAndOrderFront(nil)
       NSApp.activate(ignoringOtherApps: true)

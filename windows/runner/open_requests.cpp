@@ -59,7 +59,27 @@ std::wstring FullPath(const wchar_t* path) {
   return full;
 }
 
+// The marker Flutter knows a request of the `code` command by
+// (lib/window/code_args.dart's requestMarker): a null, then "code".
+const std::string& CodeRequestMarker() {
+  static const std::string marker("\0code", 5);
+  return marker;
+}
+
+// |request| (see IsCodeRequest) as Flutter takes it: its flag the marker.
+void AddRequest(flutter::EncodableList& list,
+                std::vector<std::string> request) {
+  list.push_back(flutter::EncodableValue(CodeRequestMarker()));
+  for (size_t index = 1; index < request.size(); index++) {
+    list.push_back(flutter::EncodableValue(std::move(request[index])));
+  }
+}
+
 }  // namespace
+
+bool IsCodeRequest(const std::vector<std::string>& paths) {
+  return !paths.empty() && paths.front() == kCodeRequestFlag;
+}
 
 OpenRequests::OpenRequests(flutter::BinaryMessenger* messenger,
                            std::vector<std::string> pending)
@@ -77,7 +97,11 @@ OpenRequests::OpenRequests(flutter::BinaryMessenger* messenger,
           for (const std::string& path : pending_) {
             paths.push_back(flutter::EncodableValue(path));
           }
+          for (std::vector<std::string>& request : pending_requests_) {
+            AddRequest(paths, std::move(request));
+          }
           pending_.clear();
+          pending_requests_.clear();
           ready_ = true;
           result->Success(flutter::EncodableValue(std::move(paths)));
           return;
@@ -96,16 +120,25 @@ OpenRequests::~OpenRequests() {
 }
 
 void OpenRequests::Deliver(std::vector<std::string> paths) {
+  const bool request = IsCodeRequest(paths);
   if (!ready_) {
-    pending_.insert(pending_.end(), paths.begin(), paths.end());
+    if (request) {
+      pending_requests_.push_back(std::move(paths));
+    } else {
+      pending_.insert(pending_.end(), paths.begin(), paths.end());
+    }
     return;
   }
   if (paths.empty()) {
     return;
   }
   flutter::EncodableList list;
-  for (std::string& path : paths) {
-    list.push_back(flutter::EncodableValue(std::move(path)));
+  if (request) {
+    AddRequest(list, std::move(paths));
+  } else {
+    for (std::string& path : paths) {
+      list.push_back(flutter::EncodableValue(std::move(path)));
+    }
   }
   channel_->InvokeMethod(
       "open", std::make_unique<flutter::EncodableValue>(std::move(list)));
@@ -118,7 +151,19 @@ std::vector<std::string> OpenPathsFromCommandLine() {
   if (arguments == nullptr) {
     return paths;
   }
-  // The first is the app itself.
+  // The first is the app itself. From code.cmd, the arguments go as they
+  // came: the flag, the folder, then what was typed (empty ones left out,
+  // as WM_COPYDATA's payload would lose them).
+  if (count > 1 && Utf8FromUtf16(arguments[1]) == kCodeRequestFlag) {
+    for (int index = 1; index < count; index++) {
+      std::string argument = Utf8FromUtf16(arguments[index]);
+      if (!argument.empty()) {
+        paths.push_back(std::move(argument));
+      }
+    }
+    ::LocalFree(arguments);
+    return paths;
+  }
   for (int index = 1; index < count; index++) {
     const wchar_t* argument = arguments[index];
     if (argument[0] == L'\0' || argument[0] == L'-') {

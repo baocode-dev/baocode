@@ -469,10 +469,11 @@ std::optional<std::string> PickDirectory(HWND window) {
 
 }  // namespace
 
-WindowChannel::WindowChannel(flutter::BinaryMessenger* messenger, HWND window)
+WindowChannel::WindowChannel(flutter::BinaryMessenger* messenger, HWND window,
+                             const std::string& name)
     : window_(window),
       channel_(std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
-          messenger, "baocode/window",
+          messenger, name,
           &flutter::StandardMethodCodec::GetInstance())) {
   channel_->SetMethodCallHandler(
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
@@ -480,7 +481,10 @@ WindowChannel::WindowChannel(flutter::BinaryMessenger* messenger, HWND window)
                  result) { HandleMethodCall(call, std::move(result)); });
 }
 
-WindowChannel::~WindowChannel() = default;
+// The engine outlives an IDE window's channel: its handler goes with it.
+WindowChannel::~WindowChannel() {
+  channel_->SetMethodCallHandler(nullptr);
+}
 
 void WindowChannel::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue>& call,

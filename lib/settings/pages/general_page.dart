@@ -9,15 +9,17 @@ import '../../kernel/commit_attribution.dart';
 import '../../l10n/l10n.dart';
 import '../../platform/shell_command.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
+import '../../window/window_settings.dart';
 import '../../workspace/main_window.dart';
 import '../shell_command_actions.dart';
 import '../user_settings.dart';
 import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
 
-/// Settings → General: the window the app opens to
-/// (`workbench.mainWindow`), who the commits and pull requests agents
-/// write credit (`chat.commitAttribution` in settings.json), and the
+/// Settings → General: what the app shows at launch
+/// (`workbench.mainWindow`), where the IDE opens and how its windows open,
+/// come back and close (`window.*`), who the commits and pull requests
+/// agents write credit (`chat.commitAttribution` in settings.json), and the
 /// `code` shell command. A choice is written at once; the default is not
 /// written.
 class GeneralSettingsPage extends StatelessWidget {
@@ -65,6 +67,112 @@ class GeneralSettingsPage extends StatelessWidget {
     MainWindow.settingKey,
     value == MainWindow.fallback ? null : value.name,
   );
+
+  /// The `window.*` settings' rows: each its label, description, and
+  /// values (the first the default) as settings.json has them and named.
+  List<Widget> _windowRows(BuildContext context) {
+    final l10n = context.l10n;
+    final open = {
+      OpenInNewWindow.defaultMode.setting: l10n.generalSettingsOpenDefault,
+      OpenInNewWindow.on.setting: l10n.generalSettingsOpenOn,
+      OpenInNewWindow.off.setting: l10n.generalSettingsOpenOff,
+    };
+    return [
+      _choiceRow(
+        context,
+        key: WindowSettings.ideWindowsKey,
+        label: l10n.generalSettingsIdeWindows,
+        description: l10n.generalSettingsIdeWindowsDescription,
+        values: {
+          IdeWindows.separate.name: l10n.generalSettingsIdeWindowsSeparate,
+          IdeWindows.mainWindow.name: l10n.generalSettingsIdeWindowsMain,
+        },
+      ),
+      _choiceRow(
+        context,
+        key: WindowSettings.openFoldersKey,
+        label: l10n.generalSettingsOpenFolders,
+        description: l10n.generalSettingsOpenFoldersDescription,
+        values: open,
+      ),
+      _choiceRow(
+        context,
+        key: WindowSettings.openFilesKey,
+        label: l10n.generalSettingsOpenFiles,
+        description: l10n.generalSettingsOpenFilesDescription,
+        values: open,
+      ),
+      _choiceRow(
+        context,
+        key: WindowSettings.restoreWindowsKey,
+        label: l10n.generalSettingsRestoreWindows,
+        description: l10n.generalSettingsRestoreWindowsDescription,
+        values: {
+          RestoreWindows.all.name: l10n.generalSettingsRestoreAll,
+          RestoreWindows.one.name: l10n.generalSettingsRestoreOne,
+          RestoreWindows.folders.name: l10n.generalSettingsRestoreFolders,
+          RestoreWindows.none.name: l10n.generalSettingsRestoreNone,
+        },
+      ),
+      _choiceRow(
+        context,
+        key: WindowSettings.newWindowDimensionsKey,
+        label: l10n.generalSettingsNewWindowDimensions,
+        description: l10n.generalSettingsNewWindowDimensionsDescription,
+        values: {
+          NewWindowDimensions.defaultSize.setting:
+              l10n.generalSettingsDimensionsDefault,
+          NewWindowDimensions.inherit.setting:
+              l10n.generalSettingsDimensionsInherit,
+          NewWindowDimensions.maximized.setting:
+              l10n.generalSettingsDimensionsMaximized,
+          NewWindowDimensions.fullscreen.setting:
+              l10n.generalSettingsDimensionsFullscreen,
+        },
+      ),
+      _choiceRow(
+        context,
+        key: WindowSettings.confirmBeforeCloseKey,
+        label: l10n.generalSettingsConfirmBeforeClose,
+        description: l10n.generalSettingsConfirmBeforeCloseDescription,
+        values: {
+          ConfirmBeforeClose.never.name: l10n.generalSettingsConfirmNever,
+          ConfirmBeforeClose.keyboardOnly.name:
+              l10n.generalSettingsConfirmKeyboard,
+          ConfirmBeforeClose.always.name: l10n.generalSettingsConfirmAlways,
+        },
+      ),
+    ];
+  }
+
+  Widget _choiceRow(
+    BuildContext context, {
+    required String key,
+    required String label,
+    required String description,
+    required Map<String, String> values,
+  }) {
+    final fallback = values.keys.first;
+    final setting = settings?[key];
+    final current = values.containsKey(setting) ? setting as String : fallback;
+    final shown = values[current]!;
+    return SettingsRow(
+      label: label,
+      description: description,
+      trailing: SettingsDropdown(
+        current: shown,
+        semanticLabel: context.l10n.generalSettingsWindowLabel(label, shown),
+        entries: () => [
+          for (final MapEntry(key: value, value: name) in values.entries)
+            IdeMenuAction(
+              name,
+              checked: value == current,
+              onSelected: () => _write(key, value == fallback ? null : value),
+            ),
+        ],
+      ),
+    );
+  }
 
   void _write(String key, String? value) {
     final settings = this.settings;
@@ -142,6 +250,10 @@ class GeneralSettingsPage extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            SettingsGroup(
+              title: l10n.generalSettingsWindows,
+              children: _windowRows(context),
             ),
             if (ShellCommand.supported)
               const SettingsCard(children: [_ShellCommandSetting()]),

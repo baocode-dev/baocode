@@ -28,6 +28,7 @@ import 'keybindings/keybindings_sync.dart';
 import 'keybindings/keymap.dart';
 import 'keybindings/vscode_import.dart';
 import 'l10n/l10n.dart';
+import 'notifications/attention_settings.dart';
 import 'platform/data_dir.dart';
 import 'search/claude_conversation_search.dart';
 import 'search/conversation_search.dart';
@@ -37,11 +38,13 @@ import 'settings/data_dir_startup.dart';
 import 'settings/user_settings.dart';
 import 'theme/app_theme.dart';
 import 'theme/workbench_theme.dart';
+import 'window/app_windows.dart';
+import 'window/window_host.dart';
+import 'window/window_settings.dart';
 import 'workbench.dart';
 import 'workspace/agent_title.dart';
 import 'workspace/main_window.dart';
 import 'workspace/preference_store.dart';
-import 'workspace/quit_confirmation.dart';
 import 'workspace/window_controls.dart';
 import 'workspace/workspace.dart';
 
@@ -99,11 +102,40 @@ Future<void> main() async {
   // is settings.json's `workbench.colorTheme`, the theme's colors the
   // workspace's state.
   await workspace.restored;
-  // It opens to the main window (settings.json's `workbench.mainWindow`).
-  if (files != null) {
+  // The app's windows: the chat's, and the IDE's own, one per folder,
+  // where the system can open them (see lib/window/).
+  final windows = AppWindows(
+    host: ChannelWindowHost(),
+    workspace: workspace,
+    l10n: () =>
+        lookupAppLocalizations(locale.locale ?? AppLocale.systemLocale()),
+    store: kIsWeb
+        ? null
+        : PreferenceStore.file(
+            p.join(DataDirectory.current.stateDir, AppWindows.fileName),
+          ),
+    settings: () => WindowSettings.parse(files?.settings.values ?? const {}),
+    mainWindow: () => MainWindow.parse(files?.settings[MainWindow.settingKey]),
+    updateSetting: files == null
+        ? null
+        : (key, value) => unawaited(
+            files.settings
+                .update(key, value)
+                .catchError((Object error) => debugPrint('$key: $error')),
+          ),
+    hasTray: () =>
+        AttentionSettings.parse(files?.settings.values ?? const {}).tray,
+  );
+  await windows.start();
+  // What shows at launch (settings.json's `workbench.mainWindow`): with
+  // windows of the IDE's own, the chat's and those to open again; with
+  // the IDE in the main window, its layout.
+  await windows.prepareLaunch();
+  if (files != null && !windows.multi) {
     workspace.layout = MainWindow.parse(files.settings[MainWindow.settingKey])
         .layoutAtLaunch(workspace.layout);
   }
+  WindowControls.trackActiveView();
   final ColorThemeStorage colorTheme = files == null
       ? workspace
       : ColorThemeSettings(settings: files.settings, state: workspace);
@@ -134,21 +166,26 @@ Future<void> main() async {
       installs: VsCodeInstalls.current(),
     );
   }
-  runApp(
-    BaoCodeApp(
-      workspace: workspace,
-      appLocale: locale,
-      settings: settings,
-      languagesFor: standardLspManager,
-      gitFor: (root) => IdeGitRepository(IdeGitService(root)),
-      // The default profile and the user's profiles are settings.json's.
-      terminalBackend: TerminalBackend(settings: files?.settings),
-      // What Claude Code keeps: its sessions to search, its skills, agents,
-      // commands, rules, servers, hooks and plugins to customize.
-      conversations: ClaudeConversationSearch(),
-      customizations: CustomizationStore(),
-    ),
+  final app = BaoCodeApp(
+    windows: windows,
+    workspace: workspace,
+    appLocale: locale,
+    settings: settings,
+    languagesFor: standardLspManager,
+    gitFor: (root) => IdeGitRepository(IdeGitService(root)),
+    // The default profile and the user's profiles are settings.json's.
+    terminalBackend: TerminalBackend(settings: files?.settings),
+    // What Claude Code keeps: its sessions to search, its skills, agents,
+    // commands, rules, servers, hooks and plugins to customize.
+    conversations: ClaudeConversationSearch(),
+    customizations: CustomizationStore(),
   );
+  // With windows, each is a view of its own (see [BaoCodeApp.build]).
+  if (windows.started) {
+    runWidget(app);
+  } else {
+    runApp(app);
+  }
 }
 
 class BaoCodeApp extends StatefulWidget {
@@ -162,7 +199,11 @@ class BaoCodeApp extends StatefulWidget {
     this.settings,
     this.conversations,
     this.customizations,
+    this.windows,
   });
+
+  /// The app's windows; by default, the one ([AppWindows.multi] false).
+  final AppWindows? windows;
 
   /// What the search palette searches conversations with; none when null.
   final ConversationSearch? conversations;
@@ -203,15 +244,24 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
   late final AppSettings _settings =
       widget.settings ?? AppSettings(locale: _locale);
 
+  late final AppWindows _windows =
+      widget.windows ??
+      AppWindows(
+        host: ChannelWindowHost(),
+        workspace: _workspace,
+        l10n: () =>
+            lookupAppLocalizations(_locale.locale ?? AppLocale.systemLocale()),
+      );
+
   /// Quitting ends the Claude Code processes too: left alone, one would
   /// finish its turn (subagents and all) unseen, and a resumed session would
   /// then run beside it. Language servers end with the app as well, and the
   /// terminals' shells are hung up, as closing their window would.
   late final AppLifecycleListener _lifecycle = AppLifecycleListener(
     onExitRequested: () async {
-      if (!await QuitConfirmation.confirm(_navigator.currentContext)) {
-        return AppExitResponse.cancel;
-      }
+      // The unsaved files of all windows asked about at once, then the
+      // agents at work; in the window in front.
+      if (!await _windows.confirmQuit()) return AppExitResponse.cancel;
       await Future.wait([
         stopClaudeProcesses(),
         stopLspProcesses(),
@@ -220,9 +270,6 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
       return AppExitResponse.exit;
     },
   );
-
-  /// Where the question before quitting is asked.
-  final GlobalKey<NavigatorState> _navigator = GlobalKey();
 
   final WorkbenchThemeService _themes = WorkbenchThemeService.instance;
   bool? _darkAppearance;
@@ -233,6 +280,12 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
     _lifecycle;
     _themes.addListener(_colorThemeChanged);
     _colorThemeChanged();
+    _locale.addListener(_windows.relabel);
+    _settings.files?.settings.addListener(_windows.settingsChanged);
+    // The IDE's windows of the last run, once the main one is drawn.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => unawaited(_windows.restore()),
+    );
   }
 
   /// The terminals take the theme's colors (`getXtermTheme`); the window's
@@ -252,6 +305,9 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
   @override
   void dispose() {
     _themes.removeListener(_colorThemeChanged);
+    _locale.removeListener(_windows.relabel);
+    _settings.files?.settings.removeListener(_windows.settingsChanged);
+    if (widget.windows == null) _windows.dispose();
     _lifecycle.dispose();
     _workspace.dispose();
     if (widget.appLocale == null) _locale.dispose();
@@ -261,39 +317,63 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
   @override
   Widget build(BuildContext context) {
     // A theme change restyles everything, as the workbench's does; so does
-    // a language change, at once.
+    // a language change, at once: in all windows.
     return WorkbenchThemeScope(
       builder: (context) => AppLocaleScope(
         notifier: _locale,
         child: ListenableBuilder(
           listenable: _locale,
-          builder: (context, _) => MaterialApp(
-            navigatorKey: _navigator,
-            title: 'BaoCode',
-            debugShowCheckedModeBanner: false,
-            theme: buildAppTheme(),
-            locale: _locale.locale,
-            supportedLocales: AppLocale.supportedLocales,
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              FlutterQuillLocalizations.delegate,
-            ],
-            home: Workbench(
-              workspace: _workspace,
-              languagesFor: widget.languagesFor,
-              gitFor: widget.gitFor,
-              terminalBackend: widget.terminalBackend,
-              settings: _settings,
-              conversations:
-                  widget.conversations ?? const NoConversationSearch(),
-              customizations: widget.customizations,
-            ),
-          ),
+          builder: (context, _) => _windows.started
+              ? ListenableBuilder(
+                  listenable: _windows,
+                  builder: (context, _) => ViewCollection(
+                    views: [
+                      for (final window in [
+                        _windows.chat,
+                        ..._windows.ideWindows,
+                      ])
+                        if (_windows.host.viewOf(window.viewId)
+                            case final view?)
+                          View(
+                            key: ValueKey(window.viewId),
+                            view: view,
+                            child: _app(window),
+                          ),
+                    ],
+                  ),
+                )
+              : _app(_windows.chat),
         ),
       ),
     );
   }
+
+  /// A window's app: its own navigator, dialogs, overlay and focus; what
+  /// it shows built anew as its folder changes.
+  Widget _app(AppWindow window) => MaterialApp(
+    title: 'BaoCode',
+    debugShowCheckedModeBanner: false,
+    theme: buildAppTheme(),
+    locale: _locale.locale,
+    supportedLocales: AppLocale.supportedLocales,
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      FlutterQuillLocalizations.delegate,
+    ],
+    home: Workbench(
+      key: ValueKey((window.viewId, window.generation)),
+      workspace: _workspace,
+      windows: _windows,
+      window: window,
+      languagesFor: widget.languagesFor,
+      gitFor: widget.gitFor,
+      terminalBackend: widget.terminalBackend,
+      settings: _settings,
+      conversations: widget.conversations ?? const NoConversationSearch(),
+      customizations: widget.customizations,
+    ),
+  );
 }

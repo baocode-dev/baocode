@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 
+class AppWindows;
+
 // What tells the user an agent wants them while they look elsewhere, over the
 // `baocode/attention` channel (lib/notifications/; the macOS app answers the
 // same in Attention.swift):
@@ -31,10 +33,16 @@
 //   quit                      quits as the tray's Quit: the app asks first
 //
 // and tells Flutter `open (id | null)` when a notification or the tray's menu
-// is clicked, the window brought back first.
+// is clicked, the window brought back first (once the app keeps windows of
+// its own, an agent's is for Flutter to bring: the IDE's window it is a tab
+// of, or the main one).
+//
+// The tray's menu lists the app's windows too, and New Window, and the
+// count goes over every window's taskbar button (see AppWindows).
 class Attention {
  public:
-  Attention(flutter::BinaryMessenger* messenger, HWND window);
+  Attention(flutter::BinaryMessenger* messenger, HWND window,
+            AppWindows* windows);
   ~Attention();
 
   Attention(const Attention&) = delete;
@@ -46,6 +54,12 @@ class Attention {
   // when it handled the message.
   std::optional<LRESULT> HandleMessage(HWND window, UINT message,
                                        WPARAM wparam, LPARAM lparam);
+
+  // The count, over |window|'s taskbar button just made.
+  void BadgeWindow(HWND window);
+
+  // The app's windows are going: none to ask about from now on.
+  void DetachWindows() { windows_ = nullptr; }
 
  private:
   void HandleMethodCall(
@@ -97,6 +111,7 @@ class Attention {
   HICON TrayIcon(bool dot) const;
 
   HWND window_;
+  AppWindows* windows_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
 
   // Whether the tray icon is up, and whether Flutter asked for it (it is up
