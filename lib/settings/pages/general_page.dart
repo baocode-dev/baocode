@@ -72,10 +72,10 @@ class GeneralSettingsPage extends StatelessWidget {
   /// values (the first the default) as settings.json has them and named.
   List<Widget> _windowRows(BuildContext context) {
     final l10n = context.l10n;
+    // VS Code's `default` is `off`'s, so not a choice of its own.
     final open = {
-      OpenInNewWindow.defaultMode.setting: l10n.generalSettingsOpenDefault,
-      OpenInNewWindow.on.setting: l10n.generalSettingsOpenOn,
       OpenInNewWindow.off.setting: l10n.generalSettingsOpenOff,
+      OpenInNewWindow.on.setting: l10n.generalSettingsOpenOn,
     };
     return [
       _choiceRow(
@@ -108,8 +108,8 @@ class GeneralSettingsPage extends StatelessWidget {
         label: l10n.generalSettingsRestoreWindows,
         description: l10n.generalSettingsRestoreWindowsDescription,
         values: {
-          RestoreWindows.all.name: l10n.generalSettingsRestoreAll,
           RestoreWindows.one.name: l10n.generalSettingsRestoreOne,
+          RestoreWindows.all.name: l10n.generalSettingsRestoreAll,
           RestoreWindows.folders.name: l10n.generalSettingsRestoreFolders,
           RestoreWindows.none.name: l10n.generalSettingsRestoreNone,
         },

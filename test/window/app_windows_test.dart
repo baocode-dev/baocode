@@ -1019,4 +1019,21 @@ void main() {
       expect(harness.host.created, hasLength(1));
     });
   });
+
+  test('the defaults: separate windows, folders and files in the current '
+      'one, the last active window back at launch, no asking', () {
+    final settings = WindowSettings.parse(const {});
+    expect(settings.ideWindows, IdeWindows.separate);
+    expect(settings.openFoldersInNewWindow, OpenInNewWindow.off);
+    expect(settings.openFilesInNewWindow, OpenInNewWindow.off);
+    expect(settings.restoreWindows, RestoreWindows.one);
+    expect(settings.newWindowDimensions, NewWindowDimensions.defaultSize);
+    expect(settings.confirmBeforeClose, ConfirmBeforeClose.never);
+    // VS Code's `default` is the same as `off`: ⌘ (Ctrl) for a new one.
+    final vscode = WindowSettings.parse(const {
+      WindowSettings.openFoldersKey: 'default',
+    });
+    expect(vscode.folderInNewWindow(), isFalse);
+    expect(vscode.folderInNewWindow(held: true), isTrue);
+  });
 }

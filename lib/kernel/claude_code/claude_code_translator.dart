@@ -432,8 +432,10 @@ class ClaudeTranslator {
       final name = _tag(trimmed, 'command-name') ?? '';
       final args = _tag(trimmed, 'command-args') ?? '';
       final command = name.startsWith('/') ? name : '/$name';
+      // Images sent with it ride along (e.g. `/goal [Image #1] …`).
       final item = UserMessageItem(
         text: args.isEmpty ? command : '$command $args',
+        images: images,
       );
       _put(id, item);
       if (replaying) _replayPrompt(id, item, message);

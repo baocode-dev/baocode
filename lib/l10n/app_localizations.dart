@@ -8049,12 +8049,6 @@ abstract class AppLocalizations {
   /// **'Whether a file opened from a window takes a new window. By default it opens in the current one. (window.openFilesInNewWindow)'**
   String get generalSettingsOpenFilesDescription;
 
-  /// No description provided for @generalSettingsOpenDefault.
-  ///
-  /// In en, this message translates to:
-  /// **'Default'**
-  String get generalSettingsOpenDefault;
-
   /// No description provided for @generalSettingsOpenOn.
   ///
   /// In en, this message translates to:

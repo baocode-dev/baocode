@@ -1924,6 +1924,43 @@ void main() {
       expect(message.images.map((image) => image.number), [2, 3]);
     });
 
+    test('a command keeps the images sent with it', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      );
+      translator.translate({
+        'type': 'user',
+        'uuid': 'g',
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': '[Image #4]'},
+            {
+              'type': 'image',
+              'source': {
+                'type': 'base64',
+                'media_type': 'image/png',
+                'data': base64Encode(const [0x89, 0x50, 0x4E, 0x47]),
+              },
+            },
+            {
+              'type': 'text',
+              'text':
+                  '<command-name>/goal</command-name>\n'
+                  '<command-message>goal</command-message>\n'
+                  '<command-args>[Image #4] 把这个作为默认值</command-args>',
+            },
+          ],
+        },
+      });
+      final message = transcript.itemAt(0) as UserMessageItem;
+      expect(message.text, '/goal [Image #4] 把这个作为默认值');
+      expect(message.images.single.number, 4);
+    });
+
     test(
       'suggests the next prompt once a turn ends, until one is sent',
       () async {

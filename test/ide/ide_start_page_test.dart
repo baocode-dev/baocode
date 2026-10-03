@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_commands.dart';
+import 'package:baocode/ide/ide_quick_input.dart';
 import 'package:baocode/ide/ide_welcome.dart';
 
 void main() {
@@ -39,7 +40,8 @@ void main() {
     tester,
   ) async {
     final ran = await pump(tester);
-    expect(find.text('BaoCode'), findsOneWidget);
+    // The logo, as VS Code's letterpress.
+    expect(find.bySemanticsLabel('BaoCode'), findsOneWidget);
     // A menu's ellipsis is no tile's.
     expect(find.text('Open Folder'), findsOneWidget);
     expect(find.text('Open File'), findsOneWidget);
@@ -75,10 +77,36 @@ void main() {
     expect(find.text('/opt'), findsOneWidget);
     expect(find.text('~'), findsNWidgets(2));
     expect(find.text('b'), findsNothing);
+    // Both ends in line: the names on the left, where each is on the right,
+    // as View all (7) is.
+    final right = tester.getTopRight(find.text('View all (7)')).dx;
+    for (final where in ['~/Documents', '~', '/opt']) {
+      expect(tester.getTopRight(find.text(where).first).dx, right);
+    }
+    expect(
+      tester.getTopLeft(find.text('higress')).dx,
+      tester.getTopLeft(find.text('monad')).dx,
+    );
 
     await tester.tap(find.text('higress'));
     await tester.tap(find.text('View all (7)'));
     expect(ran, ['open /Users/me/higress', 'all']);
+  });
+
+  testWidgets('a tile\'s keys at its right edge', (tester) async {
+    await pump(tester);
+    final tile = find
+        .ancestor(
+          of: find.text('Open Folder'),
+          matching: find.byType(Container),
+        )
+        .first;
+    final keys = find.descendant(of: tile, matching: find.byType(IdeKeycap));
+    // Its padding's distance from it.
+    expect(
+      tester.getRect(tile).right - tester.getRect(keys).right,
+      lessThan(16),
+    );
   });
 
   testWidgets('narrow: the tiles wrap, nothing overflows', (tester) async {

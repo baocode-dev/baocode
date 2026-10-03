@@ -3461,7 +3461,6 @@
   "generalSettingsOpenFoldersDescription": "Whether a folder opened from a window (Open Folder…, Open Recent) takes a new window. By default it replaces the current one, unless ⌘/Ctrl is held. (window.openFoldersInNewWindow)",
   "generalSettingsOpenFiles": "Open Files in New Window",
   "generalSettingsOpenFilesDescription": "Whether a file opened from a window takes a new window. By default it opens in the current one. (window.openFilesInNewWindow)",
-  "generalSettingsOpenDefault": "Default",
   "generalSettingsOpenOn": "In a new window",
   "generalSettingsOpenOff": "In the current window",
   "generalSettingsRestoreWindows": "Restore Windows",

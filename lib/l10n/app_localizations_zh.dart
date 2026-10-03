@@ -4567,9 +4567,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '从窗口里打开文件时是否使用新窗口。默认在当前窗口中打开。（window.openFilesInNewWindow）';
 
   @override
-  String get generalSettingsOpenDefault => '默认';
-
-  @override
   String get generalSettingsOpenOn => '在新窗口中';
 
   @override
