@@ -286,7 +286,9 @@ class ChatComposerState extends State<ChatComposer>
     _focusNode.addListener(_handleFocusChanged);
     widget.draft?.addListener(_handleDraftChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focusNode.requestFocus();
+      if (!mounted) return;
+      _focusNode.requestFocus();
+      _takeDraftFiles();
     });
   }
 
@@ -520,6 +522,13 @@ class ChatComposerState extends State<ChatComposer>
     setState(() {});
   }
 
+  /// The files put in the draft from outside (see
+  /// [ComposerDraft.insertFiles]), as if pasted.
+  void _takeDraftFiles() {
+    final files = widget.draft?.takeFiles() ?? const <ComposerFile>[];
+    if (files.isNotEmpty) unawaited(insertFiles(files));
+  }
+
   /// Keeps what is typed, and where the caret is, in the draft.
   void _saveDraft() {
     if (_takingDraft) return;
@@ -538,6 +547,7 @@ class ChatComposerState extends State<ChatComposer>
   /// window): its text here too, the caret kept where it was.
   void _handleDraftChanged() {
     final draft = widget.draft;
+    if (draft != null && draft.pendingFiles.isNotEmpty) _takeDraftFiles();
     if (draft == null || identical(draft.savedBy, this) || !draft.saved) {
       return;
     }

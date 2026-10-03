@@ -1292,6 +1292,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuHelp => '帮助';
 
   @override
+  String get menuApplication => '应用程序菜单';
+
+  @override
   String get menuOpenFolder => '打开文件夹…';
 
   @override

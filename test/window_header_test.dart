@@ -151,6 +151,88 @@ void main() {
     expect(back, findsNothing);
   }, variant: _windows);
 
+  testWidgets('narrow, the session\'s title is in the header, as macOS\'s '
+      'title bar has it: the menus folded into one button, the '
+      'conversation\'s background, no line', (tester) async {
+    final (workspace, _) = await pumpWindowsApp(tester);
+    tester.view.physicalSize = const Size(520, 760);
+    await tester.pump();
+    await tester.pump();
+    final header = find.byType(WindowHeader);
+    final title = workspace.current!.title;
+    final inHeader = find.descendant(of: header, matching: find.text(title));
+    expect(inHeader, findsOneWidget);
+    // Not again in a row of the chat's own.
+    expect(
+      find.descendant(of: find.byType(ChatScreen), matching: find.text(title)),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: header, matching: find.text('File')),
+      findsNothing,
+    );
+    final decoration =
+        tester
+                .widget<DecoratedBox>(
+                  find
+                      .descendant(
+                        of: header,
+                        matching: find.byType(DecoratedBox),
+                      )
+                      .first,
+                )
+                .decoration
+            as BoxDecoration;
+    expect(decoration.border, isNull);
+    final material = tester.widget<Material>(
+      find.descendant(of: header, matching: find.byType(Material)).first,
+    );
+    expect(material.color, AppColors.windowCanvas);
+    // After the sidebar's toggle, which comes after the menus' button.
+    final menu = find.descendant(
+      of: header,
+      matching: find.widgetWithIcon(SidebarIconButton, Codicons.menu),
+    );
+    final toggle = find.descendant(
+      of: header,
+      matching: find.widgetWithIcon(
+        SidebarIconButton,
+        Codicons.layoutSidebarLeftOff,
+      ),
+    );
+    expect(
+      tester.getRect(toggle).left,
+      greaterThan(tester.getRect(menu).right),
+    );
+    expect(
+      tester.getRect(inHeader).left,
+      greaterThan(tester.getRect(toggle).right),
+    );
+
+    // The menus, and a menu's commands beside it.
+    await tester.tap(menu);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.text('File'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('Close Window'), findsOneWidget);
+
+    // Wide again: the menu bar, the title back in the chat.
+    tester.view.physicalSize = const Size(1400, 900);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(inHeader, findsNothing);
+    expect(
+      find.descendant(of: header, matching: find.text('File')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: find.byType(ChatScreen), matching: find.text(title)),
+      findsOneWidget,
+    );
+  }, variant: _windows);
+
   testWidgets('the sidebar toggle comes after the menus, in the IDE\'s '
       'layout icons', (tester) async {
     await pumpWindowsApp(tester);

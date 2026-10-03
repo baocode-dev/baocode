@@ -119,7 +119,12 @@ Widget? _block(md.Node node, TextStyle style) {
       if (CodeCitation.parse(language) case final citation?) {
         return CodeCitationCard(citation: citation, code: body);
       }
-      return MarkdownCodeBlock(code: body, language: language);
+      // `python title="a.py"`: the language is the first word.
+      final name = language?.trim().split(RegExp(r'\s')).first;
+      return MarkdownCodeBlock(
+        code: body,
+        language: name == null || name.isEmpty ? null : name,
+      );
     case 'blockquote':
       return Container(
         padding: const EdgeInsets.only(left: 12),
@@ -365,53 +370,6 @@ class _TableState extends State<_Table> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// A fenced code block: monospace, scrolling sideways, its language shown.
-class MarkdownCodeBlock extends StatelessWidget {
-  const MarkdownCodeBlock({super.key, required this.code, this.language});
-
-  final String code;
-  final String? language;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = themeColors;
-    return Container(
-      decoration: BoxDecoration(
-        color: colors['textCodeBlock.background'],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors['chat.requestBorder']),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (language case final language? when language.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-              child: Text(
-                language,
-                style: TextStyle(color: AppColors.textFaint, fontSize: 11),
-              ),
-            ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            child: Text(
-              code,
-              style: TextStyle(
-                color: colors['editor.foreground'],
-                fontFamily: AppFonts.mono,
-                fontSize: 12,
-                height: 1.5,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

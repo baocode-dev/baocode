@@ -76,9 +76,14 @@ abstract class WindowHost {
   /// The view of [viewId], once the engine has it.
   FlutterView? viewOf(int viewId);
 
-  /// A new window, shown at [frame] (where the system puts one, without),
-  /// titled [title]: its view's id; null if none could be made.
-  Future<int?> create({WindowFrame? frame, required String title});
+  /// A new window, shown at [frame] (where the system puts one, without,
+  /// [width] wide if given: logical pixels), titled [title]: its view's
+  /// id; null if none could be made.
+  Future<int?> create({
+    WindowFrame? frame,
+    required String title,
+    double? width,
+  });
 
   /// Waits until the engine has [viewId]'s view.
   Future<FlutterView?> waitForView(int viewId);
@@ -128,7 +133,7 @@ abstract class WindowHost {
 ///
 ///   start                        whether windows can be opened (the
 ///                                engine's multiple views)
-///   create {frame?, title, engineId}
+///   create {frame?, title, width?, engineId}
 ///                                a window: its view's id
 ///   close viewId, focus viewId, hide viewId
 ///   setTitle {viewId, title, path?}, setEdited {viewId, edited}
@@ -229,10 +234,15 @@ class ChannelWindowHost extends WindowHost {
   }
 
   @override
-  Future<int?> create({WindowFrame? frame, required String title}) async {
+  Future<int?> create({
+    WindowFrame? frame,
+    required String title,
+    double? width,
+  }) async {
     final id = await _invoke<int>('create', {
       'frame': ?frame?.toJson(),
       'title': title,
+      'width': ?width,
       'engineId': _dispatcher.engineId,
     });
     return id;

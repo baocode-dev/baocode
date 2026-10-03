@@ -11,6 +11,7 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_keys.dart';
 import '../chat_models.dart';
 import '../composer/kernel_option_text.dart';
+import '../widgets/code_citation.dart';
 import '../widgets/hover_builder.dart';
 import '../widgets/markdown_view.dart';
 import 'panel_card.dart';

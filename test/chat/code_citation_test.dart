@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/widgets/code_citation.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
@@ -12,6 +13,7 @@ Future<void> pumpMarkdown(
   String? root = '/p',
   void Function(String path, int start, int end)? onOpen,
   CodeColorizer? colorize,
+  CodeBlockColorizer? colorizeBlock,
 }) => tester.pumpWidget(
   MaterialApp(
     home: Scaffold(
@@ -19,6 +21,7 @@ Future<void> pumpMarkdown(
         root: root,
         onOpen: onOpen,
         colorize: colorize,
+        colorizeBlock: colorizeBlock,
         child: MarkdownView(data),
       ),
     ),
@@ -265,6 +268,83 @@ void main() {}
       answers.last.complete(colored(both));
       await tester.pump();
       expect(redTexts(), ['final a = 1;', 'final b = 2;']);
+    });
+  });
+
+  group('a code block', () {
+    testWidgets('is a card titled by its language, without line numbers', (
+      tester,
+    ) async {
+      await pumpMarkdown(tester, '```json title="a.json"\n{"a": 1}\n```');
+      expect(find.byType(MarkdownCodeBlock), findsOneWidget);
+      final shown = texts(tester);
+      expect(shown, containsAll(['json', '{"a": 1}']));
+      expect(shown, isNot(contains('1')));
+    });
+
+    testWidgets('copies its code', (tester) async {
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await pumpMarkdown(tester, '```\nnpm install\nnpm test\n```');
+      await tester.tap(find.byIcon(Codicons.copy));
+      await tester.pump();
+      expect(copied, 'npm install\nnpm test');
+      expect(find.byIcon(Codicons.check), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.byIcon(Codicons.copy), findsOneWidget);
+    });
+
+    testWidgets('is colored by its language', (tester) async {
+      const red = TextStyle(color: Color(0xFFFF0000));
+      final asked = <(String, String)>[];
+      await pumpMarkdown(
+        tester,
+        '```py\nx = 1\n```',
+        colorizeBlock: (language, code) async {
+          asked.add((language, code));
+          return [
+            [TextSpan(text: code, style: red)],
+          ];
+        },
+      );
+      await tester.pump();
+      expect(asked, [('py', 'x = 1')]);
+      final colored = <String?>[];
+      for (final text in tester.widgetList<RichText>(find.byType(RichText))) {
+        text.text.visitChildren((span) {
+          if (span is TextSpan && span.style == red) colored.add(span.text);
+          return true;
+        });
+      }
+      expect(colored, ['x = 1']);
+    });
+
+    testWidgets('without a language is left plain', (tester) async {
+      var asked = false;
+      await pumpMarkdown(
+        tester,
+        '```\nx = 1\n```',
+        colorizeBlock: (language, code) async {
+          asked = true;
+          return null;
+        },
+      );
+      await tester.pump();
+      expect(asked, isFalse);
     });
   });
 }

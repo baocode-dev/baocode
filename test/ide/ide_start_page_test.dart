@@ -107,15 +107,33 @@ void main() {
     );
   });
 
-  testWidgets('narrow: the tiles wrap, nothing overflows', (tester) async {
-    await pump(tester, width: 320, recent: ['/Users/me/monad']);
+  testWidgets('narrow: one tile a row, nothing overflows', (tester) async {
+    for (final width in [320.0, 560.0]) {
+      await pump(tester, width: width, recent: ['/Users/me/monad']);
+      expect(tester.takeException(), isNull);
+      final folder = tester.getTopLeft(find.text('Open Folder'));
+      final file = tester.getTopLeft(find.text('Open File'));
+      final newFile = tester.getTopLeft(find.text('New Text File'));
+      expect(file.dx, folder.dx, reason: '$width');
+      expect(newFile.dx, folder.dx, reason: '$width');
+      expect(file.dy, greaterThan(folder.dy), reason: '$width');
+      expect(newFile.dy, greaterThan(file.dy), reason: '$width');
+    }
+  });
+
+  testWidgets('wide: all three in a row', (tester) async {
+    await pump(tester, width: 600);
     expect(tester.takeException(), isNull);
-    final folder = tester.getTopLeft(find.text('Open Folder'));
-    final file = tester.getTopLeft(find.text('Open File'));
-    final newFile = tester.getTopLeft(find.text('New Text File'));
-    // Two a row: the third under the first.
-    expect(file.dx, greaterThan(folder.dx));
-    expect(newFile.dx, folder.dx);
-    expect(newFile.dy, greaterThan(folder.dy));
+    Offset tile(String label) => tester.getTopLeft(
+      find
+          .ancestor(
+            of: find.text(label),
+            matching: find.byType(GestureDetector),
+          )
+          .first,
+    );
+    expect(tile('Open File').dy, tile('Open Folder').dy);
+    expect(tile('New Text File').dy, tile('Open Folder').dy);
+    expect(tile('New Text File').dx, greaterThan(tile('Open File').dx));
   });
 }

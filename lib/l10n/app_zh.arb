@@ -419,6 +419,7 @@
   "menuEdit": "编辑",
   "menuView": "查看",
   "menuHelp": "帮助",
+  "menuApplication": "应用程序菜单",
   "menuOpenFolder": "打开文件夹…",
   "menuCloseWindow": "关闭窗口",
   "menuBackToChat": "返回聊天",

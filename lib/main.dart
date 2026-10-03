@@ -41,6 +41,7 @@ import 'settings/user_settings.dart';
 import 'theme/app_theme.dart';
 import 'theme/workbench_theme.dart';
 import 'window/app_windows.dart';
+import 'window/code_args.dart';
 import 'window/window_host.dart';
 import 'window/window_settings.dart';
 import 'workbench.dart';
@@ -50,7 +51,7 @@ import 'workspace/preference_store.dart';
 import 'workspace/window_controls.dart';
 import 'workspace/workspace.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> arguments) async {
   // All the app keeps is in its data folder: found first, once. One the
   // user set that cannot be used (a drive gone) is reported before the app
   // shows, never swapped for the default unasked.
@@ -133,9 +134,14 @@ Future<void> main() async {
   await windows.start();
   // What shows at launch (settings.json's `workbench.mainWindow`): with
   // windows of the IDE's own, the chat's and those to open again; with
-  // the IDE in the main window, its layout.
-  await windows.prepareLaunch();
-  if (files != null && !windows.multi) {
+  // the IDE in the main window, its layout. Started for something (Open
+  // with BaoCode or Fast Ide, the `code` command), that alone.
+  final request = LaunchRequest.of(arguments);
+  await windows.prepareLaunch(request: request);
+  if (request == LaunchRequest.agent) {
+    // In a window of its own; without them, in the main window's chat.
+    if (!windows.started) workspace.layout = WorkspaceLayout.chat;
+  } else if (files != null && !windows.multi) {
     workspace.layout = MainWindow.parse(files.settings[MainWindow.settingKey])
         .layoutAtLaunch(workspace.layout);
   }
@@ -336,6 +342,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
                       for (final window in [
                         _windows.chat,
                         ..._windows.ideWindows,
+                        ..._windows.agentWindows,
                       ])
                         if (_windows.host.viewOf(window.viewId)
                             case final view?)

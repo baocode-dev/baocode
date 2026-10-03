@@ -73,9 +73,10 @@ class IdeWindow : public ViewWindow {
 //
 //   start                         true: the engine takes views beside the
 //                                 main one
-//   create {frame?, title, engineId}
-//                                 an IDE window, hidden until focused: its
-//                                 view's id
+//   create {frame?, title, width?, engineId}
+//                                 an IDE (or agent's) window, hidden until
+//                                 focused, width (logical pixels) its
+//                                 default's: its view's id
 //   close viewId                  closes it (the main one: hides it)
 //   focus viewId                  shows it in front, the keyboard's
 //   hide viewId                   hides it

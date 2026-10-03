@@ -59,17 +59,24 @@ std::wstring FullPath(const wchar_t* path) {
   return full;
 }
 
-// The marker Flutter knows a request of the `code` command by
-// (lib/window/code_args.dart's requestMarker): a null, then "code".
+// The markers Flutter knows a request by (lib/window/code_args.dart's
+// requestMarker, agentRequestMarker): a null, then "code" or "agent".
 const std::string& CodeRequestMarker() {
   static const std::string marker("\0code", 5);
   return marker;
 }
 
-// |request| (see IsCodeRequest) as Flutter takes it: its flag the marker.
+const std::string& AgentRequestMarker() {
+  static const std::string marker("\0agent", 6);
+  return marker;
+}
+
+// |request| (see IsRequest) as Flutter takes it: its flag the marker.
 void AddRequest(flutter::EncodableList& list,
                 std::vector<std::string> request) {
-  list.push_back(flutter::EncodableValue(CodeRequestMarker()));
+  list.push_back(flutter::EncodableValue(request.front() == kAgentRequestFlag
+                                             ? AgentRequestMarker()
+                                             : CodeRequestMarker()));
   for (size_t index = 1; index < request.size(); index++) {
     list.push_back(flutter::EncodableValue(std::move(request[index])));
   }
@@ -77,8 +84,9 @@ void AddRequest(flutter::EncodableList& list,
 
 }  // namespace
 
-bool IsCodeRequest(const std::vector<std::string>& paths) {
-  return !paths.empty() && paths.front() == kCodeRequestFlag;
+bool IsRequest(const std::vector<std::string>& paths) {
+  return !paths.empty() && (paths.front() == kCodeRequestFlag ||
+                            paths.front() == kAgentRequestFlag);
 }
 
 OpenRequests::OpenRequests(flutter::BinaryMessenger* messenger,
@@ -120,7 +128,7 @@ OpenRequests::~OpenRequests() {
 }
 
 void OpenRequests::Deliver(std::vector<std::string> paths) {
-  const bool request = IsCodeRequest(paths);
+  const bool request = IsRequest(paths);
   if (!ready_) {
     if (request) {
       pending_requests_.push_back(std::move(paths));
@@ -164,7 +172,14 @@ std::vector<std::string> OpenPathsFromCommandLine() {
     ::LocalFree(arguments);
     return paths;
   }
-  for (int index = 1; index < count; index++) {
+  // From Open with BaoCode, its flag first: the paths, as below, go to an
+  // agent.
+  const bool agent =
+      count > 1 && Utf8FromUtf16(arguments[1]) == kAgentRequestFlag;
+  if (agent) {
+    paths.push_back(kAgentRequestFlag);
+  }
+  for (int index = agent ? 2 : 1; index < count; index++) {
     const wchar_t* argument = arguments[index];
     if (argument[0] == L'\0' || argument[0] == L'-') {
       continue;

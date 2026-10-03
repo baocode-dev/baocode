@@ -582,6 +582,10 @@
   "@menuHelp": {
     "description": "Menu bar menu."
   },
+  "menuApplication": "Application Menu",
+  "@menuApplication": {
+    "description": "Tooltip of the button the menu bar folds into in a narrow window (Windows)."
+  },
   "menuOpenFolder": "Open Folder…",
   "menuCloseWindow": "Close Window",
   "menuBackToChat": "Back to Chat",

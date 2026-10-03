@@ -207,19 +207,25 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   bool get _multi => _windows?.multi ?? false;
 
   /// Whether this is one of them.
-  bool get _ideWindow => _multi && !(widget.window?.isChat ?? true);
+  bool get _ideWindow => _multi && (widget.window?.isIde ?? false);
+
+  /// Whether this is an agent's window (Explorer's Open with BaoCode): its
+  /// conversation alone, [_agentThread]'s.
+  bool get _agentWindow => widget.window?.isAgent ?? false;
+  AgentThread? get _agentThread => _agentWindow ? widget.window!.thread : null;
 
   /// Whether this is the app's main window, the chat's: what the app does
   /// once (its notifications, the system's requests, the File menu) is
   /// done here.
-  bool get _main => !_ideWindow;
+  bool get _main => !_ideWindow && !_agentWindow;
 
   int get _viewId => widget.window?.viewId ?? 0;
 
   /// Whether the IDE shows: always in its own window; without them, as the
   /// workspace's layout says.
   bool get _showsIde =>
-      _ideWindow || (!_multi && _workspace.layout == WorkspaceLayout.ide);
+      _ideWindow ||
+      (!_multi && !_agentWindow && _workspace.layout == WorkspaceLayout.ide);
 
   WindowSettings get _windowSettings =>
       WindowSettings.parse(widget.settings?.files?.settings.values ?? const {});
@@ -365,7 +371,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   @override
   void dispose() {
-    _citedCode?.dispose();
+    _chatCode?.dispose();
     _drag.dispose();
     _width.dispose();
     _lifecycle?.dispose();
@@ -452,6 +458,15 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// runs its own, and [_settingsCommands] besides; a chat, its own: see
   /// [ChatKeys]).
   Map<String, VoidCallback> _chatCommands() {
+    // An agent's window has its agent alone.
+    if (_agentWindow) {
+      return {
+        openSettingsCommandId: () => unawaited(openSettings()),
+        openKeybindingsCommandId: () =>
+            unawaited(openSettings(SettingsSection.keyboard)),
+        ..._windowCommands(),
+      };
+    }
     final current = _workspace.current;
     // One agent alone is the one pane.
     final panes = _workspace.grid.isEmpty ? [?current] : _workspace.grid.panes;
@@ -511,7 +526,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ),
       WindowCommandIds.switchWindow: () => windows.switchWindow(window),
       WindowCommandIds.showChat: () {
-        if (windows.multi) return windows.showChat();
+        if (windows.multi || window.isAgent) return windows.showChat();
         windows.focus(window);
         _workspace.layout = WorkspaceLayout.chat;
       },
@@ -791,7 +806,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     final focused = ChatKeys.focusedTargets();
     final chat = focused.isNotEmpty
         ? focused
-        : switch (_workspace.current) {
+        : switch (_agentThread ?? _workspace.current) {
             final thread? => ChatKeys.targetsOf(
               _chatKey(thread).currentContext,
             ),
@@ -1354,6 +1369,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   Widget _buildContent(bool narrow) {
+    if (_agentThread case final thread?) {
+      // Gone (deleted), its window goes with it.
+      if (!_workspace.threads.contains(thread)) return const SizedBox.shrink();
+      return _conversation(_buildChat(showToggle: false, pane: thread));
+    }
     final folder = _ideFolder;
     // An IDE window has its folder's alone.
     if (_ideWindow) return _buildIde(folder, _ideSpace(folder), shown: true);
@@ -1639,8 +1659,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             _noFolder => null,
             final folder => _workspace.projectAt(folder),
           }
-        : _workspace.current?.project;
+        : (_agentThread ?? _workspace.current)?.project;
     final windows = _multi ? _windows : null;
+    final agent = _agentThread;
     return WindowHeader(
       workspace: _workspace,
       project: project,
@@ -1655,21 +1676,40 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           ? null
           : _windowCommands()[WindowCommandIds.closeWindow],
       sidebarShown: _narrow ? _drawerOpen : _docked,
-      onToggleSidebar: _toggle,
+      // An agent's window has no sidebar.
+      onToggleSidebar: agent == null ? _toggle : null,
       ideLayout: ide ? _ideSpace(_ideFolder).layout : null,
       pinned: _pinned,
       onTogglePin: _setPinned,
       onOpenFolder: _openFolder,
       onOpenSettings: () => unawaited(openSettings()),
       onToggleContextPanel: () {
-        if (_workspace.current case final thread?) {
+        if (agent ?? _workspace.current case final thread?) {
           ChatScreen.toggleContextPanel(_chatKey(thread));
         }
       },
-      onCommand: (command) => _chatCommands()[command]?.call(),
+      onCommand: agent == null
+          ? (command) => _chatCommands()[command]?.call()
+          : null,
       onFileCommand: _runMenuCommand,
+      compact: _narrow,
+      title: _titleInHeader
+          ? (agent ?? _workspace.current)?.localizedTitle(context.l10n)
+          : null,
     );
   }
+
+  /// Whether the session's title is in Windows' header (see
+  /// [WindowHeader.title]), not a row of the chat's own: the narrow
+  /// window's, with one conversation in it, as macOS's title bar has it.
+  bool get _titleInHeader =>
+      WindowControls.drawsHeader &&
+      _narrow &&
+      !_showsIde &&
+      !_customizing &&
+      // An agent's window has its one conversation.
+      (_agentWindow ||
+          (_workspace.grid.length <= 1 && _workspace.current != null));
 
   /// The chat of [thread]: a state of its own for each (and kept as it
   /// moves between the wide and narrow layouts), reached by the header.
@@ -1827,9 +1867,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             onTap: _toggle,
           )
         : null;
+    // An agent's window has the traffic lights over its one pane.
     final titleBarInset = header
         ? 12.0
-        : showToggle
+        : showToggle || _agentWindow
         ? AppMetrics.trafficLightsWidth + 8
         : 12.0;
     if (thread == null) {
@@ -1850,7 +1891,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         const SizedBox(width: 6),
         OpenInEditorButton(
           workspace: _workspace,
-          project: (_workspace.current ?? thread).project,
+          project: (_agentThread ?? _workspace.current ?? thread).project,
         ),
       ],
       if (!place.alone) ...[
@@ -1884,11 +1925,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
                 child: Row(mainAxisSize: MainAxisSize.min, children: tools),
               ),
         windowTitleBar: place.top,
+        titleBar: !(place.alone && _titleInHeader),
         focused: place.alone || identical(thread, _workspace.current),
         onOpenChange: (change, original) =>
             _openChange(thread, change, original),
         onOpenCode: (path, start, end) => _openCode(thread, path, start, end),
         colorizeCode: _colorizeCode,
+        colorizeCodeBlock: _colorizeCodeBlock,
         // Where a new agent is to work: the IDE's chat works in the IDE's
         // project, and a kept session where it was.
         start: embedded || thread.record != null
@@ -1987,6 +2030,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   @override
   void showAgent(AgentThread thread) {
+    // An agent's window shows its own alone.
+    if (_agentWindow) return;
     if (_ideWindow) {
       _openIdeChat(_ideFolder, thread);
       _afterBuild(() => _ide?.showChat());
@@ -2077,17 +2122,23 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   @override
   void runCommand(String command) => _runMenuCommand(command);
 
-  /// The code agents cite in the editor's colors, by TextMate: started as
-  /// the first is shown.
-  TextMateSyntax? _citedCode;
+  /// The code agents cite or write in the editor's colors, by TextMate:
+  /// started as the first is shown.
+  TextMateSyntax? _chatCode;
+
+  TextMateSyntax get _chatSyntax =>
+      _chatCode ??= TextMateSyntax(themes: WorkbenchThemeService.instance);
 
   Future<List<List<TextSpan>>?> _colorizeCode(String path, String code) async {
-    final syntax = _citedCode ??= TextMateSyntax(
-      themes: WorkbenchThemeService.instance,
-    );
+    final syntax = _chatSyntax;
     final language = await syntax.languageIdForPath(path);
     return language == null ? null : syntax.colorize(language, code);
   }
+
+  Future<List<List<TextSpan>>?> _colorizeCodeBlock(
+    String language,
+    String code,
+  ) => _chatSyntax.colorize(language, code);
 }
 
 /// The IDE's chat without a folder: one to open first, as agents work in

@@ -549,6 +549,31 @@ void main() {
     expect(controller.document.toPlainText(), '\uFFFC \n');
   });
 
+  testWidgets('files put in the draft from outside (Open with BaoCode) go '
+      'in as if pasted: before the composer shows, and while it does', (
+    tester,
+  ) async {
+    final session = ChatSession(historyCount: 16)
+      ..draft.insertFiles(const [ComposerFile('/work/a.dart')]);
+    addTearDown(session.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        localizationsDelegates: const [FlutterQuillLocalizations.delegate],
+        home: ChatScreen(session: session),
+      ),
+    );
+    await tester.pump();
+    final controller = composerController(tester);
+    expect(controller.document.toPlainText(), '\uFFFC \n');
+    expect(session.draft.pendingFiles, isEmpty);
+
+    session.draft.insertFiles(const [ComposerFile('/work/b.dart')]);
+    await tester.pump();
+    expect(controller.document.toPlainText(), '\uFFFC \uFFFC \n');
+    expect(session.draft.pendingFiles, isEmpty);
+  });
+
   testWidgets('accepting a suggestion inserts exactly one space', (
     tester,
   ) async {

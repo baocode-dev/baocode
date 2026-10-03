@@ -559,7 +559,10 @@ std::optional<int64_t> AppWindows::Create(
     info.cbSize = sizeof(info);
     ::GetMonitorInfoW(monitor, &info);
     const double scale = ::FlutterDesktopGetDpiForMonitor(monitor) / 96.0;
-    const LONG width = static_cast<LONG>(kDefaultWidth * scale);
+    // An agent's window (AppWindows.openAgent) asks to be narrower.
+    const std::optional<double> asked = NumberOf(Find(arguments, "width"));
+    const LONG width = static_cast<LONG>(
+        (asked && *asked > 0 ? *asked : kDefaultWidth) * scale);
     const LONG height = static_cast<LONG>(kDefaultHeight * scale);
     const RECT& work = info.rcWork;
     LONG left = (work.left + work.right - width) / 2;
