@@ -346,6 +346,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   String? _statusMessage;
   Timer? _statusMessageTimer;
 
+  /// Reads the Git status again when the app comes back to the front: a
+  /// pull or a commit made elsewhere may have changed it unseen.
+  AppLifecycleListener? _lifecycle;
+
   DocumentSnapshot? _eolSnapshot;
   String _eolLabel = 'LF';
 
@@ -524,6 +528,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
     _restoreView();
     _attach();
+    _lifecycle = AppLifecycleListener(
+      onResume: () => unawaited(_git?.refresh()),
+    );
     IdeLanguageNames.ensureLoaded(() {
       if (mounted) setState(() {});
     });
@@ -715,6 +722,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _keepView();
     _chordChecker?.cancel();
     _statusMessageTimer?.cancel();
+    _lifecycle?.dispose();
     // A quick pick or input box going with the workbench hides (the color
     // themes one applies the theme it started with again).
     _quickModel?.onDidHide?.call();

@@ -40,6 +40,7 @@ class IdeGitRepository extends ChangeNotifier {
   Timer? _refreshTimer;
   StreamSubscription<void>? _watcher;
   Future<void> _queue = Future.value();
+  Future<void>? _pendingRefresh;
   int _operations = 0;
 
   List<IdeGraphRow>? _graph;
@@ -75,33 +76,53 @@ class IdeGitRepository extends ChangeNotifier {
 
   IdeGitDecorations? get decorations => _state?.decorations;
 
-  /// Reads the status now; queued behind running operations.
-  Future<void> refresh() => _enqueue(background: true, () async {
-    try {
-      final state = await service.status();
-      if (_disposed) return;
-      _state = state;
-      _error = null;
-      if (state != null) _watch(state.root);
-    } catch (error) {
-      if (_disposed) return;
-      _error = error;
-    }
-    _loaded = true;
-    _graphStale = true;
-    _notify();
-  });
+  /// Reads the status now; queued behind running operations. A read
+  /// already queued and not yet started is the one returned: it will see
+  /// every change made until it starts.
+  Future<void> refresh() =>
+      _pendingRefresh ??= _enqueue(background: true, () async {
+        _pendingRefresh = null;
+        try {
+          final state = await service.status();
+          if (_disposed) return;
+          _state = state;
+          _error = null;
+          if (state != null) _watch(state.root);
+        } catch (error) {
+          if (_disposed) return;
+          _error = error;
+        }
+        _loaded = true;
+        _graphStale = true;
+        _notify();
+      });
 
-  /// Refreshes once changes have settled.
+  /// Refreshes [refreshDelay] after the first change since the last
+  /// read. Not restarted by later changes: files that keep changing (a
+  /// build writing its output) would hold the status back for as long.
   void scheduleRefresh() {
-    if (_disposed) return;
-    _refreshTimer?.cancel();
+    if (_disposed || (_refreshTimer?.isActive ?? false)) return;
     _refreshTimer = Timer(refreshDelay, () => unawaited(refresh()));
   }
 
   void _watch(String root) {
     if (_watcher != null) return;
-    _watcher = service.watch(root).listen((_) => scheduleRefresh());
+    var working = false;
+    _watcher = service
+        .watch(root)
+        .listen(
+          (_) {
+            working = true;
+            scheduleRefresh();
+          },
+          // Changes were lost (the change buffer overflowed): read them.
+          onError: (Object _) => scheduleRefresh(),
+          // A watch that worked and ended is started again by the next read
+          // (one that never worked would be started again and again).
+          onDone: () {
+            if (working) _watcher = null;
+          },
+        );
   }
 
   /// Runs [operation] after the ones queued before it; a [background]

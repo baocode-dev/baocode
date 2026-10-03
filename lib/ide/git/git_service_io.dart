@@ -43,7 +43,7 @@ Future<IdeGitOutput> runGit(
 
 /// File changes under [repositoryRoot] that can change the status: the
 /// working tree, and the index, HEAD and refs of `.git` (not its objects
-/// or logs).
+/// or logs). An error (changes lost) is passed on.
 Stream<void> watchRepository(String repositoryRoot) {
   final gitDir = p.join(repositoryRoot, '.git');
   bool relevant(String path) {
@@ -58,9 +58,15 @@ Stream<void> watchRepository(String repositoryRoot) {
   try {
     return Directory(repositoryRoot)
         .watch(recursive: true)
-        .where((event) => relevant(event.path))
-        .map((_) {})
-        .handleError((Object _) {});
+        .where(
+          (event) =>
+              relevant(event.path) ||
+              // `index.lock` renamed to `index`, as Git writes it.
+              (event is FileSystemMoveEvent &&
+                  event.destination != null &&
+                  relevant(event.destination!)),
+        )
+        .map((_) {});
   } on FileSystemException {
     return const Stream.empty();
   } on UnsupportedError {

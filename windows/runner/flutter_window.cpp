@@ -128,6 +128,8 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   // The app quits (see AppWindows::kQuitMessage): this window goes, and the
   // engine and the IDE's windows with it, in OnDestroy.
   if (message == AppWindows::kQuitMessage) {
+    // Out of sight at once: what is left of the going takes a moment.
+    ::ShowWindow(hwnd, SW_HIDE);
     ::DestroyWindow(hwnd);
     return 0;
   }
