@@ -1379,5 +1379,12 @@
   "settingsBack": "返回",
   "settingsSearch": "搜索设置",
   "customizeScopeSynced": "从 claude.ai 同步",
-  "customizeSyncedReadOnly": "只读：此技能从 claude.ai 同步，本地修改会在下次同步时被覆盖。"
+  "customizeSyncedReadOnly": "只读：此技能从 claude.ai 同步，本地修改会在下次同步时被覆盖。",
+  "customizeEditFile": "编辑 {file}",
+  "customizeEmptyPlugins": "还没有安装插件。在 Claude Code 里用 /plugin 安装。",
+  "customizeEmptyMcpsUser": "暂无。用这条命令添加：claude mcp add --scope user <名称> -- <命令>",
+  "customizeEmptyMcpsLocal": "暂无。在项目目录里运行 claude mcp add 添加。",
+  "customizeEmptyMcpsProject": "暂无。和项目共享的服务器写在项目的 .mcp.json 里。",
+  "customizeEmptyHooks": "暂无。钩子写在 {file} 的 \"hooks\" 里。",
+  "customizeConnectorReadOnly": "只读：这是 claude.ai 连接器，请在 claude.ai 设置的「连接器」里管理。"
 }

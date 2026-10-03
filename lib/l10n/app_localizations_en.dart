@@ -5074,4 +5074,34 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get customizeSyncedReadOnly =>
       'Read only: synced from claude.ai, which would write over changes made here.';
+
+  @override
+  String customizeEditFile(String file) {
+    return 'Edit $file';
+  }
+
+  @override
+  String get customizeEmptyPlugins =>
+      'None installed. Install plugins with /plugin in Claude Code.';
+
+  @override
+  String get customizeEmptyMcpsUser =>
+      'None yet. Add one with: claude mcp add --scope user <name> -- <command>';
+
+  @override
+  String get customizeEmptyMcpsLocal =>
+      'None yet. Add one with claude mcp add, run in the project.';
+
+  @override
+  String get customizeEmptyMcpsProject =>
+      'None yet. Servers shared with the project go in its .mcp.json.';
+
+  @override
+  String customizeEmptyHooks(String file) {
+    return 'None yet. Hooks go under \"hooks\" in $file.';
+  }
+
+  @override
+  String get customizeConnectorReadOnly =>
+      'Read only: a claude.ai connector, managed in claude.ai\'s settings, under Connectors.';
 }

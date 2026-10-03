@@ -301,7 +301,9 @@ class CustomizeViewState extends State<CustomizeView> {
         CustomizationScope.plugin
       else ...[
         CustomizationScope.user,
-        if (_kind == CustomizationKind.skills) CustomizationScope.synced,
+        if (_kind == CustomizationKind.skills ||
+            _kind == CustomizationKind.mcps)
+          CustomizationScope.synced,
         if (_project != null) ...[
           CustomizationScope.project,
           if (_kind == CustomizationKind.rules ||
@@ -416,8 +418,16 @@ class CustomizeViewState extends State<CustomizeView> {
         _kind.creatable &&
         (scope == CustomizationScope.user ||
             scope == CustomizationScope.project);
+    final configurable = _kind.configuredIn(scope);
+    // Where none are, what is said of adding some is shown: all but those
+    // synced from claude.ai.
+    final shownEmpty =
+        creatable ||
+        configurable ||
+        _kind == CustomizationKind.plugins ||
+        (_kind == CustomizationKind.mcps && scope != CustomizationScope.synced);
     final searching = _query.text.trim().isNotEmpty;
-    if (items.isEmpty && (searching || !creatable)) return const [];
+    if (items.isEmpty && (searching || !shownEmpty)) return const [];
     return [
       const SizedBox(height: 20),
       Row(
@@ -469,14 +479,27 @@ class CustomizeViewState extends State<CustomizeView> {
                 ],
               ),
             ),
+          if (configurable)
+            _Chip(
+              outlined: true,
+              onTap: () => unawaited(_openConfig(scope)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Codicons.edit, size: 13, color: AppColors.text),
+                  const SizedBox(width: 5),
+                  Text(l10n.customizeEditFile(_configName(scope))),
+                ],
+              ),
+            ),
         ],
       ),
       const SizedBox(height: 8),
       if (items.isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text(
-            l10n.customizeEmpty,
+          child: SelectableText(
+            _emptyText(l10n, scope),
             style: TextStyle(color: AppColors.textFaint, fontSize: 12.5),
           ),
         )
@@ -502,6 +525,48 @@ class CustomizeViewState extends State<CustomizeView> {
           ),
         ),
     ];
+  }
+
+  /// The name of the file [_kind] is kept in for [scope] (see
+  /// [CustomizationKind.configuredIn]).
+  String _configName(CustomizationScope scope) => switch ((_kind, scope)) {
+    (CustomizationKind.mcps, _) => '.mcp.json',
+    (_, CustomizationScope.local) => 'settings.local.json',
+    _ => 'settings.json',
+  };
+
+  /// What a group with none says: where some come from.
+  String _emptyText(AppLocalizations l10n, CustomizationScope scope) =>
+      switch ((_kind, scope)) {
+        (CustomizationKind.plugins, _) => l10n.customizeEmptyPlugins,
+        (CustomizationKind.mcps, CustomizationScope.user) =>
+          l10n.customizeEmptyMcpsUser,
+        (CustomizationKind.mcps, CustomizationScope.local) =>
+          l10n.customizeEmptyMcpsLocal,
+        (CustomizationKind.mcps, _) => l10n.customizeEmptyMcpsProject,
+        (CustomizationKind.hooks, _) => l10n.customizeEmptyHooks(
+          _configName(scope),
+        ),
+        _ => l10n.customizeEmpty,
+      };
+
+  /// Opens the file [_kind] is kept in for [scope], as it is or, not there
+  /// yet, as it would start.
+  Future<void> _openConfig(CustomizationScope scope) async {
+    final project = _project?.path;
+    final path = await widget.store.configFile(_kind, scope, project: project);
+    if (path == null || !mounted) return;
+    setState(
+      () => _open = Customization(
+        kind: _kind,
+        scope: scope,
+        name: project == null || scope == CustomizationScope.user
+            ? p.basename(path)
+            : p.relative(path, from: project),
+        path: path,
+        detail: _kind.configTemplate,
+      ),
+    );
   }
 
   List<SidebarMenuItem> _menu(Customization item) {
@@ -771,8 +836,13 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
   Object? _error;
   bool _justSaved = false;
 
+  /// Its file is not there yet: shown as it would start
+  /// ([Customization.detail]), made when saved.
+  bool _missing = false;
+
   Customization get _item => widget.item;
   bool get _dirty => _saved != null && _text.text != _saved;
+  bool get _savable => _item.editable && (_dirty || _missing);
 
   @override
   void initState() {
@@ -797,6 +867,16 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
 
   Future<void> _read() async {
     try {
+      if (_item.detail case final start?
+          when !await widget.store.exists(_item.path)) {
+        if (!mounted) return;
+        setState(() {
+          _missing = true;
+          _saved = start;
+          _text.text = start;
+        });
+        return;
+      }
       final text = await widget.store.read(_item.path);
       if (!mounted) return;
       setState(() {
@@ -810,13 +890,14 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
   }
 
   Future<void> _save() async {
-    if (!_item.editable || !_dirty) return;
+    if (!_savable) return;
     final text = _text.text;
     try {
       await widget.store.write(_item.path, text);
       if (!mounted) return;
       setState(() {
         _saved = text;
+        _missing = false;
         _error = null;
         _justSaved = true;
       });
@@ -917,7 +998,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
                     _Button(
                       label: l10n.customizeSave,
                       primary: true,
-                      onTap: _dirty ? () => unawaited(_save()) : null,
+                      onTap: _savable ? () => unawaited(_save()) : null,
                     ),
                   ],
                 ],
@@ -927,9 +1008,11 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
                 child: SelectableText(
                   _item.editable
                       ? _item.path
-                      : _item.scope == CustomizationScope.synced
-                      ? l10n.customizeSyncedReadOnly
-                      : l10n.customizeReadOnly,
+                      : _item.scope != CustomizationScope.synced
+                      ? l10n.customizeReadOnly
+                      : _item.kind == CustomizationKind.mcps
+                      ? l10n.customizeConnectorReadOnly
+                      : l10n.customizeSyncedReadOnly,
                   maxLines: 1,
                   style: TextStyle(color: AppColors.textFaint, fontSize: 11.5),
                 ),

@@ -53,6 +53,19 @@ class _MemoryStore implements CustomizationStore {
   Future<String> read(String path) async => files[path]!;
 
   @override
+  Future<bool> exists(String path) async => files.containsKey(path);
+
+  @override
+  Future<String?> configFile(
+    CustomizationKind kind,
+    CustomizationScope scope, {
+    String? project,
+  }) async =>
+      kind == CustomizationKind.hooks && scope == CustomizationScope.user
+      ? '/c/settings.json'
+      : null;
+
+  @override
   Future<void> write(String path, String text) async => files[path] = text;
 
   @override
@@ -187,6 +200,40 @@ void main() {
           .controller!
           .text,
       contains('name: release-notes'),
+    );
+  }, variant: _mac);
+
+  testWidgets('MCPs and hooks say where they come from; a settings file '
+      'not there yet is made when saved', (tester) async {
+    final store = _MemoryStore();
+    await _pumpApp(tester, store);
+    await tester.tap(_inSidebar(find.text('Customize')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(_inView(find.text('MCPs')));
+    await tester.pumpAndSettle();
+    expect(_inView(find.textContaining('claude mcp add')), findsWidgets);
+
+    await tester.tap(_inView(find.text('Plugins')));
+    await tester.pumpAndSettle();
+    expect(_inView(find.textContaining('/plugin')), findsOneWidget);
+
+    await tester.tap(_inView(find.text('Hooks')));
+    await tester.pumpAndSettle();
+    expect(_inView(find.textContaining('"hooks"')), findsWidgets);
+    await tester.tap(_inView(find.text('Edit settings.json')).first);
+    await tester.pumpAndSettle();
+    final editor = _inView(find.byType(TextField));
+    expect(
+      tester.widget<TextField>(editor).controller!.text,
+      CustomizationKind.hooks.configTemplate,
+    );
+    expect(store.files, isNot(contains('/c/settings.json')));
+    await tester.tap(_inView(find.text('Save')));
+    await tester.pumpAndSettle();
+    expect(
+      store.files['/c/settings.json'],
+      CustomizationKind.hooks.configTemplate,
     );
   }, variant: _mac);
 }

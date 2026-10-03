@@ -86,6 +86,8 @@ class CustomizationStore {
 
   Future<String> read(String path) => File(path).readAsString();
 
+  Future<bool> exists(String path) => File(path).exists();
+
   Future<void> write(String path, String text) async {
     final file = File(path);
     await file.parent.create(recursive: true);
@@ -119,6 +121,24 @@ class CustomizationStore {
     if (taken) throw FileSystemException('Already exists', path);
     await write(path, template(kind, name));
     return path;
+  }
+
+  /// The file [kind] is kept in for [scope], to be edited whole (see
+  /// [CustomizationKind.configuredIn]): a project's `.mcp.json`, a settings
+  /// file for hooks. Null where there is none (or no [project]).
+  Future<String?> configFile(
+    CustomizationKind kind,
+    CustomizationScope scope, {
+    String? project,
+  }) async {
+    if (!kind.configuredIn(scope)) return null;
+    if (kind == CustomizationKind.mcps) {
+      return project == null ? null : p.join(project, '.mcp.json');
+    }
+    for (final (own, path) in _settingsFiles(await config(), project)) {
+      if (own == scope) return path;
+    }
+    return null;
   }
 
   /// Removes [item]'s file, or its folder (a skill's).
@@ -304,8 +324,10 @@ class CustomizationStore {
   }
 
   /// The MCP servers: the user's and the project's private ones, in
-  /// `~/.claude.json` (which the CLI rewrites: shown, not edited), and the
-  /// project's shared ones in its `.mcp.json`.
+  /// `~/.claude.json` (which the CLI rewrites: shown, not edited), the
+  /// project's shared ones in its `.mcp.json`, and the claude.ai
+  /// connectors the CLI has reached through the user's account (which it
+  /// keeps the names of alone).
   Future<List<Customization>> _servers(String? project) async {
     final claudeJson = await _claudeJson();
     final state = _json(claudeJson);
@@ -337,6 +359,19 @@ class CustomizationStore {
         claudeJson,
         editable: false,
       ),
+      if (state?['claudeAiMcpEverConnected'] case final List<Object?> names)
+        for (final name in names.whereType<String>().toSet())
+          Customization(
+            kind: CustomizationKind.mcps,
+            scope: CustomizationScope.synced,
+            name: name,
+            description: 'claude.ai',
+            path: claudeJson,
+            editable: false,
+            detail: _pretty.convert({
+              name: {'source': 'claude.ai'},
+            }),
+          ),
       if (project != null && projects is Map<String, Object?>)
         ...servers(
           CustomizationScope.local,

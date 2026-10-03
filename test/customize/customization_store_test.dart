@@ -128,6 +128,7 @@ void main() {
         'mcpServers': {
           'github': {'type': 'http', 'url': 'https://example.com/mcp'},
         },
+        'claudeAiMcpEverConnected': ['claude.ai Docs'],
         'projects': {
           project: {
             'mcpServers': {
@@ -194,6 +195,7 @@ void main() {
           'http · https://example.com/mcp',
           false,
         ),
+        (CustomizationScope.synced, 'claude.ai Docs', 'claude.ai', false),
         (CustomizationScope.project, 'docs', 'docs-mcp', true),
         (CustomizationScope.local, 'db', 'npx db-mcp --ro', false),
       ],
@@ -209,6 +211,35 @@ void main() {
     expect(
       [for (final x in plugins) (x.name, x.description, x.enabled)],
       [('other', 'market · 0.1.0', false), ('review', 'Reviews code', true)],
+    );
+  });
+
+  test('finds the file servers and hooks are kept in, by scope', () async {
+    Future<String?> file(CustomizationKind kind, CustomizationScope scope) =>
+        store.configFile(kind, scope, project: project);
+    expect(
+      await file(CustomizationKind.mcps, CustomizationScope.project),
+      p.join(project, '.mcp.json'),
+    );
+    expect(await file(CustomizationKind.mcps, CustomizationScope.user), isNull);
+    expect(
+      await file(CustomizationKind.hooks, CustomizationScope.user),
+      p.join(config, 'settings.json'),
+    );
+    expect(
+      await file(CustomizationKind.hooks, CustomizationScope.local),
+      p.join(project, '.claude', 'settings.local.json'),
+    );
+    expect(
+      await store.configFile(
+        CustomizationKind.hooks,
+        CustomizationScope.project,
+      ),
+      isNull,
+    );
+    expect(
+      await file(CustomizationKind.skills, CustomizationScope.user),
+      isNull,
     );
   });
 
