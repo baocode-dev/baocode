@@ -18,6 +18,8 @@ class CustomizationStore {
 
   Future<String> read(String path) async => '';
 
+  Future<bool> exists(String path) async => false;
+
   Future<void> write(String path, String text) async {}
 
   Future<String> create(
@@ -26,6 +28,12 @@ class CustomizationStore {
     String name, {
     String? project,
   }) => throw UnsupportedError('No files on the web');
+
+  Future<String?> configFile(
+    CustomizationKind kind,
+    CustomizationScope scope, {
+    String? project,
+  }) async => null;
 
   Future<void> delete(Customization item) async {}
 }

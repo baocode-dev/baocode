@@ -8384,6 +8384,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Read only: synced from claude.ai, which would write over changes made here.'**
   String get customizeSyncedReadOnly;
+
+  /// No description provided for @customizeEditFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit {file}'**
+  String customizeEditFile(String file);
+
+  /// No description provided for @customizeEmptyPlugins.
+  ///
+  /// In en, this message translates to:
+  /// **'None installed. Install plugins with /plugin in Claude Code.'**
+  String get customizeEmptyPlugins;
+
+  /// No description provided for @customizeEmptyMcpsUser.
+  ///
+  /// In en, this message translates to:
+  /// **'None yet. Add one with: claude mcp add --scope user <name> -- <command>'**
+  String get customizeEmptyMcpsUser;
+
+  /// No description provided for @customizeEmptyMcpsLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'None yet. Add one with claude mcp add, run in the project.'**
+  String get customizeEmptyMcpsLocal;
+
+  /// No description provided for @customizeEmptyMcpsProject.
+  ///
+  /// In en, this message translates to:
+  /// **'None yet. Servers shared with the project go in its .mcp.json.'**
+  String get customizeEmptyMcpsProject;
+
+  /// No description provided for @customizeEmptyHooks.
+  ///
+  /// In en, this message translates to:
+  /// **'None yet. Hooks go under \"hooks\" in {file}.'**
+  String customizeEmptyHooks(String file);
+
+  /// No description provided for @customizeConnectorReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Read only: a claude.ai connector, managed in claude.ai\'s settings, under Connectors.'**
+  String get customizeConnectorReadOnly;
 }
 
 class _AppLocalizationsDelegate

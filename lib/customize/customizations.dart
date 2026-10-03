@@ -20,6 +20,24 @@ enum CustomizationKind {
     skills || subagents || commands || rules => true,
     plugins || mcps || hooks => false,
   };
+
+  /// Kept in a JSON file of [scope]'s meant to be edited by hand, among
+  /// other settings: a project's `.mcp.json`, a settings file's hooks.
+  bool configuredIn(CustomizationScope scope) => switch (this) {
+    mcps => scope == CustomizationScope.project,
+    hooks =>
+      scope == CustomizationScope.user ||
+          scope == CustomizationScope.project ||
+          scope == CustomizationScope.local,
+    _ => false,
+  };
+
+  /// What such a file starts as, where there is none yet.
+  String get configTemplate => switch (this) {
+    mcps => '{\n  "mcpServers": {}\n}\n',
+    hooks => '{\n  "hooks": {}\n}\n',
+    _ => '',
+  };
 }
 
 /// Whose a customization is: the user's (every project's), synced to the
@@ -62,7 +80,8 @@ class Customization {
   final String? removePath;
 
   /// Shown in place of its file where that is not [editable]: e.g. a
-  /// server's entry in `~/.claude.json`, as JSON.
+  /// server's entry in `~/.claude.json`, as JSON. Where it is, what its
+  /// file starts as if not there yet (a settings file opened for hooks).
   final String? detail;
 
   /// A plugin's: whether settings enable it.

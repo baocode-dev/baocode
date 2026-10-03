@@ -4740,4 +4740,31 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get customizeSyncedReadOnly => '只读：此技能从 claude.ai 同步，本地修改会在下次同步时被覆盖。';
+
+  @override
+  String customizeEditFile(String file) {
+    return '编辑 $file';
+  }
+
+  @override
+  String get customizeEmptyPlugins => '还没有安装插件。在 Claude Code 里用 /plugin 安装。';
+
+  @override
+  String get customizeEmptyMcpsUser =>
+      '暂无。用这条命令添加：claude mcp add --scope user <名称> -- <命令>';
+
+  @override
+  String get customizeEmptyMcpsLocal => '暂无。在项目目录里运行 claude mcp add 添加。';
+
+  @override
+  String get customizeEmptyMcpsProject => '暂无。和项目共享的服务器写在项目的 .mcp.json 里。';
+
+  @override
+  String customizeEmptyHooks(String file) {
+    return '暂无。钩子写在 $file 的 \"hooks\" 里。';
+  }
+
+  @override
+  String get customizeConnectorReadOnly =>
+      '只读：这是 claude.ai 连接器，请在 claude.ai 设置的「连接器」里管理。';
 }

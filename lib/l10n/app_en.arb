@@ -3548,5 +3548,26 @@
   "settingsBack": "Back",
   "settingsSearch": "Search Settings",
   "customizeScopeSynced": "Synced from claude.ai",
-  "customizeSyncedReadOnly": "Read only: synced from claude.ai, which would write over changes made here."
+  "customizeSyncedReadOnly": "Read only: synced from claude.ai, which would write over changes made here.",
+  "customizeEditFile": "Edit {file}",
+  "@customizeEditFile": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "customizeEmptyPlugins": "None installed. Install plugins with /plugin in Claude Code.",
+  "customizeEmptyMcpsUser": "None yet. Add one with: claude mcp add --scope user <name> -- <command>",
+  "customizeEmptyMcpsLocal": "None yet. Add one with claude mcp add, run in the project.",
+  "customizeEmptyMcpsProject": "None yet. Servers shared with the project go in its .mcp.json.",
+  "customizeEmptyHooks": "None yet. Hooks go under \"hooks\" in {file}.",
+  "@customizeEmptyHooks": {
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "customizeConnectorReadOnly": "Read only: a claude.ai connector, managed in claude.ai's settings, under Connectors."
 }
