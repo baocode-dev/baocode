@@ -127,14 +127,22 @@ typedef CodeColorizer = Future<List<List<TextSpan>>?> Function(
   String code,
 );
 
-/// What the [CodeCitationCard]s under it can do: open the file cited and
-/// color the code.
+/// [code] in the language a fence names ([language], an id or an alias),
+/// in the editor's colors a line at a time; null when it is not known.
+typedef CodeBlockColorizer = Future<List<List<TextSpan>>?> Function(
+  String language,
+  String code,
+);
+
+/// What the [CodeCitationCard]s and [MarkdownCodeBlock]s under it can do:
+/// open the file cited and color the code.
 class CodeCitationScope extends InheritedWidget {
   const CodeCitationScope({
     super.key,
     this.root,
     this.onOpen,
     this.colorize,
+    this.colorizeBlock,
     required super.child,
   });
 
@@ -148,6 +156,9 @@ class CodeCitationScope extends InheritedWidget {
 
   final CodeColorizer? colorize;
 
+  /// Colors a [MarkdownCodeBlock]'s code by its language.
+  final CodeBlockColorizer? colorizeBlock;
+
   static CodeCitationScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<CodeCitationScope>();
 
@@ -155,13 +166,14 @@ class CodeCitationScope extends InheritedWidget {
   bool updateShouldNotify(CodeCitationScope oldWidget) =>
       root != oldWidget.root ||
       onOpen != oldWidget.onOpen ||
-      colorize != oldWidget.colorize;
+      colorize != oldWidget.colorize ||
+      colorizeBlock != oldWidget.colorizeBlock;
 }
 
 /// A [CodeCitation] as a card: the file's icon, name and lines, which open
 /// it there, over the code with its line numbers. Taller than
 /// [maxCodeHeight], the code scrolls; folded, only the title shows.
-class CodeCitationCard extends StatefulWidget {
+class CodeCitationCard extends StatelessWidget {
   const CodeCitationCard({
     super.key,
     required this.citation,
@@ -175,10 +187,36 @@ class CodeCitationCard extends StatefulWidget {
   static const maxCodeHeight = 220.0;
 
   @override
-  State<CodeCitationCard> createState() => _CodeCitationCardState();
+  Widget build(BuildContext context) =>
+      _CodeCard(code: code, citation: citation);
 }
 
-class _CodeCitationCardState extends State<CodeCitationCard> {
+/// A fenced code block as a [CodeCitationCard] is, its language (the
+/// first word of the fence's info string) for a title and no line numbers.
+class MarkdownCodeBlock extends StatelessWidget {
+  const MarkdownCodeBlock({super.key, required this.code, this.language});
+
+  final String code;
+  final String? language;
+
+  @override
+  Widget build(BuildContext context) =>
+      _CodeCard(code: code, language: language);
+}
+
+/// A [citation]'s card, or a code block's in [language] without one.
+class _CodeCard extends StatefulWidget {
+  const _CodeCard({required this.code, this.citation, this.language});
+
+  final String code;
+  final CodeCitation? citation;
+  final String? language;
+
+  @override
+  State<_CodeCard> createState() => _CodeCardState();
+}
+
+class _CodeCardState extends State<_CodeCard> {
   final _vertical = ScrollController();
   final _horizontal = ScrollController();
   bool _expanded = true;
@@ -187,6 +225,7 @@ class _CodeCitationCardState extends State<CodeCitationCard> {
   Timer? _copiedTimer;
 
   CodeColorizer? _colorize;
+  CodeBlockColorizer? _colorizeBlock;
 
   /// The lines last colored, and their colors: kept for those still the
   /// same while the agent writes on.
@@ -201,9 +240,11 @@ class _CodeCitationCardState extends State<CodeCitationCard> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final colorize = CodeCitationScope.maybeOf(context)?.colorize;
-    if (colorize != _colorize) {
-      _colorize = colorize;
+    final scope = CodeCitationScope.maybeOf(context);
+    if (scope?.colorize != _colorize ||
+        scope?.colorizeBlock != _colorizeBlock) {
+      _colorize = scope?.colorize;
+      _colorizeBlock = scope?.colorizeBlock;
       _uncolored = false;
       _coloredCode = null;
     }
@@ -211,9 +252,12 @@ class _CodeCitationCardState extends State<CodeCitationCard> {
   }
 
   @override
-  void didUpdateWidget(CodeCitationCard oldWidget) {
+  void didUpdateWidget(_CodeCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.citation.path != widget.citation.path) _uncolored = false;
+    if (oldWidget.citation?.path != widget.citation?.path ||
+        oldWidget.language != widget.language) {
+      _uncolored = false;
+    }
     _colorSoon();
   }
 
@@ -228,13 +272,16 @@ class _CodeCitationCardState extends State<CodeCitationCard> {
   /// Colors the code unless it is colored, one request at a time: code
   /// that grew meanwhile is asked for once that one is answered.
   void _colorSoon() {
-    final colorize = _colorize;
     final code = widget.code;
-    if (colorize == null || _uncolored || _coloring || code == _coloredCode) {
-      return;
-    }
+    if (_uncolored || _coloring || code == _coloredCode) return;
+    final colored = switch ((widget.citation, widget.language)) {
+      (final citation?, _) => _colorize?.call(citation.path, code),
+      (null, final language?) => _colorizeBlock?.call(language, code),
+      _ => null,
+    };
+    if (colored == null) return;
     _coloring = true;
-    colorize(widget.citation.path, code).then(
+    colored.then(
       (lines) {
         _coloring = false;
         if (!mounted) return;
@@ -296,14 +343,73 @@ class _CodeCitationCardState extends State<CodeCitationCard> {
 
   /// The chevron and the empty space fold it; the file opens it there.
   Widget _title(BuildContext context) {
-    final citation = widget.citation;
+    final l10n = context.l10n;
+    final hover = AppColors.hover;
+    return SelectionContainer.disabled(
+      child: HoverBuilder(
+        builder: (context, hovered) => GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Container(
+            // Faintly lit while hovered.
+            color: hovered
+                ? hover.withValues(alpha: hover.a * 0.6)
+                : Colors.transparent,
+            padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+            child: Row(
+              children: [
+                _IconButton(
+                  icon: _expanded
+                      ? Codicons.chevronDown
+                      : Codicons.chevronRight,
+                  tooltip: _expanded
+                      ? l10n.cmdListCollapse
+                      : l10n.cmdListExpand,
+                  onTap: () => setState(() => _expanded = !_expanded),
+                ),
+                const SizedBox(width: 2),
+                // The rest of the row, the copy button at its end.
+                Expanded(
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: switch (widget.citation) {
+                      final citation? => _file(context, citation),
+                      null => Text(
+                        widget.language ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    },
+                  ),
+                ),
+                Visibility.maintain(
+                  visible: _hovered || _copied,
+                  child: _IconButton(
+                    icon: _copied ? Codicons.check : Codicons.copy,
+                    tooltip: l10n.commonCopy,
+                    onTap: _copy,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The cited file's icon, name and lines, which open it there.
+  Widget _file(BuildContext context, CodeCitation citation) {
     final scope = CodeCitationScope.maybeOf(context);
     final open = scope?.onOpen;
     final path = switch (scope?.root) {
       final root? => citation.pathIn(root),
       null => null,
     };
-    final l10n = context.l10n;
     final opens = open != null && path != null;
     Widget file = Row(
       mainAxisSize: MainAxisSize.min,
@@ -334,76 +440,36 @@ class _CodeCitationCardState extends State<CodeCitationCard> {
         ),
       );
     }
-    final hover = AppColors.hover;
-    return SelectionContainer.disabled(
-      child: HoverBuilder(
-        builder: (context, hovered) => GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => setState(() => _expanded = !_expanded),
-          child: Container(
-            // Faintly lit while hovered.
-            color: hovered
-                ? hover.withValues(alpha: hover.a * 0.6)
-                : Colors.transparent,
-            padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
-            child: Row(
-              children: [
-                _IconButton(
-                  icon: _expanded
-                      ? Codicons.chevronDown
-                      : Codicons.chevronRight,
-                  tooltip: _expanded
-                      ? l10n.cmdListCollapse
-                      : l10n.cmdListExpand,
-                  onTap: () => setState(() => _expanded = !_expanded),
-                ),
-                const SizedBox(width: 2),
-                // The rest of the row, the copy button at its end.
-                Expanded(
-                  child: Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: IdeHover(message: citation.path, child: file),
-                  ),
-                ),
-                Visibility.maintain(
-                  visible: _hovered || _copied,
-                  child: _IconButton(
-                    icon: _copied ? Codicons.check : Codicons.copy,
-                    tooltip: l10n.commonCopy,
-                    onTap: _copy,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+    return IdeHover(message: citation.path, child: file);
   }
 
   /// Line numbers from the citation's first, beside the code; both scroll
-  /// down together, the code alone sideways.
+  /// down together, the code alone sideways. A code block has none.
   Widget _body() {
     final lines = widget.code.split('\n');
+    final citation = widget.citation;
     final style = TextStyle(
       color: themeColors['editor.foreground'],
       fontFamily: AppFonts.mono,
       fontSize: 12,
       height: 1.5,
     );
-    final last = widget.citation.start + lines.length - 1;
-    final numbers = SelectionContainer.disabled(
-      child: Padding(
-        padding: const EdgeInsets.only(left: 12, right: 14),
-        child: Text(
-          [for (var i = widget.citation.start; i <= last; i++) '$i'].join('\n'),
-          textAlign: TextAlign.right,
-          style: style.copyWith(
-            color: themeColors['editorLineNumber.foreground'],
+    final numbers = switch (citation) {
+      final citation? => SelectionContainer.disabled(
+        child: Padding(
+          padding: const EdgeInsets.only(left: 12, right: 14),
+          child: Text(
+            [for (var i = 0; i < lines.length; i++) '${citation.start + i}']
+                .join('\n'),
+            textAlign: TextAlign.right,
+            style: style.copyWith(
+              color: themeColors['editorLineNumber.foreground'],
+            ),
           ),
         ),
       ),
-    );
+      null => const SizedBox(width: 12),
+    };
     final code = Text.rich(
       TextSpan(
         style: style,

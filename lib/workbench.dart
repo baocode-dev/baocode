@@ -365,7 +365,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   @override
   void dispose() {
-    _citedCode?.dispose();
+    _chatCode?.dispose();
     _drag.dispose();
     _width.dispose();
     _lifecycle?.dispose();
@@ -1889,6 +1889,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             _openChange(thread, change, original),
         onOpenCode: (path, start, end) => _openCode(thread, path, start, end),
         colorizeCode: _colorizeCode,
+        colorizeCodeBlock: _colorizeCodeBlock,
         // Where a new agent is to work: the IDE's chat works in the IDE's
         // project, and a kept session where it was.
         start: embedded || thread.record != null
@@ -2077,17 +2078,23 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   @override
   void runCommand(String command) => _runMenuCommand(command);
 
-  /// The code agents cite in the editor's colors, by TextMate: started as
-  /// the first is shown.
-  TextMateSyntax? _citedCode;
+  /// The code agents cite or write in the editor's colors, by TextMate:
+  /// started as the first is shown.
+  TextMateSyntax? _chatCode;
+
+  TextMateSyntax get _chatSyntax =>
+      _chatCode ??= TextMateSyntax(themes: WorkbenchThemeService.instance);
 
   Future<List<List<TextSpan>>?> _colorizeCode(String path, String code) async {
-    final syntax = _citedCode ??= TextMateSyntax(
-      themes: WorkbenchThemeService.instance,
-    );
+    final syntax = _chatSyntax;
     final language = await syntax.languageIdForPath(path);
     return language == null ? null : syntax.colorize(language, code);
   }
+
+  Future<List<List<TextSpan>>?> _colorizeCodeBlock(
+    String language,
+    String code,
+  ) => _chatSyntax.colorize(language, code);
 }
 
 /// The IDE's chat without a folder: one to open first, as agents work in

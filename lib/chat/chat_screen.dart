@@ -45,6 +45,7 @@ class ChatScreen extends StatefulWidget {
     this.onOpenChange,
     this.onOpenCode,
     this.colorizeCode,
+    this.colorizeCodeBlock,
     this.start,
   });
 
@@ -91,6 +92,9 @@ class ChatScreen extends StatefulWidget {
 
   /// Colors the code the agent cites.
   final CodeColorizer? colorizeCode;
+
+  /// Colors code blocks by the language their fences name.
+  final CodeBlockColorizer? colorizeCodeBlock;
 
   /// Over the composer while nothing was sent, e.g. where the agent is to
   /// work: given, the composer waits in the middle of the screen until then.
@@ -427,6 +431,7 @@ class _ChatScreenState extends State<ChatScreen>
         root: _session.root,
         onOpen: widget.onOpenCode,
         colorize: widget.colorizeCode,
+        colorizeBlock: widget.colorizeCodeBlock,
         child: ComposerVocabulary(
           commands: _commandSuggestions(),
           child: child!,
