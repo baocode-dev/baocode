@@ -458,9 +458,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// runs its own, and [_settingsCommands] besides; a chat, its own: see
   /// [ChatKeys]).
   Map<String, VoidCallback> _chatCommands() {
-    // An agent's window has its agent alone.
+    // An agent's window has its agent alone (and, on Windows, the sidebar
+    // to pick another: see _buildContent).
     if (_agentWindow) {
       return {
+        if (WindowControls.drawsHeader)
+          'workbench.action.toggleSidebarVisibility': _toggle,
         openSettingsCommandId: () => unawaited(openSettings()),
         openKeybindingsCommandId: () =>
             unawaited(openSettings(SettingsSection.keyboard)),
@@ -1372,7 +1375,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (_agentThread case final thread?) {
       // Gone (deleted), its window goes with it.
       if (!_workspace.threads.contains(thread)) return const SizedBox.shrink();
-      return _conversation(_buildChat(showToggle: false, pane: thread));
+      final chat = _buildChat(showToggle: false, pane: thread);
+      // On Windows, with the sidebar the header's toggle shows, as the
+      // chat's window has it: over the conversation while narrow, beside
+      // it once wide.
+      if (!WindowControls.drawsHeader) return _conversation(chat);
+      return narrow ? _buildNarrow(body: chat) : _buildWide(body: chat);
     }
     final folder = _ideFolder;
     // An IDE window has its folder's alone.
@@ -1437,10 +1445,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     );
   }
 
-  Widget _buildWide() {
+  /// The sidebar docked beside [body] (by default the chat's panes).
+  Widget _buildWide({Widget? body}) {
     // Built once for the widths a drag goes through (see [_width]).
     final sidebar = _buildSidebar();
-    final panes = _buildPanes(showToggle: !_docked);
+    final panes = body ?? _buildPanes(showToggle: !_docked);
     final row = ValueListenableBuilder(
       valueListenable: _width,
       builder: (context, _, _) => Row(
@@ -1482,13 +1491,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     );
   }
 
-  Widget _buildNarrow() {
+  /// The sidebar as a drawer over [body] (by default the chat's panes).
+  Widget _buildNarrow({Widget? body}) {
     // The same sidebar and border as when docked, at the same width.
     const handleWidth = _WorkbenchState._handleWidth;
     return Stack(
       fit: StackFit.expand,
       children: [
-        Positioned.fill(child: _conversation(_buildPanes(showToggle: true))),
+        Positioned.fill(
+          child: _conversation(body ?? _buildPanes(showToggle: true)),
+        ),
         // Scrim: a click outside closes the drawer.
         Positioned.fill(
           child: IgnorePointer(
@@ -1567,12 +1579,30 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ColoredBox(color: AppColors.background, child: child);
 
   /// On the conversation's color: over the material, a tint of it.
+  /// [thread] in this agent's window, in place of its agent.
+  void _showInWindow(AgentThread thread) {
+    final window = widget.window;
+    if (window == null) return;
+    _windows?.showInWindow(window, thread);
+    setState(() {});
+  }
+
   static Widget _conversation(Widget child) =>
       ColoredBox(color: AppColors.conversationSurface, child: child);
 
   Widget _buildSidebar({VoidCallback? onOpened}) {
+    // An agent's window shows what is picked or made here in its place;
+    // the chat's window, the search palette and Customize are not its.
+    final agent = _agentThread;
     return Sidebar(
       workspace: _workspace,
+      current: agent,
+      onSelect: agent == null ? null : _showInWindow,
+      onNewAgent: agent == null
+          ? null
+          : (project) => _showInWindow(
+              _workspace.newWindowAgent((project ?? agent.project).path),
+            ),
       link: _sidebarLink,
       onCollapse: _toggle,
       onOpened: () {
@@ -1581,8 +1611,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       },
       onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
       onOpenSettings: () => unawaited(openSettings()),
-      onSearch: () => unawaited(_openPalette()),
-      onCustomize: widget.customizations == null
+      onSearch: agent != null ? null : () => unawaited(_openPalette()),
+      onCustomize: agent != null || widget.customizations == null
           ? null
           : () => _customizing ? _closeCustomize() : _showCustomize(),
       customizing: _customizing,
@@ -1676,8 +1706,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           ? null
           : _windowCommands()[WindowCommandIds.closeWindow],
       sidebarShown: _narrow ? _drawerOpen : _docked,
-      // An agent's window has no sidebar.
-      onToggleSidebar: agent == null ? _toggle : null,
+      onToggleSidebar: _toggle,
       ideLayout: ide ? _ideSpace(_ideFolder).layout : null,
       pinned: _pinned,
       onTogglePin: _setPinned,

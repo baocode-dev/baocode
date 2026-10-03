@@ -70,7 +70,7 @@ abstract interface class WindowDelegate {
 
 /// One of the app's windows.
 class AppWindow {
-  AppWindow._(this.kind, this.viewId, this._folder, {this.frame, this.thread});
+  AppWindow._(this.kind, this.viewId, this._folder, {this.frame, this._thread});
 
   final AppWindowKind kind;
 
@@ -81,8 +81,10 @@ class AppWindow {
   bool get isIde => kind == AppWindowKind.ide;
   bool get isAgent => kind == AppWindowKind.agent;
 
-  /// The agent an agent's window shows.
-  final AgentThread? thread;
+  /// The agent an agent's window shows (another picked in its sidebar
+  /// takes its place: see [AppWindows.showInWindow]).
+  AgentThread? get thread => _thread;
+  AgentThread? _thread;
 
   /// The folder an IDE window shows; null for its welcome (and the chat's).
   String? get folder => _folder;
@@ -1250,6 +1252,18 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     }
     _focus(chat);
     unawaited(chat.ready.then((delegate) => delegate?.showAgent(thread)));
+  }
+
+  /// [window], an agent's, shows [thread] in place of its own: one picked
+  /// (or made) in its sidebar, as the chat's window would. The agent it had
+  /// goes if nothing was sent to it, as with its window closed.
+  void showInWindow(AppWindow window, AgentThread thread) {
+    final old = window.thread;
+    if (!window.isAgent || identical(old, thread)) return;
+    window._thread = thread;
+    _agentsChanged();
+    _changed();
+    if (old != null) workspace.closeWindowAgent(old);
   }
 
   // --- Titles and menus --------------------------------------------------------
