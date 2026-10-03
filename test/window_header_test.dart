@@ -187,8 +187,9 @@ void main() {
     final material = tester.widget<Material>(
       find.descendant(of: header, matching: find.byType(Material)).first,
     );
-    expect(material.color, AppColors.windowCanvas);
-    // After the sidebar's toggle, which comes after the menus' button.
+    expect(material.color, AppColors.conversationSurface);
+    // The sidebar's toggle first, as by macOS's traffic lights, then the
+    // menus' button, then the title.
     final menu = find.descendant(
       of: header,
       matching: find.widgetWithIcon(SidebarIconButton, Codicons.menu),
@@ -201,12 +202,12 @@ void main() {
       ),
     );
     expect(
-      tester.getRect(toggle).left,
-      greaterThan(tester.getRect(menu).right),
+      tester.getRect(menu).left,
+      greaterThan(tester.getRect(toggle).right),
     );
     expect(
       tester.getRect(inHeader).left,
-      greaterThan(tester.getRect(toggle).right),
+      greaterThan(tester.getRect(menu).right),
     );
 
     // The menus, and a menu's commands beside it.

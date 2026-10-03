@@ -98,8 +98,8 @@ class WindowHeader extends StatefulWidget {
   /// the rest of the strip.
   final bool compact;
 
-  /// Over the chat, the session's title, after the sidebar's toggle in
-  /// place of a row of the chat's own: the narrow window's, as macOS's
+  /// Over the chat, the session's title, after the sidebar's toggle and
+  /// the menus' button, in place of a row of the chat's own: the narrow window's, as macOS's
   /// title bar has it. The strip is then the conversation's, its background
   /// and no line under it.
   final String? title;
@@ -188,11 +188,35 @@ class _WindowHeaderState extends State<WindowHeader> {
     // way back to the chat on the right, as on macOS. With the session's
     // title, it is the top of the conversation.
     final colors = themeColors;
+    final menus = KeyedSubtree(
+      key: _menus,
+      child: HeaderMenuBar(items: _items, compact: widget.compact),
+    );
+    final toggle = KeyedSubtree(
+      key: _toggle,
+      child: switch (layout) {
+        final layout? => IdeLayoutToggle.sidebar(layout),
+        null => switch (widget.onToggleSidebar) {
+          null => const SizedBox.shrink(),
+          // The IDE's layout icons: the icon shows whether it is open.
+          final toggle => SidebarIconButton(
+            icon: widget.sidebarShown
+                ? Codicons.layoutSidebarLeft
+                : Codicons.layoutSidebarLeftOff,
+            tooltip: widget.sidebarShown
+                ? context.l10n.windowHideSidebar
+                : context.l10n.windowShowSidebar,
+            command: _toggleSidebarCommand,
+            onTap: toggle,
+          ),
+        },
+      },
+    );
     return Material(
       color: ide
           ? IdeModernUI.shell
           : title != null
-          ? AppColors.windowCanvas
+          ? AppColors.conversationSurface
           : AppColors.sidebarSurface,
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -209,32 +233,17 @@ class _WindowHeaderState extends State<WindowHeader> {
           child: Row(
             children: [
               const SizedBox(width: 6),
-              KeyedSubtree(
-                key: _menus,
-                child: HeaderMenuBar(items: _items, compact: widget.compact),
-              ),
-              const SizedBox(width: 4),
-              KeyedSubtree(
-                key: _toggle,
-                child: switch (layout) {
-                  final layout? => IdeLayoutToggle.sidebar(layout),
-                  null => switch (widget.onToggleSidebar) {
-                    null => const SizedBox.shrink(),
-                    // The IDE's layout icons: the icon shows whether it is
-                    // open.
-                    final toggle => SidebarIconButton(
-                      icon: widget.sidebarShown
-                          ? Codicons.layoutSidebarLeft
-                          : Codicons.layoutSidebarLeftOff,
-                      tooltip: widget.sidebarShown
-                          ? context.l10n.windowHideSidebar
-                          : context.l10n.windowShowSidebar,
-                      command: _toggleSidebarCommand,
-                      onTap: toggle,
-                    ),
-                  },
-                },
-              ),
+              // Folded, the menus' button comes after the toggle, which is
+              // first as by macOS's traffic lights; else the menu bar is.
+              if (widget.compact) ...[
+                toggle,
+                const SizedBox(width: 2),
+                menus,
+              ] else ...[
+                menus,
+                const SizedBox(width: 4),
+                toggle,
+              ],
               if (title != null)
                 // Its own pixels drag the window, as the rest of the strip.
                 Expanded(
