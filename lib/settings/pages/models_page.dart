@@ -88,6 +88,56 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
     return value;
   }
 
+  String _commitName(BuildContext context, String? value) {
+    final l10n = context.l10n;
+    if (value == null) return l10n.modelsCommitFollow;
+    if (value == builtinProviderId) return l10n.modelsCommitBuiltin;
+    return _defaultName(context, value);
+  }
+
+  /// The model commit messages are asked of.
+  Widget _commitRow(BuildContext context) {
+    final l10n = context.l10n;
+    final current = _providers.commitMessageModel;
+    final shown = _commitName(context, current);
+    void set(String? model) =>
+        unawaited(_providers.setCommitMessageModel(model));
+    return SettingsRow(
+      label: l10n.modelsCommit,
+      description: l10n.modelsCommitDescription,
+      trailing: SettingsDropdown(
+        current: shown,
+        semanticLabel: l10n.modelsChoiceLabel(l10n.modelsCommit, shown),
+        entries: () => [
+          IdeMenuAction(
+            l10n.modelsCommitFollow,
+            checked: current == null,
+            onSelected: () => set(null),
+          ),
+          const IdeMenuSeparator(),
+          IdeMenuAction(
+            l10n.modelsCommitBuiltin,
+            checked: current == builtinProviderId,
+            onSelected: () => set(builtinProviderId),
+          ),
+          for (final provider in _providers.enabled)
+            IdeMenuAction(
+              provider.name,
+              checked: parseModelRef(current)?.provider == provider.id,
+              submenu: [
+                for (final model in provider.enabledModels)
+                  IdeMenuAction(
+                    model.displayName,
+                    checked: current == modelRef(provider.id, model.id),
+                    onSelected: () => set(modelRef(provider.id, model.id)),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _list(BuildContext context) {
     final l10n = context.l10n;
     final current = _providers.defaultModel;
@@ -142,6 +192,7 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
                 ],
               ),
             ),
+            _commitRow(context),
           ],
         ),
         SettingsGroup(

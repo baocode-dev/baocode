@@ -46,12 +46,14 @@ Future<String> ideClaudeCommitMessage(
   Future<void>? cancel,
 }) async {
   try {
+    final commitModel = ModelProviders.current.commitMessage;
     final reply = await askClaudeHaiku(
       prompt.system,
       prompt.user,
       cancel: cancel,
-      // The model new sessions start with: a provider's, if picked.
-      model: ModelProviders.current.defaultModel,
+      // Settings → Models' pick for commit messages, else new sessions'.
+      model: commitModel.model,
+      exact: commitModel.exact,
     );
     return ideCleanCommitMessage(reply);
   } on ClaudeHaikuCancelled {

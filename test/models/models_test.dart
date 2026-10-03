@@ -134,6 +134,22 @@ void main() {
       expect(await secrets.read('provider.gw'), isNull);
     });
 
+    test('commit messages follow the default unless a model is picked for '
+        'them', () async {
+      final providers = ModelProviders.memory(providers: [_gateway]);
+      expect(providers.commitMessage, (model: null, exact: false));
+      await providers.setDefaultModel('@gw/gpt-5');
+      // The default's provider, by its Haiku tier.
+      expect(providers.commitMessage, (model: '@gw/gpt-5', exact: false));
+      await providers.setCommitMessageModel(builtinProviderId);
+      expect(providers.commitMessage, (model: null, exact: true));
+      await providers.setCommitMessageModel('@gw/mini');
+      expect(providers.commitMessage, (model: '@gw/mini', exact: true));
+      // Its provider gone, it follows the default again.
+      await providers.remove('gw');
+      expect(providers.commitMessageModel, isNull);
+    });
+
     test('a provider without models offered is not in the picker', () {
       final providers = ModelProviders.memory(
         providers: [

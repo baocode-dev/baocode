@@ -5632,4 +5632,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get modelsSwitchConfirm => 'Switch';
+
+  @override
+  String get modelsCommit => 'Commit Message Model';
+
+  @override
+  String get modelsCommitDescription =>
+      'What Generate Commit Message asks. Following new sessions\' default, a model of an upstream is asked by its Haiku tier.';
+
+  @override
+  String get modelsCommitFollow => 'Same as new sessions';
+
+  @override
+  String get modelsCommitBuiltin => 'Claude Code Haiku (this machine\'s setup)';
 }

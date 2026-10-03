@@ -62,6 +62,7 @@ class ModelProviders extends ChangeNotifier {
   static const providersKey = 'models.providers';
   static const builtinHiddenKey = 'models.builtin.hidden';
   static const defaultKey = 'models.default';
+  static const commitMessageKey = 'models.commitMessage';
 
   final Object? Function(String key) _read;
   final Future<void> Function(String key, Object? value) _write;
@@ -123,6 +124,27 @@ class ModelProviders extends ChangeNotifier {
     _ => null,
   };
 
+  /// The model picked for commit messages, as kept: a [modelRef], or
+  /// [builtinProviderId] for Claude Code's own Haiku; null to follow
+  /// [defaultModel].
+  String? get commitMessageModel => switch (_read(commitMessageKey)) {
+    final String model when model.isNotEmpty => model,
+    _ => null,
+  };
+
+  /// What commit messages are asked of: the model picked for them, as it
+  /// is ([exact]); else new sessions' default, by its provider's Haiku
+  /// tier. A null [model] is Claude Code's own Haiku.
+  ({String? model, bool exact}) get commitMessage =>
+      switch (commitMessageModel) {
+        builtinProviderId => (model: null, exact: true),
+        final String model => (model: model, exact: true),
+        null => (model: defaultModel, exact: false),
+      };
+
+  Future<void> setCommitMessageModel(String? model) =>
+      _write(commitMessageKey, model);
+
   /// Adds [provider], or replaces the one of its id.
   Future<void> save(ModelProvider provider) async {
     final list = [...providers];
@@ -143,6 +165,9 @@ class ModelProviders extends ChangeNotifier {
     ]);
     if (parseModelRef(defaultModel)?.provider == id) {
       await setDefaultModel(null);
+    }
+    if (parseModelRef(commitMessageModel)?.provider == id) {
+      await setCommitMessageModel(null);
     }
     _errors.remove(id);
     try {

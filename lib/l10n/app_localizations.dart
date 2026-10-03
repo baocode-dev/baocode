@@ -9344,6 +9344,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Switch'**
   String get modelsSwitchConfirm;
+
+  /// No description provided for @modelsCommit.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit Message Model'**
+  String get modelsCommit;
+
+  /// No description provided for @modelsCommitDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'What Generate Commit Message asks. Following new sessions\' default, a model of an upstream is asked by its Haiku tier.'**
+  String get modelsCommitDescription;
+
+  /// No description provided for @modelsCommitFollow.
+  ///
+  /// In en, this message translates to:
+  /// **'Same as new sessions'**
+  String get modelsCommitFollow;
+
+  /// No description provided for @modelsCommitBuiltin.
+  ///
+  /// In en, this message translates to:
+  /// **'Claude Code Haiku (this machine\'s setup)'**
+  String get modelsCommitBuiltin;
 }
 
 class _AppLocalizationsDelegate

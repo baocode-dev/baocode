@@ -5273,4 +5273,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelsSwitchConfirm => '切换';
+
+  @override
+  String get modelsCommit => '提交信息模型';
+
+  @override
+  String get modelsCommitDescription =>
+      '「生成提交信息」使用的模型。跟随新会话默认模型时，若默认模型属于某个上游，则使用该上游的 Haiku 档位。';
+
+  @override
+  String get modelsCommitFollow => '跟随新会话默认模型';
+
+  @override
+  String get modelsCommitBuiltin => 'Claude Code Haiku（本机配置）';
 }
