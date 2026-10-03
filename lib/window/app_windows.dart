@@ -877,14 +877,29 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
 
   /// Before the app quits (⌘Q, the tray's Quit, logging out): the unsaved
   /// files of all windows asked about at once, then (as before windows)
-  /// whether to quit with agents at work; asked in the window in front.
+  /// whether to quit with agents or terminals at work; asked in the window
+  /// in front, shown for it (the app may be in the tray). With nothing at
+  /// work, the Quit (the tray's, the last window's close button) is enough.
   Future<bool> confirmQuit() async {
-    if (!await _confirmUnsaved([..._ide, chat])) return false;
-    final context =
-        active.delegate?.windowContext ?? chat.delegate?.windowContext;
-    return QuitConfirmation.confirm(
-      context != null && context.mounted ? context : null,
-    );
+    final windows = [..._ide, chat];
+    if (!await _confirmUnsaved(windows)) return false;
+    final working =
+        workspace.threads.any(
+          (thread) =>
+              !thread.archived &&
+              (thread.status == ThreadStatus.running ||
+                  thread.status == ThreadStatus.needsInput),
+        ) ||
+        windows.any(
+          (window) =>
+              window.delegate?.terminalsRunning(childProcesses: true) ?? false,
+        );
+    if (!working) return true;
+    final asker = active.delegate?.windowContext != null ? active : chat;
+    final context = asker.delegate?.windowContext;
+    if (context == null || !context.mounted) return true;
+    if (_started) _focus(asker);
+    return QuitConfirmation.confirm(context);
   }
 
   // --- The system's events -----------------------------------------------------

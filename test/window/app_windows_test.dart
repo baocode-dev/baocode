@@ -583,7 +583,7 @@ void main() {
   });
 
   testWidgets('quitting asks about the unsaved files of all windows at once, '
-      'then about the agents', (tester) async {
+      'then about the agents and terminals at work', (tester) async {
     final harness = _Harness(tester);
     await harness.start();
     await harness.windows.showFolder('/w/a');
@@ -591,6 +591,7 @@ void main() {
     await harness.showDialogs(tester);
     harness.delegateOf('/w/a').unsaved = [_doc('/w/a/x.dart')];
     harness.delegateOf('/w/b').unsaved = [_doc('/w/b/y.dart')];
+    harness.delegateOf('/w/a').terminals = true;
 
     final quitting = harness.windows.confirmQuit();
     await tester.pump();
@@ -608,6 +609,34 @@ void main() {
     expect(harness.host.focused, harness.window('/w/b').viewId);
 
     expect(find.text('Quit BaoCode?'), findsOneWidget);
+    await tester.tap(find.text('Quit'));
+    await tester.pump();
+    expect(await quitting, isTrue);
+  });
+
+  testWidgets('quitting with nothing at work does not ask', (tester) async {
+    final harness = _Harness(tester);
+    await harness.start();
+    await harness.windows.showFolder('/w/a');
+    await harness.showDialogs(tester);
+    expect(await harness.windows.confirmQuit(), isTrue);
+    expect(find.text('Quit BaoCode?'), findsNothing);
+  });
+
+  testWidgets('quitting from the tray, everything hidden, shows the window '
+      'it asks in', (tester) async {
+    final harness = _Harness(tester, quitsWithLastWindow: true, tray: true);
+    await harness.start();
+    await harness.showDialogs(tester);
+    harness.chatDelegate.terminals = true;
+    await harness.windows.requestClose(harness.windows.chat);
+    expect(harness.windows.windows.where((w) => w.shown), isEmpty);
+
+    final quitting = harness.windows.confirmQuit();
+    await tester.pump();
+    expect(find.text('Quit BaoCode?'), findsOneWidget);
+    expect(harness.windows.chat.shown, isTrue);
+    expect(harness.host.focused, 0);
     await tester.tap(find.text('Quit'));
     await tester.pump();
     expect(await quitting, isTrue);
