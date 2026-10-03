@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_quill/quill_delta.dart';
 
 import '../chat_models.dart';
+import 'composer_files.dart';
 
 /// What is typed in a composer and not sent yet, kept for when it shows
 /// again (after another conversation was open): its content, caret and
@@ -24,6 +25,24 @@ class ComposerDraft extends ChangeNotifier {
   /// not take up its own text.
   Object? get savedBy => _savedBy;
   Object? _savedBy;
+
+  /// Files to put in as if pasted (Explorer's Open with BaoCode), taken by
+  /// the composer that shows the draft, or by the next to.
+  List<ComposerFile> get pendingFiles => List.unmodifiable(_pendingFiles);
+  final List<ComposerFile> _pendingFiles = [];
+
+  void insertFiles(List<ComposerFile> files) {
+    if (files.isEmpty) return;
+    _pendingFiles.addAll(files);
+    notifyListeners();
+  }
+
+  /// [pendingFiles], no longer pending.
+  List<ComposerFile> takeFiles() {
+    final files = [..._pendingFiles];
+    _pendingFiles.clear();
+    return files;
+  }
 
   void save(
     Delta content,

@@ -108,6 +108,10 @@ class FakeWindowHost extends WindowHost {
   Future<WindowFrame?> frame(int viewId) async => frames[viewId];
 
   @override
+  Future<void> setWidth(int viewId, double width) async =>
+      log.add('setWidth $viewId ${width.round()}');
+
+  @override
   Future<List<ScreenArea>> screens() async => screenAreas;
 
   @override

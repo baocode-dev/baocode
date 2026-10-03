@@ -53,6 +53,11 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ; on a machine where the user cannot elevate.
 PrivilegesRequiredOverridesAllowed=dialog
 DisableProgramGroupPage=yes
+; A running BaoCode is asked to close (it quits on WM_ENDSESSION, see
+; windows/runner/flutter_window.cpp), and ended if it does not: a version
+; from before that, or one stuck, would otherwise hold Setup at "Closing
+; applications..." for good.
+CloseApplications=force
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

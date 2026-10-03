@@ -86,7 +86,10 @@ class IdeStartPage extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final width = math.min(_width, constraints.maxWidth - 48);
-          final columns = width >= 420 ? 3 : (width >= 260 ? 2 : 1);
+          // All in a row while each has room for its name and its keys
+          // (Ctrl+Shift+O), else one a row: two a row would leave the third
+          // alone.
+          final columns = width >= 530 ? 3 : 1;
           const gap = 10.0;
           final tile = (width - gap * (columns - 1)) / columns;
           return Center(

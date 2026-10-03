@@ -111,6 +111,11 @@ abstract class WindowHost {
   /// Where the window is.
   Future<WindowFrame?> frame(int viewId);
 
+  /// Makes [viewId]'s window [width] wide (logical pixels), its height and
+  /// top left kept, on its screen; a maximized one stays so. (Windows';
+  /// nothing elsewhere.)
+  Future<void> setWidth(int viewId, double width);
+
   /// The screens' usable areas.
   Future<List<ScreenArea>> screens();
 
@@ -134,6 +139,7 @@ abstract class WindowHost {
 ///   setTitle {viewId, title, path?}, setEdited {viewId, edited}
 ///   frame viewId                 {x, y, width, height, maximized,
 ///                                fullscreen, screen}
+///   setWidth {viewId, width}     (Windows)
 ///   screens                      [{id, x, y, width, height}]
 ///   setWindowList {windows: [{viewId, title, edited}], labels}
 ///   setMainShownAtLaunch bool
@@ -265,6 +271,10 @@ class ChannelWindowHost extends WindowHost {
   @override
   Future<WindowFrame?> frame(int viewId) async =>
       WindowFrame.fromJson(await _invoke<Object?>('frame', viewId));
+
+  @override
+  Future<void> setWidth(int viewId, double width) =>
+      _invoke('setWidth', {'viewId': viewId, 'width': width});
 
   @override
   Future<List<ScreenArea>> screens() async {

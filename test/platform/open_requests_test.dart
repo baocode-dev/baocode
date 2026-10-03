@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/platform/open_requests.dart';
+import 'package:baocode/window/code_args.dart';
 
 const _open = MethodChannel('baocode/open');
 
@@ -98,6 +99,21 @@ void main() {
 
     await send([marker, r'C:\work', '-g', 'a.dart:3']);
     expect(opened.last, [marker, r'C:\work', '-g', 'a.dart:3']);
+  });
+
+  test('Open with BaoCode goes as a request of its own, beside those of '
+      'the `code` command', () async {
+    const code = OpenRequests.codeRequestMarker;
+    const agent = CodeArgs.agentRequestMarker;
+    pending = [agent, r'C:\work\a.dart', code, r'C:\work', '.', agent, r'C:\x'];
+    final opened = <List<String>>[];
+    OpenRequests.listen(opened.add);
+    await pumpEventQueue();
+    expect(opened, [
+      [agent, r'C:\work\a.dart'],
+      [code, r'C:\work', '.'],
+      [agent, r'C:\x'],
+    ]);
   });
 
   test('stopped, it delivers nothing and tells the window', () async {

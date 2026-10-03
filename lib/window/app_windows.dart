@@ -338,8 +338,28 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   ///
   /// With the IDE in the main window, only it shows; the IDE's window last
   /// in front, if any were left, gives it its folder.
-  Future<void> prepareLaunch() async {
+  ///
+  /// Started for a [request] (Explorer's Open with BaoCode or Fast Ide, the
+  /// `code` command), it opens to that alone, at once: the chat's window
+  /// for an agent, else what the request opens, nothing of the last run.
+  Future<void> prepareLaunch({
+    LaunchRequest request = LaunchRequest.none,
+  }) async {
     if (!_started) return;
+    if (_separate && request != LaunchRequest.none) {
+      final chatShown = request == LaunchRequest.agent;
+      _wasInIde = !chatShown;
+      _launch = (
+        windows: const [_KeptWindow(chat: true)],
+        chatShown: chatShown,
+      );
+      chat._shown = chatShown;
+      _syncWorkspace();
+      // Read for this launch as well: after Dart starts, on Windows.
+      await host.setMainShownAtLaunch(chatShown);
+      _mainShownNext = chatShown;
+      return;
+    }
     final kept = await _store?.read() ?? const <String, Object?>{};
     if (!_separate) return _prepareMainOnly(kept);
     final old = workspace.takeSingleWindowIde();
@@ -660,10 +680,14 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   }
 
   /// What the system asks to open: a request of the `code` command (on
-  /// Windows, its arguments; on macOS, the file its script left), or paths
-  /// (Finder's Open With, the Dock's icon, the File menu's Open Recent),
-  /// as `code` would open them.
+  /// Windows, its arguments; on macOS, the file its script left), Open
+  /// with BaoCode's ([openAgent]), or paths (Finder's Open With, the Dock's
+  /// icon, the File menu's Open Recent), as `code` would open them.
   Future<void> openRequested(List<String> paths) async {
+    if (paths.firstOrNull == CodeArgs.agentRequestMarker) {
+      await openAgent(paths.sublist(1));
+      return;
+    }
     if (CodeArgs.isRequest(paths)) {
       await handleCode(CodeArgs.fromRequest(paths));
       return;
@@ -681,6 +705,51 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     await handleCode(
       CodeArgs(paths: [for (final path in plain) CodeTarget(path)]),
     );
+  }
+
+  /// How wide the chat's window opens for [openAgent], when it did not
+  /// show: the conversation alone, the sidebar out of the way (as
+  /// windows/runner/main.cpp's kAgentWidth starts it).
+  static const agentWidth = 520.0;
+
+  /// Explorer's Open with BaoCode: a new agent in the chat's window, ready
+  /// to type to. A folder is its project (opened as one if it was not); a
+  /// file goes in the composer as if pasted, the agent in the project it is
+  /// in, else in its folder.
+  Future<AgentThread?> openAgent(List<String> paths) async {
+    String? folder;
+    final files = <ComposerFile>[];
+    for (final path in paths) {
+      final directory = await _isDirectory(path);
+      if (directory && folder == null) {
+        folder = path;
+      } else {
+        files.add(ComposerFile(path, directory: directory));
+      }
+    }
+    if (folder == null && files.isEmpty) return null;
+    folder ??= _projectOf(files.first.path) ?? p.dirname(files.first.path);
+    final thread = await workspace.openFolder(folder);
+    thread.session.draft.insertFiles(files);
+    if (!multi) workspace.layout = WorkspaceLayout.chat;
+    if (_started) {
+      if (!chat.shown) await host.setWidth(chat.viewId, agentWidth);
+      focus(chat);
+    }
+    (await chat.ready)?.showAgent(thread);
+    return thread;
+  }
+
+  /// The project [path] is in (the deepest), if any.
+  String? _projectOf(String path) {
+    String? best;
+    for (final project in workspace.projects) {
+      if (!p.isWithin(project.path, path)) continue;
+      if (best == null || best.length < project.path.length) {
+        best = project.path;
+      }
+    }
+    return best;
   }
 
   /// Files dragged from Finder or Explorer onto [viewId]'s window, where no

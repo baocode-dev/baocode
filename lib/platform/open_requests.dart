@@ -66,19 +66,20 @@ abstract final class OpenRequests {
       for (final argument in arguments)
         if (argument is String) argument,
     ];
-    final first = all.indexOf(codeRequestMarker);
+    final first = all.indexWhere(CodeArgs.isMarker);
     final paths = [
       for (final path in first < 0 ? all : all.sublist(0, first))
         if (_isAbsolute(path)) path,
     ];
     if (paths.isNotEmpty) _onOpen?.call(paths);
     if (first < 0) return;
-    // Requests of the `code` command (each its marker, the working
-    // directory, the arguments as typed), one after another, each going as
-    // it came (see CodeArgs); the window keeps them after the paths.
+    // Requests (each its marker, then what it carries: the `code`
+    // command's working directory and arguments as typed, Open with
+    // BaoCode's paths), one after another, each going as it came (see
+    // CodeArgs); the window keeps them after the paths.
     var start = first;
     for (var index = first + 1; index <= all.length; index++) {
-      if (index < all.length && all[index] != codeRequestMarker) continue;
+      if (index < all.length && !CodeArgs.isMarker(all[index])) continue;
       _onOpen?.call(all.sublist(start, index));
       start = index;
     }

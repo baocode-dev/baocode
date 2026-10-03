@@ -43,6 +43,19 @@ class CodeArgs {
   /// as a request ([requestMarker]; see open_requests.cpp).
   static const windowsRequestFlag = '--baocode-cli';
 
+  /// The marker of Explorer's Open with BaoCode (the context menu the
+  /// Windows installer adds), the paths next: each in a new agent, in the
+  /// chat's window (see AppWindows.openAgent).
+  static const agentRequestMarker = '\u0000agent';
+
+  /// The flag that menu starts the app with, the path next; the runner
+  /// hands it over as a request ([agentRequestMarker]).
+  static const windowsAgentFlag = '--baocode-agent';
+
+  /// Whether [argument] starts a request ([requestMarker],
+  /// [agentRequestMarker]) among what the system hands over.
+  static bool isMarker(String argument) => argument.startsWith('\u0000');
+
   /// Whether [paths], as the system hands them over, are a request of the
   /// `code` command rather than paths.
   static bool isRequest(List<String> paths) =>
@@ -144,4 +157,28 @@ class CodeTarget {
 
   @override
   String toString() => [path, ?line, ?column].join(':');
+}
+
+/// What the app was started for, by its command line (the Windows app's,
+/// which Flutter is given as `main`'s arguments; the macOS app has paths
+/// handed over after it starts): it opens that alone, nothing of the last
+/// run.
+enum LaunchRequest {
+  /// Started as itself: the windows of the last run.
+  none,
+
+  /// Open with BaoCode ([CodeArgs.windowsAgentFlag]): the chat's window.
+  agent,
+
+  /// Paths to open in the IDE (Open with Fast Ide, the `code` command,
+  /// Explorer's Open with): their windows.
+  ide;
+
+  static LaunchRequest of(List<String> arguments) {
+    final first = arguments.firstOrNull;
+    if (first == CodeArgs.windowsAgentFlag) return agent;
+    if (first == CodeArgs.windowsRequestFlag) return ide;
+    final paths = arguments.where((a) => a.isNotEmpty && !a.startsWith('-'));
+    return paths.isEmpty ? none : ide;
+  }
 }
