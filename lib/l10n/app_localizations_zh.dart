@@ -4511,25 +4511,25 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get generalSettingsMainWindow => '主要窗口';
+  String get generalSettingsMainWindow => '启动时打开';
 
   @override
   String get generalSettingsMainWindowDescription =>
-      'BaoCode 启动时显示什么：对话窗口、IDE 窗口（按“恢复窗口”恢复），或上次退出时显示的窗口。';
+      'BaoCode 启动时打开 Agent 还是 IDE 窗口（IDE 窗口按“恢复窗口”恢复），二者不会同时出现。默认是上次退出时所在的那个。';
 
   @override
   String generalSettingsMainWindowLabel(String name) {
-    return '主要窗口：$name';
+    return '启动时打开：$name';
   }
 
   @override
-  String get generalSettingsMainWindowChat => '对话';
+  String get generalSettingsMainWindowChat => '固定 Agent';
 
   @override
-  String get generalSettingsMainWindowIde => 'IDE';
+  String get generalSettingsMainWindowIde => '固定 IDE';
 
   @override
-  String get generalSettingsMainWindowLast => '上次使用';
+  String get generalSettingsMainWindowLast => '最后离开';
 
   @override
   String get generalSettingsWindows => '窗口';
@@ -4920,4 +4920,354 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get customizeConnectorReadOnly =>
       '只读：这是 claude.ai 连接器，请在 claude.ai 设置的「连接器」里管理。';
+
+  @override
+  String get settingsSectionModels => '模型';
+
+  @override
+  String get modelsTitle => '模型';
+
+  @override
+  String get modelsDescription =>
+      'Claude Code 的模型从哪里来：本机已配置好的 Claude Code，以及你添加的上游。Anthropic 兼容的上游由 Claude Code 直连；OpenAI 接口经 BaoCode 内置的本地代理转换。';
+
+  @override
+  String get modelsDefault => '新会话默认模型';
+
+  @override
+  String get modelsDefaultDescription => '未设置时，新会话沿用上次选择的模型。';
+
+  @override
+  String get modelsDefaultLast => '上次所选';
+
+  @override
+  String modelsChoiceLabel(String label, String value) {
+    return '$label：$value';
+  }
+
+  @override
+  String get modelsBuiltinName => 'Claude Code（跟随本机配置）';
+
+  @override
+  String get modelsBuiltinDefault => 'Claude Code 默认';
+
+  @override
+  String get modelsBuiltinBadge => '内置';
+
+  @override
+  String get modelsBuiltinDescription => '使用本机的登录和配置，不做任何改动';
+
+  @override
+  String get modelsProviders => '上游';
+
+  @override
+  String modelsEnableProvider(String name) {
+    return '在模型选择中显示 $name';
+  }
+
+  @override
+  String get modelsAddProvider => '添加上游';
+
+  @override
+  String get modelsNewProviderName => '新上游';
+
+  @override
+  String get modelsProviderNoUrl => '未设置 Base URL';
+
+  @override
+  String modelsModelCount(int count) {
+    return '$count 个模型';
+  }
+
+  @override
+  String get modelsProtocolAnthropic => 'Anthropic 兼容';
+
+  @override
+  String get modelsConnection => '连接';
+
+  @override
+  String get modelsName => '名称';
+
+  @override
+  String get modelsProtocol => '协议';
+
+  @override
+  String get modelsProtocolDescription =>
+      'OpenAI 接口经本地代理转换 Claude Code 的请求和响应。';
+
+  @override
+  String get modelsBaseUrl => 'Base URL';
+
+  @override
+  String get modelsBaseUrlAnthropicHint =>
+      '不带 /v1，同 ANTHROPIC_BASE_URL：Claude Code 会自己加 /v1/messages。';
+
+  @override
+  String get modelsBaseUrlOpenAIHint => '包含版本路径（…/v1）；只填域名时自动加 /v1。';
+
+  @override
+  String get modelsApiKey => 'API Key';
+
+  @override
+  String get modelsApiKeyDescription => '保存在系统钥匙串中，不写入 settings.json。';
+
+  @override
+  String get modelsApiKeyShow => '显示 Key';
+
+  @override
+  String get modelsApiKeyHide => '隐藏 Key';
+
+  @override
+  String modelsApiKeyError(String error) {
+    return 'Key 保存失败：$error';
+  }
+
+  @override
+  String get modelsTest => '测试连接';
+
+  @override
+  String get modelsTesting => '正在连接…';
+
+  @override
+  String modelsTestOk(int count) {
+    return '连接成功：上游列出了 $count 个模型。';
+  }
+
+  @override
+  String modelsTestFailed(String error) {
+    return '连接失败：$error';
+  }
+
+  @override
+  String get modelsModelsGroup => '模型列表';
+
+  @override
+  String get modelsModelsDescription => '勾选的模型会出现在模型选择中。';
+
+  @override
+  String get modelsFetch => '从上游获取…';
+
+  @override
+  String get modelsAddModel => '手动添加…';
+
+  @override
+  String get modelsSearch => '搜索模型';
+
+  @override
+  String get modelsNone => '还没有模型：从上游获取，或手动添加。';
+
+  @override
+  String get modelsNoMatch => '没有匹配的模型。';
+
+  @override
+  String get modelsMissing => '上游已下架';
+
+  @override
+  String get modelsMissingTooltip => '上游已不再列出此模型；会一直保留，直到你手动移除。';
+
+  @override
+  String get modelsCustom => '手动';
+
+  @override
+  String get modelsThinking => '支持思考';
+
+  @override
+  String get modelsImages => '支持图片';
+
+  @override
+  String get modelsEdit => '编辑…';
+
+  @override
+  String get modelsRemove => '移除';
+
+  @override
+  String get modelsMore => '更多操作';
+
+  @override
+  String modelsEnableModel(String name) {
+    return '启用 $name';
+  }
+
+  @override
+  String get modelsRoles => '角色映射';
+
+  @override
+  String get modelsRolesDescription => 'Claude Code 在各类工作中使用的模型；未设置时使用当前所选模型。';
+
+  @override
+  String get modelsRoleUnset => '未设置';
+
+  @override
+  String get modelsRoleMain => '主模型';
+
+  @override
+  String get modelsRoleMainDescription => '会话所选的模型被移除后，改用此模型。';
+
+  @override
+  String get modelsRoleOpus => 'Opus 档位';
+
+  @override
+  String get modelsRoleOpusDescription =>
+      'ANTHROPIC_DEFAULT_OPUS_MODEL：「opus」对应的模型，例如计划模式。';
+
+  @override
+  String get modelsRoleSonnet => 'Sonnet 档位';
+
+  @override
+  String get modelsRoleSonnetDescription =>
+      'ANTHROPIC_DEFAULT_SONNET_MODEL：「sonnet」对应的模型。';
+
+  @override
+  String get modelsRoleHaiku => 'Haiku 档位';
+
+  @override
+  String get modelsRoleHaikuDescription =>
+      'ANTHROPIC_DEFAULT_HAIKU_MODEL：Claude Code 的后台任务，以及会话标题生成。';
+
+  @override
+  String get modelsRoleHaikuWarning => '未设置时，后台任务会使用所选模型，可能更慢、更贵。建议选一个小而快的模型。';
+
+  @override
+  String get modelsRoleSubagent => '子 Agent';
+
+  @override
+  String get modelsRoleSubagentDescription =>
+      'CLAUDE_CODE_SUBAGENT_MODEL：子 Agent 使用的模型。';
+
+  @override
+  String get modelsAdvanced => '高级';
+
+  @override
+  String get modelsAuth => '认证方式';
+
+  @override
+  String get modelsAuthDescription =>
+      'Key 的发送方式。自动：api.anthropic.com 用 x-api-key，其他用 Bearer。';
+
+  @override
+  String get modelsAuthAuto => '自动';
+
+  @override
+  String get modelsNonessential => '禁用非必要流量';
+
+  @override
+  String get modelsNonessentialDescription =>
+      'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC：不发送遥测、错误报告和更新检查（Anthropic 以外的上游不会响应这些请求）。';
+
+  @override
+  String get modelsPreserveThinking => '回传推理内容';
+
+  @override
+  String get modelsPreserveThinkingDescription =>
+      '在后续请求中回传模型的推理内容（reasoning_content），DeepSeek 等上游需要。';
+
+  @override
+  String get modelsEnv => '额外环境变量';
+
+  @override
+  String get modelsEnvDescription => '每行一个 KEY=VALUE，在以上设置之后传给 Claude Code。';
+
+  @override
+  String get modelsDelete => '删除上游';
+
+  @override
+  String get modelsDeleteDescription => '删除此上游，以及钥匙串中的 Key。';
+
+  @override
+  String modelsDeleteConfirm(String name) {
+    return '删除「$name」？';
+  }
+
+  @override
+  String get modelsDeleteDetail => '使用其模型的会话下次启动时改用 Claude Code 自带的模型。';
+
+  @override
+  String modelsFetchTitle(String name) {
+    return '$name 的模型';
+  }
+
+  @override
+  String get modelsFetchLoading => '正在向上游获取…';
+
+  @override
+  String modelsFetchFailed(String error) {
+    return '获取模型失败：$error';
+  }
+
+  @override
+  String get modelsFetchEmpty => '上游没有列出任何模型。';
+
+  @override
+  String get modelsFetchSelectAll => '全选';
+
+  @override
+  String get modelsFetchSelectNone => '全不选';
+
+  @override
+  String modelsFetchSelected(int count, int total) {
+    return '已选 $count / $total';
+  }
+
+  @override
+  String get modelsFetchNew => '新';
+
+  @override
+  String get modelsFetchApply => '应用';
+
+  @override
+  String get modelsRetry => '重试';
+
+  @override
+  String get modelsAddTitle => '添加模型';
+
+  @override
+  String get modelsEditTitle => '编辑模型';
+
+  @override
+  String get modelsModelId => '模型 ID';
+
+  @override
+  String get modelsModelIdHint => '上游的模型名，如 gpt-5';
+
+  @override
+  String get modelsModelIdTaken => '该上游已有此模型。';
+
+  @override
+  String get modelsModelLabel => '显示名';
+
+  @override
+  String get modelsModelLabelHint => '可选';
+
+  @override
+  String get modelsContextWindow => '上下文窗口';
+
+  @override
+  String get modelsContextWindowHint => 'token 数，如 128000 或 128K';
+
+  @override
+  String get modelsContextInvalid => '请输入 token 数，如 200K。';
+
+  @override
+  String get modelsSupportsThinking => '支持思考（可选择 effort）';
+
+  @override
+  String get modelsSupportsImages => '支持图片';
+
+  @override
+  String get modelsSave => '保存';
+
+  @override
+  String get modelsManage => '管理模型…';
+
+  @override
+  String modelsSwitchTitle(String name) {
+    return '切换到 $name？';
+  }
+
+  @override
+  String get modelsSwitchDetail =>
+      'Claude Code 会在新上游上重启，并用 --resume 接续当前对话。历史记录会原样发给新模型，部分上游首次处理会较慢。';
+
+  @override
+  String get modelsSwitchConfirm => '切换';
 }

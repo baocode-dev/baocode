@@ -3428,9 +3428,9 @@
       }
     }
   },
-  "generalSettingsMainWindow": "Main Window",
-  "generalSettingsMainWindowDescription": "What BaoCode shows at launch: the chat window, the IDE windows (as Restore Windows says), or whichever was shown when it last quit.",
-  "generalSettingsMainWindowLabel": "Main Window: {name}",
+  "generalSettingsMainWindow": "Open at Launch",
+  "generalSettingsMainWindowDescription": "What BaoCode opens to: the agents, or the IDE windows (as Restore Windows says), never both. By default, wherever it was left when it last quit.",
+  "generalSettingsMainWindowLabel": "Open at Launch: {name}",
   "@generalSettingsMainWindowLabel": {
     "placeholders": {
       "name": {
@@ -3438,9 +3438,9 @@
       }
     }
   },
-  "generalSettingsMainWindowChat": "Chat",
-  "generalSettingsMainWindowIde": "IDE",
-  "generalSettingsMainWindowLast": "Last used",
+  "generalSettingsMainWindowChat": "Always Agent",
+  "generalSettingsMainWindowIde": "Always IDE",
+  "generalSettingsMainWindowLast": "Where you left off",
   "generalSettingsWindows": "Windows",
   "generalSettingsIdeWindows": "Fast Ide Windows",
   "generalSettingsIdeWindowsDescription": "Where the Fast Ide opens: in windows of its own, one per folder (New Window, ⇧⌘N / Ctrl+Shift+N, opens an empty one), or in the main window in place of the chat, one folder at a time. Applies at once. (window.ideWindows)",
@@ -3640,5 +3640,200 @@
       }
     }
   },
-  "customizeConnectorReadOnly": "Read only: a claude.ai connector, managed in claude.ai's settings, under Connectors."
+  "customizeConnectorReadOnly": "Read only: a claude.ai connector, managed in claude.ai's settings, under Connectors.",
+  "settingsSectionModels": "Models",
+  "modelsTitle": "Models",
+  "modelsDescription": "Where Claude Code's models come from: Claude Code as set up on this machine, and upstreams you add. Anthropic-compatible upstreams are spoken to by Claude Code itself; OpenAI's APIs through a local proxy of BaoCode's that translates.",
+  "modelsDefault": "Default Model for New Sessions",
+  "modelsDefaultDescription": "Unset, a new session starts with the model last picked.",
+  "modelsDefaultLast": "Last picked",
+  "modelsChoiceLabel": "{label}: {value}",
+  "@modelsChoiceLabel": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsBuiltinName": "Claude Code (this machine's setup)",
+  "modelsBuiltinDefault": "Claude Code default",
+  "modelsBuiltinBadge": "Built-in",
+  "modelsBuiltinDescription": "Your own login and settings, nothing changed",
+  "modelsProviders": "Upstreams",
+  "modelsEnableProvider": "Offer {name} in the model picker",
+  "@modelsEnableProvider": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsAddProvider": "Add Upstream",
+  "modelsNewProviderName": "New Upstream",
+  "modelsProviderNoUrl": "No base URL",
+  "modelsModelCount": "{count, plural, =0{no models} =1{1 model} other{{count} models}}",
+  "@modelsModelCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "modelsProtocolAnthropic": "Anthropic-compatible",
+  "modelsConnection": "Connection",
+  "modelsName": "Name",
+  "modelsProtocol": "Protocol",
+  "modelsProtocolDescription": "OpenAI's APIs go through the local proxy, which translates Claude Code's requests and the answers.",
+  "modelsBaseUrl": "Base URL",
+  "modelsBaseUrlAnthropicHint": "Without /v1, as ANTHROPIC_BASE_URL: Claude Code adds /v1/messages.",
+  "modelsBaseUrlOpenAIHint": "With its version (…/v1); a host alone gets /v1.",
+  "modelsApiKey": "API Key",
+  "modelsApiKeyDescription": "Kept in the system's keychain, not in settings.json.",
+  "modelsApiKeyShow": "Show the key",
+  "modelsApiKeyHide": "Hide the key",
+  "modelsApiKeyError": "The key could not be kept: {error}",
+  "@modelsApiKeyError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsTest": "Test Connection",
+  "modelsTesting": "Connecting…",
+  "modelsTestOk": "Connected: the upstream lists {count} models.",
+  "@modelsTestOk": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "modelsTestFailed": "Could not connect: {error}",
+  "@modelsTestFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsModelsGroup": "Models",
+  "modelsModelsDescription": "Those checked are offered in the model picker.",
+  "modelsFetch": "Fetch from Upstream…",
+  "modelsAddModel": "Add Model…",
+  "modelsSearch": "Search models",
+  "modelsNone": "No models yet: fetch them from the upstream, or add them by hand.",
+  "modelsNoMatch": "No model matches.",
+  "modelsMissing": "Gone upstream",
+  "modelsMissingTooltip": "No longer listed by the upstream; kept until you remove it.",
+  "modelsCustom": "Manual",
+  "modelsThinking": "Supports thinking",
+  "modelsImages": "Supports images",
+  "modelsEdit": "Edit…",
+  "modelsRemove": "Remove",
+  "modelsMore": "More Actions",
+  "modelsEnableModel": "Offer {name}",
+  "@modelsEnableModel": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsRoles": "Roles",
+  "modelsRolesDescription": "Which model Claude Code uses for each part of its work. Unset, the model picked stands in.",
+  "modelsRoleUnset": "Unset",
+  "modelsRoleMain": "Main Model",
+  "modelsRoleMainDescription": "Used when the model a session picked of this upstream is gone.",
+  "modelsRoleOpus": "Opus Tier",
+  "modelsRoleOpusDescription": "ANTHROPIC_DEFAULT_OPUS_MODEL: what “opus” means, as in Plan mode.",
+  "modelsRoleSonnet": "Sonnet Tier",
+  "modelsRoleSonnetDescription": "ANTHROPIC_DEFAULT_SONNET_MODEL: what “sonnet” means.",
+  "modelsRoleHaiku": "Haiku Tier",
+  "modelsRoleHaikuDescription": "ANTHROPIC_DEFAULT_HAIKU_MODEL: Claude Code's background work, and agents' titles.",
+  "modelsRoleHaikuWarning": "Unset, background work runs on the model picked, which may be slower and cost more. Pick a small, fast model.",
+  "modelsRoleSubagent": "Subagents",
+  "modelsRoleSubagentDescription": "CLAUDE_CODE_SUBAGENT_MODEL: the model subagents run on.",
+  "modelsAdvanced": "Advanced",
+  "modelsAuth": "Authentication",
+  "modelsAuthDescription": "How the key is sent. Automatic: x-api-key to api.anthropic.com, a bearer token elsewhere.",
+  "modelsAuthAuto": "Automatic",
+  "modelsNonessential": "Disable Nonessential Traffic",
+  "modelsNonessentialDescription": "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: no telemetry, error reports or update checks, which upstreams other than Anthropic do not answer.",
+  "modelsPreserveThinking": "Send Reasoning Back",
+  "modelsPreserveThinkingDescription": "Replays the model's reasoning (reasoning_content) in later requests, as DeepSeek and others want.",
+  "modelsEnv": "Extra Environment",
+  "modelsEnvDescription": "One KEY=VALUE a line, given to Claude Code after the settings above.",
+  "modelsDelete": "Delete Upstream",
+  "modelsDeleteDescription": "Removes it, and its key from the keychain.",
+  "modelsDeleteConfirm": "Delete “{name}”?",
+  "@modelsDeleteConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsDeleteDetail": "Sessions on its models go back to Claude Code's own when they next start.",
+  "modelsFetchTitle": "Models of {name}",
+  "@modelsFetchTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsFetchLoading": "Asking the upstream…",
+  "modelsFetchFailed": "Could not fetch the models: {error}",
+  "@modelsFetchFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsFetchEmpty": "The upstream lists no models.",
+  "modelsFetchSelectAll": "Select All",
+  "modelsFetchSelectNone": "Select None",
+  "modelsFetchSelected": "{count} of {total} checked",
+  "@modelsFetchSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "modelsFetchNew": "New",
+  "modelsFetchApply": "Apply",
+  "modelsRetry": "Retry",
+  "modelsAddTitle": "Add Model",
+  "modelsEditTitle": "Edit Model",
+  "modelsModelId": "Model ID",
+  "modelsModelIdHint": "As the upstream names it, e.g. gpt-5",
+  "modelsModelIdTaken": "This upstream has that model already.",
+  "modelsModelLabel": "Display Name",
+  "modelsModelLabelHint": "Optional",
+  "modelsContextWindow": "Context Window",
+  "modelsContextWindowHint": "Tokens, e.g. 128000 or 128K",
+  "modelsContextInvalid": "A number of tokens, e.g. 200K.",
+  "modelsSupportsThinking": "Supports thinking (its effort can be picked)",
+  "modelsSupportsImages": "Supports images",
+  "modelsSave": "Save",
+  "modelsManage": "Manage Models…",
+  "modelsSwitchTitle": "Switch to {name}?",
+  "@modelsSwitchTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsSwitchDetail": "Claude Code restarts on the other upstream and resumes this conversation (--resume). Its history is sent to the new model as it is; some upstreams take it slower the first time.",
+  "modelsSwitchConfirm": "Switch"
 }

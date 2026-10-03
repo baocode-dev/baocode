@@ -306,7 +306,10 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
     await tester.pumpAndSettle();
     final dropdown = find.byType(SettingsDropdown).first;
-    expect(tester.widget<SettingsDropdown>(dropdown).current, 'Chat');
+    expect(
+      tester.widget<SettingsDropdown>(dropdown).current,
+      'Where you left off',
+    );
 
     Future<void> choose(String label) async {
       await tester.tap(dropdown);
@@ -315,12 +318,12 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    await choose('IDE');
+    await choose('Always IDE');
     await settle(tester, () => files.settings[MainWindow.settingKey] == 'ide');
     await tester.pump();
-    expect(tester.widget<SettingsDropdown>(dropdown).current, 'IDE');
+    expect(tester.widget<SettingsDropdown>(dropdown).current, 'Always IDE');
 
-    await choose('Chat');
+    await choose('Where you left off');
     await settle(
       tester,
       () => !files.settings.values.containsKey(MainWindow.settingKey),

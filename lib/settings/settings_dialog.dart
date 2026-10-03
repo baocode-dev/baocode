@@ -11,6 +11,7 @@ import '../theme/workbench_theme.dart' show themeColors;
 /// The settings dialog's pages.
 enum SettingsSection {
   general,
+  models,
   notifications,
   language,
   keyboard,
@@ -21,6 +22,7 @@ enum SettingsSection {
 enum SettingsCategory {
   preferences([
     SettingsSection.general,
+    SettingsSection.models,
     SettingsSection.notifications,
     SettingsSection.language,
     SettingsSection.keyboard,
@@ -30,6 +32,22 @@ enum SettingsCategory {
   const SettingsCategory(this.sections);
 
   final List<SettingsSection> sections;
+}
+
+/// Opens the settings dialog on a section, for what is under it (the
+/// model picker's Manage Models…): the window's workbench.
+class SettingsOpener extends InheritedWidget {
+  const SettingsOpener({super.key, required this.open, required super.child});
+
+  final void Function(SettingsSection section) open;
+
+  static void Function(SettingsSection section)? maybeOf(
+    BuildContext context,
+  ) => context.getInheritedWidgetOfExactType<SettingsOpener>()?.open;
+
+  // Read when used, not built with.
+  @override
+  bool updateShouldNotify(SettingsOpener oldWidget) => false;
 }
 
 /// Builds a section's page.
@@ -87,6 +105,7 @@ class SettingsDialogState extends State<SettingsDialog> {
 
   static IconData icon(SettingsSection section) => switch (section) {
     SettingsSection.general => Codicons.settingsGear,
+    SettingsSection.models => Codicons.sparkle,
     SettingsSection.notifications => Codicons.bell,
     SettingsSection.language => Codicons.globe,
     SettingsSection.keyboard => Codicons.keyboard,
@@ -105,6 +124,7 @@ class SettingsDialogState extends State<SettingsDialog> {
     final l10n = context.l10n;
     return switch (section) {
       SettingsSection.general => l10n.settingsSectionGeneral,
+      SettingsSection.models => l10n.settingsSectionModels,
       SettingsSection.notifications => l10n.settingsSectionNotifications,
       SettingsSection.language => l10n.settingsSectionLanguage,
       SettingsSection.keyboard => l10n.settingsSectionKeyboard,

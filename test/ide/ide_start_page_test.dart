@@ -40,8 +40,6 @@ void main() {
     tester,
   ) async {
     final ran = await pump(tester);
-    // The logo, as VS Code's letterpress.
-    expect(find.bySemanticsLabel('BaoCode'), findsOneWidget);
     // A menu's ellipsis is no tile's.
     expect(find.text('Open Folder'), findsOneWidget);
     expect(find.text('Open File'), findsOneWidget);

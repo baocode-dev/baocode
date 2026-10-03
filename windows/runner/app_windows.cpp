@@ -406,6 +406,13 @@ void AppWindows::HandleMethodCall(
                             : flutter::EncodableValue());
     return;
   }
+  if (method == "quit") {
+    // Not here, inside the engine's own call: from the loop (see
+    // kQuitMessage).
+    ::PostMessageW(main_, kQuitMessage, 0, 0);
+    result->Success();
+    return;
+  }
   if (method == "close") {
     if (id) {
       Close(*id);

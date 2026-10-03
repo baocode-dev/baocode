@@ -200,11 +200,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
        _isDirectory = isDirectory ?? local.isDirectory,
        _takeFile = takeFile ?? local.takeFile,
        _hasTray = hasTray ?? (() => false),
-       _quit =
-           quit ??
-           (() => ServicesBinding.instance.exitApplication(
-             AppExitType.cancelable,
-           )),
+       _quit = quit ?? (() => _exit(host)),
        _nextFrame = nextFrame ?? (() => WidgetsBinding.instance.endOfFrame),
        _quitsWithLastWindow =
            quitsWithLastWindow ??
@@ -231,6 +227,22 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   final Future<String?> Function(String path) _takeFile;
   final bool Function() _hasTray;
   final Future<AppExitResponse> Function() _quit;
+
+  /// Quits the app, asked first (see main.dart's onExitRequested). On
+  /// Windows the engine's way (exitApplication) ends the message loop with
+  /// the windows still up, and the app hangs taking Flutter down outside
+  /// it: the app is asked here, and its main window closed in the loop
+  /// (see app_windows.h' kQuitMessage).
+  static Future<AppExitResponse> _exit(WindowHost host) async {
+    final binding = ServicesBinding.instance;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
+      return binding.exitApplication(AppExitType.cancelable);
+    }
+    final response = await binding.handleRequestAppExit();
+    if (response == AppExitResponse.exit) await host.quit();
+    return response;
+  }
+
   final Future<void> Function() _nextFrame;
 
   /// Windows': the app quits as its last window closes (the tray aside).
@@ -316,12 +328,13 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   /// here for the next launch, and for this one where it is not too
   /// late) and which IDE windows open again ([restore] opens them).
   ///
-  /// `workbench.mainWindow` says what the app opens to: the chat (its
-  /// window shows), the IDE (it does not; the IDE's windows, or an empty
-  /// one) or as it was left. `window.restoreWindows` says which IDE windows
-  /// open again. The IDE's folder that showed in the main window (the
-  /// first run with windows, or `window.ideWindows` changed meanwhile)
-  /// opens in a window of its own.
+  /// The app opens to the chat or to the IDE, never both:
+  /// `workbench.mainWindow` says which, by default where it was left (the
+  /// window in front at the last quit). To the chat, its window alone; to
+  /// the IDE, the IDE's windows `window.restoreWindows` says (or an empty
+  /// one), the chat's hidden. The IDE's folder that showed in the main
+  /// window (the first run with windows, or `window.ideWindows` changed
+  /// meanwhile) opens in a window of its own.
   ///
   /// With the IDE in the main window, only it shows; the IDE's window last
   /// in front, if any were left, gives it its folder.
@@ -329,58 +342,50 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     if (!_started) return;
     final kept = await _store?.read() ?? const <String, Object?>{};
     if (!_separate) return _prepareMainOnly(kept);
-    final main = _mainWindow();
-    var windows = <_KeptWindow>[];
-    bool chatShown;
     final old = workspace.takeSingleWindowIde();
-    if (kept['version'] == null) {
-      final ide =
-          main == MainWindow.ide || (main == MainWindow.last && old.shown);
-      chatShown = !ide;
-      if (chatShown) windows.add(const _KeptWindow(chat: true));
-      if (old.folder != null && await _isDirectory(old.folder!)) {
-        windows.add(_KeptWindow(folder: old.folder));
-      }
-    } else {
-      final all = [
-        for (final json in kept['windows'] as List<Object?>? ?? const [])
-          ?_KeptWindow.fromJson(json),
-      ];
-      final restore = _settings().restoreWindows;
-      for (final window in all) {
-        if (window.chat) {
+    final versioned = kept['version'] != null;
+    final ide = switch (_mainWindow()) {
+      MainWindow.chat => false,
+      MainWindow.ide => true,
+      MainWindow.last =>
+        versioned
+            ? (kept['leftIn'] ??
+                      (kept['chatShown'] == false ? 'ide' : 'chat')) ==
+                  'ide'
+            : old.shown,
+    };
+    final windows = <_KeptWindow>[];
+    if (ide) {
+      if (versioned) {
+        final restore = _settings().restoreWindows;
+        for (final json in kept['windows'] as List<Object?>? ?? const []) {
+          final window = _KeptWindow.fromJson(json);
+          if (window == null || window.chat) continue;
+          final folder = window.folder;
+          final keep = switch (restore) {
+            RestoreWindows.all => true,
+            RestoreWindows.folders => folder != null,
+            RestoreWindows.one => windows.isEmpty,
+            RestoreWindows.none => false,
+          };
+          if (!keep) continue;
+          // A folder gone (deleted, a drive unplugged) is not opened.
+          if (folder != null && !await _isDirectory(folder)) continue;
           windows.add(window);
-          continue;
         }
-        final folder = window.folder;
-        final keep = switch (restore) {
-          RestoreWindows.all => true,
-          RestoreWindows.folders => folder != null,
-          RestoreWindows.one => !windows.any((w) => !w.chat),
-          RestoreWindows.none => false,
-        };
-        if (!keep) continue;
-        // A folder gone (deleted, a drive unplugged) is not opened.
-        if (folder != null && !await _isDirectory(folder)) continue;
-        windows.add(window);
       }
-      chatShown = switch (main) {
-        MainWindow.chat => true,
-        MainWindow.ide => false,
-        MainWindow.last => kept['chatShown'] != false,
-      };
       if (old.folder case final folder?
-          when old.shown &&
-              !windows.any((w) => !w.chat && w.folder == folder) &&
+          when (old.shown || !versioned) &&
+              !windows.any((w) => w.folder == folder) &&
               await _isDirectory(folder)) {
         windows.insert(0, _KeptWindow(folder: folder));
       }
+      // Never no window at all.
+      if (windows.isEmpty) windows.add(const _KeptWindow());
     }
-    if (!windows.any((w) => w.chat)) windows.add(const _KeptWindow(chat: true));
-    // Never no window at all.
-    if (!chatShown && !windows.any((w) => !w.chat)) {
-      windows.insert(0, const _KeptWindow());
-    }
+    windows.add(const _KeptWindow(chat: true));
+    final chatShown = !ide;
+    _wasInIde = ide;
     _launch = (windows: windows, chatShown: chatShown);
     chat._shown = chatShown;
     _syncWorkspace();
@@ -1158,6 +1163,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
               .toJson(),
       ],
       'chatShown': chat.shown,
+      'leftIn': _leftInIde ? 'ide' : 'chat',
     };
     if (store != null) {
       _writing = _writing
@@ -1166,6 +1172,18 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     }
     syncMainShownAtLaunch();
   }
+
+  /// Whether the app is left in the IDE: an IDE's window in front of
+  /// those that show. With none showing (the last closed, as on Windows
+  /// it quits the app), where it was before.
+  bool get _leftInIde {
+    if (_mru.firstWhereOrNull((w) => w.shown) case final front?) {
+      _wasInIde = !front.isChat;
+    }
+    return _wasInIde;
+  }
+
+  bool _wasInIde = false;
 
   /// Whether the chat's window shows at the next launch, as the system is
   /// to know before the app runs: also when `workbench.mainWindow` changes.
@@ -1177,7 +1195,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
         switch (_mainWindow()) {
           MainWindow.chat => true,
           MainWindow.ide => false,
-          MainWindow.last => chat.shown,
+          MainWindow.last => !_leftInIde,
         };
     if (shown == _mainShownNext) return;
     _mainShownNext = shown;

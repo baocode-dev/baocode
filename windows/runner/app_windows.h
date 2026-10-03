@@ -90,12 +90,20 @@ class IdeWindow : public ViewWindow {
 //                                 what the tray's menu lists
 //   setMainShownAtLaunch bool     whether the main window shows when the
 //                                 app next starts
+//   quit                          the app goes, Flutter having agreed (see
+//                                 kQuitMessage)
 //
 // and tells Flutter `closeRequested viewId`, `focused viewId`,
 // `frameChanged {viewId, …}`, `newWindow` (the tray's New Window) and
 // `quit` (the tray's Quit: the app asks first).
 class AppWindows : public WindowObserver {
  public:
+  // What `quit` posts the main window: it goes then, in the message loop,
+  // the engine with it (FlutterWindow::OnDestroy), and the loop after it.
+  // The engine's own way out (exitApplication) ends the loop first, the
+  // windows still up, and taking Flutter down outside it hangs the app.
+  static constexpr UINT kQuitMessage = WM_APP + 0x42;
+
   // A window as the tray's menu lists it.
   struct Entry {
     int64_t view_id = 0;

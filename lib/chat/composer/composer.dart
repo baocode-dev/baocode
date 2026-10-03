@@ -9,10 +9,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill/quill_delta.dart';
 
+import '../../ide/ide_dialog.dart';
 import '../../kernel/agent_kernel.dart';
 import '../../kernel/kernel_types.dart';
 import '../../keybindings/chat_keybindings.dart';
 import '../../l10n/l10n.dart';
+import '../../models/model_provider.dart' show builtinProviderId;
+import '../../settings/settings_dialog.dart'
+    show SettingsOpener, SettingsSection;
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
 import '../chat_keys.dart';
@@ -1395,8 +1399,14 @@ class ChatComposerState extends State<ChatComposer>
   }
 
   /// The model with its settings, e.g. "Opus · 1M · High": the context
-  /// only when it is not the standard one.
-  String _modelLabel(KernelOption model) => [
+  /// only when it is not the standard one; its upstream before it only
+  /// when another upstream has a model of its name.
+  String _modelLabel(KernelOption model, List<KernelOption> options) => [
+    if (model.group case final group?
+        when options.any(
+          (other) => other.label == model.label && other.group?.id != group.id,
+        ))
+      group.label,
     model.label,
     for (final setting in widget.session.modelSettings(model.id))
       if (setting.selected case final selected?
@@ -1404,6 +1414,22 @@ class ChatComposerState extends State<ChatComposer>
               selected != setting.options.first)
         selected.label,
   ].join(' · ');
+
+  /// Runs [pick], which switches to [option]: once confirmed, if that
+  /// restarts the agent on another upstream mid-conversation.
+  Future<void> _switchModel(KernelOption option, VoidCallback pick) async {
+    final session = widget.session;
+    if (!session.switchRestarts(option.id)) return pick();
+    final l10n = context.l10n;
+    final choice = await showIdeDialog(
+      context,
+      message: l10n.modelsSwitchTitle(option.group?.label ?? option.label),
+      detail: l10n.modelsSwitchDetail,
+      buttons: [l10n.modelsSwitchConfirm],
+      type: IdeDialogType.question,
+    );
+    if (choice == 0 && mounted) pick();
+  }
 
   Widget _buildToolbar() {
     final session = widget.session;
@@ -1482,18 +1508,48 @@ class ChatComposerState extends State<ChatComposer>
                       key: _modelPickerKey,
                       options: model.options,
                       selected: model.selected,
-                      label: _modelLabel(model.selected),
-                      describes: false,
-                      settingsOf: (option) => session.modelSettings(option.id),
+                      label: _modelLabel(model.selected, model.options),
+                      // The id and the context window: once there are
+                      // upstreams' models.
+                      describes: model.options.any(
+                        (option) =>
+                            option.group != null &&
+                            option.group!.id != builtinProviderId,
+                      ),
+                      settingsOf: (option) => [
+                        for (final setting in session.modelSettings(option.id))
+                          ModelSettingChoice(
+                            kind: setting.kind,
+                            options: setting.options,
+                            selected: setting.selected,
+                            onSelected: (choice) => unawaited(
+                              _switchModel(
+                                option,
+                                () => setting.onSelected(choice),
+                              ),
+                            ),
+                          ),
+                      ],
                       tooltip: ChatKeys.titleWithKey(
                         l10n.composerPickModel,
                         ChatCommandIds.openModelPicker,
                         input,
                       ),
-                      menuWidth: 220,
+                      menuWidth: 260,
+                      searchPlaceholder: l10n.modelsSearch,
+                      footer: switch (SettingsOpener.maybeOf(this.context)) {
+                        final open? => (
+                          label: l10n.modelsManage,
+                          icon: Icons.tune_rounded,
+                          onTap: () => open(SettingsSection.models),
+                        ),
+                        null => null,
+                      },
                       tapRegionGroupId: widget.tapRegionGroupId,
                       focusNode: _focusNode,
-                      onSelected: model.onSelected,
+                      onSelected: (option) => unawaited(
+                        _switchModel(option, () => model.onSelected(option)),
+                      ),
                     ),
                 ],
               ),

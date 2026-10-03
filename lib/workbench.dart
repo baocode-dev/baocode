@@ -1311,7 +1311,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         }
         // The text style (and ink) for what is not inside a panel's own:
         // the empty workspace, the dragged agent over the window.
-        return Material(
+        final content = Material(
           color: AppColors.windowCanvas,
           child: Stack(
             fit: StackFit.expand,
@@ -1343,6 +1343,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
               ),
             ],
           ),
+        );
+        // The model picker's Manage Models… opens the settings.
+        return SettingsOpener(
+          open: (section) => unawaited(openSettings(section)),
+          child: content,
         );
       },
     );

@@ -81,6 +81,14 @@ abstract interface class SelectsModel {
   KernelChoiceSource get model;
 }
 
+/// A model whose pick restarts the agent to go on with its conversation,
+/// e.g. one served by another provider: the user is asked first.
+abstract interface class ConfirmsModelSwitch {
+  /// Whether picking [model] (an option of [SelectsModel.model]) now
+  /// restarts the agent on its conversation.
+  bool switchRestarts(String model);
+}
+
 /// What the agent does with a message: e.g. act on it, only discuss it,
 /// or plan first.
 abstract interface class SelectsMode {

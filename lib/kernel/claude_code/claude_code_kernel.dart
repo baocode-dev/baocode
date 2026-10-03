@@ -5,6 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../chat/chat_models.dart';
+import '../../models/launch_environment.dart';
+import '../../models/model_provider.dart';
+import '../../models/model_providers.dart';
+import '../../models/model_runtime.dart';
 import '../agent_kernel.dart';
 import '../commit_attribution.dart';
 import '../kernel_event.dart';
@@ -22,6 +26,13 @@ typedef ClaudeHistoryReader = Future<List<Map<String, Object?>>> Function(
 /// The setting Claude Code runs with that keeps it from asking for the
 /// plan usage, if one does.
 typedef ClaudeUsageSwitch = Future<String?> Function();
+
+/// The environment of a session on [provider] that asks for [model] (see
+/// [providerLaunchEnvironment]).
+typedef ProviderEnvironment = Future<Map<String, String>> Function(
+  ModelProvider provider,
+  String model,
+);
 
 /// Adapts Claude Code, run as `claude -p` over stream-json, to
 /// [AgentKernel].
@@ -51,15 +62,21 @@ class ClaudeCodeKernel
         RenamesSession,
         AcceptsImages,
         SuggestsPrompts,
-        ManagesMcpServers {
+        ManagesMcpServers,
+        ConfirmsModelSwitch {
   ClaudeCodeKernel(
     this.descriptor,
     this._context, {
     required this._start,
     ClaudeHistoryReader? readHistory,
     ClaudeUsageSwitch? usageOffBy,
-  }) : _usageOffBy = usageOffBy ?? _usageOn {
+    ModelProviders? providers,
+    ProviderEnvironment? providerEnvironment,
+  }) : _usageOffBy = usageOffBy ?? _usageOn,
+       _providers = providers ?? ModelProviders.current,
+       _providerEnvironment = providerEnvironment ?? providerLaunchEnvironment {
     _translator = ClaudeTranslator(emit: emit, nextSeq: () => nextSeq);
+    _providers.addListener(_providersChanged);
     _live.add(this);
     _sessionId = _context.resume?.id;
     final settings = _context.settings;
@@ -83,6 +100,11 @@ class ClaudeCodeKernel
   final ClaudeTransportFactory _start;
   final ClaudeUsageSwitch _usageOffBy;
   late final ClaudeTranslator _translator;
+
+  /// The providers of the user's (Settings → Models), whose models are
+  /// offered beside Claude Code's own.
+  final ModelProviders _providers;
+  final ProviderEnvironment _providerEnvironment;
 
   static Future<String?> _usageOn() async => null;
 
@@ -126,8 +148,14 @@ class ClaudeCodeKernel
   static _Catalog _lastCatalog = const _Catalog();
   _Catalog _catalog = _lastCatalog;
 
-  /// The model asked for, as the CLI names it (e.g. `opus[1m]`).
+  /// The model asked for, as the CLI names it (e.g. `opus[1m]`), or a
+  /// provider's ([modelRef]).
   String? _model;
+
+  /// What the process was started on: [_providerKey] then. A provider
+  /// is taken up only at start, so another is by a restart (see
+  /// [_applyWindow]).
+  String _launchedProvider = '';
   String? _reportedModel;
   // What the agent does (Agent, Ask, Plan) and how its actions are
   // approved, picked apart: the CLI runs the approvals as they are, but in
@@ -211,17 +239,44 @@ class ClaudeCodeKernel
     await _stopped;
     _setHealth(const KernelHealth(KernelHealthStatus.starting));
     try {
+      // On a provider of the user's: its model as it is asked for, the
+      // environment that points Claude Code at it, and compaction within
+      // the model's window. A model of one gone falls back to the CLI's.
+      final custom = _custom;
+      final model = switch (custom) {
+        (final provider, final info) => requestedModel(
+          provider,
+          info,
+          effort: _effort,
+        ),
+        null when parseModelRef(_model) != null => null,
+        null => _model,
+      };
+      Map<String, String>? env;
+      if ((custom, model) case ((final provider, _), final model?)) {
+        try {
+          env = await _providerEnvironment(provider, model);
+        } on Object catch (error) {
+          throw ClaudeUnavailable(
+            '${provider.name} could not be set up',
+            detail: '$error',
+          );
+        }
+      }
+      _launchedProvider = _providerKey;
+      _launchedWindow = _window;
       final transport = await _start(
         ClaudeLaunch(
           cwd: _cwd,
           resume: _sessionId,
-          model: _model,
+          model: model,
           // Plan is entered once started.
           permissionMode: _cliMode = _approval,
           autoModeDuringPlan: _planReviewed = _reviewsPlan,
           effort: _effort,
-          autocompact: _launchedWindow = _window,
+          autocompact: custom?.$2.contextWindow ?? _window,
           attribution: CommitAttribution.current(),
+          env: env,
         ),
       );
       if (_disposed) {
@@ -242,7 +297,10 @@ class ClaudeCodeKernel
       final window = _window;
       _change([
         // A 1M variant, if its model has one, to fill past 200K.
-        if ((window, _currentModel) case (final window?, final current?))
+        if ((window, _custom == null ? _currentModel : null) case (
+          final window?,
+          final current?,
+        ))
           ?_modelChange(
             (_models[_baseOf(current.value)] ?? const [])
                 .where((v) => v.long == window > _windows['200k']!)
@@ -375,8 +433,15 @@ class ClaudeCodeKernel
   /// for the next message to start it again on the same session: the CLI
   /// compacts where it was told at start, whatever it is told after. Done
   /// only as a message is sent, so a pick leaves the conversation be.
+  ///
+  /// So is another provider, or one whose setup changed: the session goes
+  /// on, resumed, on it.
   void _applyWindow() {
-    if (!_running || _busy || _window == _launchedWindow) return;
+    if (!_running || _busy) return;
+    if (_providerKey == _launchedProvider &&
+        (_custom != null || _window == _launchedWindow)) {
+      return;
+    }
     _teardown();
     _setHealth(KernelHealth.idle);
   }
@@ -384,6 +449,7 @@ class ClaudeCodeKernel
   @override
   void dispose() {
     _disposed = true;
+    _providers.removeListener(_providersChanged);
     _live.remove(this);
     _teardown();
     closeEvents();
@@ -1437,12 +1503,17 @@ class ClaudeCodeKernel
   // --- Options ------------------------------------------------------------------------
 
   void _applyInitialize(Map<String, Object?> response) {
+    // Claude Code's own models are those it lists set up as the user has
+    // it: one on a provider lists what the provider's names stand in for.
+    final own = _launchedProvider.isEmpty;
     _catalog = _lastCatalog = _catalog.copyWith(
       commands: _commandsFrom(response['commands']),
-      models: [
-        for (final raw in response['models'] as List? ?? const [])
-          if (raw is Map) _ModelInfo.from(raw.cast<String, Object?>()),
-      ],
+      models: own
+          ? [
+              for (final raw in response['models'] as List? ?? const [])
+                if (raw is Map) _ModelInfo.from(raw.cast<String, Object?>()),
+            ]
+          : _lastCatalog.models,
     );
     // Its mode is the one it was started in: what it changes later comes
     // in `init` and `status` messages.
@@ -1560,26 +1631,137 @@ class ClaudeCodeKernel
     );
   }
 
+  // --- Providers --------------------------------------------------------------------
+
+  /// The provider and model of the user's [_model] picks, if it is one.
+  (ModelProvider, ProviderModel)? get _custom => _providers.resolve(_model);
+
+  /// What a session on [model] is started on: '' for Claude Code as the
+  /// user set it up, else the provider and its setup.
+  String _providerKeyOf(String? model) => switch (_providers.resolve(model)) {
+    (final provider, _) => '${provider.id}|${provider.launchFingerprint}',
+    null => '',
+  };
+
+  String get _providerKey => _providerKeyOf(_model);
+
+  /// Whether the conversation has begun: going on with it on another
+  /// provider is a restart.
+  bool get _conversationStarted => _sent.isNotEmpty || _context.resume != null;
+
+  void _providersChanged() {
+    if (_disposed) return;
+    emitInfoChanged();
+  }
+
+  /// The heading Claude Code's own models are listed under.
+  static const _builtinGroup = KernelOptionGroup(
+    builtinProviderId,
+    'Claude Code',
+  );
+
+  @override
+  bool switchRestarts(String model) =>
+      _conversationStarted && _providerKeyOf(model) != _providerKey;
+
+  /// Switches to [id], an option of [model]: on the provider in use, as
+  /// the CLI is told; on another, by starting again on it (at once, if
+  /// the conversation has not begun; else as the next message is sent,
+  /// which resumes it there).
+  void _selectModel(String id) {
+    final target = _providers.resolve(id);
+    final sameProvider = _providerKeyOf(id) == _providerKey;
+    if (sameProvider && target == null) {
+      _change([?_modelChange(_variantOf(id)?.value)]);
+      return;
+    }
+    if (sameProvider) {
+      final (provider, info) = target!;
+      _model = id;
+      _change([
+        (
+          'set_model',
+          {'model': requestedModel(provider, info, effort: _effort)},
+        ),
+      ]);
+      return;
+    }
+    _model = target == null ? _variantOf(id)?.value ?? id : id;
+    if (_running && !_busy && !_conversationStarted) {
+      restart();
+      return;
+    }
+    // Taken up with the next message (see _applyWindow).
+    emitInfoChanged();
+  }
+
+  /// The efforts a model of a provider offers: none unless it thinks.
+  static const _customEfforts = ['low', 'medium', 'high'];
+
+  List<String> _effortLevelsOf(String model) {
+    if (_providers.resolve(model) case (_, final info)) {
+      return info.thinking ? _customEfforts : const [];
+    }
+    if (parseModelRef(model) != null) return const [];
+    return _variantOf(model)?.effortLevels ?? const [];
+  }
+
   @override
   late final KernelChoiceSource model = _Choice(
-    options: () => [
-      for (final MapEntry(key: id, value: variants) in _models.entries)
-        KernelOption(
-          id,
-          // "Default (recommended)": the recommending goes without saying.
-          variants.first.label.replaceFirst(
-            RegExp(r'\s*\(recommended\)$', caseSensitive: false),
-            '',
-          ),
-          Icons.bolt_rounded,
-          variants.first.description,
-        ),
-    ],
-    selected: () => switch (_currentModel?.value) {
-      final value? => _baseOf(value),
-      null => null,
+    options: () {
+      final current = _custom;
+      final providers = _providers.enabled;
+      return [
+        // Hidden only with a provider's models to pick instead.
+        if (!_providers.builtinHidden || providers.isEmpty || current == null)
+          if (_models.isEmpty)
+            const KernelOption(
+              'default',
+              'Default',
+              Icons.bolt_rounded,
+              '',
+              group: _builtinGroup,
+            )
+          else
+            for (final MapEntry(key: id, value: variants) in _models.entries)
+              KernelOption(
+                id,
+                // "Default (recommended)": the recommending goes without
+                // saying.
+                variants.first.label.replaceFirst(
+                  RegExp(r'\s*\(recommended\)$', caseSensitive: false),
+                  '',
+                ),
+                Icons.bolt_rounded,
+                variants.first.description,
+                group: _builtinGroup,
+              ),
+        for (final provider in providers)
+          for (final info in provider.enabledModels)
+            KernelOption(
+              modelRef(provider.id, info.id),
+              info.displayName,
+              Icons.hub_outlined,
+              [
+                info.id,
+                if (info.contextWindow case final tokens?) formatTokens(tokens),
+              ].join(' · '),
+              group: KernelOptionGroup(
+                provider.id,
+                provider.name,
+                warning: _providers.error(provider.id),
+              ),
+            ),
+      ];
     },
-    select: (id) => _change([?_modelChange(_variantOf(id)?.value)]),
+    selected: () {
+      if (_custom != null) return _model;
+      return switch (_currentModel?.value) {
+        final value? => _baseOf(value),
+        null => _models.isEmpty ? 'default' : null,
+      };
+    },
+    select: _selectModel,
   );
 
   /// The contexts offered, by option id.
@@ -1603,6 +1785,8 @@ class ClaudeCodeKernel
   @override
   late final ModelSetting contextSize = _ModelSetting(
     optionsFor: (model) {
+      // A provider's model holds what it holds: no 1M to pick.
+      if (parseModelRef(model) != null) return const [];
       final most = _modelWindowOf(model);
       final options = [
         for (final MapEntry(key: id, value: tokens) in _windows.entries)
@@ -1783,7 +1967,8 @@ class ClaudeCodeKernel
   late final KernelChoiceSource permission = _Choice(
     options: () => [
       for (final option in _approvals)
-        if (option.id != 'auto' || (_currentModel?.supportsAuto ?? true))
+        if (option.id != 'auto' ||
+            (_custom == null && (_currentModel?.supportsAuto ?? true)))
           option,
     ],
     selected: () => _approval,
@@ -1796,7 +1981,7 @@ class ClaudeCodeKernel
   @override
   late final ModelSetting effort = _ModelSetting(
     optionsFor: (model) => [
-      for (final level in _variantOf(model)?.effortLevels ?? const <String>[])
+      for (final level in _effortLevelsOf(model))
         KernelOption(
           level,
           level == 'xhigh'
@@ -1814,11 +1999,37 @@ class ClaudeCodeKernel
         ),
     ],
     selected: () {
+      if (_custom case (_, final info)) {
+        return info.thinking && _customEfforts.contains(_effort)
+            ? _effort
+            : null;
+      }
       final levels = _currentModel?.effortLevels ?? const <String>[];
       final effort = _running ? _appliedEffort : _effort;
       return levels.contains(effort) ? effort : null;
     },
     select: (model, id) {
+      if (_providers.resolve(model) case (final provider, final info)) {
+        _effort = _appliedEffort = id;
+        if (model != _model || _providerKeyOf(model) != _launchedProvider) {
+          _selectModel(model);
+          return;
+        }
+        // Through the proxy, the effort goes with the model's name;
+        // to Anthropic's API, as Claude Code's own setting.
+        _change([
+          if (provider.protocol.proxied)
+            ('set_model', {'model': requestedModel(provider, info, effort: id)})
+          else
+            (
+              'apply_flag_settings',
+              {
+                'settings': {'effortLevel': id},
+              },
+            ),
+        ]);
+        return;
+      }
       final switched = _modelChange(_variantOf(model)?.value);
       // Shown as picked until the CLI says otherwise.
       _effort = _appliedEffort = id;

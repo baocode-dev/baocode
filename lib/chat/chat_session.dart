@@ -314,6 +314,13 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     _ => null,
   };
 
+  /// Whether picking [model] (one of [models]' options) restarts the
+  /// conversation's agent on another upstream: asked first.
+  bool switchRestarts(String model) => switch (_kernel) {
+    final ConfirmsModelSwitch kernel => kernel.switchRestarts(model),
+    _ => false,
+  };
+
   KernelChoice? get modes => switch (_kernel) {
     final SelectsMode kernel => _choice(kernel.mode),
     _ => null,

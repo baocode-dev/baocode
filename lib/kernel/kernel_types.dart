@@ -11,6 +11,7 @@ class KernelOption {
     this.description, {
     this.caution = false,
     this.iconBuilder,
+    this.group,
   });
 
   /// What the kernel is told (a model name, a permission mode, …).
@@ -26,16 +27,41 @@ class KernelOption {
   /// icon).
   final Widget Function(double size, Color color)? iconBuilder;
 
+  /// What it is listed under, e.g. the provider of a model.
+  final KernelOptionGroup? group;
+
   @override
   bool operator ==(Object other) =>
       other is KernelOption &&
       other.id == id &&
       other.label == label &&
       other.description == description &&
-      other.caution == caution;
+      other.caution == caution &&
+      other.group == group;
 
   @override
-  int get hashCode => Object.hash(id, label, description, caution);
+  int get hashCode => Object.hash(id, label, description, caution, group);
+}
+
+/// Options listed together under a heading, e.g. a provider's models.
+class KernelOptionGroup {
+  const KernelOptionGroup(this.id, this.label, {this.warning});
+
+  final String id;
+  final String label;
+
+  /// What went wrong with it, marked on its heading.
+  final String? warning;
+
+  @override
+  bool operator ==(Object other) =>
+      other is KernelOptionGroup &&
+      other.id == id &&
+      other.label == label &&
+      other.warning == warning;
+
+  @override
+  int get hashCode => Object.hash(id, label, warning);
 }
 
 /// A `/command` a kernel understands.

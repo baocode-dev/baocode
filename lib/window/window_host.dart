@@ -97,6 +97,10 @@ abstract class WindowHost {
   /// it before Dart runs).
   Future<void> setMainShownAtLaunch(bool shown);
 
+  /// Ends the app, which has agreed to it: Windows' way out (see
+  /// AppWindows' quit).
+  Future<void> quit();
+
   /// The title the system shows (the Window menu, Mission Control, the
   /// taskbar); [path], the folder it shows (the macOS proxy icon).
   Future<void> setTitle(int viewId, String title, {String? path});
@@ -133,6 +137,7 @@ abstract class WindowHost {
 ///   screens                      [{id, x, y, width, height}]
 ///   setWindowList {windows: [{viewId, title, edited}], labels}
 ///   setMainShownAtLaunch bool
+///   quit                         (Windows) the app goes, agreed to
 ///
 /// and back:
 ///
@@ -245,6 +250,9 @@ class ChannelWindowHost extends WindowHost {
   @override
   Future<void> setMainShownAtLaunch(bool shown) =>
       _invoke('setMainShownAtLaunch', shown);
+
+  @override
+  Future<void> quit() => _invoke('quit');
 
   @override
   Future<void> setTitle(int viewId, String title, {String? path}) =>

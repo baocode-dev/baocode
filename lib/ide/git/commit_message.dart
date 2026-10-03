@@ -6,6 +6,7 @@
 import 'package:path/path.dart' as p;
 
 import '../../kernel/claude_code/claude_haiku.dart';
+import '../../models/model_providers.dart';
 
 /// The most diff the model is given, in characters.
 const ideCommitDiffBudget = 4000;
@@ -49,6 +50,8 @@ Future<String> ideClaudeCommitMessage(
       prompt.system,
       prompt.user,
       cancel: cancel,
+      // The model new sessions start with: a provider's, if picked.
+      model: ModelProviders.current.defaultModel,
     );
     return ideCleanCommitMessage(reply);
   } on ClaudeHaikuCancelled {
