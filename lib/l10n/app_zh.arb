@@ -1324,7 +1324,6 @@
   "generalSettingsOpenFoldersDescription": "从窗口里打开文件夹（打开文件夹…、打开最近的文件）时是否使用新窗口。默认替换当前窗口，按住 ⌘/Ctrl 时用新窗口。（window.openFoldersInNewWindow）",
   "generalSettingsOpenFiles": "在新窗口中打开文件",
   "generalSettingsOpenFilesDescription": "从窗口里打开文件时是否使用新窗口。默认在当前窗口中打开。（window.openFilesInNewWindow）",
-  "generalSettingsOpenDefault": "默认",
   "generalSettingsOpenOn": "在新窗口中",
   "generalSettingsOpenOff": "在当前窗口中",
   "generalSettingsRestoreWindows": "恢复窗口",

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:bao_editor/monaco/vs/base/common/labels.dart' show tildify;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path/path.dart' as p;
 
 import '../l10n/command_titles.dart';
@@ -24,7 +25,6 @@ class IdeWelcome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = themeColors;
     return ColoredBox(
       color: _emptyBackground,
       child: Center(
@@ -32,14 +32,8 @@ class IdeWelcome extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // In place of the letterpress image, which is no theme color:
-              // the text's, faint.
-              Icon(
-                Codicons.code,
-                size: 56,
-                color: colors['foreground'].withValues(alpha: .08),
-              ),
-              const SizedBox(height: 20),
+              const _Letterpress(),
+              const SizedBox(height: 28),
               for (final command in commands) _WelcomeEntry(command: command),
             ],
           ),
@@ -54,8 +48,34 @@ Color get _emptyBackground =>
     themeColors.get('editorGroup.emptyBackground') ??
     themeColors['editor.background'];
 
+/// The app's logo as VS Code's letterpress (`.editor-group-watermark
+/// .letterpress`): large, in the text's color, faint. Its pixels are
+/// 56 × 42, three screen points each: whole, so its edges stay sharp.
+class _Letterpress extends StatelessWidget {
+  const _Letterpress();
+
+  static const _scale = 3.0;
+
+  @override
+  Widget build(BuildContext context) {
+    const width = 56 * _scale, height = 42 * _scale;
+    return SvgPicture.asset(
+      'assets/branding/logo.svg',
+      width: width,
+      height: height,
+      semanticsLabel: 'BaoCode',
+      colorFilter: ColorFilter.mode(
+        themeColors['foreground'].withValues(alpha: .1),
+        BlendMode.srcIn,
+      ),
+      // Where the asset is missing.
+      errorBuilder: (_, _, _) => const SizedBox(width: width, height: height),
+    );
+  }
+}
+
 /// A window without a folder, VS Code's New Window as the Fast Ide shows
-/// it: the app's icon, tiles for what to start with ([actions], each with
+/// it: the app's logo, tiles for what to start with ([actions], each with
 /// its keys), and the [recent] folders, the last opened first, with all of
 /// them a click away ([onShowAllRecent], Open Recent).
 class IdeStartPage extends StatelessWidget {
@@ -107,31 +127,8 @@ class IdeStartPage extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Center(
-                      child: Image.asset(
-                        'assets/branding/app_icon.png',
-                        width: 72,
-                        height: 72,
-                        filterQuality: FilterQuality.medium,
-                        // Under test, and where the asset is missing.
-                        errorBuilder: (_, _, _) => Icon(
-                          Codicons.code,
-                          size: 56,
-                          color: colors['foreground'].withValues(alpha: .08),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'BaoCode',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: colors['foreground'],
-                      ),
-                    ),
-                    const SizedBox(height: 28),
+                    const Center(child: _Letterpress()),
+                    const SizedBox(height: 36),
                     Wrap(
                       spacing: gap,
                       runSpacing: gap,
@@ -146,24 +143,28 @@ class IdeStartPage extends StatelessWidget {
                     if (onOpenRecent case final open?
                         when recent.isNotEmpty) ...[
                       const SizedBox(height: 32),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              l10n.ideStartRecent,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: colors['descriptionForeground'],
+                      // In line with the rows' insides.
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                l10n.ideStartRecent,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors['descriptionForeground'],
+                                ),
                               ),
                             ),
-                          ),
-                          if (onShowAllRecent case final showAll?)
-                            _Link(
-                              label: l10n.ideStartViewAll(recent.length),
-                              onTap: showAll,
-                            ),
-                        ],
+                            if (onShowAllRecent case final showAll?)
+                              _Link(
+                                label: l10n.ideStartViewAll(recent.length),
+                                onTap: showAll,
+                              ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 6),
                       for (final path in recent.take(recentShown))
@@ -261,8 +262,15 @@ class _StartTileState extends State<_StartTile> {
                       size: 18,
                       color: colors['foreground'],
                     ),
-                    const Spacer(),
-                    if (shortcut != null) Flexible(child: IdeKeycap(shortcut)),
+                    const SizedBox(width: 8),
+                    // At the tile's right edge.
+                    if (shortcut != null)
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: IdeKeycap(shortcut),
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -366,28 +374,45 @@ class _RecentRowState extends State<_RecentRow> {
                 : const Color(0x00000000),
             borderRadius: BorderRadius.circular(4),
           ),
+          // The path at the row's right edge; either, if long, takes half.
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(Codicons.folder, size: 14, color: colors['icon.foreground']),
-              const SizedBox(width: 8),
               Flexible(
-                child: Text(
-                  name.isEmpty ? widget.path : name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 13, color: colors['foreground']),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Codicons.folder,
+                      size: 14,
+                      color: colors['icon.foreground'],
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        name.isEmpty ? widget.path : name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: colors['foreground'],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  where,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: colors['descriptionForeground'],
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 16),
+                  child: Text(
+                    where,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: colors['descriptionForeground'],
+                    ),
                   ),
                 ),
               ),

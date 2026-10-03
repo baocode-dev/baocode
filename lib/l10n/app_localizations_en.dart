@@ -4896,9 +4896,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Whether a file opened from a window takes a new window. By default it opens in the current one. (window.openFilesInNewWindow)';
 
   @override
-  String get generalSettingsOpenDefault => 'Default';
-
-  @override
   String get generalSettingsOpenOn => 'In a new window';
 
   @override

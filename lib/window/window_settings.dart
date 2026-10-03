@@ -7,9 +7,9 @@ library;
 
 /// `window.openFoldersInNewWindow`, `window.openFilesInNewWindow`: whether
 /// a folder or file opened from within a window (Open Folder…, Open File…,
-/// Open Recent) takes a window of its own. `default` is VS Code's: a folder
+/// Open Recent) takes a window of its own. `off` (the default): a folder
 /// replaces the window it was opened from, unless ⌘/Ctrl is held; a file
-/// opens in the window it was opened from.
+/// opens in the window it was opened from. VS Code's `default` is the same.
 enum OpenInNewWindow {
   defaultMode('default'),
   on('on'),
@@ -20,7 +20,7 @@ enum OpenInNewWindow {
   final String setting;
 
   static OpenInNewWindow parse(Object? value) =>
-      values.where((mode) => mode.setting == value).firstOrNull ?? defaultMode;
+      values.where((mode) => mode.setting == value).firstOrNull ?? off;
 }
 
 /// `window.ideWindows`: where the IDE (the Fast Ide) shows.
@@ -37,10 +37,10 @@ enum IdeWindows {
 
 /// `window.restoreWindows`: the IDE windows that open again at launch.
 enum RestoreWindows {
-  /// All of them, the empty ones too (the default).
+  /// All of them, the empty ones too.
   all,
 
-  /// The one last in front.
+  /// The one last in front (the default).
   one,
 
   /// Those with a folder.
@@ -50,7 +50,7 @@ enum RestoreWindows {
   none;
 
   static RestoreWindows parse(Object? value) =>
-      values.where((mode) => mode.name == value).firstOrNull ?? all;
+      values.where((mode) => mode.name == value).firstOrNull ?? one;
 }
 
 /// `window.newWindowDimensions`: the size of a new window.
@@ -105,9 +105,9 @@ enum TerminalConfirmOnExit {
 class WindowSettings {
   const WindowSettings({
     this.ideWindows = IdeWindows.separate,
-    this.openFoldersInNewWindow = OpenInNewWindow.defaultMode,
-    this.openFilesInNewWindow = OpenInNewWindow.defaultMode,
-    this.restoreWindows = RestoreWindows.all,
+    this.openFoldersInNewWindow = OpenInNewWindow.off,
+    this.openFilesInNewWindow = OpenInNewWindow.off,
+    this.restoreWindows = RestoreWindows.one,
     this.newWindowDimensions = NewWindowDimensions.defaultSize,
     this.confirmBeforeClose = ConfirmBeforeClose.never,
     this.terminalConfirmOnExit = TerminalConfirmOnExit.never,
@@ -148,8 +148,7 @@ class WindowSettings {
   bool folderInNewWindow({bool held = false}) =>
       switch (openFoldersInNewWindow) {
         OpenInNewWindow.on => true,
-        OpenInNewWindow.off => held,
-        OpenInNewWindow.defaultMode => held,
+        OpenInNewWindow.off || OpenInNewWindow.defaultMode => held,
       };
 
   /// Whether a file opened from within a window takes a new one.
