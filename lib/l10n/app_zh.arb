@@ -1525,6 +1525,8 @@
   "modelsNonessentialDescription": "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC：不发送遥测、错误报告和更新检查（Anthropic 以外的上游不会响应这些请求）。",
   "modelsPreserveThinking": "回传推理内容",
   "modelsPreserveThinkingDescription": "在后续请求中回传模型的推理内容（reasoning_content），DeepSeek 等上游需要。",
+  "modelsPromptCacheKey": "提示缓存键",
+  "modelsPromptCacheKeyDescription": "为每个对话发送独立的 prompt_cache_key，让上游（或背后有多个后端的中转站）把同一对话的请求路由到已缓存的位置。上游不接受该字段时请关闭。",
   "modelsEnv": "额外环境变量",
   "modelsEnvDescription": "每行一个 KEY=VALUE，在以上设置之后传给 Claude Code。",
   "modelsDelete": "删除上游",

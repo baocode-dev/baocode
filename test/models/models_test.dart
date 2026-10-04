@@ -49,6 +49,7 @@ void main() {
         roles: ProviderRoles(main: 'm', subagent: 'm'),
         disableNonessentialTraffic: true,
         preserveThinking: true,
+        promptCacheKey: false,
         env: {'A': '1'},
       );
       final back = ModelProvider.fromJson(provider.toJson())!;

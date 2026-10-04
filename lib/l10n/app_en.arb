@@ -3863,6 +3863,8 @@
   "modelsNonessentialDescription": "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: no telemetry, error reports or update checks, which upstreams other than Anthropic do not answer.",
   "modelsPreserveThinking": "Send Reasoning Back",
   "modelsPreserveThinkingDescription": "Replays the model's reasoning (reasoning_content) in later requests, as DeepSeek and others want.",
+  "modelsPromptCacheKey": "Prompt Cache Key",
+  "modelsPromptCacheKeyDescription": "Sends each conversation's own prompt_cache_key, so the upstream (or a relay in front of several) routes its requests to where the earlier ones are cached. Turn off for an upstream that rejects the field.",
   "modelsEnv": "Extra Environment",
   "modelsEnvDescription": "One KEY=VALUE a line, given to Claude Code after the settings above.",
   "modelsDelete": "Delete Upstream",

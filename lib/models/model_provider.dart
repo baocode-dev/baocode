@@ -353,6 +353,7 @@ class ModelProvider {
     this.roles = const ProviderRoles(),
     this.disableNonessentialTraffic = false,
     this.preserveThinking = false,
+    this.promptCacheKey = true,
     this.env = const {},
   });
 
@@ -376,6 +377,11 @@ class ModelProvider {
   /// Chat Completions: replays the model's reasoning (`reasoning_content`)
   /// even unsigned, as DeepSeek and others want it back.
   final bool preserveThinking;
+
+  /// Through the proxy: a `prompt_cache_key` of the conversation's own, so
+  /// that an upstream (or a relay before several) sends its requests where
+  /// the earlier ones are cached. Off for one that refuses the field.
+  final bool promptCacheKey;
 
   /// More environment for Claude Code, after what is set from the above.
   final Map<String, String> env;
@@ -406,6 +412,7 @@ class ModelProvider {
     ProviderRoles? roles,
     bool? disableNonessentialTraffic,
     bool? preserveThinking,
+    bool? promptCacheKey,
     Map<String, String>? env,
   }) => ModelProvider(
     id: id,
@@ -419,6 +426,7 @@ class ModelProvider {
     disableNonessentialTraffic:
         disableNonessentialTraffic ?? this.disableNonessentialTraffic,
     preserveThinking: preserveThinking ?? this.preserveThinking,
+    promptCacheKey: promptCacheKey ?? this.promptCacheKey,
     env: env ?? this.env,
   );
 
@@ -443,6 +451,7 @@ class ModelProvider {
     if (roles.toJson() case final roles when roles.isNotEmpty) 'roles': roles,
     if (disableNonessentialTraffic) 'disableNonessentialTraffic': true,
     if (preserveThinking) 'preserveThinking': true,
+    if (!promptCacheKey) 'promptCacheKey': false,
     if (env.isNotEmpty) 'env': env,
   };
 
@@ -467,6 +476,7 @@ class ModelProvider {
       roles: ProviderRoles.fromJson(json['roles']),
       disableNonessentialTraffic: json['disableNonessentialTraffic'] == true,
       preserveThinking: json['preserveThinking'] == true,
+      promptCacheKey: json['promptCacheKey'] != false,
       env: {
         if (json['env'] case final Map env)
           for (final MapEntry(:key, :value) in env.entries)

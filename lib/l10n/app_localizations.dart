@@ -9255,6 +9255,18 @@ abstract class AppLocalizations {
   /// **'Replays the model\'s reasoning (reasoning_content) in later requests, as DeepSeek and others want.'**
   String get modelsPreserveThinkingDescription;
 
+  /// No description provided for @modelsPromptCacheKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt Cache Key'**
+  String get modelsPromptCacheKey;
+
+  /// No description provided for @modelsPromptCacheKeyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Sends each conversation\'s own prompt_cache_key, so the upstream (or a relay in front of several) routes its requests to where the earlier ones are cached. Turn off for an upstream that rejects the field.'**
+  String get modelsPromptCacheKeyDescription;
+
   /// No description provided for @modelsEnv.
   ///
   /// In en, this message translates to:

@@ -891,6 +891,14 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
           onChanged: (value) =>
               unawaited(_save(_providerNow.copyWith(preserveThinking: value))),
         ),
+      if (provider.protocol.proxied)
+        SettingsSwitchRow(
+          label: l10n.modelsPromptCacheKey,
+          description: l10n.modelsPromptCacheKeyDescription,
+          value: provider.promptCacheKey,
+          onChanged: (value) =>
+              unawaited(_save(_providerNow.copyWith(promptCacheKey: value))),
+        ),
       SettingsRow(
         label: l10n.modelsEnv,
         description: l10n.modelsEnvDescription,
