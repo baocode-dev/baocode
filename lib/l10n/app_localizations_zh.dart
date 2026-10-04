@@ -5646,4 +5646,77 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get updateButton => '更新';
+
+  @override
+  String get tipsSetupTitle => '设置 BaoCode';
+
+  @override
+  String tipsSetupCount(int done, int total) {
+    return '$done/$total';
+  }
+
+  @override
+  String tipsSetupEntry(int done, int total) {
+    return '设置 $done/$total';
+  }
+
+  @override
+  String get tipsHide => '收起';
+
+  @override
+  String get tipsTurnOn => '开启';
+
+  @override
+  String get tipsDismiss => '关闭';
+
+  @override
+  String get tipsDone => '已完成';
+
+  @override
+  String get tipsDontShowAgain => '不再提示';
+
+  @override
+  String tipsFailed(String title, String error) {
+    return '无法开启$title：$error';
+  }
+
+  @override
+  String tipsUpdated(String version, String features) {
+    return 'BaoCode 已更新到 $version。新功能：$features。';
+  }
+
+  @override
+  String get tipsListSeparator => '、';
+
+  @override
+  String get tipsSettingsTitle => '推荐功能';
+
+  @override
+  String get tipsSettingsDescription =>
+      '尚未开启的功能。「显示设置向导」可重新打开设置清单；在 settings.json 中设置 \"workbench.tips.enabled\": false 可关闭所有推荐。';
+
+  @override
+  String get tipContextMenuBody => '在右键菜单中直接用 BaoCode 打开文件和文件夹。';
+
+  @override
+  String tipShellCommandTitle(String name) {
+    return '$name 命令';
+  }
+
+  @override
+  String tipShellCommandBody(String name) {
+    return '在终端里用 $name <路径> 在 BaoCode 中打开文件夹。';
+  }
+
+  @override
+  String get tipImportKeybindingsTitle => '导入快捷键';
+
+  @override
+  String get tipImportKeybindingsBody => '从 VS Code 或 Cursor 导入你的快捷键。';
+
+  @override
+  String get tipColorThemeBody => '选择对话、IDE 和终端使用的配色。';
+
+  @override
+  String get cmdShowSetupGuide => '显示设置向导';
 }

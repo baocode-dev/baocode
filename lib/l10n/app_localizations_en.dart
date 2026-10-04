@@ -6017,4 +6017,80 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateButton => 'Update';
+
+  @override
+  String get tipsSetupTitle => 'Set Up BaoCode';
+
+  @override
+  String tipsSetupCount(int done, int total) {
+    return '$done/$total';
+  }
+
+  @override
+  String tipsSetupEntry(int done, int total) {
+    return 'Setup $done/$total';
+  }
+
+  @override
+  String get tipsHide => 'Hide';
+
+  @override
+  String get tipsTurnOn => 'Turn On';
+
+  @override
+  String get tipsDismiss => 'Close';
+
+  @override
+  String get tipsDone => 'Done';
+
+  @override
+  String get tipsDontShowAgain => 'Don\'t Show Again';
+
+  @override
+  String tipsFailed(String title, String error) {
+    return 'Couldn\'t turn on $title: $error';
+  }
+
+  @override
+  String tipsUpdated(String version, String features) {
+    return 'BaoCode was updated to $version. New: $features.';
+  }
+
+  @override
+  String get tipsListSeparator => ', ';
+
+  @override
+  String get tipsSettingsTitle => 'Recommended';
+
+  @override
+  String get tipsSettingsDescription =>
+      'Features not turned on yet. Show Setup Guide brings back the setup checklist; \"workbench.tips.enabled\": false in settings.json turns tips off.';
+
+  @override
+  String get tipContextMenuBody =>
+      'Open files and folders in BaoCode from their context menu.';
+
+  @override
+  String tipShellCommandTitle(String name) {
+    return '\'$name\' Command';
+  }
+
+  @override
+  String tipShellCommandBody(String name) {
+    return 'Open folders in BaoCode from a terminal: $name <path>.';
+  }
+
+  @override
+  String get tipImportKeybindingsTitle => 'Import Keybindings';
+
+  @override
+  String get tipImportKeybindingsBody =>
+      'Bring your keybindings over from VS Code or Cursor.';
+
+  @override
+  String get tipColorThemeBody =>
+      'Pick the colors of the chat, the IDE and the terminal.';
+
+  @override
+  String get cmdShowSetupGuide => 'Show Setup Guide';
 }

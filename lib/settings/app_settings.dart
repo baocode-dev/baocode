@@ -10,6 +10,9 @@ import '../keybindings/keymap.dart';
 import '../keybindings/vscode_import.dart';
 import '../models/model_providers.dart';
 import '../theme/workbench_theme.dart' show WorkbenchThemeService;
+import '../tips/builtin_tips.dart';
+import '../tips/feature_tip.dart';
+import '../tips/feature_tips_controller.dart';
 import '../update/update_controller.dart';
 import 'app_locale.dart';
 import 'pages/appearance_page.dart';
@@ -57,6 +60,26 @@ class AppSettings {
   /// the build does not update itself.
   final UpdateController? updates;
 
+  /// The app's global storage, as the import offer and the tips remember
+  /// themselves in it; none under test without files.
+  late final GlobalStorageStore? offerStore = switch (files?.storage) {
+    final storage? => GlobalStorageStore(storage),
+    null => null,
+  };
+
+  /// The feature tips (the setup checklist, the update's and the scenarios'
+  /// notifications); none without settings files.
+  late final FeatureTipsController? tips = switch (offerStore) {
+    final store? => FeatureTipsController(
+      tips: builtInFeatureTips(this),
+      storage: store,
+      enabled: () =>
+          files?.settings[FeatureTipsController.enabledSetting] != false,
+      settingsChanges: files?.settings,
+    ),
+    null => null,
+  };
+
   /// Writes the keyboard page's changes into keybindings.json: one for
   /// the app, so they are made one at a time.
   late final KeybindingsEditingService editing = KeybindingsEditingService(
@@ -80,7 +103,7 @@ class AppSettings {
   Widget buildPage(BuildContext context, SettingsSection section) {
     switch (section) {
       case SettingsSection.general:
-        return GeneralSettingsPage(settings: files?.settings);
+        return GeneralSettingsPage(settings: files?.settings, tips: tips);
       case SettingsSection.appearance:
         final themes = WorkbenchThemeService.instance;
         return AppearanceSettingsPage(themes: themes, changes: themes);
@@ -122,23 +145,6 @@ class AppSettings {
     await _showImport(context, detection);
   }
 
-  /// Offers, once, at the first launch that finds VS Code, Cursor or the
-  /// like, to import their keybindings.
-  Future<void> offerImport(BuildContext context) async {
-    final installs = this.installs;
-    final storage = files?.storage;
-    if (installs == null || storage == null) return;
-    final store = _OfferStore(storage);
-    if (store.get(keybindingsImportOfferedKey) == true) return;
-    final detection = await installs.detect();
-    if (!shouldOfferKeybindingsImport(detection, store) || !context.mounted) {
-      return;
-    }
-    await markKeybindingsImportOffered(store);
-    if (!context.mounted) return;
-    await _showImport(context, detection);
-  }
-
   Future<void> _showImport(
     BuildContext context,
     KeybindingsDetection detection,
@@ -169,9 +175,10 @@ class AppSettings {
   }
 }
 
-/// The app's global storage, as the import offer remembers itself in it.
-class _OfferStore implements ImportOfferStore {
-  _OfferStore(this.storage);
+/// The app's global storage, as the import offer and the tips remember
+/// themselves in it.
+class GlobalStorageStore implements ImportOfferStore, TipStorage {
+  GlobalStorageStore(this.storage);
 
   final GlobalStorage storage;
 

@@ -9,6 +9,7 @@ import 'package:baocode/keybindings/import_dialog.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/keybindings/keybindings_sync.dart';
+import 'package:baocode/keybindings/default_keybindings.dart';
 import 'package:baocode/keybindings/keymap.dart';
 import 'package:baocode/keybindings/vscode_import.dart';
 import 'package:baocode/main.dart';
@@ -19,7 +20,11 @@ import 'package:baocode/settings/pages/general_page.dart';
 import 'package:baocode/settings/pages/settings_dropdown.dart';
 import 'package:baocode/settings/pages/keybindings_page.dart';
 import 'package:baocode/settings/user_settings.dart';
+import 'package:baocode/tips/builtin_tips.dart';
+import 'package:baocode/tips/feature_tips_view.dart';
+import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/workspace/main_window.dart';
+import 'package:baocode/workspace/window_controls.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:path/path.dart' as p;
 
@@ -80,19 +85,20 @@ void main() {
     await File(path).writeAsString(text);
   }
 
-  Future<void> pumpApp(WidgetTester tester) async {
+  Future<void> pumpApp(WidgetTester tester, {Workspace? workspace}) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      BaoCodeApp(workspace: Workspace.mock(), settings: settings),
+      BaoCodeApp(workspace: workspace ?? Workspace.mock(), settings: settings),
     );
     await tester.pump();
   }
 
-  /// Lets the disk catch up (the files are real ones) until [done].
+  /// Lets the disk catch up (the files are real ones) until [done]; a
+  /// launch's checklist reads and writes a few, slow beside other tests.
   Future<void> settle(WidgetTester tester, bool Function() done) async {
-    for (var i = 0; i < 100; i++) {
+    for (var i = 0; i < 250; i++) {
       if (done()) return;
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 20)),
@@ -107,11 +113,28 @@ void main() {
     matching: find.textContaining(text, findRichText: true),
   );
 
-  testWidgets('the launch offers, once, to import; the import writes '
-      'keybindings.json and selects the keymap', (tester) async {
+  /// The setup checklist's import item.
+  Finder importTip() => find.descendant(
+    of: find.byType(FeatureTipsCard),
+    matching: find.byKey(const ValueKey(FeatureTipIds.importKeybindings)),
+  );
+
+  testWidgets('the launch lists the import in the setup checklist, no '
+      'dialog; turned on, it imports to keybindings.json and selects the '
+      'keymap', (tester) async {
     await tester.runAsync(start);
-    await pumpApp(tester);
+    await pumpApp(tester, workspace: Workspace.mock()..create());
     final dialog = find.byType(KeybindingsImportDialog);
+    await settle(tester, () => importTip().evaluate().isNotEmpty);
+    expect(dialog, findsNothing);
+    expect(files.storage.get<bool>(keybindingsImportOfferedKey), isNull);
+
+    await tester.tap(
+      find.descendant(
+        of: importTip(),
+        matching: find.text(englishLocalizations.tipsTurnOn),
+      ),
+    );
     await settle(tester, () => dialog.evaluate().isNotEmpty);
     await settle(
       tester,
@@ -158,7 +181,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(dialog, findsNothing);
 
-    // Not again.
+    // Done: ticked, and no dialog again.
+    await settle(
+      tester,
+      () => find
+          .descendant(
+            of: importTip(),
+            matching: find.bySemanticsLabel(englishLocalizations.tipsDone),
+          )
+          .evaluate()
+          .isNotEmpty,
+    );
     await tester.pumpWidget(const SizedBox());
     await pumpApp(tester);
     for (var i = 0; i < 10; i++) {
@@ -168,6 +201,64 @@ void main() {
       await tester.pump();
     }
     expect(dialog, findsNothing);
+  });
+
+  testWidgets('offered at a launch before tips (keybindings.importOffered), '
+      'the import is not in the checklist', (tester) async {
+    await tester.runAsync(() async {
+      await write(
+        DataDirectory(data.path).storageFile,
+        '{ "$keybindingsImportOfferedKey": true }',
+      );
+      await start();
+    });
+    await pumpApp(tester, workspace: Workspace.mock()..create());
+    final card = find.byType(FeatureTipsCard);
+    await settle(
+      tester,
+      () => find
+          .descendant(of: card, matching: find.byType(FeatureTipRow))
+          .evaluate()
+          .isNotEmpty,
+    );
+    expect(importTip(), findsNothing);
+    expect(find.byType(KeybindingsImportDialog), findsNothing);
+  });
+
+  testWidgets('hidden, the checklist is the sidebar\'s entry; Show Setup '
+      'Guide brings it back, over a new agent', (tester) async {
+    await tester.runAsync(start);
+    final workspace = Workspace.mock()..create();
+    await pumpApp(tester, workspace: workspace);
+    final l10n = englishLocalizations;
+    final card = find.descendant(
+      of: find.byType(FeatureTipsCard),
+      matching: find.text(l10n.tipsSetupTitle),
+    );
+    await settle(tester, () => card.evaluate().isNotEmpty);
+    final entry = find.descendant(
+      of: find.byType(FeatureTipsEntry),
+      matching: find.textContaining('Setup 0/'),
+    );
+    expect(entry, findsNothing);
+
+    await tester.tap(find.text(l10n.tipsHide));
+    await settle(tester, () => card.evaluate().isEmpty);
+    await settle(tester, () => entry.evaluate().isNotEmpty);
+    expect(
+      files.storage.get<Map<String, Object?>>('featureTips')?['collapsed'],
+      isTrue,
+    );
+
+    // From an agent that has talked, where the card does not show.
+    workspace.select(
+      workspace.threads.firstWhere((thread) => thread.session.itemCount > 0),
+    );
+    await tester.pump();
+    WindowControls.menuCommandsOf(0)!(showSetupGuideCommandId);
+    await settle(tester, () => card.evaluate().isNotEmpty);
+    expect(entry, findsNothing);
+    expect(workspace.current?.session.itemCount, 0);
   });
 
   testWidgets('a keybindings.json that stops parsing is told of, the last '

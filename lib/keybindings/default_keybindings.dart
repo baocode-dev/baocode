@@ -31,6 +31,9 @@ const uninstallShellCommandId = 'workbench.action.uninstallCommandLine';
 /// Check for Updates...: looks for a new version of the app now.
 const checkForUpdatesCommandId = 'update.checkForUpdate';
 
+/// Show Setup Guide: the setup checklist back (see FeatureTipsController).
+const showSetupGuideCommandId = 'baocode.tips.showSetupGuide';
+
 /// A command a keybinding may run, as the Keyboard Shortcuts page lists it.
 @immutable
 class CommandInfo {
@@ -106,6 +109,7 @@ final Map<String, CommandInfo> commandCatalog = {
       category: 'Shell Command',
     ),
     const CommandInfo(checkForUpdatesCommandId, 'Check for Updates...'),
+    const CommandInfo(showSetupGuideCommandId, 'Show Setup Guide', category: 'Help'),
     const CommandInfo(
       'workbench.action.closeActiveEditor',
       'Close Editor',

@@ -9932,6 +9932,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Update'**
   String get updateButton;
+
+  /// No description provided for @tipsSetupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set Up BaoCode'**
+  String get tipsSetupTitle;
+
+  /// No description provided for @tipsSetupCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{done}/{total}'**
+  String tipsSetupCount(int done, int total);
+
+  /// No description provided for @tipsSetupEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'Setup {done}/{total}'**
+  String tipsSetupEntry(int done, int total);
+
+  /// No description provided for @tipsHide.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide'**
+  String get tipsHide;
+
+  /// No description provided for @tipsTurnOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn On'**
+  String get tipsTurnOn;
+
+  /// No description provided for @tipsDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get tipsDismiss;
+
+  /// No description provided for @tipsDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get tipsDone;
+
+  /// No description provided for @tipsDontShowAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t Show Again'**
+  String get tipsDontShowAgain;
+
+  /// No description provided for @tipsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t turn on {title}: {error}'**
+  String tipsFailed(String title, String error);
+
+  /// No description provided for @tipsUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode was updated to {version}. New: {features}.'**
+  String tipsUpdated(String version, String features);
+
+  /// No description provided for @tipsListSeparator.
+  ///
+  /// In en, this message translates to:
+  /// **', '**
+  String get tipsListSeparator;
+
+  /// No description provided for @tipsSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended'**
+  String get tipsSettingsTitle;
+
+  /// No description provided for @tipsSettingsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Features not turned on yet. Show Setup Guide brings back the setup checklist; \"workbench.tips.enabled\": false in settings.json turns tips off.'**
+  String get tipsSettingsDescription;
+
+  /// No description provided for @tipContextMenuBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Open files and folders in BaoCode from their context menu.'**
+  String get tipContextMenuBody;
+
+  /// No description provided for @tipShellCommandTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'\'{name}\' Command'**
+  String tipShellCommandTitle(String name);
+
+  /// No description provided for @tipShellCommandBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Open folders in BaoCode from a terminal: {name} <path>.'**
+  String tipShellCommandBody(String name);
+
+  /// No description provided for @tipImportKeybindingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Keybindings'**
+  String get tipImportKeybindingsTitle;
+
+  /// No description provided for @tipImportKeybindingsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Bring your keybindings over from VS Code or Cursor.'**
+  String get tipImportKeybindingsBody;
+
+  /// No description provided for @tipColorThemeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick the colors of the chat, the IDE and the terminal.'**
+  String get tipColorThemeBody;
+
+  /// No description provided for @cmdShowSetupGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Setup Guide'**
+  String get cmdShowSetupGuide;
 }
 
 class _AppLocalizationsDelegate

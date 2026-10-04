@@ -4224,5 +4224,79 @@
   "updateButton": "Update",
   "@updateButton": {
     "description": "The sidebar's button while an update waits to be installed: restarts into it."
-  }
+  },
+  "tipsSetupTitle": "Set Up BaoCode",
+  "tipsSetupCount": "{done}/{total}",
+  "@tipsSetupCount": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "tipsSetupEntry": "Setup {done}/{total}",
+  "@tipsSetupEntry": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "tipsHide": "Hide",
+  "tipsTurnOn": "Turn On",
+  "tipsDismiss": "Close",
+  "tipsDone": "Done",
+  "tipsDontShowAgain": "Don't Show Again",
+  "tipsFailed": "Couldn't turn on {title}: {error}",
+  "@tipsFailed": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "tipsUpdated": "BaoCode was updated to {version}. New: {features}.",
+  "@tipsUpdated": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "features": {
+        "type": "String"
+      }
+    }
+  },
+  "tipsListSeparator": ", ",
+  "tipsSettingsTitle": "Recommended",
+  "tipsSettingsDescription": "Features not turned on yet. Show Setup Guide brings back the setup checklist; \"workbench.tips.enabled\": false in settings.json turns tips off.",
+  "tipContextMenuBody": "Open files and folders in BaoCode from their context menu.",
+  "tipShellCommandTitle": "'{name}' Command",
+  "@tipShellCommandTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "tipShellCommandBody": "Open folders in BaoCode from a terminal: {name} <path>.",
+  "@tipShellCommandBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "tipImportKeybindingsTitle": "Import Keybindings",
+  "tipImportKeybindingsBody": "Bring your keybindings over from VS Code or Cursor.",
+  "tipColorThemeBody": "Pick the colors of the chat, the IDE and the terminal.",
+  "cmdShowSetupGuide": "Show Setup Guide"
 }

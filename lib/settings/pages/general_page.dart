@@ -11,6 +11,8 @@ import '../../platform/app_platform.dart';
 import '../../platform/context_menu.dart';
 import '../../platform/shell_command.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
+import '../../tips/feature_tips_controller.dart';
+import '../../tips/feature_tips_view.dart';
 import '../../window/window_settings.dart';
 import '../../workspace/main_window.dart';
 import '../shell_command_actions.dart';
@@ -25,10 +27,13 @@ import 'settings_widgets.dart';
 /// `code` shell command, and Open with BaoCode in Finder's or Explorer's
 /// context menu. A choice is written at once; the default is not written.
 class GeneralSettingsPage extends StatelessWidget {
-  const GeneralSettingsPage({super.key, this.settings});
+  const GeneralSettingsPage({super.key, this.settings, this.tips});
 
   /// settings.json; none under test, where choices are not kept.
   final UserSettings? settings;
+
+  /// The feature tips: those not on yet are listed first.
+  final FeatureTipsController? tips;
 
   static String attributionName(BuildContext context, CommitAttribution value) {
     final l10n = context.l10n;
@@ -205,6 +210,20 @@ class GeneralSettingsPage extends StatelessWidget {
         return SettingsPage(
           title: l10n.generalSettingsTitle,
           children: [
+            if (tips case final tips?)
+              FeatureTipsSettingsList(
+                controller: tips,
+                builder: (context, rows) => SettingsGroup(
+                  title: l10n.tipsSettingsTitle,
+                  description: l10n.tipsSettingsDescription,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 6, 8, 6),
+                      child: Column(children: rows),
+                    ),
+                  ],
+                ),
+              ),
             SettingsCard(
               children: [
                 SettingsRow(

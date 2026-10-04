@@ -140,7 +140,12 @@ class Sidebar extends StatefulWidget {
     this.onNewAgent,
     this.updates,
     this.onUpdate,
+    this.setup,
   });
+
+  /// Over the foot's row: the setup checklist folded ("Setup n/m"), which
+  /// shows nothing when the checklist does not fold there.
+  final Widget? setup;
 
   final Workspace workspace;
 
@@ -1003,7 +1008,10 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   Widget _buildFooterRow(Widget? update) {
     final count = _workspace.threads.where((t) => t.archived).length;
     final settings = widget.onOpenSettings;
-    if (count == 0 && settings == null && update == null) {
+    if (count == 0 &&
+        settings == null &&
+        update == null &&
+        widget.setup == null) {
       return const SizedBox.shrink();
     }
     return Container(
@@ -1011,25 +1019,37 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
       padding: const EdgeInsets.all(6),
-      child: Row(
-        children: [
-          Expanded(
-            child: count == 0
-                ? const SizedBox.shrink()
-                : _buildArchivedToggle(count),
-          ),
-          if (update != null) ...[const SizedBox(width: 4), update],
-          if (settings != null) ...[
-            const SizedBox(width: 4),
-            SidebarIconButton(
-              icon: Codicons.settingsGear,
-              tooltip: context.l10n.settingsTitle,
-              command: openSettingsCommandId,
-              onTap: settings,
-            ),
-          ],
-        ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [?widget.setup, _buildFooterButtons(count, settings, update)],
       ),
+    );
+  }
+
+  Widget _buildFooterButtons(
+    int count,
+    VoidCallback? settings,
+    Widget? update,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: count == 0
+              ? const SizedBox.shrink()
+              : _buildArchivedToggle(count),
+        ),
+        if (update != null) ...[const SizedBox(width: 4), update],
+        if (settings != null) ...[
+          const SizedBox(width: 4),
+          SidebarIconButton(
+            icon: Codicons.settingsGear,
+            tooltip: context.l10n.settingsTitle,
+            command: openSettingsCommandId,
+            onTap: settings,
+          ),
+        ],
+      ],
     );
   }
 
