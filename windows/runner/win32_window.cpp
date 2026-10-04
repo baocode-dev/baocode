@@ -170,12 +170,19 @@ void AskForSystemFrame(HWND window) {
     return;
   }
   // No caption bar of its own over the glass: the app draws the header.
-  // The border stays the system's dark one, named so a light line is not
-  // what the glass draws along the edge.
+  // Keep the DWM border in step with the system app theme. Without this,
+  // Windows 11 keeps the hard-coded dark border even in light mode.
   const COLORREF caption = DWMWA_COLOR_NONE;
   ::DwmSetWindowAttribute(window, DWMWA_CAPTION_COLOR, &caption,
                           sizeof(caption));
-  const COLORREF border = 0x002C2C2C;
+  DWORD apps_use_light_theme = 1;
+  DWORD value_size = sizeof(apps_use_light_theme);
+  const bool has_theme =
+      RegGetValue(HKEY_CURRENT_USER, kGetPreferredBrightnessRegKey,
+                  kGetPreferredBrightnessRegValue, RRF_RT_REG_DWORD, nullptr,
+                  &apps_use_light_theme, &value_size) == ERROR_SUCCESS;
+  const COLORREF border =
+      has_theme && apps_use_light_theme ? 0x00D6D6D6 : 0x002C2C2C;
   ::DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &border, sizeof(border));
   if (build >= kSystemBackdropBuild) {
     const int backdrop = DWMSBT_TRANSIENTWINDOW;

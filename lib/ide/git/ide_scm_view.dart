@@ -1180,7 +1180,8 @@ class IdeScmViewState extends State<IdeScmView>
   /// behind it.
   Widget? _syncButton(IdeGitRepository git, IdeGitHead head) {
     final upstream = head.upstream;
-    if (upstream == null || (head.ahead == 0 && head.behind == 0)) {
+    if (upstream == null ||
+        (!git.syncing && head.ahead == 0 && head.behind == 0)) {
       return null;
     }
     final syncing = git.syncing;

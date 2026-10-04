@@ -67,4 +67,31 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 120));
     expect(statusReads(), 1);
   });
+
+  test(
+    'an operation forces a fresh status after a queued watcher refresh',
+    () async {
+      git.status = '## main...origin/main [behind 1]\x00';
+      await repository.refresh();
+      final statusRelease = Completer<void>();
+      final pullRelease = Completer<void>();
+      git.hold = (arguments) {
+        if (arguments.first == 'status') return statusRelease.future;
+        if (arguments.first == 'pull') return pullRelease.future;
+        return null;
+      };
+
+      changes.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      final syncing = repository.sync();
+      await Future<void>.delayed(Duration.zero);
+      statusRelease.complete();
+      await Future<void>.delayed(Duration.zero);
+      git.status = '## main...origin/main\x00';
+      pullRelease.complete();
+      await syncing;
+
+      expect(repository.state!.head.behind, 0);
+    },
+  );
 }

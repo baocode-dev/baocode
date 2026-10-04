@@ -76,26 +76,34 @@ class IdeGitRepository extends ChangeNotifier {
 
   IdeGitDecorations? get decorations => _state?.decorations;
 
-  /// Reads the status now; queued behind running operations. A read
-  /// already queued and not yet started is the one returned: it will see
-  /// every change made until it starts.
-  Future<void> refresh() =>
-      _pendingRefresh ??= _enqueue(background: true, () async {
-        _pendingRefresh = null;
-        try {
-          final state = await service.status();
-          if (_disposed) return;
-          _state = state;
-          _error = null;
-          if (state != null) _watch(state.root);
-        } catch (error) {
-          if (_disposed) return;
-          _error = error;
-        }
-        _loaded = true;
-        _graphStale = true;
-        _notify();
-      });
+  /// Reads the status now; queued behind running operations. A read already
+  /// queued and not yet started is the one returned unless [force] is true.
+  /// Operations use a forced read so a watcher refresh that was queued while
+  /// `git pull` was running cannot leave the UI showing its older state.
+  Future<void> refresh({bool force = false}) {
+    if (!force) {
+      final pending = _pendingRefresh;
+      if (pending != null) return pending;
+    }
+    final run = _enqueue(background: true, () async {
+      if (!force) _pendingRefresh = null;
+      try {
+        final state = await service.status();
+        if (_disposed) return;
+        _state = state;
+        _error = null;
+        if (state != null) _watch(state.root);
+      } catch (error) {
+        if (_disposed) return;
+        _error = error;
+      }
+      _loaded = true;
+      _graphStale = true;
+      _notify();
+    });
+    if (!force) _pendingRefresh = run;
+    return run;
+  }
 
   /// Refreshes [refreshDelay] after the first change since the last
   /// read. Not restarted by later changes: files that keep changing (a
@@ -157,7 +165,7 @@ class IdeGitRepository extends ChangeNotifier {
       }
       rethrow;
     } finally {
-      if (!_disposed) await refresh();
+      if (!_disposed) await refresh(force: true);
     }
   }
 
