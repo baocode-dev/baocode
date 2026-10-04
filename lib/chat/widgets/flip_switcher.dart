@@ -99,7 +99,10 @@ class _FlipSwitcherState extends State<FlipSwitcher>
         animation: _flip,
         builder: (context, _) {
           final t = Curves.easeOutCubic.transform(_flip.value);
+          // As wide as it is let be, not as the one leaving: the one
+          // coming may be longer.
           return Stack(
+            fit: StackFit.passthrough,
             children: [
               // Under the one coming: laid out alone, it sizes the stack.
               _Tipped(t: t, leaving: true, child: leaving),

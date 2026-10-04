@@ -1,9 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/panels/activity_strip.dart';
+import 'package:baocode/chat/widgets/agent_step.dart';
 import 'package:baocode/chat/widgets/chat_item_view.dart';
 import 'package:baocode/chat/widgets/shell_highlight.dart';
 import 'package:baocode/chat/widgets/shimmer_text.dart';
@@ -12,6 +14,7 @@ import 'package:baocode/chat/widgets/wheel_latch.dart';
 import 'package:baocode/ide/terminal/terminal_colors.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/workbench_theme.dart' show themeColors;
 
 /// [item] as the history shows it, opened or not; taps toggle it.
 Future<void> pumpStep(WidgetTester tester, ChatItem item) async {
@@ -299,8 +302,8 @@ void main() {
       expect(find.textContaining('tokens', findRichText: true), findsNothing);
     });
 
-    testWidgets('a subagent: a card with how far it got over its report, '
-        'opening on a click or Enter', (tester) async {
+    testWidgets('a subagent: a line, how it went after its description once '
+        'done, opening on a click or Enter', (tester) async {
       var opened = 0;
       await tester.pumpWidget(
         MaterialApp(
@@ -329,10 +332,9 @@ void main() {
         find.text('· Explore · 1m 14s · 2 tools · 8.2k tokens'),
         findsOneWidget,
       );
-      // Done: its report's first line, out of its markdown.
-      expect(find.text('Found'), findsOneWidget);
       // The rest is in its own conversation.
-      expect(header('Read kernel.dart'), findsNothing);
+      expect(find.textContaining('Found'), findsNothing);
+      expect(find.textContaining('Read kernel.dart'), findsNothing);
 
       await tester.tap(find.text('Find the kernel files'));
       expect(opened, 1);
@@ -366,11 +368,47 @@ void main() {
         ),
       );
       expect(find.byType(ShimmerText), findsOneWidget);
-      // What it is doing, before any step of its shows.
-      expect(find.text('Reading game.js'), findsOneWidget);
-      expect(find.textContaining('Explore · 1m 9s'), findsOneWidget);
+      // What it is doing, before any step of its shows; how it went only
+      // once done.
+      expect(find.text('· Reading game.js'), findsOneWidget);
+      expect(find.textContaining('Explore'), findsNothing);
       await tester.tap(find.byIcon(Icons.stop_rounded));
       expect((stopped, opened), (1, 0));
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('a subagent\'s card keeps its height whatever it did last', (
+      tester,
+    ) async {
+      Future<double> height(List<ChatItem> children) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: ChatItemView(
+                  item: AgentItem(
+                    id: 'toolu_1',
+                    description: 'Look around',
+                    children: children,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        return tester.getSize(find.byType(AgentStep)).height;
+      }
+
+      final nothing = await height(const []);
+      expect(
+        await height(const [AssistantTextItem('Let me look 🙂')]),
+        nothing,
+      );
+      expect(
+        await height(const [TerminalItem(command: '看一下 ls', output: '')]),
+        nothing,
+      );
       await tester.pumpWidget(const SizedBox());
     });
 
@@ -396,7 +434,7 @@ void main() {
           ),
         ),
       );
-      Finder line(String command) => find.text('Ran $command');
+      Finder line(String command) => find.text('· Ran $command');
 
       await show(['ls']);
       expect(line('ls'), findsOneWidget);
@@ -421,6 +459,27 @@ void main() {
       expect(line('cd a'), findsNothing);
       expect(line('cd b'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('a message to an agent: someone speaking, in amber, saying '
+        'it', (tester) async {
+      await pumpStep(
+        tester,
+        const ToolCallItem(
+          kind: ToolKind.message,
+          target: 'Report back',
+          output: 'Report back',
+        ),
+      );
+      final icon = tester.widget<SvgPicture>(find.byType(SvgPicture));
+      expect(
+        icon.colorFilter,
+        ColorFilter.mode(
+          themeColors['symbolIcon.eventForeground'],
+          BlendMode.srcIn,
+        ),
+      );
+      expect(header('Said Report back'), findsOneWidget);
     });
 
     test('the shell highlighter colors programs, strings and options', () {

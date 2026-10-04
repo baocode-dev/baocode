@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,11 +13,10 @@ import 'orbit_indicator.dart';
 import 'shimmer_text.dart';
 import '../../ide/ide_hover.dart';
 
-/// A subagent as a card: what it was given to do and how far it has got
-/// ("Explore · 55s · 5 tools · 8.2k tokens"), over what it did last, which
-/// flips up to the next as it goes on (its report's first line once done).
-/// A click, or Enter once focused, opens its own conversation ([onOpen]),
-/// where the rest is.
+/// A subagent as a card, a line: what it was given to do, then what it did
+/// last, flipping up to the next as it goes on, and once done to how it
+/// went ("Explore · 55s · 5 tools · 8.2k tokens"). A click, or Enter once
+/// focused, opens its own conversation ([onOpen]), where the rest is.
 class AgentStep extends StatefulWidget {
   const AgentStep({
     super.key,
@@ -88,13 +85,9 @@ class AgentStep extends StatefulWidget {
         _ => null,
       };
 
-  /// What it did last, in a line, e.g. "Ran Find reusable helpers"; once
-  /// done, its report's first line. What it was asked before it does
-  /// anything; null with nothing to say.
+  /// What it did last, in a line, e.g. "Ran Find reusable helpers"; what
+  /// it was asked before it does anything. Null with nothing to say.
   static String? latest(AgentItem item, {AppLocalizations? l10n}) {
-    if (item.status != CommandStatus.running) {
-      if (_firstLine(item.result) case final report?) return report;
-    }
     for (final child in item.children.reversed) {
       if (_firstLine(chatItemPlainText(child, l10n: l10n)) case final line?) {
         return line;
@@ -102,6 +95,17 @@ class AgentStep extends StatefulWidget {
     }
     return _firstLine(item.activity) ?? _firstLine(item.prompt);
   }
+
+  /// What follows its description: while it runs, what it did last; once
+  /// done, how it went. Null with nothing to say.
+  static String? trailing(AgentItem item, {AppLocalizations? l10n}) =>
+      switch (item.status) {
+        CommandStatus.running => latest(item, l10n: l10n),
+        _ => switch (meta(item, l10n: l10n)) {
+          '' => null,
+          final meta => meta,
+        },
+      };
 
   /// The first line of [text] with anything in it, out of its markdown's
   /// heading and emphasis marks.
@@ -119,19 +123,23 @@ class AgentStep extends StatefulWidget {
 
   /// The card as text, for copying: as it reads.
   static String plainText(AgentItem item, {AppLocalizations? l10n}) => [
-    [
-      item.description,
-      if (meta(item, l10n: l10n) case final meta when meta.isNotEmpty)
-        '· $meta',
-    ].join(' '),
-    ?latest(item, l10n: l10n),
-  ].join('\n');
+    item.description,
+    if (trailing(item, l10n: l10n) case final trailing?) '· $trailing',
+  ].join(' ');
 
   @override
   State<AgentStep> createState() => _AgentStepState();
 }
 
 const _titleStyle = TextStyle(fontSize: 13, fontWeight: FontWeight.w500);
+
+/// Its line's height, whatever fonts its text falls back on (CJK's run
+/// taller than Latin's): it keeps its height as what follows changes.
+const _lineStrut = StrutStyle(
+  fontSize: 13,
+  height: 1.4,
+  forceStrutHeight: true,
+);
 
 class _AgentStepState extends State<AgentStep> {
   bool _focused = false;
@@ -150,65 +158,64 @@ class _AgentStepState extends State<AgentStep> {
     final item = widget.item;
     final running = item.status == CommandStatus.running;
     final l10n = context.l10n;
-    final latest = AgentStep.latest(item, l10n: l10n);
+    final trailing = AgentStep.trailing(item, l10n: l10n);
     final open = widget.onOpen;
     final content = Padding(
       padding: const EdgeInsets.fromLTRB(12, 9, 10, 9),
       child: Row(
         children: [
           AgentStatusIcon(item.status, background: item.background),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LayoutBuilder(
-                  builder: (context, constraints) => Row(
-                    children: [
-                      // Shimmers while it works.
-                      Flexible(
-                        child: running
-                            ? ShimmerText(
-                                item.description,
-                                ellipsis: false,
-                                padding: EdgeInsets.zero,
-                                style: _titleStyle,
-                              )
-                            : Text(
-                                item.description,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: _titleStyle.copyWith(
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                      ),
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: constraints.maxWidth / 2,
-                        ),
-                        child: _Meta(item: item),
-                      ),
-                    ],
+            child: LayoutBuilder(
+              builder: (context, constraints) => Row(
+                children: [
+                  // Shimmers while it works.
+                  Flexible(
+                    child: running
+                        ? ShimmerText(
+                            item.description,
+                            ellipsis: false,
+                            padding: EdgeInsets.zero,
+                            style: _titleStyle,
+                            strutStyle: _lineStrut,
+                          )
+                        : Text(
+                            item.description,
+                            strutStyle: _lineStrut,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _titleStyle.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
                   ),
-                ),
-                if (latest != null) ...[
-                  const SizedBox(height: 2),
-                  FlipSwitcher(
-                    child: Text(
-                      latest,
-                      key: ValueKey(latest),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.textFaint,
-                        fontSize: 11.5,
+                  if (trailing != null)
+                    // At most half the line, the description having the
+                    // rest.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: constraints.maxWidth / 2,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: FlipSwitcher(
+                          child: Text(
+                            '· $trailing',
+                            key: ValueKey(trailing),
+                            strutStyle: _lineStrut,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.textFaint,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
                 ],
-              ],
+              ),
             ),
           ),
           // Its buttons take their own presses (see _down).
@@ -304,68 +311,6 @@ class _AgentStepState extends State<AgentStep> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// After its description: its kind and progress (see [AgentStep.meta]),
-/// the time it has taken going on once a second while it runs. At most
-/// half the row, the description having the rest.
-class _Meta extends StatefulWidget {
-  const _Meta({required this.item});
-
-  final AgentItem item;
-
-  @override
-  State<_Meta> createState() => _MetaState();
-}
-
-class _MetaState extends State<_Meta> {
-  Timer? _ticker;
-
-  @override
-  void initState() {
-    super.initState();
-    _tick();
-  }
-
-  @override
-  void didUpdateWidget(_Meta oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _tick();
-  }
-
-  void _tick() {
-    final running = widget.item.status == CommandStatus.running;
-    if (!running) {
-      _ticker?.cancel();
-      _ticker = null;
-    } else {
-      _ticker ??= Timer.periodic(
-        const Duration(seconds: 1),
-        (_) => setState(() {}),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final meta = AgentStep.meta(widget.item, l10n: context.l10n);
-    if (meta.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(left: 6),
-      child: Text(
-        '· $meta',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: AppColors.textFaint, fontSize: 12),
       ),
     );
   }

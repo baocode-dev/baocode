@@ -1802,10 +1802,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toolUpdatedTodos => '已更新待办';
 
   @override
-  String get toolSending => '正在发送';
+  String get toolSending => '正在说';
 
   @override
-  String get toolSent => '已发送';
+  String get toolSent => '说';
 
   @override
   String get toolAsking => '正在提问';

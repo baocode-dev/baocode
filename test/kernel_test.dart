@@ -383,19 +383,18 @@ void main() {
       final items = [
         for (var i = 0; i < transcript.length; i++) transcript.itemAt(i),
       ].whereType<ToolCallItem>();
-      expect(
-        items.map((item) => (item.kind, item.label, item.target, item.output)),
-        [
-          (
-            ToolKind.message,
-            'SendMessage',
-            'Return the text: hello',
-            'Return the text:\n  hello',
-          ),
-          (ToolKind.message, 'SendMessage', 'Return hello', 'No such agent.'),
-          (ToolKind.message, 'SendMessage', 'Say hello', 'Message sent.'),
-        ],
-      );
+      expect(items.map((item) => (item.kind, item.target, item.output)), [
+        (
+          ToolKind.message,
+          'Return the text: hello',
+          'Return the text:\n  hello',
+        ),
+        (ToolKind.message, 'Return hello', 'No such agent.'),
+        (ToolKind.message, 'Say hello', 'Message sent.'),
+      ]);
+      // It says it in words of its own: "Said …".
+      expect(items.map((item) => item.label), everyElement(isNull));
+      expect(toolVerb(ToolKind.message), 'Said');
     });
 
     test('a notebook edit shows its cell changed, line by line', () {

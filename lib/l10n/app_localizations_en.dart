@@ -1857,10 +1857,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolUpdatedTodos => 'Updated todos';
 
   @override
-  String get toolSending => 'Sending';
+  String get toolSending => 'Saying';
 
   @override
-  String get toolSent => 'Sent';
+  String get toolSent => 'Said';
 
   @override
   String get toolAsking => 'Asking';

@@ -3539,13 +3539,13 @@ abstract class AppLocalizations {
   /// No description provided for @toolSending.
   ///
   /// In en, this message translates to:
-  /// **'Sending'**
+  /// **'Saying'**
   String get toolSending;
 
   /// No description provided for @toolSent.
   ///
   /// In en, this message translates to:
-  /// **'Sent'**
+  /// **'Said'**
   String get toolSent;
 
   /// No description provided for @toolAsking.

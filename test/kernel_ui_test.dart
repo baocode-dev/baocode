@@ -853,12 +853,9 @@ void main() {
       ..push(result('toolu_a', 'toolu_r', '1\tconst plane = 1;'));
     await tester.pump(const Duration(milliseconds: 100));
 
-    // In the conversation: a card, with how far it has got, over what it
-    // did last.
+    // In the conversation: a card, a line, with what it did last.
     expect(find.text('Compare the games'), findsOneWidget);
-    expect(find.textContaining('Explore · ', findRichText: true), findsOne);
-    expect(find.textContaining('1 tool', findRichText: true), findsOne);
-    expect(find.text('Read game.js'), findsOneWidget);
+    expect(find.text('· Read game.js'), findsOneWidget);
     // In the foreground: no orbit.
     expect(find.byType(OrbitIndicator), findsNothing);
 
@@ -939,14 +936,10 @@ void main() {
     await tester.pump();
     expect(find.text('Conversation'), findsNothing);
     expect(find.byType(ChatComposer), findsOneWidget);
-    // Its card, done, its report's first line under it, and its row as a
+    // Its card, done, how it went after its description, and its row as a
     // background task.
     expect(find.text('Compare the games'), findsNWidgets(2));
-    expect(
-      find.textContaining('Explore · 1m 14s', findRichText: true),
-      findsOneWidget,
-    );
-    expect(find.text('The plane game is best.'), findsOneWidget);
+    expect(find.text('· Explore · 1m 14s · 1 tool · 9.1k tokens'), findsOne);
   });
 
   testWidgets('a subagent in the background reports when notified, and '
