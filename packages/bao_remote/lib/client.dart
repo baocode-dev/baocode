@@ -3,6 +3,7 @@
 library;
 
 export 'protocol.dart';
+export 'src/claude/claude_release.dart' show ClaudeBuild, ClaudeRelease;
 export 'src/client/remote_client.dart';
 export 'src/client/remote_process.dart';
 export 'src/client/remote_review_store.dart';

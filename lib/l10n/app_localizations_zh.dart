@@ -5470,6 +5470,26 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String remoteStatusInstalling(String host, int percent) {
+    return 'SSH: $host（正在安装 Claude Code $percent%）';
+  }
+
+  @override
+  String remoteInstallingClaude(String host) {
+    return '正在 $host 上安装 Claude Code…';
+  }
+
+  @override
+  String remoteInstallingClaudeProgress(String host, int percent) {
+    return '正在 $host 上安装 Claude Code… $percent%';
+  }
+
+  @override
+  String remoteUploadingClaude(String host, int percent) {
+    return '正在把 Claude Code 传到 $host… $percent%';
+  }
+
+  @override
   String remoteStatusTooltip(String host) {
     return '已通过 SSH 连接到 $host';
   }

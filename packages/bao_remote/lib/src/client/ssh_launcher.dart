@@ -249,6 +249,7 @@ exit 0
       );
     }
     if (!lines.contains('BAOCODE-PRESENT')) {
+      progress('Installing the BaoCode server on ${target.text}');
       final binary = await binaries.read(arch);
       if (binary == null) {
         throw SshConnectException(
@@ -257,7 +258,6 @@ exit 0
         );
       }
       final gzip = lines.contains('BAOCODE-GZIP');
-      progress('Installing the BaoCode server on ${target.text}');
       final upload = await _run(
         target,
         uploadCommand(_nonce(), gzip: gzip),

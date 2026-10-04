@@ -58,6 +58,16 @@ class RpcError {
     IdeGitException(:final message) => _typed(error, 'git', {
       'message': message,
     }),
+    ClaudeNotInstalled(:final message, :final detail) => _typed(
+      error,
+      'claudeNotInstalled',
+      {'message': message, 'detail': ?detail},
+    ),
+    ClaudeDownloadFailed(:final message, :final detail) => _typed(
+      error,
+      'claudeDownloadFailed',
+      {'message': message, 'detail': ?detail},
+    ),
     ClaudeUnavailable(:final message, :final detail) => _typed(
       error,
       'claudeUnavailable',
@@ -133,6 +143,14 @@ class RpcError {
       'tooLarge' => IdeFileTooLargeException(path(), data['size'] as int? ?? 0),
       'exists' => IdeFileExistsException(path()),
       'git' => IdeGitException(text()),
+      'claudeNotInstalled' => ClaudeNotInstalled(
+        text(),
+        detail: data['detail'] as String?,
+      ),
+      'claudeDownloadFailed' => ClaudeDownloadFailed(
+        text(),
+        detail: data['detail'] as String?,
+      ),
       'claudeUnavailable' => ClaudeUnavailable(
         text(),
         detail: data['detail'] as String?,

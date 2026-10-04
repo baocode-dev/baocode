@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import '../claude/claude_release.dart';
 import '../claude/claude_sessions.dart';
+import '../claude/claude_unavailable.dart';
 import '../files/ide_file.dart';
 import '../files/recursive_watch.dart';
 import '../git/git_types.dart';
@@ -541,9 +543,52 @@ class RemoteClient {
   /// Where Claude Code is there; throws ClaudeUnavailable for nowhere.
   Future<String> locateClaude() => _call(RemoteProtocol.claudeLocate);
 
-  /// Runs Claude Code's own installer there ([RemoteProtocol.claudeInstall]).
-  Future<RemoteProcess> installClaude() async =>
-      _process(_map(await peer.request(RemoteProtocol.claudeInstall)));
+  /// Has the server download and install Claude Code where the user has
+  /// none ([RemoteProtocol.claudeInstall]); [onProgress] is told the bytes
+  /// so far of how many.
+  Future<void> installClaude({
+    void Function(int received, int size)? onProgress,
+  }) async {
+    await for (final event in openStream(RemoteProtocol.claudeInstall, {})) {
+      if (event case {'received': final int received, 'size': final int size}) {
+        onProgress?.call(received, size);
+      }
+    }
+  }
+
+  /// Sends [file], [build] downloaded here, for the server to install
+  /// ([RemoteProtocol.claudeUpload]): for a host that cannot reach the
+  /// downloads. Its path there.
+  Future<String> uploadClaude(
+    ClaudeBuild build,
+    File file, {
+    void Function(int sent, int size)? onProgress,
+    int chunkSize = 1 << 20,
+  }) async {
+    final input = await file.open();
+    try {
+      var offset = 0;
+      while (true) {
+        final data = await input.read(chunkSize);
+        final path = await _call<String?>(RemoteProtocol.claudeUpload, {
+          'build': build.toJson(),
+          'offset': offset,
+          'data': encodeBytes(data),
+        });
+        offset += data.length;
+        onProgress?.call(offset, build.size);
+        if (path != null) return path;
+        if (data.isEmpty) {
+          throw const ClaudeDownloadFailed(
+            'Claude Code was not uploaded whole',
+            detail: 'The download here is shorter than the build.',
+          );
+        }
+      }
+    } finally {
+      await input.close();
+    }
+  }
 
   Future<List<ClaudeProjectSummary>> claudeProjects() async => [
     for (final project in await _call<List>(RemoteProtocol.claudeProjects))

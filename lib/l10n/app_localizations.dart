@@ -9663,6 +9663,30 @@ abstract class AppLocalizations {
   /// **'SSH: {host} (disconnected)'**
   String remoteStatusFailed(String host);
 
+  /// No description provided for @remoteStatusInstalling.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH: {host} (installing Claude Code {percent}%)'**
+  String remoteStatusInstalling(String host, int percent);
+
+  /// Shown while Claude Code is put on a remote host where it was not installed, before the agent starts.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing Claude Code on {host}…'**
+  String remoteInstallingClaude(String host);
+
+  /// No description provided for @remoteInstallingClaudeProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing Claude Code on {host}… {percent}%'**
+  String remoteInstallingClaudeProgress(String host, int percent);
+
+  /// The host cannot download Claude Code itself: this machine downloaded it and sends it over the SSH connection.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending Claude Code to {host}… {percent}%'**
+  String remoteUploadingClaude(String host, int percent);
+
   /// No description provided for @remoteStatusTooltip.
   ///
   /// In en, this message translates to:

@@ -16,6 +16,27 @@ import 'remote_location.dart';
 import 'remote_lsp.dart';
 import 'remote_services.dart';
 
+/// How far installing Claude Code on a host is: [received] bytes of
+/// [size]; [uploading] once it is sent from here, the host unable to
+/// download it.
+class ClaudeInstallProgress {
+  const ClaudeInstallProgress(
+    this.received,
+    this.size, {
+    this.uploading = false,
+  });
+
+  final int received;
+  final int? size;
+  final bool uploading;
+
+  /// From 0 to 1; null while the size is not known.
+  double? get fraction => switch (size) {
+    final size? when size > 0 => (received / size).clamp(0, 1).toDouble(),
+    _ => null,
+  };
+}
+
 /// Where a host's connection is.
 enum SshHostState {
   /// Not asked for yet, or closed.
@@ -105,6 +126,15 @@ class SshHost extends ChangeNotifier implements ProjectHost {
 
   /// What the server said of itself, once connected.
   RemoteHello? get hello => _connection?.hello;
+
+  /// Claude Code being installed there (see installRemoteClaude): the bytes
+  /// so far, of [ClaudeInstallProgress.size] once known; null when not.
+  ClaudeInstallProgress? get installingClaude => _installingClaude;
+  ClaudeInstallProgress? _installingClaude;
+  set installingClaude(ClaudeInstallProgress? progress) {
+    _installingClaude = progress;
+    notifyListeners();
+  }
 
   /// Each connection made after a lost one: what ran over the old one
   /// (language servers, open files) is to be started or read again.
@@ -228,7 +258,7 @@ class SshHosts extends ChangeNotifier {
 
   final SshConnector? _connectOverride;
   final Map<String, SshHost> _hosts = {};
-  SshLauncher? _launcher;
+  Future<SshLauncher>? _launcher;
 
   /// The host named [host] (connected when first asked for).
   SshHost operator [](String host) => _hosts.putIfAbsent(host, () {
@@ -251,10 +281,17 @@ class SshHosts extends ChangeNotifier {
       return connect(target, onProgress: onProgress);
     }
     final launcher = _launcher ??= _makeLauncher();
-    return launcher.connect(target, onProgress: onProgress);
+    return launcher.then(
+      (launcher) => launcher.connect(target, onProgress: onProgress),
+      onError: (Object error, StackTrace stack) {
+        // Looked for again next time: it may be there by then.
+        _launcher = null;
+        Error.throwWithStackTrace(error, stack);
+      },
+    );
   }
 
-  static SshLauncher _makeLauncher() {
+  static Future<SshLauncher> _makeLauncher() async {
     final ssh = findSsh(Platform.environment);
     if (ssh == null) {
       throw const SshConnectException(
@@ -262,7 +299,9 @@ class SshHosts extends ChangeNotifier {
         'No ssh here: install OpenSSH to open remote projects.',
       );
     }
-    final binaries = bundledServerBinaries();
+    // The app's build of the server; in development, one of the sources.
+    final binaries =
+        bundledServerBinaries() ?? await SourceServerBinaries.find();
     if (binaries == null) {
       throw const SshConnectException(
         SshFailure.server,

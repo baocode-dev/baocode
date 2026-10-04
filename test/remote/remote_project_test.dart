@@ -453,7 +453,8 @@ printf '%s\n' "$line"
       },
     );
 
-    test('not installed there: says so, and how to install it', () async {
+    test('a build named by BAOCODE_CLAUDE_PATH that is not there: says '
+        'so, nothing installed instead', () async {
       final environment = {
         'PATH': '/usr/bin:/bin',
         'HOME': home.path,
@@ -467,12 +468,14 @@ printf '%s\n' "$line"
           isA<ClaudeUnavailable>()
               .having((e) => e.message, 'message', contains('dev'))
               .having(
-                (e) => e.detail,
-                'detail',
-                contains(remoteClaudeInstallCommand),
+                (e) => e.message,
+                'message',
+                contains(CliLocator.overrideVariable),
               ),
         ),
       );
+      expect(hosts['dev'].installingClaude, isNull);
+      expect(Directory(p.join(dataDir.path, 'claude')).existsSync(), isFalse);
     });
   });
 

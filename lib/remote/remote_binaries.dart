@@ -1,6 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:bao_remote/client.dart';
+import 'package:bao_remote/local.dart' show ClaudeEnvironment;
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 /// The server builds in [directory] (tool/build_remote_server.dart writes
@@ -60,4 +64,134 @@ RemoteServerBinaries? bundledServerBinaries({
     if (DirectoryServerBinaries.at(directory) case final found?) return found;
   }
   return null;
+}
+
+/// The server built from the checkout's sources as a host needs it: for a
+/// development run of the app, which carries no build. Named by its
+/// sources, so that a host is given it anew once they change.
+class SourceServerBinaries implements RemoteServerBinaries {
+  SourceServerBinaries._(
+    this.root,
+    this.version,
+    this._dart,
+    this._environment,
+  );
+
+  /// The checkout the app runs from: the working folder's, or one the
+  /// executable is built under; null for none (an installed app).
+  static Future<SourceServerBinaries?> find({
+    String? current,
+    String? executable,
+    Map<String, String>? environment,
+  }) async {
+    current ??= Directory.current.path;
+    executable ??= Platform.resolvedExecutable;
+    String? root;
+    for (final start in [current, p.dirname(executable)]) {
+      for (var dir = start, i = 0; i < 12; dir = p.dirname(dir), i++) {
+        if (File(p.join(dir, _source)).existsSync()) {
+          root = dir;
+          break;
+        }
+        if (p.dirname(dir) == dir) break;
+      }
+      if (root != null) break;
+    }
+    if (root == null) return null;
+    // The login shell's, as the user's terminal has it: an app started
+    // from the Dock has little of a PATH.
+    environment ??= await ClaudeEnvironment.of();
+    final dart = _findDart(environment);
+    if (dart == null) return null;
+    return SourceServerBinaries._(
+      root,
+      'dev-${_hashSources(root)}',
+      dart,
+      environment,
+    );
+  }
+
+  static const _source = 'packages/bao_remote/bin/baocode_server.dart';
+
+  final String root;
+  final String _dart;
+  final Map<String, String> _environment;
+
+  @override
+  final String version;
+
+  final Map<String, Future<List<int>?>> _built = {};
+
+  @override
+  Future<List<int>?> read(String arch) => _built[arch] ??= _build(arch);
+
+  Future<List<int>?> _build(String arch) async {
+    final out = File(
+      p.join(root, 'build', 'remote', 'dev', '$version-linux-$arch'),
+    );
+    if (!out.existsSync()) {
+      out.parent.createSync(recursive: true);
+      final result = await Process.run(
+        _dart,
+        [
+          'compile',
+          'exe',
+          '--target-os',
+          'linux',
+          '--target-arch',
+          arch,
+          '-Dbaocode.version=$version',
+          '-o',
+          out.path,
+          _source,
+        ],
+        workingDirectory: root,
+        environment: _environment,
+      );
+      if (result.exitCode != 0) {
+        _built.remove(arch);
+        throw SshConnectException(
+          SshFailure.server,
+          'The BaoCode server could not be built for Linux $arch',
+          detail: '${result.stdout}\n${result.stderr}'.trim(),
+        );
+      }
+    }
+    return out.readAsBytes();
+  }
+
+  /// `dart`: Flutter's, else the PATH's.
+  static String? _findDart(Map<String, String> environment) {
+    final separator = Platform.isWindows ? ';' : ':';
+    final name = Platform.isWindows ? 'dart.exe' : 'dart';
+    for (final candidate in [
+      if (environment['FLUTTER_ROOT'] case final flutter?)
+        p.join(flutter, 'bin', name),
+      for (final dir in (environment['PATH'] ?? '').split(separator))
+        if (dir.isNotEmpty) p.join(dir, name),
+    ]) {
+      if (File(candidate).existsSync()) return candidate;
+    }
+    return null;
+  }
+
+  /// The server's sources, hashed: its package's Dart and pubspec.
+  static String _hashSources(String root) {
+    final package = Directory(p.join(root, 'packages', 'bao_remote'));
+    final files = [
+      for (final entry in package.listSync(recursive: true))
+        if (entry is File &&
+            (entry.path.endsWith('.dart') ||
+                p.basename(entry.path) == 'pubspec.yaml') &&
+            !p.split(entry.path).contains('.dart_tool'))
+          entry,
+    ]..sort((a, b) => a.path.compareTo(b.path));
+    final bytes = BytesBuilder(copy: false);
+    for (final file in files) {
+      bytes
+        ..add(utf8.encode(p.relative(file.path, from: package.path)))
+        ..add(file.readAsBytesSync());
+    }
+    return '${sha256.convert(bytes.takeBytes())}'.substring(0, 12);
+  }
 }

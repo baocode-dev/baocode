@@ -8,7 +8,7 @@ import 'package:path/path.dart' as p;
 import '../claude/claude_environment.dart';
 import '../claude/claude_sessions.dart';
 import '../claude/claude_settings_file.dart';
-import '../claude/cli_locator.dart';
+import '../claude/claude_release.dart';
 import '../files/ide_file.dart';
 import '../files/local_files.dart';
 import '../files/recursive_watch.dart';
@@ -18,6 +18,7 @@ import '../protocol.dart';
 import '../rpc/rpc_peer.dart';
 import '../search/local_search.dart';
 import 'server_lsp.dart';
+import 'server_claude.dart';
 import 'server_pty.dart';
 import 'server_review.dart';
 import 'server_streams.dart';
@@ -49,6 +50,12 @@ class RemoteServer {
       _streams,
       installRoot: p.join(dataDir, 'lsp', 'servers'),
     );
+    _claude = ServerClaude(
+      peer,
+      _streams,
+      managed: ManagedClaude(p.join(dataDir, 'claude')),
+      platform: ClaudeRelease.platformOf(currentPlatform()),
+    );
     _register();
     unawaited(peer.done.then((_) => shutdown()));
   }
@@ -65,6 +72,7 @@ class RemoteServer {
   late final ServerPty _pty;
   late final ServerTcp _tcp;
   late final ServerLsp _lsp;
+  late final ServerClaude _claude;
   final Map<String, LocalFiles> _files = {};
   final Map<int, _ServerProcess> _processes = {};
   int _nextProcess = 0;
@@ -254,10 +262,10 @@ class RemoteServer {
 
     // Claude Code.
     handlers[RemoteProtocol.claudeLocate] = (_, _) async =>
-        (await CliLocator.locate()).executable;
+        (await _claude.locate()).executable;
     handlers[RemoteProtocol.claudeStart] = (params, _) async {
       final args = paramsOf(params);
-      final cli = await CliLocator.locate();
+      final cli = await _claude.locate();
       final cwd = args['cwd'] as String;
       if (!Directory(cwd).existsSync()) {
         throw IdeFileNotFoundException(cwd);
@@ -313,22 +321,7 @@ class RemoteServer {
       final value = (await ClaudeEnvironment.of())[setting];
       return value == null || value.isEmpty ? null : setting;
     };
-    handlers[RemoteProtocol.claudeInstall] = (_, _) async {
-      final environment = await ClaudeEnvironment.of();
-      final process = await Process.start(
-        'bash',
-        ['-lc', claudeInstallCommand],
-        workingDirectory: AppPaths.home(environment),
-        environment: environment,
-        includeParentEnvironment: false,
-      );
-      return _track(process);
-    };
   }
-
-  /// What Claude Code's own installer is run with.
-  static const claudeInstallCommand =
-      'curl -fsSL https://claude.ai/install.sh | bash';
 
   ClaudeSessions get _sessions =>
       ClaudeSessions(cacheFile: p.join(dataDir, 'claude-sessions.json'));

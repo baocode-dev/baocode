@@ -9,6 +9,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:bao_remote/claude.dart';
 import 'package:bao_remote/client.dart';
 import 'package:bao_remote/files.dart' show IdeFileNotFoundException;
 
@@ -18,11 +19,12 @@ import '../kernel/claude_code/claude_haiku.dart';
 import '../kernel/claude_code/claude_storage_io.dart';
 import '../kernel/claude_code/process_transport.dart';
 import '../models/launch_environment.dart';
+import 'remote_claude_install.dart';
 import 'remote_location.dart';
 import 'ssh_host.dart';
 
-/// What the host is told to run to install Claude Code, as its install
-/// guidance says.
+/// What the user is told to run on the host when Claude Code could not be
+/// installed there for them, as its install guidance says.
 const remoteClaudeInstallCommand =
     'curl -fsSL https://claude.ai/install.sh | bash';
 
@@ -243,24 +245,45 @@ class RemoteClaudeTransport implements ClaudeCodeTransport {
     final cwd = RemoteLocation.pathOf(launch.cwd);
     final env = await remoteModelEnvironment(client, launch.env);
     final started = launch.copyWith(cwd: cwd, env: env);
+    Future<RemoteProcess> run() => client.startClaude(
+      cwd: cwd,
+      // A key in its flag settings: written to a file there instead.
+      arguments: started.hasSecrets
+          ? started.argumentsWithoutSettings
+          : started.arguments,
+      settings: started.hasSecrets ? started.settings : null,
+      cleared: [if (env != null) ...ClaudeModelVariables.inherited],
+      environment: ClaudeLaunch.environment,
+    );
     try {
-      final process = await client.startClaude(
-        cwd: cwd,
-        // A key in its flag settings: written to a file there instead.
-        arguments: started.hasSecrets
-            ? started.argumentsWithoutSettings
-            : started.arguments,
-        settings: started.hasSecrets ? started.settings : null,
-        cleared: [if (env != null) ...ClaudeModelVariables.inherited],
-        environment: ClaudeLaunch.environment,
-      );
+      RemoteProcess process;
+      try {
+        process = await run();
+      } on ClaudeNotInstalled {
+        // None there: put there, as VS Code's extension sets itself up.
+        await installRemoteClaude(host);
+        process = await run();
+      }
       return RemoteClaudeTransport._(process);
-    } on ClaudeUnavailable catch (error) {
+    } on ClaudeDownloadFailed catch (error) {
+      throw ClaudeUnavailable(
+        'Claude Code could not be installed on ${host.host}',
+        detail:
+            '${error.message}${error.detail == null ? '' : ': ${error.detail}'}'
+            '\n\nInstall it there, in a terminal of the project:\n'
+            '$remoteClaudeInstallCommand',
+      );
+    } on ClaudeNotInstalled catch (error) {
       throw ClaudeUnavailable(
         'Claude Code is not installed on ${host.host}',
         detail:
             '${error.detail ?? error.message}\n\nInstall it there, in a '
             'terminal of the project:\n$remoteClaudeInstallCommand',
+      );
+    } on ClaudeUnavailable catch (error) {
+      throw ClaudeUnavailable(
+        '${error.message} (on ${host.host})',
+        detail: error.detail,
       );
     } on IdeFileNotFoundException {
       throw ClaudeUnavailable('The project folder is gone: $cwd');

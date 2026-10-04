@@ -8,6 +8,7 @@ export 'git.dart';
 export 'review.dart';
 export 'search.dart';
 export 'src/claude/claude_environment.dart';
+export 'src/claude/claude_release.dart';
 export 'src/claude/claude_sessions.dart';
 export 'src/claude/claude_settings_file.dart';
 export 'src/claude/cli_locator.dart';

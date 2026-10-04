@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 import '../platform/app_paths.dart';
@@ -31,6 +32,12 @@ abstract final class CliLocator {
 
   static Future<ClaudeCli>? _located;
 
+  /// Where to look instead of the usual places, under test: so that a test
+  /// of Claude Code not installed never finds the machine's own.
+  @visibleForTesting
+  static List<String> Function(Map<String, String> environment)?
+  candidatesOverride;
+
   static Future<ClaudeCli> locate() => _located ??= _locate().then(
     (cli) => cli,
     onError: (Object error) {
@@ -53,12 +60,12 @@ abstract final class CliLocator {
       }
       return ClaudeCli(override, environment);
     }
-    for (final candidate in _candidates(environment)) {
+    for (final candidate in (candidatesOverride ?? _candidates)(environment)) {
       if (File(candidate).existsSync()) {
         return ClaudeCli(candidate, environment);
       }
     }
-    throw ClaudeUnavailable(
+    throw ClaudeNotInstalled(
       'Claude Code is not installed',
       detail:
           'Install it with `npm install -g @anthropic-ai/claude-code`, '

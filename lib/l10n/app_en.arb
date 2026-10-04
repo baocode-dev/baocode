@@ -4011,6 +4011,49 @@
       }
     }
   },
+  "remoteStatusInstalling": "SSH: {host} (installing Claude Code {percent}%)",
+  "@remoteStatusInstalling": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "remoteInstallingClaude": "Installing Claude Code on {host}…",
+  "@remoteInstallingClaude": {
+    "description": "Shown while Claude Code is put on a remote host where it was not installed, before the agent starts.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteInstallingClaudeProgress": "Installing Claude Code on {host}… {percent}%",
+  "@remoteInstallingClaudeProgress": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "remoteUploadingClaude": "Sending Claude Code to {host}… {percent}%",
+  "@remoteUploadingClaude": {
+    "description": "The host cannot download Claude Code itself: this machine downloaded it and sends it over the SSH connection.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "remoteStatusTooltip": "Connected to {host} over SSH",
   "@remoteStatusTooltip": {
     "placeholders": {

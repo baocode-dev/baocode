@@ -5835,6 +5835,26 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String remoteStatusInstalling(String host, int percent) {
+    return 'SSH: $host (installing Claude Code $percent%)';
+  }
+
+  @override
+  String remoteInstallingClaude(String host) {
+    return 'Installing Claude Code on $host…';
+  }
+
+  @override
+  String remoteInstallingClaudeProgress(String host, int percent) {
+    return 'Installing Claude Code on $host… $percent%';
+  }
+
+  @override
+  String remoteUploadingClaude(String host, int percent) {
+    return 'Sending Claude Code to $host… $percent%';
+  }
+
+  @override
   String remoteStatusTooltip(String host) {
     return 'Connected to $host over SSH';
   }
