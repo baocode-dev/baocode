@@ -80,7 +80,11 @@ void main() {
     await pumpEventQueue();
     final launch = launches.single;
     expect(launch.model, 'gpt-5(high)');
-    expect(launch.env, {'ANTHROPIC_BASE_URL': 'http://proxy/gw'});
+    // The CLI takes 200K for a model it does not know: told its window.
+    expect(launch.env, {
+      'CLAUDE_CODE_MAX_CONTEXT_TOKENS': '400000',
+      'ANTHROPIC_BASE_URL': 'http://proxy/gw',
+    });
     expect(launch.autocompact, 400000);
     // Through the proxy: not Claude Code's own effort.
     expect(launch.effort, isNull);
@@ -196,8 +200,32 @@ void main() {
     await pumpEventQueue();
     expect(launches, hasLength(2));
     expect(launches.last.autocompact, 1000000);
+    expect(launches.last.env?['CLAUDE_CODE_MAX_CONTEXT_TOKENS'], '1000000');
     kernel.dispose();
   });
+
+  test(
+    'a provider\'s own env has the last word on the model\'s window',
+    () async {
+      final launches = <ClaudeLaunch>[];
+      final kernel = ClaudeCodeKernel(
+        MockKernels.claudeCode,
+        const KernelContext(cwd: '/p', settings: {'model': '@gw/gpt-5'}),
+        start: (launch) async {
+          launches.add(launch);
+          return FakeCli();
+        },
+        providers: providers,
+        providerEnvironment: (provider, model) async => {
+          'CLAUDE_CODE_MAX_CONTEXT_TOKENS': '272000',
+        },
+      );
+      kernel.prepare();
+      await pumpEventQueue();
+      expect(launches.single.env, {'CLAUDE_CODE_MAX_CONTEXT_TOKENS': '272000'});
+      kernel.dispose();
+    },
+  );
 
   test('Disable turns thinking off: through the proxy, by the model\'s name; '
       'to an Anthropic upstream, as Claude Code\'s setting', () async {
@@ -270,7 +298,10 @@ void main() {
       await pumpEventQueue();
       expect(launches, hasLength(2));
       expect(launches.last.model, 'm');
-      expect(launches.last.env, {'ANTHROPIC_BASE_URL': 'http://proxy/other'});
+      expect(launches.last.env, {
+        'CLAUDE_CODE_MAX_CONTEXT_TOKENS': '200000',
+        'ANTHROPIC_BASE_URL': 'http://proxy/other',
+      });
 
       // Back to Claude Code as set up: nothing injected.
       kernel.model.select('default');

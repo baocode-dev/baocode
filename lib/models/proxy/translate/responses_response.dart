@@ -44,6 +44,11 @@ class ResponsesResponseTranslator {
   int blockIndex = 0;
   bool _hasTextDelta = false;
   bool _textBlockOpen = false;
+
+  /// Text that is only whitespace so far: its block waits for more, so that
+  /// a part of nothing but a space (which some upstreams send ahead of
+  /// their reasoning) is not a block of its own.
+  String _pendingText = '';
   bool _thinkingBlockOpen = false;
   String _thinkingSignature = '';
   bool _thinkingSummarySeen = false;
@@ -109,16 +114,22 @@ class ResponsesResponseTranslator {
         // The block stays open until the item's end brings its signature.
         break;
       case 'response.content_part.added':
+        // The text block starts with the part's first text (see below).
         output.write(_finalizeThinkingBlock());
-        if (root.get('part.type').string == 'output_text') {
-          output.write(_startTextBlock());
-        }
       case 'response.output_text.delta':
+        // Nothing, as an upstream's keep-alives are: no block for it, nor
+        // an end to the thinking it comes in the middle of.
+        final delta = root.get('delta').string;
+        if (delta.isEmpty) break;
         _hasTextDelta = true;
+        if (!_textBlockOpen) {
+          _pendingText += delta;
+          if (_pendingText.trim().isEmpty) break;
+        }
         output
           ..write(_finalizeThinkingBlock())
           ..write(_startTextBlock())
-          ..write(_textDelta(root.get('delta').string));
+          ..write(_textDelta(_takeText(delta)));
       case 'response.content_part.done':
         if (root.get('part.type').string == 'output_text') {
           output.write(_stopTextBlock());
@@ -198,7 +209,7 @@ class ResponsesResponseTranslator {
               if (part.get('type').string != 'output_text') continue;
               text.write(part.get('text').string);
             }
-            if (text.isEmpty) return '$output';
+            if ('$text'.trim().isEmpty) return '$output';
             output
               ..write(_finalizeThinkingBlock())
               ..write(_startTextBlock())
@@ -484,7 +495,18 @@ class ResponsesResponseTranslator {
     });
   }
 
+  /// [delta] as sent: with the whitespace that waited for it, when it was
+  /// added to that.
+  String _takeText(String delta) {
+    if (_pendingText.isEmpty) return delta;
+    final text = _pendingText;
+    _pendingText = '';
+    return text;
+  }
+
   String _stopTextBlock() {
+    // Whitespace that never led to text: dropped.
+    _pendingText = '';
     if (!_textBlockOpen) return '';
     final event = _blockStop(blockIndex);
     _textBlockOpen = false;

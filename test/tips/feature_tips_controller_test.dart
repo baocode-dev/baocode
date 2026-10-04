@@ -196,6 +196,42 @@ void main() {
       expect(tips.checklist.map((tip) => tip.id), ['a', 'b']);
     });
 
+    test('reset (Reset Feature Tips), all is as at a first launch: the card '
+        'back, a dismissed tip and a seen one offered again', () async {
+      final scenario = TipTrigger.scenario(TipScenarios.openedTerminal);
+      final a = _Feature('a');
+      final b = _Feature('b', triggers: {TipTrigger.firstLaunch, scenario});
+      final tips = await launch([a, b]);
+      final notifications = IdeNotifications();
+      addTearDown(notifications.dispose);
+      tips.attach(
+        TipsPresenter(
+          notifications: notifications,
+          l10n: () => englishLocalizations,
+          context: () => null,
+        ),
+      );
+      await tips.scenario(TipScenarios.openedTerminal);
+      final first = notifications.notifications.single;
+      await tips.dismiss(a.tip);
+      await tips.collapse();
+
+      await tips.reset();
+      expect(tips.cardVisible, isTrue);
+      expect(tips.checklist.map((tip) => tip.id), ['a', 'b']);
+      expect(tips.stateOf(a.tip), isNull);
+      expect(tips.stateOf(b.tip), isNull);
+      // This launch may tell of a tip again (the same words: in its place).
+      await tips.scenario(TipScenarios.openedTerminal);
+      expect(notifications.notifications.single, isNot(same(first)));
+      expect(tips.stateOf(b.tip), TipState.seen);
+
+      // Kept so: the next launch is no update, nor the card's second.
+      final next = await launch([a, b]);
+      expect(next.cardVisible, isTrue);
+      expect(next.upgradeTips, isEmpty);
+    });
+
     test('a failure is kept to show under the tip, nothing marked', () async {
       final tip = FeatureTip(
         id: 'fails',

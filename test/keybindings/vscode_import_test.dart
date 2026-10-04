@@ -418,48 +418,6 @@ void main() {
       );
     });
   });
-
-  group('first-launch offer', () {
-    test('when there is something to import, once', () async {
-      final store = _MemoryStore();
-      final detection = await installs.detect();
-      expect(detection.importable, isTrue);
-      expect(shouldOfferKeybindingsImport(detection, store), isTrue);
-
-      await markKeybindingsImportOffered(store);
-      expect(store.values, {keybindingsImportOfferedKey: true});
-      expect(shouldOfferKeybindingsImport(detection, store), isFalse);
-    });
-
-    test('not when nothing was found', () {
-      final store = _MemoryStore();
-      expect(
-        shouldOfferKeybindingsImport(const KeybindingsDetection(), store),
-        isFalse,
-      );
-      // Only empty keybindings files: nothing to import either.
-      final empty = KeybindingsDetection(
-        sources: [
-          KeybindingsSource(
-            product: VsCodeProduct.code,
-            path: p.join(support, 'Code', 'User', 'keybindings.json'),
-            entryCount: 0,
-          ),
-        ],
-      );
-      expect(shouldOfferKeybindingsImport(empty, store), isFalse);
-    });
-  });
-}
-
-class _MemoryStore implements ImportOfferStore {
-  final values = <String, Object?>{};
-
-  @override
-  Object? get(String key) => values[key];
-
-  @override
-  void set(String key, Object? value) => values[key] = value;
 }
 
 /// The assets as the repository has them.

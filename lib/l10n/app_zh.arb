@@ -1670,5 +1670,6 @@
   "tipImportKeybindingsTitle": "导入快捷键",
   "tipImportKeybindingsBody": "从 VS Code 或 Cursor 导入你的快捷键。",
   "tipColorThemeBody": "选择对话、IDE 和终端使用的配色。",
-  "cmdShowSetupGuide": "显示设置向导"
+  "cmdShowSetupGuide": "显示设置向导",
+  "cmdResetFeatureTips": "重置功能推荐"
 }

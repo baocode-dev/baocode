@@ -619,27 +619,6 @@ Future<KeybindingsImportReport> importKeybindings({
 const _emptyContent =
     '// Place your key bindings in this file to override the defaults\n[\n]';
 
-/// The key the first-launch offer is remembered by.
-const keybindingsImportOfferedKey = 'keybindings.importOffered';
-
-/// A small store that outlives the app (its global storage), which the
-/// first-launch offer is remembered in.
-abstract interface class ImportOfferStore {
-  Object? get(String key);
-  FutureOr<void> set(String key, Object? value);
-}
-
-/// Whether to offer importing at launch: there is something to import, and
-/// it was not offered before.
-bool shouldOfferKeybindingsImport(
-  KeybindingsDetection detection,
-  ImportOfferStore store,
-) => detection.importable && store.get(keybindingsImportOfferedKey) != true;
-
-/// Remembers the offer was made, so it is not made again.
-FutureOr<void> markKeybindingsImportOffered(ImportOfferStore store) =>
-    store.set(keybindingsImportOfferedKey, true);
-
 Object? _parse(String text) => parseJsonc(text);
 
 /// [file]'s text, without a byte order mark.

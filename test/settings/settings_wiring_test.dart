@@ -127,7 +127,6 @@ void main() {
     final dialog = find.byType(KeybindingsImportDialog);
     await settle(tester, () => importTip().evaluate().isNotEmpty);
     expect(dialog, findsNothing);
-    expect(files.storage.get<bool>(keybindingsImportOfferedKey), isNull);
 
     await tester.tap(
       find.descendant(
@@ -136,10 +135,6 @@ void main() {
       ),
     );
     await settle(tester, () => dialog.evaluate().isNotEmpty);
-    await settle(
-      tester,
-      () => files.storage.get<bool>(keybindingsImportOfferedKey) == true,
-    );
 
     final offer = tester.widget<KeybindingsImportDialog>(dialog);
     final cursor = offer.detection.sources.firstWhere(
@@ -203,28 +198,6 @@ void main() {
     expect(dialog, findsNothing);
   });
 
-  testWidgets('offered at a launch before tips (keybindings.importOffered), '
-      'the import is not in the checklist', (tester) async {
-    await tester.runAsync(() async {
-      await write(
-        DataDirectory(data.path).storageFile,
-        '{ "$keybindingsImportOfferedKey": true }',
-      );
-      await start();
-    });
-    await pumpApp(tester, workspace: Workspace.mock()..create());
-    final card = find.byType(FeatureTipsCard);
-    await settle(
-      tester,
-      () => find
-          .descendant(of: card, matching: find.byType(FeatureTipRow))
-          .evaluate()
-          .isNotEmpty,
-    );
-    expect(importTip(), findsNothing);
-    expect(find.byType(KeybindingsImportDialog), findsNothing);
-  });
-
   testWidgets('hidden, the checklist is the sidebar\'s entry; Show Setup '
       'Guide brings it back, over a new agent', (tester) async {
     await tester.runAsync(start);
@@ -268,11 +241,6 @@ void main() {
         DataDirectory(data.path).keybindingsFile,
         '[{ "key": "cmd+e", "command": "workbench.action.navigateBack" }]',
       );
-      // Offered before: nothing but the app.
-      await write(
-        DataDirectory(data.path).storageFile,
-        '{ "$keybindingsImportOfferedKey": true }',
-      );
       await start();
     });
     await pumpApp(tester);
@@ -299,10 +267,6 @@ void main() {
 
   testWidgets('⌘K ⌘S opens the keyboard page, over the files', (tester) async {
     await tester.runAsync(() async {
-      await write(
-        DataDirectory(data.path).storageFile,
-        '{ "$keybindingsImportOfferedKey": true }',
-      );
       await write(
         DataDirectory(data.path).settingsFile,
         '{ "baocode.keymap": "ms-vscode.atom-keybindings" }',
@@ -335,13 +299,7 @@ void main() {
 
   testWidgets('the commit attribution is kept in settings.json, the '
       'default unwritten', (tester) async {
-    await tester.runAsync(() async {
-      await write(
-        DataDirectory(data.path).storageFile,
-        '{ "$keybindingsImportOfferedKey": true }',
-      );
-      await start();
-    });
+    await tester.runAsync(start);
     await pumpApp(tester);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.comma);
@@ -384,13 +342,7 @@ void main() {
 
   testWidgets('the main window is kept in settings.json, the default '
       'unwritten', (tester) async {
-    await tester.runAsync(() async {
-      await write(
-        DataDirectory(data.path).storageFile,
-        '{ "$keybindingsImportOfferedKey": true }',
-      );
-      await start();
-    });
+    await tester.runAsync(start);
     await pumpApp(tester);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.comma);

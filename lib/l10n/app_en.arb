@@ -4371,5 +4371,6 @@
   "tipImportKeybindingsTitle": "Import Keybindings",
   "tipImportKeybindingsBody": "Bring your keybindings over from VS Code or Cursor.",
   "tipColorThemeBody": "Pick the colors of the chat, the IDE and the terminal.",
-  "cmdShowSetupGuide": "Show Setup Guide"
+  "cmdShowSetupGuide": "Show Setup Guide",
+  "cmdResetFeatureTips": "Reset Feature Tips"
 }

@@ -34,6 +34,10 @@ const checkForUpdatesCommandId = 'update.checkForUpdate';
 /// Show Setup Guide: the setup checklist back (see FeatureTipsController).
 const showSetupGuideCommandId = 'baocode.tips.showSetupGuide';
 
+/// Reset Feature Tips: forgets what was done with the tips, the checklist
+/// and their notifications showing again as at a first launch.
+const resetFeatureTipsCommandId = 'baocode.tips.reset';
+
 /// A command a keybinding may run, as the Keyboard Shortcuts page lists it.
 @immutable
 class CommandInfo {
@@ -119,7 +123,16 @@ final Map<String, CommandInfo> commandCatalog = {
       category: 'Shell Command',
     ),
     const CommandInfo(checkForUpdatesCommandId, 'Check for Updates...'),
-    const CommandInfo(showSetupGuideCommandId, 'Show Setup Guide', category: 'Help'),
+    const CommandInfo(
+      showSetupGuideCommandId,
+      'Show Setup Guide',
+      category: 'Help',
+    ),
+    const CommandInfo(
+      resetFeatureTipsCommandId,
+      'Reset Feature Tips',
+      category: 'Help',
+    ),
     const CommandInfo(
       'workbench.action.closeActiveEditor',
       'Close Editor',

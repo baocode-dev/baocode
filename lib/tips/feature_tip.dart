@@ -78,7 +78,6 @@ class FeatureTip {
     this.since,
     this.settings,
     this.triggers = const {},
-    this.onDismiss,
   });
 
   /// Kept with what the user did with it: stable once shipped.
@@ -103,10 +102,6 @@ class FeatureTip {
   final SettingsSection? settings;
 
   final Set<TipTrigger> triggers;
-
-  /// What dismissing it also means, beyond the tips (the import offer's own
-  /// record, say).
-  final Future<void> Function()? onDismiss;
 }
 
 /// Where the tips keep what the user did with them: the app's global
