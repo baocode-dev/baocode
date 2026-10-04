@@ -21,6 +21,7 @@
 #include "clipboard_images.h"
 #include "context_menu.h"
 #include "drop_target.h"
+#include "win32_window.h"
 #include "utils.h"
 
 namespace {
@@ -497,6 +498,12 @@ void WindowChannel::HandleMethodCall(
     const bool on_top = Boolean(call.arguments(), false);
     ::SetWindowPos(window_, on_top ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    result->Success();
+    return;
+  }
+
+  if (method == "setAppearance") {
+    Win32Window::SetDarkAppearance(Boolean(call.arguments(), false));
     result->Success();
     return;
   }
