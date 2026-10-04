@@ -10,9 +10,13 @@ import '../l10n/l10n.dart';
 import '../models/model_providers.dart';
 
 /// Titles a conversation after [message], held with [model] (the
-/// session's: a provider's model has the provider asked); null when it
-/// cannot.
-typedef AgentTitler = Future<String?> Function(String message, {String? model});
+/// session's: a provider's model has the provider asked) in the project at
+/// [location] (whose host asks, for a remote one); null when it cannot.
+typedef AgentTitler = Future<String?> Function(
+  String message, {
+  String? model,
+  String? location,
+});
 
 /// The most of a message the model is given, in characters.
 const agentTitleMessageBudget = 2000;
@@ -48,7 +52,11 @@ const _system =
 
 /// Claude Haiku's title for [message], through Claude Code; null when it
 /// gives none (e.g. Claude Code is not there).
-Future<String?> claudeAgentTitle(String message, {String? model}) async {
+Future<String?> claudeAgentTitle(
+  String message, {
+  String? model,
+  String? location,
+}) async {
   var text = message.trim();
   if (text.length > agentTitleMessageBudget) {
     text = '${text.substring(0, agentTitleMessageBudget)}…';
@@ -62,6 +70,7 @@ Future<String?> claudeAgentTitle(String message, {String? model}) async {
         '<message>\n$text\n</message>',
         model: auxiliary.model,
         exact: auxiliary.exact,
+        location: location,
       ),
     );
   } on Object {

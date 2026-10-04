@@ -5329,4 +5329,312 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelsAuxiliaryBuiltin => 'Claude Code Haiku（本机配置）';
+
+  @override
+  String get settingsSectionUpdates => '更新';
+
+  @override
+  String get updatesSettingsTitle => '更新';
+
+  @override
+  String get updatesSettingsDescription => 'BaoCode 会在 baocode.dev 上检查新版本。';
+
+  @override
+  String get updateCurrentVersion => '当前版本';
+
+  @override
+  String updateLastChecked(String time) {
+    return '上次检查：$time';
+  }
+
+  @override
+  String get updateNeverChecked => '尚未检查';
+
+  @override
+  String get updateCheckNow => '检查更新';
+
+  @override
+  String get updateChecking => '正在检查更新…';
+
+  @override
+  String get updateUpToDate => 'BaoCode 已是最新版本。';
+
+  @override
+  String updateAvailable(String version) {
+    return 'BaoCode $version 已发布。';
+  }
+
+  @override
+  String updateReady(String version) {
+    return 'BaoCode $version 已下载，重启即可完成更新。';
+  }
+
+  @override
+  String updateDownloading(String version) {
+    return '正在下载 BaoCode $version…';
+  }
+
+  @override
+  String updateDownloadingProgress(String version, int percent) {
+    return '正在下载 BaoCode $version… $percent%';
+  }
+
+  @override
+  String updateMandatory(String version) {
+    return '当前版本的 BaoCode 已停止支持，请更新到 $version。';
+  }
+
+  @override
+  String get updateRestartNow => '立即重启更新';
+
+  @override
+  String get updateLater => '稍后';
+
+  @override
+  String get updateSkip => '跳过此版本';
+
+  @override
+  String get updateSkippedNote => '已跳过此版本：不会再提醒，但仍可在此安装。';
+
+  @override
+  String updateFailed(String error) {
+    return 'BaoCode 更新失败：$error';
+  }
+
+  @override
+  String updateCheckFailed(String error) {
+    return '检查更新失败：$error';
+  }
+
+  @override
+  String get updateDisabled => '更新已关闭（update.mode 为 \"none\"）。';
+
+  @override
+  String get updateUnsupported => '此版本的 BaoCode 不支持自动更新。';
+
+  @override
+  String updateManual(String reason) {
+    return 'BaoCode 无法在当前位置自动更新（$reason），请从 baocode.dev 下载新版本。';
+  }
+
+  @override
+  String get updateOpenDownloadPage => '打开下载页';
+
+  @override
+  String get updateReleaseNotes => '更新日志';
+
+  @override
+  String updateReleaseNotesFor(String version) {
+    return '$version 更新内容';
+  }
+
+  @override
+  String get updateMode => '更新方式';
+
+  @override
+  String get updateModeDescription => 'BaoCode 是否自动检查新版本（设置项 update.mode）。';
+
+  @override
+  String updateModeLabel(String name) {
+    return '更新方式：$name';
+  }
+
+  @override
+  String get updateModeDefault => '自动检查并下载';
+
+  @override
+  String get updateModeManual => '仅手动检查';
+
+  @override
+  String get updateModeNone => '关闭';
+
+  @override
+  String get cmdCheckForUpdates => '检查更新...';
+
+  @override
+  String get settingsSectionAppearance => '外观';
+
+  @override
+  String get settingsAppearanceKeywords => '主题 颜色 配色 深色 浅色 theme color';
+
+  @override
+  String get appearanceSettingsTitle => '外观';
+
+  @override
+  String get appearanceSettingsColorTheme => '颜色主题';
+
+  @override
+  String get appearanceSettingsColorThemeDescription => '对话、IDE 和终端使用的配色。';
+
+  @override
+  String appearanceSettingsColorThemeDescriptionWithKey(String key) {
+    return '对话、IDE 和终端使用的配色。“首选项：颜色主题”（$key）可在列表中边移动边预览。';
+  }
+
+  @override
+  String appearanceSettingsColorThemeLabel(String theme) {
+    return '颜色主题：$theme';
+  }
+
+  @override
+  String get generalSettingsContextMenuFinder => '访达右键菜单';
+
+  @override
+  String get generalSettingsContextMenuExplorer => '资源管理器右键菜单';
+
+  @override
+  String get generalSettingsContextMenuDescription =>
+      '在文件、文件夹及文件夹空白处的右键菜单中加入“用 BaoCode 打开”（新对话）和“用 Fast Ide 打开”（新 IDE 窗口）。';
+
+  @override
+  String get generalSettingsContextMenuMacNote =>
+      '访达的扩展开关在系统设置的“扩展”中，也可以在那里开启或关闭 BaoCode 扩展。';
+
+  @override
+  String get generalSettingsContextMenuOn => '已开启';
+
+  @override
+  String get generalSettingsContextMenuOff => '未开启';
+
+  @override
+  String get generalSettingsContextMenuUnsupported => '此版本的应用未包含访达扩展。';
+
+  @override
+  String get generalSettingsContextMenuTurnOn => '开启';
+
+  @override
+  String get generalSettingsContextMenuTurnOff => '关闭';
+
+  @override
+  String get generalSettingsContextMenuSystemSettings => '系统设置…';
+
+  @override
+  String generalSettingsContextMenuFailed(String error) {
+    return '无法更改右键菜单：$error';
+  }
+
+  @override
+  String contextMenuOpenWith(String name) {
+    return '用 $name 打开';
+  }
+
+  @override
+  String get cmdOpenRemoteFolder => '打开远程项目...';
+
+  @override
+  String get remoteHostPlaceholder =>
+      '选择 ~/.ssh/config 中的主机，或输入 user@host[:port]';
+
+  @override
+  String remoteConnectTo(String host) {
+    return '连接到 $host';
+  }
+
+  @override
+  String get remoteNoHosts => '~/.ssh/config 中没有主机，请直接输入';
+
+  @override
+  String get remoteInvalidHost => '不是有效的主机：不能含空格，也不能以 \'-\' 开头';
+
+  @override
+  String remoteConnecting(String host) {
+    return '正在连接 $host...';
+  }
+
+  @override
+  String remoteConnectFailed(String host) {
+    return '无法连接到 $host';
+  }
+
+  @override
+  String get remoteRetry => '重试';
+
+  @override
+  String remoteFolderPlaceholder(String host) {
+    return '$host 上的文件夹：选择一个，或输入路径';
+  }
+
+  @override
+  String get remoteOpenThisFolder => '打开此文件夹';
+
+  @override
+  String get remoteParentFolder => '上级文件夹';
+
+  @override
+  String remoteGoTo(String path) {
+    return '前往 $path';
+  }
+
+  @override
+  String remoteListFailed(String path) {
+    return '无法列出 $path';
+  }
+
+  @override
+  String remoteStatus(String host) {
+    return 'SSH: $host';
+  }
+
+  @override
+  String remoteStatusConnecting(String host) {
+    return 'SSH: $host（正在连接...）';
+  }
+
+  @override
+  String remoteStatusReconnecting(String host) {
+    return 'SSH: $host（正在重连...）';
+  }
+
+  @override
+  String remoteStatusFailed(String host) {
+    return 'SSH: $host（已断开）';
+  }
+
+  @override
+  String remoteStatusInstalling(String host, int percent) {
+    return 'SSH: $host（正在安装 Claude Code $percent%）';
+  }
+
+  @override
+  String remoteInstallingClaude(String host) {
+    return '正在 $host 上安装 Claude Code…';
+  }
+
+  @override
+  String remoteInstallingClaudeProgress(String host, int percent) {
+    return '正在 $host 上安装 Claude Code… $percent%';
+  }
+
+  @override
+  String remoteUploadingClaude(String host, int percent) {
+    return '正在把 Claude Code 传到 $host… $percent%';
+  }
+
+  @override
+  String remoteStatusTooltip(String host) {
+    return '已通过 SSH 连接到 $host';
+  }
+
+  @override
+  String remoteStatusTooltipLost(String host) {
+    return '与 $host 的连接已断开：点击立即重连';
+  }
+
+  @override
+  String get remoteReconnect => '重新连接';
+
+  @override
+  String remoteProjectTooltip(String host) {
+    return '位于 $host（通过 SSH）';
+  }
+
+  @override
+  String quitConfirmRemote(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '远程主机上的 $count 个会话和终端也会结束。',
+    );
+    return '$_temp0';
+  }
 }

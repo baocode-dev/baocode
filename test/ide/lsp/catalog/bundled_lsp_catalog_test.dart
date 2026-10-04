@@ -114,7 +114,7 @@ void main() {
     });
 
     test('maps servers to mason packages that exist and plan', () async {
-      final registry = await MasonRegistry.load();
+      final registry = await loadMasonRegistry();
       expect(registry.source['commit'], matches(RegExp(r'^[0-9a-f]{40}$')));
       var mapped = 0;
       for (final id in catalog.serverIds) {

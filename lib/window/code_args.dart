@@ -43,9 +43,10 @@ class CodeArgs {
   /// as a request ([requestMarker]; see open_requests.cpp).
   static const windowsRequestFlag = '--baocode-cli';
 
-  /// The marker of Explorer's Open with BaoCode (the context menu the
-  /// Windows installer adds), the paths next: each in a new agent, in the
-  /// chat's window (see AppWindows.openAgent).
+  /// The marker of Open with BaoCode (Explorer's context menu, which the
+  /// Windows installer or the settings add; Finder's, the macOS app's
+  /// Finder extension, see AppDelegate.swift), the paths next: each in a
+  /// new agent, in the chat's window (see AppWindows.openAgent).
   static const agentRequestMarker = '\u0000agent';
 
   /// The flag that menu starts the app with, the path next; the runner

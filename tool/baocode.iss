@@ -72,8 +72,10 @@ Name: "contextmenu"; \
   GroupDescription: "Other:"
 
 [Files]
-; The whole bundle: baocode.exe, the engine and plugin DLLs, and data\ (the
-; AOT app.so and flutter_assets) which sit beside the executable.
+; The whole bundle: baocode.exe, the engine and plugin DLLs, data\ (the
+; AOT app.so and flutter_assets) which sit beside the executable, and
+; remote\ (baocode-server for Linux x64 and arm64, and its VERSION: what
+; remote projects run on their host; tool/build_windows.dart builds it).
 Source: "{#BundleDir}\*"; DestDir: "{app}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
 
@@ -100,7 +102,8 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; \
 ; Fast Ide, as `code -n` opens it (the path its own working folder: it is
 ; absolute). HKA is the install mode's hive (HKLM per machine, HKCU per
 ; user). Windows 11 lists them under "Show more options". Unticked on a
-; reinstall, they go.
+; reinstall, they go. Settings → General writes the same keys under HKCU
+; (lib/platform/context_menu_io.dart), for the user alone.
 Root: HKA; Subkey: "Software\Classes\*\shell\BaoCode"; ValueType: string; \
   ValueName: ""; ValueData: "{code:MenuLabel|BaoCode}"; Tasks: contextmenu; \
   Flags: uninsdeletekey
@@ -174,8 +177,31 @@ Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCodeFastIde";
 [Run]
 Filename: "{app}\baocode.exe"; Description: "{cm:LaunchProgram,BaoCode}"; \
   Flags: nowait postinstall skipifsilent
+; An update the app ran (lib/update/installer_io.dart) is silent, which
+; skips the entry above: /RELAUNCH opens the app again once it is in place,
+; as the user who ran it rather than the administrator Setup elevated to.
+Filename: "{app}\baocode.exe"; Flags: nowait runasoriginaluser; \
+  Check: RelaunchRequested
 
 [Code]
+// Whether the command line asks for the app to be opened after a silent
+// install (/RELAUNCH, an update's; see [Run]). Not silent, the finish
+// page's checkbox opens it.
+function RelaunchRequested: Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  if not WizardSilent then
+    Exit;
+  for I := 1 to ParamCount do
+    if CompareText(ParamStr(I), '/RELAUNCH') = 0 then
+    begin
+      Result := True;
+      Exit;
+    end;
+end;
+
 // The context menu's labels (see [Registry]): "Open with BaoCode", in
 // Chinese where Windows is. Written as code points, so the script's encoding
 // does not matter.

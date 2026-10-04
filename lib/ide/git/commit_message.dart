@@ -41,9 +41,13 @@ class IdeCommitMessageException implements Exception {
 
 /// Claude Haiku through the `claude` CLI: one turn, no tools, no session
 /// kept.
+///
+/// It runs where [location] is (the project's): on its host for a remote
+/// one.
 Future<String> ideClaudeCommitMessage(
   IdeCommitMessagePrompt prompt, {
   Future<void>? cancel,
+  String? location,
 }) async {
   try {
     // The auxiliary model; automatic, new sessions' default.
@@ -55,6 +59,7 @@ Future<String> ideClaudeCommitMessage(
       cancel: cancel,
       model: auxiliary.model,
       exact: auxiliary.exact,
+      location: location,
     );
     return ideCleanCommitMessage(reply);
   } on ClaudeHaikuCancelled {

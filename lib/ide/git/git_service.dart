@@ -15,6 +15,7 @@
 // Deviations: no fetch, no stash, and no credential prompts
 // (`GIT_TERMINAL_PROMPT=0`: a remote that asks for a password fails).
 
+import 'package:bao_remote/git.dart';
 import 'package:path/path.dart' as p;
 
 import 'git_model.dart';
@@ -22,14 +23,7 @@ import 'git_service_stub.dart'
     if (dart.library.io) 'git_service_io.dart'
     as platform;
 
-/// What running Git gave.
-class IdeGitOutput {
-  const IdeGitOutput(this.exitCode, this.stdout, [this.stderr = '']);
-
-  final int exitCode;
-  final String stdout;
-  final String stderr;
-}
+export 'package:bao_remote/git.dart';
 
 /// Runs `git` with [arguments] in [workingDirectory].
 typedef IdeGitRunner = Future<IdeGitOutput> Function(
@@ -39,15 +33,6 @@ typedef IdeGitRunner = Future<IdeGitOutput> Function(
 
 /// Changes under the repository at [repositoryRoot].
 typedef IdeGitWatcher = Stream<void> Function(String repositoryRoot);
-
-class IdeGitException implements Exception {
-  const IdeGitException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
 
 /// A file a commit changed.
 class IdeGitCommitChange {

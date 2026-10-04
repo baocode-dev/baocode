@@ -26,6 +26,7 @@ environment:
 workspace:
   - packages/bao_editor
   - packages/bao_pty
+  - packages/bao_remote
   - packages/bao_xterm
 
 # Dependencies specify other packages that your package needs in order to work.
@@ -39,6 +40,8 @@ dependencies:
     path: packages/bao_editor
   bao_pty:
     path: packages/bao_pty
+  bao_remote:
+    path: packages/bao_remote
   bao_xterm:
     path: packages/bao_xterm
   # The names project icons are kept under (lib/icons/icon_library.dart).
@@ -54,6 +57,7 @@ dependencies:
   intl: any
   markdown: ^7.3.1
   path: ^1.9.1
+  pinenacl: ^0.6.0
   super_sliver_list: ^0.4.1
 
 dev_dependencies:

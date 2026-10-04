@@ -1,8 +1,9 @@
 import 'dart:async';
-import 'dart:ui' show AppExitResponse;
+import 'dart:ui' show AppExitResponse, AppExitType;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show ServicesBinding;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:path/path.dart' as p;
@@ -11,8 +12,6 @@ import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
 import 'customize/customization_store.dart';
 import 'ide/git/git_repository.dart';
-import 'ide/git/git_service.dart';
-import 'ide/lsp/catalog/standard_lsp.dart';
 import 'ide/lsp/language_features.dart';
 import 'ide/lsp/lsp_process.dart';
 import 'ide/lsp/packs/language_packs.dart';
@@ -30,8 +29,13 @@ import 'keybindings/vscode_import.dart';
 import 'l10n/l10n.dart';
 import 'models/model_providers.dart';
 import 'models/model_runtime.dart';
+import 'notifications/attention_host.dart';
 import 'notifications/attention_settings.dart';
+import 'platform/app_platform.dart';
 import 'platform/data_dir.dart';
+import 'remote/project_host.dart';
+import 'remote/remote_claude.dart';
+import 'remote/ssh_host.dart';
 import 'search/claude_conversation_search.dart';
 import 'search/conversation_search.dart';
 import 'settings/app_locale.dart';
@@ -40,11 +44,18 @@ import 'settings/data_dir_startup.dart';
 import 'settings/user_settings.dart';
 import 'theme/app_theme.dart';
 import 'theme/workbench_theme.dart';
+import 'update/update_controller.dart';
+import 'update/update_platform.dart';
+import 'update/update_service.dart';
+import 'update/update_settings.dart';
+import 'update/update_store.dart';
+import 'update/version.dart';
 import 'window/app_windows.dart';
 import 'window/code_args.dart';
 import 'window/window_host.dart';
 import 'window/window_settings.dart';
 import 'workbench.dart';
+import 'workspace/editor_launcher.dart';
 import 'workspace/agent_title.dart';
 import 'workspace/main_window.dart';
 import 'workspace/preference_store.dart';
@@ -174,6 +185,7 @@ Future<void> main(List<String> arguments) async {
       catalog: catalog,
       sync: sync,
       installs: VsCodeInstalls.current(),
+      updates: _startUpdates(files),
     );
   }
   final app = BaoCodeApp(
@@ -181,8 +193,15 @@ Future<void> main(List<String> arguments) async {
     workspace: workspace,
     appLocale: locale,
     settings: settings,
-    languagesFor: standardLspManager,
-    gitFor: (root) => IdeGitRepository(IdeGitService(root)),
+    // On the folder's host: this machine, or a remote one's.
+    languagesFor: (folder) {
+      final host = ProjectHost.of(folder);
+      return host.languages(host.pathOf(folder));
+    },
+    gitFor: (folder) {
+      final host = ProjectHost.of(folder);
+      return host.git(host.pathOf(folder));
+    },
     // The default profile and the user's profiles are settings.json's.
     terminalBackend: TerminalBackend(settings: files?.settings),
     // What Claude Code keeps: its sessions to search, its skills, agents,
@@ -196,6 +215,35 @@ Future<void> main(List<String> arguments) async {
   } else {
     runApp(app);
   }
+}
+
+/// The app's updates (lib/update/): looked for as settings.json's
+/// `update.mode` says, from baocode.dev, installed as the app quits. None
+/// where the build does not update itself.
+UpdateController? _startUpdates(SettingsFiles files) {
+  final platform = platformUpdates(
+    updatesDirectory: DataDirectory.current.updatesDir,
+  );
+  if (platform == null) return null;
+  final service = UpdateService(
+    current: currentAppVersion,
+    platform: platform.platform,
+    manifestUrl: platform.manifestUrl,
+    backend: platform.backend,
+    installer: platform.installer,
+    mode: () => UpdateMode.parse(files.settings[UpdateMode.settingKey]),
+    settingsChanges: files.settings,
+    store: GlobalUpdateStore(files.storage),
+  )..start();
+  return UpdateController(
+    service: service,
+    // As the Data Folder page's Quit Now goes, but asked as any quit is.
+    quit: () async {
+      if (AppPlatform.isWindows) return ChannelAttentionHost.instance.quit();
+      await ServicesBinding.instance.exitApplication(AppExitType.cancelable);
+    },
+    openUrl: (url) => openExternal('$url'),
+  );
 }
 
 class BaoCodeApp extends StatefulWidget {
@@ -271,13 +319,25 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
     onExitRequested: () async {
       // The unsaved files of all windows asked about at once, then the
       // agents at work; in the window in front.
-      if (!await _windows.confirmQuit()) return AppExitResponse.cancel;
+      final updates = _settings.updates?.service;
+      if (!await _windows.confirmQuit()) {
+        updates?.disarm();
+        return AppExitResponse.cancel;
+      }
+      // Restart to Update: the installer waits for the app to go. One that
+      // will not start keeps the app (and says why).
+      if (updates != null && !await updates.launchArmed()) {
+        return AppExitResponse.cancel;
+      }
       await Future.wait([
         stopClaudeProcesses(),
+        RemoteClaudeTransport.stopAll(),
         stopModelProxy(),
         stopLspProcesses(),
         stopPtyProcesses(),
       ]);
+      // The remote hosts' servers end, and all they run with them.
+      await SshHosts.instance.closeAll();
       return AppExitResponse.exit;
     },
   );

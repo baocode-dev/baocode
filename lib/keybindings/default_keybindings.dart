@@ -28,6 +28,9 @@ const openKeybindingsCommandId = 'workbench.action.openGlobalKeybindings';
 const installShellCommandId = 'workbench.action.installCommandLine';
 const uninstallShellCommandId = 'workbench.action.uninstallCommandLine';
 
+/// Check for Updates...: looks for a new version of the app now.
+const checkForUpdatesCommandId = 'update.checkForUpdate';
+
 /// A command a keybinding may run, as the Keyboard Shortcuts page lists it.
 @immutable
 class CommandInfo {
@@ -102,6 +105,7 @@ final Map<String, CommandInfo> commandCatalog = {
       "Uninstall 'code' command from PATH",
       category: 'Shell Command',
     ),
+    const CommandInfo(checkForUpdatesCommandId, 'Check for Updates...'),
     const CommandInfo(
       'workbench.action.closeActiveEditor',
       'Close Editor',

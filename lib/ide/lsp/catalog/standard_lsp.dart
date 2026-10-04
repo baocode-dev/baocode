@@ -52,7 +52,7 @@ Future<StandardLsp> standardLsp({AssetBundle? bundle}) =>
 /// documents opened meanwhile are matched to servers when they have.
 LspManager standardLspManager(String root, {AssetBundle? bundle}) {
   final loading = standardLsp(bundle: bundle);
-  final catalog = _LoadingCatalog();
+  final catalog = LoadingLspCatalog();
   final manager = LspManager(root, catalog, _LoadingProvider(loading));
   loading.then(
     (lsp) {
@@ -67,7 +67,7 @@ LspManager standardLspManager(String root, {AssetBundle? bundle}) {
 }
 
 /// Matches nothing until the standard catalog has loaded.
-class _LoadingCatalog implements LspCatalog {
+class LoadingLspCatalog implements LspCatalog {
   LspCatalog? loaded;
 
   @override

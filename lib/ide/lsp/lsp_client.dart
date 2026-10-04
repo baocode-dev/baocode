@@ -79,6 +79,8 @@ class LspClient {
     this.onApplyEdit,
     this.onExit,
     this.logLimit = 200,
+    this.processId,
+    this.windowsPaths,
   }) {
     _rpc = JsonRpcConnection(
       process.stdout,
@@ -105,6 +107,14 @@ class LspClient {
 
   /// The workspace folder the server was started for.
   final String rootPath;
+
+  /// The process the server is told to outlive no longer than; the app's
+  /// by default.
+  final int? processId;
+
+  /// Whether the server's paths are Windows'; the app's system's by
+  /// default.
+  final bool? windowsPaths;
   final LspProcess process;
   final Duration requestTimeout;
 
@@ -344,7 +354,8 @@ class LspClient {
     'defaultLibrary',
   ];
 
-  String get _rootUri => Uri.directory(rootPath).toString();
+  String get _rootUri =>
+      Uri.directory(rootPath, windows: windowsPaths).toString();
 
   String get _rootName => rootPath
       .split(RegExp(r'[/\\]'))
@@ -355,7 +366,7 @@ class LspClient {
     Duration timeout = const Duration(seconds: 60),
   }) async {
     final result = await _rpc.request('initialize', {
-      'processId': lspClientProcessId,
+      'processId': processId ?? lspClientProcessId,
       'clientInfo': {'name': 'BaoCode', 'version': '1.0.0'},
       'locale': 'en',
       'rootPath': rootPath,
@@ -463,7 +474,7 @@ class LspClient {
       'changes': [
         for (final event in events)
           {
-            'uri': Uri.file(event.path).toString(),
+            'uri': Uri.file(event.path, windows: windowsPaths).toString(),
             'type': event.type.protocolValue,
           },
       ],
@@ -641,7 +652,7 @@ class LspClient {
           _ => null,
         };
         if (pattern is! String || base is! String) return null;
-        final basePath = _pathOf(base);
+        final basePath = _pathOf(base, windows: windowsPaths);
         if (basePath == null) return null;
         return LspFileWatcher(LspGlob(pattern), basePath: basePath, kind: kind);
     }
@@ -879,10 +890,10 @@ List<JsonMap> _maps(Object? value) => [
 ];
 
 /// The file path of a `file:` [uri]; null for another scheme.
-String? _pathOf(String uri) {
+String? _pathOf(String uri, {bool? windows}) {
   try {
     final parsed = Uri.parse(uri);
-    return parsed.scheme == 'file' ? parsed.toFilePath() : null;
+    return parsed.scheme == 'file' ? parsed.toFilePath(windows: windows) : null;
   } on Object {
     return null;
   }

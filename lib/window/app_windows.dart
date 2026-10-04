@@ -6,6 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
+import '../remote/remote_claude.dart';
+import '../remote/remote_location.dart';
+import '../remote/remote_services.dart';
 import '../chat/composer/composer_files.dart';
 import '../chat/composer/file_drop.dart';
 import '../ide/ide_dialog.dart';
@@ -147,7 +150,12 @@ class AppWindow {
   /// The title the system shows: `folder — BaoCode`.
   String title(AppLocalizations l10n) => '${label(l10n)} — BaoCode';
 
+  /// The folder's name; a remote one's with its host, as VS Code shows
+  /// one (`app [SSH: dev]`).
   static String _folderName(String folder) {
+    if (RemoteLocation.hostOf(folder) case final host?) {
+      return '${RemoteLocation.nameOf(folder)} [SSH: $host]';
+    }
     final name = p.basename(folder);
     return name.isEmpty ? folder : name;
   }
@@ -206,7 +214,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     bool? quitsWithLastWindow,
   }) : _settings = settings ?? (() => const WindowSettings()),
        _mainWindow = mainWindow ?? (() => MainWindow.fallback),
-       _isDirectory = isDirectory ?? local.isDirectory,
+       _isDirectory = isDirectory ?? _folderThere,
        _takeFile = takeFile ?? local.takeFile,
        _hasTray = hasTray ?? (() => false),
        _quitOverride = quit,
@@ -232,6 +240,19 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   /// Writes a setting to settings.json (a switch of `window.ideWindows`
   /// cancelled is written back).
   final void Function(String key, Object? value)? _updateSetting;
+
+  /// Whether [folder] is there to open again: a remote one is taken to be
+  /// (its host is not asked before the window shows).
+  static Future<bool> _folderThere(String folder) =>
+      RemoteLocation.isRemote(folder)
+      ? Future.value(true)
+      : local.isDirectory(folder);
+
+  /// [folder] for the system to show as the window's file (its proxy
+  /// icon): none for a remote one.
+  static String? _localOnly(String? folder) =>
+      folder != null && RemoteLocation.isRemote(folder) ? null : folder;
+
   final Future<bool> Function(String path) _isDirectory;
   final Future<String?> Function(String path) _takeFile;
   final bool Function() _hasTray;
@@ -605,7 +626,9 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     // Shown once it has something to show.
     await _nextFrame();
     _focus(created);
-    unawaited(host.setTitle(viewId, created.title(l10n), path: folder));
+    unawaited(
+      host.setTitle(viewId, created.title(l10n), path: _localOnly(folder)),
+    );
     return created;
   }
 
@@ -914,7 +937,11 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     window._setFolder(folder);
     _focus(window);
     unawaited(
-      host.setTitle(window.viewId, window.title(_l10n()), path: folder),
+      host.setTitle(
+        window.viewId,
+        window.title(_l10n()),
+        path: _localOnly(folder),
+      ),
     );
     unawaited(host.setEdited(window.viewId, false));
     _changed();
@@ -1093,12 +1120,14 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
           (window) =>
               window.delegate?.terminalsRunning(childProcesses: true) ?? false,
         );
-    if (!working) return true;
+    // What runs on remote hosts ends with their servers.
+    final remote = RemoteClaudeTransport.running + RemotePtyAdapter.open;
+    if (!working && remote == 0) return true;
     final asker = active.delegate?.windowContext != null ? active : chat;
     final context = asker.delegate?.windowContext;
     if (context == null || !context.mounted) return true;
     if (_started) _focus(asker);
-    return QuitConfirmation.confirm(context);
+    return QuitConfirmation.confirm(context, remote: remote);
   }
 
   // --- The system's events -----------------------------------------------------
@@ -1284,7 +1313,11 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     final l10n = _l10n();
     for (final window in _mru) {
       unawaited(
-        host.setTitle(window.viewId, window.title(l10n), path: window.folder),
+        host.setTitle(
+          window.viewId,
+          window.title(l10n),
+          path: _localOnly(window.folder),
+        ),
       );
     }
     _menus = null;

@@ -6,7 +6,9 @@
 /// (e.g. `data` for a later resolve) round-trips unchanged.
 library;
 
-typedef JsonMap = Map<String, Object?>;
+import 'package:bao_remote/lsp.dart' show JsonMap;
+
+export 'package:bao_remote/lsp.dart' show JsonMap;
 
 JsonMap? _map(Object? value) =>
     value is Map ? value.cast<String, Object?>() : null;

@@ -50,6 +50,17 @@ Future<void> main(List<String> arguments) async {
   _step('Checking the bundle');
   _checkBundle(bundle, _required);
 
+  // The server remote projects run on their host (Linux x64 and arm64),
+  // beside the executable: the installer takes the bundle whole.
+  _step('Building the remote server');
+  await _run(Platform.resolvedExecutable, [
+    'run',
+    '${root.path}\\tool\\build_remote_server.dart',
+    '--out',
+    '${bundle.path}\\remote',
+  ], root.path);
+  _checkBundle(bundle, [r'remote\VERSION']);
+
   _step('Compiling the installer');
   final iscc = _findIscc();
   installers.createSync(recursive: true);

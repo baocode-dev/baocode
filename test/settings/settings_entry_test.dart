@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/ide/ide_color_theme_picker.dart';
 import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/keybindings/default_keybindings.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
+import 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart' as vs;
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
+import 'package:baocode/settings/pages/appearance_page.dart';
 import 'package:baocode/settings/settings_dialog.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/codicons.dart';
@@ -207,4 +210,137 @@ void main() {
       for (final category in SettingsCategory.values) ...category.sections,
     ], unorderedEquals(SettingsSection.values));
   });
+
+  testWidgets('over the settings, ⌘K ⌘T shows the color theme\'s page and '
+      '⌘K ⌘S the keyboard shortcuts\'', (tester) async {
+    await _pumpApp(tester);
+    await _press(tester, LogicalKeyboardKey.comma, meta: true);
+    expect(_section(tester), SettingsSection.general);
+    await _press(tester, LogicalKeyboardKey.keyK, meta: true);
+    expect(_section(tester), SettingsSection.general);
+    await _press(tester, LogicalKeyboardKey.keyT, meta: true);
+    expect(_section(tester), SettingsSection.appearance);
+    expect(find.text('Color Theme'), findsOneWidget);
+    await _press(tester, LogicalKeyboardKey.keyK, meta: true);
+    await _press(tester, LogicalKeyboardKey.keyS, meta: true);
+    expect(_section(tester), SettingsSection.keyboard);
+    // A second key that completes nothing does nothing.
+    await _press(tester, LogicalKeyboardKey.keyK, meta: true);
+    await _press(tester, LogicalKeyboardKey.keyQ, meta: true);
+    expect(_section(tester), SettingsSection.keyboard);
+  }, variant: _mac);
+
+  testWidgets('so in the IDE\'s settings', (tester) async {
+    final workspace = await _pumpApp(tester);
+    workspace.layout = WorkspaceLayout.ide;
+    await tester.pump();
+    await tester.pump();
+    await _press(tester, LogicalKeyboardKey.comma, meta: true);
+    expect(_section(tester), SettingsSection.general);
+    await _press(tester, LogicalKeyboardKey.keyK, meta: true);
+    await _press(tester, LogicalKeyboardKey.keyT, meta: true);
+    expect(_section(tester), SettingsSection.appearance);
+    // The IDE's own theme picker stays shut under the dialog.
+    expect(
+      find.text('Select Color Theme (detect system color mode disabled)'),
+      findsNothing,
+    );
+  }, variant: _mac);
+
+  testWidgets('the settings\' search finds Appearance by "theme"', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showSettingsDialog(
+              context,
+              pageBuilder: (context, section) => Text('page ${section.name}'),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'theme');
+    await tester.pump();
+    expect(find.text('General'), findsNothing);
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
+    expect(find.text('page appearance'), findsOneWidget);
+  });
+
+  testWidgets('Appearance lists the color themes by type, the current one '
+      'ticked; one picked is applied and kept', (tester) async {
+    final themes = _FakeThemes();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppearanceSettingsPage(themes: themes, changes: themes),
+        ),
+      ),
+    );
+    expect(find.text('Dark 2026'), findsOneWidget);
+    await tester.tap(find.text('Dark 2026'));
+    await tester.pumpAndSettle();
+    // Light first, the default first among them; then dark; then high
+    // contrast.
+    final order = [
+      'Light 2026',
+      'Solarized Light',
+      'Monokai',
+      'High Contrast',
+    ].map((label) => tester.getTopLeft(find.text(label).last).dy).toList();
+    expect(order, orderedEquals([...order]..sort()));
+    await tester.tap(find.text('Monokai'));
+    await tester.pumpAndSettle();
+    expect(themes.applied, [('Monokai', false)]);
+    expect(find.text('Monokai'), findsOneWidget);
+  });
+}
+
+class _FakeThemes extends ChangeNotifier implements IdeColorThemeController {
+  final List<(String, bool)> applied = [];
+
+  @override
+  String colorThemeId = 'Dark 2026';
+
+  @override
+  List<IdeColorThemeEntry> get colorThemes => const [
+    IdeColorThemeEntry(
+      id: 'Monokai',
+      label: 'Monokai',
+      type: vs.ColorScheme.dark,
+    ),
+    IdeColorThemeEntry(
+      id: 'Solarized Light',
+      label: 'Solarized Light',
+      type: vs.ColorScheme.light,
+    ),
+    IdeColorThemeEntry(
+      id: 'Dark 2026',
+      label: 'Dark 2026',
+      type: vs.ColorScheme.dark,
+    ),
+    IdeColorThemeEntry(
+      id: 'High Contrast',
+      label: 'High Contrast',
+      type: vs.ColorScheme.highContrastDark,
+    ),
+    IdeColorThemeEntry(
+      id: 'Light 2026',
+      label: 'Light 2026',
+      type: vs.ColorScheme.light,
+    ),
+  ];
+
+  @override
+  Future<void> setColorTheme(String id, {bool preview = false}) async {
+    applied.add((id, preview));
+    colorThemeId = id;
+    notifyListeners();
+  }
 }

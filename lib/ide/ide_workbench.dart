@@ -34,7 +34,8 @@ import 'package:bao_editor/monaco/vs/editor/contrib/gotoError/browser/marker_nav
 
 import 'extensions/ide_extensions.dart';
 import 'extensions/ide_extensions_view.dart';
-import 'file_service.dart' show IdeFileListing, localizedFileError;
+import 'file_service.dart'
+    show IdeFileListing, IdeHostFiles, localizedFileError;
 import 'git/commit_message.dart';
 import 'git/git_change_editor.dart';
 import 'git/git_checkout.dart';
@@ -115,9 +116,14 @@ class IdeWorkbench extends StatefulWidget {
     this.settings,
     this.viewState,
     this.onViewState,
+    this.remote,
   });
 
   final IdeWorkspace workspace;
+
+  /// The remote host the project is on, shown first in the status bar;
+  /// null for this machine.
+  final IdeRemoteIndicator? remote;
 
   /// Hands a file to its default app; tests replace it.
   @visibleForTesting
@@ -302,11 +308,20 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The Search view's inputs and results, while other views show.
   late final IdeSearchSession _search = IdeSearchSession(
-    engine: (root, query) => widget.workspace.hasFolder
-        ? widget.textSearch(root, query)
-        : _searchOpenFiles(query),
+    engine: (root, query) => switch (widget.workspace) {
+      // A remote project's files are searched there.
+      IdeWorkspace(hasFolder: true, files: final IdeHostFiles files) =>
+        files.searchText(root, query),
+      IdeWorkspace(hasFolder: true) => widget.textSearch(root, query),
+      _ => _searchOpenFiles(query),
+    },
   );
   final _searchKey = GlobalKey<IdeSearchViewState>();
+
+  /// Whether the project's files are this machine's (not a remote host's):
+  /// only then are they shown in the file manager, opened in other apps,
+  /// or moved to the trash.
+  bool get _local => widget.workspace.files is! IdeHostFiles;
   final _scmKey = GlobalKey<IdeScmViewState>();
   IdeGitRepository? _git;
 
@@ -520,6 +535,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _registerCommandKeybindings();
     _notifications.addListener(_notificationsChanged);
     widget.settings?.addListener(_settingsChanged);
+    widget.remote?.addListener(_remoteChanged);
     if (widget.terminalBackend.supported) {
       _terminals = TerminalService(
         root: widget.workspace.root,
@@ -692,6 +708,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (mounted) setState(() {});
   }
 
+  /// The remote indicator follows the connection.
+  void _remoteChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void didUpdateWidget(IdeWorkbench oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -701,6 +722,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (oldWidget.settings != widget.settings) {
       oldWidget.settings?.removeListener(_settingsChanged);
       widget.settings?.addListener(_settingsChanged);
+    }
+    if (oldWidget.remote != widget.remote) {
+      oldWidget.remote?.removeListener(_remoteChanged);
+      widget.remote?.addListener(_remoteChanged);
     }
     if (oldWidget.workspace != widget.workspace) {
       _detach(oldWidget.workspace);
@@ -719,6 +744,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     FocusManager.instance.removeLateKeyEventHandler(_onLateKey);
     KeybindingService.instance.removeListener(_keybindingsChanged);
     widget.settings?.removeListener(_settingsChanged);
+    widget.remote?.removeListener(_remoteChanged);
     _keepView();
     _chordChecker?.cancel();
     _statusMessageTimer?.cancel();
@@ -2767,11 +2793,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                           .documentsIn(path)
                           .where((d) => d.dirty)
                           .length,
-                      trash: WindowControls.canMoveToTrash
+                      local: _local,
+                      trash: _local && WindowControls.canMoveToTrash
                           ? WindowControls.moveToTrash
                           : null,
                       onError: _report,
-                      onOpenInDefaultApp: WindowControls.canOpenInDefaultApp
+                      onOpenInDefaultApp:
+                          _local && WindowControls.canOpenInDefaultApp
                           ? (path) => unawaited(_openInDefaultApp(path))
                           : null,
                       onFindInFolder: (folder) {
@@ -2845,6 +2873,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               onSelect: (doc) => unawaited(_select(doc)),
               onClose: (doc) => unawaited(_close(doc)),
               onAction: _tabAction,
+              local: _local,
             ),
             if (active != null && !active.isUntitled)
               IdeBreadcrumbs(
@@ -2861,6 +2890,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     actions: [
                       for (final id in const [
                         'workbench.action.files.openFolder',
+                        'baocode.remote.openFolder',
                         'workbench.action.files.openFile',
                         'workbench.action.files.newUntitledFile',
                       ])
@@ -2894,7 +2924,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 ? IdeImagePreview(
                     key: ValueKey(active),
                     path: active.path,
-                    onOpenInDefaultApp: WindowControls.canOpenInDefaultApp
+                    read: switch (widget.workspace.files) {
+                      final IdeHostFiles files => files.readBytes,
+                      _ => null,
+                    },
+                    onOpenInDefaultApp:
+                        _local && WindowControls.canOpenInDefaultApp
                         ? () => unawaited(_openInDefaultApp(active.path))
                         : null,
                   )
@@ -2906,7 +2941,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         unawaited(widget.workspace.reopen(active, force: true)),
                     onRetry: () => unawaited(widget.workspace.reopen(active)),
                     onOpenInDefaultApp:
-                        WindowControls.canOpenInDefaultApp &&
+                        _local &&
+                            WindowControls.canOpenInDefaultApp &&
                             active.readRevision == null
                         ? () => unawaited(_openInDefaultApp(active.path))
                         : null,
@@ -3128,10 +3164,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             if (chatVisible || _chatSashDragging)
               chatSash
             else
-              const SizedBox(
-                key: ValueKey('ide-chat-gap'),
-                width: _sashWidth,
-              ),
+              const SizedBox(key: ValueKey('ide-chat-gap'), width: _sashWidth),
             above(_chatSlot(columns.chat), 'chat'),
           ],
         ],
@@ -3446,6 +3479,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // (a deviation: upstream's status bar items have their tooltips alone).
     final keys = KeybindingService.instance;
     final left = [
+      ?widget.remote?.item(context),
       if (_gitBranch ?? _branch case final branch?)
         // Upstream's `CheckoutStatusBar`: Checkout to…, its tooltip the
         // repository's (`<folder> (Git) - `) before the command's.

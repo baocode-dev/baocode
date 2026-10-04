@@ -95,6 +95,10 @@ class DataDirectory {
   /// (see icon_library.dart).
   String get iconsDir => p.join(path, 'icons');
 
+  /// The app's updates, downloaded and checked, waiting to be installed
+  /// (see lib/update/update_io.dart).
+  String get updatesDir => p.join(path, 'updates');
+
   /// The app's own entries, all others' left alone: what moving the folder
   /// copies and removing old data deletes.
   static const items = [

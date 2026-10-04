@@ -1,64 +1,15 @@
 import 'dart:typed_data';
 
+import 'package:bao_remote/files.dart';
+import 'package:bao_remote/search.dart';
 import 'package:path/path.dart' as p;
 
 import '../l10n/app_localizations.dart';
-
 import 'file_service_stub.dart'
     if (dart.library.io) 'file_service_io.dart'
     as platform;
 
-class IdeFile {
-  const IdeFile(this.path, this.name, {required this.isDirectory});
-
-  final String path;
-  final String name;
-  final bool isDirectory;
-}
-
-/// A save refused because the file changed since it was read or last saved.
-class IdeFileConflictException implements Exception {
-  const IdeFileConflictException(this.path);
-
-  final String path;
-
-  @override
-  String toString() =>
-      'The file changed on disk. Reopen it before saving: $path';
-}
-
-/// A read of a file that does not exist.
-class IdeFileNotFoundException implements Exception {
-  const IdeFileNotFoundException(this.path);
-
-  final String path;
-
-  @override
-  String toString() => 'File not found: $path';
-}
-
-/// A read refused because the file looks binary, or is not UTF-8.
-class IdeBinaryFileException implements Exception {
-  const IdeBinaryFileException(this.path);
-
-  final String path;
-
-  @override
-  String toString() => 'Binary files cannot be edited: $path';
-}
-
-/// A read refused because the file is over the editor's size limit.
-class IdeFileTooLargeException implements Exception {
-  const IdeFileTooLargeException(this.path, this.size);
-
-  final String path;
-
-  /// In bytes.
-  final int size;
-
-  @override
-  String toString() => 'Files over 5 MB cannot be edited: $path';
-}
+export 'package:bao_remote/files.dart';
 
 /// The files an open project's IDE reads and writes: the project's, and
 /// any other opened, as VS Code opens a file outside its workspace. The
@@ -94,15 +45,21 @@ abstract interface class IdeFileService {
   Future<void> delete(String path);
 }
 
-/// A file operation's target is taken.
-class IdeFileExistsException implements Exception {
-  const IdeFileExistsException(this.path);
+/// A file service of files on another machine (a remote project's host):
+/// what the IDE does on the disk besides reading and writing text, it does
+/// through it too.
+abstract interface class IdeHostFiles implements IdeFileService {
+  /// [path]'s bytes (an image's), as [readFileBytes] reads them here.
+  Future<Uint8List> readBytes(String path);
 
-  final String path;
+  /// Changes to the entries of [directory], as [watchDirectory] here.
+  Stream<void> watchDirectory(String directory);
 
-  @override
-  String toString() =>
-      'A file or folder ${p.basename(path)} already exists at this location.';
+  /// The project's files, as [listProjectFiles] lists them here.
+  Future<IdeFileListing> listProject(String root, {int limit = 50000});
+
+  /// The text search of the IDE's Search view, run there.
+  Stream<Object> searchText(String root, IdeTextQuery query);
 }
 
 /// [error] as a message in [l10n]'s language: the file service's own
@@ -149,41 +106,6 @@ const ideImageExtensions = <String>{
 bool ideIsImagePath(String path) =>
     ideImageExtensions.contains(p.extension(path).toLowerCase());
 
-/// Directory names never indexed for Quick Open: VCS metadata, dependency
-/// caches and build outputs.
-const ideIndexExcludedDirectories = <String>{
-  '.git',
-  '.hg',
-  '.svn',
-  '.dart_tool',
-  '.idea',
-  '.gradle',
-  '.next',
-  '.nuxt',
-  '.cache',
-  '.venv',
-  '.pub-cache',
-  '__pycache__',
-  'build',
-  'node_modules',
-  'bower_components',
-  'Pods',
-  'DerivedData',
-  'venv',
-};
-
-/// Files under a project root, as found by [listProjectFiles].
-class IdeFileListing {
-  IdeFileListing(List<String> paths, {this.truncated = false})
-    : paths = List.unmodifiable(paths);
-
-  /// Absolute paths joined onto the root as given (symlinks not resolved).
-  final List<String> paths;
-
-  /// Whether the listing stopped at its limit.
-  final bool truncated;
-}
-
 /// Every regular file under [root], skipping [ideIndexExcludedDirectories],
 /// at most [limit]. Local projects are walked on a background isolate;
 /// other services are walked through [IdeFileService.list].
@@ -195,6 +117,7 @@ Future<IdeFileListing> listProjectFiles(
   if (files is platform.LocalIdeFileService) {
     return platform.walkProjectFiles(root, ideIndexExcludedDirectories, limit);
   }
+  if (files is IdeHostFiles) return files.listProject(root, limit: limit);
   final paths = <String>[];
   final pending = <String>[root];
   while (pending.isNotEmpty) {

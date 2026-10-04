@@ -5691,4 +5691,321 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get modelsAuxiliaryBuiltin =>
       'Claude Code Haiku (this machine\'s setup)';
+
+  @override
+  String get settingsSectionUpdates => 'Updates';
+
+  @override
+  String get updatesSettingsTitle => 'Updates';
+
+  @override
+  String get updatesSettingsDescription =>
+      'BaoCode looks for new versions on baocode.dev.';
+
+  @override
+  String get updateCurrentVersion => 'Current Version';
+
+  @override
+  String updateLastChecked(String time) {
+    return 'Last checked $time';
+  }
+
+  @override
+  String get updateNeverChecked => 'Not checked yet';
+
+  @override
+  String get updateCheckNow => 'Check for Updates';
+
+  @override
+  String get updateChecking => 'Checking for updates…';
+
+  @override
+  String get updateUpToDate => 'BaoCode is up to date.';
+
+  @override
+  String updateAvailable(String version) {
+    return 'BaoCode $version is available.';
+  }
+
+  @override
+  String updateReady(String version) {
+    return 'BaoCode $version has been downloaded. Restart to update.';
+  }
+
+  @override
+  String updateDownloading(String version) {
+    return 'Downloading BaoCode $version…';
+  }
+
+  @override
+  String updateDownloadingProgress(String version, int percent) {
+    return 'Downloading BaoCode $version… $percent%';
+  }
+
+  @override
+  String updateMandatory(String version) {
+    return 'This version of BaoCode is no longer supported. Update to $version to keep using it.';
+  }
+
+  @override
+  String get updateRestartNow => 'Restart to Update';
+
+  @override
+  String get updateLater => 'Later';
+
+  @override
+  String get updateSkip => 'Skip This Version';
+
+  @override
+  String get updateSkippedNote =>
+      'You skipped this version: it is not offered again, but can still be installed here.';
+
+  @override
+  String updateFailed(String error) {
+    return 'Couldn\'t update BaoCode: $error';
+  }
+
+  @override
+  String updateCheckFailed(String error) {
+    return 'Couldn\'t check for updates: $error';
+  }
+
+  @override
+  String get updateDisabled =>
+      'Updates are turned off (update.mode is \"none\").';
+
+  @override
+  String get updateUnsupported =>
+      'This build of BaoCode doesn\'t update itself.';
+
+  @override
+  String updateManual(String reason) {
+    return 'BaoCode can\'t update itself here ($reason). Download the new version from baocode.dev.';
+  }
+
+  @override
+  String get updateOpenDownloadPage => 'Open Download Page';
+
+  @override
+  String get updateReleaseNotes => 'Release Notes';
+
+  @override
+  String updateReleaseNotesFor(String version) {
+    return 'What\'s New in $version';
+  }
+
+  @override
+  String get updateMode => 'Update Mode';
+
+  @override
+  String get updateModeDescription =>
+      'Whether BaoCode looks for new versions by itself (update.mode).';
+
+  @override
+  String updateModeLabel(String name) {
+    return 'Update Mode: $name';
+  }
+
+  @override
+  String get updateModeDefault => 'Automatic';
+
+  @override
+  String get updateModeManual => 'Manual';
+
+  @override
+  String get updateModeNone => 'Off';
+
+  @override
+  String get cmdCheckForUpdates => 'Check for Updates...';
+
+  @override
+  String get settingsSectionAppearance => 'Appearance';
+
+  @override
+  String get settingsAppearanceKeywords => 'theme color colour dark light';
+
+  @override
+  String get appearanceSettingsTitle => 'Appearance';
+
+  @override
+  String get appearanceSettingsColorTheme => 'Color Theme';
+
+  @override
+  String get appearanceSettingsColorThemeDescription =>
+      'The colors of the chat, the IDE and the terminal.';
+
+  @override
+  String appearanceSettingsColorThemeDescriptionWithKey(String key) {
+    return 'The colors of the chat, the IDE and the terminal. Preferences: Color Theme ($key) previews each as you move through them.';
+  }
+
+  @override
+  String appearanceSettingsColorThemeLabel(String theme) {
+    return 'Color theme: $theme';
+  }
+
+  @override
+  String get generalSettingsContextMenuFinder => 'Finder Context Menu';
+
+  @override
+  String get generalSettingsContextMenuExplorer => 'Explorer Context Menu';
+
+  @override
+  String get generalSettingsContextMenuDescription =>
+      'Adds \"Open with BaoCode\" (a new agent) and \"Open with Fast Ide\" (a new IDE window) to the context menu of files, folders and a folder\'s background.';
+
+  @override
+  String get generalSettingsContextMenuMacNote =>
+      'Finder\'s own setting is in System Settings\' extensions, where the BaoCode extension can also be turned on and off.';
+
+  @override
+  String get generalSettingsContextMenuOn => 'On';
+
+  @override
+  String get generalSettingsContextMenuOff => 'Off';
+
+  @override
+  String get generalSettingsContextMenuUnsupported =>
+      'This build of the app has no Finder extension.';
+
+  @override
+  String get generalSettingsContextMenuTurnOn => 'Turn On';
+
+  @override
+  String get generalSettingsContextMenuTurnOff => 'Turn Off';
+
+  @override
+  String get generalSettingsContextMenuSystemSettings => 'System Settings…';
+
+  @override
+  String generalSettingsContextMenuFailed(String error) {
+    return 'Could not change the context menu: $error';
+  }
+
+  @override
+  String contextMenuOpenWith(String name) {
+    return 'Open with $name';
+  }
+
+  @override
+  String get cmdOpenRemoteFolder => 'Open Remote Project...';
+
+  @override
+  String get remoteHostPlaceholder =>
+      'Select a host of ~/.ssh/config, or type user@host[:port]';
+
+  @override
+  String remoteConnectTo(String host) {
+    return 'Connect to $host';
+  }
+
+  @override
+  String get remoteNoHosts => 'No hosts in ~/.ssh/config: type one';
+
+  @override
+  String get remoteInvalidHost =>
+      'Not a host: no spaces, and not starting with \'-\'';
+
+  @override
+  String remoteConnecting(String host) {
+    return 'Connecting to $host...';
+  }
+
+  @override
+  String remoteConnectFailed(String host) {
+    return 'Could not connect to $host';
+  }
+
+  @override
+  String get remoteRetry => 'Retry';
+
+  @override
+  String remoteFolderPlaceholder(String host) {
+    return 'A folder on $host: pick one, or type a path';
+  }
+
+  @override
+  String get remoteOpenThisFolder => 'Open This Folder';
+
+  @override
+  String get remoteParentFolder => 'Parent Folder';
+
+  @override
+  String remoteGoTo(String path) {
+    return 'Go to $path';
+  }
+
+  @override
+  String remoteListFailed(String path) {
+    return 'Could not list $path';
+  }
+
+  @override
+  String remoteStatus(String host) {
+    return 'SSH: $host';
+  }
+
+  @override
+  String remoteStatusConnecting(String host) {
+    return 'SSH: $host (connecting...)';
+  }
+
+  @override
+  String remoteStatusReconnecting(String host) {
+    return 'SSH: $host (reconnecting...)';
+  }
+
+  @override
+  String remoteStatusFailed(String host) {
+    return 'SSH: $host (disconnected)';
+  }
+
+  @override
+  String remoteStatusInstalling(String host, int percent) {
+    return 'SSH: $host (installing Claude Code $percent%)';
+  }
+
+  @override
+  String remoteInstallingClaude(String host) {
+    return 'Installing Claude Code on $host…';
+  }
+
+  @override
+  String remoteInstallingClaudeProgress(String host, int percent) {
+    return 'Installing Claude Code on $host… $percent%';
+  }
+
+  @override
+  String remoteUploadingClaude(String host, int percent) {
+    return 'Sending Claude Code to $host… $percent%';
+  }
+
+  @override
+  String remoteStatusTooltip(String host) {
+    return 'Connected to $host over SSH';
+  }
+
+  @override
+  String remoteStatusTooltipLost(String host) {
+    return 'The connection to $host is lost: click to reconnect now';
+  }
+
+  @override
+  String get remoteReconnect => 'Reconnect';
+
+  @override
+  String remoteProjectTooltip(String host) {
+    return 'On $host, over SSH';
+  }
+
+  @override
+  String quitConfirmRemote(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sessions and terminals on remote hosts will end too.',
+      one: '1 session or terminal on a remote host will end too.',
+    );
+    return '$_temp0';
+  }
 }

@@ -29,22 +29,7 @@ Future<String> askClaudeHaiku(
   try {
     process = await Process.start(
       cli.executable,
-      [
-        '-p',
-        '--model',
-        model ?? 'haiku',
-        if (settingsFile != null) ...['--settings', settingsFile],
-        '--output-format',
-        'json',
-        '--no-session-persistence',
-        '--strict-mcp-config',
-        '--disable-slash-commands',
-        // Takes several: the next option ends the list.
-        '--tools',
-        '',
-        '--system-prompt',
-        system,
-      ],
+      claudeHaikuArguments(system, model: model, settingsFile: settingsFile),
       workingDirectory: Directory.systemTemp.path,
       environment: {
         ...cli.environment,
@@ -83,22 +68,5 @@ Future<String> askClaudeHaiku(
     },
   );
   if (cancelled) throw const ClaudeHaikuCancelled();
-  final output = await stdout;
-  Object? result;
-  try {
-    result = jsonDecode(output);
-  } on FormatException {
-    result = null;
-  }
-  if (result case {'is_error': false, 'result': final String text}
-      when text.trim().isNotEmpty) {
-    return text;
-  }
-  final reason = switch (result) {
-    {'result': final String text} when text.trim().isNotEmpty => text.trim(),
-    _ => (await stderr).trim(),
-  };
-  throw ClaudeHaikuException(
-    reason.isEmpty ? 'Claude Code gave no answer (exit $code).' : reason,
-  );
+  return claudeHaikuAnswer(await stdout, await stderr, code);
 }

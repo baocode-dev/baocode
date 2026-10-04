@@ -3876,5 +3876,344 @@
   "modelsAuxiliary": "Auxiliary Model",
   "modelsAuxiliaryDescription": "Used for auxiliary work, such as generating conversation titles and commit messages. Automatic: the session's model (for commit messages, new sessions' default); an upstream's by its Haiku tier.",
   "modelsAuxiliaryAuto": "Automatic",
-  "modelsAuxiliaryBuiltin": "Claude Code Haiku (this machine's setup)"
+  "modelsAuxiliaryBuiltin": "Claude Code Haiku (this machine's setup)",
+  "settingsSectionUpdates": "Updates",
+  "updatesSettingsTitle": "Updates",
+  "updatesSettingsDescription": "BaoCode looks for new versions on baocode.dev.",
+  "updateCurrentVersion": "Current Version",
+  "updateLastChecked": "Last checked {time}",
+  "@updateLastChecked": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "updateNeverChecked": "Not checked yet",
+  "updateCheckNow": "Check for Updates",
+  "@updateCheckNow": {
+    "description": "The settings page's button."
+  },
+  "updateChecking": "Checking for updates…",
+  "updateUpToDate": "BaoCode is up to date.",
+  "updateAvailable": "BaoCode {version} is available.",
+  "@updateAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateReady": "BaoCode {version} has been downloaded. Restart to update.",
+  "@updateReady": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownloading": "Downloading BaoCode {version}…",
+  "@updateDownloading": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownloadingProgress": "Downloading BaoCode {version}… {percent}%",
+  "@updateDownloadingProgress": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "updateMandatory": "This version of BaoCode is no longer supported. Update to {version} to keep using it.",
+  "@updateMandatory": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateRestartNow": "Restart to Update",
+  "updateLater": "Later",
+  "updateSkip": "Skip This Version",
+  "updateSkippedNote": "You skipped this version: it is not offered again, but can still be installed here.",
+  "updateFailed": "Couldn't update BaoCode: {error}",
+  "@updateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "updateCheckFailed": "Couldn't check for updates: {error}",
+  "@updateCheckFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDisabled": "Updates are turned off (update.mode is \"none\").",
+  "updateUnsupported": "This build of BaoCode doesn't update itself.",
+  "updateManual": "BaoCode can't update itself here ({reason}). Download the new version from baocode.dev.",
+  "@updateManual": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "updateOpenDownloadPage": "Open Download Page",
+  "updateReleaseNotes": "Release Notes",
+  "updateReleaseNotesFor": "What's New in {version}",
+  "@updateReleaseNotesFor": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateMode": "Update Mode",
+  "updateModeDescription": "Whether BaoCode looks for new versions by itself (update.mode).",
+  "updateModeLabel": "Update Mode: {name}",
+  "@updateModeLabel": {
+    "description": "The update mode dropdown, as read out.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "updateModeDefault": "Automatic",
+  "@updateModeDefault": {
+    "description": "Update mode: checks at launch and every few hours, and downloads."
+  },
+  "updateModeManual": "Manual",
+  "@updateModeManual": {
+    "description": "Update mode: only Check for Updates."
+  },
+  "updateModeNone": "Off",
+  "@updateModeNone": {
+    "description": "Update mode: never checks."
+  },
+  "cmdCheckForUpdates": "Check for Updates...",
+  "@cmdCheckForUpdates": {
+    "description": "Command title; the English one is the command catalog's."
+  },
+  "settingsSectionAppearance": "Appearance",
+  "settingsAppearanceKeywords": "theme color colour dark light",
+  "appearanceSettingsTitle": "Appearance",
+  "appearanceSettingsColorTheme": "Color Theme",
+  "appearanceSettingsColorThemeDescription": "The colors of the chat, the IDE and the terminal.",
+  "appearanceSettingsColorThemeDescriptionWithKey": "The colors of the chat, the IDE and the terminal. Preferences: Color Theme ({key}) previews each as you move through them.",
+  "@appearanceSettingsColorThemeDescriptionWithKey": {
+    "placeholders": {
+      "key": {
+        "type": "String"
+      }
+    }
+  },
+  "appearanceSettingsColorThemeLabel": "Color theme: {theme}",
+  "@appearanceSettingsColorThemeLabel": {
+    "placeholders": {
+      "theme": {
+        "type": "String"
+      }
+    }
+  },
+  "generalSettingsContextMenuFinder": "Finder Context Menu",
+  "generalSettingsContextMenuExplorer": "Explorer Context Menu",
+  "generalSettingsContextMenuDescription": "Adds \"Open with BaoCode\" (a new agent) and \"Open with Fast Ide\" (a new IDE window) to the context menu of files, folders and a folder's background.",
+  "generalSettingsContextMenuMacNote": "Finder's own setting is in System Settings' extensions, where the BaoCode extension can also be turned on and off.",
+  "generalSettingsContextMenuOn": "On",
+  "generalSettingsContextMenuOff": "Off",
+  "generalSettingsContextMenuUnsupported": "This build of the app has no Finder extension.",
+  "generalSettingsContextMenuTurnOn": "Turn On",
+  "generalSettingsContextMenuTurnOff": "Turn Off",
+  "generalSettingsContextMenuSystemSettings": "System Settings…",
+  "generalSettingsContextMenuFailed": "Could not change the context menu: {error}",
+  "@generalSettingsContextMenuFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contextMenuOpenWith": "Open with {name}",
+  "@contextMenuOpenWith": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "cmdOpenRemoteFolder": "Open Remote Project...",
+  "remoteHostPlaceholder": "Select a host of ~/.ssh/config, or type user@host[:port]",
+  "remoteConnectTo": "Connect to {host}",
+  "@remoteConnectTo": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteNoHosts": "No hosts in ~/.ssh/config: type one",
+  "remoteInvalidHost": "Not a host: no spaces, and not starting with '-'",
+  "remoteConnecting": "Connecting to {host}...",
+  "@remoteConnecting": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteConnectFailed": "Could not connect to {host}",
+  "@remoteConnectFailed": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteRetry": "Retry",
+  "remoteFolderPlaceholder": "A folder on {host}: pick one, or type a path",
+  "@remoteFolderPlaceholder": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteOpenThisFolder": "Open This Folder",
+  "remoteParentFolder": "Parent Folder",
+  "remoteGoTo": "Go to {path}",
+  "@remoteGoTo": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteListFailed": "Could not list {path}",
+  "@remoteListFailed": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatus": "SSH: {host}",
+  "@remoteStatus": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatusConnecting": "SSH: {host} (connecting...)",
+  "@remoteStatusConnecting": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatusReconnecting": "SSH: {host} (reconnecting...)",
+  "@remoteStatusReconnecting": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatusFailed": "SSH: {host} (disconnected)",
+  "@remoteStatusFailed": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatusInstalling": "SSH: {host} (installing Claude Code {percent}%)",
+  "@remoteStatusInstalling": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "remoteInstallingClaude": "Installing Claude Code on {host}…",
+  "@remoteInstallingClaude": {
+    "description": "Shown while Claude Code is put on a remote host where it was not installed, before the agent starts.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteInstallingClaudeProgress": "Installing Claude Code on {host}… {percent}%",
+  "@remoteInstallingClaudeProgress": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "remoteUploadingClaude": "Sending Claude Code to {host}… {percent}%",
+  "@remoteUploadingClaude": {
+    "description": "The host cannot download Claude Code itself: this machine downloaded it and sends it over the SSH connection.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "remoteStatusTooltip": "Connected to {host} over SSH",
+  "@remoteStatusTooltip": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatusTooltipLost": "The connection to {host} is lost: click to reconnect now",
+  "@remoteStatusTooltipLost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteReconnect": "Reconnect",
+  "remoteProjectTooltip": "On {host}, over SSH",
+  "@remoteProjectTooltip": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "quitConfirmRemote": "{count, plural, =1{1 session or terminal on a remote host will end too.} other{{count} sessions and terminals on remote hosts will end too.}}",
+  "@quitConfirmRemote": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

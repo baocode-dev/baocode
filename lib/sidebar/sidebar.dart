@@ -830,7 +830,8 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   /// The Fast Ide opens [project]'s folder, as the window header's button
   /// does: with the current agent's chat there when it is the project's.
   void _openInEditor(Project project, Editor editor) {
-    if (!editor.builtIn) {
+    // A remote project's files open in the IDE's own editor alone.
+    if (!editor.builtIn && project.host == null) {
       unawaited(Sidebar.launch(editor, project.path));
       return;
     }
@@ -1364,14 +1365,39 @@ class _GroupHeader extends StatelessWidget {
       ),
     );
     if (project == null) return label;
+    // A remote project: its host after its name.
+    final host = project.host;
+    final named = host == null
+        ? label
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: label),
+              const SizedBox(width: 6),
+              Icon(Codicons.remote, size: 11, color: AppColors.textFaint),
+              const SizedBox(width: 3),
+              Flexible(
+                child: Text(
+                  host,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.textFaint, fontSize: 11),
+                ),
+              ),
+            ],
+          );
     // Where the project is: its name says only which. Over the name alone,
     // not the buttons beside it, which come and go with the pointer.
     return _RowHover(
-      content: (_) => Text(project.path),
+      content: (context) => Text(
+        host == null
+            ? project.path
+            : '${project.root}\n${context.l10n.remoteProjectTooltip(host)}',
+      ),
       child: Align(
         alignment: Alignment.centerLeft,
         widthFactor: 1,
-        child: label,
+        child: named,
       ),
     );
   }

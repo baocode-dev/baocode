@@ -1,4 +1,4 @@
-import 'review_store.dart';
+import 'package:bao_remote/review.dart';
 
 /// No Git in the browser.
 Future<ReviewStore?> openReviewStore(String root) async => null;

@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import '../kernel/kernel_types.dart';
 import '../keybindings/chat_keybindings.dart';
 import '../l10n/l10n.dart';
+import '../remote/remote_status.dart' show ClaudeInstallBanner;
 import '../theme/app_theme.dart';
 import '../workspace/title_bar_double_click.dart';
 import 'agent_view.dart';
@@ -526,6 +527,8 @@ class _ChatScreenState extends State<ChatScreen>
                           )
                         : null,
                   ),
+                  // Claude Code being put on a remote project's host.
+                  ClaudeInstallBanner(location: _session.kernelContext.cwd),
                   _PanelSlot(
                     child: switch (_session.pendingInteraction) {
                       final request? => InteractionPanel(

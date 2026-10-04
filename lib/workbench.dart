@@ -24,7 +24,7 @@ import 'ide/ide_commands.dart';
 import 'ide/ide_dialog.dart';
 import 'ide/ide_modern_ui.dart';
 import 'ide/ide_notifications.dart';
-import 'ide/file_service.dart';
+import 'ide/git/commit_message.dart';
 import 'ide/ide_quick_input.dart';
 import 'ide/ide_quick_open.dart';
 import 'ide/ide_workbench.dart';
@@ -62,6 +62,11 @@ import 'theme/workbench_theme.dart' show WorkbenchThemeService, themeColors;
 import 'window/app_windows.dart';
 import 'window/code_args.dart';
 import 'window/window_settings.dart';
+import 'remote/open_remote.dart';
+import 'remote/project_host.dart';
+import 'remote/remote_location.dart';
+import 'remote/remote_status.dart';
+import 'remote/ssh_host.dart';
 import 'workspace/chat_drag.dart';
 import 'workspace/chat_grid_view.dart';
 import 'workspace/chat_terminal.dart';
@@ -266,6 +271,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     final backend? when backend.supported && !_ideWindow => ChatTerminals(
       backend,
       rootOf: () => (_agentThread ?? _workspace.current)?.project.path,
+      // A remote project's on its host.
+      backendFor: (location) => ProjectHost.of(location).terminals(backend),
+      pathOf: RemoteLocation.pathOf,
     )..onLastClosed = _focusCurrentChat,
     _ => null,
   }?..addListener(_terminalsChanged);
@@ -339,6 +347,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         onResume: () => unawaited(_workspace.refresh()),
       );
       WidgetsBinding.instance.addPostFrameCallback((_) => _afterFirstFrame());
+      _stopUpdateOffers = widget.settings?.updates?.listen(
+        _notifications,
+        () => context.l10n,
+        openNotes: () => unawaited(openSettings(SettingsSection.updates)),
+      );
     }
     widget.settings?.files?.changes.addListener(_settingsFilesChanged);
     _settingsFilesChanged();
@@ -400,6 +413,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _width.dispose();
     _lifecycle?.dispose();
     _attention?.dispose();
+    _stopUpdateOffers?.call();
     HardwareKeyboard.instance.removeHandler(_handleKey);
     _keybindings.removeListener(_keybindingsChanged);
     // The window's channels stay: a folder replaced builds the next
@@ -483,7 +497,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// [ChatKeys]).
   Map<String, VoidCallback> _chatCommands() {
     // An agent's window has its agent alone (and, on Windows, the sidebar
-    // to pick another: see _buildContent).
+    // to pick another: see _buildContent), and the search palette for the
+    // window's commands.
     if (_agentWindow) {
       return {
         if (WindowControls.drawsHeader)
@@ -492,6 +507,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         openKeybindingsCommandId: () =>
             unawaited(openSettings(SettingsSection.keyboard)),
         ideSelectColorThemeCommandId: _selectColorTheme,
+        checkForUpdatesCommandId: _checkForUpdates,
+        ChatCommandIds.search: () => unawaited(_openPalette()),
         ..._terminalCommands(),
         ..._windowCommands(),
       };
@@ -506,6 +523,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       openKeybindingsCommandId: () =>
           unawaited(openSettings(SettingsSection.keyboard)),
       ideSelectColorThemeCommandId: _selectColorTheme,
+      checkForUpdatesCommandId: _checkForUpdates,
       // As the sidebar's New Agent button: a folder first, without one.
       if (_workspace.sidebarProjects.isNotEmpty)
         ChatCommandIds.newChat: _newAgent
@@ -733,12 +751,15 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// Each project's files, for the palette: listed again as it opens.
   final Map<String, IdeFileIndex> _fileIndexes = {};
 
-  /// The project the palette's files are of: the current agent's, else the
-  /// first listed.
+  /// The project the palette's files are of: the window's agent's, or the
+  /// current agent's, else the first listed.
   Project? get _paletteProject =>
-      _workspace.current?.project ?? _workspace.sidebarProjects.firstOrNull;
+      (_agentThread ?? _workspace.current)?.project ??
+      _workspace.sidebarProjects.firstOrNull;
 
-  /// Opens the search palette over the chat layout, on [filter].
+  /// Opens the search palette over the chat layout, on [filter]; in an
+  /// agent's window, an agent picked shows in its place, and a file opens
+  /// in the IDE's window.
   Future<void> _openPalette([SearchFilter filter = SearchFilter.all]) async {
     if (_paletteOpen || !mounted) return;
     _paletteOpen = true;
@@ -749,7 +770,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           ? null
           : _fileIndexes.putIfAbsent(
               project.path,
-              () => IdeFileIndex(IdeFileService(project.path), project.path),
+              () => IdeFileIndex(
+                ProjectHost.of(project.path).files(project.root),
+                project.root,
+              ),
             );
       await showSearchPalette(
         context,
@@ -765,9 +789,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         recentActions: List.of(_recentActions),
         settings: _paletteSettings(),
         filter: filter,
-        onOpenAgent: _openAgent,
+        onOpenAgent: _agentWindow ? _showInWindow : _openAgent,
         onOpenFile: (path) {
-          if (_windows case final windows? when _multi) {
+          if (_windows case final windows? when _multi || _agentWindow) {
             unawaited(
               windows.showFolder(project?.path, files: [CodeTarget(path)]),
             );
@@ -813,6 +837,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ?action(openSettingsCommandId, Codicons.settingsGear),
       ?action(openKeybindingsCommandId, Codicons.keyboard),
       ?action(ideSelectColorThemeCommandId, Codicons.symbolColor),
+      ?action(checkForUpdatesCommandId, Codicons.cloudDownload),
       ?action(
         'workbench.action.toggleSidebarVisibility',
         Codicons.layoutSidebarLeft,
@@ -826,6 +851,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           Codicons.folderOpened,
           () => unawaited(_openFolder()),
         ),
+      ?action(openRemoteFolderCommandId, Codicons.remote, _openRemoteProject),
       ?action(ChatCommandIds.nextAgent, Codicons.arrowDown),
       ?action(ChatCommandIds.previousAgent, Codicons.arrowUp),
       ?action(ChatCommandIds.focusNextPane, Codicons.arrowRight),
@@ -877,7 +903,34 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       label: 'Open Keyboard Shortcuts',
       run: () => unawaited(openSettings(SettingsSection.keyboard)),
     ),
+    IdeCommand(
+      id: checkForUpdatesCommandId,
+      label: commandCatalog[checkForUpdatesCommandId]!.title,
+      run: _checkForUpdates,
+    ),
   ];
+
+  // --- Updates -------------------------------------------------------------
+
+  /// What the app's updates found by themselves, told of here: the main
+  /// window's.
+  VoidCallback? _stopUpdateOffers;
+
+  /// Check for Updates...: what it finds told of in this window.
+  void _checkForUpdates() {
+    final updates = widget.settings?.updates;
+    if (updates == null) {
+      _notifications.notify(IdeSeverity.info, context.l10n.updateUnsupported);
+      return;
+    }
+    unawaited(
+      updates.checkNow(
+        _notifications,
+        context.l10n,
+        openNotes: () => unawaited(openSettings(SettingsSection.updates)),
+      ),
+    );
+  }
 
   /// The chords of a sequence typed so far (⌘K of ⌘K ⌘S).
   List<KeyChord>? _pendingChords;
@@ -1095,6 +1148,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             'workbench.action.files.openFolder',
             () => unawaited(_pickIdeFolder()),
             enabled: WindowControls.canPickDirectory,
+          ),
+          IdeCommand(
+            id: openRemoteFolderCommandId,
+            category: 'Remote-SSH',
+            label: 'Open Remote Project...',
+            run: () => _openRemoteProject(inIde: true),
           ),
           command('workbench.action.openRecent', _showOpenRecent),
           command(
@@ -1349,6 +1408,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         'more': l10n.menuMore,
         'newWindow': l10n.cmdNewWindow,
         'closeWindow': l10n.menuCloseWindow,
+        // The app menu's, under About.
+        'checkForUpdates': l10n.cmdCheckForUpdates.replaceAll('...', '…'),
       }),
     );
   }
@@ -1568,9 +1629,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             onViewState: path == _noFolder
                 ? null
                 : (state) => _workspace.keepIdeView(path, state),
-            terminalBackend:
-                widget.terminalBackend ??
-                const TerminalBackend(supported: false),
+            terminalBackend: ProjectHost.of(path).terminals(
+              widget.terminalBackend ?? const TerminalBackend(supported: false),
+            ),
+            remote: switch (ProjectHost.of(path)) {
+              final SshHost host => SshStatusIndicator(host),
+              _ => null,
+            },
+            // Claude Haiku where the project is.
+            commitMessage: (prompt, {cancel}) =>
+                ideClaudeCommitMessage(prompt, cancel: cancel, location: path),
             chat: shown
                 ? _conversation(_buildIdeChat(path))
                 : const SizedBox.shrink(),
@@ -1727,7 +1795,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   Widget _buildSidebar({VoidCallback? onOpened}) {
     // An agent's window shows what is picked or made here in its place;
-    // the chat's window, the search palette and Customize are not its.
+    // the chat's window and Customize are not its.
     final agent = _agentThread;
     return Sidebar(
       workspace: _workspace,
@@ -1746,7 +1814,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       },
       onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
       onOpenSettings: () => unawaited(openSettings()),
-      onSearch: agent != null ? null : () => unawaited(_openPalette()),
+      onSearch: () => unawaited(_openPalette()),
       onCustomize: agent != null || widget.customizations == null
           ? null
           : () => _customizing ? _closeCustomize() : _showCustomize(),
@@ -1763,11 +1831,17 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// (the header, built first, may be the first to ask). Without a folder
   /// ([_noFolder]), it is in the home folder, with no language servers
   /// or Git.
+  ///
+  /// A remote folder's is in its path on its host, its files, Git,
+  /// language servers and terminals there.
   IdeWorkspace _ideSpace(String folder) => _ideSpaces.putIfAbsent(folder, () {
+    final host = ProjectHost.of(folder);
+    final root = host.pathOf(folder);
     final space = folder == _noFolder
         ? IdeWorkspace(homeDirectory ?? p.current, hasFolder: false)
         : IdeWorkspace(
-            folder,
+            root,
+            files: host.files(root),
             languages: widget.languagesFor?.call(folder),
             git: widget.gitFor?.call(folder),
           );
@@ -1931,6 +2005,26 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     );
   }
 
+  /// Open Remote Project…: a folder of a host reached over SSH, opened as
+  /// a project (in the IDE when asked [inIde]).
+  void _openRemoteProject({bool inIde = false}) {
+    final held = _newWindowHeld;
+    unawaited(
+      OpenRemoteFlow(
+        show: showQuickPick,
+        l10n: context.l10n,
+        onOpen: (location) {
+          if (!mounted) return;
+          if (inIde) {
+            _openIdeFolder(location, held: held);
+          } else {
+            unawaited(_workspace.openFolder(location));
+          }
+        },
+      ).start(),
+    );
+  }
+
   Future<void> _openFolder() async {
     final path = await WindowControls.pickDirectory();
     if (path == null || !mounted) return;
@@ -2061,6 +2155,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         leading: leading,
         titleBarInset: titleBarInset,
         onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
+        onOpenRemote: WindowControls.canPickDirectory
+            ? _openRemoteProject
+            : null,
       );
     }
     final windowTools = !header && !embedded && place.topRight;
@@ -2454,12 +2551,16 @@ class _EmptyWorkspace extends StatelessWidget {
     required this.titleBarInset,
     this.leading,
     this.onOpenFolder,
+    this.onOpenRemote,
   });
 
   final bool loading;
   final double titleBarInset;
   final Widget? leading;
   final VoidCallback? onOpenFolder;
+
+  /// Open Remote Project…: a folder on a host reached over SSH.
+  final VoidCallback? onOpenRemote;
 
   @override
   Widget build(BuildContext context) {
@@ -2520,6 +2621,18 @@ class _EmptyWorkspace extends StatelessWidget {
                       onTap: open,
                     ),
                   ),
+                  if (onOpenRemote case final remote?) ...[
+                    const SizedBox(height: 8),
+                    IntrinsicWidth(
+                      child: PanelButton(
+                        label: l10n.cmdOpenRemoteFolder.replaceFirst(
+                          RegExp(r'(\.\.\.|…)$'),
+                          '',
+                        ),
+                        onTap: remote,
+                      ),
+                    ),
+                  ],
                 ],
               ],
             ),

@@ -22,7 +22,7 @@ Future<StandardLsp> loadStandardLsp({AssetBundle? bundle}) async {
   return StandardLsp(
     catalog: catalog,
     provider: MasonServerProvider(
-      registry: await MasonRegistry.load(bundle: bundle),
+      registry: await loadMasonRegistry(bundle: bundle),
       installRoot: dataDirectory.serversDir,
     ),
     packs: packs,

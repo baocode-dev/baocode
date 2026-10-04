@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../ide/ide_color_theme_picker.dart' show ideSelectColorThemeCommandId;
+import '../keybindings/default_keybindings.dart' show openKeybindingsCommandId;
+import '../keybindings/key_chord.dart';
+import '../keybindings/keybinding_service.dart';
 import '../l10n/l10n.dart';
 import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
@@ -11,10 +15,12 @@ import '../theme/workbench_theme.dart' show themeColors;
 /// The settings dialog's pages.
 enum SettingsSection {
   general,
+  appearance,
   models,
   notifications,
   language,
   keyboard,
+  updates,
   dataDirectory,
 }
 
@@ -22,10 +28,12 @@ enum SettingsSection {
 enum SettingsCategory {
   preferences([
     SettingsSection.general,
+    SettingsSection.appearance,
     SettingsSection.models,
     SettingsSection.notifications,
     SettingsSection.language,
     SettingsSection.keyboard,
+    SettingsSection.updates,
   ]),
   advanced([SettingsSection.dataDirectory]);
 
@@ -105,10 +113,12 @@ class SettingsDialogState extends State<SettingsDialog> {
 
   static IconData icon(SettingsSection section) => switch (section) {
     SettingsSection.general => Codicons.settingsGear,
+    SettingsSection.appearance => Codicons.symbolColor,
     SettingsSection.models => Codicons.sparkle,
     SettingsSection.notifications => Codicons.bell,
     SettingsSection.language => Codicons.globe,
     SettingsSection.keyboard => Codicons.keyboard,
+    SettingsSection.updates => Codicons.cloudDownload,
     SettingsSection.dataDirectory => Codicons.folder,
   };
 
@@ -124,12 +134,61 @@ class SettingsDialogState extends State<SettingsDialog> {
     final l10n = context.l10n;
     return switch (section) {
       SettingsSection.general => l10n.settingsSectionGeneral,
+      SettingsSection.appearance => l10n.settingsSectionAppearance,
       SettingsSection.models => l10n.settingsSectionModels,
       SettingsSection.notifications => l10n.settingsSectionNotifications,
       SettingsSection.language => l10n.settingsSectionLanguage,
       SettingsSection.keyboard => l10n.settingsSectionKeyboard,
+      SettingsSection.updates => l10n.settingsSectionUpdates,
       SettingsSection.dataDirectory => l10n.settingsSectionDataDirectory,
     };
+  }
+
+  /// Words a section is also found by in the search, beyond its name.
+  static String keywords(BuildContext context, SettingsSection section) =>
+      switch (section) {
+        SettingsSection.appearance => context.l10n.settingsAppearanceKeywords,
+        _ => '',
+      };
+
+  /// The pages the window's commands show while the dialog is up, by
+  /// their keybindings: Preferences: Color Theme (⌘K ⌘T) the color theme's,
+  /// Open Keyboard Shortcuts (⌘K ⌘S) the keybindings'. (The window's own
+  /// keys stop at the dialog.)
+  static const _commandSections = {
+    ideSelectColorThemeCommandId: SettingsSection.appearance,
+    openKeybindingsCommandId: SettingsSection.keyboard,
+  };
+
+  /// The chords of a sequence typed so far (⌘K of ⌘K ⌘T).
+  List<KeyChord>? _pendingChords;
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    // A modifier alone (⌘ of ⌘T) leaves a sequence as it is.
+    if (event is KeyUpEvent || KeyChord.fromEvent(event) == null) {
+      return KeyEventResult.ignored;
+    }
+    final pending = _pendingChords;
+    _pendingChords = null;
+    final result = KeybindingService.instance.resolveEvent(
+      event,
+      pending: pending ?? const [],
+      context: (key) => null,
+      canRun: (item) => _commandSections.containsKey(item.command),
+    );
+    switch (result) {
+      case KeybindingFound(:final command):
+        show(_commandSections[command]!);
+        return KeyEventResult.handled;
+      case MoreChordsNeeded(:final chords):
+        _pendingChords = chords;
+        return KeyEventResult.handled;
+      case NoKeybinding():
+        // A second key that completes nothing is swallowed, as upstream.
+        return pending == null
+            ? KeyEventResult.ignored
+            : KeyEventResult.handled;
+    }
   }
 
   final TextEditingController _search = TextEditingController();
@@ -157,6 +216,7 @@ class SettingsDialogState extends State<SettingsDialog> {
       bindings: {const SingleActivator(LogicalKeyboardKey.escape): _close},
       child: FocusScope(
         autofocus: true,
+        onKeyEvent: _onKey,
         child: Padding(
           padding: EdgeInsets.only(top: top),
           child: Material(
@@ -203,7 +263,8 @@ class SettingsDialogState extends State<SettingsDialog> {
     final query = _search.text.trim().toLowerCase();
     return query.isEmpty ||
         label(context, section).toLowerCase().contains(query) ||
-        section.name.toLowerCase().contains(query);
+        section.name.toLowerCase().contains(query) ||
+        keywords(context, section).toLowerCase().contains(query);
   }
 
   Widget _nav(BuildContext context) {
