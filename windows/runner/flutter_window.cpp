@@ -182,10 +182,18 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     const auto* data = reinterpret_cast<const COPYDATASTRUCT*>(lparam);
     if (data != nullptr && data->dwData == kOpenRequestData) {
       std::vector<std::string> paths = OpenRequestPaths(*data);
+      const bool reopen = paths.empty();
       if (open_requests_ != nullptr) {
         open_requests_->Deliver(std::move(paths));
       } else {
         open_paths_.push_back(std::move(paths));
+      }
+      // Starting the app from its desktop shortcut sends an empty request
+      // when another instance is already running. With the main window in
+      // the tray, there are no paths for OpenRequests to deliver, so ask
+      // Flutter to reopen the appropriate window instead.
+      if (reopen && app_windows_ != nullptr && app_windows_->started()) {
+        app_windows_->RequestReopen();
       }
       if (app_windows_ == nullptr || !app_windows_->started()) {
         if (::IsIconic(hwnd)) {

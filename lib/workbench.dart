@@ -480,7 +480,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       openKeybindingsCommandId: () =>
           unawaited(openSettings(SettingsSection.keyboard)),
       // As the sidebar's New Agent button: a folder first, without one.
-      if (_workspace.projects.isNotEmpty)
+      if (_workspace.sidebarProjects.isNotEmpty)
         ChatCommandIds.newChat: _newAgent
       else if (WindowControls.canPickDirectory)
         ChatCommandIds.newChat: () => unawaited(_openFolder()),

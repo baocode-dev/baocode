@@ -558,5 +558,6 @@ class _WindowHeaderState extends State<WindowHeader> {
 
   /// The projects File offers under the folder picker: the most recent ones,
   /// as the workspace keeps them.
-  List<Project> get _recent => widget.workspace.projects.take(5).toList();
+  List<Project> get _recent =>
+      widget.workspace.sidebarProjects.take(5).toList();
 }

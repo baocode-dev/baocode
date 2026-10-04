@@ -637,6 +637,16 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     });
 
+    test('hidden projects are removed from IDE recents', () {
+      final workspace = Workspace(projects: const [Project('ide', '/tmp/ide')]);
+      addTearDown(workspace.dispose);
+
+      workspace.openIdeFolder('/tmp/ide');
+      expect(workspace.recentFolders, ['/tmp/ide']);
+      workspace.hideProject(workspace.projects.single);
+      expect(workspace.recentFolders, isEmpty);
+    });
+
     testWidgets('chats are tabs: a new one beside the shown, a closed one '
         'nothing was sent to dropped, the last replaced', (tester) async {
       final workspace = await pumpLoaded(tester);

@@ -460,7 +460,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
               // A new chat picks its folder over its input (see
               // NewChatFolderBar): a folder first only without any.
               child: _NewAgentButton(
-                onTap: _workspace.projects.isEmpty
+                onTap: _workspace.sidebarProjects.isEmpty
                     ? (widget.onOpenFolder ?? () {})
                     : _create,
               ),
