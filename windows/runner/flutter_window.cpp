@@ -8,6 +8,8 @@
 #include "flutter/generated_plugin_registrant.h"
 #include "hang_watchdog.h"
 
+static_assert(AppWindows::kCloseMessage != hang_watchdog::kPingMessage);
+
 FlutterWindow::FlutterWindow(const flutter::DartProject& project,
                              std::vector<std::string> open_paths)
     : project_(project) {
@@ -100,7 +102,9 @@ void FlutterWindow::OnDestroy() {
   open_requests_ = nullptr;
   attention_ = nullptr;
   if (flutter_controller_) {
-    flutter_controller_ = nullptr;
+    // Native child destruction can re-enter this window's message handler.
+    auto controller = std::move(flutter_controller_);
+    controller.reset();
   }
 
   Win32Window::OnDestroy();
@@ -129,6 +133,13 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   // The watchdog's ping (see hang_watchdog.h): this thread takes messages.
   if (message == hang_watchdog::kPingMessage) {
     hang_watchdog::Answer();
+    return 0;
+  }
+
+  if (message == AppWindows::kCloseMessage) {
+    if (app_windows_ != nullptr) {
+      app_windows_->ClosePendingWindows();
+    }
     return 0;
   }
 

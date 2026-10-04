@@ -199,20 +199,6 @@ void WriteReport(HANDLE process, DWORD process_id, DWORD windows_thread,
                 static_cast<unsigned>(now.wSecond), process_id);
   const std::wstring base = folder + stamp;
 
-  // The minidump first: it stands on its own, for a debugger.
-  const HANDLE dump =
-      ::CreateFileW((base + L".dmp").c_str(), GENERIC_WRITE, 0, nullptr,
-                    CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-  if (dump != INVALID_HANDLE_VALUE) {
-    ::MiniDumpWriteDump(
-        process, process_id, dump,
-        static_cast<MINIDUMP_TYPE>(MiniDumpWithThreadInfo |
-                                   MiniDumpWithUnloadedModules |
-                                   MiniDumpWithProcessThreadData),
-        nullptr, nullptr, nullptr);
-    ::CloseHandle(dump);
-  }
-
   FILE* out = nullptr;
   if (_wfopen_s(&out, (base + L".txt").c_str(), L"w") != 0 || out == nullptr) {
     return;
@@ -221,6 +207,9 @@ void WriteReport(HANDLE process, DWORD process_id, DWORD windows_thread,
   std::fprintf(out, "BaoCode %s\n", FLUTTER_VERSION);
 #endif
   std::fprintf(out, "Process %lu: %s\n", process_id, reason);
+  // In-process dump writing can itself block on the hung process. Keep a
+  // flushed text report before entering DbgHelp, even if it never returns.
+  std::fflush(out);
   // The symbols of the modules loaded, from beside them only (the
   // executable's folder first): no network, no prompts.
   char executable[MAX_PATH] = {};
@@ -235,6 +224,19 @@ void WriteReport(HANDLE process, DWORD process_id, DWORD windows_thread,
     ::SymCleanup(process);
   }
   std::fclose(out);
+
+  const HANDLE dump =
+      ::CreateFileW((base + L".dmp").c_str(), GENERIC_WRITE, 0, nullptr,
+                    CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (dump != INVALID_HANDLE_VALUE) {
+    ::MiniDumpWriteDump(
+        process, process_id, dump,
+        static_cast<MINIDUMP_TYPE>(MiniDumpWithThreadInfo |
+                                   MiniDumpWithUnloadedModules |
+                                   MiniDumpWithProcessThreadData),
+        nullptr, nullptr, nullptr);
+    ::CloseHandle(dump);
+  }
 }
 
 void WriteOwnReport(const char* reason) {
@@ -259,7 +261,9 @@ DWORD WINAPI Watch(LPVOID) {
       continue;
     }
     const HWND window = g_window.load();
-    if (window == nullptr || !::IsWindow(window)) {
+    // WM_DESTROY can invalidate the HWND before engine teardown finishes.
+    // Keep watching until the message loop ends, not just while it exists.
+    if (window == nullptr) {
       continue;
     }
     // Paused in a debugger, the thread answers no one.

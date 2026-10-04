@@ -126,3 +126,29 @@ flutter build windows
 ```
 
 MSVC Build Tools 2022 and a Windows 10 SDK are required (`flutter doctor`).
+
+## Window Close Regression
+
+The Windows view controller destroys its child HWND synchronously. Clear the
+runner's controller reference before calling its destructor: child destruction
+can re-enter the parent's message handler, which must not forward messages to
+a controller whose view is already being reset. Secondary views are closed from
+the Win32 message loop, outside Flutter's method-channel callback; the channel
+reply is sent after removal completes.
+
+Run the real embedder regression (temporary app data, five IDE/agent cycles and
+quit cleanup):
+
+```
+flutter run -d windows -t tool/windows_close_smoke.dart
+```
+
+For clicking the IDE's close button manually while the agent remains open:
+
+```
+flutter run -d windows -t tool/windows_close_smoke.dart --dart-define=WINDOW_SMOKE_MANUAL=true
+```
+
+The watchdog writes and flushes its text report before attempting a minidump,
+because an in-process dump can itself block. It continues watching after the
+main HWND becomes invalid, until engine teardown and the message loop finish.
