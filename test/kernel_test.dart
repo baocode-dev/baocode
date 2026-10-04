@@ -334,6 +334,69 @@ void main() {
       expect(toolVerb(ToolKind.question), 'Asked');
     });
 
+    test('a message sent to an agent reads on its line, in full opened', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      )..turnId = '11111111-1111-4111-8111-111111111111';
+      void send(String id, Object message, {bool failed = false}) => translator
+        ..translate({
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'message': {
+            'id': 'msg-$id',
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': id,
+                'name': 'SendMessage',
+                'input': {
+                  'to': 'a6adebf0ce09d0049',
+                  'summary': 'Say hello',
+                  'message': message,
+                },
+              },
+            ],
+          },
+        })
+        ..translate({
+          'type': 'user',
+          'parent_tool_use_id': null,
+          'message': {
+            'role': 'user',
+            'content': [
+              {
+                'type': 'tool_result',
+                'tool_use_id': id,
+                'content': failed ? 'No such agent.' : 'Message sent.',
+                'is_error': failed,
+              },
+            ],
+          },
+        });
+      send('m1', 'Return the text:\n  hello');
+      send('m2', 'Return hello', failed: true);
+      send('m3', {'type': 'shutdown_request'});
+      final items = [
+        for (var i = 0; i < transcript.length; i++) transcript.itemAt(i),
+      ].whereType<ToolCallItem>();
+      expect(items.map((item) => (item.kind, item.target, item.output)), [
+        (
+          ToolKind.message,
+          'Return the text: hello',
+          'Return the text:\n  hello',
+        ),
+        (ToolKind.message, 'Return hello', 'No such agent.'),
+        (ToolKind.message, 'Say hello', 'Message sent.'),
+      ]);
+      // It says it in words of its own: "Said …".
+      expect(items.map((item) => item.label), everyElement(isNull));
+      expect(toolVerb(ToolKind.message), 'Said');
+    });
+
     test('a notebook edit shows its cell changed, line by line', () {
       final transcript = Transcript();
       var seq = 0;
@@ -1006,7 +1069,7 @@ void main() {
     test('out of view while busy, the process is freed once the CLI says it '
         'is idle; back in view, it is kept', () async {
       final cli = FakeCli();
-      final (:kernel, transcript: _, events: _) = claude(cli);
+      final (:kernel, transcript: _, :events) = claude(cli);
       Map<String, Object?> state(String value) => {
         'type': 'system',
         'subtype': 'session_state_changed',
@@ -1064,6 +1127,14 @@ void main() {
         'status': 'requesting',
         'uuid': 's1',
       });
+      // Taken up by the agent on its own, not sent by the user.
+      expect(
+        {
+          for (final started in events.whereType<TurnStarted>())
+            started.turnId: started.unprompted,
+        },
+        {'u1': false, 'u2': false, 's1': true},
+      );
       await push(result);
       expect(cli.closed, isFalse);
       await push(state('idle'));

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -5,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import '../composer/composer_embeds.dart';
 import 'assistant_text.dart';
@@ -16,12 +19,13 @@ import 'inline_code.dart';
 /// leading `/command` in it show as the same inline tags as in the composer.
 /// The lines a message carries after its text (see [codeAppendix]) show in
 /// their tags only.
-/// Clicking it opens it for editing when [onEdit] is set; dragging still
-/// selects text.
+/// Clicking it opens it when [onEdit] is set: for editing, or where it
+/// cannot be edited (e.g. what a subagent was asked), read only (see
+/// [UserMessageViewer]). Dragging still selects text.
 ///
 /// A long message shows its first lines, fading out at the bottom over an
-/// expand icon; the click that opens the editor shows it all (the editor
-/// scrolls past its own maximum height).
+/// expand icon; the click that opens it shows it all (scrolling past the
+/// editor's maximum height).
 ///
 /// The click is read from raw pointer events rather than a tap recognizer:
 /// a recognizer would compete with the history's text selection for the
@@ -217,6 +221,124 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
                   overlay: const _CollapsedOverlay(),
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A sent message opened where it cannot be edited: all of it, in place
+/// of its bubble as the editor would be and looking like it, but read only.
+/// Past the editor's maximum height it scrolls ([controller]); Esc closes
+/// it ([onClose]).
+class UserMessageViewer extends StatefulWidget {
+  const UserMessageViewer({
+    super.key,
+    required this.text,
+    this.images = const [],
+    this.controller,
+    required this.onClose,
+  });
+
+  final String text;
+  final List<ImageAttachment> images;
+  final ScrollController? controller;
+  final VoidCallback onClose;
+
+  /// As the editor's: ten lines, or a third of the window if less.
+  static double maxHeight(BuildContext context) => math.max(
+    _lineHeight * _collapsedLines,
+    math.min(_lineHeight * 10, MediaQuery.sizeOf(context).height / 3),
+  );
+
+  @override
+  State<UserMessageViewer> createState() => _UserMessageViewerState();
+}
+
+class _UserMessageViewerState extends State<UserMessageViewer> {
+  /// Taken as it opens, as the editor's is: from the history, which had it
+  /// for the click.
+  final FocusNode _focus = FocusNode(debugLabel: 'Message viewer');
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = themeColors;
+    final UserMessageViewer(:text, :images, :controller) = widget;
+    return Focus(
+      focusNode: _focus,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.escape) {
+          widget.onClose();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          // The editor's, over the page (see ChatComposer).
+          color: Color.alphaBlend(
+            colors['chat.requestBubbleBackground'],
+            colors['editor.background'],
+          ),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: colors['agentsChatInput.border']),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: UserMessageViewer.maxHeight(context),
+          ),
+          // A slim bar, as the editor's.
+          child: ScrollbarTheme(
+            data: ScrollbarTheme.of(context).copyWith(
+              thickness: const WidgetStatePropertyAll(4),
+              crossAxisMargin: 3,
+            ),
+            child: Scrollbar(
+              controller: controller,
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context)
+                    .copyWith(scrollbars: false),
+                child: SingleChildScrollView(
+                  controller: controller,
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
+                  // Its own selection: not the history's.
+                  child: SelectionArea(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (images.isNotEmpty) ImageThumbnails(images: images),
+                        if (images.isNotEmpty && text.isNotEmpty)
+                          const SizedBox(height: 10),
+                        if (text.isNotEmpty)
+                          InlineCodeText(
+                            _messageSpan(
+                              text,
+                              ComposerVocabulary.of(context),
+                              images,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),

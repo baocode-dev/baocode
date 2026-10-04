@@ -11,9 +11,13 @@ class ShimmerText extends StatefulWidget {
     this.ellipsis = true,
     this.padding = const EdgeInsets.symmetric(vertical: 3),
     this.style,
+    this.strutStyle,
   });
 
   final String text;
+
+  /// Its line's height, set apart from the fonts its text falls back on.
+  final StrutStyle? strutStyle;
 
   /// Its size and weight (the color is the shimmer's).
   final TextStyle? style;
@@ -67,6 +71,7 @@ class _ShimmerTextState extends State<ShimmerText>
           style: const TextStyle(fontSize: 13)
               .merge(widget.style)
               .copyWith(color: Colors.white),
+          strutStyle: widget.strutStyle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

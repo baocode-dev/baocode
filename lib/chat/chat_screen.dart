@@ -23,6 +23,7 @@ import 'panels/health_banner.dart';
 import 'panels/interaction_panel.dart';
 import 'panels/context_usage_panel.dart';
 import 'panels/todo_panel.dart';
+import 'widgets/agent_step.dart';
 import 'widgets/code_citation.dart';
 import 'widgets/inline_rename_field.dart';
 
@@ -409,6 +410,11 @@ class _ChatScreenState extends State<ChatScreen>
           _openAgent(agent);
         }
       },
+      // A subagent's last step, as its card has it.
+      detailOf: (task) => switch (_session.agentOf(task.toolUseId)) {
+        final agent? => AgentStep.latest(agent, l10n: context.l10n),
+        null => null,
+      },
     );
   }
 
@@ -570,8 +576,7 @@ class _ChatScreenState extends State<ChatScreen>
                       padding: const EdgeInsets.only(bottom: 8),
                       child: start,
                     ),
-                  // A subagent's conversation takes no messages: how it
-                  // is doing ends it instead (see _buildAgentPage).
+                  // A subagent's conversation takes no messages.
                   _BottomSwitcher(
                     child: _agentShown == null
                         ? _buildDock()
@@ -611,16 +616,6 @@ class _ChatScreenState extends State<ChatScreen>
             feed: layer.feed,
             maxContentWidth: _maxContentWidth,
             onOpenAgent: _openAgent,
-            footer: ListenableBuilder(
-              listenable: _session,
-              builder: (context, _) => SubagentStatusBar(
-                feed: layer.feed,
-                onStop: _session.stopOf(layer.feed.path.last),
-                onMoveToBackground: _session.moveToBackgroundOf(
-                  layer.feed.path.last,
-                ),
-              ),
-            ),
           ),
         ),
       ],
@@ -821,8 +816,8 @@ class _AgentLayer {
   }
 }
 
-/// The composer and its panels, or a subagent's status in their place:
-/// the one shown fades in. The height changes at once, as the panels'
+/// The composer and its panels, or nothing in their place (a subagent's
+/// conversation): the one shown fades in. The height changes at once, as the panels'
 /// do (see [_PanelSlot]); one at a time, the composer having a global key.
 class _BottomSwitcher extends StatefulWidget {
   const _BottomSwitcher({required this.child});

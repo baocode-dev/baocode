@@ -3332,42 +3332,6 @@ abstract class AppLocalizations {
   /// **'Running in the background'**
   String get statusRunningInBackground;
 
-  /// No description provided for @statusRunning.
-  ///
-  /// In en, this message translates to:
-  /// **'Running'**
-  String get statusRunning;
-
-  /// No description provided for @statusDone.
-  ///
-  /// In en, this message translates to:
-  /// **'Done'**
-  String get statusDone;
-
-  /// No description provided for @statusFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed'**
-  String get statusFailed;
-
-  /// A subagent that is no longer known.
-  ///
-  /// In en, this message translates to:
-  /// **'Gone'**
-  String get statusGone;
-
-  /// Accessibility label: status is e.g. 'Running'.
-  ///
-  /// In en, this message translates to:
-  /// **'Subagent {status}'**
-  String chatSubagentStatus(String status);
-
-  /// No description provided for @chatSubagentExplainer.
-  ///
-  /// In en, this message translates to:
-  /// **'A subagent works for the agent: messages go to the conversation.'**
-  String get chatSubagentExplainer;
-
   /// No description provided for @chatToolCount.
   ///
   /// In en, this message translates to:
@@ -3575,13 +3539,13 @@ abstract class AppLocalizations {
   /// No description provided for @toolSending.
   ///
   /// In en, this message translates to:
-  /// **'Sending'**
+  /// **'Saying'**
   String get toolSending;
 
   /// No description provided for @toolSent.
   ///
   /// In en, this message translates to:
-  /// **'Sent'**
+  /// **'Said'**
   String get toolSent;
 
   /// No description provided for @toolAsking.

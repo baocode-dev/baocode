@@ -537,11 +537,11 @@ class ClaudeCodeKernel
     );
   }
 
-  void _beginTurn(String id) {
+  void _beginTurn(String id, {bool unprompted = false}) {
     _turn = id;
     _turnStarted = DateTime.now();
     _translator.turnId = id;
-    emit(TurnStarted(nextSeq, id));
+    emit(TurnStarted(nextSeq, id, unprompted: unprompted));
     _translator.begin();
   }
 
@@ -1089,7 +1089,7 @@ class ClaudeCodeKernel
         // prompt of its own (a background task's notice, a scheduled one).
         // It is at work all the same: shown, and stopped, as any turn.
         if (message['status'] == 'requesting' && _turn == null) {
-          _beginTurn('${message['uuid'] ?? 'own:$nextSeq'}');
+          _beginTurn('${message['uuid'] ?? 'own:$nextSeq'}', unprompted: true);
         }
         _translator.translate(message);
       case 'system' when message['subtype'] == 'session_state_changed':

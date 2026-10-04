@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import '../floating/hover_tooltip.dart';
 import 'step_header.dart';
+
+/// A message to another agent's icon (Remix Icon's speak-ai-line).
+const speakIcon = 'assets/icons/speak-ai-line.svg';
 
 /// One tool call as a step, e.g. "Read main.dart L1-562"; opens to what it
 /// found or returned, when there is anything.
@@ -52,11 +57,18 @@ class ToolCallRow extends StatelessWidget {
       running: _running,
       expanded: expanded,
       onToggle: _opens ? onToggle : null,
+      // A message to another agent: someone speaking, standing out.
       icon: kind == ToolKind.message
-          ? Icon(
-              Icons.swap_horiz_rounded,
-              size: 15,
-              color: AppColors.syntaxCommand,
+          ? SvgPicture.asset(
+              speakIcon,
+              width: 15,
+              height: 15,
+              // Amber: the theme's for an event, warm without the warning's
+              // mustard.
+              colorFilter: ColorFilter.mode(
+                themeColors['symbolIcon.eventForeground'],
+                BlendMode.srcIn,
+              ),
             )
           : null,
     );

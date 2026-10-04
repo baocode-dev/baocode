@@ -6,14 +6,17 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
+import 'chat_item_view.dart' show chatItemPlainText;
+import 'flip_switcher.dart';
 import 'hover_builder.dart';
 import 'orbit_indicator.dart';
 import 'shimmer_text.dart';
 import '../../ide/ide_hover.dart';
 
-/// A subagent as a card: what it was given to do, and the tools it has
-/// used. A click, or Enter once focused, opens its own conversation
-/// ([onOpen]), where the rest is.
+/// A subagent as a card, a line: what it was given to do, then what it did
+/// last, flipping up to the next as it goes on, and once done to how it
+/// went ("Explore · 55s · 5 tools · 8.2k tokens"). A click, or Enter once
+/// focused, opens its own conversation ([onOpen]), where the rest is.
 class AgentStep extends StatefulWidget {
   const AgentStep({
     super.key,
@@ -82,15 +85,61 @@ class AgentStep extends StatefulWidget {
         _ => null,
       };
 
+  /// What it did last, in a line, e.g. "Ran Find reusable helpers"; what
+  /// it was asked before it does anything. Null with nothing to say.
+  static String? latest(AgentItem item, {AppLocalizations? l10n}) {
+    for (final child in item.children.reversed) {
+      if (_firstLine(chatItemPlainText(child, l10n: l10n)) case final line?) {
+        return line;
+      }
+    }
+    return _firstLine(item.activity) ?? _firstLine(item.prompt);
+  }
+
+  /// What follows its description: while it runs, what it did last; once
+  /// done, how it went. Null with nothing to say.
+  static String? trailing(AgentItem item, {AppLocalizations? l10n}) =>
+      switch (item.status) {
+        CommandStatus.running => latest(item, l10n: l10n),
+        _ => switch (meta(item, l10n: l10n)) {
+          '' => null,
+          final meta => meta,
+        },
+      };
+
+  /// The first line of [text] with anything in it, out of its markdown's
+  /// heading and emphasis marks.
+  static String? _firstLine(String? text) {
+    if (text == null) return null;
+    for (final line in text.split('\n')) {
+      final plain = line
+          .replaceFirst(RegExp(r'^\s*(#+|[-*•]|>)\s+'), '')
+          .replaceAll('**', '')
+          .trim();
+      if (plain.isNotEmpty) return plain;
+    }
+    return null;
+  }
+
   /// The card as text, for copying: as it reads.
-  static String plainText(AgentItem item, {AppLocalizations? l10n}) =>
-      [item.description, ?tools(item, l10n: l10n)].join(' ');
+  static String plainText(AgentItem item, {AppLocalizations? l10n}) => [
+    item.description,
+    if (trailing(item, l10n: l10n) case final trailing?) '· $trailing',
+  ].join(' ');
 
   @override
   State<AgentStep> createState() => _AgentStepState();
 }
 
 const _titleStyle = TextStyle(fontSize: 13, fontWeight: FontWeight.w500);
+
+/// Its line's height, whatever fonts its text falls back on (CJK's run
+/// taller than Latin's): it keeps its height as what follows changes.
+const _lineStrut = StrutStyle(
+  fontSize: 13,
+  height: 1.4,
+  forceStrutHeight: true,
+);
 
 class _AgentStepState extends State<AgentStep> {
   bool _focused = false;
@@ -109,7 +158,7 @@ class _AgentStepState extends State<AgentStep> {
     final item = widget.item;
     final running = item.status == CommandStatus.running;
     final l10n = context.l10n;
-    final tools = AgentStep.tools(item, l10n: l10n);
+    final trailing = AgentStep.trailing(item, l10n: l10n);
     final open = widget.onOpen;
     final content = Padding(
       padding: const EdgeInsets.fromLTRB(12, 9, 10, 9),
@@ -118,29 +167,57 @@ class _AgentStepState extends State<AgentStep> {
           AgentStatusIcon(item.status, background: item.background),
           const SizedBox(width: 8),
           Expanded(
-            // Shimmers while it works.
-            child: running
-                ? ShimmerText(
-                    item.description,
-                    ellipsis: false,
-                    padding: EdgeInsets.zero,
-                    style: _titleStyle,
-                  )
-                : Text(
-                    item.description,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _titleStyle.copyWith(color: AppColors.textPrimary),
+            child: LayoutBuilder(
+              builder: (context, constraints) => Row(
+                children: [
+                  // Shimmers while it works.
+                  Flexible(
+                    child: running
+                        ? ShimmerText(
+                            item.description,
+                            ellipsis: false,
+                            padding: EdgeInsets.zero,
+                            style: _titleStyle,
+                            strutStyle: _lineStrut,
+                          )
+                        : Text(
+                            item.description,
+                            strutStyle: _lineStrut,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _titleStyle.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
                   ),
-          ),
-          if (tools != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: Text(
-                tools,
-                style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+                  if (trailing != null)
+                    // At most half the line, the description having the
+                    // rest.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: constraints.maxWidth / 2,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: FlipSwitcher(
+                          child: Text(
+                            '· $trailing',
+                            key: ValueKey(trailing),
+                            strutStyle: _lineStrut,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.textFaint,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
+          ),
           // Its buttons take their own presses (see _down).
           Listener(
             onPointerDown: (_) => _onButton = true,

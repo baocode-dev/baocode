@@ -32,7 +32,8 @@ abstract interface class ChatFeed implements Listenable {
 
 /// The conversation of a subagent in [session], found by [path]: the ids of
 /// the subagents leading to it, outermost first. What it was asked comes
-/// first, as a message to it; its report last, as its answer.
+/// first, as a message to it; its report last, as its answer. While it
+/// works, a status row ends it, as a session's own does.
 ///
 /// Read only: messages go to the session's own agent, not to a subagent.
 class SubagentFeed extends ChangeNotifier implements ChatFeed {
@@ -83,6 +84,8 @@ class SubagentFeed extends ChangeNotifier implements ChatFeed {
             ...agent.children,
             if (agent.result case final result? when result.isNotEmpty)
               AssistantTextItem(result),
+            if (agent.status == CommandStatus.running)
+              const LiveStatusItem('Planning next move', whimsical: true),
           ];
   }
 

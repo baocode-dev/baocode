@@ -888,23 +888,6 @@
   "chatBackEsc": "Back (Esc)",
   "chatBack": "Back",
   "statusRunningInBackground": "Running in the background",
-  "statusRunning": "Running",
-  "statusDone": "Done",
-  "statusFailed": "Failed",
-  "statusGone": "Gone",
-  "@statusGone": {
-    "description": "A subagent that is no longer known."
-  },
-  "chatSubagentStatus": "Subagent {status}",
-  "@chatSubagentStatus": {
-    "description": "Accessibility label: status is e.g. 'Running'.",
-    "placeholders": {
-      "status": {
-        "type": "String"
-      }
-    }
-  },
-  "chatSubagentExplainer": "A subagent works for the agent: messages go to the conversation.",
   "chatToolCount": "{count, plural, =1{1 tool} other{{count} tools}}",
   "@chatToolCount": {
     "placeholders": {
@@ -1015,8 +998,8 @@
   "toolAgent": "Agent",
   "toolUpdatingTodos": "Updating todos",
   "toolUpdatedTodos": "Updated todos",
-  "toolSending": "Sending",
-  "toolSent": "Sent",
+  "toolSending": "Saying",
+  "toolSent": "Said",
   "toolAsking": "Asking",
   "toolAsked": "Asked",
   "toolQuestionSkipped": "Skipped question",

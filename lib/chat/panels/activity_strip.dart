@@ -8,6 +8,7 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../../ide/ide_hover.dart';
 import '../../kernel/kernel_types.dart';
 import '../chat_models.dart';
+import '../widgets/flip_switcher.dart';
 import '../widgets/hover_builder.dart';
 import '../widgets/orbit_indicator.dart';
 import 'change_tree.dart';
@@ -29,6 +30,7 @@ class ActivityStrip extends StatefulWidget {
     this.onOpenFile,
     this.onStopTask,
     this.onOpenTask,
+    this.detailOf,
   });
 
   final List<KernelTask> tasks;
@@ -42,6 +44,10 @@ class ActivityStrip extends StatefulWidget {
 
   /// Opens a subagent's conversation from its row.
   final ValueChanged<KernelTask>? onOpenTask;
+
+  /// What a task did last, e.g. a subagent's last step: after its
+  /// description, flipping up to the next as it goes on.
+  final String? Function(KernelTask task)? detailOf;
   final VoidCallback onKeep;
 
   /// Null when the changes cannot be put back: no Undo then.
@@ -133,6 +139,7 @@ class _ActivityStripState extends State<ActivityStrip> {
                     _TaskRow(
                       key: ValueKey(task.id),
                       task: task,
+                      detail: widget.detailOf?.call(task),
                       onOpen: switch (widget.onOpenTask) {
                         final open? when task.kind == KernelTaskKind.agent =>
                           () => open(task),
@@ -211,9 +218,18 @@ class _StripRow extends StatelessWidget {
 }
 
 class _TaskRow extends StatelessWidget {
-  const _TaskRow({super.key, required this.task, this.onStop, this.onOpen});
+  const _TaskRow({
+    super.key,
+    required this.task,
+    this.detail,
+    this.onStop,
+    this.onOpen,
+  });
 
   final KernelTask task;
+
+  /// What it did last (see [ActivityStrip.detailOf]).
+  final String? detail;
   final VoidCallback? onStop;
 
   /// Opens a subagent's conversation.
@@ -246,32 +262,55 @@ class _TaskRow extends StatelessWidget {
           Icon(Icons.terminal_rounded, size: 13, color: AppColors.textFaint),
           const SizedBox(width: 5),
         ],
-        // All the room there is, so the action sits at the end (a Flexible
-        // beside a Spacer would leave it half of that).
+        // All the room there is, so the time and the action sit at the end.
         Expanded(
-          child: Row(
-            children: [
-              Flexible(
-                child: Text(
-                  task.description,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.text,
-                    fontFamily: task.kind == KernelTaskKind.command
-                        ? AppFonts.mono
-                        : null,
-                    fontSize: 11.5,
+          child: LayoutBuilder(
+            builder: (context, constraints) => Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    task.description,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.text,
+                      fontFamily: task.kind == KernelTaskKind.command
+                          ? AppFonts.mono
+                          : null,
+                      fontSize: 11.5,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                context.l10n.stripRunningElapsed(elapsed),
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
-              ),
-            ],
+                if (detail case final detail?)
+                  // At most half of it, the description having the rest.
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth / 2,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: FlipSwitcher(
+                        child: Text(
+                          '· $detail',
+                          key: ValueKey(detail),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.textFaint,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          context.l10n.stripRunningElapsed(elapsed),
+          style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
         ),
         const SizedBox(width: 8),
         if (onStop case final stop?)

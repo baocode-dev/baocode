@@ -1,15 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../keybindings/chat_keybindings.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
-import '../theme/workbench_theme.dart' show themeColors;
-import 'chat_feed.dart';
 import 'chat_keys.dart';
-import 'chat_models.dart';
-import 'widgets/agent_step.dart';
 import 'widgets/hover_builder.dart';
 import '../ide/ide_back_button.dart';
 
@@ -180,139 +174,6 @@ class _Crumb extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// In place of the composer in a subagent's conversation, which takes no
-/// messages: how it is doing, and what can be done to it.
-class SubagentStatusBar extends StatefulWidget {
-  const SubagentStatusBar({
-    super.key,
-    required this.feed,
-    this.onStop,
-    this.onMoveToBackground,
-  });
-
-  final SubagentFeed feed;
-  final VoidCallback? onStop;
-  final VoidCallback? onMoveToBackground;
-
-  @override
-  State<SubagentStatusBar> createState() => _SubagentStatusBarState();
-}
-
-class _SubagentStatusBarState extends State<SubagentStatusBar> {
-  Timer? _ticker;
-
-  @override
-  void initState() {
-    super.initState();
-    // Once a second, for the time it has taken while it runs.
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (widget.feed.agent?.status == CommandStatus.running) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: widget.feed,
-      builder: (context, _) {
-        final l10n = context.l10n;
-        final agent = widget.feed.agent;
-        final running = agent?.status == CommandStatus.running;
-        final (word, color) = switch (agent?.status) {
-          CommandStatus.running when agent!.background => (
-            l10n.statusRunningInBackground,
-            AppColors.text,
-          ),
-          CommandStatus.running => (l10n.statusRunning, AppColors.text),
-          CommandStatus.succeeded => (
-            l10n.statusDone,
-            themeColors['testing.iconPassed'],
-          ),
-          CommandStatus.failed => (
-            l10n.statusFailed,
-            themeColors['testing.iconFailed'],
-          ),
-          null => (l10n.statusGone, AppColors.textMuted),
-        };
-        final meta = agent == null ? '' : AgentStep.meta(agent, l10n: l10n);
-        return Semantics(
-          container: true,
-          liveRegion: true,
-          label: l10n.chatSubagentStatus(word),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.borderStrong),
-            ),
-            child: Row(
-              children: [
-                AgentStatusIcon(
-                  agent?.status ?? CommandStatus.failed,
-                  background: agent?.background ?? false,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: word,
-                              style: TextStyle(color: color),
-                            ),
-                            if (meta.isNotEmpty) TextSpan(text: ' · $meta'),
-                          ],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        l10n.chatSubagentExplainer,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.textFaint,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (running) ...[
-                  if (widget.onMoveToBackground case final move?) ...[
-                    const SizedBox(width: 12),
-                    BackgroundButton(onTap: move),
-                  ],
-                  if (widget.onStop case final stop?) ...[
-                    const SizedBox(width: 12),
-                    StopButton(onTap: stop),
-                  ],
-                ],
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }

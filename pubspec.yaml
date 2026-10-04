@@ -84,6 +84,9 @@ flutter:
     - assets/material_icons/
     - assets/material_icons/icons/
     - assets/codicons/LICENSE
+    # Icons of the chat's own, not in Material's or the codicons (each says
+    # where it is from).
+    - assets/icons/
     # Built-in keymaps: VS Code keymap extensions' keybindings (lib/keybindings/keymap.dart).
     - assets/keymaps/
     - assets/keymaps/LICENSES/

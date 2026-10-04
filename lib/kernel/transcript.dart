@@ -50,6 +50,11 @@ class Transcript {
   /// Whether the last turn to end was stopped rather than done.
   bool lastTurnInterrupted = false;
 
+  /// Whether the last turn to end was one the agent took up on its own
+  /// (see [TurnStarted.unprompted]).
+  bool lastTurnUnprompted = false;
+  bool _activeUnprompted = false;
+
   final Map<String, InteractionRequest> _pending = {};
 
   /// Every file change reported, with its sequence and turn, oldest
@@ -89,11 +94,13 @@ class Transcript {
     if (event.seq <= lastSeq) return false;
     lastSeq = event.seq;
     switch (event) {
-      case TurnStarted(:final turnId):
+      case TurnStarted(:final turnId, :final unprompted):
         if (_endedTurns.contains(turnId)) return false;
         activeTurn = turnId;
+        _activeUnprompted = unprompted;
       case TurnEnded(:final turnId, :final interrupted, :final worked):
         if (!_endedTurns.add(turnId)) return false;
+        lastTurnUnprompted = activeTurn == turnId && _activeUnprompted;
         if (activeTurn == turnId) activeTurn = null;
         activity = null;
         lastTurnEndSeq = event.seq;

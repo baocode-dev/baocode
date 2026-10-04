@@ -1737,27 +1737,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get statusRunningInBackground => 'Running in the background';
 
   @override
-  String get statusRunning => 'Running';
-
-  @override
-  String get statusDone => 'Done';
-
-  @override
-  String get statusFailed => 'Failed';
-
-  @override
-  String get statusGone => 'Gone';
-
-  @override
-  String chatSubagentStatus(String status) {
-    return 'Subagent $status';
-  }
-
-  @override
-  String get chatSubagentExplainer =>
-      'A subagent works for the agent: messages go to the conversation.';
-
-  @override
   String chatToolCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -1878,10 +1857,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolUpdatedTodos => 'Updated todos';
 
   @override
-  String get toolSending => 'Sending';
+  String get toolSending => 'Saying';
 
   @override
-  String get toolSent => 'Sent';
+  String get toolSent => 'Said';
 
   @override
   String get toolAsking => 'Asking';
