@@ -123,6 +123,18 @@ void main() {
     expect(transcript.activeTurn, isNull);
   });
 
+  test('the last turn to end is told unprompted when the agent took it up '
+      'on its own', () {
+    final transcript = Transcript()
+      ..apply(const TurnStarted(1, 't1', unprompted: true))
+      ..apply(const TurnEnded(2, 't1'));
+    expect(transcript.lastTurnUnprompted, isTrue);
+    transcript
+      ..apply(const TurnStarted(3, 't2'))
+      ..apply(const TurnEnded(4, 't2'));
+    expect(transcript.lastTurnUnprompted, isFalse);
+  });
+
   test('a turn that ends mid-thought settles it', () {
     final transcript = Transcript()
       ..apply(const TurnStarted(1, 't1'))

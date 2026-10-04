@@ -28,6 +28,7 @@ import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:baocode/chat/agent_view.dart';
+import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 
 import 'kernel_test.dart' show FakeCli;
@@ -852,23 +853,43 @@ void main() {
       ..push(result('toolu_a', 'toolu_r', '1\tconst plane = 1;'));
     await tester.pump(const Duration(milliseconds: 100));
 
-    // In the conversation: a card, with the tools it used.
+    // In the conversation: a card, with how far it has got, over what it
+    // did last.
     expect(find.text('Compare the games'), findsOneWidget);
-    expect(find.text('1 tool'), findsOneWidget);
+    expect(find.textContaining('Explore · ', findRichText: true), findsOne);
+    expect(find.textContaining('1 tool', findRichText: true), findsOne);
+    expect(find.text('Read game.js'), findsOneWidget);
     // In the foreground: no orbit.
     expect(find.byType(OrbitIndicator), findsNothing);
-    expect(find.text('Read game.js', findRichText: true), findsNothing);
 
     await tester.tap(find.text('Compare the games'));
     // A frame to start the transition, then its length.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    // Its own conversation: the way back, what it was asked, its steps.
+    // Its own conversation, as the session's but for the composer: the
+    // way back, what it was asked, its steps, the status row while it
+    // works.
     expect(find.text('Conversation'), findsOneWidget);
     expect(find.text('Compare the three games.'), findsWidgets);
-    expect(find.textContaining('Read game.js', findRichText: true), findsOne);
-    expect(find.byType(SubagentStatusBar), findsOneWidget);
+    expect(
+      find.textContaining('Read game.js', findRichText: true),
+      findsWidgets,
+    );
+    expect(subagentStatusRow(), findsOneWidget);
     expect(find.byType(ChatComposer), findsNothing);
+
+    // What it was asked opens read only, in full.
+    await tester.tap(find.text('Compare the three games.').hitTestable().first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(UserMessageViewer), findsOneWidget);
+    expect(find.byType(ChatComposer), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(UserMessageViewer), findsNothing);
+    // Esc closed it, not the subagent.
+    expect(find.text('Conversation'), findsOneWidget);
 
     // Away to another conversation and back: still open, as it was.
     Widget screen(Widget home) => MaterialApp(
@@ -880,10 +901,9 @@ void main() {
     await tester.pumpWidget(screen(ChatScreen(session: session)));
     await tester.pump();
     expect(find.text('Conversation'), findsOneWidget);
-    expect(find.byType(SubagentStatusBar), findsOneWidget);
     expect(find.byType(ChatComposer), findsNothing);
 
-    // Moved to the background while it runs: it circles, and says so.
+    // Moved to the background while it runs.
     cli.push({
       'type': 'system',
       'subtype': 'task_updated',
@@ -891,26 +911,7 @@ void main() {
       'patch': {'is_backgrounded': true},
     });
     await tester.pump(const Duration(milliseconds: 100));
-    expect(
-      find.descendant(
-        of: find.byType(SubagentStatusBar),
-        matching: find.byType(OrbitIndicator),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('Running in the background', findRichText: true),
-      findsOneWidget,
-    );
-
-    await tester.tap(
-      find.descendant(
-        of: find.byType(SubagentStatusBar),
-        matching: find.byIcon(Icons.stop_rounded),
-      ),
-    );
-    await tester.pump();
-    expect(cli.requests('stop_task').single['task_id'], 't1');
+    expect(subagentStatusRow(), findsOneWidget);
 
     cli.push(
       result(null, 'toolu_a', 'The plane game is best.', {
@@ -929,27 +930,23 @@ void main() {
       find.text('The plane game is best.', findRichText: true).hitTestable(),
       findsOne,
     );
-    expect(
-      find.textContaining('Done · Explore · 1m 14s', findRichText: true),
-      findsOneWidget,
-    );
-    // How it did follows its report, not the window's bottom.
-    final report = tester.getRect(
-      find.text('The plane game is best.', findRichText: true).hitTestable(),
-    );
-    final bar = tester.getRect(find.byType(SubagentStatusBar));
-    expect(bar.top - report.bottom, inInclusiveRange(0, 60));
-    expect(bar.bottom, lessThan(900 - 100));
+    // Done: no status row.
+    expect(subagentStatusRow(), findsNothing);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump();
     expect(find.text('Conversation'), findsNothing);
-    expect(find.byType(SubagentStatusBar), findsNothing);
     expect(find.byType(ChatComposer), findsOneWidget);
-    // Its card, and its row as a background task.
+    // Its card, done, its report's first line under it, and its row as a
+    // background task.
     expect(find.text('Compare the games'), findsNWidgets(2));
+    expect(
+      find.textContaining('Explore · 1m 14s', findRichText: true),
+      findsOneWidget,
+    );
+    expect(find.text('The plane game is best.'), findsOneWidget);
   });
 
   testWidgets('a subagent in the background reports when notified, and '
@@ -999,10 +996,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Conversation'), findsOneWidget);
-    expect(
-      find.textContaining('Running', findRichText: true).hitTestable(),
-      findsWidgets,
-    );
+    expect(subagentStatusRow(), findsOneWidget);
 
     cli.push({
       'type': 'user',
@@ -1022,13 +1016,17 @@ void main() {
       find.text('An Elysia server on Bun.', findRichText: true).hitTestable(),
       findsOne,
     );
-    expect(
-      find.textContaining('Done · Plan', findRichText: true),
-      findsOneWidget,
-    );
+    expect(subagentStatusRow(), findsNothing);
     expect(find.byType(OrbitIndicator), findsNothing);
     expect(session.itemCount, greaterThan(0));
   });
 }
 
 const _frame = Duration(milliseconds: 16);
+
+/// The status row of the subagent's conversation shown (over the session's
+/// own).
+Finder subagentStatusRow() => find.descendant(
+  of: find.byType(ConversationLayer).last,
+  matching: find.byType(ActivityRow),
+);

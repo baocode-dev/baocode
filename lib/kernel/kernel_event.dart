@@ -14,9 +14,13 @@ sealed class KernelEvent {
 }
 
 final class TurnStarted extends KernelEvent {
-  const TurnStarted(super.seq, this.turnId);
+  const TurnStarted(super.seq, this.turnId, {this.unprompted = false});
 
   final String turnId;
+
+  /// Taken up by the agent on its own, not sent by the user: e.g. what it
+  /// does about a background subagent's report.
+  final bool unprompted;
 }
 
 /// What the agent is busy with out of sight (null: nothing, or what it

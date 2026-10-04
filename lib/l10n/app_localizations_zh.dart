@@ -1683,26 +1683,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get statusRunningInBackground => '在后台运行';
 
   @override
-  String get statusRunning => '运行中';
-
-  @override
-  String get statusDone => '已完成';
-
-  @override
-  String get statusFailed => '失败';
-
-  @override
-  String get statusGone => '已消失';
-
-  @override
-  String chatSubagentStatus(String status) {
-    return '子智能体$status';
-  }
-
-  @override
-  String get chatSubagentExplainer => '子智能体为主智能体工作：消息会发送到主对话中。';
-
-  @override
   String chatToolCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

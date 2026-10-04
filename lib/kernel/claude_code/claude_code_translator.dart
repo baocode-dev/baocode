@@ -673,13 +673,25 @@ class ClaudeTranslator {
         status: status,
         output: output,
       ),
-      'SendMessage' => ToolCallItem(
-        kind: ToolKind.message,
-        label: name,
-        target: _summary(input),
-        status: status,
-        output: output,
-      ),
+      // What it says, on a line; opened, all of it (what sending it
+      // returned only if it failed).
+      'SendMessage' => switch (_string(input['message'])?.trim()) {
+        final message? when message.isNotEmpty => ToolCallItem(
+          kind: ToolKind.message,
+          label: name,
+          target: message.replaceAll(RegExp(r'\s+'), ' '),
+          status: status,
+          output: status == ToolStatus.failed ? output : message,
+        ),
+        // Not words (e.g. a request to shut down): what it is for.
+        _ => ToolCallItem(
+          kind: ToolKind.message,
+          label: name,
+          target: _string(input['summary']) ?? _summary(input),
+          status: status,
+          output: output,
+        ),
+      },
       'EnterPlanMode' => ToolCallItem(
         kind: ToolKind.other,
         label: tense('Entered plan mode', 'Entering plan mode'),

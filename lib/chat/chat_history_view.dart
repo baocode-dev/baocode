@@ -34,7 +34,6 @@ class ChatHistoryView extends StatefulWidget {
     required this.feed,
     this.maxContentWidth = 760,
     this.onOpenAgent,
-    this.footer,
   });
 
   /// The conversation shown: a session's, or a subagent's.
@@ -43,10 +42,6 @@ class ChatHistoryView extends StatefulWidget {
 
   /// Opens a subagent's own conversation, from its card.
   final ValueChanged<AgentItem>? onOpenAgent;
-
-  /// After the last item, as the conversation's end (e.g. how a subagent
-  /// is doing).
-  final Widget? footer;
 
   @override
   State<ChatHistoryView> createState() => _ChatHistoryViewState();
@@ -186,7 +181,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// The user message open for editing, if any, and the text it started
   /// from. The editor lives above the list (see [_buildEditorLayer]); the
-  /// list holds a placeholder of its height.
+  /// list holds a placeholder of its height. Where messages cannot be
+  /// edited (e.g. a subagent's), it opens read only, in a viewer in the
+  /// editor's place ([_viewerScroll] scrolling it).
   int? _editingIndex;
   String _editingText = '';
   List<ImageAttachment> _editingImages = const [];
@@ -281,6 +278,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   double _editorHeight = 0;
   final Object _editorTapRegion = Object();
   GlobalKey<ChatComposerState> _editComposerKey = GlobalKey();
+  final ScrollController _viewerScroll = ScrollController();
 
   /// Pinged when the placeholder may have moved without a scroll.
   final ValueNotifier<int> _editorMoved = ValueNotifier(0);
@@ -432,6 +430,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _autoScroller?.stopAutoScroll();
     _editorMoved.dispose();
     _editorReveal.dispose();
+    _viewerScroll.dispose();
     _handoff.dispose();
     _selectionDelegate.dispose();
     _scrollController.dispose();
@@ -589,7 +588,6 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     final sliver = _findSliver();
     if (sliver == null || !sliver.attached) return;
     for (var child = sliver.firstChild; child != null;) {
-      // Items only: not the footer after them.
       if (child.hasSize && _indexOf(child) < _feed.itemCount) yield child;
       child = sliver.childAfter(child);
     }
@@ -717,7 +715,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (item is! UserMessageItem) return;
     // Until the editor reports its height, hold the message's.
     final laidOut = _laidOutItems().where((box) => _indexOf(box) == index);
-    _feed.editing = (index: index, draft: ComposerDraft());
+    if (_feed.canEditMessages) {
+      _feed.editing = (index: index, draft: ComposerDraft());
+    }
     setState(() {
       _editingIndex = index;
       _editingText = item.text;
@@ -962,9 +962,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                             key: ValueKey(('sticky', index)),
                             text: item.text,
                             images: item.images,
-                            onEdit: _feed.canEditMessages
-                                ? () => _startEditing(index)
-                                : null,
+                            onEdit: () => _startEditing(index),
                           ),
                         ),
                       ),
@@ -1051,18 +1049,25 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                             child: TapRegion(
                               groupId: _editorTapRegion,
                               onTapOutside: _handleTapOutsideEditor,
-                              child: ChatComposer(
-                                key: _editComposerKey,
-                                // Only a session's own messages are edited.
-                                session: _feed as ChatSession,
-                                initialText: _editingText,
-                                initialImages: _editingImages,
-                                draft: _feed.editing?.draft,
-                                tapRegionGroupId: _editorTapRegion,
-                                onSubmit: (message) =>
-                                    _submitEdit(index, message),
-                                onCancel: _cancelEditing,
-                              ),
+                              child: !_feed.canEditMessages
+                                  ? UserMessageViewer(
+                                      text: _editingText,
+                                      images: _editingImages,
+                                      controller: _viewerScroll,
+                                      onClose: _cancelEditing,
+                                    )
+                                  : ChatComposer(
+                                      key: _editComposerKey,
+                                      // Only a session's own messages are edited.
+                                      session: _feed as ChatSession,
+                                      initialText: _editingText,
+                                      initialImages: _editingImages,
+                                      draft: _feed.editing?.draft,
+                                      tapRegionGroupId: _editorTapRegion,
+                                      onSubmit: (message) =>
+                                          _submitEdit(index, message),
+                                      onCancel: _cancelEditing,
+                                    ),
                             ),
                           ),
                         ),
@@ -1090,7 +1095,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// Whether the editor's text area has anything to scroll.
   bool get _editorScrolls {
-    final inner = _editComposerKey.currentState?.editorScrollPosition;
+    final inner = _feed.canEditMessages
+        ? _editComposerKey.currentState?.editorScrollPosition
+        : _viewerScroll.hasClients
+        ? _viewerScroll.position
+        : null;
     return inner != null && inner.maxScrollExtent > inner.minScrollExtent;
   }
 
@@ -1184,9 +1193,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         item: item,
         expanded: _isExpanded(index),
         onToggle: () => _toggle(index),
-        onEdit: item is UserMessageItem && _feed.canEditMessages
-            ? () => _startEditing(index)
-            : null,
+        onEdit: item is UserMessageItem ? () => _startEditing(index) : null,
         onCancelQueued: () => _feed.cancelQueued(index),
         onMoveToBackground: _feed.moveToBackgroundAt(index),
         onStop: _feed.stopAt(index),
@@ -1388,9 +1395,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                               child: SuperListView.builder(
                                 key: _listKey,
                                 controller: _scrollController,
-                                itemCount:
-                                    _feed.itemCount +
-                                    (widget.footer == null ? 0 : 1),
+                                itemCount: _feed.itemCount,
                                 cacheExtent: 900,
                                 padding: EdgeInsets.fromLTRB(
                                   _gutter,
@@ -1399,22 +1404,6 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                   24,
                                 ),
                                 itemBuilder: (context, index) {
-                                  if (index == _feed.itemCount) {
-                                    return Align(
-                                      alignment: Alignment.topCenter,
-                                      child: ConstrainedBox(
-                                        constraints: BoxConstraints(
-                                          maxWidth: widget.maxContentWidth,
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 20,
-                                          ),
-                                          child: widget.footer,
-                                        ),
-                                      ),
-                                    );
-                                  }
                                   return Align(
                                     alignment: Alignment.topCenter,
                                     child: ConstrainedBox(

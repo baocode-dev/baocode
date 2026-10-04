@@ -137,7 +137,13 @@ class AttentionService {
       } else if (before == ThreadStatus.running &&
           (status == ThreadStatus.unread || status == ThreadStatus.idle) &&
           !thread.session.lastTurnInterrupted) {
-        _notify(thread, AttentionEvent.finished);
+        // What the agent did about a background subagent's report (a
+        // turn it took up on its own): shown, but without a sound.
+        _notify(
+          thread,
+          AttentionEvent.finished,
+          sound: !thread.session.lastTurnUnprompted,
+        );
       }
     }
     if (_statuses.length > threads.length) {
@@ -188,7 +194,7 @@ class AttentionService {
           (workspace.grid.contains(thread) ||
               identical(workspace.current, thread)));
 
-  void _notify(AgentThread thread, AttentionEvent event) {
+  void _notify(AgentThread thread, AttentionEvent event, {bool sound = true}) {
     final settings = this.settings();
     if (thread.archived || !settings.notifies(event)) return;
     if (settings.when == NotifyWhen.unfocused && _inView(thread)) return;
@@ -214,7 +220,7 @@ class AttentionService {
         body: body,
       ),
     );
-    _sound(settings.sound);
+    if (sound) _sound(settings.sound);
   }
 
   /// One sound for news that comes together (several agents at once).

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,14 +8,18 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
+import 'chat_item_view.dart' show chatItemPlainText;
+import 'flip_switcher.dart';
 import 'hover_builder.dart';
 import 'orbit_indicator.dart';
 import 'shimmer_text.dart';
 import '../../ide/ide_hover.dart';
 
-/// A subagent as a card: what it was given to do, and the tools it has
-/// used. A click, or Enter once focused, opens its own conversation
-/// ([onOpen]), where the rest is.
+/// A subagent as a card: what it was given to do and how far it has got
+/// ("Explore · 55s · 5 tools · 8.2k tokens"), over what it did last, which
+/// flips up to the next as it goes on (its report's first line once done).
+/// A click, or Enter once focused, opens its own conversation ([onOpen]),
+/// where the rest is.
 class AgentStep extends StatefulWidget {
   const AgentStep({
     super.key,
@@ -82,9 +88,44 @@ class AgentStep extends StatefulWidget {
         _ => null,
       };
 
+  /// What it did last, in a line, e.g. "Ran Find reusable helpers"; once
+  /// done, its report's first line. What it was asked before it does
+  /// anything; null with nothing to say.
+  static String? latest(AgentItem item, {AppLocalizations? l10n}) {
+    if (item.status != CommandStatus.running) {
+      if (_firstLine(item.result) case final report?) return report;
+    }
+    for (final child in item.children.reversed) {
+      if (_firstLine(chatItemPlainText(child, l10n: l10n)) case final line?) {
+        return line;
+      }
+    }
+    return _firstLine(item.activity) ?? _firstLine(item.prompt);
+  }
+
+  /// The first line of [text] with anything in it, out of its markdown's
+  /// heading and emphasis marks.
+  static String? _firstLine(String? text) {
+    if (text == null) return null;
+    for (final line in text.split('\n')) {
+      final plain = line
+          .replaceFirst(RegExp(r'^\s*(#+|[-*•]|>)\s+'), '')
+          .replaceAll('**', '')
+          .trim();
+      if (plain.isNotEmpty) return plain;
+    }
+    return null;
+  }
+
   /// The card as text, for copying: as it reads.
-  static String plainText(AgentItem item, {AppLocalizations? l10n}) =>
-      [item.description, ?tools(item, l10n: l10n)].join(' ');
+  static String plainText(AgentItem item, {AppLocalizations? l10n}) => [
+    [
+      item.description,
+      if (meta(item, l10n: l10n) case final meta when meta.isNotEmpty)
+        '· $meta',
+    ].join(' '),
+    ?latest(item, l10n: l10n),
+  ].join('\n');
 
   @override
   State<AgentStep> createState() => _AgentStepState();
@@ -109,38 +150,67 @@ class _AgentStepState extends State<AgentStep> {
     final item = widget.item;
     final running = item.status == CommandStatus.running;
     final l10n = context.l10n;
-    final tools = AgentStep.tools(item, l10n: l10n);
+    final latest = AgentStep.latest(item, l10n: l10n);
     final open = widget.onOpen;
     final content = Padding(
       padding: const EdgeInsets.fromLTRB(12, 9, 10, 9),
       child: Row(
         children: [
           AgentStatusIcon(item.status, background: item.background),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
-            // Shimmers while it works.
-            child: running
-                ? ShimmerText(
-                    item.description,
-                    ellipsis: false,
-                    padding: EdgeInsets.zero,
-                    style: _titleStyle,
-                  )
-                : Text(
-                    item.description,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _titleStyle.copyWith(color: AppColors.textPrimary),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LayoutBuilder(
+                  builder: (context, constraints) => Row(
+                    children: [
+                      // Shimmers while it works.
+                      Flexible(
+                        child: running
+                            ? ShimmerText(
+                                item.description,
+                                ellipsis: false,
+                                padding: EdgeInsets.zero,
+                                style: _titleStyle,
+                              )
+                            : Text(
+                                item.description,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _titleStyle.copyWith(
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                      ),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: constraints.maxWidth / 2,
+                        ),
+                        child: _Meta(item: item),
+                      ),
+                    ],
                   ),
-          ),
-          if (tools != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: Text(
-                tools,
-                style: TextStyle(color: AppColors.textFaint, fontSize: 12),
-              ),
+                ),
+                if (latest != null) ...[
+                  const SizedBox(height: 2),
+                  FlipSwitcher(
+                    child: Text(
+                      latest,
+                      key: ValueKey(latest),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.textFaint,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
+          ),
           // Its buttons take their own presses (see _down).
           Listener(
             onPointerDown: (_) => _onButton = true,
@@ -234,6 +304,68 @@ class _AgentStepState extends State<AgentStep> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// After its description: its kind and progress (see [AgentStep.meta]),
+/// the time it has taken going on once a second while it runs. At most
+/// half the row, the description having the rest.
+class _Meta extends StatefulWidget {
+  const _Meta({required this.item});
+
+  final AgentItem item;
+
+  @override
+  State<_Meta> createState() => _MetaState();
+}
+
+class _MetaState extends State<_Meta> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick();
+  }
+
+  @override
+  void didUpdateWidget(_Meta oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _tick();
+  }
+
+  void _tick() {
+    final running = widget.item.status == CommandStatus.running;
+    if (!running) {
+      _ticker?.cancel();
+      _ticker = null;
+    } else {
+      _ticker ??= Timer.periodic(
+        const Duration(seconds: 1),
+        (_) => setState(() {}),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final meta = AgentStep.meta(widget.item, l10n: context.l10n);
+    if (meta.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: Text(
+        '· $meta',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: AppColors.textFaint, fontSize: 12),
       ),
     );
   }

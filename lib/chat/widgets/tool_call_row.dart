@@ -52,9 +52,10 @@ class ToolCallRow extends StatelessWidget {
       running: _running,
       expanded: expanded,
       onToggle: _opens ? onToggle : null,
+      // A message to another agent: someone speaking.
       icon: kind == ToolKind.message
           ? Icon(
-              Icons.swap_horiz_rounded,
+              Icons.record_voice_over_outlined,
               size: 15,
               color: AppColors.syntaxCommand,
             )

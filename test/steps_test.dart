@@ -299,8 +299,8 @@ void main() {
       expect(find.textContaining('tokens', findRichText: true), findsNothing);
     });
 
-    testWidgets('a subagent: a card with the tools it used, opening on a '
-        'click or Enter', (tester) async {
+    testWidgets('a subagent: a card with how far it got over its report, '
+        'opening on a click or Enter', (tester) async {
       var opened = 0;
       await tester.pumpWidget(
         MaterialApp(
@@ -325,10 +325,13 @@ void main() {
         ),
       );
       expect(find.text('Find the kernel files'), findsOneWidget);
-      expect(find.text('2 tools'), findsOneWidget);
+      expect(
+        find.text('· Explore · 1m 14s · 2 tools · 8.2k tokens'),
+        findsOneWidget,
+      );
+      // Done: its report's first line, out of its markdown.
+      expect(find.text('Found'), findsOneWidget);
       // The rest is in its own conversation.
-      expect(find.textContaining('Explore'), findsNothing);
-      expect(find.textContaining('Found'), findsNothing);
       expect(header('Read kernel.dart'), findsNothing);
 
       await tester.tap(find.text('Find the kernel files'));
@@ -363,9 +366,60 @@ void main() {
         ),
       );
       expect(find.byType(ShimmerText), findsOneWidget);
-      expect(find.text('Reading game.js'), findsNothing);
+      // What it is doing, before any step of its shows.
+      expect(find.text('Reading game.js'), findsOneWidget);
+      expect(find.textContaining('Explore · 1m 9s'), findsOneWidget);
       await tester.tap(find.byIcon(Icons.stop_rounded));
       expect((stopped, opened), (1, 0));
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('a subagent\'s last step flips up to the next, each staying '
+        'a while', (tester) async {
+      Future<void> show(List<String> commands) => tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatItemView(
+              item: AgentItem(
+                id: 'toolu_1',
+                description: 'Look around',
+                children: [
+                  for (final command in commands)
+                    TerminalItem(
+                      command: command,
+                      output: '',
+                      status: CommandStatus.succeeded,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      Finder line(String command) => find.text('Ran $command');
+
+      await show(['ls']);
+      expect(line('ls'), findsOneWidget);
+
+      // The next comes up as the last goes: both, for the flip.
+      await show(['ls', 'pwd']);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(line('ls'), findsOneWidget);
+      expect(line('pwd'), findsOneWidget);
+      expect(find.byType(Transform), findsWidgets);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(line('ls'), findsNothing);
+
+      // Two more while it stays: the last of them only, once it has.
+      await show(['ls', 'pwd', 'cd a']);
+      await show(['ls', 'pwd', 'cd a', 'cd b']);
+      await tester.pump();
+      expect(line('pwd'), findsOneWidget);
+      expect(line('cd b'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(line('cd a'), findsNothing);
+      expect(line('cd b'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
 
