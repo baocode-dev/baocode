@@ -2382,39 +2382,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get markdownShowSource => 'Markdown';
 
   @override
-  String get markdownCodeLanguage => 'Language';
-
-  @override
-  String get markdownTableRowAbove => 'Insert Row Above';
-
-  @override
-  String get markdownTableRowBelow => 'Insert Row Below';
-
-  @override
-  String get markdownTableColumnLeft => 'Insert Column Left';
-
-  @override
-  String get markdownTableColumnRight => 'Insert Column Right';
-
-  @override
-  String get markdownTableDeleteRow => 'Delete Row';
-
-  @override
-  String get markdownTableDeleteColumn => 'Delete Column';
-
-  @override
-  String get markdownTableAlignLeft => 'Align Column Left';
-
-  @override
-  String get markdownTableAlignCenter => 'Align Column Center';
-
-  @override
-  String get markdownTableAlignRight => 'Align Column Right';
-
-  @override
-  String get markdownTableDelete => 'Delete Table';
-
-  @override
   String get markdownFindInSource =>
       'Find is not available in the preview: showing the Markdown source.';
 
@@ -4874,50 +4841,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdMarkdownShowSource => 'Show Source';
-
-  @override
-  String get cmdMarkdownBold => 'Toggle Bold';
-
-  @override
-  String get cmdMarkdownItalic => 'Toggle Italic';
-
-  @override
-  String get cmdMarkdownStrikethrough => 'Toggle Strikethrough';
-
-  @override
-  String get cmdMarkdownInlineCode => 'Toggle Inline Code';
-
-  @override
-  String get cmdMarkdownParagraph => 'Paragraph';
-
-  @override
-  String get cmdMarkdownQuote => 'Toggle Quote';
-
-  @override
-  String get cmdMarkdownBulletList => 'Toggle Bullet List';
-
-  @override
-  String get cmdMarkdownOrderedList => 'Toggle Numbered List';
-
-  @override
-  String get cmdMarkdownTaskList => 'Toggle Task List';
-
-  @override
-  String get cmdMarkdownInsertTable => 'Insert Table';
-
-  @override
-  String get cmdMarkdownInsertCodeBlock => 'Insert Code Block';
-
-  @override
-  String get cmdMarkdownInsertMathBlock => 'Insert Math Block';
-
-  @override
-  String get cmdMarkdownInsertRule => 'Insert Horizontal Rule';
-
-  @override
-  String cmdMarkdownHeading(int level) {
-    return 'Heading $level';
-  }
 
   @override
   String get cmdCloseFolder => 'Close Folder';

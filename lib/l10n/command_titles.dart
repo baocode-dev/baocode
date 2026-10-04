@@ -15,10 +15,6 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     final index = int.tryParse(id.substring(_openEditorAtIndex.length));
     if (index != null) return l10n.cmdOpenEditorAtIndex(index);
   }
-  if (id.startsWith(_markdownHeading)) {
-    final level = int.tryParse(id.substring(_markdownHeading.length));
-    if (level != null) return l10n.cmdMarkdownHeading(level);
-  }
   return switch (id) {
     'workbench.action.showCommands' => l10n.cmdShowAllCommands,
     'workbench.action.quickOpen' => l10n.cmdQuickOpen,
@@ -30,19 +26,6 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'workbench.action.files.saveAs' => l10n.cmdSaveAs,
     'markdown.showPreview' => l10n.cmdMarkdownShowPreview,
     'markdown.showSource' => l10n.cmdMarkdownShowSource,
-    'markdown.editor.toggleBold' => l10n.cmdMarkdownBold,
-    'markdown.editor.toggleItalic' => l10n.cmdMarkdownItalic,
-    'markdown.editor.toggleStrikethrough' => l10n.cmdMarkdownStrikethrough,
-    'markdown.editor.toggleCode' => l10n.cmdMarkdownInlineCode,
-    'markdown.editor.paragraph' => l10n.cmdMarkdownParagraph,
-    'markdown.editor.toggleQuote' => l10n.cmdMarkdownQuote,
-    'markdown.editor.toggleBulletList' => l10n.cmdMarkdownBulletList,
-    'markdown.editor.toggleOrderedList' => l10n.cmdMarkdownOrderedList,
-    'markdown.editor.toggleTaskList' => l10n.cmdMarkdownTaskList,
-    'markdown.editor.insertTable' => l10n.cmdMarkdownInsertTable,
-    'markdown.editor.insertCodeBlock' => l10n.cmdMarkdownInsertCodeBlock,
-    'markdown.editor.insertMathBlock' => l10n.cmdMarkdownInsertMathBlock,
-    'markdown.editor.insertHorizontalRule' => l10n.cmdMarkdownInsertRule,
     'workbench.action.files.newUntitledFile' => l10n.cmdNewUntitledFile,
     'workbench.action.files.openFile' => l10n.cmdOpenFile,
     'workbench.action.files.openFolder' => l10n.cmdOpenFolder,
@@ -530,7 +513,6 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
 }
 
 const _openEditorAtIndex = 'workbench.action.openEditorAtIndex';
-const _markdownHeading = 'markdown.editor.heading';
 
 /// A command category (upstream `Categories`) in [l10n]'s language; others
 /// as given.

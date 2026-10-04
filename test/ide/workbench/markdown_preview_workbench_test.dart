@@ -118,53 +118,26 @@ void main() {
     );
   });
 
-  testWidgets('typed in the preview, saved with Ctrl+S; Ctrl+B is bold '
-      'there, and the source opens at the caret', (tester) async {
-    final workspace = await pumpWorkbench(tester, files, open: ['README.md']);
+  testWidgets('a double click in the preview opens the source there', (
+    tester,
+  ) async {
+    await pumpWorkbench(tester, files, open: ['README.md']);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Some text.'));
+    final text = find.text('Some text.', findRichText: true);
+    // On `text`: after `Some `.
+    final at =
+        tester.getTopLeft(text) +
+        Offset(
+          tester.getSize(text).width * 5.5 / 10,
+          tester.getSize(text).height / 2,
+        );
+    await tester.tapAt(at);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tapAt(at);
     await tester.pumpAndSettle();
-    tester.testTextInput.updateEditingValue(
-      const TextEditingValue(
-        text: 'Some text.',
-        selection: TextSelection(baseOffset: 5, extentOffset: 9),
-      ),
-    );
-    await tester.pump();
-    tester.testTextInput.updateEditingValue(
-      const TextEditingValue(
-        text: 'Some other.',
-        selection: TextSelection.collapsed(offset: 10),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(workspace.active!.text, '# Readme\n\nSome other.\n');
-    expect(workspace.active!.dirty, isTrue);
-    await chord(tester, LogicalKeyboardKey.keyS, control: true);
-    await tester.pumpAndSettle();
-    final contents = (workspace.files as TreeFiles).contents;
-    expect(contents[inRoot('README.md')], '# Readme\n\nSome other.\n');
-    expect(workspace.active!.dirty, isFalse);
-
-    // The word selected, Ctrl+B: bold, not the side bar.
-    tester.testTextInput.updateEditingValue(
-      const TextEditingValue(
-        text: 'Some other.',
-        selection: TextSelection(baseOffset: 5, extentOffset: 10),
-      ),
-    );
-    await tester.pump();
-    final sidebar = workbench(tester).keyContext('sideBarVisible');
-    expect(workbench(tester).keyContext('markdownEditorFocus'), isTrue);
-    await chord(tester, LogicalKeyboardKey.keyB, control: true);
-    await tester.pumpAndSettle();
-    expect(workspace.active!.text, '# Readme\n\nSome **other**.\n');
-    expect(workbench(tester).keyContext('sideBarVisible'), sidebar);
-
-    await chord(tester, LogicalKeyboardKey.keyV, control: true, shift: true);
-    await tester.pumpAndSettle();
+    expect(preview, findsNothing);
     expect(editor, findsOneWidget);
-    expect(find.textContaining('Ln 3, Col 1'), findsOneWidget);
+    expect(find.textContaining('Ln 3, Col '), findsOneWidget);
   });
 
   group('pasting files', () {
@@ -226,7 +199,8 @@ void main() {
       expect(tree.bytes, hasLength(1));
     });
 
-    testWidgets('pasted in the preview, and dropped on it', (tester) async {
+    testWidgets('a file dropped on the preview goes after the block it is '
+        'let go on', (tester) async {
       final workspace = await pumpWorkbench(
         tester,
         {...files, '../elsewhere/shot.png': 'png'},
@@ -234,12 +208,6 @@ void main() {
       );
       await tester.pumpAndSettle();
       final tree = workspace.files as TreeFiles;
-      clipboard.pictures = [picture];
-      await tester.tap(find.text('Some text.', findRichText: true));
-      await tester.pumpAndSettle();
-      await paste(tester);
-      expect(workspace.active!.text, '# Readme\n\nSome text.![](image.png)\n');
-      expect(tree.bytes.keys, [inRoot('image.png')]);
 
       // A file dropped from another app, after the block it is let go on.
       final shot = inRoot('../elsewhere/shot.png');
@@ -263,7 +231,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         workspace.active!.text,
-        '# Readme\n\n![](shot.png)\n\nSome text.![](image.png)\n',
+        '# Readme\n\n![](shot.png)\n\nSome text.\n',
       );
       expect(tree.contents[inRoot('shot.png')], 'png');
     });
