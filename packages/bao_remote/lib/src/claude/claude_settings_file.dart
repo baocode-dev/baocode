@@ -11,10 +11,16 @@ import 'package:path/path.dart' as p;
 abstract final class ClaudeSettingsFile {
   static Directory? _folder;
 
+  /// Where the folder is made; the system's temporary folder when null. The
+  /// server puts it in memory where the system has a place for that
+  /// (`XDG_RUNTIME_DIR`), so that a key never reaches its disk.
+  static Directory? parent;
+
   static Directory get _directory {
     var folder = _folder;
     if (folder == null || !folder.existsSync()) {
-      final temp = Directory(Directory.systemTemp.resolveSymbolicLinksSync());
+      final temp =
+          parent ?? Directory(Directory.systemTemp.resolveSymbolicLinksSync());
       folder = _folder = temp.createTempSync('baocode-settings-');
     }
     return folder;

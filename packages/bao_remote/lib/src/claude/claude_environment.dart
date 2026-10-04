@@ -57,7 +57,9 @@ abstract final class ClaudeEnvironment {
   static Future<Map<String, String>> _login() async {
     final fallback = Map<String, String>.of(Platform.environment);
     if (Platform.isWindows) return fallback;
-    final shell = Platform.environment['SHELL'] ?? '/bin/zsh';
+    final shell =
+        Platform.environment['SHELL'] ??
+        (Platform.isMacOS ? '/bin/zsh' : '/bin/sh');
     try {
       const marker = '__BAOCODE_ENV__';
       final result = await Process.run(shell, [
