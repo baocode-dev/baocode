@@ -25,25 +25,69 @@ Stream<T> resilientStream<T>(
   SshHost host,
   Stream<T> Function(RemoteClient client) open, {
   T Function()? resumed,
-}) async* {
-  var first = true;
-  while (true) {
-    final RemoteClient client;
-    try {
-      client = await host.ready;
-    } on Object {
-      await host.reconnected.first;
-      continue;
-    }
-    if (!first && resumed != null) yield resumed();
-    first = false;
-    try {
-      yield* open(client);
-      return;
-    } on RpcClosed {
-      await host.reconnected.first;
-    }
+}) {
+  late final StreamController<T> controller;
+  StreamSubscription<T>? subscription;
+  RemoteClient? previous;
+  void Function()? stopWaiting;
+
+  void listen(RemoteClient client) {
+    if (previous != null && resumed != null) controller.add(resumed());
+    previous = client;
+    var lost = false;
+    late void Function() wait;
+    subscription = open(client).listen(
+      controller.add,
+      onError: (Object error, StackTrace stack) {
+        if (error is! RpcClosed) return controller.addError(error, stack);
+        lost = true;
+        subscription?.cancel().ignore();
+        subscription = null;
+        wait();
+      },
+      onDone: () {
+        if (!lost) controller.close().ignore();
+      },
+    );
+    wait = () => _awaitClient(host, previous, listen, (stop) {
+      stopWaiting = stop;
+    });
   }
+
+  controller = StreamController<T>(
+    onListen: () => _awaitClient(host, null, listen, (stop) {
+      stopWaiting = stop;
+    }),
+    onCancel: () {
+      stopWaiting?.call();
+      stopWaiting = null;
+      return subscription?.cancel();
+    },
+  );
+  return controller.stream;
+}
+
+/// Calls [then] with [host]'s client once it has one other than
+/// [previous] (connecting it first when there was none): a stream's
+/// connection lost waits for the next. [waiting] is given how to stop.
+void _awaitClient(
+  SshHost host,
+  RemoteClient? previous,
+  void Function(RemoteClient client) then,
+  void Function(void Function()? stop) waiting,
+) {
+  void check() {
+    final client = host.client;
+    if (client == null || identical(client, previous)) return;
+    host.removeListener(check);
+    waiting(null);
+    then(client);
+  }
+
+  host.addListener(check);
+  waiting(() => host.removeListener(check));
+  if (previous == null && host.client == null) host.ready.ignore();
+  check();
 }
 
 /// The files of the project at [root] on [host].

@@ -108,12 +108,25 @@ typedef SshProcessStarter = Future<Process> Function(
 /// A connection to a host's server: [client] over the stdin and stdout of
 /// `ssh`, which ends with it.
 class SshConnection {
-  SshConnection._(this.target, this._process, this.client, this._stderr);
+  SshConnection._(this.target, Process process, this.client, this._stderr)
+    : _ended = (() => process.exitCode.timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          process.kill();
+          return -1;
+        },
+      ));
+
+  /// A connection over [client] without `ssh` (one in memory, under test);
+  /// [ended] completes once its other end is gone after a shutdown.
+  SshConnection.over(this.target, this.client, {Future<void> Function()? ended})
+    : _stderr = const [],
+      _ended = ended ?? (() async {});
 
   final SshTarget target;
-  final Process _process;
   final RemoteClient client;
   final List<String> _stderr;
+  final Future<void> Function() _ended;
 
   RemoteHello get hello => client.hello!;
 
@@ -126,13 +139,7 @@ class SshConnection {
   /// Ends the server (and all it runs), then `ssh`.
   Future<void> close() async {
     await client.shutdown();
-    await _process.exitCode.timeout(
-      const Duration(seconds: 3),
-      onTimeout: () {
-        _process.kill();
-        return -1;
-      },
-    );
+    await _ended();
   }
 }
 

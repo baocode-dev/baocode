@@ -62,3 +62,60 @@ Future<void> until(
     await Future<void>.delayed(const Duration(milliseconds: 20));
   }
 }
+
+/// A connection to a server in memory, which [drop] cuts as a network
+/// would.
+class MemoryLink {
+  MemoryLink._(this.server, this.client, this._toServer, this._toClient);
+
+  static Future<MemoryLink> open(String dataDir) async {
+    final toServer = StreamController<String>();
+    final toClient = StreamController<String>();
+    final server = RemoteServer(
+      RpcPeer(toServer.stream, toClient.add),
+      dataDir: dataDir,
+      version: 'test',
+    );
+    final client = RemoteClient(RpcPeer(toClient.stream, toServer.add));
+    await client.initialize();
+    return MemoryLink._(server, client, toServer, toClient);
+  }
+
+  final RemoteServer server;
+  final RemoteClient client;
+  final StreamController<String> _toServer;
+  final StreamController<String> _toClient;
+
+  /// The connection is gone: both ends find out.
+  Future<void> drop() async {
+    await _toServer.close();
+    await _toClient.close();
+  }
+}
+
+/// Connects [SshHost]s to servers in memory sharing [dataDir]; fails with
+/// [failure] while it is set.
+class MemoryConnector {
+  MemoryConnector(this.dataDir);
+
+  final String dataDir;
+  final List<MemoryLink> links = [];
+  Object? failure;
+  int attempts = 0;
+
+  Future<SshConnection> call(
+    SshTarget target, {
+    void Function(String message)? onProgress,
+  }) async {
+    attempts++;
+    if (failure case final failure?) throw failure;
+    onProgress?.call('Starting the BaoCode server on ${target.text}');
+    final link = await MemoryLink.open(dataDir);
+    links.add(link);
+    return SshConnection.over(
+      target,
+      link.client,
+      ended: () => link.server.shutdown(),
+    );
+  }
+}
