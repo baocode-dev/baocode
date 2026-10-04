@@ -932,7 +932,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
     return Container(
       height: 26,
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.border)),
+        border: Border(bottom: BorderSide(color: AppColors.sideBarBorder)),
       ),
       child: Row(
         children: [
