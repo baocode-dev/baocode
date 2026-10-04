@@ -244,6 +244,10 @@ class IdeWorkspace extends ChangeNotifier {
   /// The folders of the open files, watched for changes made outside the
   /// editor (an agent's edit, another program's): VS Code's file watcher.
   final Stream<void> Function(String directory) _watchDirectory;
+
+  /// Changes to the entries of a folder, as this workspace watches them
+  /// (on the project's host for a remote one), for the explorer.
+  Stream<void> Function(String directory) get watchFolder => _watchDirectory;
   final Map<String, StreamSubscription<void>> _watches = {};
   final Set<String> _changedDirectories = {};
   Timer? _changesTimer;

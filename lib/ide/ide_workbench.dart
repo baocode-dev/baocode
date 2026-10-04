@@ -942,6 +942,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _explorer = IdeExplorerController(
       files: workspace.files,
       root: workspace.root,
+      // Without a folder, no tree to keep current.
+      watch: workspace.hasFolder
+          ? workspace.watchFolder
+          : (_) => const Stream.empty(),
     );
     _fileIndex = IdeFileIndex(
       workspace.files,
