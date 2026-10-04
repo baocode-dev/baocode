@@ -31,31 +31,100 @@ class MarkdownView extends StatelessWidget {
     fontSize: 12.5,
   );
 
-  static final _document = md.Document(
+  /// The block syntaxes of its own, before GFM's: code citations and TeX.
+  static const blockSyntaxes = <md.BlockSyntax>[
+    CodeCitationFenceSyntax(),
+    MathBlockSyntax(),
+  ];
+  static List<md.InlineSyntax> get inlineSyntaxes => [InlineMathSyntax()];
+
+  /// A document parsing as it does; one keeps the link definitions it
+  /// read (see the IDE's markdown preview).
+  static md.Document document() => md.Document(
     extensionSet: md.ExtensionSet.gitHubFlavored,
-    blockSyntaxes: const [CodeCitationFenceSyntax(), MathBlockSyntax()],
-    inlineSyntaxes: [InlineMathSyntax()],
+    blockSyntaxes: blockSyntaxes,
+    inlineSyntaxes: inlineSyntaxes,
     encodeHtml: false,
   );
+
+  static final _document = document();
 
   @override
   Widget build(BuildContext context) {
     final nodes = _document.parse(data);
-    return _Blocks(nodes: nodes, style: style ?? baseStyle);
+    return MarkdownBlocks(nodes: nodes, style: style ?? baseStyle);
   }
 }
 
-class _Blocks extends StatelessWidget {
-  const _Blocks({required this.nodes, required this.style});
+/// How [MarkdownBlocks] draws and what its links, images and task boxes
+/// do: as the chat's by default.
+@immutable
+class MarkdownOptions {
+  const MarkdownOptions({
+    this.headingSizes = const [19, 17, 15, 13.5, 13.5, 13.5],
+    this.headingRules = false,
+    this.gap = 8,
+    this.headingGap = 12,
+    this.link,
+    this.image,
+    this.onToggleTask,
+  });
+
+  /// `h1` to `h6`'s font sizes.
+  final List<double> headingSizes;
+
+  /// Whether `h1` and `h2` have a line under them, as GitHub's.
+  final bool headingRules;
+
+  /// The space between blocks, and before and after a heading.
+  final double gap;
+  final double headingGap;
+
+  /// What a tap on a link to `href` does; web and mail links open in the
+  /// browser when null, others nothing.
+  final GestureRecognizer? Function(String? href)? link;
+
+  /// An image (`![alt](src "title")`); its alt text in brackets when null.
+  final Widget Function(String src, String alt, String? title)? image;
+
+  /// Called with a task list box's number (see [numberTasks]) when it is
+  /// clicked; the boxes are only drawn when null.
+  final ValueChanged<int>? onToggleTask;
+}
+
+/// Numbers the task list boxes of [nodes], in the order their lines come,
+/// for [MarkdownOptions.onToggleTask].
+void numberTasks(List<md.Node> nodes) {
+  var count = 0;
+  void visit(md.Node node) {
+    if (node is! md.Element) return;
+    if (node.tag == 'input') node.attributes[_taskAttribute] = '${count++}';
+    node.children?.forEach(visit);
+  }
+
+  nodes.forEach(visit);
+}
+
+const _taskAttribute = 'data-task';
+
+/// Parsed markdown ([MarkdownView.document]) as widgets.
+class MarkdownBlocks extends StatelessWidget {
+  const MarkdownBlocks({
+    super.key,
+    required this.nodes,
+    required this.style,
+    this.options = const MarkdownOptions(),
+  });
 
   final List<md.Node> nodes;
   final TextStyle style;
+  final MarkdownOptions options;
 
   @override
   Widget build(BuildContext context) {
     final children = <Widget>[];
     for (final node in nodes) {
-      final block = _block(node, style);
+      final block = _block(node, style, options);
       if (block == null) continue;
       if (children.isNotEmpty) children.add(SizedBox(height: _gap(node)));
       children.add(block);
@@ -67,13 +136,13 @@ class _Blocks extends StatelessWidget {
     );
   }
 
-  static double _gap(md.Node node) => switch (node) {
-    md.Element(tag: 'h1' || 'h2' || 'h3') => 12,
-    _ => 8,
+  double _gap(md.Node node) => switch (node) {
+    md.Element(tag: 'h1' || 'h2' || 'h3') => options.headingGap,
+    _ => options.gap,
   };
 }
 
-Widget? _block(md.Node node, TextStyle style) {
+Widget? _block(md.Node node, TextStyle style, MarkdownOptions options) {
   if (node is md.Text) {
     if (node.text.trim().isEmpty) return null;
     return Text.rich(TextSpan(style: style, text: node.text));
@@ -83,30 +152,38 @@ Widget? _block(md.Node node, TextStyle style) {
     case 'math':
       return MathView(node.textContent, display: true);
     case 'p':
-      return InlineCodeText(_inlines(node.children ?? const [], style));
+      return InlineCodeText(
+        _inlines(node.children ?? const [], style, options),
+      );
     case 'h1' || 'h2' || 'h3' || 'h4' || 'h5' || 'h6':
-      final size = switch (node.tag) {
-        'h1' => 19.0,
-        'h2' => 17.0,
-        'h3' => 15.0,
-        _ => 13.5,
-      };
-      return Padding(
+      final level = int.parse(node.tag.substring(1));
+      final heading = Padding(
         padding: const EdgeInsets.only(top: 2),
         child: InlineCodeText(
           _inlines(
             node.children ?? const [],
             style.copyWith(
               color: AppColors.textPrimary,
-              fontSize: size,
+              fontSize: options.headingSizes[level - 1],
               fontWeight: FontWeight.w600,
               height: 1.4,
             ),
+            options,
           ),
         ),
       );
+      if (!options.headingRules || level > 2) return heading;
+      return Container(
+        padding: const EdgeInsets.only(bottom: 6),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: themeColors['textSeparator.foreground']),
+          ),
+        ),
+        child: heading,
+      );
     case 'ul' || 'ol':
-      return _List(node: node, style: style);
+      return _List(node: node, style: style, options: options);
     case 'pre':
       final code = node.children?.firstOrNull;
       final text = code is md.Element ? code.textContent : node.textContent;
@@ -137,9 +214,10 @@ Widget? _block(md.Node node, TextStyle style) {
             ),
           ),
         ),
-        child: _Blocks(
+        child: MarkdownBlocks(
           nodes: node.children ?? const [],
           style: style.copyWith(color: AppColors.textMuted),
+          options: options,
         ),
       );
     case 'hr':
@@ -153,18 +231,19 @@ Widget? _block(md.Node node, TextStyle style) {
         ),
       );
     case 'table':
-      return _Table(node: node, style: style);
+      return _Table(node: node, style: style, options: options);
     default:
-      return InlineCodeText(_inlines([node], style));
+      return InlineCodeText(_inlines([node], style, options));
   }
 }
 
 /// A list, numbered or not, whose items may hold blocks and nested lists.
 class _List extends StatelessWidget {
-  const _List({required this.node, required this.style});
+  const _List({required this.node, required this.style, required this.options});
 
   final md.Element node;
   final TextStyle style;
+  final MarkdownOptions options;
 
   @override
   Widget build(BuildContext context) {
@@ -200,12 +279,23 @@ class _List extends StatelessWidget {
     final checkbox = item.children?.firstOrNull;
     if (checkbox is md.Element && checkbox.tag == 'input') {
       final checked = checkbox.attributes['checked'] != null;
-      return Padding(
+      final box = Padding(
         padding: const EdgeInsets.only(top: 4),
         child: Icon(
           checked ? Icons.check_box_rounded : Icons.check_box_outline_blank,
           size: 14,
           color: checked ? AppColors.added : AppColors.textMuted,
+        ),
+      );
+      final toggle = options.onToggleTask;
+      final task = int.tryParse(checkbox.attributes[_taskAttribute] ?? '');
+      if (toggle == null || task == null) return box;
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => toggle(task),
+          child: box,
         ),
       );
     }
@@ -223,7 +313,7 @@ class _List extends StatelessWidget {
     final blocks = <Widget>[];
     void flush() {
       if (inline.isEmpty) return;
-      blocks.add(InlineCodeText(_inlines([...inline], style)));
+      blocks.add(InlineCodeText(_inlines([...inline], style, options)));
       inline.clear();
     }
 
@@ -248,7 +338,7 @@ class _List extends StatelessWidget {
         continue;
       }
       flush();
-      final block = _block(child, style);
+      final block = _block(child, style, options);
       if (block != null) blocks.add(block);
     }
     flush();
@@ -270,10 +360,15 @@ class _List extends StatelessWidget {
 /// width there is; wider, it scrolls sideways, with a bar to show it while
 /// the pointer is over it or it scrolls.
 class _Table extends StatefulWidget {
-  const _Table({required this.node, required this.style});
+  const _Table({
+    required this.node,
+    required this.style,
+    required this.options,
+  });
 
   final md.Element node;
   final TextStyle style;
+  final MarkdownOptions options;
 
   @override
   State<_Table> createState() => _TableState();
@@ -338,6 +433,7 @@ class _TableState extends State<_Table> {
                                     color: AppColors.textPrimary,
                                   )
                                 : style,
+                            widget.options,
                           ),
                         )
                       : const SizedBox.shrink(),
@@ -375,14 +471,22 @@ class _TableState extends State<_Table> {
   }
 }
 
-TextSpan _inlines(List<md.Node> nodes, TextStyle style) =>
-    TextSpan(style: style, children: [for (final node in nodes) _inline(node)]);
+TextSpan _inlines(
+  List<md.Node> nodes,
+  TextStyle style,
+  MarkdownOptions options,
+) => TextSpan(
+  style: style,
+  children: [for (final node in nodes) _inline(node, options)],
+);
 
-InlineSpan _inline(md.Node node) {
+InlineSpan _inline(md.Node node, MarkdownOptions options) {
   if (node is md.Text) return TextSpan(text: _unescape(node.text));
   if (node is! md.Element) return const TextSpan();
   final children = node.children ?? const <md.Node>[];
-  List<InlineSpan> inner() => [for (final child in children) _inline(child)];
+  List<InlineSpan> inner() => [
+    for (final child in children) _inline(child, options),
+  ];
   return switch (node.tag) {
     'strong' || 'b' => TextSpan(
       style: TextStyle(
@@ -403,7 +507,7 @@ InlineSpan _inline(md.Node node) {
       text: ' ${_unescape(node.textContent)} ',
       style: MarkdownView.codeStyle,
     ),
-    'a' => switch (_linkRecognizer(node.attributes['href'])) {
+    'a' => switch ((options.link ?? _linkRecognizer)(node.attributes['href'])) {
       final recognizer? => TextSpan(
         style: TextStyle(color: AppColors.accent),
         children: [for (final span in inner()) _linked(span, recognizer)],
@@ -421,7 +525,16 @@ InlineSpan _inline(md.Node node) {
       ),
     ),
     'br' => const TextSpan(text: '\n'),
-    'img' => TextSpan(text: '[${node.attributes['alt'] ?? 'image'}]'),
+    'img' => switch (options.image) {
+      final image? => WidgetSpan(
+        child: image(
+          _unescape(node.attributes['src'] ?? ''),
+          _unescape(node.attributes['alt'] ?? ''),
+          node.attributes['title'],
+        ),
+      ),
+      null => TextSpan(text: '[${node.attributes['alt'] ?? 'image'}]'),
+    },
     _ => TextSpan(children: inner()),
   };
 }
