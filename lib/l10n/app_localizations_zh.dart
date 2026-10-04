@@ -2310,10 +2310,37 @@ class AppLocalizationsZh extends AppLocalizations {
   String get markdownShowSource => 'Markdown';
 
   @override
-  String get markdownAddBlock => '点这里添加内容';
+  String get markdownCodeLanguage => '语言';
 
   @override
-  String get markdownBlockConflict => '编辑期间这一块在其他地方被修改了，本次编辑已放弃。';
+  String get markdownTableRowAbove => '在上方插入行';
+
+  @override
+  String get markdownTableRowBelow => '在下方插入行';
+
+  @override
+  String get markdownTableColumnLeft => '在左侧插入列';
+
+  @override
+  String get markdownTableColumnRight => '在右侧插入列';
+
+  @override
+  String get markdownTableDeleteRow => '删除行';
+
+  @override
+  String get markdownTableDeleteColumn => '删除列';
+
+  @override
+  String get markdownTableAlignLeft => '列左对齐';
+
+  @override
+  String get markdownTableAlignCenter => '列居中';
+
+  @override
+  String get markdownTableAlignRight => '列右对齐';
+
+  @override
+  String get markdownTableDelete => '删除表格';
 
   @override
   String get markdownFindInSource => '预览中不能查找，已切换到 Markdown 源码。';
@@ -4519,6 +4546,50 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdMarkdownShowSource => '显示源码';
+
+  @override
+  String get cmdMarkdownBold => '切换粗体';
+
+  @override
+  String get cmdMarkdownItalic => '切换斜体';
+
+  @override
+  String get cmdMarkdownStrikethrough => '切换删除线';
+
+  @override
+  String get cmdMarkdownInlineCode => '切换行内代码';
+
+  @override
+  String get cmdMarkdownParagraph => '段落';
+
+  @override
+  String get cmdMarkdownQuote => '切换引用';
+
+  @override
+  String get cmdMarkdownBulletList => '切换无序列表';
+
+  @override
+  String get cmdMarkdownOrderedList => '切换有序列表';
+
+  @override
+  String get cmdMarkdownTaskList => '切换任务列表';
+
+  @override
+  String get cmdMarkdownInsertTable => '插入表格';
+
+  @override
+  String get cmdMarkdownInsertCodeBlock => '插入代码块';
+
+  @override
+  String get cmdMarkdownInsertMathBlock => '插入公式块';
+
+  @override
+  String get cmdMarkdownInsertRule => '插入分隔线';
+
+  @override
+  String cmdMarkdownHeading(int level) {
+    return '$level 级标题';
+  }
 
   @override
   String get cmdCloseFolder => '关闭文件夹';

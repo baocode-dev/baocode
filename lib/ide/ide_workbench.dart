@@ -19,7 +19,7 @@ import '../keybindings/keybinding_service.dart';
 import '../settings/user_settings.dart';
 import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
-import '../theme/workbench_theme.dart' show themeColors;
+import '../theme/workbench_theme.dart' show WorkbenchThemeService, themeColors;
 import '../workspace/back_to_chat_button.dart';
 import '../workspace/editor_launcher.dart';
 import '../workspace/pin_window_button.dart';
@@ -28,6 +28,7 @@ import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/textmate/textmate_syntax.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart'
     show EditorContentChangeEvent, EditorDocumentModel;
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart'
@@ -58,6 +59,7 @@ import 'ide_dialog.dart';
 import 'ide_editor.dart';
 import 'ide_editor_placeholder.dart';
 import 'ide_image_preview.dart';
+import 'markdown/markdown_editing.dart' show MarkdownBlockInsert;
 import 'markdown/markdown_paste.dart';
 import 'markdown/markdown_preview.dart';
 import 'ide_explorer.dart';
@@ -233,6 +235,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The line (one-based) each markdown document's preview shows first:
   /// where it was, or the caret's line in its source.
   final Map<IdeDocument, int> _previewLines = {};
+
+  /// The source's caret column, for the preview opening at its line.
+  final Map<IdeDocument, int> _previewColumns = {};
+
+  /// Colors the code blocks of markdown previews: started as the first is
+  /// shown.
+  TextMateSyntax? _markdownCode;
   final FocusNode _workbenchFocus = FocusNode(debugLabel: 'ide workbench');
   final FocusNode _explorerFocus = FocusNode(debugLabel: 'ide explorer');
   late IdeExplorerController _explorer;
@@ -598,26 +607,29 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (_editor case final editor?) {
       editor.revealRange(range, select: select);
     } else {
-      _preview?.revealLine(range.start.line + 1);
+      _preview?.revealLine(range.start.line + 1, range.start.character + 1);
     }
   }
 
   /// Shows the active markdown document's preview, or its source: in
-  /// either, about where the other was (the caret's block; the source of
-  /// the block at the top).
+  /// either, where the other was (the caret, else the line at the top).
   Future<void> _setMarkdownPreview(bool preview) async {
     final doc = widget.workspace.active;
     if (doc == null || !_hasPreview(doc) || _previewing(doc) == preview) {
       return;
     }
     int? line;
+    var column = 1;
     if (preview) {
       await _flushEditor();
       _previewLines[doc] = _caretPosition.lineNumber;
+      _previewColumns[doc] = _caretPosition.column;
       _markdownSources.remove(doc.path);
     } else {
       final state = _preview;
-      line = state?.topLine;
+      final caret = state?.caret;
+      line = caret?.line ?? state?.topLine;
+      column = caret?.column ?? 1;
       await state?.flush();
       _markdownSources
         ..remove(doc.path)
@@ -632,7 +644,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !identical(widget.workspace.active, doc)) return;
       if (line != null) {
-        _revealLine(line);
+        _revealLine(line, column);
+        _focusEditor();
       } else {
         _focusEditor();
       }
@@ -701,6 +714,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       // A remote project's host is Linux.
       pathContext: _local ? p.context : p.posix,
       initialLine: _previewLines[doc],
+      initialColumn: _previewColumns.remove(doc),
       onLeave: (line) {
         if (line != null) _previewLines[doc] = line;
       },
@@ -710,7 +724,75 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       onMessage: (message) =>
           _notifications.notify(IdeSeverity.warning, message),
       onPaste: doc.readOnly ? null : () => _pasteInMarkdown(doc),
+      colorize: (language, code) => (_markdownCode ??= TextMateSyntax(
+        themes: WorkbenchThemeService.instance,
+      )).colorize(language, code),
     );
+  }
+
+  /// The formatting commands of a markdown preview, Typora's: they apply
+  /// with the caret in it.
+  List<IdeCommand> _markdownCommands() {
+    final preview = _previewing(widget.workspace.active) ? _preview : null;
+    final enabled = preview?.canFormat ?? false;
+    IdeCommand command(
+      String id,
+      String label,
+      void Function(IdeMarkdownPreviewState preview) run,
+    ) => IdeCommand(
+      id: 'markdown.editor.$id',
+      category: 'Markdown',
+      label: label,
+      enabled: enabled,
+      run: () {
+        if (preview != null) run(preview);
+      },
+    );
+    return [
+      command('toggleBold', 'Toggle Bold', (p) => p.toggleInline('**')),
+      command('toggleItalic', 'Toggle Italic', (p) => p.toggleInline('*')),
+      command(
+        'toggleStrikethrough',
+        'Toggle Strikethrough',
+        (p) => p.toggleInline('~~'),
+      ),
+      command('toggleCode', 'Toggle Inline Code', (p) => p.toggleInline('`')),
+      for (var level = 1; level <= 6; level++)
+        command('heading$level', 'Heading $level', (p) => p.setHeading(level)),
+      command('paragraph', 'Paragraph', (p) => p.setHeading(0)),
+      command('toggleQuote', 'Toggle Quote', (p) => p.toggleQuote()),
+      command('toggleBulletList', 'Toggle Bullet List', (p) => p.toggleList()),
+      command(
+        'toggleOrderedList',
+        'Toggle Numbered List',
+        (p) => p.toggleList(ordered: true),
+      ),
+      command(
+        'toggleTaskList',
+        'Toggle Task List',
+        (p) => p.toggleList(task: true),
+      ),
+      command(
+        'insertTable',
+        'Insert Table',
+        (p) => p.insertBlock(MarkdownBlockInsert.table),
+      ),
+      command(
+        'insertCodeBlock',
+        'Insert Code Block',
+        (p) => p.insertBlock(MarkdownBlockInsert.code),
+      ),
+      command(
+        'insertMathBlock',
+        'Insert Math Block',
+        (p) => p.insertBlock(MarkdownBlockInsert.math),
+      ),
+      command(
+        'insertHorizontalRule',
+        'Insert Horizontal Rule',
+        (p) => p.insertBlock(MarkdownBlockInsert.rule),
+      ),
+    ];
   }
 
   /// What a paste in [doc]'s preview puts in (see [MarkdownPaste]).
@@ -1036,6 +1118,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _keepView();
     _chordChecker?.cancel();
     _statusMessageTimer?.cancel();
+    _markdownCode?.dispose();
     _lifecycle?.dispose();
     // A quick pick or input box going with the workbench hides (the color
     // themes one applies the theme it started with again).
@@ -2154,6 +2237,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       'textInputFocus' => editorFocus || textField,
       'inputFocus' => editorFocus || textField || terminalFocus,
       'terminalFocus' => terminalFocus,
+      'markdownEditorFocus' => _preview?.hasFocus ?? false,
       'filesExplorerFocus' => _explorerFocus.hasFocus,
       'listFocus' || 'listSupportsKeyboardNavigation' =>
         _explorerFocus.hasFocus || _focusedList != null,
@@ -2491,6 +2575,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         enabled: _previewing(active),
         run: () => unawaited(_setMarkdownPreview(false)),
       ),
+      ..._markdownCommands(),
       IdeCommand(
         id: 'workbench.action.files.saveAll',
         category: 'File',

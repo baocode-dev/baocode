@@ -4340,17 +4340,71 @@ abstract class AppLocalizations {
   /// **'Markdown'**
   String get markdownShowSource;
 
-  /// The room after a markdown preview's last block: a click starts a new block there.
+  /// A markdown preview's code block: the placeholder of the field naming its language.
   ///
   /// In en, this message translates to:
-  /// **'Click to add content'**
-  String get markdownAddBlock;
+  /// **'Language'**
+  String get markdownCodeLanguage;
 
-  /// A markdown preview's block edit given up, as the same text changed meanwhile (another editor, an agent, the file reloaded).
+  /// A markdown preview's table: adds a row above the caret's.
   ///
   /// In en, this message translates to:
-  /// **'The block was changed elsewhere while you edited it: your edit was discarded.'**
-  String get markdownBlockConflict;
+  /// **'Insert Row Above'**
+  String get markdownTableRowAbove;
+
+  /// A markdown preview's table: adds a row below the caret's.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Row Below'**
+  String get markdownTableRowBelow;
+
+  /// A markdown preview's table: adds a column left of the caret's.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Column Left'**
+  String get markdownTableColumnLeft;
+
+  /// A markdown preview's table: adds a column right of the caret's.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Column Right'**
+  String get markdownTableColumnRight;
+
+  /// A markdown preview's table: deletes the caret's row.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Row'**
+  String get markdownTableDeleteRow;
+
+  /// A markdown preview's table: deletes the caret's column.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Column'**
+  String get markdownTableDeleteColumn;
+
+  /// A markdown preview's table: aligns the caret's column left.
+  ///
+  /// In en, this message translates to:
+  /// **'Align Column Left'**
+  String get markdownTableAlignLeft;
+
+  /// A markdown preview's table: centers the caret's column.
+  ///
+  /// In en, this message translates to:
+  /// **'Align Column Center'**
+  String get markdownTableAlignCenter;
+
+  /// A markdown preview's table: aligns the caret's column right.
+  ///
+  /// In en, this message translates to:
+  /// **'Align Column Right'**
+  String get markdownTableAlignRight;
+
+  /// A markdown preview's table: deletes the whole table.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Table'**
+  String get markdownTableDelete;
 
   /// Find (Cmd+F) in a markdown preview: it switches to the source to find there.
   ///
@@ -7988,6 +8042,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show Source'**
   String get cmdMarkdownShowSource;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Bold'**
+  String get cmdMarkdownBold;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Italic'**
+  String get cmdMarkdownItalic;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Strikethrough'**
+  String get cmdMarkdownStrikethrough;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Inline Code'**
+  String get cmdMarkdownInlineCode;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Paragraph'**
+  String get cmdMarkdownParagraph;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Quote'**
+  String get cmdMarkdownQuote;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Bullet List'**
+  String get cmdMarkdownBulletList;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Numbered List'**
+  String get cmdMarkdownOrderedList;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Task List'**
+  String get cmdMarkdownTaskList;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Table'**
+  String get cmdMarkdownInsertTable;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Code Block'**
+  String get cmdMarkdownInsertCodeBlock;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Math Block'**
+  String get cmdMarkdownInsertMathBlock;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Horizontal Rule'**
+  String get cmdMarkdownInsertRule;
+
+  /// Command palette title (category Markdown): makes the caret's paragraph a heading of a level, in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Heading {level}'**
+  String cmdMarkdownHeading(int level);
 
   /// No description provided for @cmdCloseFolder.
   ///

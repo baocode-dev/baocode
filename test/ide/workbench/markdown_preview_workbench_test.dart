@@ -7,7 +7,6 @@ import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/markdown/markdown_paste.dart';
 import 'package:baocode/ide/markdown/markdown_preview.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -119,22 +118,53 @@ void main() {
     );
   });
 
-  testWidgets('a block edited in the preview is saved with Ctrl+S', (
-    tester,
-  ) async {
+  testWidgets('typed in the preview, saved with Ctrl+S; Ctrl+B is bold '
+      'there, and the source opens at the caret', (tester) async {
     final workspace = await pumpWorkbench(tester, files, open: ['README.md']);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Some text.', findRichText: true));
+    await tester.tap(find.text('Some text.'));
     await tester.pumpAndSettle();
-    final field = find.byKey(const ValueKey('markdown-block-field'));
-    await tester.enterText(field, 'Other text.');
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'Some text.',
+        selection: TextSelection(baseOffset: 5, extentOffset: 9),
+      ),
+    );
     await tester.pump();
-    // The tab is dirty only once the block is put in; saving puts it in.
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'Some other.',
+        selection: TextSelection.collapsed(offset: 10),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(workspace.active!.text, '# Readme\n\nSome other.\n');
+    expect(workspace.active!.dirty, isTrue);
     await chord(tester, LogicalKeyboardKey.keyS, control: true);
     await tester.pumpAndSettle();
     final contents = (workspace.files as TreeFiles).contents;
-    expect(contents[inRoot('README.md')], '# Readme\n\nOther text.\n');
+    expect(contents[inRoot('README.md')], '# Readme\n\nSome other.\n');
     expect(workspace.active!.dirty, isFalse);
+
+    // The word selected, Ctrl+B: bold, not the side bar.
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'Some other.',
+        selection: TextSelection(baseOffset: 5, extentOffset: 10),
+      ),
+    );
+    await tester.pump();
+    final sidebar = workbench(tester).keyContext('sideBarVisible');
+    expect(workbench(tester).keyContext('markdownEditorFocus'), isTrue);
+    await chord(tester, LogicalKeyboardKey.keyB, control: true);
+    await tester.pumpAndSettle();
+    expect(workspace.active!.text, '# Readme\n\nSome **other**.\n');
+    expect(workbench(tester).keyContext('sideBarVisible'), sidebar);
+
+    await chord(tester, LogicalKeyboardKey.keyV, control: true, shift: true);
+    await tester.pumpAndSettle();
+    expect(editor, findsOneWidget);
+    expect(find.textContaining('Ln 3, Col 1'), findsOneWidget);
   });
 
   group('pasting files', () {
@@ -196,9 +226,7 @@ void main() {
       expect(tree.bytes, hasLength(1));
     });
 
-    testWidgets('pasted in a block of the preview, and dropped on it', (
-      tester,
-    ) async {
+    testWidgets('pasted in the preview, and dropped on it', (tester) async {
       final workspace = await pumpWorkbench(
         tester,
         {...files, '../elsewhere/shot.png': 'png'},
@@ -210,8 +238,6 @@ void main() {
       await tester.tap(find.text('Some text.', findRichText: true));
       await tester.pumpAndSettle();
       await paste(tester);
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await tester.pumpAndSettle();
       expect(workspace.active!.text, '# Readme\n\nSome text.![](image.png)\n');
       expect(tree.bytes.keys, [inRoot('image.png')]);
 

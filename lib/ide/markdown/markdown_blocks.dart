@@ -107,20 +107,25 @@ class MarkdownBlock {
 
 /// [lines] as blocks, in order, every line in one: the empty lines
 /// between blocks are blocks of their own ([MarkdownBlockKind.blank]).
-List<MarkdownBlock> splitMarkdownBlocks(MarkdownLines lines) =>
-    _Splitter(lines).split();
+/// [frontMatter]: whether a YAML header may open them (a file's lines,
+/// not a quote's).
+List<MarkdownBlock> splitMarkdownBlocks(
+  MarkdownLines lines, {
+  bool frontMatter = true,
+}) => _Splitter(lines, frontMatter: frontMatter).split();
 
 class _Splitter {
-  _Splitter(this.lines);
+  _Splitter(this.lines, {required this.frontMatter});
 
   final MarkdownLines lines;
+  final bool frontMatter;
   int get n => lines.length;
 
   final blocks = <MarkdownBlock>[];
 
   List<MarkdownBlock> split() {
     var i = 0;
-    if (n > 1 && lines[0].trimRight() == '---') {
+    if (frontMatter && n > 1 && lines[0].trimRight() == '---') {
       for (var j = 1; j < n; j++) {
         final line = lines[j].trimRight();
         if (line == '---' || line == '...') {
@@ -416,10 +421,28 @@ String _strip(String line, int columns) {
   return (char: marker[0], length: marker.length);
 }
 
+/// A list item's marker at the start of a line (see [markdownListItem]).
+typedef MarkdownListItem = _ListItem;
+
+/// The list item [line] starts, if it starts one (a thematic break aside).
+MarkdownListItem? markdownListItem(String line) =>
+    _rule.hasMatch(line) ? null : _listItem(line);
+
+/// The columns of [line]'s leading white space, a tab to the next stop of
+/// four.
+int markdownIndent(String line) => _indent(line);
+
+/// How many characters of [line] its first [columns] columns of white
+/// space take.
+int markdownIndentLength(String line, int columns) =>
+    line.length - _strip(line, columns).length;
+
 class _ListItem {
   const _ListItem({
     required this.marker,
     required this.number,
+    required this.markerStart,
+    required this.markerEnd,
     required this.contentIndent,
     required this.empty,
     required this.content,
@@ -427,6 +450,10 @@ class _ListItem {
 
   /// The bullet (`-`, `*`, `+`) or the number's delimiter (`.`, `)`).
   final String marker;
+
+  /// Where the marker (its number with it) is on the line.
+  final int markerStart;
+  final int markerEnd;
 
   /// An ordered item's number.
   final int? number;
@@ -458,6 +485,8 @@ _ListItem? _listItem(String line) {
   return _ListItem(
     marker: marker,
     number: number == null ? null : int.parse(number),
+    markerStart: indent,
+    markerEnd: markerEnd,
     // One space when the item is empty or its content is indented code.
     contentIndent: markerEnd + (empty || spaces > 4 ? 1 : spaces),
     empty: empty,

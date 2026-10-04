@@ -103,8 +103,8 @@ class FeatureTipsCard extends StatelessWidget {
   );
 }
 
-/// One tip of the checklist: its icon, words and Turn On beside them; once
-/// on, a tick. Closed with the X it shows hovered.
+/// One tip of the checklist: its icon, words and "Turn On →", the whole
+/// tile a button; once on, a tick. Closed with the X it shows hovered.
 class _FeatureTipTile extends StatefulWidget {
   const _FeatureTipTile({
     super.key,
@@ -136,105 +136,161 @@ class _FeatureTipTileState extends State<_FeatureTipTile> {
     final controller = widget.controller;
     final done = controller.isDone(tip);
     final error = controller.errors[tip.id];
+    final enabled = !done && !_busy;
     final background =
         colors.get('welcomePage.tileBackground') ??
         colors['editorWidget.background'];
-    return HoverBuilder(
-      builder: (context, hovered) => Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-        decoration: BoxDecoration(
-          color: hovered && !done
-              ? colors.get('welcomePage.tileHoverBackground') ??
-                    Color.alphaBlend(
-                      colors['foreground'].withValues(alpha: .05),
-                      background,
-                    )
-              : background,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color:
-                colors.get('welcomePage.tileBorder') ?? colors['widget.border'],
-          ),
-        ),
-        child: Row(
-          children: [
-            if (done)
-              Semantics(
-                container: true,
-                label: l10n.tipsDone,
-                child: Icon(
-                  Codicons.passFilled,
-                  size: 16,
-                  color: colors['welcomePage.progress.foreground'],
-                ),
-              )
-            else
-              Icon(tip.icon, size: 16, color: colors['icon.foreground']),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    tip.title(l10n),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: done
-                          ? AppColors.textMuted
-                          : colors['walkthrough.stepTitle.foreground'],
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    tip.body(l10n),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 11.5,
-                      height: 1.35,
-                    ),
-                  ),
-                  if (error != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      l10n.tipsFailed(tip.title(l10n), error),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors['errorForeground'],
-                        fontSize: 11.5,
-                      ),
-                    ),
-                  ],
-                ],
+    return Semantics(
+      button: enabled,
+      label: tip.title(l10n),
+      child: HoverBuilder(
+        cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+        builder: (context, hovered) => GestureDetector(
+          onTap: enabled ? () => unawaited(_accept()) : null,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+            decoration: BoxDecoration(
+              color: hovered && enabled
+                  ? colors.get('welcomePage.tileHoverBackground') ??
+                        Color.alphaBlend(
+                          colors['foreground'].withValues(alpha: .05),
+                          background,
+                        )
+                  : background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color:
+                    colors.get('welcomePage.tileBorder') ??
+                    colors['widget.border'],
               ),
             ),
-            if (!done) ...[
-              const SizedBox(width: 8),
-              IdeButton(
-                label: l10n.tipsTurnOn,
-                secondary: true,
-                onPressed: _busy ? null : () => unawaited(_accept()),
-              ),
-              // Room kept for it, the button not moving as it shows.
-              Visibility.maintain(
-                visible: hovered,
-                child: SidebarIconButton(
-                  icon: Codicons.close,
-                  tooltip: l10n.tipsDismiss,
-                  size: 20,
-                  onTap: () => unawaited(controller.dismiss(tip)),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors['toolbar.hoverBackground'],
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: done
+                      ? Semantics(
+                          container: true,
+                          label: l10n.tipsDone,
+                          child: Icon(
+                            Codicons.check,
+                            size: 14,
+                            color: colors['welcomePage.progress.foreground'],
+                          ),
+                        )
+                      : Icon(
+                          tip.icon,
+                          size: 14,
+                          color: colors['icon.foreground'],
+                        ),
                 ),
-              ),
-            ],
-          ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tip.title(l10n),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: done
+                              ? AppColors.textMuted
+                              : colors['walkthrough.stepTitle.foreground'],
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        tip.body(l10n),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11.5,
+                          height: 1.35,
+                        ),
+                      ),
+                      if (error != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.tipsFailed(tip.title(l10n), error),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors['errorForeground'],
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ],
+                      if (!done) ...[
+                        const Spacer(),
+                        const SizedBox(height: 6),
+                        _TurnOn(busy: _busy, hovered: hovered),
+                      ],
+                    ],
+                  ),
+                ),
+                if (!done)
+                  // Room kept for it, the words not moving as it shows.
+                  Visibility.maintain(
+                    visible: hovered,
+                    child: SidebarIconButton(
+                      icon: Codicons.close,
+                      tooltip: l10n.tipsDismiss,
+                      size: 20,
+                      onTap: () => unawaited(controller.dismiss(tip)),
+                    ),
+                  )
+                else
+                  const SizedBox(width: 20),
+              ],
+            ),
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// A tile's "Turn On →", in the theme's link colors (brighter with the
+/// tile hovered); faint while it turns on.
+class _TurnOn extends StatelessWidget {
+  const _TurnOn({required this.busy, required this.hovered});
+
+  final bool busy;
+  final bool hovered;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = themeColors;
+    final color = busy
+        ? AppColors.textFaint
+        : hovered
+        ? colors['textLink.activeForeground']
+        : colors['textLink.foreground'];
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          context.l10n.tipsTurnOn,
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(width: 2),
+        Icon(Codicons.arrowRight, size: 12, color: color),
+      ],
     );
   }
 }

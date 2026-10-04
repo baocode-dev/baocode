@@ -524,13 +524,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// runs its own, and [_settingsCommands] besides; a chat, its own: see
   /// [ChatKeys]).
   Map<String, VoidCallback> _chatCommands() {
-    // An agent's window has its agent alone (and, on Windows, the sidebar
-    // to pick another: see _buildContent), and the search palette for the
-    // window's commands.
+    // An agent's window has its agent alone (and the sidebar to pick
+    // another: see _buildContent), and the search palette for the window's
+    // commands.
     if (_agentWindow) {
       return {
-        if (WindowControls.drawsHeader)
-          'workbench.action.toggleSidebarVisibility': _toggle,
+        'workbench.action.toggleSidebarVisibility': _toggle,
         openSettingsCommandId: () => unawaited(openSettings()),
         openKeybindingsCommandId: () =>
             unawaited(openSettings(SettingsSection.keyboard)),
@@ -1745,11 +1744,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (_agentThread case final thread?) {
       // Gone (deleted), its window goes with it.
       if (!_workspace.threads.contains(thread)) return const SizedBox.shrink();
-      final chat = _withTerminal(_buildChat(showToggle: false, pane: thread));
-      // On Windows, with the sidebar the header's toggle shows, as the
-      // chat's window has it: over the conversation while narrow, beside
-      // it once wide.
-      if (!WindowControls.drawsHeader) return _conversation(chat);
+      // With the sidebar, as the chat's window has it: over the
+      // conversation while narrow, beside it once wide. Its toggle is the
+      // header's on Windows, else by the traffic lights while it is hidden.
+      final chat = _withTerminal(
+        _buildChat(showToggle: narrow || !_docked, pane: thread),
+      );
       return narrow ? _buildNarrow(body: chat) : _buildWide(body: chat);
     }
     final folder = _ideFolder;
@@ -2326,10 +2326,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             onTap: _toggle,
           )
         : null;
-    // An agent's window has the traffic lights over its one pane.
-    final titleBarInset = header
-        ? 12.0
-        : showToggle || _agentWindow
+    final titleBarInset = !header && showToggle
         ? AppMetrics.trafficLightsWidth + 8
         : 12.0;
     if (thread == null) {

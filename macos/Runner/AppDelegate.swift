@@ -56,10 +56,17 @@ class AppDelegate: FlutterAppDelegate {
     let paths = urls.filter(\.isFileURL).map { $0.standardizedFileURL.path }
     let requests = urls.compactMap(OpenRequests.request(from:))
     if !paths.isEmpty || !requests.isEmpty {
+      let atLaunch = OpenRequests.shared.atLaunch
       if !paths.isEmpty { OpenRequests.shared.deliver(paths) }
       for request in requests { OpenRequests.shared.deliver(request: request) }
-      // With the IDE's windows, the app shows the one they open in.
-      if AppWindows.shared?.started ?? false {
+      if atLaunch {
+        // Launched for them, the app opens to what they open alone (see
+        // OpenRequests.launchRequest): the main window stays out of sight
+        // unless Flutter shows it (it does without the IDE's windows).
+        AppWindows.shared?.main.orderOut(nil)
+        NSApp.activate(ignoringOtherApps: true)
+      } else if AppWindows.shared?.started ?? false {
+        // With the IDE's windows, the app shows the one they open in.
         NSApp.activate(ignoringOtherApps: true)
       } else {
         bringWindowFront()
@@ -94,6 +101,16 @@ final class OpenRequests {
   private var ready = false
   private var channel: FlutterMethodChannel?
 
+  /// What the app was launched for (`launchRequest`): `agent` for Open
+  /// with BaoCode, `ide` for anything else to open, by the first that came
+  /// before Flutter asked; nil for none.
+  private var launchRequest: String?
+  private var launchAsked = false
+
+  /// Whether what comes now is what the app was launched for: Flutter has
+  /// not asked yet (see `launchRequest`).
+  var atLaunch: Bool { !launchAsked }
+
   /// Answers Flutter over [messenger]'s `baocode/open` (see
   /// MainFlutterWindow.swift).
   func attach(to messenger: FlutterBinaryMessenger) {
@@ -105,11 +122,16 @@ final class OpenRequests {
         return
       }
       switch call.method {
+      case "launchRequest":
+        // Asked once, before Flutter decides what shows at launch.
+        self.launchAsked = true
+        result(self.launchRequest)
       case "takePending":
         result(self.pending + self.pendingRequests.flatMap { $0 })
         self.pending = []
         self.pendingRequests = []
         self.ready = true
+        self.launchAsked = true
       case "stop":
         // Flutter stopped listening: kept again until it next asks.
         self.ready = false
@@ -122,6 +144,7 @@ final class OpenRequests {
 
   /// Hands [paths] to Flutter, or keeps them until it is ready.
   func deliver(_ paths: [String]) {
+    if atLaunch && launchRequest == nil { launchRequest = "ide" }
     if ready, let channel {
       channel.invokeMethod("open", arguments: paths)
     } else {
@@ -132,6 +155,9 @@ final class OpenRequests {
   /// Hands a request (see [request(from:)]) to Flutter, or keeps it until
   /// it is ready.
   func deliver(request: [String]) {
+    if atLaunch && launchRequest == nil {
+      launchRequest = request.first == "\u{0}agent" ? "agent" : "ide"
+    }
     if ready, let channel {
       channel.invokeMethod("open", arguments: request)
     } else {

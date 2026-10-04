@@ -39,6 +39,27 @@ abstract final class OpenRequests {
 
   static void Function(List<String> paths)? _onOpen;
 
+  /// What the macOS app was launched for: the first of what the system
+  /// asked it to open before now (Finder's Open with BaoCode, an agent;
+  /// anything else, the IDE), which [listen] then delivers; none, launched
+  /// as itself. The Windows app has it on its command line instead (see
+  /// [LaunchRequest.of]). Asked once, before what shows at launch is
+  /// decided: what comes after is no longer the launch's.
+  static Future<LaunchRequest> launchRequest() async {
+    try {
+      return switch (await _channel.invokeMethod<String>('launchRequest')) {
+        'agent' => LaunchRequest.agent,
+        'ide' => LaunchRequest.ide,
+        _ => LaunchRequest.none,
+      };
+    } on MissingPluginException {
+      // A host without the channel (the web, tests).
+      return LaunchRequest.none;
+    } on PlatformException {
+      return LaunchRequest.none;
+    }
+  }
+
   static const codeRequestMarker = CodeArgs.requestMarker;
 
   /// Asks for what the window kept, which also tells it the app now takes
