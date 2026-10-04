@@ -602,13 +602,9 @@
   "@windowHideSidebar": {
     "description": "Tooltip."
   },
-  "chatTerminalShow": "Show terminal",
-  "@chatTerminalShow": {
-    "description": "Tooltip of the chat window's terminal panel toggle."
-  },
   "chatTerminalHide": "Hide terminal",
   "@chatTerminalHide": {
-    "description": "Tooltip of the chat window's terminal panel toggle, and of the panel's close button."
+    "description": "Tooltip of the chat window's terminal panel close button."
   },
   "windowMinimize": "Minimize",
   "windowMaximize": "Maximize",

@@ -21,6 +21,10 @@ import '../theme/workbench_theme.dart' show themeColors;
 /// Toggle Terminal (⌃`): the chat window's panel, as the IDE's.
 const toggleTerminalCommand = 'workbench.action.terminal.toggleTerminal';
 
+/// Toggle Panel Visibility (no key by default): in the chat window, its
+/// panel being the terminal's, the same as [toggleTerminalCommand].
+const togglePanelCommand = 'workbench.action.togglePanel';
+
 /// Create New Terminal (⌃⇧`).
 const newTerminalCommand = 'workbench.action.terminal.new';
 
@@ -388,7 +392,8 @@ class _HandledByWindow extends ShortcutActivator {
 }
 
 /// The title bar's button for the panel: the IDE's layout icon, which
-/// shows whether it is open.
+/// shows whether it is open. Its hover is Toggle Terminal's title, the one
+/// the keyboard page lists.
 class ChatTerminalToggle extends StatelessWidget {
   const ChatTerminalToggle({
     super.key,
@@ -404,9 +409,7 @@ class ChatTerminalToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SidebarIconButton(
     icon: shown ? Codicons.layoutPanel : Codicons.layoutPanelOff,
-    tooltip: shown
-        ? context.l10n.chatTerminalHide
-        : context.l10n.chatTerminalShow,
+    tooltip: context.l10n.cmdToggleTerminal,
     command: toggleTerminalCommand,
     size: size,
     onTap: onTap,

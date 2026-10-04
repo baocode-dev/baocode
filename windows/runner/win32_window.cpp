@@ -66,6 +66,7 @@ constexpr const wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme"
 
 // The number of Win32Window objects that currently exist.
 static int g_active_window_count = 0;
+static std::optional<bool> g_dark_appearance;
 
 using EnableNonClientDpiScaling = BOOL __stdcall(HWND hwnd);
 
@@ -181,8 +182,9 @@ void AskForSystemFrame(HWND window) {
       RegGetValue(HKEY_CURRENT_USER, kGetPreferredBrightnessRegKey,
                   kGetPreferredBrightnessRegValue, RRF_RT_REG_DWORD, nullptr,
                   &apps_use_light_theme, &value_size) == ERROR_SUCCESS;
-  const COLORREF border =
-      has_theme && apps_use_light_theme ? 0x00D6D6D6 : 0x002C2C2C;
+  const bool dark = g_dark_appearance.value_or(
+      has_theme ? apps_use_light_theme == 0 : false);
+  const COLORREF border = dark ? 0x002C2C2C : 0x00D6D6D6;
   ::DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &border, sizeof(border));
   if (build >= kSystemBackdropBuild) {
     const int backdrop = DWMSBT_TRANSIENTWINDOW;
@@ -435,6 +437,18 @@ void Win32Window::SetMinimumSize(const Size& size) {
   minimum_size_ = size;
 }
 
+void Win32Window::SetDarkAppearance(bool dark) {
+  g_dark_appearance = dark;
+  EnumThreadWindows(
+      GetCurrentThreadId(),
+      [](HWND window, LPARAM) -> BOOL {
+        UpdateTheme(window);
+        AskForSystemFrame(window);
+        return TRUE;
+      },
+      0);
+}
+
 SIZE Win32Window::ResizeBorder() const {
   const UINT dpi = FlutterDesktopGetDpiForHWND(window_handle_);
   const int padding = ::GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
@@ -541,15 +555,15 @@ void Win32Window::OnDestroy() {
 }
 
 void Win32Window::UpdateTheme(HWND const window) {
-  DWORD light_mode;
+  DWORD light_mode = 1;
   DWORD light_mode_size = sizeof(light_mode);
   LSTATUS result = RegGetValue(HKEY_CURRENT_USER, kGetPreferredBrightnessRegKey,
                                kGetPreferredBrightnessRegValue,
                                RRF_RT_REG_DWORD, nullptr, &light_mode,
                                &light_mode_size);
 
-  if (result == ERROR_SUCCESS) {
-    BOOL enable_dark_mode = light_mode == 0;
+  if (result == ERROR_SUCCESS || g_dark_appearance.has_value()) {
+    BOOL enable_dark_mode = g_dark_appearance.value_or(light_mode == 0);
     DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
                           &enable_dark_mode, sizeof(enable_dark_mode));
   }

@@ -71,7 +71,7 @@ abstract final class WindowControls {
   /// system's menus (MainFlutterWindow.swift keeps it for the next start).
   /// All the app's windows take it.
   static Future<void> setDarkAppearance(bool dark) async {
-    if (!AppPlatform.isMacOS) return;
+    if (!(AppPlatform.isMacOS || AppPlatform.isWindows)) return;
     try {
       await _main.invokeMethod<void>('setAppearance', dark);
     } on MissingPluginException {

@@ -2678,13 +2678,7 @@ abstract class AppLocalizations {
   /// **'Hide sidebar'**
   String get windowHideSidebar;
 
-  /// Tooltip of the chat window's terminal panel toggle.
-  ///
-  /// In en, this message translates to:
-  /// **'Show terminal'**
-  String get chatTerminalShow;
-
-  /// Tooltip of the chat window's terminal panel toggle, and of the panel's close button.
+  /// Tooltip of the chat window's terminal panel close button.
   ///
   /// In en, this message translates to:
   /// **'Hide terminal'**

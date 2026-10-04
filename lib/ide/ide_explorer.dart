@@ -63,13 +63,31 @@ class IdeExplorerRow {
 /// Entry paths are joined onto [root] from their names, so they match the
 /// workspace's document paths even when [root] contains symlinks.
 class IdeExplorerController extends ChangeNotifier {
-  IdeExplorerController({required this.files, required String root})
-    : root = p.normalize(root) {
+  IdeExplorerController({
+    required this.files,
+    required String root,
+    Stream<void> Function(String directory)? watch,
+  }) : root = p.normalize(root),
+       _watchDirectory =
+           watch ??
+           switch (files) {
+             final IdeHostFiles files => files.watchDirectory,
+             _ => watchDirectory,
+           } {
     unawaited(_load(this.root));
+    _watchExpanded();
   }
 
   final IdeFileService files;
   final String root;
+
+  /// The root and the expanded folders, watched so the tree shows files
+  /// made, moved or deleted outside it (an agent's, a terminal's), as VS
+  /// Code's explorer follows its file watcher.
+  final Stream<void> Function(String directory) _watchDirectory;
+  final Map<String, StreamSubscription<void>> _watches = {};
+  final Set<String> _changedDirectories = {};
+  Timer? _changesTimer;
   final Map<String, List<IdeFile>> _children = {};
   final Map<String, Object> _errors = {};
   final Set<String> _expanded = {};
@@ -138,7 +156,44 @@ class IdeExplorerController extends ChangeNotifier {
   void _changed() {
     if (_disposed) return;
     _rows = null;
+    _watchExpanded();
     notifyListeners();
+  }
+
+  /// Watches the root and the expanded folders, and no others.
+  void _watchExpanded() {
+    final directories = {root, ..._expanded};
+    for (final directory in _watches.keys.toList()) {
+      if (!directories.contains(directory)) {
+        unawaited(_watches.remove(directory)!.cancel());
+      }
+    }
+    for (final directory in directories) {
+      if (_watches.containsKey(directory)) continue;
+      _watches[directory] = _watchDirectory(directory).listen((_) {
+        _changedDirectories.add(directory);
+        // Read at most once per [_changesDelay], even while a build or an
+        // install keeps writing.
+        _changesTimer ??= Timer(_changesDelay, _reloadChanged);
+      });
+      // Unwatched while collapsed: what was read then may be stale.
+      if (_children.containsKey(directory)) {
+        unawaited(_load(directory, force: true));
+      }
+    }
+  }
+
+  static const _changesDelay = Duration(milliseconds: 200);
+
+  void _reloadChanged() {
+    _changesTimer = null;
+    final directories = {..._changedDirectories};
+    _changedDirectories.clear();
+    for (final directory in directories) {
+      if (_watches.containsKey(directory)) {
+        unawaited(_load(directory, force: true));
+      }
+    }
   }
 
   Future<void> _load(String directory, {bool force = false}) {
@@ -289,6 +344,11 @@ class IdeExplorerController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _changesTimer?.cancel();
+    for (final watch in _watches.values) {
+      unawaited(watch.cancel());
+    }
+    _watches.clear();
     super.dispose();
   }
 }
