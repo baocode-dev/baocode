@@ -1425,13 +1425,49 @@
   "@markdownShowSource": {
     "description": "A markdown file's tab: the button showing its source, the text as written."
   },
-  "markdownAddBlock": "Click to add content",
-  "@markdownAddBlock": {
-    "description": "The room after a markdown preview's last block: a click starts a new block there."
+  "markdownCodeLanguage": "Language",
+  "@markdownCodeLanguage": {
+    "description": "A markdown preview's code block: the placeholder of the field naming its language."
   },
-  "markdownBlockConflict": "The block was changed elsewhere while you edited it: your edit was discarded.",
-  "@markdownBlockConflict": {
-    "description": "A markdown preview's block edit given up, as the same text changed meanwhile (another editor, an agent, the file reloaded)."
+  "markdownTableRowAbove": "Insert Row Above",
+  "@markdownTableRowAbove": {
+    "description": "A markdown preview's table: adds a row above the caret's."
+  },
+  "markdownTableRowBelow": "Insert Row Below",
+  "@markdownTableRowBelow": {
+    "description": "A markdown preview's table: adds a row below the caret's."
+  },
+  "markdownTableColumnLeft": "Insert Column Left",
+  "@markdownTableColumnLeft": {
+    "description": "A markdown preview's table: adds a column left of the caret's."
+  },
+  "markdownTableColumnRight": "Insert Column Right",
+  "@markdownTableColumnRight": {
+    "description": "A markdown preview's table: adds a column right of the caret's."
+  },
+  "markdownTableDeleteRow": "Delete Row",
+  "@markdownTableDeleteRow": {
+    "description": "A markdown preview's table: deletes the caret's row."
+  },
+  "markdownTableDeleteColumn": "Delete Column",
+  "@markdownTableDeleteColumn": {
+    "description": "A markdown preview's table: deletes the caret's column."
+  },
+  "markdownTableAlignLeft": "Align Column Left",
+  "@markdownTableAlignLeft": {
+    "description": "A markdown preview's table: aligns the caret's column left."
+  },
+  "markdownTableAlignCenter": "Align Column Center",
+  "@markdownTableAlignCenter": {
+    "description": "A markdown preview's table: centers the caret's column."
+  },
+  "markdownTableAlignRight": "Align Column Right",
+  "@markdownTableAlignRight": {
+    "description": "A markdown preview's table: aligns the caret's column right."
+  },
+  "markdownTableDelete": "Delete Table",
+  "@markdownTableDelete": {
+    "description": "A markdown preview's table: deletes the whole table."
   },
   "markdownFindInSource": "Find is not available in the preview: showing the Markdown source.",
   "@markdownFindInSource": {

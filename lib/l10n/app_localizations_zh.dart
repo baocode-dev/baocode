@@ -2310,10 +2310,37 @@ class AppLocalizationsZh extends AppLocalizations {
   String get markdownShowSource => 'Markdown';
 
   @override
-  String get markdownAddBlock => '点这里添加内容';
+  String get markdownCodeLanguage => '语言';
 
   @override
-  String get markdownBlockConflict => '编辑期间这一块在其他地方被修改了，本次编辑已放弃。';
+  String get markdownTableRowAbove => '在上方插入行';
+
+  @override
+  String get markdownTableRowBelow => '在下方插入行';
+
+  @override
+  String get markdownTableColumnLeft => '在左侧插入列';
+
+  @override
+  String get markdownTableColumnRight => '在右侧插入列';
+
+  @override
+  String get markdownTableDeleteRow => '删除行';
+
+  @override
+  String get markdownTableDeleteColumn => '删除列';
+
+  @override
+  String get markdownTableAlignLeft => '列左对齐';
+
+  @override
+  String get markdownTableAlignCenter => '列居中';
+
+  @override
+  String get markdownTableAlignRight => '列右对齐';
+
+  @override
+  String get markdownTableDelete => '删除表格';
 
   @override
   String get markdownFindInSource => '预览中不能查找，已切换到 Markdown 源码。';

@@ -134,6 +134,34 @@ void main() {
     ]);
   });
 
+  test('typed in, an empty line next to a block stays apart from it', () {
+    String typed(String text, int line) {
+      final structure = MarkdownStructure(text, caretLine: line);
+      final row = structure.rows[structure.rowAtLine(line)];
+      final model = EditorDocumentModel(text)
+        ..applyOffsetEdits([row.unit.edit(0, 0, 'x').edit]);
+      return model.text;
+    }
+
+    expect(typed('a\n\nb', 1), 'a\n\nx\n\nb');
+    expect(typed('- a\n', 1), '- a\n\nx');
+    expect(typed('a\n\n\n\nb', 2), 'a\n\nx\n\nb');
+    expect(typed('> a\n>\n> b', 1), '> a\n>\n> x\n>\n> b');
+  });
+
+  test('a row after a last block that is no paragraph, to write on', () {
+    String typed(String text) {
+      final unit = MarkdownStructure(text, trailing: true).rows.last.unit;
+      final model = EditorDocumentModel(text)
+        ..applyOffsetEdits([unit.edit(0, 0, 'x').edit]);
+      return model.text;
+    }
+
+    expect(typed('```\ncode\n```'), '```\ncode\n```\n\nx');
+    expect(typed('- a\n'), '- a\n\nx');
+    expect(MarkdownStructure('a', trailing: true).rows, hasLength(1));
+  });
+
   test('an edit of a unit changes its lines\' content', () {
     // A line break typed in a quote continues it; in an item, indented.
     expect(_edit('> ab', 0, 0, 1, 1, '\n'), '> a\n> b');

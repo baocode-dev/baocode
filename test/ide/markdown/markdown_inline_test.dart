@@ -43,7 +43,9 @@ void main() {
   test('code spans come first; their insides are code', () {
     expect(_parse('`a*b*`'), ['code `a*b*` [a*b*]']);
     expect(_parse('``a ` b``'), ['code ``a ` b`` [a ` b]']);
-    expect(_parse('*a `*` b*'), ['emphasis *a `*` b* [a `*` b] {code `*` [*]}']);
+    expect(_parse('*a `*` b*'), [
+      'emphasis *a `*` b* [a `*` b] {code `*` [*]}',
+    ]);
     expect(_parse('```unclosed'), isEmpty);
   });
 
@@ -52,7 +54,9 @@ void main() {
     expect(_parse('[a **b**](<c d.md> "T")'), [
       'link [a **b**](<c d.md> "T") [a **b**] -> c d.md {strong **b** [b]}',
     ]);
-    expect(_parse('![alt](img/x.png)'), ['image ![alt](img/x.png) [alt] -> img/x.png']);
+    expect(_parse('![alt](img/x.png)'), [
+      'image ![alt](img/x.png) [alt] -> img/x.png',
+    ]);
     expect(_parse('[![i](x.png)](y)'), [
       'link [![i](x.png)](y) [![i](x.png)] -> y {image ![i](x.png) [i] -> x.png}',
     ]);
@@ -60,11 +64,14 @@ void main() {
     expect(_parse('[a] (b)'), isEmpty);
     expect(_parse('[no link]'), isEmpty);
     final references = {'docs': 'https://dart.dev'};
-    expect(_parse('[Docs] and [x][docs] and [docs][]', references: references), [
-      'link [Docs] [Docs] -> https://dart.dev',
-      'link [x][docs] [x] -> https://dart.dev',
-      'link [docs][] [docs] -> https://dart.dev',
-    ]);
+    expect(
+      _parse('[Docs] and [x][docs] and [docs][]', references: references),
+      [
+        'link [Docs] [Docs] -> https://dart.dev',
+        'link [x][docs] [x] -> https://dart.dev',
+        'link [docs][] [docs] -> https://dart.dev',
+      ],
+    );
     // No links in links.
     expect(_parse('[a [b](c) d](e)'), ['link [b](c) [b] -> c']);
   });

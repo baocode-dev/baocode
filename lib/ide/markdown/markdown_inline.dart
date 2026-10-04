@@ -370,11 +370,9 @@ class _InlineParser {
     final beforePunctuation = _punctuation.hasMatch(before);
     final afterPunctuation = _punctuation.hasMatch(after);
     final left =
-        !afterSpace &&
-        (!afterPunctuation || beforeSpace || beforePunctuation);
+        !afterSpace && (!afterPunctuation || beforeSpace || beforePunctuation);
     final right =
-        !beforeSpace &&
-        (!beforePunctuation || afterSpace || afterPunctuation);
+        !beforeSpace && (!beforePunctuation || afterSpace || afterPunctuation);
     final bool canOpen;
     final bool canClose;
     if (char == '_') {
@@ -432,7 +430,9 @@ class _InlineParser {
           : (closer.count >= 2 && opener.count >= 2 ? 2 : 1);
       final kind = closer.char == '~'
           ? MarkdownInlineKind.strike
-          : (use == 2 ? MarkdownInlineKind.strong : MarkdownInlineKind.emphasis);
+          : (use == 2
+                ? MarkdownInlineKind.strong
+                : MarkdownInlineKind.emphasis);
       final openNode = opener.node;
       final closeNode = closer.node;
       final from = _nodes.indexOf(openNode);

@@ -161,6 +161,29 @@ MarkdownChange? markdownEnter(
   }
 }
 
+/// [text] as a paragraph of its own after [row] (links dropped on it);
+/// the caret after it.
+MarkdownChange markdownParagraphAfter(
+  MarkdownStructure structure,
+  int row,
+  String text,
+) {
+  final after = structure.rows[row];
+  final unit = after.units.last;
+  final separator = after.unit.text.isEmpty && after.unit.empty != null
+      ? ''
+      : _paragraphBreak(structure, unit);
+  final body = text.replaceAll(RegExp('\r\n|\r|\n'), unit.newLine);
+  if (separator.isEmpty) {
+    // Its own empty paragraph: in it.
+    final edit = unit.edit(0, 0, text);
+    return _change([edit.edit], edit.end);
+  }
+  return _change([
+    EditorOffsetEdit(after.end, after.end, '$separator$body'),
+  ], after.end + separator.length + body.length);
+}
+
 /// An empty paragraph after [row].
 MarkdownChange _paragraphAfter(MarkdownStructure structure, MarkdownRow row) {
   final separator = _paragraphBreak(structure, row.units.last);

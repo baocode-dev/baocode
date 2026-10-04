@@ -2385,11 +2385,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get markdownShowSource => 'Markdown';
 
   @override
-  String get markdownAddBlock => 'Click to add content';
+  String get markdownCodeLanguage => 'Language';
 
   @override
-  String get markdownBlockConflict =>
-      'The block was changed elsewhere while you edited it: your edit was discarded.';
+  String get markdownTableRowAbove => 'Insert Row Above';
+
+  @override
+  String get markdownTableRowBelow => 'Insert Row Below';
+
+  @override
+  String get markdownTableColumnLeft => 'Insert Column Left';
+
+  @override
+  String get markdownTableColumnRight => 'Insert Column Right';
+
+  @override
+  String get markdownTableDeleteRow => 'Delete Row';
+
+  @override
+  String get markdownTableDeleteColumn => 'Delete Column';
+
+  @override
+  String get markdownTableAlignLeft => 'Align Column Left';
+
+  @override
+  String get markdownTableAlignCenter => 'Align Column Center';
+
+  @override
+  String get markdownTableAlignRight => 'Align Column Right';
+
+  @override
+  String get markdownTableDelete => 'Delete Table';
 
   @override
   String get markdownFindInSource =>

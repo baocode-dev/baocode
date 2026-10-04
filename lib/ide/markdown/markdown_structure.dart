@@ -92,6 +92,20 @@ class MarkdownUnit {
     return null;
   }
 
+  /// Where [offset] of the document is in [text], or the nearest place:
+  /// its start before it, its end after it, a line's start for the marks
+  /// before the line.
+  int toTextNear(int offset) {
+    if (toText(offset) case final at?) return at;
+    if (offset <= start) return 0;
+    var base = 0;
+    for (final (from, to) in segments) {
+      if (offset < from) return base;
+      base += to - from + 1;
+    }
+    return text.length;
+  }
+
   /// The document's edit replacing [start, end) of [text] with [inserted],
   /// and where in the document the end of [inserted] goes.
   ({EditorOffsetEdit edit, int end}) edit(int start, int end, String inserted) {
@@ -245,8 +259,16 @@ class MarkdownRow {
 /// [text]'s rows (see the file's comment). [caretLine], a line the caret is
 /// on, has a row though empty (an empty paragraph, Typora's, to type in).
 class MarkdownStructure {
-  factory MarkdownStructure(String text, {int? caretLine}) {
+  /// [trailing]: a row after the last when that is no paragraph (a code
+  /// block, a list), to go on writing in (Typora's): typed in, it starts
+  /// a paragraph.
+  factory MarkdownStructure(
+    String text, {
+    int? caretLine,
+    bool trailing = false,
+  }) {
     final builder = _Builder(text, caretLine)..build();
+    if (trailing) builder.trail();
     return MarkdownStructure._(builder.lines, builder.rows, builder.references);
   }
 
@@ -310,6 +332,17 @@ class MarkdownStructure {
         low = middle;
       } else {
         high = middle - 1;
+      }
+    }
+    // The row after the last, at the end of a document with no line break
+    // there, shares its offset with the last's end: the last's.
+    if (low > 0 &&
+        rows[low].start == rows[low].end &&
+        rows[low - 1].end >= offset) {
+      for (final (u, unit) in rows[low - 1].units.indexed) {
+        if (unit.toText(offset) case final at?) {
+          return (row: low - 1, unit: u, offset: at);
+        }
       }
     }
     final row = rows[low];
@@ -420,6 +453,49 @@ class _Builder {
       const _Context(top: true),
       MarkdownGap.none,
     );
+  }
+
+  /// The row after the last, to go on writing in (see [MarkdownStructure]).
+  void trail() {
+    final last = rows.lastOrNull;
+    if (last != null &&
+        last.kind == MarkdownRowKind.paragraph &&
+        last.depth == 0 &&
+        last.quotes.isEmpty &&
+        last.item == null) {
+      return;
+    }
+    final end = text.length;
+    if (last != null && last.unit.text.isEmpty && last.unit.start == end) {
+      return;
+    }
+    final line = lines.length - 1;
+    rows.add(
+      MarkdownRow(
+        kind: MarkdownRowKind.paragraph,
+        units: [
+          MarkdownUnit(
+            text,
+            [(end, end)],
+            newLine: lineBreak,
+            empty: (start: end, end: end, before: _blockPrefix(), after: ''),
+          ),
+        ],
+        start: end,
+        end: end,
+        firstLine: line,
+        lastLine: line,
+        gap: rows.isEmpty ? MarkdownGap.none : MarkdownGap.block,
+      ),
+    );
+  }
+
+  /// What goes before a block added at the end: an empty line after the
+  /// last.
+  String _blockPrefix() {
+    if (text.trim().isEmpty) return '';
+    if (text.endsWith('$lineBreak$lineBreak')) return '';
+    return text.endsWith(lineBreak) ? lineBreak : '$lineBreak$lineBreak';
   }
 
   void _add(MarkdownRow row) {
@@ -598,7 +674,14 @@ class _Builder {
         }
       }
     }
+    final newLine = _newLine(context);
     for (final (index, row) in shown.indexed) {
+      // Typed in next to a block, it would be that block's (a paragraph's
+      // lazy line): an empty line between.
+      final before = !first && identical(row, lines.first) ? newLine : '';
+      final after = !last && identical(row, lines.last)
+          ? newLine.replaceFirst(RegExp(r'[ \t]+$'), '')
+          : '';
       _add(
         _row(
           MarkdownRowKind.paragraph,
@@ -606,8 +689,13 @@ class _Builder {
             MarkdownUnit(
               text,
               [(row.offset, row.offset)],
-              newLine: _newLine(context),
-              empty: (start: row.offset, end: row.end, before: '', after: ''),
+              newLine: newLine,
+              empty: (
+                start: row.offset,
+                end: row.end,
+                before: before,
+                after: after,
+              ),
             ),
           ],
           [row],
