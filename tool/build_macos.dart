@@ -33,6 +33,8 @@ const _required = [
   // The terminal's native half (bao_pty's hook/build.dart builds it).
   'Contents/Frameworks/bao_pty.framework',
   'Contents/Resources/flutter_assets',
+  // The server remote projects run on their host (step 1b).
+  'Contents/Resources/remote/VERSION',
 ];
 
 Future<void> main(List<String> arguments) async {
@@ -58,6 +60,12 @@ Future<void> main(List<String> arguments) async {
   //   1. Unless --skip-build: `flutter build macos --release`.
   //      (_run passes runInShell only for `flutter`, a .bat on Windows;
   //      on macOS there is no .bat, so it can be dropped.)
+  //
+  //   1b. The remote server, for remote projects (Linux x64 and arm64):
+  //        dart run tool/build_remote_server.dart \
+  //          --out <the .app>/Contents/Resources/remote
+  //      Into the .app before it is signed: its files are resources, sealed
+  //      with the rest (they are Linux executables, not code macOS runs).
   //
   //   2. _checkBundle on the .app against _required. The failure mode is the
   //      same as on Windows and worth catching for the same reason: a build

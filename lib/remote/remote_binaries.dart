@@ -36,7 +36,8 @@ class DirectoryServerBinaries implements RemoteServerBinaries {
 /// The server builds the app carries: in the bundle's resources on macOS
 /// (`Contents/Resources/remote`), beside the executable elsewhere
 /// (`remote/`); `BAOCODE_REMOTE_SERVER_DIR`, else `build/remote` of the
-/// checkout, in development. Null when there are none.
+/// checkout (the working folder's, or one the executable is built under),
+/// in development. Null when there are none.
 RemoteServerBinaries? bundledServerBinaries({
   Map<String, String>? environment,
   String? executable,
@@ -52,6 +53,9 @@ RemoteServerBinaries? bundledServerBinaries({
     p.join(exeDir, 'remote'),
     p.join(exeDir, 'data', 'remote'),
     p.join(current, 'build', 'remote'),
+    // A debug build's executable is under the checkout's build/.
+    for (var dir = exeDir, i = 0; i < 10; dir = p.dirname(dir), i++)
+      if (p.basename(dir) == 'build') p.join(dir, 'remote'),
   ]) {
     if (DirectoryServerBinaries.at(directory) case final found?) return found;
   }
