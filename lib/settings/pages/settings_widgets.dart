@@ -158,7 +158,7 @@ class SettingsCard extends StatelessWidget {
             Container(
               height: 1,
               margin: const EdgeInsets.symmetric(horizontal: 12),
-              color: AppColors.sideBarBorder,
+              color: AppColors.border,
             ),
           child,
         ],

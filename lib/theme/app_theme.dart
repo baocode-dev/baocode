@@ -68,14 +68,6 @@ abstract final class AppColors {
   /// `panel.border`.
   static Color get border => _colors['panel.border'];
 
-  /// The side bar's edge: `sideBar.border`, else the line between its
-  /// sections (`sideBarSectionHeader.border`), else [border].
-  static Color get sideBarBorder => _first([
-    'sideBar.border',
-    'sideBarSectionHeader.border',
-    'panel.border',
-  ]);
-
   /// `input.border`, else `dropdown.border`.
   static Color get borderStrong => _first(['input.border', 'dropdown.border']);
 

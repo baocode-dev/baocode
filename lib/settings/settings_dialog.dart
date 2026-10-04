@@ -170,7 +170,7 @@ class SettingsDialogState extends State<SettingsDialog> {
                       : SettingsDialog.navWidth,
                   child: _nav(context),
                 ),
-                Container(width: 1, color: AppColors.sideBarBorder),
+                Container(width: 1, color: AppColors.border),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
