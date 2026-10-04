@@ -5329,4 +5329,71 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelsAuxiliaryBuiltin => 'Claude Code Haiku（本机配置）';
+
+  @override
+  String get settingsSectionAppearance => '外观';
+
+  @override
+  String get settingsAppearanceKeywords => '主题 颜色 配色 深色 浅色 theme color';
+
+  @override
+  String get appearanceSettingsTitle => '外观';
+
+  @override
+  String get appearanceSettingsColorTheme => '颜色主题';
+
+  @override
+  String get appearanceSettingsColorThemeDescription => '对话、IDE 和终端使用的配色。';
+
+  @override
+  String appearanceSettingsColorThemeDescriptionWithKey(String key) {
+    return '对话、IDE 和终端使用的配色。“首选项：颜色主题”（$key）可在列表中边移动边预览。';
+  }
+
+  @override
+  String appearanceSettingsColorThemeLabel(String theme) {
+    return '颜色主题：$theme';
+  }
+
+  @override
+  String get generalSettingsContextMenuFinder => '访达右键菜单';
+
+  @override
+  String get generalSettingsContextMenuExplorer => '资源管理器右键菜单';
+
+  @override
+  String get generalSettingsContextMenuDescription =>
+      '在文件、文件夹及文件夹空白处的右键菜单中加入“用 BaoCode 打开”（新对话）和“用 Fast Ide 打开”（新 IDE 窗口）。';
+
+  @override
+  String get generalSettingsContextMenuMacNote =>
+      '访达的扩展开关在系统设置的“扩展”中，也可以在那里开启或关闭 BaoCode 扩展。';
+
+  @override
+  String get generalSettingsContextMenuOn => '已开启';
+
+  @override
+  String get generalSettingsContextMenuOff => '未开启';
+
+  @override
+  String get generalSettingsContextMenuUnsupported => '此版本的应用未包含访达扩展。';
+
+  @override
+  String get generalSettingsContextMenuTurnOn => '开启';
+
+  @override
+  String get generalSettingsContextMenuTurnOff => '关闭';
+
+  @override
+  String get generalSettingsContextMenuSystemSettings => '系统设置…';
+
+  @override
+  String generalSettingsContextMenuFailed(String error) {
+    return '无法更改右键菜单：$error';
+  }
+
+  @override
+  String contextMenuOpenWith(String name) {
+    return '用 $name 打开';
+  }
 }

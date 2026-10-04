@@ -25,6 +25,19 @@
 			</array>
 		</dict>
 	</array>
+	<!-- baocode://, by which the Finder extension hands the app what its
+	     context menu is on (see AppDelegate.swift). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>dev.baocode.desktop</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>baocode</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIconFile</key>

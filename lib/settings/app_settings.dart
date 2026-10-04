@@ -9,7 +9,9 @@ import '../keybindings/keybindings_sync.dart';
 import '../keybindings/keymap.dart';
 import '../keybindings/vscode_import.dart';
 import '../models/model_providers.dart';
+import '../theme/workbench_theme.dart' show WorkbenchThemeService;
 import 'app_locale.dart';
+import 'pages/appearance_page.dart';
 import 'pages/data_dir_page.dart';
 import 'pages/general_page.dart';
 import 'pages/keybindings_page.dart';
@@ -72,6 +74,9 @@ class AppSettings {
     switch (section) {
       case SettingsSection.general:
         return GeneralSettingsPage(settings: files?.settings);
+      case SettingsSection.appearance:
+        final themes = WorkbenchThemeService.instance;
+        return AppearanceSettingsPage(themes: themes, changes: themes);
       case SettingsSection.models:
         return ModelsSettingsPage(providers: ModelProviders.current);
       case SettingsSection.notifications:

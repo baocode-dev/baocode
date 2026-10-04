@@ -9446,6 +9446,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Claude Code Haiku (this machine\'s setup)'**
   String get modelsAuxiliaryBuiltin;
+
+  /// No description provided for @settingsSectionAppearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get settingsSectionAppearance;
+
+  /// No description provided for @settingsAppearanceKeywords.
+  ///
+  /// In en, this message translates to:
+  /// **'theme color colour dark light'**
+  String get settingsAppearanceKeywords;
+
+  /// No description provided for @appearanceSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get appearanceSettingsTitle;
+
+  /// No description provided for @appearanceSettingsColorTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Color Theme'**
+  String get appearanceSettingsColorTheme;
+
+  /// No description provided for @appearanceSettingsColorThemeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The colors of the chat, the IDE and the terminal.'**
+  String get appearanceSettingsColorThemeDescription;
+
+  /// No description provided for @appearanceSettingsColorThemeDescriptionWithKey.
+  ///
+  /// In en, this message translates to:
+  /// **'The colors of the chat, the IDE and the terminal. Preferences: Color Theme ({key}) previews each as you move through them.'**
+  String appearanceSettingsColorThemeDescriptionWithKey(String key);
+
+  /// No description provided for @appearanceSettingsColorThemeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Color theme: {theme}'**
+  String appearanceSettingsColorThemeLabel(String theme);
+
+  /// No description provided for @generalSettingsContextMenuFinder.
+  ///
+  /// In en, this message translates to:
+  /// **'Finder Context Menu'**
+  String get generalSettingsContextMenuFinder;
+
+  /// No description provided for @generalSettingsContextMenuExplorer.
+  ///
+  /// In en, this message translates to:
+  /// **'Explorer Context Menu'**
+  String get generalSettingsContextMenuExplorer;
+
+  /// No description provided for @generalSettingsContextMenuDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Adds \"Open with BaoCode\" (a new agent) and \"Open with Fast Ide\" (a new IDE window) to the context menu of files, folders and a folder\'s background.'**
+  String get generalSettingsContextMenuDescription;
+
+  /// No description provided for @generalSettingsContextMenuMacNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Finder\'s own setting is in System Settings\' extensions, where the BaoCode extension can also be turned on and off.'**
+  String get generalSettingsContextMenuMacNote;
+
+  /// No description provided for @generalSettingsContextMenuOn.
+  ///
+  /// In en, this message translates to:
+  /// **'On'**
+  String get generalSettingsContextMenuOn;
+
+  /// No description provided for @generalSettingsContextMenuOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get generalSettingsContextMenuOff;
+
+  /// No description provided for @generalSettingsContextMenuUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This build of the app has no Finder extension.'**
+  String get generalSettingsContextMenuUnsupported;
+
+  /// No description provided for @generalSettingsContextMenuTurnOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn On'**
+  String get generalSettingsContextMenuTurnOn;
+
+  /// No description provided for @generalSettingsContextMenuTurnOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn Off'**
+  String get generalSettingsContextMenuTurnOff;
+
+  /// No description provided for @generalSettingsContextMenuSystemSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'System Settings…'**
+  String get generalSettingsContextMenuSystemSettings;
+
+  /// No description provided for @generalSettingsContextMenuFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not change the context menu: {error}'**
+  String generalSettingsContextMenuFailed(String error);
+
+  /// No description provided for @contextMenuOpenWith.
+  ///
+  /// In en, this message translates to:
+  /// **'Open with {name}'**
+  String contextMenuOpenWith(String name);
 }
 
 class _AppLocalizationsDelegate

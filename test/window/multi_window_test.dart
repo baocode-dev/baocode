@@ -7,6 +7,7 @@ import 'package:baocode/ide/ide_welcome.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/main.dart';
+import 'package:baocode/search/search_palette.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/window/app_windows.dart';
@@ -311,5 +312,45 @@ void main() {
     }
     expect(host.created, isEmpty);
     expect(_inView(0, find.byType(IdeStartPage)), findsOneWidget);
+  });
+
+  _testWindows('an agent\'s window has the search palette (Ctrl+Shift+P), '
+      'its commands the window\'s, Preferences: Color Theme among them', (
+    tester,
+  ) async {
+    final (windows, _, _) = await _pumpApp(tester);
+    final opening = windows.openAgent(['~/code/baocode']);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump();
+    }
+    await opening;
+    final window = windows.agentWindows.single;
+    // The keyboard is the agent's window's (its composer has the focus).
+    expect(
+      FocusManager.instance.primaryFocus?.context
+          ?.findAncestorWidgetOfExactType<View>()
+          ?.view
+          .viewId,
+      window.viewId,
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    for (var i = 0; i < 3; i++) {
+      await tester.pump();
+    }
+    expect(_inView(window.viewId, find.byType(SearchPalette)), findsOneWidget);
+    expect(_inView(0, find.byType(SearchPalette)), findsNothing);
+    final palette = tester.widget<SearchPalette>(
+      _inView(window.viewId, find.byType(SearchPalette)),
+    );
+    expect(
+      palette.actions.map((action) => action.id),
+      contains('workbench.action.selectTheme'),
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump(const Duration(milliseconds: 200));
   });
 }

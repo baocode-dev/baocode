@@ -3876,5 +3876,52 @@
   "modelsAuxiliary": "Auxiliary Model",
   "modelsAuxiliaryDescription": "Used for auxiliary work, such as generating conversation titles and commit messages. Automatic: the session's model (for commit messages, new sessions' default); an upstream's by its Haiku tier.",
   "modelsAuxiliaryAuto": "Automatic",
-  "modelsAuxiliaryBuiltin": "Claude Code Haiku (this machine's setup)"
+  "modelsAuxiliaryBuiltin": "Claude Code Haiku (this machine's setup)",
+  "settingsSectionAppearance": "Appearance",
+  "settingsAppearanceKeywords": "theme color colour dark light",
+  "appearanceSettingsTitle": "Appearance",
+  "appearanceSettingsColorTheme": "Color Theme",
+  "appearanceSettingsColorThemeDescription": "The colors of the chat, the IDE and the terminal.",
+  "appearanceSettingsColorThemeDescriptionWithKey": "The colors of the chat, the IDE and the terminal. Preferences: Color Theme ({key}) previews each as you move through them.",
+  "@appearanceSettingsColorThemeDescriptionWithKey": {
+    "placeholders": {
+      "key": {
+        "type": "String"
+      }
+    }
+  },
+  "appearanceSettingsColorThemeLabel": "Color theme: {theme}",
+  "@appearanceSettingsColorThemeLabel": {
+    "placeholders": {
+      "theme": {
+        "type": "String"
+      }
+    }
+  },
+  "generalSettingsContextMenuFinder": "Finder Context Menu",
+  "generalSettingsContextMenuExplorer": "Explorer Context Menu",
+  "generalSettingsContextMenuDescription": "Adds \"Open with BaoCode\" (a new agent) and \"Open with Fast Ide\" (a new IDE window) to the context menu of files, folders and a folder's background.",
+  "generalSettingsContextMenuMacNote": "Finder's own setting is in System Settings' extensions, where the BaoCode extension can also be turned on and off.",
+  "generalSettingsContextMenuOn": "On",
+  "generalSettingsContextMenuOff": "Off",
+  "generalSettingsContextMenuUnsupported": "This build of the app has no Finder extension.",
+  "generalSettingsContextMenuTurnOn": "Turn On",
+  "generalSettingsContextMenuTurnOff": "Turn Off",
+  "generalSettingsContextMenuSystemSettings": "System Settings…",
+  "generalSettingsContextMenuFailed": "Could not change the context menu: {error}",
+  "@generalSettingsContextMenuFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contextMenuOpenWith": "Open with {name}",
+  "@contextMenuOpenWith": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -483,7 +483,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// [ChatKeys]).
   Map<String, VoidCallback> _chatCommands() {
     // An agent's window has its agent alone (and, on Windows, the sidebar
-    // to pick another: see _buildContent).
+    // to pick another: see _buildContent), and the search palette for the
+    // window's commands.
     if (_agentWindow) {
       return {
         if (WindowControls.drawsHeader)
@@ -492,6 +493,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         openKeybindingsCommandId: () =>
             unawaited(openSettings(SettingsSection.keyboard)),
         ideSelectColorThemeCommandId: _selectColorTheme,
+        ChatCommandIds.search: () => unawaited(_openPalette()),
         ..._terminalCommands(),
         ..._windowCommands(),
       };
@@ -733,12 +735,15 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// Each project's files, for the palette: listed again as it opens.
   final Map<String, IdeFileIndex> _fileIndexes = {};
 
-  /// The project the palette's files are of: the current agent's, else the
-  /// first listed.
+  /// The project the palette's files are of: the window's agent's, or the
+  /// current agent's, else the first listed.
   Project? get _paletteProject =>
-      _workspace.current?.project ?? _workspace.sidebarProjects.firstOrNull;
+      (_agentThread ?? _workspace.current)?.project ??
+      _workspace.sidebarProjects.firstOrNull;
 
-  /// Opens the search palette over the chat layout, on [filter].
+  /// Opens the search palette over the chat layout, on [filter]; in an
+  /// agent's window, an agent picked shows in its place, and a file opens
+  /// in the IDE's window.
   Future<void> _openPalette([SearchFilter filter = SearchFilter.all]) async {
     if (_paletteOpen || !mounted) return;
     _paletteOpen = true;
@@ -765,9 +770,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         recentActions: List.of(_recentActions),
         settings: _paletteSettings(),
         filter: filter,
-        onOpenAgent: _openAgent,
+        onOpenAgent: _agentWindow ? _showInWindow : _openAgent,
         onOpenFile: (path) {
-          if (_windows case final windows? when _multi) {
+          if (_windows case final windows? when _multi || _agentWindow) {
             unawaited(
               windows.showFolder(project?.path, files: [CodeTarget(path)]),
             );
@@ -1727,7 +1732,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   Widget _buildSidebar({VoidCallback? onOpened}) {
     // An agent's window shows what is picked or made here in its place;
-    // the chat's window, the search palette and Customize are not its.
+    // the chat's window and Customize are not its.
     final agent = _agentThread;
     return Sidebar(
       workspace: _workspace,
@@ -1746,7 +1751,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       },
       onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
       onOpenSettings: () => unawaited(openSettings()),
-      onSearch: agent != null ? null : () => unawaited(_openPalette()),
+      onSearch: () => unawaited(_openPalette()),
       onCustomize: agent != null || widget.customizations == null
           ? null
           : () => _customizing ? _closeCustomize() : _showCustomize(),

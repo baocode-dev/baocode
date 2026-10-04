@@ -478,26 +478,44 @@ $answer = [UIntPtr]::Zero
     }
   }
 
-  /// Runs [script] in Windows PowerShell, encoded (`-EncodedCommand`, its
-  /// UTF-16 in base64) so no quoting stands between it and the shell;
-  /// values go to it through [environment].
   Future<ProcessResult> _powershell(
     String script, {
     Map<String, String>? environment,
-  }) {
-    final units = script.codeUnits;
-    final bytes = Uint8List(units.length * 2);
-    for (var i = 0; i < units.length; i++) {
-      bytes[2 * i] = units[i] & 0xff;
-      bytes[2 * i + 1] = units[i] >> 8;
-    }
-    return _run('powershell.exe', [
-      '-NoProfile',
-      '-NonInteractive',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-EncodedCommand',
-      base64Encode(bytes),
-    ], environment: environment);
-  }
+  }) => runPowerShell(_run, script, environment: environment);
 }
+
+/// Runs [script] in Windows PowerShell through [run], encoded
+/// (`-EncodedCommand`, its UTF-16 in base64) so no quoting stands between
+/// it and the shell; values go to it through [environment].
+Future<ProcessResult> runPowerShell(
+  ShellCommandRunner run,
+  String script, {
+  Map<String, String>? environment,
+}) {
+  final units = script.codeUnits;
+  final bytes = Uint8List(units.length * 2);
+  for (var i = 0; i < units.length; i++) {
+    bytes[2 * i] = units[i] & 0xff;
+    bytes[2 * i + 1] = units[i] >> 8;
+  }
+  return run('powershell.exe', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-EncodedCommand',
+    base64Encode(bytes),
+  ], environment: environment);
+}
+
+/// Runs [executable] as [ShellCommandRunner]s do by default: to its end,
+/// its output read as UTF-8.
+Future<ProcessResult> runShellProcess(
+  String executable,
+  List<String> arguments, {
+  Map<String, String>? environment,
+}) => _runProcess(executable, arguments, environment: environment);
+
+/// [failure], with what [result]'s command said, when it said anything.
+String failureSaid(ProcessResult result, String failure) =>
+    _said(result, failure);

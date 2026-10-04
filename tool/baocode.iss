@@ -100,7 +100,8 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; \
 ; Fast Ide, as `code -n` opens it (the path its own working folder: it is
 ; absolute). HKA is the install mode's hive (HKLM per machine, HKCU per
 ; user). Windows 11 lists them under "Show more options". Unticked on a
-; reinstall, they go.
+; reinstall, they go. Settings → General writes the same keys under HKCU
+; (lib/platform/context_menu_io.dart), for the user alone.
 Root: HKA; Subkey: "Software\Classes\*\shell\BaoCode"; ValueType: string; \
   ValueName: ""; ValueData: "{code:MenuLabel|BaoCode}"; Tasks: contextmenu; \
   Flags: uninsdeletekey

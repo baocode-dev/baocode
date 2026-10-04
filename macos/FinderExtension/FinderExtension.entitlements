@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- On, as an app extension's must be: it only reads what Finder shows
+	     it and hands the paths to the app (see FinderSync.swift). -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+</dict>
+</plist>

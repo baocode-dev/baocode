@@ -7,6 +7,8 @@ import '../../ide/ide_menu.dart';
 import '../../ide/ide_notifications.dart' show IdeSeverity;
 import '../../kernel/commit_attribution.dart';
 import '../../l10n/l10n.dart';
+import '../../platform/app_platform.dart';
+import '../../platform/context_menu.dart';
 import '../../platform/shell_command.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../window/window_settings.dart';
@@ -19,9 +21,9 @@ import 'settings_widgets.dart';
 /// Settings → General: what the app shows at launch
 /// (`workbench.mainWindow`), where the IDE opens and how its windows open,
 /// come back and close (`window.*`), who the commits and pull requests
-/// agents write credit (`chat.commitAttribution` in settings.json), and the
-/// `code` shell command. A choice is written at once; the default is not
-/// written.
+/// agents write credit (`chat.commitAttribution` in settings.json), the
+/// `code` shell command, and Open with BaoCode in Finder's or Explorer's
+/// context menu. A choice is written at once; the default is not written.
 class GeneralSettingsPage extends StatelessWidget {
   const GeneralSettingsPage({super.key, this.settings});
 
@@ -257,6 +259,8 @@ class GeneralSettingsPage extends StatelessWidget {
             ),
             if (ShellCommand.supported)
               const SettingsCard(children: [_ShellCommandSetting()]),
+            if (ContextMenu.supported)
+              const SettingsCard(children: [_ContextMenuSetting()]),
           ],
         );
       },
@@ -349,6 +353,124 @@ class _ShellCommandSettingState extends State<_ShellCommandSetting> {
                 ? null
                 : () => unawaited(_run(uninstallShellCommand)),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Whether Open with BaoCode and Open with Fast Ide are in the system's
+/// context menu (see ContextMenu), and the buttons to turn them on or off
+/// (and, on macOS, System Settings' extensions); what failed, under them.
+class _ContextMenuSetting extends StatefulWidget {
+  const _ContextMenuSetting();
+
+  @override
+  State<_ContextMenuSetting> createState() => _ContextMenuSettingState();
+}
+
+class _ContextMenuSettingState extends State<_ContextMenuSetting> {
+  ContextMenuStatus? _status;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_read());
+  }
+
+  Future<void> _read() async {
+    ContextMenuStatus status;
+    try {
+      status = await ContextMenu.status();
+    } on ContextMenuException catch (error) {
+      status = ContextMenuStatus.off;
+      _error = error.message;
+    }
+    if (mounted) setState(() => _status = status);
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    String? error;
+    try {
+      await action();
+    } on ContextMenuException catch (failure) {
+      error = failure.message;
+    } on Object catch (failure) {
+      error = '$failure';
+    }
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = error;
+    });
+    await _read();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final status = _status;
+    final error = _error;
+    final openSystemSettings = ContextMenu.openSystemSettings;
+    final ready = !_busy && status != null;
+    return SettingsRow(
+      label: AppPlatform.isMacOS
+          ? l10n.generalSettingsContextMenuFinder
+          : l10n.generalSettingsContextMenuExplorer,
+      description: [
+        l10n.generalSettingsContextMenuDescription,
+        if (AppPlatform.isMacOS) l10n.generalSettingsContextMenuMacNote,
+      ].join(' '),
+      below: [
+        if (status != null)
+          Text(switch (status) {
+            ContextMenuStatus.on => l10n.generalSettingsContextMenuOn,
+            ContextMenuStatus.off => l10n.generalSettingsContextMenuOff,
+            ContextMenuStatus.unsupported =>
+              l10n.generalSettingsContextMenuUnsupported,
+          }, style: SettingsText.description),
+        if (error != null)
+          SelectableText(
+            l10n.generalSettingsContextMenuFailed(error),
+            style: SettingsText.description.copyWith(
+              color: themeColors['errorForeground'],
+            ),
+          ),
+      ],
+      trailing: SettingsButtons(
+        children: [
+          IdeButton(
+            label: l10n.generalSettingsContextMenuTurnOn,
+            onPressed: ready && status == ContextMenuStatus.off
+                ? () => unawaited(
+                    _run(
+                      () => ContextMenu.install((
+                        agent: l10n.contextMenuOpenWith('BaoCode'),
+                        ide: l10n.contextMenuOpenWith('Fast Ide'),
+                      )),
+                    ),
+                  )
+                : null,
+          ),
+          IdeButton(
+            label: l10n.generalSettingsContextMenuTurnOff,
+            secondary: true,
+            onPressed: ready && status == ContextMenuStatus.on
+                ? () => unawaited(_run(ContextMenu.uninstall))
+                : null,
+          ),
+          if (openSystemSettings != null)
+            IdeButton(
+              label: l10n.generalSettingsContextMenuSystemSettings,
+              secondary: true,
+              onPressed: () => unawaited(openSystemSettings()),
+            ),
         ],
       ),
     );

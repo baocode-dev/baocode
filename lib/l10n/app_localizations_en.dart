@@ -5691,4 +5691,73 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get modelsAuxiliaryBuiltin =>
       'Claude Code Haiku (this machine\'s setup)';
+
+  @override
+  String get settingsSectionAppearance => 'Appearance';
+
+  @override
+  String get settingsAppearanceKeywords => 'theme color colour dark light';
+
+  @override
+  String get appearanceSettingsTitle => 'Appearance';
+
+  @override
+  String get appearanceSettingsColorTheme => 'Color Theme';
+
+  @override
+  String get appearanceSettingsColorThemeDescription =>
+      'The colors of the chat, the IDE and the terminal.';
+
+  @override
+  String appearanceSettingsColorThemeDescriptionWithKey(String key) {
+    return 'The colors of the chat, the IDE and the terminal. Preferences: Color Theme ($key) previews each as you move through them.';
+  }
+
+  @override
+  String appearanceSettingsColorThemeLabel(String theme) {
+    return 'Color theme: $theme';
+  }
+
+  @override
+  String get generalSettingsContextMenuFinder => 'Finder Context Menu';
+
+  @override
+  String get generalSettingsContextMenuExplorer => 'Explorer Context Menu';
+
+  @override
+  String get generalSettingsContextMenuDescription =>
+      'Adds \"Open with BaoCode\" (a new agent) and \"Open with Fast Ide\" (a new IDE window) to the context menu of files, folders and a folder\'s background.';
+
+  @override
+  String get generalSettingsContextMenuMacNote =>
+      'Finder\'s own setting is in System Settings\' extensions, where the BaoCode extension can also be turned on and off.';
+
+  @override
+  String get generalSettingsContextMenuOn => 'On';
+
+  @override
+  String get generalSettingsContextMenuOff => 'Off';
+
+  @override
+  String get generalSettingsContextMenuUnsupported =>
+      'This build of the app has no Finder extension.';
+
+  @override
+  String get generalSettingsContextMenuTurnOn => 'Turn On';
+
+  @override
+  String get generalSettingsContextMenuTurnOff => 'Turn Off';
+
+  @override
+  String get generalSettingsContextMenuSystemSettings => 'System Settings…';
+
+  @override
+  String generalSettingsContextMenuFailed(String error) {
+    return 'Could not change the context menu: $error';
+  }
+
+  @override
+  String contextMenuOpenWith(String name) {
+    return 'Open with $name';
+  }
 }

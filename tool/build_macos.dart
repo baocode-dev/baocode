@@ -89,6 +89,18 @@ Future<void> main(List<String> arguments) async {
   //      Sign before making the image, staple after: the ticket goes on the
   //      .dmg, and the .app inside it has to be signed already.
   //
+  //      Not --deep, though: it would give the Finder extension
+  //      (Contents/PlugIns/FinderExtension.appex) the app's entitlements,
+  //      sandbox off, and the system refuses to load an extension that is
+  //      not sandboxed. Sign the extension first, with its own, then the app
+  //      around it:
+  //        codesign --force --options runtime \
+  //          --entitlements macos/FinderExtension/FinderExtension.entitlements \
+  //          --sign "Developer ID Application: <name> (<team>)" \
+  //          <the .app>/Contents/PlugIns/FinderExtension.appex
+  //      (the frameworks under Contents/Frameworks, signed without
+  //      entitlements, before the app too).
+  //
   //      --entitlements is not optional here. macos/Runner/Release.entitlements
   //      turns the sandbox OFF, which this app needs: it runs the Claude Code
   //      CLI as a child process and reads its sessions under ~/.claude, and a

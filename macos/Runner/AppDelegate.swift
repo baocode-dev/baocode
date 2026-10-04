@@ -48,12 +48,16 @@ class AppDelegate: FlutterAppDelegate {
 
   /// Files and folders the system asks the app to open: the `code`
   /// command's (`open -b`), Finder's Open With, those dropped on the Dock
-  /// icon (see CFBundleDocumentTypes in Info.plist). At launch they come
-  /// before Flutter is ready for them, and wait (see OpenRequests).
+  /// icon (see CFBundleDocumentTypes in Info.plist); and the Finder
+  /// extension's `baocode://` URLs (see OpenRequests.request). At launch
+  /// they come before Flutter is ready for them, and wait (see
+  /// OpenRequests).
   override func application(_ application: NSApplication, open urls: [URL]) {
     let paths = urls.filter(\.isFileURL).map { $0.standardizedFileURL.path }
-    if !paths.isEmpty {
-      OpenRequests.shared.deliver(paths)
+    let requests = urls.compactMap(OpenRequests.request(from:))
+    if !paths.isEmpty || !requests.isEmpty {
+      if !paths.isEmpty { OpenRequests.shared.deliver(paths) }
+      for request in requests { OpenRequests.shared.deliver(request: request) }
       // With the IDE's windows, the app shows the one they open in.
       if AppWindows.shared?.started ?? false {
         NSApp.activate(ignoringOtherApps: true)
@@ -84,6 +88,9 @@ final class OpenRequests {
   static let shared = OpenRequests()
 
   private var pending: [String] = []
+  /// Requests that came before Flutter was ready, each whole: they go after
+  /// the paths, as Flutter reads what follows a request's marker as its.
+  private var pendingRequests: [[String]] = []
   private var ready = false
   private var channel: FlutterMethodChannel?
 
@@ -99,8 +106,9 @@ final class OpenRequests {
       }
       switch call.method {
       case "takePending":
-        result(self.pending)
+        result(self.pending + self.pendingRequests.flatMap { $0 })
         self.pending = []
+        self.pendingRequests = []
         self.ready = true
       case "stop":
         // Flutter stopped listening: kept again until it next asks.
@@ -118,6 +126,42 @@ final class OpenRequests {
       channel.invokeMethod("open", arguments: paths)
     } else {
       pending.append(contentsOf: paths)
+    }
+  }
+
+  /// Hands a request (see [request(from:)]) to Flutter, or keeps it until
+  /// it is ready.
+  func deliver(request: [String]) {
+    if ready, let channel {
+      channel.invokeMethod("open", arguments: request)
+    } else {
+      pendingRequests.append(request)
+    }
+  }
+
+  /// What a `baocode://` URL of the Finder extension asks (see
+  /// FinderExtension/FinderSync.swift), as the request Explorer's menu
+  /// makes on Windows (see open_requests.cpp and code_args.dart): `agent`,
+  /// Open with BaoCode, a new agent with the paths (its marker, then them);
+  /// `ide`, Open with Fast Ide, the paths in a new window as `code -n`
+  /// opens them (the `code` command's marker, a folder to start from, `-n`,
+  /// then them). Nil for any other URL, or one without absolute paths.
+  static func request(from url: URL) -> [String]? {
+    guard url.scheme == "baocode",
+      let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+    else { return nil }
+    let paths = (components.queryItems ?? [])
+      .filter { $0.name == "path" }
+      .compactMap(\.value)
+      .filter { $0.hasPrefix("/") }
+    guard let first = paths.first else { return nil }
+    switch components.host {
+    case "agent":
+      return ["\u{0}agent"] + paths
+    case "ide":
+      return ["\u{0}code", first, "-n"] + paths
+    default:
+      return nil
     }
   }
 }

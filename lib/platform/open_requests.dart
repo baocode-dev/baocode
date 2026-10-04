@@ -4,8 +4,9 @@ import '../window/code_args.dart';
 
 /// Files and folders the system asks the app to open, from outside it: the
 /// `code` command (see shell_command.dart), Finder's Open With, an item of
-/// the macOS File menu's Open Recent, or the Windows app started again
-/// with paths (it hands them to the one already running).
+/// the macOS File menu's Open Recent, the context menu's Open with BaoCode
+/// and Open with Fast Ide (see context_menu.dart), or the Windows app
+/// started again with paths (it hands them to the one already running).
 ///
 /// The window keeps what comes before the app is ready for it — the paths
 /// it was started with among them — until [listen] takes them (see
