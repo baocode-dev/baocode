@@ -180,16 +180,6 @@ void IdeWindow::OnDestroy() {
   SetObserver(nullptr, 0);
   ReleaseView();
   if (controller_ != nullptr) {
-    // Out of sight first, the window and its view, as the engine's own
-    // windows go (see its window_manager.cc): taking the view away waits
-    // on the raster thread, which is then not presenting to a window on
-    // the screen, whose thread — this one — is the one waiting.
-    if (const HWND window = GetHandle()) {
-      ::ShowWindow(window, SW_HIDE);
-    }
-    ::ShowWindow(FlutterDesktopViewGetHWND(
-                     FlutterDesktopViewControllerGetView(controller_)),
-                 SW_HIDE);
     // Its view goes from the engine, and its window with it.
     // Destroying the child HWND sends messages to its parent synchronously.
     // EngineMessage must not re-enter a controller whose view is being reset.
