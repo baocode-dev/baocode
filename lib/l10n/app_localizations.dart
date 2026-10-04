@@ -8043,6 +8043,90 @@ abstract class AppLocalizations {
   /// **'Show Source'**
   String get cmdMarkdownShowSource;
 
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Bold'**
+  String get cmdMarkdownBold;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Italic'**
+  String get cmdMarkdownItalic;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Strikethrough'**
+  String get cmdMarkdownStrikethrough;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Inline Code'**
+  String get cmdMarkdownInlineCode;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Paragraph'**
+  String get cmdMarkdownParagraph;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Quote'**
+  String get cmdMarkdownQuote;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Bullet List'**
+  String get cmdMarkdownBulletList;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Numbered List'**
+  String get cmdMarkdownOrderedList;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Task List'**
+  String get cmdMarkdownTaskList;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Table'**
+  String get cmdMarkdownInsertTable;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Code Block'**
+  String get cmdMarkdownInsertCodeBlock;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Math Block'**
+  String get cmdMarkdownInsertMathBlock;
+
+  /// Command palette title (category Markdown): formats in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert Horizontal Rule'**
+  String get cmdMarkdownInsertRule;
+
+  /// Command palette title (category Markdown): makes the caret's paragraph a heading of a level, in a markdown preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Heading {level}'**
+  String cmdMarkdownHeading(int level);
+
   /// No description provided for @cmdCloseFolder.
   ///
   /// In en, this message translates to:

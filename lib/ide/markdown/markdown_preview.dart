@@ -1547,6 +1547,8 @@ class IdeMarkdownPreviewState extends State<IdeMarkdownPreview> {
     final info = row.info;
     if (info == null || widget.readOnly) return;
     final clean = language.replaceAll(RegExp(r'[`\s]'), '');
+    // The language's field keeps the keyboard.
+    _wantsFocus = false;
     _apply(
       [EditorOffsetEdit(info.$1, info.$2, clean)],
       _selection ?? TextSelection.collapsed(offset: row.unit.start),

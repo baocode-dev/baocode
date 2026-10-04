@@ -4548,6 +4548,50 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdMarkdownShowSource => '显示源码';
 
   @override
+  String get cmdMarkdownBold => '切换粗体';
+
+  @override
+  String get cmdMarkdownItalic => '切换斜体';
+
+  @override
+  String get cmdMarkdownStrikethrough => '切换删除线';
+
+  @override
+  String get cmdMarkdownInlineCode => '切换行内代码';
+
+  @override
+  String get cmdMarkdownParagraph => '段落';
+
+  @override
+  String get cmdMarkdownQuote => '切换引用';
+
+  @override
+  String get cmdMarkdownBulletList => '切换无序列表';
+
+  @override
+  String get cmdMarkdownOrderedList => '切换有序列表';
+
+  @override
+  String get cmdMarkdownTaskList => '切换任务列表';
+
+  @override
+  String get cmdMarkdownInsertTable => '插入表格';
+
+  @override
+  String get cmdMarkdownInsertCodeBlock => '插入代码块';
+
+  @override
+  String get cmdMarkdownInsertMathBlock => '插入公式块';
+
+  @override
+  String get cmdMarkdownInsertRule => '插入分隔线';
+
+  @override
+  String cmdMarkdownHeading(int level) {
+    return '$level 级标题';
+  }
+
+  @override
   String get cmdCloseFolder => '关闭文件夹';
 
   @override

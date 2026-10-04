@@ -3484,6 +3484,67 @@
   "@cmdMarkdownShowSource": {
     "description": "Command palette title (category Markdown): shows the active markdown file's source."
   },
+  "cmdMarkdownBold": "Toggle Bold",
+  "@cmdMarkdownBold": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownItalic": "Toggle Italic",
+  "@cmdMarkdownItalic": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownStrikethrough": "Toggle Strikethrough",
+  "@cmdMarkdownStrikethrough": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownInlineCode": "Toggle Inline Code",
+  "@cmdMarkdownInlineCode": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownParagraph": "Paragraph",
+  "@cmdMarkdownParagraph": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownQuote": "Toggle Quote",
+  "@cmdMarkdownQuote": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownBulletList": "Toggle Bullet List",
+  "@cmdMarkdownBulletList": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownOrderedList": "Toggle Numbered List",
+  "@cmdMarkdownOrderedList": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownTaskList": "Toggle Task List",
+  "@cmdMarkdownTaskList": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownInsertTable": "Insert Table",
+  "@cmdMarkdownInsertTable": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownInsertCodeBlock": "Insert Code Block",
+  "@cmdMarkdownInsertCodeBlock": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownInsertMathBlock": "Insert Math Block",
+  "@cmdMarkdownInsertMathBlock": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownInsertRule": "Insert Horizontal Rule",
+  "@cmdMarkdownInsertRule": {
+    "description": "Command palette title (category Markdown): formats in a markdown preview."
+  },
+  "cmdMarkdownHeading": "Heading {level}",
+  "@cmdMarkdownHeading": {
+    "description": "Command palette title (category Markdown): makes the caret's paragraph a heading of a level, in a markdown preview.",
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
   "cmdCloseFolder": "Close Folder",
   "cmdClearRecentlyOpened": "Clear Recently Opened...",
   "cmdInstallShellCommand": "Install '{name}' command in PATH",

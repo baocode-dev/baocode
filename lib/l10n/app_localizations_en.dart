@@ -4879,6 +4879,50 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdMarkdownShowSource => 'Show Source';
 
   @override
+  String get cmdMarkdownBold => 'Toggle Bold';
+
+  @override
+  String get cmdMarkdownItalic => 'Toggle Italic';
+
+  @override
+  String get cmdMarkdownStrikethrough => 'Toggle Strikethrough';
+
+  @override
+  String get cmdMarkdownInlineCode => 'Toggle Inline Code';
+
+  @override
+  String get cmdMarkdownParagraph => 'Paragraph';
+
+  @override
+  String get cmdMarkdownQuote => 'Toggle Quote';
+
+  @override
+  String get cmdMarkdownBulletList => 'Toggle Bullet List';
+
+  @override
+  String get cmdMarkdownOrderedList => 'Toggle Numbered List';
+
+  @override
+  String get cmdMarkdownTaskList => 'Toggle Task List';
+
+  @override
+  String get cmdMarkdownInsertTable => 'Insert Table';
+
+  @override
+  String get cmdMarkdownInsertCodeBlock => 'Insert Code Block';
+
+  @override
+  String get cmdMarkdownInsertMathBlock => 'Insert Math Block';
+
+  @override
+  String get cmdMarkdownInsertRule => 'Insert Horizontal Rule';
+
+  @override
+  String cmdMarkdownHeading(int level) {
+    return 'Heading $level';
+  }
+
+  @override
   String get cmdCloseFolder => 'Close Folder';
 
   @override
