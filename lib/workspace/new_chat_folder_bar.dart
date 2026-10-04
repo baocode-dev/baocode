@@ -88,11 +88,13 @@ class NewChatFolderBar extends StatelessWidget {
       },
     );
     final projects = [
-      for (final project in workspace.projects)
+      for (final project in workspace.sidebarProjects)
         if (project.path != desktop) project,
     ];
     final listed = projects.take(_listed).toList();
-    if (current.path != desktop && !listed.contains(current)) {
+    if (current.path != desktop &&
+        !workspace.isHidden(current) &&
+        !listed.contains(current)) {
       listed.add(current);
     }
     final options = [?noFolder, for (final project in listed) option(project)];

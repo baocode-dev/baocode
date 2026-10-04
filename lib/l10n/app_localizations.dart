@@ -2678,6 +2678,18 @@ abstract class AppLocalizations {
   /// **'Hide sidebar'**
   String get windowHideSidebar;
 
+  /// Tooltip of the chat window's terminal panel toggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show terminal'**
+  String get chatTerminalShow;
+
+  /// Tooltip of the chat window's terminal panel toggle, and of the panel's close button.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide terminal'**
+  String get chatTerminalHide;
+
   /// No description provided for @windowMinimize.
   ///
   /// In en, this message translates to:
@@ -8979,17 +8991,23 @@ abstract class AppLocalizations {
   /// **'Manual'**
   String get modelsCustom;
 
-  /// No description provided for @modelsThinking.
+  /// No description provided for @modelsShowAll.
   ///
   /// In en, this message translates to:
-  /// **'Supports thinking'**
-  String get modelsThinking;
+  /// **'Show All ({count})'**
+  String modelsShowAll(int count);
 
-  /// No description provided for @modelsImages.
+  /// No description provided for @modelsShowChecked.
   ///
   /// In en, this message translates to:
-  /// **'Supports images'**
-  String get modelsImages;
+  /// **'Show Checked Only'**
+  String get modelsShowChecked;
+
+  /// No description provided for @modelsNoneChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'No model is checked: show all to check some.'**
+  String get modelsNoneChecked;
 
   /// No description provided for @modelsEdit.
   ///
@@ -9288,13 +9306,13 @@ abstract class AppLocalizations {
   /// No description provided for @modelsContextWindow.
   ///
   /// In en, this message translates to:
-  /// **'Context Window'**
+  /// **'Default Context'**
   String get modelsContextWindow;
 
   /// No description provided for @modelsContextWindowHint.
   ///
   /// In en, this message translates to:
-  /// **'Tokens, e.g. 128000 or 128K'**
+  /// **'Tokens, e.g. 128K; 200K when empty'**
   String get modelsContextWindowHint;
 
   /// No description provided for @modelsContextInvalid.
@@ -9303,17 +9321,77 @@ abstract class AppLocalizations {
   /// **'A number of tokens, e.g. 200K.'**
   String get modelsContextInvalid;
 
-  /// No description provided for @modelsSupportsThinking.
+  /// No description provided for @modelsEffortOptions.
   ///
   /// In en, this message translates to:
-  /// **'Supports thinking (its effort can be picked)'**
-  String get modelsSupportsThinking;
+  /// **'Thinking Efforts'**
+  String get modelsEffortOptions;
 
-  /// No description provided for @modelsSupportsImages.
+  /// No description provided for @modelsEffortOptionsDescription.
   ///
   /// In en, this message translates to:
-  /// **'Supports images'**
-  String get modelsSupportsImages;
+  /// **'Offered in the model picker; Medium is picked unless another is.'**
+  String get modelsEffortOptionsDescription;
+
+  /// No description provided for @modelsEffortAddHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. minimal'**
+  String get modelsEffortAddHint;
+
+  /// No description provided for @modelsEffortInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Letters, digits and dashes only.'**
+  String get modelsEffortInvalid;
+
+  /// No description provided for @modelsContextOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Context Lengths'**
+  String get modelsContextOptions;
+
+  /// No description provided for @modelsContextOptionsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Offered in the model picker; the default context is among them.'**
+  String get modelsContextOptionsDescription;
+
+  /// No description provided for @modelsContextAddHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. 128K'**
+  String get modelsContextAddHint;
+
+  /// No description provided for @modelsOptionAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get modelsOptionAdd;
+
+  /// No description provided for @modelsOptionRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {name}'**
+  String modelsOptionRemove(String name);
+
+  /// No description provided for @modelsOptionsReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to Default'**
+  String get modelsOptionsReset;
+
+  /// No description provided for @modelsOptionsNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None: not offered.'**
+  String get modelsOptionsNone;
+
+  /// No description provided for @modelsNoImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Does not take images'**
+  String get modelsNoImages;
 
   /// No description provided for @modelsSave.
   ///
@@ -9344,6 +9422,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Switch'**
   String get modelsSwitchConfirm;
+
+  /// No description provided for @modelsAuxiliary.
+  ///
+  /// In en, this message translates to:
+  /// **'Auxiliary Model'**
+  String get modelsAuxiliary;
+
+  /// No description provided for @modelsAuxiliaryDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Used for auxiliary work, such as generating conversation titles and commit messages. Automatic: the session\'s model (for commit messages, new sessions\' default); an upstream\'s by its Haiku tier.'**
+  String get modelsAuxiliaryDescription;
+
+  /// No description provided for @modelsAuxiliaryAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic'**
+  String get modelsAuxiliaryAuto;
+
+  /// No description provided for @modelsAuxiliaryBuiltin.
+  ///
+  /// In en, this message translates to:
+  /// **'Claude Code Haiku (this machine\'s setup)'**
+  String get modelsAuxiliaryBuiltin;
 }
 
 class _AppLocalizationsDelegate

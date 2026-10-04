@@ -133,9 +133,23 @@ class Sidebar extends StatefulWidget {
     this.customizing = false,
     this.drag,
     this.link,
+    this.current,
+    this.onSelect,
+    this.onNewAgent,
   });
 
   final Workspace workspace;
+
+  /// The agent shown where the sidebar is, selected among the rows: an
+  /// agent's window's own; by default the workspace's current one.
+  final AgentThread? current;
+
+  /// Shows an agent picked here; by default the workspace selects it.
+  final ValueChanged<AgentThread>? onSelect;
+
+  /// Opens a new agent in a project (by default the current one's); by
+  /// default the workspace creates it.
+  final ValueChanged<Project?>? onNewAgent;
 
   /// Opens a project's folder in an app (a project's menu); replaceable
   /// under test.
@@ -278,7 +292,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     if (_workspace.isExpanded(group.id)) {
       return (threads: all, more: 0, less: true);
     }
-    final current = _workspace.current;
+    final current = _current;
     final shown = [
       for (final (i, thread) in all.indexed)
         if (i < _recent || identical(thread, current)) thread,
@@ -291,11 +305,13 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   bool _listed(AgentThread thread) =>
       !_workspace.isHidden(thread.project) &&
       (!thread.untouched ||
-          identical(thread, _workspace.current) ||
+          identical(thread, _current) ||
           _workspace.grid.contains(thread));
 
+  AgentThread? get _current => widget.current ?? _workspace.current;
+
   void _open(AgentThread thread) {
-    _workspace.select(thread);
+    (widget.onSelect ?? _workspace.select)(thread);
     widget.onOpened?.call();
   }
 
@@ -319,7 +335,11 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   }
 
   void _create([Project? project]) {
-    _workspace.create(project: project);
+    if (widget.onNewAgent case final open?) {
+      open(project);
+    } else {
+      _workspace.create(project: project);
+    }
     widget.onOpened?.call();
   }
 
@@ -440,7 +460,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
               // A new chat picks its folder over its input (see
               // NewChatFolderBar): a folder first only without any.
               child: _NewAgentButton(
-                onTap: _workspace.projects.isEmpty
+                onTap: _workspace.sidebarProjects.isEmpty
                     ? (widget.onOpenFolder ?? () {})
                     : _create,
               ),
@@ -589,7 +609,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
         ),
       );
     }
-    final selected = _workspace.current;
+    final selected = _current;
     final spot = _spot;
     final laidOut = <({_Group group, AgentThread? thread, Object slot})>[];
     final projects = [for (final group in groups) ?group.project];
@@ -814,7 +834,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       unawaited(Sidebar.launch(editor, project.path));
       return;
     }
-    if (_workspace.current case final thread? when thread.project == project) {
+    if (_current case final thread? when thread.project == project) {
       _workspace.openInIde(thread);
     } else {
       _workspace

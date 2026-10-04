@@ -15,13 +15,8 @@ const _gateway = ModelProvider(
   protocol: ProviderProtocol.openaiChat,
   baseUrl: 'https://gw.example.com/v1',
   models: [
-    ProviderModel(
-      id: 'gpt-5',
-      label: 'GPT-5',
-      contextWindow: 400000,
-      thinking: true,
-    ),
-    ProviderModel(id: 'plain'),
+    ProviderModel(id: 'gpt-5', label: 'GPT-5', contextWindow: 400000),
+    ProviderModel(id: 'plain', efforts: ['low', 'high'], contexts: [128000]),
     ProviderModel(id: 'off', enabled: false),
   ],
 );
@@ -87,6 +82,9 @@ void main() {
     expect(launch.model, 'gpt-5(high)');
     expect(launch.env, {'ANTHROPIC_BASE_URL': 'http://proxy/gw'});
     expect(launch.autocompact, 400000);
+    // Through the proxy: not Claude Code's own effort.
+    expect(launch.effort, isNull);
+    expect(launch.thinking, isNull);
     expect(environments, [('gw', 'gpt-5(high)')]);
     expect(kernel.model.selected, '@gw/gpt-5');
     kernel.dispose();
@@ -137,29 +135,104 @@ void main() {
     kernel.dispose();
   });
 
-  test(
-    'only a thinking model offers an effort; a provider\'s has no 1M',
-    () async {
-      final (:kernel, launches: _, clis: _, environments: _) = start(
-        providers,
-        {'model': '@gw/gpt-5'},
-      );
-      kernel.prepare();
-      await pumpEventQueue();
-      final effort = (kernel as SelectsEffort).effort;
-      expect(effort.optionsFor('@gw/gpt-5').map((o) => o.id), [
-        'low',
-        'medium',
-        'high',
-      ]);
-      expect(effort.optionsFor('@gw/plain'), isEmpty);
-      expect(
-        (kernel as SelectsContextSize).contextSize.optionsFor('@gw/gpt-5'),
-        isEmpty,
-      );
-      kernel.dispose();
-    },
-  );
+  test('a provider\'s model offers every effort and context, unless it has '
+      'its own; Medium and its default context are picked', () async {
+    final (:kernel, :launches, clis: _, environments: _) = start(providers, {
+      'model': '@gw/gpt-5',
+    });
+    kernel.prepare();
+    await pumpEventQueue();
+    final effort = (kernel as SelectsEffort).effort;
+    final contextSize = (kernel as SelectsContextSize).contextSize;
+    expect(effort.optionsFor('@gw/gpt-5').map((o) => o.label), [
+      'Disable',
+      'Low',
+      'Medium',
+      'High',
+      'X-High',
+      'Max',
+    ]);
+    expect(effort.optionsFor('@gw/plain').map((o) => o.id), ['low', 'high']);
+    expect(contextSize.optionsFor('@gw/gpt-5').map((o) => o.label), [
+      '200K',
+      '256K',
+      '300K',
+      '400K',
+      '500K',
+      '800K',
+      '1M',
+    ]);
+    // The default context among its own.
+    expect(contextSize.optionsFor('@other/m').map((o) => o.label), [
+      '200K',
+      '256K',
+      '300K',
+      '400K',
+      '500K',
+      '800K',
+      '1M',
+    ]);
+    expect(contextSize.optionsFor('@gw/plain').map((o) => o.label), ['128K']);
+    expect(effort.selected, 'medium');
+    expect(contextSize.selected, '400000');
+    expect(launches.single.model, 'gpt-5(medium)');
+    kernel.dispose();
+  });
+
+  test('a context picked on a provider\'s model is compacted at from the '
+      'next message', () async {
+    final (:kernel, :launches, :clis, environments: _) = start(providers, {
+      'model': '@gw/gpt-5',
+    });
+    kernel.prepare();
+    await pumpEventQueue();
+    expect(launches.single.autocompact, 400000);
+    final contextSize = (kernel as SelectsContextSize).contextSize;
+    contextSize.select('@gw/gpt-5', '1000000');
+    await pumpEventQueue();
+    expect(contextSize.selected, '1000000');
+    expect(launches, hasLength(1));
+    kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+    await pumpEventQueue();
+    expect(launches, hasLength(2));
+    expect(launches.last.autocompact, 1000000);
+    kernel.dispose();
+  });
+
+  test('Disable turns thinking off: through the proxy, by the model\'s name; '
+      'to an Anthropic upstream, as Claude Code\'s setting', () async {
+    final (:kernel, :launches, :clis, environments: _) = start(providers, {
+      'model': '@other/m',
+      'effort': 'none',
+    });
+    kernel.prepare();
+    await pumpEventQueue();
+    expect(launches.single.model, 'm');
+    expect(launches.single.effort, isNull);
+    expect(launches.single.thinking, isFalse);
+    expect(launches.single.settings['alwaysThinkingEnabled'], isFalse);
+
+    final effort = (kernel as SelectsEffort).effort;
+    effort.select('@other/m', 'xhigh');
+    await pumpEventQueue();
+    expect(clis.single.requests('apply_flag_settings').last['settings'], {
+      'effortLevel': 'xhigh',
+      'alwaysThinkingEnabled': true,
+    });
+    effort.select('@other/m', 'none');
+    await pumpEventQueue();
+    expect(clis.single.requests('apply_flag_settings').last['settings'], {
+      'alwaysThinkingEnabled': false,
+    });
+    kernel.dispose();
+
+    final gateway = start(providers, {'model': '@gw/gpt-5', 'effort': 'none'});
+    gateway.kernel.prepare();
+    await pumpEventQueue();
+    expect(gateway.launches.single.model, 'gpt-5(none)');
+    expect(gateway.launches.single.thinking, isNull);
+    gateway.kernel.dispose();
+  });
 
   test('another model of the same provider is switched to in place', () async {
     final (:kernel, :launches, :clis, environments: _) = start(providers, {
@@ -172,10 +245,10 @@ void main() {
     kernel.model.select('@gw/plain');
     await pumpEventQueue();
     expect(launches, hasLength(1));
-    expect(clis.single.requests('set_model').last['model'], 'plain');
+    // The effort goes after its name.
+    expect(clis.single.requests('set_model').last['model'], 'plain(low)');
     expect(kernel.model.selected, '@gw/plain');
 
-    // The effort of a thinking one goes after its name.
     kernel.model.select('@gw/gpt-5');
     await pumpEventQueue();
     (kernel as SelectsEffort).effort.select('@gw/gpt-5', 'high');

@@ -81,6 +81,19 @@ void main() {
     expect(bar, greaterThan(900 / 4));
   }, variant: _mac);
 
+  testWidgets('a hidden project is not offered for a new chat', (tester) async {
+    final workspace = await _pumpNew(tester);
+    final hidden = workspace.projects.firstWhere(
+      (project) => project.path == '~/code/cursor-docs',
+    );
+    workspace.hideProject(hidden);
+    await tester.pump();
+
+    await tester.tap(find.descendant(of: _bar, matching: find.text('baocode')));
+    await tester.pumpAndSettle();
+    expect(find.text('cursor-docs'), findsNothing);
+  }, variant: _mac);
+
   testWidgets('no folder has it work in the Desktop, in its place', (
     tester,
   ) async {

@@ -88,6 +88,55 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
     return value;
   }
 
+  String _auxiliaryName(BuildContext context, String? value) {
+    final l10n = context.l10n;
+    if (value == null) return l10n.modelsAuxiliaryAuto;
+    if (value == builtinProviderId) return l10n.modelsAuxiliaryBuiltin;
+    return _defaultName(context, value);
+  }
+
+  /// The auxiliary model: what titles and commit messages ask.
+  Widget _auxiliaryRow(BuildContext context) {
+    final l10n = context.l10n;
+    final current = _providers.auxiliaryModel;
+    final shown = _auxiliaryName(context, current);
+    void set(String? model) => unawaited(_providers.setAuxiliaryModel(model));
+    return SettingsRow(
+      label: l10n.modelsAuxiliary,
+      description: l10n.modelsAuxiliaryDescription,
+      trailing: SettingsDropdown(
+        current: shown,
+        semanticLabel: l10n.modelsChoiceLabel(l10n.modelsAuxiliary, shown),
+        entries: () => [
+          IdeMenuAction(
+            l10n.modelsAuxiliaryAuto,
+            checked: current == null,
+            onSelected: () => set(null),
+          ),
+          const IdeMenuSeparator(),
+          IdeMenuAction(
+            l10n.modelsAuxiliaryBuiltin,
+            checked: current == builtinProviderId,
+            onSelected: () => set(builtinProviderId),
+          ),
+          for (final provider in _providers.enabled)
+            IdeMenuAction(
+              provider.name,
+              checked: parseModelRef(current)?.provider == provider.id,
+              submenu: [
+                for (final model in provider.enabledModels)
+                  IdeMenuAction(
+                    model.displayName,
+                    checked: current == modelRef(provider.id, model.id),
+                    onSelected: () => set(modelRef(provider.id, model.id)),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _list(BuildContext context) {
     final l10n = context.l10n;
     final current = _providers.defaultModel;
@@ -142,6 +191,7 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
                 ],
               ),
             ),
+            _auxiliaryRow(context),
           ],
         ),
         SettingsGroup(
@@ -336,6 +386,9 @@ class ProviderSettingsPage extends StatefulWidget {
 class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   final TextEditingController _search = TextEditingController();
   bool _showKey = false;
+
+  /// All the upstream's models listed, not only those checked.
+  bool _showAll = false;
   bool _rolesOpen = true;
   bool _advancedOpen = false;
 
@@ -624,11 +677,14 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     final l10n = context.l10n;
     final provider = _provider;
     final query = _search.text.trim().toLowerCase();
+    // Those checked, unless all are shown, or searched.
+    final all = _showAll || query.isNotEmpty;
     final shown = [
       for (final model in provider.models)
-        if (query.isEmpty ||
-            model.id.toLowerCase().contains(query) ||
-            model.displayName.toLowerCase().contains(query))
+        if ((all || model.enabled) &&
+            (query.isEmpty ||
+                model.id.toLowerCase().contains(query) ||
+                model.displayName.toLowerCase().contains(query)))
           model,
     ];
     return SettingsGroup(
@@ -651,6 +707,14 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
               const SizedBox(width: 8),
               SettingsButtons(
                 children: [
+                  if (provider.models.isNotEmpty)
+                    IdeButton(
+                      label: _showAll
+                          ? l10n.modelsShowChecked
+                          : l10n.modelsShowAll(provider.models.length),
+                      secondary: true,
+                      onPressed: () => setState(() => _showAll = !_showAll),
+                    ),
                   IdeButton(
                     label: l10n.modelsFetch,
                     icon: Codicons.cloudDownload,
@@ -672,7 +736,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
         if (provider.models.isEmpty)
           SettingsRow(label: l10n.modelsNone)
         else if (shown.isEmpty)
-          SettingsRow(label: l10n.modelsNoMatch)
+          SettingsRow(label: all ? l10n.modelsNoMatch : l10n.modelsNoneChecked)
         else
           for (final model in shown)
             _ModelRow(
@@ -891,7 +955,6 @@ class _ModelRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final muted = AppColors.textMuted;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       child: Row(
@@ -930,6 +993,10 @@ class _ModelRow extends StatelessWidget {
                       const SizedBox(width: 6),
                       ModelBadge(l10n.modelsCustom),
                     ],
+                    if (!model.images) ...[
+                      const SizedBox(width: 6),
+                      ModelBadge(l10n.modelsNoImages),
+                    ],
                   ],
                 ),
                 if (model.label != null && model.displayName != model.id)
@@ -958,26 +1025,6 @@ class _ModelRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          SizedBox(
-            width: 40,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (model.thinking)
-                  IdeHover(
-                    message: l10n.modelsThinking,
-                    child: Icon(Codicons.lightbulb, size: 14, color: muted),
-                  ),
-                if (model.images) ...[
-                  const SizedBox(width: 4),
-                  IdeHover(
-                    message: l10n.modelsImages,
-                    child: Icon(Codicons.fileMedia, size: 14, color: muted),
-                  ),
-                ],
-              ],
-            ),
-          ),
           const SizedBox(width: 4),
           Builder(
             builder: (context) => IdeActionButton(

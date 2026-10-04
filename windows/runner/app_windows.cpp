@@ -181,8 +181,10 @@ void IdeWindow::OnDestroy() {
   ReleaseView();
   if (controller_ != nullptr) {
     // Its view goes from the engine, and its window with it.
-    FlutterDesktopViewControllerDestroy(controller_);
-    controller_ = nullptr;
+    // Destroying the child HWND sends messages to its parent synchronously.
+    // EngineMessage must not re-enter a controller whose view is being reset.
+    const auto controller = std::exchange(controller_, nullptr);
+    FlutterDesktopViewControllerDestroy(controller);
   }
   Win32Window::OnDestroy();
 }
@@ -416,8 +418,16 @@ void AppWindows::HandleMethodCall(
     return;
   }
   if (method == "close") {
+    if (id && *id != 0 && windows_.find(*id) != windows_.end()) {
+      if (!::PostMessageW(main_, kCloseMessage, 0, 0)) {
+        result->Error("close_failed", "Unable to queue window close");
+        return;
+      }
+      pending_closes_.push_back({*id, std::move(result)});
+      return;
+    }
     if (id) {
-      Close(*id);
+      Hide(*id);
     }
     result->Success();
     return;
@@ -597,6 +607,15 @@ void AppWindows::Close(int64_t view_id) {
   std::unique_ptr<IdeWindow> window = std::move(found->second);
   windows_.erase(found);
   window = nullptr;
+}
+
+void AppWindows::ClosePendingWindows() {
+  auto closing = std::move(pending_closes_);
+  pending_closes_.clear();
+  for (auto& pending : closing) {
+    Close(pending.view_id);
+    pending.result->Success();
+  }
 }
 
 void AppWindows::Hide(int64_t view_id) {

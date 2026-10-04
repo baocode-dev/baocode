@@ -92,18 +92,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(_width(tester, 'ide-sidebar'), IdeColumns.defaultSidebar);
 
+    // Snapped shut, the chat comes back while the drag goes on.
+    final drag = await tester.startGesture(
+      tester.getCenter(_part('ide-chat-sash')),
+    );
+    await drag.moveBy(const Offset(20, 0));
+    await drag.moveBy(const Offset(280, 0));
+    await tester.pump();
+    expect(_width(tester, 'ide-chat'), 0);
+    expect(_part('ide-chat-sash'), findsOneWidget);
+    await drag.moveBy(const Offset(-300, 0));
+    await tester.pump();
+    expect(_width(tester, 'ide-chat'), IdeColumns.defaultChat);
+    await drag.up();
+    await tester.pump(kDoubleTapTimeout);
+
     await tester.drag(_part('ide-chat-sash'), const Offset(300, 0));
     await tester.pump();
     expect(_width(tester, 'ide-chat'), 0);
     expect(find.byKey(chatKey), findsNothing);
-    // Its sash stays, as the gap by the window's side, to drag it out.
+    // Once the drag ends, no sash: the gap by the window's side is left to
+    // the window's own resizing edge.
+    expect(_part('ide-chat-sash'), findsNothing);
     expect(
-      tester.getRect(_part('ide-chat-sash')).right,
+      tester.getRect(_part('ide-chat-gap')).right,
       tester.view.physicalSize.width,
     );
-    await tester.drag(_part('ide-chat-sash'), const Offset(-400, 0));
+    await tester.tap(find.byIcon(Codicons.layoutSidebarRightOff));
     await tester.pump();
-    expect(_width(tester, 'ide-chat'), 400);
+    expect(_width(tester, 'ide-chat'), IdeColumns.defaultChat);
     // The double click's wait.
     await tester.pump(kDoubleTapTimeout);
   });

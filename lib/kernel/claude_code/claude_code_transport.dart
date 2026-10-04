@@ -42,6 +42,7 @@ class ClaudeLaunch {
     this.model,
     this.permissionMode,
     this.effort,
+    this.thinking,
     this.autocompact,
     this.autoModeDuringPlan,
     this.attribution = CommitAttribution.agent,
@@ -57,6 +58,10 @@ class ClaudeLaunch {
   final String? model;
   final String? permissionMode;
   final String? effort;
+
+  /// Whether the model thinks, as Claude Code's `alwaysThinkingEnabled`
+  /// setting: false turns it off; null leaves the user's own.
+  final bool? thinking;
 
   /// The context the conversation fills before it is compacted; null for
   /// the CLI's own. Only taken at start: `apply_flag_settings` stores it,
@@ -102,6 +107,7 @@ class ClaudeLaunch {
     model: model,
     permissionMode: permissionMode,
     effort: effort,
+    thinking: thinking,
     autocompact: autocompact,
     autoModeDuringPlan: autoModeDuringPlan,
     attribution: attribution,
@@ -123,6 +129,7 @@ class ClaudeLaunch {
   Map<String, Object?> get settings => {
     'attribution': ?_attribution,
     'useAutoModeDuringPlan': ?autoModeDuringPlan,
+    'alwaysThinkingEnabled': ?thinking,
     if (env case final env? when env.isNotEmpty) 'env': env,
   };
 

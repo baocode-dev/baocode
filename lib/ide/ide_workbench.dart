@@ -261,6 +261,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// snapped shut takes the window's gap beside it along.)
   ({IdeColumns columns, double room})? _dragStart;
 
+  /// Whether the chat's sash is being dragged: snapped shut, it stays till
+  /// the drag ends, so the drag can bring the chat back.
+  bool _chatSashDragging = false;
+
   /// Which parts show: the workspace's, for the window's header to toggle
   /// as well (see [IdeLayout]); [_layoutChanged] follows it.
   IdeLayout get _layout => widget.workspace.layout;
@@ -341,6 +345,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// after the items on the left.
   String? _statusMessage;
   Timer? _statusMessageTimer;
+
+  /// Reads the Git status again when the app comes back to the front: a
+  /// pull or a commit made elsewhere may have changed it unseen.
+  AppLifecycleListener? _lifecycle;
 
   DocumentSnapshot? _eolSnapshot;
   String _eolLabel = 'LF';
@@ -520,6 +528,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
     _restoreView();
     _attach();
+    _lifecycle = AppLifecycleListener(
+      onResume: () => unawaited(_git?.refresh()),
+    );
     IdeLanguageNames.ensureLoaded(() {
       if (mounted) setState(() {});
     });
@@ -711,6 +722,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _keepView();
     _chordChecker?.cancel();
     _statusMessageTimer?.cancel();
+    _lifecycle?.dispose();
     // A quick pick or input box going with the workbench hides (the color
     // themes one applies the theme it started with again).
     _quickModel?.onDidHide?.call();
@@ -2999,7 +3011,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// if that shows, the panel below the two.
   Widget _split(Size size, List<IdeCommand> commands) {
     const gap = IdeModernUI.gap;
-    // Hidden, the chat leaves its sash as the gap at the window's side. The
+    // Hidden, the chat leaves a gap at the window's side, its sash's width
+    // but no sash: there it would take the window's own resizing edge. The
     // gap above the status bar is each column's: the panel's sash, hidden.
     final outside = EdgeInsets.fromLTRB(gap, 0, _chatShown ? gap : 0, 0);
     // Keyed, so a sash keeps its drag as the columns change about it.
@@ -3058,7 +3071,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         grip: chatVisible,
         canMoveBack: columns.canGrowChat(room),
         canMoveForward: chatVisible,
-        onStart: () => _dragStart = (columns: columns, room: room),
+        onStart: () {
+          _dragStart = (columns: columns, room: room);
+          _chatSashDragging = true;
+        },
+        onEnd: () {
+          if (mounted) setState(() => _chatSashDragging = false);
+        },
         onDrag: (dx) => _dragTo((start, room) => start.dragChat(room, dx)),
         onReset: () => setState(() {
           _layout
@@ -3106,7 +3125,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             ),
           ),
           if (!editorHidden) ...[
-            chatSash,
+            if (chatVisible || _chatSashDragging)
+              chatSash
+            else
+              const SizedBox(
+                key: ValueKey('ide-chat-gap'),
+                width: _sashWidth,
+              ),
             above(_chatSlot(columns.chat), 'chat'),
           ],
         ],
@@ -3721,6 +3746,7 @@ class _Sash extends StatefulWidget {
     required this.onStart,
     required this.onDrag,
     required this.onReset,
+    this.onEnd,
     this.axis = Axis.horizontal,
     this.grip = true,
     this.canMoveBack = true,
@@ -3732,6 +3758,7 @@ class _Sash extends StatefulWidget {
   /// How far the pointer is from where the drag began, along [axis].
   final ValueChanged<double> onDrag;
   final VoidCallback onReset;
+  final VoidCallback? onEnd;
 
   /// Which way it moves: between columns, or (vertical) between rows.
   final Axis axis;
@@ -3803,6 +3830,7 @@ class _SashState extends State<_Sash> {
   void _end() {
     _removeShield();
     setState(() => _dragging = false);
+    widget.onEnd?.call();
   }
 
   void _removeShield() {

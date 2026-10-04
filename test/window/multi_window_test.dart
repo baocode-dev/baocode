@@ -8,6 +8,7 @@ import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/window/app_windows.dart';
 import 'package:baocode/window/window_settings.dart';
 import 'package:baocode/workbench.dart';
@@ -153,6 +154,61 @@ void main() {
     expect(host.views, isEmpty);
     expect(workspace.threads, isNot(contains(thread)));
   });
+
+  testWidgets(
+    'Windows: an agent\'s window has the sidebar, as the chat\'s: '
+    'its toggle slides it out while narrow; an agent picked there shows in '
+    'the window in place of its own',
+    (tester) async {
+      final (windows, host, workspace) = await _pumpApp(tester);
+      final opening = windows.openAgent(['~/code/baocode']);
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      final thread = (await opening)!;
+      final window = windows.agentWindows.single;
+      host.views[window.viewId]!.physicalSize = const Size(520, 760);
+      await tester.pump();
+      await tester.pump();
+      final sidebar = _inView(window.viewId, find.byType(Sidebar));
+      expect(sidebar, findsNothing);
+
+      final current = workspace.current;
+      await tester.tap(
+        _inView(
+          window.viewId,
+          find.widgetWithIcon(SidebarIconButton, Codicons.layoutSidebarLeftOff),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(sidebar, findsOneWidget);
+      expect(tester.widget<Sidebar>(sidebar).current, same(thread));
+
+      final other = workspace.threads.firstWhere(
+        (t) => !identical(t, thread) && !t.untouched,
+      );
+      await tester.tap(
+        find.descendant(of: sidebar, matching: find.text(other.title)).first,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(window.thread, same(other));
+      expect(
+        tester
+            .widget<ChatScreen>(_inView(window.viewId, find.byType(ChatScreen)))
+            .session,
+        same(other.session),
+      );
+      expect(host.titles[window.viewId], contains(other.title));
+      // The chat's window keeps its own; the new agent nothing was sent to
+      // goes, as with its window closed.
+      expect(workspace.current, same(current));
+      expect(workspace.threads, isNot(contains(thread)));
+    },
+    semanticsEnabled: false,
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
 
   _testWindows('a window closed goes, its view and its workbench', (
     tester,

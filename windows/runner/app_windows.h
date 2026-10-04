@@ -104,6 +104,11 @@ class AppWindows : public WindowObserver {
   // The engine's own way out (exitApplication) ends the loop first, the
   // windows still up, and taking Flutter down outside it hangs the app.
   static constexpr UINT kQuitMessage = WM_APP + 0x42;
+  static constexpr UINT kCloseMessage = WM_APP + 0x44;
+
+  // Removes views outside the engine's platform-message callback. Replies
+  // only once the native view is gone, so Dart can safely continue quitting.
+  void ClosePendingWindows();
 
   // A window as the tray's menu lists it.
   struct Entry {
@@ -186,6 +191,11 @@ class AppWindows : public WindowObserver {
   bool started_ = false;
   Attention* attention_ = nullptr;
   std::map<int64_t, std::unique_ptr<IdeWindow>> windows_;
+  struct PendingClose {
+    int64_t view_id;
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result;
+  };
+  std::vector<PendingClose> pending_closes_;
   std::vector<Entry> entries_;
   std::map<std::string, std::wstring> labels_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;

@@ -53,12 +53,42 @@ class ProviderModel {
     required this.id,
     this.label,
     this.contextWindow,
-    this.thinking = false,
-    this.images = false,
+    this.efforts,
+    this.contexts,
+    this.images = true,
     this.enabled = true,
     this.custom = false,
     this.missing = false,
   });
+
+  /// The efforts offered unless the model has its own: `none` turns its
+  /// reasoning off.
+  static const defaultEfforts = [
+    'none',
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max',
+  ];
+
+  /// The effort a session starts with, when the model offers it.
+  static const defaultEffort = 'medium';
+
+  /// The contexts offered unless the model has its own.
+  static const defaultContexts = [
+    200000,
+    256000,
+    300000,
+    400000,
+    500000,
+    800000,
+    1000000,
+  ];
+
+  /// The context a session fills before compacting, unless the model
+  /// says ([contextWindow]).
+  static const defaultContext = 200000;
 
   /// As the upstream names it.
   final String id;
@@ -66,11 +96,15 @@ class ProviderModel {
   /// As the picker shows it; [id] when unset.
   final String? label;
 
-  /// Tokens it holds; unknown when null.
+  /// The context a session fills before compacting, unless another is
+  /// picked; [defaultContext] when null.
   final int? contextWindow;
 
-  /// Whether it reasons: its effort is offered, and reasoning asked for.
-  final bool thinking;
+  /// The efforts offered in the picker; [defaultEfforts] when null.
+  final List<String>? efforts;
+
+  /// The contexts offered in the picker; [defaultContexts] when null.
+  final List<int>? contexts;
 
   /// Whether it takes images.
   final bool images;
@@ -89,11 +123,40 @@ class ProviderModel {
     _ => id,
   };
 
+  /// The efforts offered in the picker.
+  List<String> get effortLevels => efforts ?? defaultEfforts;
+
+  /// The effort picked unless another is: [defaultEffort] if offered,
+  /// else the first; null with none offered.
+  String? get initialEffort {
+    final levels = effortLevels;
+    return levels.contains(defaultEffort) ? defaultEffort : levels.firstOrNull;
+  }
+
+  /// The context picked unless another is: [contextWindow], else
+  /// [defaultContext] if offered, else the first offered.
+  int get initialContext {
+    if (contextWindow case final tokens?) return tokens;
+    final offered = contexts ?? defaultContexts;
+    return offered.contains(defaultContext)
+        ? defaultContext
+        : offered.firstOrNull ?? defaultContext;
+  }
+
+  /// The contexts offered in the picker, smallest first: [initialContext]
+  /// among them.
+  List<int> get contextOptions {
+    final offered = {...(contexts ?? defaultContexts), initialContext}.toList()
+      ..sort();
+    return offered;
+  }
+
   ProviderModel copyWith({
     String? id,
     String? Function()? label,
     int? Function()? contextWindow,
-    bool? thinking,
+    List<String>? Function()? efforts,
+    List<int>? Function()? contexts,
     bool? images,
     bool? enabled,
     bool? custom,
@@ -102,7 +165,8 @@ class ProviderModel {
     id: id ?? this.id,
     label: label == null ? this.label : label(),
     contextWindow: contextWindow == null ? this.contextWindow : contextWindow(),
-    thinking: thinking ?? this.thinking,
+    efforts: efforts == null ? this.efforts : efforts(),
+    contexts: contexts == null ? this.contexts : contexts(),
     images: images ?? this.images,
     enabled: enabled ?? this.enabled,
     custom: custom ?? this.custom,
@@ -113,8 +177,9 @@ class ProviderModel {
     'id': id,
     if (label case final label? when label.trim().isNotEmpty) 'label': label,
     'contextWindow': ?contextWindow,
-    if (thinking) 'thinking': true,
-    if (images) 'images': true,
+    'efforts': ?efforts,
+    'contexts': ?contexts,
+    if (!images) 'images': false,
     if (!enabled) 'enabled': false,
     if (custom) 'custom': true,
     if (missing) 'missing': true,
@@ -131,8 +196,21 @@ class ProviderModel {
         final int tokens when tokens > 0 => tokens,
         _ => null,
       },
-      thinking: json['thinking'] == true,
-      images: json['images'] == true,
+      efforts: switch (json['efforts']) {
+        final List list => [
+          for (final level in list)
+            if (level is String && level.trim().isNotEmpty) level.trim(),
+        ],
+        _ => null,
+      },
+      contexts: switch (json['contexts']) {
+        final List list => [
+          for (final tokens in list)
+            if (tokens is int && tokens > 0) tokens,
+        ],
+        _ => null,
+      },
+      images: json['images'] != false,
       enabled: json['enabled'] != false,
       custom: json['custom'] == true,
       missing: json['missing'] == true,
@@ -145,7 +223,8 @@ class ProviderModel {
       other.id == id &&
       other.label == label &&
       other.contextWindow == contextWindow &&
-      other.thinking == thinking &&
+      _sameList(other.efforts, efforts) &&
+      _sameList(other.contexts, contexts) &&
       other.images == images &&
       other.enabled == enabled &&
       other.custom == custom &&
@@ -156,13 +235,31 @@ class ProviderModel {
     id,
     label,
     contextWindow,
-    thinking,
+    efforts == null ? null : Object.hashAll(efforts!),
+    contexts == null ? null : Object.hashAll(contexts!),
     images,
     enabled,
     custom,
     missing,
   );
+
+  static bool _sameList<T>(List<T>? a, List<T>? b) {
+    if (a == null || b == null) return a == b;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }
+
+/// An effort as the picker shows it: `X-High`, `Disable` for `none`.
+String effortLabel(String level) => switch (level) {
+  'none' => 'Disable',
+  'xhigh' => 'X-High',
+  '' => level,
+  _ => level[0].toUpperCase() + level.substring(1),
+};
 
 /// Which models Claude Code uses for what, by model id: unset, the model
 /// picked stands in.
@@ -418,4 +515,20 @@ String formatTokens(int tokens) {
   }
   if (tokens >= 1000) return '${(tokens / 1000).round()}K';
   return '$tokens';
+}
+
+/// [text] as a number of tokens (`200000`, `200K`, `1M`, `1.5m`); null
+/// when empty, -1 when it is not one.
+int? parseTokens(String text) {
+  final value = text.trim().replaceAll(RegExp(r'[,_\s]'), '').toLowerCase();
+  if (value.isEmpty) return null;
+  final match = RegExp(r'^(\d+(?:\.\d+)?)([km]?)$').firstMatch(value);
+  if (match == null) return -1;
+  final number = double.parse(match.group(1)!);
+  final tokens = switch (match.group(2)) {
+    'k' => number * 1000,
+    'm' => number * 1000000,
+    _ => number,
+  }.round();
+  return tokens > 0 ? tokens : -1;
 }

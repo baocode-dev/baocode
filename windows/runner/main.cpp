@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "flutter_window.h"
+#include "hang_watchdog.h"
 #include "open_requests.h"
 #include "utils.h"
 
@@ -85,7 +86,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   const HANDLE single_instance =
       ::CreateMutexW(nullptr, FALSE, kSingleInstanceMutex);
   if (single_instance != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
-    ForwardToRunningWindow(open_paths);
+    // Not taken (or no window to take them): the copy running is written
+    // down, as it may hang (see hang_watchdog.h).
+    if (!ForwardToRunningWindow(open_paths)) {
+      hang_watchdog::ReportRunningCopy();
+    }
     ::CloseHandle(single_instance);
     return EXIT_SUCCESS;
   }
@@ -120,11 +125,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   window.SetMinimumSize(Win32Window::Size(kMinClientWidth, kMinClientHeight));
   window.SetQuitOnClose(true);
 
+  // A hang (closing a window, quitting) written down where it is: see
+  // hang_watchdog.h.
+  hang_watchdog::Start(window.GetHandle());
+
   ::MSG msg;
   while (::GetMessage(&msg, nullptr, 0, 0)) {
     ::TranslateMessage(&msg);
     ::DispatchMessage(&msg);
   }
+  hang_watchdog::LoopEnded();
 
   ::OleUninitialize();
   return EXIT_SUCCESS;

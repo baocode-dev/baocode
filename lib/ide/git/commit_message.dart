@@ -46,12 +46,15 @@ Future<String> ideClaudeCommitMessage(
   Future<void>? cancel,
 }) async {
   try {
+    // The auxiliary model; automatic, new sessions' default.
+    final models = ModelProviders.current;
+    final auxiliary = models.auxiliary(models.defaultModel);
     final reply = await askClaudeHaiku(
       prompt.system,
       prompt.user,
       cancel: cancel,
-      // The model new sessions start with: a provider's, if picked.
-      model: ModelProviders.current.defaultModel,
+      model: auxiliary.model,
+      exact: auxiliary.exact,
     );
     return ideCleanCommitMessage(reply);
   } on ClaudeHaikuCancelled {

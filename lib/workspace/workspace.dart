@@ -583,7 +583,16 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   String? _ideFolder;
 
   /// Folders and files the IDE opened, the most recent first.
-  List<String> get recentFolders => List.unmodifiable(_recentFolders);
+  ///
+  /// A project hidden from the sidebar is not a selectable recent project
+  /// either. Folders that are not projects yet remain available so opening a
+  /// new folder in the IDE still works as before.
+  List<String> get recentFolders => List.unmodifiable([
+    for (final path in _recentFolders)
+      if (!_projects.any((project) => project.path == path) ||
+          !_hiddenProjects.containsKey(path))
+        path,
+  ]);
   List<String> get recentFiles => List.unmodifiable(_recentFiles);
   final List<String> _recentFolders = [], _recentFiles = [];
 
@@ -613,6 +622,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   /// Has the IDE show [path], with a chat of its own there.
   void openIdeFolder(String path) {
+    _unhide(path);
     if (ideWindows case final route?) {
       noteIdeFolder(path);
       route(path, null);
@@ -677,6 +687,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// [path] opened by the IDE's window of its own: among the recent, with a
   /// chat of its own there.
   void noteIdeFolder(String path) {
+    _unhide(path);
     _recent(_recentFolders, path);
     _ensureIdeChat(path);
     _save();
@@ -730,6 +741,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Shows [thread] in the IDE: its folder, with it the chat there.
   void openInIde(AgentThread thread) {
     final folder = thread.project.path;
+    _unhide(folder);
     if (ideWindows case final route?) {
       _recent(_recentFolders, folder);
       _addIdeChat(folder, thread);
@@ -1930,10 +1942,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Opens a new, empty agent in [project] (by default the current one's).
   /// An untouched new agent there is reused rather than piling up.
   AgentThread create({Project? project}) {
-    project ??=
-        _selected?.project ??
-        sidebarProjects.firstOrNull ??
-        _projects.firstOrNull;
+    project ??= switch (_selected?.project) {
+      final current? when !isHidden(current) => current,
+      _ => sidebarProjects.firstOrNull ?? _projects.firstOrNull,
+    };
     if (project == null) {
       throw StateError('No project to create an agent in');
     }

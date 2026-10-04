@@ -167,9 +167,10 @@ class ModelProxy {
   ) async {
     final requested = parseSuffix('${body['model'] ?? ''}');
     final modelId = requested.modelName.trim();
-    final model = provider.model(modelId);
-    final thinking = model?.thinking ?? false;
-    final effort = requested.hasSuffix ? requested.rawSuffix.trim() : null;
+    // The effort picked goes with the model's name: none, or `none`, and
+    // reasoning is not asked for.
+    final effort = requested.hasSuffix ? requested.rawSuffix.trim() : '';
+    final thinking = effort.isNotEmpty && effort != ThinkingLevel.none;
     final stream = body['stream'] == true;
     final url = UpstreamUrls.conversation(provider);
     if (url == null) {
@@ -183,10 +184,10 @@ class ModelProxy {
         stream,
         preserveThinking: provider.preserveThinking,
       );
-      if (!thinking) {
-        outgoing.remove('reasoning_effort');
-      } else if (effort != null && effort.isNotEmpty) {
+      if (thinking) {
         outgoing['reasoning_effort'] = effort;
+      } else {
+        outgoing.remove('reasoning_effort');
       }
       if (stream) outgoing['stream_options'] = {'include_usage': true};
     } else {
@@ -195,9 +196,7 @@ class ModelProxy {
         body,
         reasoning: thinking,
       );
-      if (thinking && effort != null && effort.isNotEmpty) {
-        outgoing['reasoning'] = {'effort': effort};
-      }
+      if (thinking) outgoing['reasoning'] = {'effort': effort};
     }
 
     final client = await _upstream();

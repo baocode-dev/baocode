@@ -7,6 +7,7 @@
 import '../chat/chat_models.dart';
 import '../kernel/claude_code/claude_haiku.dart';
 import '../l10n/l10n.dart';
+import '../models/model_providers.dart';
 
 /// Titles a conversation after [message], held with [model] (the
 /// session's: a provider's model has the provider asked); null when it
@@ -52,12 +53,15 @@ Future<String?> claudeAgentTitle(String message, {String? model}) async {
   if (text.length > agentTitleMessageBudget) {
     text = '${text.substring(0, agentTitleMessageBudget)}…';
   }
+  // The auxiliary model; automatic, the session's.
+  final auxiliary = ModelProviders.current.auxiliary(model);
   try {
     return cleanAgentTitle(
       await askClaudeHaiku(
         _system,
         '<message>\n$text\n</message>',
-        model: model,
+        model: auxiliary.model,
+        exact: auxiliary.exact,
       ),
     );
   } on Object {

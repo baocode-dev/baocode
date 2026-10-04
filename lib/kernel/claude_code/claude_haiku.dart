@@ -14,19 +14,20 @@ import 'claude_haiku_stub.dart'
 /// no answer.
 ///
 /// With [model] a provider's ([modelRef]), the provider is asked instead:
-/// its Haiku model, or [model] itself when it sets none.
+/// its Haiku model, or [model] itself when it sets none (or when [exact]).
 Future<String> askClaudeHaiku(
   String system,
   String prompt, {
   Future<void>? cancel,
   String? model,
+  bool exact = false,
 }) async {
   final custom = ModelProviders.current.resolve(model);
   if (custom == null) {
     return platform.askClaudeHaiku(system, prompt, cancel: cancel);
   }
   final (provider, info) = custom;
-  final name = provider.roles.haiku ?? info.id;
+  final name = exact ? info.id : provider.roles.haiku ?? info.id;
   final Map<String, String> env;
   try {
     env = await providerLaunchEnvironment(provider, name);

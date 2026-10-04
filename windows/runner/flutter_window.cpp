@@ -6,6 +6,9 @@
 #include <utility>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "hang_watchdog.h"
+
+static_assert(AppWindows::kCloseMessage != hang_watchdog::kPingMessage);
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project,
                              std::vector<std::string> open_paths)
@@ -99,7 +102,9 @@ void FlutterWindow::OnDestroy() {
   open_requests_ = nullptr;
   attention_ = nullptr;
   if (flutter_controller_) {
-    flutter_controller_ = nullptr;
+    // Native child destruction can re-enter this window's message handler.
+    auto controller = std::move(flutter_controller_);
+    controller.reset();
   }
 
   Win32Window::OnDestroy();
@@ -125,6 +130,19 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  // The watchdog's ping (see hang_watchdog.h): this thread takes messages.
+  if (message == hang_watchdog::kPingMessage) {
+    hang_watchdog::Answer();
+    return 0;
+  }
+
+  if (message == AppWindows::kCloseMessage) {
+    if (app_windows_ != nullptr) {
+      app_windows_->ClosePendingWindows();
+    }
+    return 0;
+  }
+
   // The app quits (see AppWindows::kQuitMessage): this window goes, and the
   // engine and the IDE's windows with it, in OnDestroy.
   if (message == AppWindows::kQuitMessage) {
@@ -164,10 +182,18 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     const auto* data = reinterpret_cast<const COPYDATASTRUCT*>(lparam);
     if (data != nullptr && data->dwData == kOpenRequestData) {
       std::vector<std::string> paths = OpenRequestPaths(*data);
+      const bool reopen = paths.empty();
       if (open_requests_ != nullptr) {
         open_requests_->Deliver(std::move(paths));
       } else {
         open_paths_.push_back(std::move(paths));
+      }
+      // Starting the app from its desktop shortcut sends an empty request
+      // when another instance is already running. With the main window in
+      // the tray, there are no paths for OpenRequests to deliver, so ask
+      // Flutter to reopen the appropriate window instead.
+      if (reopen && app_windows_ != nullptr && app_windows_->started()) {
+        app_windows_->RequestReopen();
       }
       if (app_windows_ == nullptr || !app_windows_->started()) {
         if (::IsIconic(hwnd)) {

@@ -19,6 +19,7 @@ import 'customize/customizations.dart';
 import 'customize/customize_view.dart';
 import 'ide/git/git_repository.dart';
 import 'ide/ide_chat_title.dart';
+import 'ide/ide_color_theme_picker.dart';
 import 'ide/ide_commands.dart';
 import 'ide/ide_dialog.dart';
 import 'ide/ide_modern_ui.dart';
@@ -30,7 +31,9 @@ import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
 import 'ide/lsp/language_features.dart';
 import 'ide/lsp/lsp_protocol.dart';
+import 'ide/terminal/links/terminal_links.dart';
 import 'ide/terminal/terminal_instance.dart';
+import 'ide/terminal/terminal_panel.dart' show terminalCommandsToSkipShell;
 import 'keybindings/chat_keybindings.dart';
 import 'keybindings/default_keybindings.dart';
 import 'keybindings/key_chord.dart';
@@ -61,6 +64,8 @@ import 'window/code_args.dart';
 import 'window/window_settings.dart';
 import 'workspace/chat_drag.dart';
 import 'workspace/chat_grid_view.dart';
+import 'workspace/chat_terminal.dart';
+import 'workspace/editor_launcher.dart' show openExternal;
 import 'workspace/new_chat_folder_bar.dart';
 import 'workspace/open_in_editor_button.dart';
 import 'workspace/pin_window_button.dart';
@@ -254,6 +259,22 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// The window is kept above other apps' windows.
   bool _pinned = false;
 
+  /// The terminals under the conversations, in the focused agent's
+  /// project (see [ChatTerminals]); none where they cannot run, nor in an
+  /// IDE window (the IDE has its own).
+  late final ChatTerminals? _terminals = switch (widget.terminalBackend) {
+    final backend? when backend.supported && !_ideWindow => ChatTerminals(
+      backend,
+      rootOf: () => (_agentThread ?? _workspace.current)?.project.path,
+    )..onLastClosed = _focusCurrentChat,
+    _ => null,
+  }?..addListener(_terminalsChanged);
+
+  /// The title bars' toggles and the window's commands follow them.
+  void _terminalsChanged() {
+    if (mounted) setState(() {});
+  }
+
   /// An agent dragged from the sidebar onto the conversations.
   late final ChatDrag _drag = ChatDrag(onDrop: _drop, onStart: _closeDrawer);
 
@@ -371,6 +392,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   @override
   void dispose() {
+    _terminals
+      ?..removeListener(_terminalsChanged)
+      ..dispose();
     _chatCode?.dispose();
     _drag.dispose();
     _width.dispose();
@@ -458,12 +482,17 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// runs its own, and [_settingsCommands] besides; a chat, its own: see
   /// [ChatKeys]).
   Map<String, VoidCallback> _chatCommands() {
-    // An agent's window has its agent alone.
+    // An agent's window has its agent alone (and, on Windows, the sidebar
+    // to pick another: see _buildContent).
     if (_agentWindow) {
       return {
+        if (WindowControls.drawsHeader)
+          'workbench.action.toggleSidebarVisibility': _toggle,
         openSettingsCommandId: () => unawaited(openSettings()),
         openKeybindingsCommandId: () =>
             unawaited(openSettings(SettingsSection.keyboard)),
+        ideSelectColorThemeCommandId: _selectColorTheme,
+        ..._terminalCommands(),
         ..._windowCommands(),
       };
     }
@@ -476,8 +505,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       openSettingsCommandId: () => unawaited(openSettings()),
       openKeybindingsCommandId: () =>
           unawaited(openSettings(SettingsSection.keyboard)),
+      ideSelectColorThemeCommandId: _selectColorTheme,
       // As the sidebar's New Agent button: a folder first, without one.
-      if (_workspace.projects.isNotEmpty)
+      if (_workspace.sidebarProjects.isNotEmpty)
         ChatCommandIds.newChat: _newAgent
       else if (WindowControls.canPickDirectory)
         ChatCommandIds.newChat: () => unawaited(_openFolder()),
@@ -502,8 +532,77 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       if (widget.customizations != null) _customizeCommand: _showCustomize,
       if (current != null)
         ChatCommandIds.openIde: () => _workspace.openInIde(current),
+      ..._terminalCommands(),
       ..._windowCommands(),
     };
+  }
+
+  /// The terminal panel's: Toggle Terminal and Create New Terminal where
+  /// there is an agent's project for them; those on the terminal shown.
+  Map<String, VoidCallback> _terminalCommands() {
+    final terminals = _terminals;
+    if (terminals == null || terminals.root == null) return const {};
+    final current = terminals.shown ? terminals.current : null;
+    return {
+      toggleTerminalCommand: _toggleTerminal,
+      newTerminalCommand: terminals.create,
+      if (current?.active != null)
+        'workbench.action.terminal.kill': terminals.kill,
+      if ((current?.instances.length ?? 0) > 1) ...{
+        'workbench.action.terminal.focusNext': () =>
+            terminals.cycle(next: true),
+        'workbench.action.terminal.focusPrevious': () =>
+            terminals.cycle(next: false),
+      },
+    };
+  }
+
+  /// Preferences: Color Theme (see [ideColorThemePick]), over the chat as
+  /// the IDE shows it over its editor.
+  void _selectColorTheme() => showQuickPick(
+    ideColorThemePick(
+      WorkbenchThemeService.instance,
+      onError: (error) {
+        if (mounted) _notifications.notify(IdeSeverity.error, '$error');
+      },
+      l10n: context.l10n,
+    ),
+  );
+
+  /// Toggle Terminal (⌃`): the panel, its terminal focused; or hidden, the
+  /// keyboard back in the chat if the terminal had it.
+  void _toggleTerminal() {
+    final terminals = _terminals;
+    if (terminals == null) return;
+    if (!terminals.shown) return terminals.show();
+    if (terminals.hide()) _focusCurrentChat();
+  }
+
+  /// The focused agent's input, once its chat is built.
+  void _focusCurrentChat() {
+    if (_agentThread ?? _workspace.current case final thread?) {
+      _focusChat(thread);
+    }
+  }
+
+  /// Opens a link from a terminal: a URL in the browser, a file in the IDE
+  /// at its line and column, a folder in the system's file manager.
+  void _openTerminalLink(TerminalLink link) {
+    final thread = _agentThread ?? _workspace.current;
+    switch (link.type) {
+      case TerminalLinkType.url:
+        unawaited(openExternal(link.text));
+      case TerminalLinkType.localFile when thread != null:
+        final at = LspPosition(
+          math.max(0, (link.line ?? 1) - 1),
+          math.max(0, (link.column ?? 1) - 1),
+        );
+        _inIdeOf(thread, (ide) => ide.openAt(link.path!, LspRange(at, at)));
+      case TerminalLinkType.localFolder:
+        unawaited(openExternal(link.path!));
+      case TerminalLinkType.localFile || TerminalLinkType.search:
+        break;
+    }
   }
 
   /// New Window, Close Window, Switch Window… and Show Chat Window, where
@@ -713,11 +812,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ?action(_customizeCommand, Codicons.extensions),
       ?action(openSettingsCommandId, Codicons.settingsGear),
       ?action(openKeybindingsCommandId, Codicons.keyboard),
+      ?action(ideSelectColorThemeCommandId, Codicons.symbolColor),
       ?action(
         'workbench.action.toggleSidebarVisibility',
         Codicons.layoutSidebarLeft,
       ),
       ?action(ChatCommandIds.openIde, Codicons.code),
+      ?action(toggleTerminalCommand, Codicons.terminal),
+      ?action(newTerminalCommand, Codicons.add),
       if (WindowControls.canPickDirectory)
         ?action(
           'workbench.action.files.openFolder',
@@ -796,6 +898,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         !_hasKeyboard) {
       return false;
     }
+    // The quick pick over the window has its own.
+    if (_quickInputKey?.currentState case final quick?) {
+      _leaveChord();
+      return !ChatKeys.isComposing && _handleQuickInputKey(quick, event);
+    }
     // A dialog over the window (the settings' key recorder) keeps its keys.
     if (!(ModalRoute.isCurrentOf(context) ?? true)) {
       _leaveChord();
@@ -803,8 +910,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     }
     // So does an input method composing text.
     if (ChatKeys.isComposing) return false;
-    final focused = ChatKeys.focusedTargets();
-    final chat = focused.isNotEmpty
+    // In a terminal, the keys are the shell's but for the window's that
+    // skip it, as VS Code's (`terminal.integrated.commandsToSkipShell`, and
+    // ⌘ on macOS); none are the chat's.
+    final inTerminal = _terminals?.focused ?? false;
+    final focused = inTerminal
+        ? const <ChatKeyTarget>[]
+        : ChatKeys.focusedTargets();
+    final chat = focused.isNotEmpty || inTerminal
         ? focused
         : switch (_agentThread ?? _workspace.current) {
             final thread? => ChatKeys.targetsOf(
@@ -815,14 +928,34 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     final window = _chatCommands();
     final chatCommands = ChatKeys.commandsOf(chat);
     final pending = _pendingChords;
-    final result = KeybindingService.instance.resolveEvent(
-      event,
-      pending: pending ?? const [],
-      context: ChatKeys.lookupOf(chat, _chatKeyContext),
-      canRun: (item) =>
-          window.containsKey(item.command) ||
-          chatCommands.containsKey(item.command),
-    );
+    KeybindingResolution resolve(bool Function(String command) canRun) =>
+        KeybindingService.instance.resolveEvent(
+          event,
+          pending: pending ?? const [],
+          context: ChatKeys.lookupOf(chat, _chatKeyContext),
+          canRun: (item) => canRun(item.command),
+        );
+    bool skipsShell(String command) =>
+        HardwareKeyboard.instance.isMetaPressed ||
+        terminalCommandsToSkipShell.contains(command);
+    var result = inTerminal
+        // The terminal's own first (⇧⌘] is its next terminal there, the
+        // next agent elsewhere).
+        ? resolve(
+            (command) =>
+                command.startsWith('workbench.action.terminal.') &&
+                window.containsKey(command) &&
+                skipsShell(command),
+          )
+        : const NoKeybinding();
+    if (result is NoKeybinding) {
+      result = resolve(
+        (command) =>
+            (window.containsKey(command) &&
+                (!inTerminal || skipsShell(command))) ||
+            chatCommands.containsKey(command),
+      );
+    }
     _leaveChord();
     switch (result) {
       case KeybindingFound(:final command):
@@ -863,6 +996,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       'ideMode' => false,
       'inputFocus' || 'textInputFocus' =>
         focus?.context?.findAncestorStateOfType<EditableTextState>() != null,
+      'terminalFocus' || 'terminalFocusInAny' => _terminals?.focused ?? false,
+      'terminalProcessSupported' => _terminals != null,
+      'terminalIsOpen' || 'terminalHasBeenCreated' =>
+        _terminals?.current?.instances.isNotEmpty ?? false,
+      'terminalCount' => _terminals?.current?.instances.length ?? 0,
       _ => null,
     };
   }
@@ -1372,7 +1510,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (_agentThread case final thread?) {
       // Gone (deleted), its window goes with it.
       if (!_workspace.threads.contains(thread)) return const SizedBox.shrink();
-      return _conversation(_buildChat(showToggle: false, pane: thread));
+      final chat = _withTerminal(_buildChat(showToggle: false, pane: thread));
+      // On Windows, with the sidebar the header's toggle shows, as the
+      // chat's window has it: over the conversation while narrow, beside
+      // it once wide.
+      if (!WindowControls.drawsHeader) return _conversation(chat);
+      return narrow ? _buildNarrow(body: chat) : _buildWide(body: chat);
     }
     final folder = _ideFolder;
     // An IDE window has its folder's alone.
@@ -1437,10 +1580,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     );
   }
 
-  Widget _buildWide() {
+  /// The sidebar docked beside [body] (by default the chat's panes).
+  Widget _buildWide({Widget? body}) {
     // Built once for the widths a drag goes through (see [_width]).
     final sidebar = _buildSidebar();
-    final panes = _buildPanes(showToggle: !_docked);
+    final panes = body ?? _buildPanes(showToggle: !_docked);
     final row = ValueListenableBuilder(
       valueListenable: _width,
       builder: (context, _, _) => Row(
@@ -1482,13 +1626,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     );
   }
 
-  Widget _buildNarrow() {
+  /// The sidebar as a drawer over [body] (by default the chat's panes).
+  Widget _buildNarrow({Widget? body}) {
     // The same sidebar and border as when docked, at the same width.
     const handleWidth = _WorkbenchState._handleWidth;
     return Stack(
       fit: StackFit.expand,
       children: [
-        Positioned.fill(child: _conversation(_buildPanes(showToggle: true))),
+        Positioned.fill(
+          child: _conversation(body ?? _buildPanes(showToggle: true)),
+        ),
         // Scrim: a click outside closes the drawer.
         Positioned.fill(
           child: IgnorePointer(
@@ -1567,12 +1714,30 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ColoredBox(color: AppColors.background, child: child);
 
   /// On the conversation's color: over the material, a tint of it.
+  /// [thread] in this agent's window, in place of its agent.
+  void _showInWindow(AgentThread thread) {
+    final window = widget.window;
+    if (window == null) return;
+    _windows?.showInWindow(window, thread);
+    setState(() {});
+  }
+
   static Widget _conversation(Widget child) =>
       ColoredBox(color: AppColors.conversationSurface, child: child);
 
   Widget _buildSidebar({VoidCallback? onOpened}) {
+    // An agent's window shows what is picked or made here in its place;
+    // the chat's window, the search palette and Customize are not its.
+    final agent = _agentThread;
     return Sidebar(
       workspace: _workspace,
+      current: agent,
+      onSelect: agent == null ? null : _showInWindow,
+      onNewAgent: agent == null
+          ? null
+          : (project) => _showInWindow(
+              _workspace.newWindowAgent((project ?? agent.project).path),
+            ),
       link: _sidebarLink,
       onCollapse: _toggle,
       onOpened: () {
@@ -1581,8 +1746,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       },
       onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
       onOpenSettings: () => unawaited(openSettings()),
-      onSearch: () => unawaited(_openPalette()),
-      onCustomize: widget.customizations == null
+      onSearch: agent != null ? null : () => unawaited(_openPalette()),
+      onCustomize: agent != null || widget.customizations == null
           ? null
           : () => _customizing ? _closeCustomize() : _showCustomize(),
       customizing: _customizing,
@@ -1676,11 +1841,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           ? null
           : _windowCommands()[WindowCommandIds.closeWindow],
       sidebarShown: _narrow ? _drawerOpen : _docked,
-      // An agent's window has no sidebar.
-      onToggleSidebar: agent == null ? _toggle : null,
+      onToggleSidebar: _toggle,
       ideLayout: ide ? _ideSpace(_ideFolder).layout : null,
       pinned: _pinned,
       onTogglePin: _setPinned,
+      terminalShown: _terminals?.shown ?? false,
+      onToggleTerminal: ide || _terminals?.root == null
+          ? null
+          : _toggleTerminal,
       onOpenFolder: _openFolder,
       onOpenSettings: () => unawaited(openSettings()),
       onToggleContextPanel: () {
@@ -1770,8 +1938,22 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _closeDrawer();
   }
 
-  /// The open agents side by side (see [ChatGridView]).
-  Widget _buildPanes({required bool showToggle}) {
+  /// The open agents side by side (see [ChatGridView]), the terminal panel
+  /// under them.
+  Widget _buildPanes({required bool showToggle}) =>
+      _withTerminal(_buildGrid(showToggle: showToggle));
+
+  /// [child] with the terminal panel under it (see [ChatTerminalArea]).
+  Widget _withTerminal(Widget child) => switch (_terminals) {
+    final terminals? => ChatTerminalArea(
+      terminals: terminals,
+      onOpenLink: _openTerminalLink,
+      child: child,
+    ),
+    null => child,
+  };
+
+  Widget _buildGrid({required bool showToggle}) {
     if (_customizing) {
       if (widget.customizations case final store?) {
         return _buildCustomize(store, showToggle: showToggle);
@@ -1885,8 +2067,17 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     // The window's, in whichever pane is top right: they are the focused
     // agent's (Fast Ide opens it), and a click on them leaves the focus
     // where it is. So does closing another pane.
+    final terminals = _terminals;
     final tools = [
       if (windowTools) ...[
+        if (terminals != null && terminals.root != null) ...[
+          ChatTerminalToggle(
+            shown: terminals.shown,
+            onTap: _toggleTerminal,
+            size: 22,
+          ),
+          const SizedBox(width: 6),
+        ],
         PinWindowButton(pinned: _pinned, onChanged: _setPinned),
         const SizedBox(width: 6),
         OpenInEditorButton(
@@ -2084,11 +2275,22 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   @override
-  bool terminalsRunning({required bool childProcesses}) => _ideKeys.values.any(
-    (key) =>
-        key.currentState?.terminalsRunning(childProcesses: childProcesses) ??
-        false,
-  );
+  bool terminalsRunning({required bool childProcesses}) =>
+      (_terminals?.running(childProcesses: childProcesses) ?? false) ||
+      _ideKeys.values.any(
+        (key) =>
+            key.currentState?.terminalsRunning(
+              childProcesses: childProcesses,
+            ) ??
+            false,
+      );
+
+  /// The quick pick over the chat's window, while it shows (see
+  /// [showQuickPick]); its keys are keybindings (see [_handleQuickInputKey]).
+  GlobalKey<IdeQuickInputState>? _quickInputKey;
+
+  /// Hides that quick pick.
+  VoidCallback? _hideQuickInput;
 
   @override
   void showQuickPick(IdeQuickPick pick) {
@@ -2096,8 +2298,19 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ide.showQuickPick(pick);
       return;
     }
-    // The chat's window: over it, as the IDE shows one.
+    // The chat's window: over it, as the IDE shows one, in place of one
+    // shown already.
+    _hideQuickInput?.call();
+    final key = _quickInputKey = GlobalKey<IdeQuickInputState>();
     var closed = false;
+    void hide() {
+      if (closed || !mounted) return;
+      closed = true;
+      // The dialog's navigator (see showGeneralDialog).
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+
+    _hideQuickInput = hide;
     unawaited(
       showGeneralDialog<void>(
         context: context,
@@ -2106,17 +2319,64 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           padding: EdgeInsets.only(
             top: WindowControls.drawsHeader ? 0 : AppMetrics.titleBarHeight,
           ),
-          child: IdeQuickInput.pick(
-            pick: pick,
-            onClose: () {
-              if (closed) return;
-              closed = true;
-              Navigator.of(context).pop();
-            },
-          ),
+          child: IdeQuickInput.pick(key: key, pick: pick, onClose: hide),
         ),
-      ),
+      ).then((_) {
+        closed = true;
+        if (identical(_quickInputKey, key)) {
+          _quickInputKey = null;
+          _hideQuickInput = null;
+        }
+        pick.onDidHide?.call();
+      }),
     );
+  }
+
+  /// A key for the quick pick over the chat's window: the quick input's
+  /// keybindings (Escape hides it, Enter accepts, the arrows move), as the
+  /// IDE resolves them for its own.
+  bool _handleQuickInputKey(IdeQuickInputState quick, KeyEvent event) {
+    void focus(IdeQuickPickFocus what) => quick.focus(what);
+    final commands = <String, VoidCallback>{
+      'quickInput.next': () => focus(IdeQuickPickFocus.next),
+      'quickInput.previous': () => focus(IdeQuickPickFocus.previous),
+      'quickInput.first': () => focus(IdeQuickPickFocus.first),
+      'quickInput.last': () => focus(IdeQuickPickFocus.last),
+      'quickInput.pageNext': () => focus(IdeQuickPickFocus.nextPage),
+      'quickInput.pagePrevious': () => focus(IdeQuickPickFocus.previousPage),
+      'quickInput.accept': quick.accept,
+      'quickInput.acceptInBackground': () => quick.accept(inBackground: true),
+      'quickInput.hide': quick.hide,
+      'workbench.action.closeQuickOpen': quick.hide,
+      'workbench.action.acceptSelectedQuickOpenItem': quick.accept,
+      'workbench.action.focusQuickOpen': quick.focusInput,
+      'workbench.action.quickOpenSelectNext': () => quick.navigate(next: true),
+      'workbench.action.quickOpenSelectPrevious': () =>
+          quick.navigate(next: false),
+      'workbench.action.quickOpenNavigateNext': () =>
+          quick.navigate(next: true),
+      'workbench.action.quickOpenNavigatePrevious': () =>
+          quick.navigate(next: false),
+    };
+    final result = KeybindingService.instance.resolveEvent(
+      event,
+      context: (key) => switch (key) {
+        'inQuickOpen' || 'inQuickInput' => true,
+        'quickInputType' => 'quickPick',
+        'cursorAtEndOfQuickInputBox' => quick.cursorAtEnd,
+        'inputFocus' || 'textInputFocus' =>
+          FocusManager.instance.primaryFocus?.context
+                  ?.findAncestorStateOfType<EditableTextState>() !=
+              null,
+        _ => null,
+      },
+      canRun: (item) => commands.containsKey(item.command),
+    );
+    if (result case KeybindingFound(:final command)) {
+      commands[command]!();
+      return true;
+    }
+    return false;
   }
 
   @override
