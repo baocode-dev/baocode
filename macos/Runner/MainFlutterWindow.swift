@@ -434,6 +434,9 @@ class MainFlutterWindow: BaoWindow {
     holdingBack = !AppWindows.mainShownAtLaunch
     if holdingBack {
       DispatchQueue.main.async { [weak self] in self?.holdingBack = false }
+      // The view controller starts the engine only as its view appears:
+      // started here, for Flutter to open the windows that show instead.
+      flutterViewController.engine.run(withEntrypoint: nil)
     }
 
     // The menu bar's File menu, once the nib has made the menu bar (it
