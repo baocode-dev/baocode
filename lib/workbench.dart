@@ -19,6 +19,7 @@ import 'customize/customizations.dart';
 import 'customize/customize_view.dart';
 import 'ide/git/git_repository.dart';
 import 'ide/ide_chat_title.dart';
+import 'ide/ide_color_theme_picker.dart';
 import 'ide/ide_commands.dart';
 import 'ide/ide_dialog.dart';
 import 'ide/ide_modern_ui.dart';
@@ -490,6 +491,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         openSettingsCommandId: () => unawaited(openSettings()),
         openKeybindingsCommandId: () =>
             unawaited(openSettings(SettingsSection.keyboard)),
+        ideSelectColorThemeCommandId: _selectColorTheme,
         ..._terminalCommands(),
         ..._windowCommands(),
       };
@@ -503,6 +505,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       openSettingsCommandId: () => unawaited(openSettings()),
       openKeybindingsCommandId: () =>
           unawaited(openSettings(SettingsSection.keyboard)),
+      ideSelectColorThemeCommandId: _selectColorTheme,
       // As the sidebar's New Agent button: a folder first, without one.
       if (_workspace.sidebarProjects.isNotEmpty)
         ChatCommandIds.newChat: _newAgent
@@ -553,6 +556,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       },
     };
   }
+
+  /// Preferences: Color Theme (see [ideColorThemePick]), over the chat as
+  /// the IDE shows it over its editor.
+  void _selectColorTheme() => showQuickPick(
+    ideColorThemePick(
+      WorkbenchThemeService.instance,
+      onError: (error) {
+        if (mounted) _notifications.notify(IdeSeverity.error, '$error');
+      },
+      l10n: context.l10n,
+    ),
+  );
 
   /// Toggle Terminal (⌃`): the panel, its terminal focused; or hidden, the
   /// keyboard back in the chat if the terminal had it.
@@ -797,6 +812,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ?action(_customizeCommand, Codicons.extensions),
       ?action(openSettingsCommandId, Codicons.settingsGear),
       ?action(openKeybindingsCommandId, Codicons.keyboard),
+      ?action(ideSelectColorThemeCommandId, Codicons.symbolColor),
       ?action(
         'workbench.action.toggleSidebarVisibility',
         Codicons.layoutSidebarLeft,
@@ -881,6 +897,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         !mounted ||
         !_hasKeyboard) {
       return false;
+    }
+    // The quick pick over the window has its own.
+    if (_quickInputKey?.currentState case final quick?) {
+      _leaveChord();
+      return !ChatKeys.isComposing && _handleQuickInputKey(quick, event);
     }
     // A dialog over the window (the settings' key recorder) keeps its keys.
     if (!(ModalRoute.isCurrentOf(context) ?? true)) {
@@ -2264,14 +2285,32 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             false,
       );
 
+  /// The quick pick over the chat's window, while it shows (see
+  /// [showQuickPick]); its keys are keybindings (see [_handleQuickInputKey]).
+  GlobalKey<IdeQuickInputState>? _quickInputKey;
+
+  /// Hides that quick pick.
+  VoidCallback? _hideQuickInput;
+
   @override
   void showQuickPick(IdeQuickPick pick) {
     if (_ide case final ide? when _showsIde) {
       ide.showQuickPick(pick);
       return;
     }
-    // The chat's window: over it, as the IDE shows one.
+    // The chat's window: over it, as the IDE shows one, in place of one
+    // shown already.
+    _hideQuickInput?.call();
+    final key = _quickInputKey = GlobalKey<IdeQuickInputState>();
     var closed = false;
+    void hide() {
+      if (closed || !mounted) return;
+      closed = true;
+      // The dialog's navigator (see showGeneralDialog).
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+
+    _hideQuickInput = hide;
     unawaited(
       showGeneralDialog<void>(
         context: context,
@@ -2280,17 +2319,64 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           padding: EdgeInsets.only(
             top: WindowControls.drawsHeader ? 0 : AppMetrics.titleBarHeight,
           ),
-          child: IdeQuickInput.pick(
-            pick: pick,
-            onClose: () {
-              if (closed) return;
-              closed = true;
-              Navigator.of(context).pop();
-            },
-          ),
+          child: IdeQuickInput.pick(key: key, pick: pick, onClose: hide),
         ),
-      ),
+      ).then((_) {
+        closed = true;
+        if (identical(_quickInputKey, key)) {
+          _quickInputKey = null;
+          _hideQuickInput = null;
+        }
+        pick.onDidHide?.call();
+      }),
     );
+  }
+
+  /// A key for the quick pick over the chat's window: the quick input's
+  /// keybindings (Escape hides it, Enter accepts, the arrows move), as the
+  /// IDE resolves them for its own.
+  bool _handleQuickInputKey(IdeQuickInputState quick, KeyEvent event) {
+    void focus(IdeQuickPickFocus what) => quick.focus(what);
+    final commands = <String, VoidCallback>{
+      'quickInput.next': () => focus(IdeQuickPickFocus.next),
+      'quickInput.previous': () => focus(IdeQuickPickFocus.previous),
+      'quickInput.first': () => focus(IdeQuickPickFocus.first),
+      'quickInput.last': () => focus(IdeQuickPickFocus.last),
+      'quickInput.pageNext': () => focus(IdeQuickPickFocus.nextPage),
+      'quickInput.pagePrevious': () => focus(IdeQuickPickFocus.previousPage),
+      'quickInput.accept': quick.accept,
+      'quickInput.acceptInBackground': () => quick.accept(inBackground: true),
+      'quickInput.hide': quick.hide,
+      'workbench.action.closeQuickOpen': quick.hide,
+      'workbench.action.acceptSelectedQuickOpenItem': quick.accept,
+      'workbench.action.focusQuickOpen': quick.focusInput,
+      'workbench.action.quickOpenSelectNext': () => quick.navigate(next: true),
+      'workbench.action.quickOpenSelectPrevious': () =>
+          quick.navigate(next: false),
+      'workbench.action.quickOpenNavigateNext': () =>
+          quick.navigate(next: true),
+      'workbench.action.quickOpenNavigatePrevious': () =>
+          quick.navigate(next: false),
+    };
+    final result = KeybindingService.instance.resolveEvent(
+      event,
+      context: (key) => switch (key) {
+        'inQuickOpen' || 'inQuickInput' => true,
+        'quickInputType' => 'quickPick',
+        'cursorAtEndOfQuickInputBox' => quick.cursorAtEnd,
+        'inputFocus' || 'textInputFocus' =>
+          FocusManager.instance.primaryFocus?.context
+                  ?.findAncestorStateOfType<EditableTextState>() !=
+              null,
+        _ => null,
+      },
+      canRun: (item) => commands.containsKey(item.command),
+    );
+    if (result case KeybindingFound(:final command)) {
+      commands[command]!();
+      return true;
+    }
+    return false;
   }
 
   @override

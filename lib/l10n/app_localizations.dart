@@ -8991,17 +8991,23 @@ abstract class AppLocalizations {
   /// **'Manual'**
   String get modelsCustom;
 
-  /// No description provided for @modelsThinking.
+  /// No description provided for @modelsShowAll.
   ///
   /// In en, this message translates to:
-  /// **'Supports thinking'**
-  String get modelsThinking;
+  /// **'Show All ({count})'**
+  String modelsShowAll(int count);
 
-  /// No description provided for @modelsImages.
+  /// No description provided for @modelsShowChecked.
   ///
   /// In en, this message translates to:
-  /// **'Supports images'**
-  String get modelsImages;
+  /// **'Show Checked Only'**
+  String get modelsShowChecked;
+
+  /// No description provided for @modelsNoneChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'No model is checked: show all to check some.'**
+  String get modelsNoneChecked;
 
   /// No description provided for @modelsEdit.
   ///
@@ -9300,13 +9306,13 @@ abstract class AppLocalizations {
   /// No description provided for @modelsContextWindow.
   ///
   /// In en, this message translates to:
-  /// **'Context Window'**
+  /// **'Default Context'**
   String get modelsContextWindow;
 
   /// No description provided for @modelsContextWindowHint.
   ///
   /// In en, this message translates to:
-  /// **'Tokens, e.g. 128000 or 128K'**
+  /// **'Tokens, e.g. 128K; 200K when empty'**
   String get modelsContextWindowHint;
 
   /// No description provided for @modelsContextInvalid.
@@ -9315,17 +9321,77 @@ abstract class AppLocalizations {
   /// **'A number of tokens, e.g. 200K.'**
   String get modelsContextInvalid;
 
-  /// No description provided for @modelsSupportsThinking.
+  /// No description provided for @modelsEffortOptions.
   ///
   /// In en, this message translates to:
-  /// **'Supports thinking (its effort can be picked)'**
-  String get modelsSupportsThinking;
+  /// **'Thinking Efforts'**
+  String get modelsEffortOptions;
 
-  /// No description provided for @modelsSupportsImages.
+  /// No description provided for @modelsEffortOptionsDescription.
   ///
   /// In en, this message translates to:
-  /// **'Supports images'**
-  String get modelsSupportsImages;
+  /// **'Offered in the model picker; Medium is picked unless another is.'**
+  String get modelsEffortOptionsDescription;
+
+  /// No description provided for @modelsEffortAddHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. minimal'**
+  String get modelsEffortAddHint;
+
+  /// No description provided for @modelsEffortInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Letters, digits and dashes only.'**
+  String get modelsEffortInvalid;
+
+  /// No description provided for @modelsContextOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Context Lengths'**
+  String get modelsContextOptions;
+
+  /// No description provided for @modelsContextOptionsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Offered in the model picker; the default context is among them.'**
+  String get modelsContextOptionsDescription;
+
+  /// No description provided for @modelsContextAddHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. 128K'**
+  String get modelsContextAddHint;
+
+  /// No description provided for @modelsOptionAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get modelsOptionAdd;
+
+  /// No description provided for @modelsOptionRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {name}'**
+  String modelsOptionRemove(String name);
+
+  /// No description provided for @modelsOptionsReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to Default'**
+  String get modelsOptionsReset;
+
+  /// No description provided for @modelsOptionsNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None: not offered.'**
+  String get modelsOptionsNone;
+
+  /// No description provided for @modelsNoImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Does not take images'**
+  String get modelsNoImages;
 
   /// No description provided for @modelsSave.
   ///

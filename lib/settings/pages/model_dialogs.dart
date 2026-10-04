@@ -519,22 +519,6 @@ Future<ProviderModel?> showModelEditDialog(
       ModelEditDialog(provider: provider, model: model),
 );
 
-/// [text] as a number of tokens (`200000`, `200K`, `1M`, `1.5m`); null
-/// when empty, -1 when it is not one.
-int? parseTokens(String text) {
-  final value = text.trim().replaceAll(RegExp(r'[,_\s]'), '').toLowerCase();
-  if (value.isEmpty) return null;
-  final match = RegExp(r'^(\d+(?:\.\d+)?)([km]?)$').firstMatch(value);
-  if (match == null) return -1;
-  final number = double.parse(match.group(1)!);
-  final tokens = switch (match.group(2)) {
-    'k' => number * 1000,
-    'm' => number * 1000000,
-    _ => number,
-  }.round();
-  return tokens > 0 ? tokens : -1;
-}
-
 class ModelEditDialog extends StatefulWidget {
   const ModelEditDialog({super.key, required this.provider, this.model});
 
@@ -558,8 +542,11 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
       null => '',
     },
   );
-  late bool _thinking = widget.model?.thinking ?? false;
-  late bool _images = widget.model?.images ?? false;
+  late bool _images = widget.model?.images ?? true;
+
+  /// The model's own efforts and contexts; null for the defaults.
+  late List<String>? _efforts = widget.model?.efforts;
+  late List<int>? _contexts = widget.model?.contexts;
   bool _tried = false;
 
   @override
@@ -581,6 +568,28 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
   }
 
   bool get _adding => widget.model == null;
+
+  /// [options], or null when they are [defaults]: the model then follows
+  /// the defaults as they change.
+  static List<T>? _sameAs<T>(List<T>? options, List<T> defaults) =>
+      options == null ||
+          options.length == defaults.length &&
+              Iterable<int>.generate(options.length)
+                  .every((i) => options[i] == defaults[i])
+      ? null
+      : options;
+
+  /// An effort as typed: as the picker names it (`X-High`, `Disable`),
+  /// or as it goes to the upstream (`xhigh`, `none`).
+  static String? _parseEffort(String text) {
+    final level = text.trim().toLowerCase();
+    return switch (level) {
+      'disable' || 'disabled' || 'off' => 'none',
+      'x-high' => 'xhigh',
+      _ when RegExp(r'^[a-z0-9][a-z0-9_-]*$').hasMatch(level) => level,
+      _ => null,
+    };
+  }
 
   String? _idError(AppLocalizations l10n) {
     final id = _id.text.trim();
@@ -607,14 +616,16 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
               id: _id.text.trim(),
               label: label.isEmpty ? null : label,
               contextWindow: tokens,
-              thinking: _thinking,
+              efforts: _efforts,
+              contexts: _contexts,
               images: _images,
               custom: true,
             )
           : model.copyWith(
               label: () => label.isEmpty ? null : label,
               contextWindow: () => tokens,
-              thinking: _thinking,
+              efforts: () => _efforts,
+              contexts: () => _contexts,
               images: _images,
             ),
     );
@@ -717,19 +728,198 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
                     : IdeInputValidation(contextError),
               ),
             ),
-            _check(
-              l10n.modelsSupportsThinking,
-              _thinking,
-              (value) => setState(() => _thinking = value),
+            _field(
+              l10n.modelsEffortOptions,
+              _OptionList<String>(
+                options: _efforts ?? ProviderModel.defaultEfforts,
+                description: l10n.modelsEffortOptionsDescription,
+                label: effortLabel,
+                parse: _parseEffort,
+                addHint: l10n.modelsEffortAddHint,
+                invalid: l10n.modelsEffortInvalid,
+                onChanged: (efforts) => setState(
+                  () =>
+                      _efforts = _sameAs(efforts, ProviderModel.defaultEfforts),
+                ),
+              ),
+            ),
+            _field(
+              l10n.modelsContextOptions,
+              _OptionList<int>(
+                options: _contexts ?? ProviderModel.defaultContexts,
+                description: l10n.modelsContextOptionsDescription,
+                label: formatTokens,
+                parse: (text) => switch (parseTokens(text)) {
+                  final tokens? when tokens > 0 => tokens,
+                  _ => null,
+                },
+                addHint: l10n.modelsContextAddHint,
+                invalid: l10n.modelsContextInvalid,
+                sorted: true,
+                onChanged: (contexts) => setState(
+                  () => _contexts = _sameAs(
+                    contexts,
+                    ProviderModel.defaultContexts,
+                  ),
+                ),
+              ),
             ),
             _check(
-              l10n.modelsSupportsImages,
-              _images,
-              (value) => setState(() => _images = value),
+              l10n.modelsNoImages,
+              !_images,
+              (value) => setState(() => _images = !value),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Options a model offers in the picker, each removed by its ×, others
+/// added by typing them; back to the defaults with Reset.
+class _OptionList<T> extends StatefulWidget {
+  const _OptionList({
+    required this.options,
+    required this.description,
+    required this.label,
+    required this.parse,
+    required this.addHint,
+    required this.invalid,
+    required this.onChanged,
+    this.sorted = false,
+  });
+
+  final List<T> options;
+  final String description;
+  final String Function(T option) label;
+
+  /// An option as typed; null when it is not one.
+  final T? Function(String text) parse;
+  final String addHint;
+  final String invalid;
+
+  /// The options with one removed or added; null for the defaults.
+  final ValueChanged<List<T>?> onChanged;
+
+  /// Kept in order (contexts), else as added.
+  final bool sorted;
+
+  @override
+  State<_OptionList<T>> createState() => _OptionListState<T>();
+}
+
+class _OptionListState<T> extends State<_OptionList<T>> {
+  final TextEditingController _input = TextEditingController();
+  bool _invalid = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _input.addListener(() {
+      if (_invalid) setState(() => _invalid = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _input.dispose();
+    super.dispose();
+  }
+
+  void _add() {
+    final text = _input.text;
+    if (text.trim().isEmpty) return;
+    final option = widget.parse(text);
+    if (option == null) {
+      setState(() => _invalid = true);
+      return;
+    }
+    _input.clear();
+    if (widget.options.contains(option)) return;
+    final options = [...widget.options, option];
+    if (widget.sorted) options.sort();
+    widget.onChanged(options);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final border = themeColors['input.border'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(widget.description, style: _muted(context)),
+        const SizedBox(height: 6),
+        if (widget.options.isEmpty)
+          Text(l10n.modelsOptionsNone, style: _muted(context))
+        else
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final option in widget.options)
+                Container(
+                  padding: const EdgeInsets.only(left: 7, right: 1),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: border),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        widget.label(option),
+                        style: _text(context, size: 12),
+                      ),
+                      IdeActionButton(
+                        icon: Codicons.close,
+                        iconSize: 12,
+                        size: 20,
+                        tooltip: l10n.modelsOptionRemove(widget.label(option)),
+                        onPressed: () => widget.onChanged([
+                          for (final o in widget.options)
+                            if (o != option) o,
+                        ]),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 160,
+              child: IdeInputBox(
+                controller: _input,
+                placeholder: widget.addHint,
+                semanticsLabel: widget.addHint,
+                onSubmitted: (_) => _add(),
+                validation: _invalid
+                    ? IdeInputValidation(widget.invalid)
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 6),
+            IdeButton(
+              label: l10n.modelsOptionAdd,
+              secondary: true,
+              onPressed: _add,
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: _LinkButton(
+                label: l10n.modelsOptionsReset,
+                onPressed: () => widget.onChanged(null),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

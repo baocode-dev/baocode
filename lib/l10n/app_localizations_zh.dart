@@ -5078,10 +5078,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsCustom => '手动';
 
   @override
-  String get modelsThinking => '支持思考';
+  String modelsShowAll(int count) {
+    return '显示全部（$count）';
+  }
 
   @override
-  String get modelsImages => '支持图片';
+  String get modelsShowChecked => '仅显示已勾选';
+
+  @override
+  String get modelsNoneChecked => '还没有勾选模型：点「显示全部」来勾选。';
 
   @override
   String get modelsEdit => '编辑…';
@@ -5248,19 +5253,51 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsModelLabelHint => '可选';
 
   @override
-  String get modelsContextWindow => '上下文窗口';
+  String get modelsContextWindow => '默认上下文';
 
   @override
-  String get modelsContextWindowHint => 'token 数，如 128000 或 128K';
+  String get modelsContextWindowHint => 'token 数，如 128K；留空为 200K';
 
   @override
   String get modelsContextInvalid => '请输入 token 数，如 200K。';
 
   @override
-  String get modelsSupportsThinking => '支持思考（可选择 effort）';
+  String get modelsEffortOptions => '推理强度档位';
 
   @override
-  String get modelsSupportsImages => '支持图片';
+  String get modelsEffortOptionsDescription => '在模型选择中提供；未选择时默认 Medium。';
+
+  @override
+  String get modelsEffortAddHint => '如 minimal';
+
+  @override
+  String get modelsEffortInvalid => '只能包含字母、数字和连字符。';
+
+  @override
+  String get modelsContextOptions => '上下文档位';
+
+  @override
+  String get modelsContextOptionsDescription => '在模型选择中提供；默认上下文总在其中。';
+
+  @override
+  String get modelsContextAddHint => '如 128K';
+
+  @override
+  String get modelsOptionAdd => '添加';
+
+  @override
+  String modelsOptionRemove(String name) {
+    return '移除 $name';
+  }
+
+  @override
+  String get modelsOptionsReset => '恢复默认';
+
+  @override
+  String get modelsOptionsNone => '无：不提供选择。';
+
+  @override
+  String get modelsNoImages => '不支持图片';
 
   @override
   String get modelsSave => '保存';

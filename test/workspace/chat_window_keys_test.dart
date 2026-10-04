@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/ide/ide_quick_input.dart';
 import 'package:baocode/keybindings/chat_keybindings.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
@@ -209,6 +210,46 @@ void main() {
     expect(palette, findsNothing);
     await press(tester, LogicalKeyboardKey.keyL, control: true);
     expect(inputFocused(tester, workspace.selected), isTrue);
+  });
+
+  testWidgets('Ctrl+K Ctrl+T picks the color theme over the chat, as the '
+      'palette\'s Color Theme does', (tester) async {
+    await pumpApp(tester);
+    final picker = find.byType(IdeQuickInput);
+    await press(tester, LogicalKeyboardKey.keyK, control: true);
+    await press(tester, LogicalKeyboardKey.keyT, control: true);
+    await tester.pumpAndSettle();
+    expect(picker, findsOneWidget);
+    expect(
+      tester.widget<IdeQuickInput>(picker).pick?.placeholder,
+      startsWith('Select Color Theme'),
+    );
+    await press(tester, LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(picker, findsNothing);
+
+    await press(tester, LogicalKeyboardKey.keyP, control: true, shift: true);
+    await tester.pumpAndSettle();
+    final palette = find.byType(SearchPalette);
+    expect(palette, findsOneWidget);
+    await tester.enterText(
+      find.descendant(of: palette, matching: find.byType(TextField)),
+      'Color Theme',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find
+          .descendant(
+            of: palette,
+            matching: find.textContaining('Color Theme', findRichText: true),
+          )
+          .last,
+    );
+    await tester.pumpAndSettle();
+    expect(palette, findsNothing);
+    expect(picker, findsOneWidget);
+    await press(tester, LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Ctrl+Alt+I opens the agent in Fast Ide', (tester) async {

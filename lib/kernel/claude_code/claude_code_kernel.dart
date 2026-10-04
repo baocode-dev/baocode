@@ -88,7 +88,12 @@ class ClaudeCodeKernel
     );
     _model = settings[KernelChoiceKind.model.name];
     _effort = settings[KernelChoiceKind.effort.name];
-    _window = _windows[settings[KernelChoiceKind.context.name]];
+    _window = switch (parseTokens(
+      settings[KernelChoiceKind.context.name] ?? '',
+    )) {
+      final tokens? when tokens > 0 => tokens,
+      _ => null,
+    };
     if ((_context.resume, readHistory) case (final session?, final read?)) {
       _history = _replay(read, session);
     }
@@ -243,15 +248,22 @@ class ClaudeCodeKernel
       // environment that points Claude Code at it, and compaction within
       // the model's window. A model of one gone falls back to the CLI's.
       final custom = _custom;
+      final effort = switch (custom) {
+        (_, final info) => _effortFor(info),
+        null => _effort,
+      };
       final model = switch (custom) {
         (final provider, final info) => requestedModel(
           provider,
           info,
-          effort: _effort,
+          effort: effort,
         ),
         null when parseModelRef(_model) != null => null,
         null => _model,
       };
+      // Through the proxy, the effort goes with the model's name; to
+      // Anthropic's API, as Claude Code's own, if it is one of its.
+      final direct = custom == null || !custom.$1.protocol.proxied;
       Map<String, String>? env;
       if ((custom, model) case ((final provider, _), final model?)) {
         try {
@@ -264,7 +276,7 @@ class ClaudeCodeKernel
         }
       }
       _launchedProvider = _providerKey;
-      _launchedWindow = _window;
+      _launchedWindow = _autocompact;
       final transport = await _start(
         ClaudeLaunch(
           cwd: _cwd,
@@ -273,8 +285,11 @@ class ClaudeCodeKernel
           // Plan is entered once started.
           permissionMode: _cliMode = _approval,
           autoModeDuringPlan: _planReviewed = _reviewsPlan,
-          effort: _effort,
-          autocompact: custom?.$2.contextWindow ?? _window,
+          effort: direct && (custom == null || _cliEfforts.contains(effort))
+              ? effort
+              : null,
+          thinking: custom != null && direct && effort == 'none' ? false : null,
+          autocompact: _autocompact,
           attribution: CommitAttribution.current(),
           env: env,
         ),
@@ -438,8 +453,7 @@ class ClaudeCodeKernel
   /// on, resumed, on it.
   void _applyWindow() {
     if (!_running || _busy) return;
-    if (_providerKey == _launchedProvider &&
-        (_custom != null || _window == _launchedWindow)) {
+    if (_providerKey == _launchedProvider && _autocompact == _launchedWindow) {
       return;
     }
     _teardown();
@@ -1677,12 +1691,14 @@ class ClaudeCodeKernel
     }
     if (sameProvider) {
       final (provider, info) = target!;
+      final effort = _effortFor(info);
       _model = id;
       _change([
         (
           'set_model',
-          {'model': requestedModel(provider, info, effort: _effort)},
+          {'model': requestedModel(provider, info, effort: effort)},
         ),
+        if (!provider.protocol.proxied) ?_thinkingSettings(effort),
       ]);
       return;
     }
@@ -1695,12 +1711,43 @@ class ClaudeCodeKernel
     emitInfoChanged();
   }
 
-  /// The efforts a model of a provider offers: none unless it thinks.
-  static const _customEfforts = ['low', 'medium', 'high'];
+  /// The efforts Claude Code itself takes (`--effort`, `effortLevel`).
+  static const _cliEfforts = {'low', 'medium', 'high', 'xhigh', 'max'};
+
+  /// The effort a provider's model is on: the one picked, if it offers
+  /// it, else its own.
+  String? _effortFor(ProviderModel info) =>
+      info.effortLevels.contains(_effort) ? _effort : info.initialEffort;
+
+  /// The context a provider's model fills before compacting: the one
+  /// picked, if it offers it, else its own.
+  int _windowFor(ProviderModel info) =>
+      info.contextOptions.contains(_window) ? _window! : info.initialContext;
+
+  /// The context the session compacts at: a provider's model's, else as
+  /// picked (null for the CLI's own).
+  int? get _autocompact => switch (_custom) {
+    (_, final info) => _windowFor(info),
+    null => _window,
+  };
+
+  /// Turns the thinking of a provider's model not behind the proxy to
+  /// [effort], as Claude Code's own settings: `none` turns it off.
+  _Request? _thinkingSettings(String? effort) => effort == null
+      ? null
+      : (
+          'apply_flag_settings',
+          {
+            'settings': {
+              'effortLevel': ?(_cliEfforts.contains(effort) ? effort : null),
+              'alwaysThinkingEnabled': effort != 'none',
+            },
+          },
+        );
 
   List<String> _effortLevelsOf(String model) {
     if (_providers.resolve(model) case (_, final info)) {
-      return info.thinking ? _customEfforts : const [];
+      return info.effortLevels;
     }
     if (parseModelRef(model) != null) return const [];
     return _variantOf(model)?.effortLevels ?? const [];
@@ -1785,7 +1832,18 @@ class ClaudeCodeKernel
   @override
   late final ModelSetting contextSize = _ModelSetting(
     optionsFor: (model) {
-      // A provider's model holds what it holds: no 1M to pick.
+      // A provider's model: what it offers, by the number of tokens.
+      if (_providers.resolve(model) case (_, final info)) {
+        return [
+          for (final tokens in info.contextOptions)
+            KernelOption(
+              '$tokens',
+              formatTokens(tokens),
+              Icons.notes_rounded,
+              '',
+            ),
+        ];
+      }
       if (parseModelRef(model) != null) return const [];
       final most = _modelWindowOf(model);
       final options = [
@@ -1796,6 +1854,7 @@ class ClaudeCodeKernel
       return options.length > 1 ? options : const [];
     },
     selected: () {
+      if (_custom case (_, final info)) return '${_windowFor(info)}';
       // Shown as picked until the process restarts with it, as the next
       // message is sent.
       final window = _window != _launchedWindow
@@ -1809,6 +1868,18 @@ class ClaudeCodeKernel
           ?.key;
     },
     select: (model, id) {
+      if (_providers.resolve(model) != null) {
+        final tokens = parseTokens(id);
+        if (tokens == null || tokens <= 0) return;
+        _window = tokens;
+        // Taken up with the next message (see _applyWindow).
+        if (model != _model) {
+          _selectModel(model);
+        } else {
+          emitInfoChanged();
+        }
+        return;
+      }
       final window = _windows[id];
       if (window == null) return;
       final long = window > _windows['200k']!;
@@ -1984,11 +2055,10 @@ class ClaudeCodeKernel
       for (final level in _effortLevelsOf(model))
         KernelOption(
           level,
-          level == 'xhigh'
-              ? 'X-High'
-              : level[0].toUpperCase() + level.substring(1),
+          effortLabel(level),
           Icons.speed_rounded,
           switch (level) {
+            'none' => 'No thinking',
             'low' => 'Fastest, least thinking',
             'medium' => 'Balanced',
             'high' => 'Thinks more',
@@ -1999,11 +2069,7 @@ class ClaudeCodeKernel
         ),
     ],
     selected: () {
-      if (_custom case (_, final info)) {
-        return info.thinking && _customEfforts.contains(_effort)
-            ? _effort
-            : null;
-      }
+      if (_custom case (_, final info)) return _effortFor(info);
       final levels = _currentModel?.effortLevels ?? const <String>[];
       final effort = _running ? _appliedEffort : _effort;
       return levels.contains(effort) ? effort : null;
@@ -2021,12 +2087,7 @@ class ClaudeCodeKernel
           if (provider.protocol.proxied)
             ('set_model', {'model': requestedModel(provider, info, effort: id)})
           else
-            (
-              'apply_flag_settings',
-              {
-                'settings': {'effortLevel': id},
-              },
-            ),
+            ?_thinkingSettings(id),
         ]);
         return;
       }

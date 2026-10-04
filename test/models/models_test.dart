@@ -7,7 +7,6 @@ import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/models/secret_store.dart';
 import 'package:baocode/models/secret_store_io.dart';
 import 'package:baocode/models/upstream.dart';
-import 'package:baocode/settings/pages/model_dialogs.dart' show parseTokens;
 import 'package:baocode/settings/pages/models_page.dart'
     show formatEnvironment, parseEnvironment;
 import 'package:flutter_test/flutter_test.dart';
@@ -39,8 +38,9 @@ void main() {
             id: 'm',
             label: 'M',
             contextWindow: 1000,
-            thinking: true,
-            images: true,
+            efforts: ['low', 'max'],
+            contexts: [128000, 1000000],
+            images: false,
             custom: true,
             missing: true,
             enabled: false,
@@ -67,6 +67,36 @@ void main() {
         ProviderModel.fromJson({'id': 'm', 'contextWindow': -1})!.contextWindow,
         isNull,
       );
+      // Images taken unless said otherwise; the efforts and contexts
+      // offered, the defaults.
+      final model = ProviderModel.fromJson({'id': 'm'})!;
+      expect(model.images, isTrue);
+      expect(model.effortLevels, ProviderModel.defaultEfforts);
+      expect(model.initialEffort, 'medium');
+      expect(model.contextOptions, ProviderModel.defaultContexts);
+      expect(model.initialContext, 200000);
+    });
+
+    test('a model\'s own efforts and contexts are offered, its default '
+        'context among them', () {
+      const model = ProviderModel(
+        id: 'm',
+        contextWindow: 131072,
+        efforts: ['high', 'low'],
+        contexts: [1000000, 64000],
+      );
+      expect(model.effortLevels, ['high', 'low']);
+      expect(model.initialEffort, 'high');
+      expect(model.contextOptions, [64000, 131072, 1000000]);
+      expect(model.initialContext, 131072);
+      expect(const ProviderModel(id: 'm', efforts: []).initialEffort, isNull);
+      expect(
+        const ProviderModel(id: 'm', contexts: [64000]).initialContext,
+        64000,
+      );
+      expect(effortLabel('none'), 'Disable');
+      expect(effortLabel('xhigh'), 'X-High');
+      expect(effortLabel('minimal'), 'Minimal');
     });
 
     test('a model is picked by reference', () {
@@ -455,14 +485,11 @@ void main() {
       );
     });
 
-    test('the effort goes after a proxied thinking model', () {
-      const thinking = ProviderModel(id: 'o3', thinking: true);
+    test('the effort goes after a proxied model', () {
+      const thinking = ProviderModel(id: 'o3');
       expect(requestedModel(_gateway, thinking, effort: 'high'), 'o3(high)');
+      expect(requestedModel(_gateway, thinking, effort: 'none'), 'o3(none)');
       expect(requestedModel(_gateway, thinking), 'o3');
-      expect(
-        requestedModel(_gateway, const ProviderModel(id: 'x'), effort: 'high'),
-        'x',
-      );
       expect(
         requestedModel(
           const ModelProvider(id: 'a', name: 'A'),

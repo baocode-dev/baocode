@@ -63,14 +63,15 @@ Map<String, String> launchEnvironment({
 }
 
 /// The model [modelId] of [provider] as Claude Code is told to ask for it:
-/// for a proxied model that thinks, the effort after it in parentheses
-/// (`gpt-5(high)`), which the proxy takes off and asks the upstream for.
+/// for a proxied model, the effort after it in parentheses (`gpt-5(high)`,
+/// `gpt-5(none)` for no reasoning), which the proxy takes off and asks the
+/// upstream for.
 String requestedModel(
   ModelProvider provider,
   ProviderModel model, {
   String? effort,
 }) {
-  if (!provider.protocol.proxied || !model.thinking || effort == null) {
+  if (!provider.protocol.proxied || effort == null) {
     return model.id;
   }
   return '${model.id}($effort)';

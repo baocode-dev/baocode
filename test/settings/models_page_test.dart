@@ -1,3 +1,4 @@
+import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/models/secret_store.dart';
@@ -127,6 +128,15 @@ void main() {
     expect(provider.models.first.contextWindow, 400000);
     expect(find.text('400K'), findsOneWidget);
 
+    // Only those checked are listed, unless all are shown.
+    expect(find.text('o3'), findsNothing);
+    await tester.tap(find.text('Show All (3)'));
+    await tester.pumpAndSettle();
+    expect(find.text('o3'), findsOneWidget);
+    await tester.tap(find.text('Show Checked Only'));
+    await tester.pumpAndSettle();
+    expect(find.text('o3'), findsNothing);
+
     // Haiku unset: warned.
     expect(
       find.textContaining('Unset, background work runs on the model picked'),
@@ -199,7 +209,18 @@ void main() {
     await tester.enterText(fields.at(0), 'my-model');
     await tester.enterText(fields.at(1), 'Mine');
     await tester.enterText(fields.at(2), '128k');
-    await tester.tap(find.text('Supports thinking (its effort can be picked)'));
+    // An effort taken off, a context added: its own lists.
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) => widget is IdeActionButton && widget.tooltip == 'Remove Max',
+      ),
+    );
+    await tester.pump();
+    await tester.enterText(fields.at(4), '64k');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    await tester.ensureVisible(find.text('Does not take images'));
+    await tester.tap(find.text('Does not take images'));
     await tester.pump();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -209,11 +230,23 @@ void main() {
         id: 'my-model',
         label: 'Mine',
         contextWindow: 128000,
-        thinking: true,
+        efforts: ['none', 'low', 'medium', 'high', 'xhigh'],
+        contexts: [
+          64000,
+          200000,
+          256000,
+          300000,
+          400000,
+          500000,
+          800000,
+          1000000,
+        ],
+        images: false,
         custom: true,
       ),
     );
     expect(find.text('Manual'), findsOneWidget);
+    expect(find.text('Does not take images'), findsOneWidget);
     expect(find.text('128K'), findsOneWidget);
   });
 

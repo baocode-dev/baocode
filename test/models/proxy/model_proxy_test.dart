@@ -108,7 +108,7 @@ void main() {
       protocol: ProviderProtocol.openaiChat,
       baseUrl: upstream.base,
       models: const [
-        ProviderModel(id: 'gpt-5', thinking: true),
+        ProviderModel(id: 'gpt-5'),
         ProviderModel(id: 'plain'),
       ],
     );
@@ -295,7 +295,7 @@ void main() {
     expect(errors, [null]);
   });
 
-  test('a model that does not think is not asked to', () async {
+  test('a model with no effort, or Disable, is not asked to think', () async {
     upstream.reply = (_) => (
       200,
       [
@@ -317,6 +317,22 @@ void main() {
     );
     expect(
       (upstream.requests.single.body! as Map).containsKey('reasoning_effort'),
+      isFalse,
+    );
+    await post(
+      await messages(),
+      {
+        'model': 'gpt-5(none)',
+        'stream': true,
+        'thinking': {'type': 'enabled', 'budget_tokens': 4000},
+        'messages': [
+          {'role': 'user', 'content': 'hi'},
+        ],
+      },
+      headers: {'authorization': 'Bearer tok'},
+    );
+    expect(
+      (upstream.requests.last.body! as Map).containsKey('reasoning_effort'),
       isFalse,
     );
   });

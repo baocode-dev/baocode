@@ -3742,8 +3742,16 @@
   "modelsMissing": "Gone upstream",
   "modelsMissingTooltip": "No longer listed by the upstream; kept until you remove it.",
   "modelsCustom": "Manual",
-  "modelsThinking": "Supports thinking",
-  "modelsImages": "Supports images",
+  "modelsShowAll": "Show All ({count})",
+  "@modelsShowAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "modelsShowChecked": "Show Checked Only",
+  "modelsNoneChecked": "No model is checked: show all to check some.",
   "modelsEdit": "Edit…",
   "modelsRemove": "Remove",
   "modelsMore": "More Actions",
@@ -3831,11 +3839,28 @@
   "modelsModelIdTaken": "This upstream has that model already.",
   "modelsModelLabel": "Display Name",
   "modelsModelLabelHint": "Optional",
-  "modelsContextWindow": "Context Window",
-  "modelsContextWindowHint": "Tokens, e.g. 128000 or 128K",
+  "modelsContextWindow": "Default Context",
+  "modelsContextWindowHint": "Tokens, e.g. 128K; 200K when empty",
   "modelsContextInvalid": "A number of tokens, e.g. 200K.",
-  "modelsSupportsThinking": "Supports thinking (its effort can be picked)",
-  "modelsSupportsImages": "Supports images",
+  "modelsEffortOptions": "Thinking Efforts",
+  "modelsEffortOptionsDescription": "Offered in the model picker; Medium is picked unless another is.",
+  "modelsEffortAddHint": "e.g. minimal",
+  "modelsEffortInvalid": "Letters, digits and dashes only.",
+  "modelsContextOptions": "Context Lengths",
+  "modelsContextOptionsDescription": "Offered in the model picker; the default context is among them.",
+  "modelsContextAddHint": "e.g. 128K",
+  "modelsOptionAdd": "Add",
+  "modelsOptionRemove": "Remove {name}",
+  "@modelsOptionRemove": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsOptionsReset": "Reset to Default",
+  "modelsOptionsNone": "None: not offered.",
+  "modelsNoImages": "Does not take images",
   "modelsSave": "Save",
   "modelsManage": "Manage Models…",
   "modelsSwitchTitle": "Switch to {name}?",

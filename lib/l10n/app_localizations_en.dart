@@ -5430,10 +5430,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsCustom => 'Manual';
 
   @override
-  String get modelsThinking => 'Supports thinking';
+  String modelsShowAll(int count) {
+    return 'Show All ($count)';
+  }
 
   @override
-  String get modelsImages => 'Supports images';
+  String get modelsShowChecked => 'Show Checked Only';
+
+  @override
+  String get modelsNoneChecked =>
+      'No model is checked: show all to check some.';
 
   @override
   String get modelsEdit => 'Edit…';
@@ -5606,20 +5612,53 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsModelLabelHint => 'Optional';
 
   @override
-  String get modelsContextWindow => 'Context Window';
+  String get modelsContextWindow => 'Default Context';
 
   @override
-  String get modelsContextWindowHint => 'Tokens, e.g. 128000 or 128K';
+  String get modelsContextWindowHint => 'Tokens, e.g. 128K; 200K when empty';
 
   @override
   String get modelsContextInvalid => 'A number of tokens, e.g. 200K.';
 
   @override
-  String get modelsSupportsThinking =>
-      'Supports thinking (its effort can be picked)';
+  String get modelsEffortOptions => 'Thinking Efforts';
 
   @override
-  String get modelsSupportsImages => 'Supports images';
+  String get modelsEffortOptionsDescription =>
+      'Offered in the model picker; Medium is picked unless another is.';
+
+  @override
+  String get modelsEffortAddHint => 'e.g. minimal';
+
+  @override
+  String get modelsEffortInvalid => 'Letters, digits and dashes only.';
+
+  @override
+  String get modelsContextOptions => 'Context Lengths';
+
+  @override
+  String get modelsContextOptionsDescription =>
+      'Offered in the model picker; the default context is among them.';
+
+  @override
+  String get modelsContextAddHint => 'e.g. 128K';
+
+  @override
+  String get modelsOptionAdd => 'Add';
+
+  @override
+  String modelsOptionRemove(String name) {
+    return 'Remove $name';
+  }
+
+  @override
+  String get modelsOptionsReset => 'Reset to Default';
+
+  @override
+  String get modelsOptionsNone => 'None: not offered.';
+
+  @override
+  String get modelsNoImages => 'Does not take images';
 
   @override
   String get modelsSave => 'Save';
