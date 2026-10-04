@@ -758,6 +758,11 @@
       }
     }
   },
+  "newChatRemoteGroup": "Remote",
+  "@newChatRemoteGroup": {
+    "description": "The heading of the projects on SSH hosts in the menu of where a new chat works."
+  },
+  "newChatOpenRemoteDetail": "A folder on a host over SSH",
   "newChatWorkingFolder": "Folder to work in",
   "@newChatWorkingFolder": {
     "description": "Heads the menu, over a new chat's input, of the folders it may work in."

@@ -2954,6 +2954,18 @@ abstract class AppLocalizations {
   /// **'New chat in {project}'**
   String sidebarNewAgentIn(String project);
 
+  /// The heading of the projects on SSH hosts in the menu of where a new chat works.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote'**
+  String get newChatRemoteGroup;
+
+  /// No description provided for @newChatOpenRemoteDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'A folder on a host over SSH'**
+  String get newChatOpenRemoteDetail;
+
   /// Heads the menu, over a new chat's input, of the folders it may work in.
   ///
   /// In en, this message translates to:

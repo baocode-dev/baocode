@@ -2015,8 +2015,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   /// Open Remote Project…: a folder of a host reached over SSH, opened as
-  /// a project (in the IDE when asked [inIde]).
-  void _openRemoteProject({bool inIde = false}) {
+  /// a project (in the IDE when asked [inIde]), or given to [onOpen].
+  void _openRemoteProject({bool inIde = false, ValueChanged<String>? onOpen}) {
     final held = _newWindowHeld;
     unawaited(
       OpenRemoteFlow(
@@ -2024,7 +2024,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         l10n: context.l10n,
         onOpen: (location) {
           if (!mounted) return;
-          if (inIde) {
+          if (onOpen != null) {
+            onOpen(location);
+          } else if (inIde) {
             _openIdeFolder(location, held: held);
           } else {
             unawaited(_workspace.openFolder(location));
@@ -2233,7 +2235,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         // project, and a kept session where it was.
         start: embedded || thread.record != null
             ? null
-            : NewChatFolderBar(workspace: _workspace, thread: thread),
+            : NewChatFolderBar(
+                workspace: _workspace,
+                thread: thread,
+                openRemote: (onOpen) => _openRemoteProject(onOpen: onOpen),
+              ),
       ),
     );
   }

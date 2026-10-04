@@ -27,7 +27,12 @@ class OpenRemoteFlow {
     SshHosts? hosts,
     Future<List<String>> Function()? configHosts,
   }) : hosts = hosts ?? SshHosts.instance,
-       _configHosts = configHosts ?? sshConfigHosts;
+       _configHosts = configHosts ?? defaultConfigHosts;
+
+  /// Where the hosts to pick from come from when not given: `~/.ssh/config`;
+  /// replaceable under test.
+  @visibleForTesting
+  static Future<List<String>> Function() defaultConfigHosts = sshConfigHosts;
 
   final void Function(IdeQuickPick pick) show;
   final AppLocalizations l10n;

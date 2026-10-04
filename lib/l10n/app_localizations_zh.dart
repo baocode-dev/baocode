@@ -1484,6 +1484,12 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get newChatRemoteGroup => '远程';
+
+  @override
+  String get newChatOpenRemoteDetail => '通过 SSH 打开主机上的文件夹';
+
+  @override
   String get newChatWorkingFolder => '在哪个文件夹中工作';
 
   @override

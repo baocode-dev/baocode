@@ -6,9 +6,11 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/ide/ide_quick_input.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/main.dart';
+import 'package:baocode/remote/open_remote.dart';
 import 'package:baocode/workspace/new_chat_folder_bar.dart';
 import 'package:baocode/workspace/workspace.dart';
 
@@ -184,4 +186,38 @@ void main() {
       expect(workspace.selected, same(moved));
     },
   );
+
+  testWidgets('projects on SSH hosts are under Remote, with Open Remote '
+      'Project…, which asks for a host', (tester) async {
+    final workspace = await _pumpNew(tester);
+    await workspace.openFolder('ssh://dev/home/me/app');
+    await tester.pumpAndSettle();
+    expect(workspace.selected.project.host, 'dev');
+
+    await tester.tap(find.descendant(of: _bar, matching: find.text('app')));
+    await tester.pumpAndSettle();
+    final remote = tester.getTopLeft(find.text('Remote')).dy;
+    // This machine's first, without a heading; the host's under Remote.
+    expect(tester.getTopLeft(find.text('No folder')).dy, lessThan(remote));
+    expect(
+      tester.getTopLeft(find.text('dev:/home/me/app')).dy,
+      greaterThan(remote),
+    );
+    expect(find.text('Open Remote Project...'), findsOneWidget);
+
+    // Picking it walks to a host; nothing is connected to yet.
+    final configHosts = OpenRemoteFlow.defaultConfigHosts;
+    OpenRemoteFlow.defaultConfigHosts = () async => ['dev', 'prod'];
+    addTearDown(() => OpenRemoteFlow.defaultConfigHosts = configHosts);
+    await tester.tap(find.text('Open Remote Project...'));
+    await tester.pumpAndSettle();
+    expect(find.byType(IdeQuickInput), findsOneWidget);
+    expect(
+      tester
+          .widget<IdeQuickInput>(find.byType(IdeQuickInput))
+          .pick
+          ?.placeholder,
+      'Select a host of ~/.ssh/config, or type user@host[:port]',
+    );
+  }, variant: _mac);
 }

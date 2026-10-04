@@ -476,6 +476,8 @@
   "ideChatHistory": "历史智能体",
   "ideChatNoAgents": "此项目中没有智能体",
   "sidebarNewAgentIn": "在 {project} 中新对话",
+  "newChatRemoteGroup": "远程",
+  "newChatOpenRemoteDetail": "通过 SSH 打开主机上的文件夹",
   "newChatWorkingFolder": "在哪个文件夹中工作",
   "newChatNoFolder": "不使用文件夹",
   "newChatNoFolderDetail": "在桌面中工作",

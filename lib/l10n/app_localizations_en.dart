@@ -1536,6 +1536,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get newChatRemoteGroup => 'Remote';
+
+  @override
+  String get newChatOpenRemoteDetail => 'A folder on a host over SSH';
+
+  @override
   String get newChatWorkingFolder => 'Folder to work in';
 
   @override
