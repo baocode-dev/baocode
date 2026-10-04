@@ -5586,6 +5586,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Replays the model\'s reasoning (reasoning_content) in later requests, as DeepSeek and others want.';
 
   @override
+  String get modelsPromptCacheKey => 'Prompt Cache Key';
+
+  @override
+  String get modelsPromptCacheKeyDescription =>
+      'Sends each conversation\'s own prompt_cache_key, so the upstream (or a relay in front of several) routes its requests to where the earlier ones are cached. Turn off for an upstream that rejects the field.';
+
+  @override
   String get modelsEnv => 'Extra Environment';
 
   @override

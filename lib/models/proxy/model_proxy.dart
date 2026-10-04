@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
 import '../launch_environment.dart';
@@ -198,6 +199,11 @@ class ModelProxy {
       );
       if (thinking) outgoing['reasoning'] = {'effort': effort};
     }
+    if (provider.promptCacheKey) {
+      if (promptCacheKey(body) case final key?) {
+        outgoing['prompt_cache_key'] = key;
+      }
+    }
 
     final client = await _upstream();
     final upstreamRequest = await client.postUrl(url);
@@ -325,4 +331,28 @@ int estimateInputTokens(Map<String, Object?> request) {
     'tools': request['tools'],
   });
   return (utf8.encode(text).length / 4).ceil();
+}
+
+/// The `prompt_cache_key` of [request]'s conversation: Claude Code's
+/// session (in `metadata.user_id`, as JSON, or as the older
+/// `…_session_<id>`), hashed, so the upstream is not told it. Null without
+/// one.
+String? promptCacheKey(Map<String, Object?> request) {
+  final userId = switch (request['metadata']) {
+    {'user_id': final String id} => id.trim(),
+    _ => '',
+  };
+  if (userId.isEmpty) return null;
+  var session = '';
+  try {
+    if (jsonDecode(userId) case {'session_id': final String id}) {
+      session = id.trim();
+    }
+  } on FormatException {
+    final legacy = userId.lastIndexOf('_session_');
+    if (legacy >= 0) session = userId.substring(legacy + 9).trim();
+  }
+  if (session.isEmpty) return null;
+  final digest = sha256.convert(utf8.encode('baocode:$session'));
+  return 'baocode-${'$digest'.substring(0, 32)}';
 }

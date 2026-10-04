@@ -446,6 +446,78 @@ void main() {
     expect(answer.data.last['type'], 'message_stop');
   });
 
+  group('prompt_cache_key', () {
+    const session = '3f1c2a9e-0d4b-4c6e-9a7f-1b2c3d4e5f60';
+    Map<String, Object?> request(String userId) => {
+      'metadata': {'user_id': userId},
+    };
+
+    test('is the session\'s, hashed: the same for each of its requests, '
+        'another for another session', () {
+      final key = promptCacheKey(
+        request(jsonEncode({'device_id': 'd', 'session_id': session})),
+      );
+      expect(key, matches(RegExp(r'^baocode-[0-9a-f]{32}$')));
+      expect(key, isNot(contains(session)));
+      // The older form names the same session.
+      expect(
+        promptCacheKey(request('user_abc_account__session_$session')),
+        key,
+      );
+      expect(
+        promptCacheKey(request(jsonEncode({'session_id': 'other'}))),
+        isNot(key),
+      );
+    });
+
+    test('is none without a session', () {
+      expect(promptCacheKey(const {}), isNull);
+      expect(promptCacheKey(request('')), isNull);
+      expect(promptCacheKey(request('user_abc')), isNull);
+      expect(promptCacheKey(request(jsonEncode({'device_id': 'd'}))), isNull);
+    });
+
+    for (final protocol in [
+      ProviderProtocol.openaiChat,
+      ProviderProtocol.openaiResponses,
+    ]) {
+      test('goes to ${protocol.id} upstreams, unless turned off', () async {
+        provider = provider.copyWith(protocol: protocol);
+        upstream.reply = (_) => (200, const []);
+        final body = {
+          'model': 'gpt-5',
+          'stream': true,
+          'metadata': {
+            'user_id': jsonEncode({'session_id': session}),
+          },
+          'messages': [
+            {'role': 'user', 'content': 'hi'},
+          ],
+        };
+        await post(
+          await messages(),
+          body,
+          headers: {'authorization': 'Bearer tok'},
+        );
+        expect(
+          (upstream.requests.last.body! as Map)['prompt_cache_key'],
+          promptCacheKey(body),
+        );
+
+        provider = provider.copyWith(promptCacheKey: false);
+        await post(
+          await messages(),
+          body,
+          headers: {'authorization': 'Bearer tok'},
+        );
+        expect(
+          (upstream.requests.last.body! as Map).containsKey('prompt_cache_key'),
+          isFalse,
+        );
+      });
+    }
+  });
+
   test('an unknown provider or endpoint is not found', () async {
     final endpoint = await proxy.endpoint('gw');
     final base = endpoint.baseUrl.replaceFirst('/p/gw', '');

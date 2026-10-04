@@ -2335,6 +2335,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (thread == null) {
       return _EmptyWorkspace(
         tips: _main ? _tips : null,
+        narrow: _narrow,
         loading: _workspace.loading,
         leading: leading,
         titleBarInset: titleBarInset,
@@ -2417,6 +2418,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         startHint: switch (_tips) {
           final tips? when _main => (context, hint) => FeatureTipsCard(
             controller: tips,
+            narrow: _narrow,
             orElse: hint,
           ),
           _ => null,
@@ -2744,6 +2746,7 @@ class _IdeNoFolderChat extends StatelessWidget {
 class _EmptyWorkspace extends StatelessWidget {
   const _EmptyWorkspace({
     this.tips,
+    this.narrow = false,
     required this.loading,
     required this.titleBarInset,
     this.leading,
@@ -2758,6 +2761,10 @@ class _EmptyWorkspace extends StatelessWidget {
 
   /// The setup checklist, under the buttons.
   final FeatureTipsController? tips;
+
+  /// The window narrow (see [Workbench.narrowWidth]): the checklist a tile
+  /// a row.
+  final bool narrow;
 
   /// Open Remote Project…: a folder on a host reached over SSH.
   final VoidCallback? onOpenRemote;
@@ -2838,8 +2845,8 @@ class _EmptyWorkspace extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 24),
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 460),
-                      child: FeatureTipsCard(controller: tips),
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: FeatureTipsCard(controller: tips, narrow: narrow),
                     ),
                   ),
               ],

@@ -5227,6 +5227,13 @@ class AppLocalizationsZh extends AppLocalizations {
       '在后续请求中回传模型的推理内容（reasoning_content），DeepSeek 等上游需要。';
 
   @override
+  String get modelsPromptCacheKey => '提示缓存键';
+
+  @override
+  String get modelsPromptCacheKeyDescription =>
+      '为每个对话发送独立的 prompt_cache_key，让上游（或背后有多个后端的中转站）把同一对话的请求路由到已缓存的位置。上游不接受该字段时请关闭。';
+
+  @override
   String get modelsEnv => '额外环境变量';
 
   @override
