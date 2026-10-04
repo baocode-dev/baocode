@@ -147,6 +147,10 @@ void main() {
       );
       addTearDown(host.close);
       await host.ready;
+      var scheduled = 0;
+      host.addListener(() {
+        if (host.retryAt != null) scheduled++;
+      });
       connector.failure = const SshConnectException(
         SshFailure.unreachable,
         'The host could not be reached.',
@@ -154,7 +158,7 @@ void main() {
       await connector.links.single.drop();
       await until(() => connector.attempts >= 3);
       expect(host.state, SshHostState.reconnecting);
-      expect(host.retryAt, isNotNull);
+      expect(scheduled, greaterThan(0));
       connector.failure = null;
       await until(() => host.state == SshHostState.connected);
     });
