@@ -3923,5 +3923,125 @@
         "type": "String"
       }
     }
+  },
+  "cmdOpenRemoteFolder": "Open Remote Project...",
+  "remoteHostPlaceholder": "Select a host of ~/.ssh/config, or type user@host[:port]",
+  "remoteConnectTo": "Connect to {host}",
+  "@remoteConnectTo": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteNoHosts": "No hosts in ~/.ssh/config: type one",
+  "remoteInvalidHost": "Not a host: no spaces, and not starting with '-'",
+  "remoteConnecting": "Connecting to {host}...",
+  "@remoteConnecting": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteConnectFailed": "Could not connect to {host}",
+  "@remoteConnectFailed": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteRetry": "Retry",
+  "remoteFolderPlaceholder": "A folder on {host}: pick one, or type a path",
+  "@remoteFolderPlaceholder": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteOpenThisFolder": "Open This Folder",
+  "remoteParentFolder": "Parent Folder",
+  "remoteGoTo": "Go to {path}",
+  "@remoteGoTo": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteListFailed": "Could not list {path}",
+  "@remoteListFailed": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatus": "SSH: {host}",
+  "@remoteStatus": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatusConnecting": "SSH: {host} (connecting...)",
+  "@remoteStatusConnecting": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatusReconnecting": "SSH: {host} (reconnecting...)",
+  "@remoteStatusReconnecting": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatusFailed": "SSH: {host} (disconnected)",
+  "@remoteStatusFailed": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatusTooltip": "Connected to {host} over SSH",
+  "@remoteStatusTooltip": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatusTooltipLost": "The connection to {host} is lost: click to reconnect now",
+  "@remoteStatusTooltipLost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteReconnect": "Reconnect",
+  "remoteProjectTooltip": "On {host}, over SSH",
+  "@remoteProjectTooltip": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "quitConfirmRemote": "{count, plural, =1{1 session or terminal on a remote host will end too.} other{{count} sessions and terminals on remote hosts will end too.}}",
+  "@quitConfirmRemote": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

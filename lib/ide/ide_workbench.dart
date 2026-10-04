@@ -116,9 +116,14 @@ class IdeWorkbench extends StatefulWidget {
     this.settings,
     this.viewState,
     this.onViewState,
+    this.remote,
   });
 
   final IdeWorkspace workspace;
+
+  /// The remote host the project is on, shown first in the status bar;
+  /// null for this machine.
+  final IdeRemoteIndicator? remote;
 
   /// Hands a file to its default app; tests replace it.
   @visibleForTesting
@@ -530,6 +535,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _registerCommandKeybindings();
     _notifications.addListener(_notificationsChanged);
     widget.settings?.addListener(_settingsChanged);
+    widget.remote?.addListener(_remoteChanged);
     if (widget.terminalBackend.supported) {
       _terminals = TerminalService(
         root: widget.workspace.root,
@@ -702,6 +708,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (mounted) setState(() {});
   }
 
+  /// The remote indicator follows the connection.
+  void _remoteChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void didUpdateWidget(IdeWorkbench oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -711,6 +722,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (oldWidget.settings != widget.settings) {
       oldWidget.settings?.removeListener(_settingsChanged);
       widget.settings?.addListener(_settingsChanged);
+    }
+    if (oldWidget.remote != widget.remote) {
+      oldWidget.remote?.removeListener(_remoteChanged);
+      widget.remote?.addListener(_remoteChanged);
     }
     if (oldWidget.workspace != widget.workspace) {
       _detach(oldWidget.workspace);
@@ -729,6 +744,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     FocusManager.instance.removeLateKeyEventHandler(_onLateKey);
     KeybindingService.instance.removeListener(_keybindingsChanged);
     widget.settings?.removeListener(_settingsChanged);
+    widget.remote?.removeListener(_remoteChanged);
     _keepView();
     _chordChecker?.cancel();
     _statusMessageTimer?.cancel();
@@ -2874,6 +2890,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     actions: [
                       for (final id in const [
                         'workbench.action.files.openFolder',
+                        'baocode.remote.openFolder',
                         'workbench.action.files.openFile',
                         'workbench.action.files.newUntitledFile',
                       ])
@@ -3462,6 +3479,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // (a deviation: upstream's status bar items have their tooltips alone).
     final keys = KeybindingService.instance;
     final left = [
+      ?widget.remote?.item(context),
       if (_gitBranch ?? _branch case final branch?)
         // Upstream's `CheckoutStatusBar`: Checkout to…, its tooltip the
         // repository's (`<folder> (Git) - `) before the command's.

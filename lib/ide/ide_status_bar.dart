@@ -12,6 +12,13 @@ import 'package:bao_editor/monaco/flutter/language_assets.dart';
 import 'ide_editor.dart';
 import 'ide_hover.dart';
 
+/// The remote host the workbench's project is on, as the status bar shows
+/// it first (VS Code's remote indicator): its state as [item], which
+/// changes as the connection does.
+abstract interface class IdeRemoteIndicator implements Listenable {
+  IdeStatusBarItem item(BuildContext context);
+}
+
 /// One status bar entry; [onTap] makes it a button with a hover highlight.
 /// Its [text] may name icons as VS Code's labels do: `$(error) 2`.
 class IdeStatusBarItem {

@@ -5760,4 +5760,106 @@ class AppLocalizationsEn extends AppLocalizations {
   String contextMenuOpenWith(String name) {
     return 'Open with $name';
   }
+
+  @override
+  String get cmdOpenRemoteFolder => 'Open Remote Project...';
+
+  @override
+  String get remoteHostPlaceholder =>
+      'Select a host of ~/.ssh/config, or type user@host[:port]';
+
+  @override
+  String remoteConnectTo(String host) {
+    return 'Connect to $host';
+  }
+
+  @override
+  String get remoteNoHosts => 'No hosts in ~/.ssh/config: type one';
+
+  @override
+  String get remoteInvalidHost =>
+      'Not a host: no spaces, and not starting with \'-\'';
+
+  @override
+  String remoteConnecting(String host) {
+    return 'Connecting to $host...';
+  }
+
+  @override
+  String remoteConnectFailed(String host) {
+    return 'Could not connect to $host';
+  }
+
+  @override
+  String get remoteRetry => 'Retry';
+
+  @override
+  String remoteFolderPlaceholder(String host) {
+    return 'A folder on $host: pick one, or type a path';
+  }
+
+  @override
+  String get remoteOpenThisFolder => 'Open This Folder';
+
+  @override
+  String get remoteParentFolder => 'Parent Folder';
+
+  @override
+  String remoteGoTo(String path) {
+    return 'Go to $path';
+  }
+
+  @override
+  String remoteListFailed(String path) {
+    return 'Could not list $path';
+  }
+
+  @override
+  String remoteStatus(String host) {
+    return 'SSH: $host';
+  }
+
+  @override
+  String remoteStatusConnecting(String host) {
+    return 'SSH: $host (connecting...)';
+  }
+
+  @override
+  String remoteStatusReconnecting(String host) {
+    return 'SSH: $host (reconnecting...)';
+  }
+
+  @override
+  String remoteStatusFailed(String host) {
+    return 'SSH: $host (disconnected)';
+  }
+
+  @override
+  String remoteStatusTooltip(String host) {
+    return 'Connected to $host over SSH';
+  }
+
+  @override
+  String remoteStatusTooltipLost(String host) {
+    return 'The connection to $host is lost: click to reconnect now';
+  }
+
+  @override
+  String get remoteReconnect => 'Reconnect';
+
+  @override
+  String remoteProjectTooltip(String host) {
+    return 'On $host, over SSH';
+  }
+
+  @override
+  String quitConfirmRemote(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sessions and terminals on remote hosts will end too.',
+      one: '1 session or terminal on a remote host will end too.',
+    );
+    return '$_temp0';
+  }
 }

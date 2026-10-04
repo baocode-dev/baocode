@@ -16,8 +16,9 @@ abstract final class QuitConfirmation {
 
   /// Whether to go on quitting, asked in [context]'s navigator; yes without
   /// asking when there is none yet. Asked once at a time: a request while
-  /// the question is up does not quit.
-  static Future<bool> confirm(BuildContext? context) async {
+  /// the question is up does not quit. [remote] sessions and terminals on
+  /// remote hosts, if any, are told of too.
+  static Future<bool> confirm(BuildContext? context, {int remote = 0}) async {
     if (_skipNext) {
       _skipNext = false;
       return true;
@@ -30,7 +31,9 @@ abstract final class QuitConfirmation {
       final choice = await showIdeDialog(
         context,
         message: l10n.quitConfirmMessage,
-        detail: l10n.quitConfirmDetail,
+        detail: remote > 0
+            ? '${l10n.quitConfirmDetail}\n${l10n.quitConfirmRemote(remote)}'
+            : l10n.quitConfirmDetail,
         buttons: [l10n.quitConfirmQuit],
         type: IdeDialogType.question,
       );

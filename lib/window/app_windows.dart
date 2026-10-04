@@ -6,7 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
+import '../remote/remote_claude.dart';
 import '../remote/remote_location.dart';
+import '../remote/remote_services.dart';
 import '../chat/composer/composer_files.dart';
 import '../chat/composer/file_drop.dart';
 import '../ide/ide_dialog.dart';
@@ -1118,12 +1120,14 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
           (window) =>
               window.delegate?.terminalsRunning(childProcesses: true) ?? false,
         );
-    if (!working) return true;
+    // What runs on remote hosts ends with their servers.
+    final remote = RemoteClaudeTransport.running + RemotePtyAdapter.open;
+    if (!working && remote == 0) return true;
     final asker = active.delegate?.windowContext != null ? active : chat;
     final context = asker.delegate?.windowContext;
     if (context == null || !context.mounted) return true;
     if (_started) _focus(asker);
-    return QuitConfirmation.confirm(context);
+    return QuitConfirmation.confirm(context, remote: remote);
   }
 
   // --- The system's events -----------------------------------------------------

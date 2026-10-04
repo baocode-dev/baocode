@@ -172,6 +172,7 @@ class _StartTileState extends State<_StartTile> {
 
   static IconData _icon(String id) => switch (id) {
     'workbench.action.files.openFolder' => Codicons.folderOpened,
+    'baocode.remote.openFolder' => Codicons.remote,
     'workbench.action.files.openFile' => Codicons.goToFile,
     'workbench.action.files.newUntitledFile' => Codicons.newFile,
     'workbench.action.openRecent' => Codicons.history,

@@ -62,8 +62,11 @@ import 'theme/workbench_theme.dart' show WorkbenchThemeService, themeColors;
 import 'window/app_windows.dart';
 import 'window/code_args.dart';
 import 'window/window_settings.dart';
+import 'remote/open_remote.dart';
 import 'remote/project_host.dart';
 import 'remote/remote_location.dart';
+import 'remote/remote_status.dart';
+import 'remote/ssh_host.dart';
 import 'workspace/chat_drag.dart';
 import 'workspace/chat_grid_view.dart';
 import 'workspace/chat_terminal.dart';
@@ -839,6 +842,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           Codicons.folderOpened,
           () => unawaited(_openFolder()),
         ),
+      ?action(openRemoteFolderCommandId, Codicons.remote, _openRemoteProject),
       ?action(ChatCommandIds.nextAgent, Codicons.arrowDown),
       ?action(ChatCommandIds.previousAgent, Codicons.arrowUp),
       ?action(ChatCommandIds.focusNextPane, Codicons.arrowRight),
@@ -1108,6 +1112,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             'workbench.action.files.openFolder',
             () => unawaited(_pickIdeFolder()),
             enabled: WindowControls.canPickDirectory,
+          ),
+          IdeCommand(
+            id: openRemoteFolderCommandId,
+            category: 'Remote-SSH',
+            label: 'Open Remote Project...',
+            run: () => _openRemoteProject(inIde: true),
           ),
           command('workbench.action.openRecent', _showOpenRecent),
           command(
@@ -1584,6 +1594,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             terminalBackend: ProjectHost.of(path).terminals(
               widget.terminalBackend ?? const TerminalBackend(supported: false),
             ),
+            remote: switch (ProjectHost.of(path)) {
+              final SshHost host => SshStatusIndicator(host),
+              _ => null,
+            },
             // Claude Haiku where the project is.
             commitMessage: (prompt, {cancel}) =>
                 ideClaudeCommitMessage(prompt, cancel: cancel, location: path),
@@ -1953,6 +1967,26 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     );
   }
 
+  /// Open Remote Project…: a folder of a host reached over SSH, opened as
+  /// a project (in the IDE when asked [inIde]).
+  void _openRemoteProject({bool inIde = false}) {
+    final held = _newWindowHeld;
+    unawaited(
+      OpenRemoteFlow(
+        show: showQuickPick,
+        l10n: context.l10n,
+        onOpen: (location) {
+          if (!mounted) return;
+          if (inIde) {
+            _openIdeFolder(location, held: held);
+          } else {
+            unawaited(_workspace.openFolder(location));
+          }
+        },
+      ).start(),
+    );
+  }
+
   Future<void> _openFolder() async {
     final path = await WindowControls.pickDirectory();
     if (path == null || !mounted) return;
@@ -2083,6 +2117,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         leading: leading,
         titleBarInset: titleBarInset,
         onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
+        onOpenRemote: WindowControls.canPickDirectory
+            ? _openRemoteProject
+            : null,
       );
     }
     final windowTools = !header && !embedded && place.topRight;
@@ -2476,12 +2513,16 @@ class _EmptyWorkspace extends StatelessWidget {
     required this.titleBarInset,
     this.leading,
     this.onOpenFolder,
+    this.onOpenRemote,
   });
 
   final bool loading;
   final double titleBarInset;
   final Widget? leading;
   final VoidCallback? onOpenFolder;
+
+  /// Open Remote Project…: a folder on a host reached over SSH.
+  final VoidCallback? onOpenRemote;
 
   @override
   Widget build(BuildContext context) {
@@ -2542,6 +2583,18 @@ class _EmptyWorkspace extends StatelessWidget {
                       onTap: open,
                     ),
                   ),
+                  if (onOpenRemote case final remote?) ...[
+                    const SizedBox(height: 8),
+                    IntrinsicWidth(
+                      child: PanelButton(
+                        label: l10n.cmdOpenRemoteFolder.replaceFirst(
+                          RegExp(r'(\.\.\.|…)$'),
+                          '',
+                        ),
+                        onTap: remote,
+                      ),
+                    ),
+                  ],
                 ],
               ],
             ),

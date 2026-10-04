@@ -9560,6 +9560,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open with {name}'**
   String contextMenuOpenWith(String name);
+
+  /// No description provided for @cmdOpenRemoteFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Remote Project...'**
+  String get cmdOpenRemoteFolder;
+
+  /// No description provided for @remoteHostPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a host of ~/.ssh/config, or type user@host[:port]'**
+  String get remoteHostPlaceholder;
+
+  /// No description provided for @remoteConnectTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to {host}'**
+  String remoteConnectTo(String host);
+
+  /// No description provided for @remoteNoHosts.
+  ///
+  /// In en, this message translates to:
+  /// **'No hosts in ~/.ssh/config: type one'**
+  String get remoteNoHosts;
+
+  /// No description provided for @remoteInvalidHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Not a host: no spaces, and not starting with \'-\''**
+  String get remoteInvalidHost;
+
+  /// No description provided for @remoteConnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting to {host}...'**
+  String remoteConnecting(String host);
+
+  /// No description provided for @remoteConnectFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not connect to {host}'**
+  String remoteConnectFailed(String host);
+
+  /// No description provided for @remoteRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get remoteRetry;
+
+  /// No description provided for @remoteFolderPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'A folder on {host}: pick one, or type a path'**
+  String remoteFolderPlaceholder(String host);
+
+  /// No description provided for @remoteOpenThisFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Open This Folder'**
+  String get remoteOpenThisFolder;
+
+  /// No description provided for @remoteParentFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Parent Folder'**
+  String get remoteParentFolder;
+
+  /// No description provided for @remoteGoTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to {path}'**
+  String remoteGoTo(String path);
+
+  /// No description provided for @remoteListFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not list {path}'**
+  String remoteListFailed(String path);
+
+  /// No description provided for @remoteStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH: {host}'**
+  String remoteStatus(String host);
+
+  /// No description provided for @remoteStatusConnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH: {host} (connecting...)'**
+  String remoteStatusConnecting(String host);
+
+  /// No description provided for @remoteStatusReconnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH: {host} (reconnecting...)'**
+  String remoteStatusReconnecting(String host);
+
+  /// No description provided for @remoteStatusFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH: {host} (disconnected)'**
+  String remoteStatusFailed(String host);
+
+  /// No description provided for @remoteStatusTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected to {host} over SSH'**
+  String remoteStatusTooltip(String host);
+
+  /// No description provided for @remoteStatusTooltipLost.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection to {host} is lost: click to reconnect now'**
+  String remoteStatusTooltipLost(String host);
+
+  /// No description provided for @remoteReconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect'**
+  String get remoteReconnect;
+
+  /// No description provided for @remoteProjectTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'On {host}, over SSH'**
+  String remoteProjectTooltip(String host);
+
+  /// No description provided for @quitConfirmRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 session or terminal on a remote host will end too.} other{{count} sessions and terminals on remote hosts will end too.}}'**
+  String quitConfirmRemote(int count);
 }
 
 class _AppLocalizationsDelegate

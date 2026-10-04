@@ -5396,4 +5396,104 @@ class AppLocalizationsZh extends AppLocalizations {
   String contextMenuOpenWith(String name) {
     return '用 $name 打开';
   }
+
+  @override
+  String get cmdOpenRemoteFolder => '打开远程项目...';
+
+  @override
+  String get remoteHostPlaceholder =>
+      '选择 ~/.ssh/config 中的主机，或输入 user@host[:port]';
+
+  @override
+  String remoteConnectTo(String host) {
+    return '连接到 $host';
+  }
+
+  @override
+  String get remoteNoHosts => '~/.ssh/config 中没有主机，请直接输入';
+
+  @override
+  String get remoteInvalidHost => '不是有效的主机：不能含空格，也不能以 \'-\' 开头';
+
+  @override
+  String remoteConnecting(String host) {
+    return '正在连接 $host...';
+  }
+
+  @override
+  String remoteConnectFailed(String host) {
+    return '无法连接到 $host';
+  }
+
+  @override
+  String get remoteRetry => '重试';
+
+  @override
+  String remoteFolderPlaceholder(String host) {
+    return '$host 上的文件夹：选择一个，或输入路径';
+  }
+
+  @override
+  String get remoteOpenThisFolder => '打开此文件夹';
+
+  @override
+  String get remoteParentFolder => '上级文件夹';
+
+  @override
+  String remoteGoTo(String path) {
+    return '前往 $path';
+  }
+
+  @override
+  String remoteListFailed(String path) {
+    return '无法列出 $path';
+  }
+
+  @override
+  String remoteStatus(String host) {
+    return 'SSH: $host';
+  }
+
+  @override
+  String remoteStatusConnecting(String host) {
+    return 'SSH: $host（正在连接...）';
+  }
+
+  @override
+  String remoteStatusReconnecting(String host) {
+    return 'SSH: $host（正在重连...）';
+  }
+
+  @override
+  String remoteStatusFailed(String host) {
+    return 'SSH: $host（已断开）';
+  }
+
+  @override
+  String remoteStatusTooltip(String host) {
+    return '已通过 SSH 连接到 $host';
+  }
+
+  @override
+  String remoteStatusTooltipLost(String host) {
+    return '与 $host 的连接已断开：点击立即重连';
+  }
+
+  @override
+  String get remoteReconnect => '重新连接';
+
+  @override
+  String remoteProjectTooltip(String host) {
+    return '位于 $host（通过 SSH）';
+  }
+
+  @override
+  String quitConfirmRemote(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '远程主机上的 $count 个会话和终端也会结束。',
+    );
+    return '$_temp0';
+  }
 }
