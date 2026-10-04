@@ -161,9 +161,9 @@ class CodeTarget {
 }
 
 /// What the app was started for, by its command line (the Windows app's,
-/// which Flutter is given as `main`'s arguments; the macOS app has paths
-/// handed over after it starts): it opens that alone, nothing of the last
-/// run.
+/// which Flutter is given as `main`'s arguments; the macOS app's comes as
+/// paths handed over as it starts: see `OpenRequests.launchRequest`): it
+/// opens that alone, nothing of the last run.
 enum LaunchRequest {
   /// Started as itself: the windows of the last run.
   none,

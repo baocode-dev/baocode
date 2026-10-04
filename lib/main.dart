@@ -33,6 +33,7 @@ import 'notifications/attention_host.dart';
 import 'notifications/attention_settings.dart';
 import 'platform/app_platform.dart';
 import 'platform/data_dir.dart';
+import 'platform/open_requests.dart';
 import 'remote/project_host.dart';
 import 'remote/remote_claude.dart';
 import 'remote/ssh_host.dart';
@@ -147,7 +148,9 @@ Future<void> main(List<String> arguments) async {
   // windows of the IDE's own, the chat's and those to open again; with
   // the IDE in the main window, its layout. Started for something (Open
   // with BaoCode or Fast Ide, the `code` command), that alone.
-  final request = LaunchRequest.of(arguments);
+  final request = AppPlatform.isMacOS
+      ? await OpenRequests.launchRequest()
+      : LaunchRequest.of(arguments);
   await windows.prepareLaunch(request: request);
   if (request == LaunchRequest.agent) {
     // In a window of its own; without them, in the main window's chat.

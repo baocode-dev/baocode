@@ -131,5 +131,22 @@ void main() {
     messenger.setMockMethodCallHandler(_open, null);
     OpenRequests.listen((_) => fail('nothing to open'));
     await pumpEventQueue();
+    expect(await OpenRequests.launchRequest(), LaunchRequest.none);
+  });
+
+  test('what the macOS app was launched for, as the window says (Finder\'s '
+      'Open with BaoCode, an agent; anything else, the IDE)', () async {
+    for (final (answer, request) in [
+      ('agent', LaunchRequest.agent),
+      ('ide', LaunchRequest.ide),
+      (null, LaunchRequest.none),
+    ]) {
+      messenger.setMockMethodCallHandler(_open, (call) async {
+        calls.add(call.method);
+        return answer;
+      });
+      expect(await OpenRequests.launchRequest(), request);
+    }
+    expect(calls, everyElement('launchRequest'));
   });
 }
