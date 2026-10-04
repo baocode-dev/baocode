@@ -586,14 +586,17 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     };
   }
 
-  /// The terminal panel's: Toggle Terminal and Create New Terminal where
-  /// there is an agent's project for them; those on the terminal shown.
+  /// The terminal panel's: Toggle Terminal (and Toggle Panel Visibility,
+  /// which the IDE's panel button shows first) and Create New Terminal
+  /// where there is an agent's project for them; those on the terminal
+  /// shown.
   Map<String, VoidCallback> _terminalCommands() {
     final terminals = _terminals;
     if (terminals == null || terminals.root == null) return const {};
     final current = terminals.shown ? terminals.current : null;
     return {
       toggleTerminalCommand: _toggleTerminal,
+      togglePanelCommand: _toggleTerminal,
       newTerminalCommand: terminals.create,
       if (current?.active != null)
         'workbench.action.terminal.kill': terminals.kill,

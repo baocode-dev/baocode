@@ -1362,9 +1362,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get windowHideSidebar => 'Hide sidebar';
 
   @override
-  String get chatTerminalShow => 'Show terminal';
-
-  @override
   String get chatTerminalHide => 'Hide terminal';
 
   @override

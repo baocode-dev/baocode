@@ -1325,9 +1325,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get windowHideSidebar => '隐藏侧边栏';
 
   @override
-  String get chatTerminalShow => '显示终端';
-
-  @override
   String get chatTerminalHide => '隐藏终端';
 
   @override

@@ -4,8 +4,11 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/ide/terminal/terminal_instance.dart';
+import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/workspace/chat_terminal.dart';
 import 'package:baocode/workspace/window_header/window_header.dart';
@@ -130,6 +133,30 @@ void main() {
     await _settle(tester);
     expect(_panel, findsNothing);
     expect(ptys.single.writes, hasLength(before));
+  }, variant: _mac);
+
+  testWidgets('it is the IDE\'s Toggle Terminal: its hover names the '
+      'command with the key in effect, and the keys rebound for it or for '
+      'Toggle Panel Visibility toggle it', (tester) async {
+    addTearDown(() => KeybindingService.instance = KeybindingService());
+    final ptys = <FakePty>[];
+    await _pumpApp(tester, terminalBackend: fakeTerminalBackend(ptys));
+    final hover = tester.widget<IdeHover>(
+      find.descendant(of: _toggle, matching: find.byType(IdeHover)),
+    );
+    expect(hover.message, 'Toggle Terminal (⌃`)');
+
+    KeybindingService.instance.userEntries = const [
+      KeybindingEntry(key: 'ctrl+alt+t', command: toggleTerminalCommand),
+      KeybindingEntry(key: 'ctrl+alt+p', command: togglePanelCommand),
+    ];
+    await tester.pump();
+    await press(tester, LogicalKeyboardKey.keyT, control: true, alt: true);
+    await _settle(tester);
+    expect(_panel, findsOneWidget);
+    await press(tester, LogicalKeyboardKey.keyP, control: true, alt: true);
+    await _settle(tester);
+    expect(_panel, findsNothing);
   }, variant: _mac);
 
   testWidgets('⌃⇧` makes another terminal; the tabs list them both', (
