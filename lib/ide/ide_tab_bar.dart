@@ -92,9 +92,14 @@ class IdeTabBar extends StatefulWidget {
     required this.onSelect,
     required this.onClose,
     required this.onAction,
+    this.local = true,
   });
 
   final List<IdeDocument> documents;
+
+  /// Whether the files are this machine's: a remote project's are neither
+  /// shown in the file manager nor opened in another app.
+  final bool local;
   final IdeDocument? active;
   final String root;
   final ValueChanged<IdeDocument> onSelect;
@@ -233,13 +238,17 @@ class _IdeTabBarState extends State<IdeTabBar> {
         ],
         [
           // Not a revision's tab, whose file may be gone.
-          if (WindowControls.canRevealInFileManager && doc.readRevision == null)
+          if (widget.local &&
+              WindowControls.canRevealInFileManager &&
+              doc.readRevision == null)
             item(
               IdeTabAction.revealInFileManager,
               l10n.revealInFileManager,
               command: 'revealFileInOS',
             ),
-          if (WindowControls.canOpenInDefaultApp && doc.readRevision == null)
+          if (widget.local &&
+              WindowControls.canOpenInDefaultApp &&
+              doc.readRevision == null)
             item(IdeTabAction.openInDefaultApp, l10n.openInDefaultApp),
           item(IdeTabAction.revealInExplorer, l10n.tabRevealInExplorerView),
         ],

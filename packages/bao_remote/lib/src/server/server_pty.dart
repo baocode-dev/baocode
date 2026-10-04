@@ -87,7 +87,7 @@ class ServerPty {
     );
     var nonce = '';
     if (args['shellIntegration'] != false) {
-      nonce = generateShellIntegrationNonce();
+      nonce = args['nonce'] as String? ?? generateShellIntegrationNonce();
       final injection = prepareShellIntegration(
         executable: shell.executable,
         arguments: arguments,

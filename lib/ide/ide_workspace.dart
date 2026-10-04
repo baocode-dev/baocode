@@ -198,7 +198,12 @@ class IdeWorkspace extends ChangeNotifier {
     this.hasFolder = true,
     Stream<void> Function(String directory)? watch,
   }) : files = files ?? IdeFileService(root),
-       _watchDirectory = watch ?? watchDirectory {
+       _watchDirectory =
+           watch ??
+           switch (files) {
+             final IdeHostFiles files => files.watchDirectory,
+             _ => watchDirectory,
+           } {
     addListener(_watchOpenFiles);
   }
 

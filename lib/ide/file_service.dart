@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:bao_remote/files.dart';
+import 'package:bao_remote/search.dart';
 import 'package:path/path.dart' as p;
 
 import '../l10n/app_localizations.dart';
@@ -42,6 +43,23 @@ abstract interface class IdeFileService {
 
   /// Deletes [path] (a folder with its contents) for good.
   Future<void> delete(String path);
+}
+
+/// A file service of files on another machine (a remote project's host):
+/// what the IDE does on the disk besides reading and writing text, it does
+/// through it too.
+abstract interface class IdeHostFiles implements IdeFileService {
+  /// [path]'s bytes (an image's), as [readFileBytes] reads them here.
+  Future<Uint8List> readBytes(String path);
+
+  /// Changes to the entries of [directory], as [watchDirectory] here.
+  Stream<void> watchDirectory(String directory);
+
+  /// The project's files, as [listProjectFiles] lists them here.
+  Future<IdeFileListing> listProject(String root, {int limit = 50000});
+
+  /// The text search of the IDE's Search view, run there.
+  Stream<Object> searchText(String root, IdeTextQuery query);
 }
 
 /// [error] as a message in [l10n]'s language: the file service's own
@@ -99,6 +117,7 @@ Future<IdeFileListing> listProjectFiles(
   if (files is platform.LocalIdeFileService) {
     return platform.walkProjectFiles(root, ideIndexExcludedDirectories, limit);
   }
+  if (files is IdeHostFiles) return files.listProject(root, limit: limit);
   final paths = <String>[];
   final pending = <String>[root];
   while (pending.isNotEmpty) {

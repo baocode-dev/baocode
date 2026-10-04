@@ -11,8 +11,6 @@ import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
 import 'customize/customization_store.dart';
 import 'ide/git/git_repository.dart';
-import 'ide/git/git_service.dart';
-import 'ide/lsp/catalog/standard_lsp.dart';
 import 'ide/lsp/language_features.dart';
 import 'ide/lsp/lsp_process.dart';
 import 'ide/lsp/packs/language_packs.dart';
@@ -32,6 +30,9 @@ import 'models/model_providers.dart';
 import 'models/model_runtime.dart';
 import 'notifications/attention_settings.dart';
 import 'platform/data_dir.dart';
+import 'remote/project_host.dart';
+import 'remote/remote_claude.dart';
+import 'remote/ssh_host.dart';
 import 'search/claude_conversation_search.dart';
 import 'search/conversation_search.dart';
 import 'settings/app_locale.dart';
@@ -181,8 +182,15 @@ Future<void> main(List<String> arguments) async {
     workspace: workspace,
     appLocale: locale,
     settings: settings,
-    languagesFor: standardLspManager,
-    gitFor: (root) => IdeGitRepository(IdeGitService(root)),
+    // On the folder's host: this machine, or a remote one's.
+    languagesFor: (folder) {
+      final host = ProjectHost.of(folder);
+      return host.languages(host.pathOf(folder));
+    },
+    gitFor: (folder) {
+      final host = ProjectHost.of(folder);
+      return host.git(host.pathOf(folder));
+    },
     // The default profile and the user's profiles are settings.json's.
     terminalBackend: TerminalBackend(settings: files?.settings),
     // What Claude Code keeps: its sessions to search, its skills, agents,
@@ -274,10 +282,13 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
       if (!await _windows.confirmQuit()) return AppExitResponse.cancel;
       await Future.wait([
         stopClaudeProcesses(),
+        RemoteClaudeTransport.stopAll(),
         stopModelProxy(),
         stopLspProcesses(),
         stopPtyProcesses(),
       ]);
+      // The remote hosts' servers end, and all they run with them.
+      await SshHosts.instance.closeAll();
       return AppExitResponse.exit;
     },
   );

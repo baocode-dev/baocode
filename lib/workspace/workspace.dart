@@ -19,6 +19,7 @@ import '../kernel/kernel_types.dart';
 import '../l10n/l10n.dart';
 import '../models/model_providers.dart';
 import '../theme/workbench_theme.dart' show ColorThemeStorage;
+import '../remote/remote_location.dart';
 import 'agent_title.dart';
 import 'chat_grid.dart';
 import 'editor_launcher.dart';
@@ -27,11 +28,15 @@ import 'preference_store.dart';
 /// The arrangement of the project and its conversation in the window.
 enum WorkspaceLayout { chat, ide }
 
-/// A directory agents work in.
+/// A directory agents work in: on this machine, or on a host reached over
+/// SSH ([host]), its [path] then a location (see [RemoteLocation]).
 class Project {
   const Project(this.name, this.path);
 
   factory Project.at(String path) {
+    if (RemoteLocation.isRemote(path)) {
+      return Project(RemoteLocation.nameOf(path), path);
+    }
     // The folder's own name, on either separator (Windows paths come with
     // backslashes).
     final name = p.basename(path);
@@ -39,7 +44,15 @@ class Project {
   }
 
   final String name;
+
+  /// Where it is: its folder's path here, or its location on a remote host.
   final String path;
+
+  /// The remote host it is on; null for this machine.
+  String? get host => RemoteLocation.hostOf(path);
+
+  /// Its folder's path on its host.
+  String get root => RemoteLocation.pathOf(path);
 
   @override
   bool operator ==(Object other) => other is Project && other.path == path;
@@ -273,10 +286,18 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       }
     }
     for (final folder in _folders) {
-      if (!listed.contains(folder)) _project(folder);
+      if (listed.contains(folder)) continue;
+      final project = _project(folder);
+      // A remote project's sessions are its host's: no catalog lists them
+      // with this machine's, so they are asked for there (not waited for).
+      if (RemoteLocation.isRemote(folder)) unawaited(_listKept(project));
     }
-    // Only once all were read: what one failed to list is not gone.
-    if (complete) _forgetGone(listed);
+    // Only once all were read: what one failed to list is not gone. Nor
+    // while remote projects' sessions are still to be listed (or cannot
+    // be, their host away): what is kept of those must stay.
+    if (complete && !_folders.any(RemoteLocation.isRemote)) {
+      _forgetGone(listed);
+    }
     _loading = false;
     for (final folder in {?_ideFolder, ..._windowFolders}) {
       _ensureIdeChat(folder);
@@ -2022,9 +2043,11 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         }
         if (titler == null || !session.canRename) return;
         unawaited(
-          titler!(text, model: session.selected(KernelChoiceKind.model)).then((
-            title,
-          ) {
+          titler!(
+            text,
+            model: session.selected(KernelChoiceKind.model),
+            location: thread.project.path,
+          ).then((title) {
             if (title == null || thread._named) return;
             if (_disposed || !_threads.contains(thread)) return;
             _retitle(thread, title);

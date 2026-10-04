@@ -76,8 +76,10 @@ class LspManager extends ChangeNotifier
     this.provider, {
     LspProcessStarter? startProcess,
     LspDirectoryWatcher? watchDirectory,
-    bool Function(String path)? pathExists,
-    List<String> Function(String directory)? listDirectory,
+    FutureOr<bool> Function(String path)? pathExists,
+    FutureOr<List<String>> Function(String directory)? listDirectory,
+    p.Context? paths,
+    this._processId,
     this.idleTimeout = const Duration(minutes: 5),
     DateTime Function()? clock,
     this.requestTimeout = const Duration(seconds: 30),
@@ -88,7 +90,10 @@ class LspManager extends ChangeNotifier
     this.maxCrashes = 5,
     this.crashWindow = const Duration(minutes: 3),
     this.watchDebounce = const Duration(milliseconds: 200),
-  }) : root = p.normalize(p.absolute(root)),
+  }) : root = (paths ?? p.context).normalize(
+         (paths ?? p.context).absolute(root),
+       ),
+       _paths = paths ?? p.context,
        _startProcess = startProcess ?? startLspProcess,
        _watchDirectory = watchDirectory ?? watchLspDirectory,
        _pathExists = pathExists ?? lspPathExists,
@@ -119,8 +124,21 @@ class LspManager extends ChangeNotifier
 
   final LspProcessStarter _startProcess;
   final LspDirectoryWatcher _watchDirectory;
-  final bool Function(String path) _pathExists;
-  final List<String> Function(String directory) _listDirectory;
+
+  /// Whether a path is there, and the names in a folder: for the
+  /// workspace folders' root markers. On another machine they answer
+  /// later, and documents are matched to servers once they have.
+  final FutureOr<bool> Function(String path) _pathExists;
+  final FutureOr<List<String>> Function(String directory) _listDirectory;
+
+  /// How the servers' machine spells paths: POSIX on a remote host.
+  final p.Context _paths;
+
+  /// The process the servers are told to outlive no longer than: the
+  /// app's here, the server's on a remote host.
+  final int? Function()? _processId;
+
+  bool get _windowsPaths => _paths.style == p.Style.windows;
   final DateTime Function() _clock;
 
   final _documents = <String, _Document>{};
@@ -136,14 +154,17 @@ class LspManager extends ChangeNotifier
   bool _shutDown = false;
   bool _disposed = false;
 
-  static String _normalize(String path) => p.normalize(p.absolute(path));
+  String _normalize(String path) => _paths.normalize(_paths.absolute(path));
 
-  static String _uriOf(String path) => Uri.file(path).toString();
+  String _uriOf(String path) =>
+      Uri.file(path, windows: _windowsPaths).toString();
 
-  static String? _pathOf(String uri) {
+  String? _pathOf(String uri) {
     try {
       final parsed = Uri.parse(uri);
-      return parsed.scheme == 'file' ? _normalize(parsed.toFilePath()) : null;
+      return parsed.scheme == 'file'
+          ? _normalize(parsed.toFilePath(windows: _windowsPaths))
+          : null;
     } on Object {
       return null;
     }
@@ -177,22 +198,44 @@ class LspManager extends ChangeNotifier
         continue;
       }
       final folder = _workspaceFolder(path, definition, language!);
-      if (folder == null) continue;
-      final server = _servers.putIfAbsent(
-        '$id\u0000$folder',
-        () => _Server(definition, folder),
-      );
-      doc.entries.add((id, server));
-      server.documents.add(doc);
-      server.idleTimer?.cancel();
-      final client = server.client;
-      if (server.state == LanguageServerState.running && client != null) {
-        client.didOpen(doc.uri, doc.languageId, doc.version, doc.text);
+      if (folder is Future<String?>) {
+        // Its markers looked for on another machine: matched once found.
+        unawaited(
+          folder.then((folder) {
+            if (_shutDown || !identical(_documents[path], doc)) return;
+            _attach(doc, id, definition, folder);
+            _notify();
+          }, onError: (Object _) {}),
+        );
       } else {
-        unawaited(_ensure(server));
+        _attach(doc, id, definition, folder);
       }
     }
     _notify();
+  }
+
+  /// Has [doc] served by [definition]'s server for [folder] (none for
+  /// null), started if need be.
+  void _attach(
+    _Document doc,
+    String id,
+    LspServerDefinition definition,
+    String? folder,
+  ) {
+    if (folder == null) return;
+    final server = _servers.putIfAbsent(
+      '$id\u0000$folder',
+      () => _Server(definition, folder),
+    );
+    doc.entries.add((id, server));
+    server.documents.add(doc);
+    server.idleTimer?.cancel();
+    final client = server.client;
+    if (server.state == LanguageServerState.running && client != null) {
+      client.didOpen(doc.uri, doc.languageId, doc.version, doc.text);
+    } else {
+      unawaited(_ensure(server));
+    }
   }
 
   @override
@@ -247,35 +290,80 @@ class LspManager extends ChangeNotifier
     }
   }
 
-  String? _workspaceFolder(
+  /// The workspace folder of [path] for [definition]; later where the
+  /// markers are looked for on another machine.
+  FutureOr<String?> _workspaceFolder(
     String path,
     LspServerDefinition definition,
     LspLanguage language,
   ) {
+    final paths = _paths;
     final markers = definition.rootMarkers.isNotEmpty
         ? definition.rootMarkers
         : language.rootMarkers;
-    final inside = p.isWithin(root, path);
+    final inside = paths.isWithin(root, path);
     if (markers.isNotEmpty) {
-      var dir = p.dirname(path);
+      var dir = paths.dirname(path);
       while (true) {
-        if (markers.any((marker) => _hasMarker(dir, marker))) return dir;
-        if (inside && p.equals(dir, root)) break;
-        final parent = p.dirname(dir);
+        for (final marker in markers) {
+          final found = _hasMarker(dir, marker);
+          if (found is Future<bool>) {
+            return _workspaceFolderLater(path, definition, markers, inside);
+          }
+          if (found) return dir;
+        }
+        if (inside && paths.equals(dir, root)) break;
+        final parent = paths.dirname(dir);
         if (parent == dir) break;
         dir = parent;
       }
     }
-    if (definition.requiredRoot) return null;
-    return inside || p.equals(p.dirname(path), root) ? root : p.dirname(path);
+    return _noMarker(path, definition, inside: inside);
   }
 
-  bool _hasMarker(String dir, String marker) {
+  /// [_workspaceFolder], waiting for each marker's answer.
+  Future<String?> _workspaceFolderLater(
+    String path,
+    LspServerDefinition definition,
+    List<String> markers,
+    bool inside,
+  ) async {
+    final paths = _paths;
+    var dir = paths.dirname(path);
+    while (true) {
+      for (final marker in markers) {
+        if (await _hasMarker(dir, marker)) return dir;
+      }
+      if (inside && paths.equals(dir, root)) break;
+      final parent = paths.dirname(dir);
+      if (parent == dir) break;
+      dir = parent;
+    }
+    return _noMarker(path, definition, inside: inside);
+  }
+
+  String? _noMarker(
+    String path,
+    LspServerDefinition definition, {
+    required bool inside,
+  }) {
+    if (definition.requiredRoot) return null;
+    final paths = _paths;
+    return inside || paths.equals(paths.dirname(path), root)
+        ? root
+        : paths.dirname(path);
+  }
+
+  FutureOr<bool> _hasMarker(String dir, String marker) {
     if (!marker.contains(RegExp(r'[*?\[{]'))) {
-      return _pathExists(p.join(dir, marker));
+      return _pathExists(_paths.join(dir, marker));
     }
     final glob = LspGlob(marker);
-    return _listDirectory(dir).any(glob.matches);
+    final names = _listDirectory(dir);
+    if (names is Future<List<String>>) {
+      return names.then((names) => names.any(glob.matches));
+    }
+    return names.any(glob.matches);
   }
 
   // Server lifecycle.
@@ -339,6 +427,8 @@ class LspManager extends ChangeNotifier
       started = client = LspClient(
         definition: server.definition,
         rootPath: server.root,
+        processId: _processId?.call(),
+        windowsPaths: _windowsPaths,
         process: process,
         requestTimeout: requestTimeout,
         onDiagnostics: (uri, diagnostics) =>
@@ -577,6 +667,34 @@ class LspManager extends ChangeNotifier
     _notify();
   }
 
+  /// Starts the servers again, their processes lost with the connection
+  /// to their host: each is given its documents again, as they are now
+  /// (unsaved changes and all).
+  void restartServers() {
+    if (_shutDown) return;
+    for (final server in _servers.values) {
+      final client = server.client;
+      server
+        ..idleTimer?.cancel()
+        ..retryTimer?.cancel()
+        ..generation += 1
+        ..starting = null
+        ..client = null
+        ..crashes.clear()
+        ..retryAt = null
+        ..message = null;
+      client?.kill();
+      _clearDiagnostics(server);
+      if (server.state == LanguageServerState.installing) continue;
+      server.state = server.documents.isEmpty
+          ? LanguageServerState.stopped
+          : LanguageServerState.idle;
+      if (server.documents.isNotEmpty) unawaited(_ensure(server));
+    }
+    _updateWatching();
+    _notify();
+  }
+
   @override
   Future<void> shutdown() => _shutdown ??= _stopAll();
 
@@ -709,10 +827,10 @@ class LspManager extends ChangeNotifier
           if (watchers.any(
             (w) =>
                 w.matches(event.path, event.type) ||
-                (p.isWithin(server.root, event.path) &&
+                (_paths.isWithin(server.root, event.path) &&
                     w.basePath == null &&
                     w.matches(
-                      p.relative(event.path, from: server.root),
+                      _paths.relative(event.path, from: server.root),
                       event.type,
                     )),
           ))

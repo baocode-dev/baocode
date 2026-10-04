@@ -103,8 +103,16 @@ class ClaudeLaunch {
   };
 
   /// This launch with its flag settings in the file at [path].
-  ClaudeLaunch withSettingsFile(String path) => ClaudeLaunch(
-    cwd: cwd,
+  ClaudeLaunch withSettingsFile(String path) => copyWith(settingsPath: path);
+
+  /// This launch in [cwd], or with [env], or its flag settings in the file
+  /// at [settingsPath].
+  ClaudeLaunch copyWith({
+    String? cwd,
+    Map<String, String>? env,
+    String? settingsPath,
+  }) => ClaudeLaunch(
+    cwd: cwd ?? this.cwd,
     resume: resume,
     model: model,
     permissionMode: permissionMode,
@@ -114,8 +122,8 @@ class ClaudeLaunch {
     autoModeDuringPlan: autoModeDuringPlan,
     attribution: attribution,
     persist: persist,
-    env: env,
-    settingsPath: path,
+    env: env ?? this.env,
+    settingsPath: settingsPath ?? this.settingsPath,
   );
 
   Map<String, String>? get _attribution => switch (attribution) {
@@ -135,7 +143,13 @@ class ClaudeLaunch {
     if (env case final env? when env.isNotEmpty) 'env': env,
   };
 
-  List<String> get arguments => [
+  List<String> get arguments => _arguments(withSettings: true);
+
+  /// [arguments] without the flag settings, for when they are given
+  /// another way (written to a file on another machine).
+  List<String> get argumentsWithoutSettings => _arguments(withSettings: false);
+
+  List<String> _arguments({required bool withSettings}) => [
     '-p',
     '--input-format',
     'stream-json',
@@ -156,7 +170,9 @@ class ClaudeLaunch {
     if (effort case final effort?) ...['--effort', effort],
     if (autocompact case final tokens?) ...['--autocompact', '$tokens'],
     if (resume case final id?) ...['--resume', id],
-    if (settingsPath case final path?) ...[
+    if (!withSettings)
+      ...const <String>[]
+    else if (settingsPath case final path?) ...[
       '--settings',
       path,
     ] else if (settings case final settings when settings.isNotEmpty) ...[

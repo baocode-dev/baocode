@@ -830,7 +830,8 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   /// The Fast Ide opens [project]'s folder, as the window header's button
   /// does: with the current agent's chat there when it is the project's.
   void _openInEditor(Project project, Editor editor) {
-    if (!editor.builtIn) {
+    // A remote project's files open in the IDE's own editor alone.
+    if (!editor.builtIn && project.host == null) {
       unawaited(Sidebar.launch(editor, project.path));
       return;
     }

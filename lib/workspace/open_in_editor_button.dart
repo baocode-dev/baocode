@@ -32,7 +32,9 @@ class OpenInEditorButton extends StatelessWidget {
       openInEditor;
 
   void _open(Editor editor) {
-    if (editor == Editor.fastIde) {
+    // A remote project's files are not this machine's: only the IDE's own
+    // opens them.
+    if (editor == Editor.fastIde || project.host != null) {
       // The project in the IDE, with the current agent's chat there.
       if (workspace.current case final thread? when thread.project == project) {
         workspace.openInIde(thread);

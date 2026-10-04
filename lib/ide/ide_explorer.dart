@@ -320,9 +320,14 @@ class IdeExplorer extends StatefulWidget {
     this.onOpenInDefaultApp,
     this.onFindInFolder,
     this.isBound,
+    this.local = true,
   });
 
   final IdeExplorerController controller;
+
+  /// Whether the files are this machine's: a remote project's are not
+  /// shown in the file manager.
+  final bool local;
 
   /// Opens a file; [focusEditor] when opened from the keyboard.
   final void Function(String path, bool focusEditor) onOpen;
@@ -1030,7 +1035,7 @@ class IdeExplorerState extends State<IdeExplorer> {
                   unawaited(startCreate(parent: path, directory: true)),
             ),
           ],
-          if (WindowControls.canRevealInFileManager)
+          if (widget.local && WindowControls.canRevealInFileManager)
             IdeMenuAction(
               l10n.revealInFileManager,
               keybinding: keys(const [

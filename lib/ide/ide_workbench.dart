@@ -34,7 +34,8 @@ import 'package:bao_editor/monaco/vs/editor/contrib/gotoError/browser/marker_nav
 
 import 'extensions/ide_extensions.dart';
 import 'extensions/ide_extensions_view.dart';
-import 'file_service.dart' show IdeFileListing, localizedFileError;
+import 'file_service.dart'
+    show IdeFileListing, IdeHostFiles, localizedFileError;
 import 'git/commit_message.dart';
 import 'git/git_change_editor.dart';
 import 'git/git_checkout.dart';
@@ -302,11 +303,20 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The Search view's inputs and results, while other views show.
   late final IdeSearchSession _search = IdeSearchSession(
-    engine: (root, query) => widget.workspace.hasFolder
-        ? widget.textSearch(root, query)
-        : _searchOpenFiles(query),
+    engine: (root, query) => switch (widget.workspace) {
+      // A remote project's files are searched there.
+      IdeWorkspace(hasFolder: true, files: final IdeHostFiles files) =>
+        files.searchText(root, query),
+      IdeWorkspace(hasFolder: true) => widget.textSearch(root, query),
+      _ => _searchOpenFiles(query),
+    },
   );
   final _searchKey = GlobalKey<IdeSearchViewState>();
+
+  /// Whether the project's files are this machine's (not a remote host's):
+  /// only then are they shown in the file manager, opened in other apps,
+  /// or moved to the trash.
+  bool get _local => widget.workspace.files is! IdeHostFiles;
   final _scmKey = GlobalKey<IdeScmViewState>();
   IdeGitRepository? _git;
 
@@ -2767,11 +2777,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                           .documentsIn(path)
                           .where((d) => d.dirty)
                           .length,
-                      trash: WindowControls.canMoveToTrash
+                      local: _local,
+                      trash: _local && WindowControls.canMoveToTrash
                           ? WindowControls.moveToTrash
                           : null,
                       onError: _report,
-                      onOpenInDefaultApp: WindowControls.canOpenInDefaultApp
+                      onOpenInDefaultApp:
+                          _local && WindowControls.canOpenInDefaultApp
                           ? (path) => unawaited(_openInDefaultApp(path))
                           : null,
                       onFindInFolder: (folder) {
@@ -2845,6 +2857,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               onSelect: (doc) => unawaited(_select(doc)),
               onClose: (doc) => unawaited(_close(doc)),
               onAction: _tabAction,
+              local: _local,
             ),
             if (active != null && !active.isUntitled)
               IdeBreadcrumbs(
@@ -2894,7 +2907,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 ? IdeImagePreview(
                     key: ValueKey(active),
                     path: active.path,
-                    onOpenInDefaultApp: WindowControls.canOpenInDefaultApp
+                    read: switch (widget.workspace.files) {
+                      final IdeHostFiles files => files.readBytes,
+                      _ => null,
+                    },
+                    onOpenInDefaultApp:
+                        _local && WindowControls.canOpenInDefaultApp
                         ? () => unawaited(_openInDefaultApp(active.path))
                         : null,
                   )
@@ -2906,7 +2924,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         unawaited(widget.workspace.reopen(active, force: true)),
                     onRetry: () => unawaited(widget.workspace.reopen(active)),
                     onOpenInDefaultApp:
-                        WindowControls.canOpenInDefaultApp &&
+                        _local &&
+                            WindowControls.canOpenInDefaultApp &&
                             active.readRevision == null
                         ? () => unawaited(_openInDefaultApp(active.path))
                         : null,
@@ -3128,10 +3147,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             if (chatVisible || _chatSashDragging)
               chatSash
             else
-              const SizedBox(
-                key: ValueKey('ide-chat-gap'),
-                width: _sashWidth,
-              ),
+              const SizedBox(key: ValueKey('ide-chat-gap'), width: _sashWidth),
             above(_chatSlot(columns.chat), 'chat'),
           ],
         ],

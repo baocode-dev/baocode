@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'agent_kernel.dart';
 import 'claude_code/claude_code_kernel.dart';
-import 'claude_code/claude_storage.dart';
-import 'claude_code/process_transport.dart';
+import '../remote/remote_claude.dart';
 
 /// The kernels the user can pick from. Another kernel is an adapter and a
 /// line here.
@@ -16,11 +15,12 @@ abstract final class KernelRegistry {
     create: (context) => ClaudeCodeKernel(
       claudeCode,
       context,
-      start: startClaudeProcess,
-      readHistory: ClaudeStorage.read,
-      usageOffBy: claudeUsageOffBy,
+      // On the project's host: this machine, or a remote one's.
+      start: startClaude,
+      readHistory: readClaudeHistory,
+      usageOffBy: () => claudeUsageOffByAt(context.cwd),
     ),
-    catalog: const ClaudeStorage(),
+    catalog: const ClaudeCatalog(),
   );
 
   static List<KernelDescriptor> _all = [claudeCode];

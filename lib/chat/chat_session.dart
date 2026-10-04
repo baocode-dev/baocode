@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as p;
 
 import '../kernel/agent_kernel.dart';
 import '../kernel/kernel_event.dart';
 import '../kernel/kernel_registry.dart';
 import '../kernel/kernel_types.dart';
 import '../kernel/transcript.dart';
+import '../remote/remote_location.dart';
 import 'chat_feed.dart';
 import 'chat_models.dart';
 import 'composer/composer_draft.dart';
@@ -578,8 +578,14 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   List<TodoEntry> get todos => _transcript.todos;
 
-  /// The project's directory, which [fileChanges]' paths are in.
-  String? get root => _activeReview?.root ?? kernelContext.cwd;
+  /// The project's directory, which [fileChanges]' paths are in (on its
+  /// host, for a remote one).
+  String? get root =>
+      _activeReview?.root ??
+      switch (kernelContext.cwd) {
+        final cwd? => RemoteLocation.pathOf(cwd),
+        null => null,
+      };
 
   /// Files changed and neither kept nor undone, one entry per file, with
   /// absolute paths where the project is known: as the review of the
@@ -601,10 +607,16 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     });
   }
 
-  String _absolute(String path) => switch (kernelContext.cwd) {
-    final cwd? when !p.isAbsolute(path) => p.join(cwd, path),
-    _ => path,
-  };
+  /// [path] absolute, on the project's host (a remote project's paths are
+  /// its host's).
+  String _absolute(String path) {
+    final cwd = kernelContext.cwd;
+    if (cwd == null) return path;
+    final paths = RemoteLocation.pathsOf(cwd);
+    return paths.isAbsolute(path)
+        ? path
+        : paths.join(RemoteLocation.pathOf(cwd), path);
+  }
 
   Iterable<({int seq, FileChange change, String? turnId})> get _pendingEdits {
     final settled = math.max(_keptSeq, _transcript.revertedSeq);

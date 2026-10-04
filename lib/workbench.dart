@@ -24,7 +24,7 @@ import 'ide/ide_commands.dart';
 import 'ide/ide_dialog.dart';
 import 'ide/ide_modern_ui.dart';
 import 'ide/ide_notifications.dart';
-import 'ide/file_service.dart';
+import 'ide/git/commit_message.dart';
 import 'ide/ide_quick_input.dart';
 import 'ide/ide_quick_open.dart';
 import 'ide/ide_workbench.dart';
@@ -62,6 +62,8 @@ import 'theme/workbench_theme.dart' show WorkbenchThemeService, themeColors;
 import 'window/app_windows.dart';
 import 'window/code_args.dart';
 import 'window/window_settings.dart';
+import 'remote/project_host.dart';
+import 'remote/remote_location.dart';
 import 'workspace/chat_drag.dart';
 import 'workspace/chat_grid_view.dart';
 import 'workspace/chat_terminal.dart';
@@ -266,6 +268,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     final backend? when backend.supported && !_ideWindow => ChatTerminals(
       backend,
       rootOf: () => (_agentThread ?? _workspace.current)?.project.path,
+      // A remote project's on its host.
+      backendFor: (location) => ProjectHost.of(location).terminals(backend),
+      pathOf: RemoteLocation.pathOf,
     )..onLastClosed = _focusCurrentChat,
     _ => null,
   }?..addListener(_terminalsChanged);
@@ -754,7 +759,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           ? null
           : _fileIndexes.putIfAbsent(
               project.path,
-              () => IdeFileIndex(IdeFileService(project.path), project.path),
+              () => IdeFileIndex(
+                ProjectHost.of(project.path).files(project.root),
+                project.root,
+              ),
             );
       await showSearchPalette(
         context,
@@ -1573,9 +1581,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             onViewState: path == _noFolder
                 ? null
                 : (state) => _workspace.keepIdeView(path, state),
-            terminalBackend:
-                widget.terminalBackend ??
-                const TerminalBackend(supported: false),
+            terminalBackend: ProjectHost.of(path).terminals(
+              widget.terminalBackend ?? const TerminalBackend(supported: false),
+            ),
+            // Claude Haiku where the project is.
+            commitMessage: (prompt, {cancel}) =>
+                ideClaudeCommitMessage(prompt, cancel: cancel, location: path),
             chat: shown
                 ? _conversation(_buildIdeChat(path))
                 : const SizedBox.shrink(),
@@ -1768,11 +1779,17 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// (the header, built first, may be the first to ask). Without a folder
   /// ([_noFolder]), it is in the home folder, with no language servers
   /// or Git.
+  ///
+  /// A remote folder's is in its path on its host, its files, Git,
+  /// language servers and terminals there.
   IdeWorkspace _ideSpace(String folder) => _ideSpaces.putIfAbsent(folder, () {
+    final host = ProjectHost.of(folder);
+    final root = host.pathOf(folder);
     final space = folder == _noFolder
         ? IdeWorkspace(homeDirectory ?? p.current, hasFolder: false)
         : IdeWorkspace(
-            folder,
+            root,
+            files: host.files(root),
             languages: widget.languagesFor?.call(folder),
             git: widget.gitFor?.call(folder),
           );

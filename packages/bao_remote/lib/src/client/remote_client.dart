@@ -580,7 +580,8 @@ class RemoteClient {
 
   // --- Terminals -------------------------------------------------------------
 
-  /// The user's shell there (or [shell]) on a terminal in [cwd].
+  /// The user's shell there (or [shell]) on a terminal in [cwd]; [nonce]
+  /// the shell integration's, else one of the server's.
   Future<RemotePty> startPty({
     required String cwd,
     int columns = 80,
@@ -589,6 +590,7 @@ class RemoteClient {
     List<String>? shell,
     String? locale,
     String? version,
+    String? nonce,
   }) async {
     final started = _map(
       await peer.request(RemoteProtocol.ptyStart, {
@@ -599,6 +601,7 @@ class RemoteClient {
         'shell': ?shell,
         'locale': ?locale,
         'version': ?version,
+        'nonce': ?nonce,
       }),
     );
     final id = started['id'] as int;

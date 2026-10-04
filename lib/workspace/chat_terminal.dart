@@ -29,9 +29,22 @@ const newTerminalCommand = 'workbench.action.terminal.new';
 /// folder; the panel shows those of [root], the focused agent's project.
 /// They run on while the panel is hidden, or shows another project's.
 class ChatTerminals extends ChangeNotifier {
-  ChatTerminals(this.backend, {required this.rootOf});
+  ChatTerminals(
+    this.backend, {
+    required this.rootOf,
+    this.backendFor,
+    this.pathOf,
+  });
 
   final TerminalBackend backend;
+
+  /// What the terminals of a project run on, if not [backend] (a remote
+  /// project's run on its host).
+  final TerminalBackend Function(String root)? backendFor;
+
+  /// The folder a project's terminals start in, if not [root] itself (a
+  /// remote project's path on its host).
+  final String Function(String root)? pathOf;
 
   /// The project the panel is for: the focused agent's; none without one.
   final String? Function() rootOf;
@@ -63,8 +76,10 @@ class ChatTerminals extends ChangeNotifier {
 
   TerminalService _serviceOf(String root) => _services.putIfAbsent(root, () {
     late final TerminalService service;
-    service = TerminalService(root: root, backend: backend)
-      ..addListener(() => _changed(service));
+    service = TerminalService(
+      root: pathOf?.call(root) ?? root,
+      backend: backendFor?.call(root) ?? backend,
+    )..addListener(() => _changed(service));
     return service;
   });
 
