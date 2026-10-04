@@ -9914,6 +9914,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 session or terminal on a remote host will end too.} other{{count} sessions and terminals on remote hosts will end too.}}'**
   String quitConfirmRemote(int count);
+
+  /// The sidebar's button while an update waits to be installed: restarts into it.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get updateButton;
 }
 
 class _AppLocalizationsDelegate

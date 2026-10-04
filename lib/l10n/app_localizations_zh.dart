@@ -5637,4 +5637,7 @@ class AppLocalizationsZh extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get updateButton => '更新';
 }

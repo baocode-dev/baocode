@@ -249,6 +249,18 @@ class UpdateService extends ChangeNotifier {
         null => false,
       };
 
+  /// Whether to show, until it is installed, that there is an update (the
+  /// sidebar's Update button): one downloaded; one found where the app
+  /// does not download by itself (`manual`); one mandatory. Not a version
+  /// the user skipped.
+  bool get pending {
+    final release = _release;
+    if (release == null) return false;
+    if (isMandatory(release)) return true;
+    if (store.skippedVersion == '${release.version}') return false;
+    return _file != null || mode != UpdateMode.automatic;
+  }
+
   UpdateOffer? get offer => switch (_release) {
     final release? => UpdateOffer(
       release: release,

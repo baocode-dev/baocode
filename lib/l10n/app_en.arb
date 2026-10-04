@@ -4215,5 +4215,9 @@
         "type": "int"
       }
     }
+  },
+  "updateButton": "Update",
+  "@updateButton": {
+    "description": "The sidebar's button while an update waits to be installed: restarts into it."
   }
 }

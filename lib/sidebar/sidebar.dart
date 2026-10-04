@@ -11,6 +11,7 @@ import '../chat/widgets/hover_builder.dart';
 import '../chat/widgets/inline_rename_field.dart';
 import '../icons/project_icon_picker.dart';
 import '../icons/project_icon_view.dart';
+import '../ide/ide_button.dart' show IdeButtonColors;
 import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
 import '../keybindings/chat_keybindings.dart';
@@ -18,6 +19,7 @@ import '../keybindings/default_keybindings.dart' show openSettingsCommandId;
 import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import '../update/update_service.dart';
 import '../workspace/chat_drag.dart';
 import '../workspace/editor_launcher.dart';
 import '../workspace/title_bar_double_click.dart';
@@ -136,9 +138,17 @@ class Sidebar extends StatefulWidget {
     this.current,
     this.onSelect,
     this.onNewAgent,
+    this.updates,
+    this.onUpdate,
   });
 
   final Workspace workspace;
+
+  /// The app's updates: while one waits to be installed
+  /// ([UpdateService.pending]), an Update button beside the gear, which
+  /// runs [onUpdate] (Restart to Update).
+  final UpdateService? updates;
+  final VoidCallback? onUpdate;
 
   /// The agent shown where the sidebar is, selected among the rows: an
   /// agent's window's own; by default the workspace's current one.
@@ -974,12 +984,28 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   /// Several projects in the sidebar: their groups fold.
   bool get _projectsShown => _workspace.sidebarProjects.length > 1;
 
-  /// The archived toggle, when there are archived agents, and the
-  /// settings' gear.
+  /// The archived toggle, when there are archived agents, an update's
+  /// button, and the settings' gear.
   Widget _buildFooter() {
+    final updates = widget.updates;
+    final onUpdate = widget.onUpdate;
+    if (updates == null || onUpdate == null) return _buildFooterRow(null);
+    return ListenableBuilder(
+      listenable: updates,
+      builder: (context, _) => _buildFooterRow(
+        updates.pending
+            ? _UpdateButton(updates: updates, onTap: onUpdate)
+            : null,
+      ),
+    );
+  }
+
+  Widget _buildFooterRow(Widget? update) {
     final count = _workspace.threads.where((t) => t.archived).length;
     final settings = widget.onOpenSettings;
-    if (count == 0 && settings == null) return const SizedBox.shrink();
+    if (count == 0 && settings == null && update == null) {
+      return const SizedBox.shrink();
+    }
     return Container(
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.border)),
@@ -992,6 +1018,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
                 ? const SizedBox.shrink()
                 : _buildArchivedToggle(count),
           ),
+          if (update != null) ...[const SizedBox(width: 4), update],
           if (settings != null) ...[
             const SizedBox(width: 4),
             SidebarIconButton(
@@ -2078,6 +2105,63 @@ class SidebarIconButton extends StatelessWidget {
                 icon,
                 size: size * 0.65,
                 color: hovered ? AppColors.text : AppColors.textMuted,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Update, beside the settings' gear while an update waits: a pill in the
+/// theme's button colors; its hover says which version and what a click
+/// does.
+class _UpdateButton extends StatelessWidget {
+  const _UpdateButton({required this.updates, required this.onTap});
+
+  final UpdateService updates;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final release = updates.release!;
+    final version = release.version.marketing;
+    final message = updates.isMandatory(release)
+        ? l10n.updateMandatory(version)
+        : updates.status == UpdateStatus.ready
+        ? l10n.updateReady(version)
+        : l10n.updateAvailable(version);
+    return IdeHover(
+      message: message,
+      excludeFromSemantics: true,
+      child: Semantics(
+        button: true,
+        label: '${l10n.updateButton}: $message',
+        excludeSemantics: true,
+        onTap: onTap,
+        child: HoverBuilder(
+          cursor: SystemMouseCursors.click,
+          builder: (context, hovered) => GestureDetector(
+            onTap: onTap,
+            child: Container(
+              height: 22,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: hovered
+                    ? IdeButtonColors.hoverBackground
+                    : IdeButtonColors.background,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Text(
+                l10n.updateButton,
+                style: TextStyle(
+                  color: IdeButtonColors.foreground,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ),

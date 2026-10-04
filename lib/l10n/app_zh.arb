@@ -1634,5 +1634,6 @@
   "remoteStatusTooltipLost": "与 {host} 的连接已断开：点击立即重连",
   "remoteReconnect": "重新连接",
   "remoteProjectTooltip": "位于 {host}（通过 SSH）",
-  "quitConfirmRemote": "{count, plural, other{远程主机上的 {count} 个会话和终端也会结束。}}"
+  "quitConfirmRemote": "{count, plural, other{远程主机上的 {count} 个会话和终端也会结束。}}",
+  "updateButton": "更新"
 }

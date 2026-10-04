@@ -916,6 +916,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// window's.
   VoidCallback? _stopUpdateOffers;
 
+  /// The sidebar's Update: Restart to Update, as the offer's button.
+  void _restartToUpdate() {
+    if (widget.settings?.updates case final updates?) {
+      unawaited(updates.restart(_notifications, context.l10n));
+    }
+  }
+
   /// Check for Updates...: what it finds told of in this window.
   void _checkForUpdates() {
     final updates = widget.settings?.updates;
@@ -1814,6 +1821,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       },
       onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
       onOpenSettings: () => unawaited(openSettings()),
+      updates: widget.settings?.updates?.service,
+      onUpdate: _restartToUpdate,
       onSearch: () => unawaited(_openPalette()),
       onCustomize: agent != null || widget.customizations == null
           ? null

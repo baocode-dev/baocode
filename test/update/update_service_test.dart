@@ -217,6 +217,35 @@ void main() {
       service.dispose();
     });
 
+    test('pending: what the sidebar shows an Update button for', () async {
+      final backend = FakeBackend(manifestOf('1.2.0'));
+      final mode = FakeModeSetting();
+      final store = MemoryUpdateStore();
+      final service = serviceOf(backend, mode: mode, store: store);
+      expect(service.pending, isFalse);
+      await service.check(manual: true);
+      // Default: once downloaded.
+      expect(service.pending, isFalse);
+      mode.mode = UpdateMode.manual;
+      expect(service.pending, isTrue, reason: 'manual: once found');
+      mode.mode = UpdateMode.automatic;
+      await service.download();
+      expect(service.pending, isTrue);
+      service.skip(service.release!);
+      expect(service.pending, isFalse);
+
+      final mandatory = serviceOf(
+        FakeBackend(manifestOf('1.2.0', minimumVersion: '1.1.0')),
+        store: MemoryUpdateStore()..skippedVersion = '1.2.0',
+      );
+      await mandatory.check(manual: true);
+      expect(mandatory.pending, isTrue, reason: 'mandatory, skipped or not');
+
+      backend.manifest = manifestOf('1.0.0+1');
+      await service.check(manual: true);
+      expect(service.pending, isFalse, reason: 'up to date');
+    });
+
     test('minimumVersion: mandatory only below it', () async {
       Future<bool> mandatory(String current, String? minimum) async {
         final service = serviceOf(
