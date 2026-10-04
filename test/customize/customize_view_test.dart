@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/customize/customization_store.dart';
 import 'package:baocode/customize/customizations.dart';
 import 'package:baocode/customize/customize_view.dart';
+import 'package:baocode/ide/ide_code_editor.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';
@@ -111,6 +115,13 @@ Finder _inSidebar(Finder finder) =>
 Finder _inView(Finder finder) =>
     find.descendant(of: find.byType(CustomizeView), matching: finder);
 
+/// The customization editor's controller: the IDE's editor's.
+EditorSurfaceController _editor(WidgetTester tester) => tester
+    .widget<EditorSurface>(_inView(find.byType(EditorSurface)))
+    .controller;
+
+String _editorText(WidgetTester tester) => _editor(tester).document.text;
+
 void main() {
   testWidgets('Customize lists the skills, in place of the chat', (
     tester,
@@ -152,12 +163,17 @@ void main() {
 
     await tester.tap(_inView(find.text('pdf')));
     await tester.pumpAndSettle();
-    final editor = _inView(find.byType(TextField));
-    expect(tester.widget<TextField>(editor).controller!.text, contains('Body'));
-    await tester.enterText(
-      editor,
-      '---\nname: pdf\ndescription: Reads and fills PDFs\n---\n',
-    );
+    // The IDE's editor, the skill's text in it.
+    final editor = _inView(find.byType(IdeCodeEditor));
+    expect(editor, findsOneWidget);
+    expect(_editorText(tester), contains('Body'));
+    await tester.tap(_inView(find.byType(EditorSurface)));
+    await tester.pump();
+    _editor(tester)
+      ..selectAll()
+      ..replaceSelection(
+        '---\nname: pdf\ndescription: Reads and fills PDFs\n---\n',
+      );
     await tester.pump();
     expect(_inView(find.text('Unsaved changes')), findsOneWidget);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
@@ -194,13 +210,7 @@ void main() {
     await tester.tap(find.text('Create'));
     await tester.pumpAndSettle();
     expect(store.files, contains('/c/skills/release-notes/SKILL.md'));
-    expect(
-      tester
-          .widget<TextField>(_inView(find.byType(TextField)))
-          .controller!
-          .text,
-      contains('name: release-notes'),
-    );
+    expect(_editorText(tester), contains('name: release-notes'));
   }, variant: _mac);
 
   testWidgets('MCPs and hooks say where they come from; a settings file '
@@ -223,11 +233,7 @@ void main() {
     expect(_inView(find.textContaining('"hooks"')), findsWidgets);
     await tester.tap(_inView(find.text('Edit settings.json')).first);
     await tester.pumpAndSettle();
-    final editor = _inView(find.byType(TextField));
-    expect(
-      tester.widget<TextField>(editor).controller!.text,
-      CustomizationKind.hooks.configTemplate,
-    );
+    expect(_editorText(tester), CustomizationKind.hooks.configTemplate);
     expect(store.files, isNot(contains('/c/settings.json')));
     await tester.tap(_inView(find.text('Save')));
     await tester.pumpAndSettle();

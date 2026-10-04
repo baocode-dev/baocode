@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+
 import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
+import '../ide/ide_code_editor.dart';
 import '../ide/ide_dialog.dart';
 import '../l10n/l10n.dart';
 import '../platform/app_platform.dart';
@@ -835,7 +838,7 @@ class _CustomizationEditor extends StatefulWidget {
 }
 
 class _CustomizationEditorState extends State<_CustomizationEditor> {
-  final TextEditingController _text = TextEditingController();
+  final EditorSurfaceController _text = EditorSurfaceController();
   final FocusNode _focus = FocusNode(debugLabel: 'customization editor');
 
   /// As last read or saved: the text differs from it while unsaved.
@@ -848,7 +851,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
   bool _missing = false;
 
   Customization get _item => widget.item;
-  bool get _dirty => _saved != null && _text.text != _saved;
+  bool get _dirty => _saved != null && _text.document.text != _saved;
   bool get _savable => _item.editable && (_dirty || _missing);
 
   @override
@@ -859,7 +862,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
       setState(() {});
     });
     if (_item.detail case final detail? when !_item.editable) {
-      _text.text = detail;
+      _load(detail);
     } else {
       unawaited(_read());
     }
@@ -872,6 +875,13 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
     super.dispose();
   }
 
+  /// [text] in the editor in place of what it had, not to be undone.
+  void _load(String text) {
+    _text.document.replaceText(text);
+    _text.syncFromDocument();
+    _text.detectIndentation();
+  }
+
   Future<void> _read() async {
     try {
       if (_item.detail case final start?
@@ -880,7 +890,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
         setState(() {
           _missing = true;
           _saved = start;
-          _text.text = start;
+          _load(start);
         });
         return;
       }
@@ -888,7 +898,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
       if (!mounted) return;
       setState(() {
         _saved = text;
-        _text.text = text;
+        _load(text);
         _error = null;
       });
     } on Object catch (error) {
@@ -898,7 +908,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
 
   Future<void> _save() async {
     if (!_savable) return;
-    final text = _text.text;
+    final text = _text.document.text;
     try {
       await widget.store.write(_item.path, text);
       if (!mounted) return;
@@ -914,7 +924,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
   }
 
   void _revert() {
-    if (_saved case final saved?) _text.text = saved;
+    if (_saved case final saved?) _load(saved);
   }
 
   Future<void> _back() async {
@@ -1040,34 +1050,18 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
               Expanded(
                 child: Container(
                   margin: const EdgeInsets.only(left: 32),
+                  clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                    color: AppColors.code,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: AppColors.border),
                   ),
                   child: CallbackShortcuts(
                     bindings: {command: () => unawaited(_save())},
-                    child: TextField(
+                    child: IdeCodeEditor(
                       controller: _text,
+                      path: _item.path,
                       focusNode: _focus,
                       readOnly: !_item.editable,
-                      expands: true,
-                      maxLines: null,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      textAlignVertical: TextAlignVertical.top,
-                      cursorColor: AppColors.text,
-                      style: TextStyle(
-                        color: colors['editor.foreground'],
-                        fontFamily: AppFonts.mono,
-                        fontSize: 12.5,
-                        height: 1.5,
-                      ),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        isCollapsed: true,
-                        contentPadding: EdgeInsets.all(14),
-                      ),
                     ),
                   ),
                 ),
