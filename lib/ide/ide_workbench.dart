@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -35,7 +36,7 @@ import 'package:bao_editor/monaco/vs/editor/contrib/gotoError/browser/marker_nav
 import 'extensions/ide_extensions.dart';
 import 'extensions/ide_extensions_view.dart';
 import 'file_service.dart'
-    show IdeFileListing, IdeHostFiles, localizedFileError;
+    show IdeFileListing, IdeHostFiles, localizedFileError, readFileBytes;
 import 'git/commit_message.dart';
 import 'git/git_change_editor.dart';
 import 'git/git_checkout.dart';
@@ -53,6 +54,8 @@ import 'ide_dialog.dart';
 import 'ide_editor.dart';
 import 'ide_editor_placeholder.dart';
 import 'ide_image_preview.dart';
+import 'markdown/markdown_paste.dart';
+import 'markdown/markdown_preview.dart';
 import 'ide_explorer.dart';
 import 'ide_hover.dart';
 import 'ide_layout.dart';
@@ -213,6 +216,15 @@ typedef _Chord = ({String label, List<KeyChord> chords, String message});
 
 class IdeWorkbenchState extends State<IdeWorkbench> {
   final _editorKey = GlobalKey<IdeEditorState>();
+
+  /// The markdown files shown as their source rather than their preview,
+  /// the last switched last (a few hundred kept, with the window's state).
+  final LinkedHashSet<String> _markdownSources = LinkedHashSet();
+  static const _keptMarkdownSources = 300;
+
+  /// The line (one-based) each markdown document's preview shows first:
+  /// where it was, or the caret's line in its source.
+  final Map<IdeDocument, int> _previewLines = {};
   final FocusNode _workbenchFocus = FocusNode(debugLabel: 'ide workbench');
   final FocusNode _explorerFocus = FocusNode(debugLabel: 'ide explorer');
   late IdeExplorerController _explorer;
@@ -455,6 +467,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (kept['view'] case final String name) {
       _view = IdeSideView.values.asNameMap()[name] ?? _view;
     }
+    if (kept['markdownSource'] case final List<Object?> paths) {
+      _markdownSources.addAll(paths.whereType<String>());
+    }
     // VS Code makes a terminal when its view shows with none.
     if (_layout.panel == IdePanelTab.terminal) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -490,6 +505,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       'panelHeight': ?_panelHeight,
       ..._layout.toJson(),
       'view': _view.name,
+      if (_markdownSources.isNotEmpty) 'markdownSource': [..._markdownSources],
       'editors': editors,
       if (editors.contains(active)) 'active': active,
     };
@@ -522,6 +538,176 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   static const _sashWidth = IdeModernUI.gap;
 
   IdeEditorState? get _editor => _editorKey.currentState;
+
+  /// The active markdown document's preview, when it shows.
+  IdeMarkdownPreviewState? get _preview => switch (widget.workspace.active) {
+    final active? => GlobalObjectKey<IdeMarkdownPreviewState>(
+      active,
+    ).currentState,
+    null => null,
+  };
+
+  /// Whether [doc] can show as a markdown preview: a markdown file's own
+  /// tab (or a revision's), not its diff.
+  bool _hasPreview(IdeDocument doc) =>
+      isMarkdownPath(doc.path) &&
+      doc.diff == null &&
+      !doc.isMedia &&
+      doc.openError == null;
+
+  /// Whether [doc] shows as its preview: markdown files do, unless switched
+  /// to their source.
+  bool _previewing(IdeDocument? doc) =>
+      doc != null && _hasPreview(doc) && !_markdownSources.contains(doc.path);
+
+  /// The edits the active editor holds back (a preview's block being
+  /// edited, a field of the fallback editor) put in its document.
+  Future<void> _flushEditor() async {
+    await _editor?.flush();
+    await _preview?.flush();
+  }
+
+  /// The keyboard to the active editor, or the preview.
+  void _focusEditor() {
+    if (_editor case final editor?) {
+      editor.focus();
+    } else {
+      _preview?.focus();
+    }
+  }
+
+  /// [line] (one-based) of the active document shown: the caret there in
+  /// its editor, or its block at the top of its preview.
+  void _revealLine(int line, [int column = 1]) {
+    if (_editor case final editor?) {
+      unawaited(editor.revealLine(line, column));
+    } else {
+      _preview?.revealLine(line, column);
+    }
+  }
+
+  void _revealRange(LspRange range, {bool select = false}) {
+    if (_editor case final editor?) {
+      editor.revealRange(range, select: select);
+    } else {
+      _preview?.revealLine(range.start.line + 1);
+    }
+  }
+
+  /// Shows the active markdown document's preview, or its source: in
+  /// either, about where the other was (the caret's block; the source of
+  /// the block at the top).
+  Future<void> _setMarkdownPreview(bool preview) async {
+    final doc = widget.workspace.active;
+    if (doc == null || !_hasPreview(doc) || _previewing(doc) == preview) {
+      return;
+    }
+    int? line;
+    if (preview) {
+      await _flushEditor();
+      _previewLines[doc] = _caretPosition.lineNumber;
+      _markdownSources.remove(doc.path);
+    } else {
+      final state = _preview;
+      line = state?.topLine;
+      await state?.flush();
+      _markdownSources
+        ..remove(doc.path)
+        ..add(doc.path);
+      while (_markdownSources.length > _keptMarkdownSources) {
+        _markdownSources.remove(_markdownSources.first);
+      }
+    }
+    if (!mounted) return;
+    setState(() {});
+    _keepViewSoon();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !identical(widget.workspace.active, doc)) return;
+      if (line != null) {
+        _revealLine(line);
+      } else {
+        _focusEditor();
+      }
+    });
+  }
+
+  /// Find in a preview: in its source, as the preview has no find.
+  void _find({bool replace = false}) {
+    if (_previewing(widget.workspace.active)) {
+      _setStatusMessage(
+        context.l10n.markdownFindInSource,
+        hideAfter: const Duration(seconds: 4),
+      );
+      unawaited(
+        _setMarkdownPreview(false).then((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            replace ? _editor?.openReplace() : _editor?.openFind();
+          });
+        }),
+      );
+      return;
+    }
+    replace ? _editor?.openReplace() : _editor?.openFind();
+  }
+
+  /// Save: the editor's, or the preview's document.
+  Future<void> _save() async {
+    if (_editor case final editor?) return editor.save();
+    final doc = widget.workspace.active;
+    if (doc == null) return;
+    try {
+      await _preview?.flush();
+      await widget.workspace.save(doc);
+    } catch (error) {
+      _report(error);
+    }
+  }
+
+  /// Opens the file a markdown preview's link goes to: at its line for
+  /// `#L12`, at its heading for a markdown file's `#anchor`.
+  Future<void> _openLinked(String path, String? fragment) async {
+    final line = switch (RegExp(r'^L(\d+)').firstMatch(fragment ?? '')) {
+      final match? => int.parse(match[1]!),
+      null => null,
+    };
+    await _open(path, line: line, focusEditor: true);
+    if (!mounted || line != null || fragment == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _preview?.revealAnchor(fragment);
+    });
+  }
+
+  /// [doc]'s preview.
+  Widget _markdownPreview(IdeDocument doc) {
+    final files = widget.workspace.files;
+    return IdeMarkdownPreview(
+      key: GlobalObjectKey<IdeMarkdownPreviewState>(doc),
+      path: doc.path,
+      model: doc.model,
+      readOnly: doc.readOnly,
+      readBytes: switch (files) {
+        final IdeHostFiles files => files.readBytes,
+        _ => readFileBytes,
+      },
+      // A remote project's host is Linux.
+      pathContext: _local ? p.context : p.posix,
+      initialLine: _previewLines[doc],
+      onLeave: (line) {
+        if (line != null) _previewLines[doc] = line;
+      },
+      onEdited: () => widget.workspace.notifyDocumentChanged(doc),
+      onOpenFile: (path, fragment) => unawaited(_openLinked(path, fragment)),
+      onOpenExternal: (uri) => unawaited(openExternal(uri.toString())),
+      onMessage: (message) =>
+          _notifications.notify(IdeSeverity.warning, message),
+      onPaste: doc.readOnly ? null : () => _pasteInMarkdown(doc),
+    );
+  }
+
+  /// What a paste in [doc]'s preview puts in (see [MarkdownPaste]).
+  Future<MarkdownPasteOutcome> _pasteInMarkdown(IdeDocument doc) async =>
+      const MarkdownPasteText();
 
   /// [setState], for the commands of ide_workbench_keys.dart.
   void _refresh(VoidCallback fn) => setState(fn);
@@ -801,7 +987,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             location,
             select: true,
             record: false,
-            afterReveal: () => _editor?.focus(),
+            afterReveal: _focusEditor,
           ),
         );
       });
@@ -883,7 +1069,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      await _editor?.flush();
+      await _flushEditor();
       await widget.workspace.open(path);
       if (!mounted) return;
       // The active one opened again changes nothing [_workspaceChanged]
@@ -893,12 +1079,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           if (range != null) {
-            _editor?.revealRange(range, select: select);
+            _revealRange(range, select: select);
             afterReveal?.call();
           } else if (line != null) {
-            unawaited(_editor?.revealLine(line, column ?? 1));
+            _revealLine(line, column ?? 1);
           } else {
-            _editor?.focus();
+            _focusEditor();
           }
         });
       }
@@ -967,11 +1153,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
     setState(() => _busy = true);
     try {
-      await _editor?.flush();
+      await _flushEditor();
       await open();
       if (mounted && focusEditor) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _editor?.focus();
+          if (mounted) _focusEditor();
         });
       }
     } catch (error) {
@@ -985,7 +1171,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      await _editor?.flush();
+      await _flushEditor();
       widget.workspace.select(doc.key);
     } catch (error) {
       _report(error);
@@ -1015,7 +1201,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (_busy || docs.isEmpty) return;
     setState(() => _busy = true);
     try {
-      await _editor?.flush();
+      await _flushEditor();
       for (final doc in docs) {
         if (!mounted) return;
         if (!widget.workspace.documents.contains(doc)) continue;
@@ -1086,7 +1272,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   Future<void> _saveAll() async {
     try {
-      await _editor?.flush();
+      await _flushEditor();
       for (final doc in widget.workspace.documents) {
         if (doc.dirty) await widget.workspace.save(doc);
       }
@@ -1110,7 +1296,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final doc = widget.workspace.active;
     if (doc == null) return;
     try {
-      await _editor?.flush();
+      await _flushEditor();
       final saved = await widget.workspace.saveAs(doc);
       if (saved != null && mounted) _focusSoon();
     } catch (error) {
@@ -1199,7 +1385,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   Future<void> _back() async {
     try {
-      await _editor?.flush();
+      await _flushEditor();
       if (mounted) widget.onBack();
     } catch (error) {
       _report(error);
@@ -1320,7 +1506,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }) async {
     if (record) _recordNavigation(_here());
     if (widget.workspace.active?.path == location.path) {
-      _editor?.revealRange(location.range, select: select);
+      _revealRange(location.range, select: select);
       afterReveal?.call();
       if (mounted) setState(() {});
       return;
@@ -1665,7 +1851,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// Has the editor's last keys in its document, for what is unsaved to be
   /// all of it (before its window closes, or the app quits).
-  Future<void> flush() async => _editor?.flush();
+  Future<void> flush() async => _flushEditor();
 
   /// Whether the panel's terminals run: a shell alive, or
   /// ([childProcesses]) one running a command
@@ -1783,8 +1969,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         lineCount: active?.model.snapshot.lineCount,
         currentLine: _caretPosition.lineNumber,
         currentColumn: _statusColumn,
-        onGo: (line, column) =>
-            unawaited(_editor?.revealLine(line, column ?? 1)),
+        onGo: (line, column) => _revealLine(line, column ?? 1),
         l10n: l10n,
       );
     }
@@ -2175,20 +2360,34 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'actions.find',
         label: 'Find',
         enabled: active != null,
-        run: () => _editor?.openFind(),
+        run: _find,
       ),
       IdeCommand(
         id: 'editor.action.startFindReplaceAction',
         label: 'Replace',
         enabled: active != null,
-        run: () => _editor?.openReplace(),
+        run: () => _find(replace: true),
       ),
       IdeCommand(
         id: 'workbench.action.files.save',
         category: 'File',
         label: 'Save',
         enabled: active != null,
-        run: () => unawaited(_editor?.save()),
+        run: () => unawaited(_save()),
+      ),
+      IdeCommand(
+        id: 'markdown.showPreview',
+        category: 'Markdown',
+        label: 'Open Preview',
+        enabled: active != null && _hasPreview(active) && !_previewing(active),
+        run: () => unawaited(_setMarkdownPreview(true)),
+      ),
+      IdeCommand(
+        id: 'markdown.showSource',
+        category: 'Markdown',
+        label: 'Show Source',
+        enabled: _previewing(active),
+        run: () => unawaited(_setMarkdownPreview(false)),
       ),
       IdeCommand(
         id: 'workbench.action.files.saveAll',
@@ -2874,6 +3073,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               onClose: (doc) => unawaited(_close(doc)),
               onAction: _tabAction,
               local: _local,
+              markdownPreview: active != null && _hasPreview(active)
+                  ? _previewing(active)
+                  : null,
+              onMarkdownPreview: (preview) =>
+                  unawaited(_setMarkdownPreview(preview)),
             ),
             if (active != null && !active.isUntitled)
               IdeBreadcrumbs(
@@ -2947,6 +3151,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         ? () => unawaited(_openInDefaultApp(active.path))
                         : null,
                   )
+                : _previewing(active)
+                ? _markdownPreview(active)
                 : widget.editorBuilder?.call(context, widget.workspace) ??
                       IdeEditor(
                         nativeEditorEnabled: widget.nativeEditorEnabled,

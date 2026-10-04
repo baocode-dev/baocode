@@ -2379,6 +2379,48 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tabMoreActions => 'More Actions…';
 
   @override
+  String get markdownShowPreview => 'Preview';
+
+  @override
+  String get markdownShowSource => 'Markdown';
+
+  @override
+  String get markdownAddBlock => 'Click to add content';
+
+  @override
+  String get markdownBlockConflict =>
+      'The block was changed elsewhere while you edited it: your edit was discarded.';
+
+  @override
+  String get markdownFindInSource =>
+      'Find is not available in the preview: showing the Markdown source.';
+
+  @override
+  String markdownPasteFolder(String name) {
+    return 'Folders cannot be pasted into a document: $name';
+  }
+
+  @override
+  String get markdownPasteLargeTitle => 'Copy a large file?';
+
+  @override
+  String markdownPasteLargeMessage(String name, String size) {
+    return '$name is $size. Copy it next to the document?';
+  }
+
+  @override
+  String get markdownPasteLargeConfirm => 'Copy';
+
+  @override
+  String markdownPasteFailed(String name, String error) {
+    return 'Could not paste $name: $error';
+  }
+
+  @override
+  String get markdownPasteMoved =>
+      'The document changed while pasting: the links were added at its end.';
+
+  @override
   String tabCloseNamed(String name) {
     return 'Close $name';
   }
@@ -4803,6 +4845,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdSaveAs => 'Save As...';
+
+  @override
+  String get cmdMarkdownShowPreview => 'Open Preview';
+
+  @override
+  String get cmdMarkdownShowSource => 'Show Source';
 
   @override
   String get cmdCloseFolder => 'Close Folder';

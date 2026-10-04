@@ -2304,6 +2304,45 @@ class AppLocalizationsZh extends AppLocalizations {
   String get tabMoreActions => '更多操作…';
 
   @override
+  String get markdownShowPreview => '预览';
+
+  @override
+  String get markdownShowSource => 'Markdown';
+
+  @override
+  String get markdownAddBlock => '点这里添加内容';
+
+  @override
+  String get markdownBlockConflict => '编辑期间这一块在其他地方被修改了，本次编辑已放弃。';
+
+  @override
+  String get markdownFindInSource => '预览中不能查找，已切换到 Markdown 源码。';
+
+  @override
+  String markdownPasteFolder(String name) {
+    return '不能把文件夹粘贴到文档里：$name';
+  }
+
+  @override
+  String get markdownPasteLargeTitle => '复制大文件？';
+
+  @override
+  String markdownPasteLargeMessage(String name, String size) {
+    return '$name 有 $size，确定复制到文档旁边吗？';
+  }
+
+  @override
+  String get markdownPasteLargeConfirm => '复制';
+
+  @override
+  String markdownPasteFailed(String name, String error) {
+    return '无法粘贴 $name：$error';
+  }
+
+  @override
+  String get markdownPasteMoved => '粘贴期间文档被修改，链接已插入到文末。';
+
+  @override
   String tabCloseNamed(String name) {
     return '关闭 $name';
   }
@@ -4474,6 +4513,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdSaveAs => '另存为...';
+
+  @override
+  String get cmdMarkdownShowPreview => '打开预览';
+
+  @override
+  String get cmdMarkdownShowSource => '显示源码';
 
   @override
   String get cmdCloseFolder => '关闭文件夹';

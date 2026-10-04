@@ -4328,6 +4328,72 @@ abstract class AppLocalizations {
   /// **'More Actions…'**
   String get tabMoreActions;
 
+  /// A markdown file's tab: the button showing its preview (VS Code's Open Preview).
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get markdownShowPreview;
+
+  /// A markdown file's tab: the button showing its source, the text as written.
+  ///
+  /// In en, this message translates to:
+  /// **'Markdown'**
+  String get markdownShowSource;
+
+  /// The room after a markdown preview's last block: a click starts a new block there.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to add content'**
+  String get markdownAddBlock;
+
+  /// A markdown preview's block edit given up, as the same text changed meanwhile (another editor, an agent, the file reloaded).
+  ///
+  /// In en, this message translates to:
+  /// **'The block was changed elsewhere while you edited it: your edit was discarded.'**
+  String get markdownBlockConflict;
+
+  /// Find (Cmd+F) in a markdown preview: it switches to the source to find there.
+  ///
+  /// In en, this message translates to:
+  /// **'Find is not available in the preview: showing the Markdown source.'**
+  String get markdownFindInSource;
+
+  /// A folder on the clipboard, pasted into a markdown document.
+  ///
+  /// In en, this message translates to:
+  /// **'Folders cannot be pasted into a document: {name}'**
+  String markdownPasteFolder(String name);
+
+  /// Title of the question before copying a large pasted file next to a markdown document.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy a large file?'**
+  String get markdownPasteLargeTitle;
+
+  /// The question before copying a large pasted file next to a markdown document.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} is {size}. Copy it next to the document?'**
+  String markdownPasteLargeMessage(String name, String size);
+
+  /// The button copying a large pasted file next to the markdown document.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get markdownPasteLargeConfirm;
+
+  /// A file pasted into a markdown document could not be written next to it.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not paste {name}: {error}'**
+  String markdownPasteFailed(String name, String error);
+
+  /// Pasted files' links put at the end of a markdown document, where they were pasted having changed meanwhile.
+  ///
+  /// In en, this message translates to:
+  /// **'The document changed while pasting: the links were added at its end.'**
+  String get markdownPasteMoved;
+
   /// No description provided for @tabCloseNamed.
   ///
   /// In en, this message translates to:
@@ -7910,6 +7976,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save As...'**
   String get cmdSaveAs;
+
+  /// Command palette title (category Markdown): shows the active markdown file's preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Preview'**
+  String get cmdMarkdownShowPreview;
+
+  /// Command palette title (category Markdown): shows the active markdown file's source.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Source'**
+  String get cmdMarkdownShowSource;
 
   /// No description provided for @cmdCloseFolder.
   ///

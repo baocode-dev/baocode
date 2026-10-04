@@ -556,6 +556,16 @@ InlineSpan _linked(InlineSpan span, GestureRecognizer recognizer) =>
     switch (span) {
       // Code in a link keeps its background (and is not tappable).
       InlineCodeSpan() => span,
+      // An image in a link (`[![alt](src)](href)`).
+      WidgetSpan(:final child, :final alignment)
+          when recognizer is TapGestureRecognizer =>
+        WidgetSpan(
+          alignment: alignment,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(onTap: recognizer.onTap, child: child),
+          ),
+        ),
       TextSpan(:final text, :final style, :final children) => TextSpan(
         text: text,
         style: style,

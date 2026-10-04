@@ -59,6 +59,16 @@ final Map<String, CommandInfo> commandCatalog = {
     const CommandInfo('editor.action.startFindReplaceAction', 'Replace'),
     const CommandInfo('workbench.action.files.save', 'Save', category: 'File'),
     const CommandInfo(
+      'markdown.showPreview',
+      'Open Preview',
+      category: 'Markdown',
+    ),
+    const CommandInfo(
+      'markdown.showSource',
+      'Show Source',
+      category: 'Markdown',
+    ),
+    const CommandInfo(
       'workbench.action.files.saveAll',
       'Save All',
       category: 'File',
@@ -398,6 +408,21 @@ final List<KeybindingEntry> defaultKeybindings = List.unmodifiable([
     key: 'ctrl+alt+s',
     mac: 'alt+cmd+s',
     command: 'workbench.action.files.saveAll',
+  ),
+  // A markdown tab's preview and source, one key toggling them: each
+  // command runs only where the other shows. The terminal keeps its
+  // Ctrl+Shift+V (paste) on Windows.
+  const KeybindingEntry(
+    key: 'ctrl+shift+v',
+    mac: 'shift+cmd+v',
+    command: 'markdown.showPreview',
+    when: '!terminalFocus',
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+shift+v',
+    mac: 'shift+cmd+v',
+    command: 'markdown.showSource',
+    when: '!terminalFocus',
   ),
   const KeybindingEntry(
     key: 'ctrl+shift+s',
