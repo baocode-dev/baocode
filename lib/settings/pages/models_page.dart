@@ -17,6 +17,7 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import 'model_dialogs.dart';
 import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
+import '../../ide/ide_back_button.dart';
 
 /// Settings → Models: Claude Code as set up on this machine, and the
 /// upstreams added ([ModelProviders]), the model new sessions start with;
@@ -528,7 +529,11 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
       children: [
         Align(
           alignment: AlignmentDirectional.centerStart,
-          child: _BackLink(label: l10n.modelsTitle, onTap: widget.onBack),
+          // Its arrow level with the title under it.
+          child: Transform.translate(
+            offset: const Offset(-10, 0),
+            child: IdeBackButton(label: l10n.modelsTitle, onTap: widget.onBack),
+          ),
         ),
         const SizedBox(height: 8),
         Text(provider.name, style: SettingsText.title),
@@ -1120,37 +1125,6 @@ class _Folding extends StatelessWidget {
       if (open) SettingsCard(children: children),
     ],
   );
-}
-
-class _BackLink extends StatelessWidget {
-  const _BackLink({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = themeColors['textLink.foreground'];
-    return Semantics(
-      button: true,
-      label: label,
-      excludeSemantics: true,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onTap,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Codicons.chevronLeft, size: 14, color: color),
-              const SizedBox(width: 2),
-              Text(label, style: TextStyle(fontSize: 12.5, color: color)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// A text setting, written when it loses focus or Enter is pressed (not

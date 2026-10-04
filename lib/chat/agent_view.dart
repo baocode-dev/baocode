@@ -11,7 +11,7 @@ import 'chat_keys.dart';
 import 'chat_models.dart';
 import 'widgets/agent_step.dart';
 import 'widgets/hover_builder.dart';
-import '../ide/ide_hover.dart';
+import '../ide/ide_back_button.dart';
 
 /// One conversation over another as the view goes into a subagent: it
 /// comes in from the right as the one under it fades out to the left, and
@@ -103,7 +103,14 @@ class SubagentHeader extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 6, 24, 4),
             child: Row(
               children: [
-                _BackButton(
+                IdeBackButton.icon(
+                  label: context.l10n.chatBack,
+                  // Esc, unless rebound (see ChatCommandIds.closeSubagent).
+                  hover: ChatKeys.titleWithKey(
+                    context.l10n.chatBack,
+                    ChatCommandIds.closeSubagent,
+                    const {ChatContextKeys.subagentVisible: true},
+                  ),
                   focusNode: backFocusNode,
                   onTap: () => onBack(trail.length - 1),
                 ),
@@ -142,44 +149,6 @@ class SubagentHeader extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BackButton extends StatelessWidget {
-  const _BackButton({required this.onTap, this.focusNode});
-
-  final VoidCallback onTap;
-  final FocusNode? focusNode;
-
-  @override
-  Widget build(BuildContext context) {
-    return IdeHover(
-      // Esc, unless rebound (see ChatCommandIds.closeSubagent).
-      message: ChatKeys.titleWithKey(
-        context.l10n.chatBack,
-        ChatCommandIds.closeSubagent,
-        const {ChatContextKeys.subagentVisible: true},
-      ),
-      child: IconButton(
-        focusNode: focusNode,
-        onPressed: onTap,
-        tooltip: null,
-        visualDensity: VisualDensity.compact,
-        iconSize: 16,
-        splashRadius: 14,
-        padding: const EdgeInsets.all(4),
-        constraints: const BoxConstraints.tightFor(width: 26, height: 26),
-        style: IconButton.styleFrom(
-          hoverColor: AppColors.hover,
-          foregroundColor: AppColors.textMuted,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-        ),
-        icon: Semantics(
-          label: context.l10n.chatBack,
-          child: const Icon(Icons.arrow_back_rounded),
         ),
       ),
     );

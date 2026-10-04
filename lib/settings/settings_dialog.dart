@@ -10,6 +10,7 @@ import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
+import '../ide/ide_back_button.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 
 /// The settings dialog's pages.
@@ -289,12 +290,10 @@ class SettingsDialogState extends State<SettingsDialog> {
             ),
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-            child: _NavItem(
-              icon: Codicons.arrowLeft,
+            child: IdeBackButton(
               label: l10n.settingsBack,
-              selected: false,
-              muted: true,
               onTap: _close,
+              expand: true,
             ),
           ),
           Padding(
@@ -367,16 +366,12 @@ class _NavItem extends StatefulWidget {
     required this.label,
     required this.selected,
     required this.onTap,
-    this.muted = false,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
-
-  /// Not a page: Back.
-  final bool muted;
 
   @override
   State<_NavItem> createState() => _NavItemState();
@@ -416,9 +411,7 @@ class _NavItemState extends State<_NavItem> {
                 Icon(
                   widget.icon,
                   size: 15,
-                  color: selected && !widget.muted
-                      ? AppColors.text
-                      : AppColors.textMuted,
+                  color: selected ? AppColors.text : AppColors.textMuted,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -427,11 +420,7 @@ class _NavItemState extends State<_NavItem> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: widget.muted
-                          ? AppColors.textMuted
-                          : selected
-                          ? AppColors.textPrimary
-                          : AppColors.text,
+                      color: selected ? AppColors.textPrimary : AppColors.text,
                       fontSize: 13,
                     ),
                   ),
