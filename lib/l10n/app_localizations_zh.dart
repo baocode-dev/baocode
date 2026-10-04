@@ -5331,6 +5331,127 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsAuxiliaryBuiltin => 'Claude Code Haiku（本机配置）';
 
   @override
+  String get settingsSectionUpdates => '更新';
+
+  @override
+  String get updatesSettingsTitle => '更新';
+
+  @override
+  String get updatesSettingsDescription => 'BaoCode 会在 baocode.dev 上检查新版本。';
+
+  @override
+  String get updateCurrentVersion => '当前版本';
+
+  @override
+  String updateLastChecked(String time) {
+    return '上次检查：$time';
+  }
+
+  @override
+  String get updateNeverChecked => '尚未检查';
+
+  @override
+  String get updateCheckNow => '检查更新';
+
+  @override
+  String get updateChecking => '正在检查更新…';
+
+  @override
+  String get updateUpToDate => 'BaoCode 已是最新版本。';
+
+  @override
+  String updateAvailable(String version) {
+    return 'BaoCode $version 已发布。';
+  }
+
+  @override
+  String updateReady(String version) {
+    return 'BaoCode $version 已下载，重启即可完成更新。';
+  }
+
+  @override
+  String updateDownloading(String version) {
+    return '正在下载 BaoCode $version…';
+  }
+
+  @override
+  String updateDownloadingProgress(String version, int percent) {
+    return '正在下载 BaoCode $version… $percent%';
+  }
+
+  @override
+  String updateMandatory(String version) {
+    return '当前版本的 BaoCode 已停止支持，请更新到 $version。';
+  }
+
+  @override
+  String get updateRestartNow => '立即重启更新';
+
+  @override
+  String get updateLater => '稍后';
+
+  @override
+  String get updateSkip => '跳过此版本';
+
+  @override
+  String get updateSkippedNote => '已跳过此版本：不会再提醒，但仍可在此安装。';
+
+  @override
+  String updateFailed(String error) {
+    return 'BaoCode 更新失败：$error';
+  }
+
+  @override
+  String updateCheckFailed(String error) {
+    return '检查更新失败：$error';
+  }
+
+  @override
+  String get updateDisabled => '更新已关闭（update.mode 为 \"none\"）。';
+
+  @override
+  String get updateUnsupported => '此版本的 BaoCode 不支持自动更新。';
+
+  @override
+  String updateManual(String reason) {
+    return 'BaoCode 无法在当前位置自动更新（$reason），请从 baocode.dev 下载新版本。';
+  }
+
+  @override
+  String get updateOpenDownloadPage => '打开下载页';
+
+  @override
+  String get updateReleaseNotes => '更新日志';
+
+  @override
+  String updateReleaseNotesFor(String version) {
+    return '$version 更新内容';
+  }
+
+  @override
+  String get updateMode => '更新方式';
+
+  @override
+  String get updateModeDescription => 'BaoCode 是否自动检查新版本（设置项 update.mode）。';
+
+  @override
+  String updateModeLabel(String name) {
+    return '更新方式：$name';
+  }
+
+  @override
+  String get updateModeDefault => '自动检查并下载';
+
+  @override
+  String get updateModeManual => '仅手动检查';
+
+  @override
+  String get updateModeNone => '关闭';
+
+  @override
+  String get cmdCheckForUpdates => '检查更新...';
+
+  @override
   String get settingsSectionAppearance => '外观';
 
   @override

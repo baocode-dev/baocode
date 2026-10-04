@@ -177,8 +177,31 @@ Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCodeFastIde";
 [Run]
 Filename: "{app}\baocode.exe"; Description: "{cm:LaunchProgram,BaoCode}"; \
   Flags: nowait postinstall skipifsilent
+; An update the app ran (lib/update/installer_io.dart) is silent, which
+; skips the entry above: /RELAUNCH opens the app again once it is in place,
+; as the user who ran it rather than the administrator Setup elevated to.
+Filename: "{app}\baocode.exe"; Flags: nowait runasoriginaluser; \
+  Check: RelaunchRequested
 
 [Code]
+// Whether the command line asks for the app to be opened after a silent
+// install (/RELAUNCH, an update's; see [Run]). Not silent, the finish
+// page's checkbox opens it.
+function RelaunchRequested: Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  if not WizardSilent then
+    Exit;
+  for I := 1 to ParamCount do
+    if CompareText(ParamStr(I), '/RELAUNCH') = 0 then
+    begin
+      Result := True;
+      Exit;
+    end;
+end;
+
 // The context menu's labels (see [Registry]): "Open with BaoCode", in
 // Chinese where Windows is. Written as code points, so the script's encoding
 // does not matter.

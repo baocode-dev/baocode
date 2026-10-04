@@ -347,6 +347,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         onResume: () => unawaited(_workspace.refresh()),
       );
       WidgetsBinding.instance.addPostFrameCallback((_) => _afterFirstFrame());
+      _stopUpdateOffers = widget.settings?.updates?.listen(
+        _notifications,
+        () => context.l10n,
+        openNotes: () => unawaited(openSettings(SettingsSection.updates)),
+      );
     }
     widget.settings?.files?.changes.addListener(_settingsFilesChanged);
     _settingsFilesChanged();
@@ -408,6 +413,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _width.dispose();
     _lifecycle?.dispose();
     _attention?.dispose();
+    _stopUpdateOffers?.call();
     HardwareKeyboard.instance.removeHandler(_handleKey);
     _keybindings.removeListener(_keybindingsChanged);
     // The window's channels stay: a folder replaced builds the next
@@ -501,6 +507,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         openKeybindingsCommandId: () =>
             unawaited(openSettings(SettingsSection.keyboard)),
         ideSelectColorThemeCommandId: _selectColorTheme,
+        checkForUpdatesCommandId: _checkForUpdates,
         ChatCommandIds.search: () => unawaited(_openPalette()),
         ..._terminalCommands(),
         ..._windowCommands(),
@@ -516,6 +523,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       openKeybindingsCommandId: () =>
           unawaited(openSettings(SettingsSection.keyboard)),
       ideSelectColorThemeCommandId: _selectColorTheme,
+      checkForUpdatesCommandId: _checkForUpdates,
       // As the sidebar's New Agent button: a folder first, without one.
       if (_workspace.sidebarProjects.isNotEmpty)
         ChatCommandIds.newChat: _newAgent
@@ -829,6 +837,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ?action(openSettingsCommandId, Codicons.settingsGear),
       ?action(openKeybindingsCommandId, Codicons.keyboard),
       ?action(ideSelectColorThemeCommandId, Codicons.symbolColor),
+      ?action(checkForUpdatesCommandId, Codicons.cloudDownload),
       ?action(
         'workbench.action.toggleSidebarVisibility',
         Codicons.layoutSidebarLeft,
@@ -894,7 +903,34 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       label: 'Open Keyboard Shortcuts',
       run: () => unawaited(openSettings(SettingsSection.keyboard)),
     ),
+    IdeCommand(
+      id: checkForUpdatesCommandId,
+      label: commandCatalog[checkForUpdatesCommandId]!.title,
+      run: _checkForUpdates,
+    ),
   ];
+
+  // --- Updates -------------------------------------------------------------
+
+  /// What the app's updates found by themselves, told of here: the main
+  /// window's.
+  VoidCallback? _stopUpdateOffers;
+
+  /// Check for Updates...: what it finds told of in this window.
+  void _checkForUpdates() {
+    final updates = widget.settings?.updates;
+    if (updates == null) {
+      _notifications.notify(IdeSeverity.info, context.l10n.updateUnsupported);
+      return;
+    }
+    unawaited(
+      updates.checkNow(
+        _notifications,
+        context.l10n,
+        openNotes: () => unawaited(openSettings(SettingsSection.updates)),
+      ),
+    );
+  }
 
   /// The chords of a sequence typed so far (⌘K of ⌘K ⌘S).
   List<KeyChord>? _pendingChords;
@@ -1372,6 +1408,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         'more': l10n.menuMore,
         'newWindow': l10n.cmdNewWindow,
         'closeWindow': l10n.menuCloseWindow,
+        // The app menu's, under About.
+        'checkForUpdates': l10n.cmdCheckForUpdates.replaceAll('...', '…'),
       }),
     );
   }

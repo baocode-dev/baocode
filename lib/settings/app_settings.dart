@@ -10,6 +10,7 @@ import '../keybindings/keymap.dart';
 import '../keybindings/vscode_import.dart';
 import '../models/model_providers.dart';
 import '../theme/workbench_theme.dart' show WorkbenchThemeService;
+import '../update/update_controller.dart';
 import 'app_locale.dart';
 import 'pages/appearance_page.dart';
 import 'pages/data_dir_page.dart';
@@ -18,6 +19,7 @@ import 'pages/keybindings_page.dart';
 import 'pages/models_page.dart';
 import 'pages/language_page.dart';
 import 'pages/notifications_page.dart';
+import 'pages/updates_page.dart';
 import 'settings_dialog.dart';
 import 'user_settings.dart';
 
@@ -32,6 +34,7 @@ class AppSettings {
     this.catalog,
     this.sync,
     this.installs,
+    this.updates,
   }) : keybindings = keybindings ?? KeybindingService.instance;
 
   final AppLocale locale;
@@ -49,6 +52,10 @@ class AppSettings {
   /// Where VS Code, Cursor and the like keep their keybindings, to import
   /// them from; none under test.
   final VsCodeInstalls? installs;
+
+  /// Updating the app: Settings → Updates, Check for Updates; none where
+  /// the build does not update itself.
+  final UpdateController? updates;
 
   /// Writes the keyboard page's changes into keybindings.json: one for
   /// the app, so they are made one at a time.
@@ -98,6 +105,8 @@ class AppSettings {
                 : () => unawaited(showImport(context)),
           ),
         );
+      case SettingsSection.updates:
+        return UpdatesSettingsPage(updates: updates, settings: files?.settings);
       case SettingsSection.dataDirectory:
         return const DataDirectoryPage();
     }

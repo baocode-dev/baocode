@@ -696,6 +696,7 @@ private class FileMenu: NSObject {
     "closeWindow": "Close Window",
     "clearRecent": "Clear Recently Opened",
     "more": "More…",
+    "checkForUpdates": "Check for Updates…",
   ]
   private var recent: [String] = []
 
@@ -721,11 +722,21 @@ private class FileMenu: NSObject {
     recentMenu.autoenablesItems = false
   }
 
-  /// Puts the menu after the app menu, before Edit.
+  /// The app menu's Check for Updates…, under About (see lib/update/).
+  private let updatesItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+
+  /// Puts the menu after the app menu, before Edit; and Check for
+  /// Updates… in the app menu.
   func install(in mainMenu: NSMenu) {
     let item = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
     item.submenu = menu
     mainMenu.insertItem(item, at: min(1, mainMenu.numberOfItems))
+    if let appMenu = mainMenu.items.first?.submenu {
+      updatesItem.action = #selector(runCommand(_:))
+      updatesItem.target = self
+      updatesItem.representedObject = "update.checkForUpdate"
+      appMenu.insertItem(updatesItem, at: min(1, appMenu.numberOfItems))
+    }
     build()
   }
 
@@ -742,6 +753,7 @@ private class FileMenu: NSObject {
   private func title(_ key: String) -> String { titles[key] ?? key }
 
   private func build() {
+    updatesItem.title = title("checkForUpdates")
     menu.title = title("file")
     menu.supermenu?.items.first(where: { $0.submenu === menu })?.title = title("file")
     menu.removeAllItems()

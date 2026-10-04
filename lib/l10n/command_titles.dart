@@ -33,6 +33,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'workbench.action.closeFolder' => l10n.cmdCloseFolder,
     installShellCommandId => l10n.cmdInstallShellCommand(ShellCommand.name),
     uninstallShellCommandId => l10n.cmdUninstallShellCommand(ShellCommand.name),
+    checkForUpdatesCommandId => l10n.cmdCheckForUpdates,
     'workbench.action.closeActiveEditor' => l10n.cmdCloseEditor,
     'workbench.action.closeOtherEditors' => l10n.cmdCloseOtherEditors,
     'workbench.action.closeEditorsToTheRight' => l10n.cmdCloseEditorsToTheRight,

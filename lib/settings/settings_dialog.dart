@@ -20,6 +20,7 @@ enum SettingsSection {
   notifications,
   language,
   keyboard,
+  updates,
   dataDirectory,
 }
 
@@ -32,6 +33,7 @@ enum SettingsCategory {
     SettingsSection.notifications,
     SettingsSection.language,
     SettingsSection.keyboard,
+    SettingsSection.updates,
   ]),
   advanced([SettingsSection.dataDirectory]);
 
@@ -116,6 +118,7 @@ class SettingsDialogState extends State<SettingsDialog> {
     SettingsSection.notifications => Codicons.bell,
     SettingsSection.language => Codicons.globe,
     SettingsSection.keyboard => Codicons.keyboard,
+    SettingsSection.updates => Codicons.cloudDownload,
     SettingsSection.dataDirectory => Codicons.folder,
   };
 
@@ -136,6 +139,7 @@ class SettingsDialogState extends State<SettingsDialog> {
       SettingsSection.notifications => l10n.settingsSectionNotifications,
       SettingsSection.language => l10n.settingsSectionLanguage,
       SettingsSection.keyboard => l10n.settingsSectionKeyboard,
+      SettingsSection.updates => l10n.settingsSectionUpdates,
       SettingsSection.dataDirectory => l10n.settingsSectionDataDirectory,
     };
   }

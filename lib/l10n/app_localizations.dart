@@ -9447,6 +9447,204 @@ abstract class AppLocalizations {
   /// **'Claude Code Haiku (this machine\'s setup)'**
   String get modelsAuxiliaryBuiltin;
 
+  /// No description provided for @settingsSectionUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get settingsSectionUpdates;
+
+  /// No description provided for @updatesSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get updatesSettingsTitle;
+
+  /// No description provided for @updatesSettingsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode looks for new versions on baocode.dev.'**
+  String get updatesSettingsDescription;
+
+  /// No description provided for @updateCurrentVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Version'**
+  String get updateCurrentVersion;
+
+  /// No description provided for @updateLastChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Last checked {time}'**
+  String updateLastChecked(String time);
+
+  /// No description provided for @updateNeverChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not checked yet'**
+  String get updateNeverChecked;
+
+  /// The settings page's button.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for Updates'**
+  String get updateCheckNow;
+
+  /// No description provided for @updateChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking for updates…'**
+  String get updateChecking;
+
+  /// No description provided for @updateUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode is up to date.'**
+  String get updateUpToDate;
+
+  /// No description provided for @updateAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode {version} is available.'**
+  String updateAvailable(String version);
+
+  /// No description provided for @updateReady.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode {version} has been downloaded. Restart to update.'**
+  String updateReady(String version);
+
+  /// No description provided for @updateDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading BaoCode {version}…'**
+  String updateDownloading(String version);
+
+  /// No description provided for @updateDownloadingProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading BaoCode {version}… {percent}%'**
+  String updateDownloadingProgress(String version, int percent);
+
+  /// No description provided for @updateMandatory.
+  ///
+  /// In en, this message translates to:
+  /// **'This version of BaoCode is no longer supported. Update to {version} to keep using it.'**
+  String updateMandatory(String version);
+
+  /// No description provided for @updateRestartNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart to Update'**
+  String get updateRestartNow;
+
+  /// No description provided for @updateLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get updateLater;
+
+  /// No description provided for @updateSkip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip This Version'**
+  String get updateSkip;
+
+  /// No description provided for @updateSkippedNote.
+  ///
+  /// In en, this message translates to:
+  /// **'You skipped this version: it is not offered again, but can still be installed here.'**
+  String get updateSkippedNote;
+
+  /// No description provided for @updateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t update BaoCode: {error}'**
+  String updateFailed(String error);
+
+  /// No description provided for @updateCheckFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t check for updates: {error}'**
+  String updateCheckFailed(String error);
+
+  /// No description provided for @updateDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates are turned off (update.mode is \"none\").'**
+  String get updateDisabled;
+
+  /// No description provided for @updateUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This build of BaoCode doesn\'t update itself.'**
+  String get updateUnsupported;
+
+  /// No description provided for @updateManual.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode can\'t update itself here ({reason}). Download the new version from baocode.dev.'**
+  String updateManual(String reason);
+
+  /// No description provided for @updateOpenDownloadPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Download Page'**
+  String get updateOpenDownloadPage;
+
+  /// No description provided for @updateReleaseNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'Release Notes'**
+  String get updateReleaseNotes;
+
+  /// No description provided for @updateReleaseNotesFor.
+  ///
+  /// In en, this message translates to:
+  /// **'What\'s New in {version}'**
+  String updateReleaseNotesFor(String version);
+
+  /// No description provided for @updateMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Mode'**
+  String get updateMode;
+
+  /// No description provided for @updateModeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Whether BaoCode looks for new versions by itself (update.mode).'**
+  String get updateModeDescription;
+
+  /// The update mode dropdown, as read out.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Mode: {name}'**
+  String updateModeLabel(String name);
+
+  /// Update mode: checks at launch and every few hours, and downloads.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic'**
+  String get updateModeDefault;
+
+  /// Update mode: only Check for Updates.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual'**
+  String get updateModeManual;
+
+  /// Update mode: never checks.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get updateModeNone;
+
+  /// Command title; the English one is the command catalog's.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for Updates...'**
+  String get cmdCheckForUpdates;
+
   /// No description provided for @settingsSectionAppearance.
   ///
   /// In en, this message translates to:

@@ -3877,6 +3877,135 @@
   "modelsAuxiliaryDescription": "Used for auxiliary work, such as generating conversation titles and commit messages. Automatic: the session's model (for commit messages, new sessions' default); an upstream's by its Haiku tier.",
   "modelsAuxiliaryAuto": "Automatic",
   "modelsAuxiliaryBuiltin": "Claude Code Haiku (this machine's setup)",
+  "settingsSectionUpdates": "Updates",
+  "updatesSettingsTitle": "Updates",
+  "updatesSettingsDescription": "BaoCode looks for new versions on baocode.dev.",
+  "updateCurrentVersion": "Current Version",
+  "updateLastChecked": "Last checked {time}",
+  "@updateLastChecked": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "updateNeverChecked": "Not checked yet",
+  "updateCheckNow": "Check for Updates",
+  "@updateCheckNow": {
+    "description": "The settings page's button."
+  },
+  "updateChecking": "Checking for updates…",
+  "updateUpToDate": "BaoCode is up to date.",
+  "updateAvailable": "BaoCode {version} is available.",
+  "@updateAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateReady": "BaoCode {version} has been downloaded. Restart to update.",
+  "@updateReady": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownloading": "Downloading BaoCode {version}…",
+  "@updateDownloading": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownloadingProgress": "Downloading BaoCode {version}… {percent}%",
+  "@updateDownloadingProgress": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "updateMandatory": "This version of BaoCode is no longer supported. Update to {version} to keep using it.",
+  "@updateMandatory": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateRestartNow": "Restart to Update",
+  "updateLater": "Later",
+  "updateSkip": "Skip This Version",
+  "updateSkippedNote": "You skipped this version: it is not offered again, but can still be installed here.",
+  "updateFailed": "Couldn't update BaoCode: {error}",
+  "@updateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "updateCheckFailed": "Couldn't check for updates: {error}",
+  "@updateCheckFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDisabled": "Updates are turned off (update.mode is \"none\").",
+  "updateUnsupported": "This build of BaoCode doesn't update itself.",
+  "updateManual": "BaoCode can't update itself here ({reason}). Download the new version from baocode.dev.",
+  "@updateManual": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "updateOpenDownloadPage": "Open Download Page",
+  "updateReleaseNotes": "Release Notes",
+  "updateReleaseNotesFor": "What's New in {version}",
+  "@updateReleaseNotesFor": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateMode": "Update Mode",
+  "updateModeDescription": "Whether BaoCode looks for new versions by itself (update.mode).",
+  "updateModeLabel": "Update Mode: {name}",
+  "@updateModeLabel": {
+    "description": "The update mode dropdown, as read out.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "updateModeDefault": "Automatic",
+  "@updateModeDefault": {
+    "description": "Update mode: checks at launch and every few hours, and downloads."
+  },
+  "updateModeManual": "Manual",
+  "@updateModeManual": {
+    "description": "Update mode: only Check for Updates."
+  },
+  "updateModeNone": "Off",
+  "@updateModeNone": {
+    "description": "Update mode: never checks."
+  },
+  "cmdCheckForUpdates": "Check for Updates...",
+  "@cmdCheckForUpdates": {
+    "description": "Command title; the English one is the command catalog's."
+  },
   "settingsSectionAppearance": "Appearance",
   "settingsAppearanceKeywords": "theme color colour dark light",
   "appearanceSettingsTitle": "Appearance",

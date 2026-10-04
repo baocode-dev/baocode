@@ -57,6 +57,7 @@ dependencies:
   intl: any
   markdown: ^7.3.1
   path: ^1.9.1
+  pinenacl: ^0.6.0
   super_sliver_list: ^0.4.1
 
 dev_dependencies:

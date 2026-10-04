@@ -5693,6 +5693,132 @@ class AppLocalizationsEn extends AppLocalizations {
       'Claude Code Haiku (this machine\'s setup)';
 
   @override
+  String get settingsSectionUpdates => 'Updates';
+
+  @override
+  String get updatesSettingsTitle => 'Updates';
+
+  @override
+  String get updatesSettingsDescription =>
+      'BaoCode looks for new versions on baocode.dev.';
+
+  @override
+  String get updateCurrentVersion => 'Current Version';
+
+  @override
+  String updateLastChecked(String time) {
+    return 'Last checked $time';
+  }
+
+  @override
+  String get updateNeverChecked => 'Not checked yet';
+
+  @override
+  String get updateCheckNow => 'Check for Updates';
+
+  @override
+  String get updateChecking => 'Checking for updates…';
+
+  @override
+  String get updateUpToDate => 'BaoCode is up to date.';
+
+  @override
+  String updateAvailable(String version) {
+    return 'BaoCode $version is available.';
+  }
+
+  @override
+  String updateReady(String version) {
+    return 'BaoCode $version has been downloaded. Restart to update.';
+  }
+
+  @override
+  String updateDownloading(String version) {
+    return 'Downloading BaoCode $version…';
+  }
+
+  @override
+  String updateDownloadingProgress(String version, int percent) {
+    return 'Downloading BaoCode $version… $percent%';
+  }
+
+  @override
+  String updateMandatory(String version) {
+    return 'This version of BaoCode is no longer supported. Update to $version to keep using it.';
+  }
+
+  @override
+  String get updateRestartNow => 'Restart to Update';
+
+  @override
+  String get updateLater => 'Later';
+
+  @override
+  String get updateSkip => 'Skip This Version';
+
+  @override
+  String get updateSkippedNote =>
+      'You skipped this version: it is not offered again, but can still be installed here.';
+
+  @override
+  String updateFailed(String error) {
+    return 'Couldn\'t update BaoCode: $error';
+  }
+
+  @override
+  String updateCheckFailed(String error) {
+    return 'Couldn\'t check for updates: $error';
+  }
+
+  @override
+  String get updateDisabled =>
+      'Updates are turned off (update.mode is \"none\").';
+
+  @override
+  String get updateUnsupported =>
+      'This build of BaoCode doesn\'t update itself.';
+
+  @override
+  String updateManual(String reason) {
+    return 'BaoCode can\'t update itself here ($reason). Download the new version from baocode.dev.';
+  }
+
+  @override
+  String get updateOpenDownloadPage => 'Open Download Page';
+
+  @override
+  String get updateReleaseNotes => 'Release Notes';
+
+  @override
+  String updateReleaseNotesFor(String version) {
+    return 'What\'s New in $version';
+  }
+
+  @override
+  String get updateMode => 'Update Mode';
+
+  @override
+  String get updateModeDescription =>
+      'Whether BaoCode looks for new versions by itself (update.mode).';
+
+  @override
+  String updateModeLabel(String name) {
+    return 'Update Mode: $name';
+  }
+
+  @override
+  String get updateModeDefault => 'Automatic';
+
+  @override
+  String get updateModeManual => 'Manual';
+
+  @override
+  String get updateModeNone => 'Off';
+
+  @override
+  String get cmdCheckForUpdates => 'Check for Updates...';
+
+  @override
   String get settingsSectionAppearance => 'Appearance';
 
   @override
