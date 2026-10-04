@@ -712,13 +712,15 @@ class ComposerPickerState extends State<ComposerPicker> {
               ),
             )
           else
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: _maxListHeight),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: rows,
+            Flexible(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: _maxListHeight),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: rows,
+                  ),
                 ),
               ),
             ),

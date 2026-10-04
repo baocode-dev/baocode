@@ -123,6 +123,68 @@ void main() {
     expect(picked, ['@gw/glm-4.6']);
   });
 
+  testWidgets(
+    'short viewport keeps the scrollable list and footer in the menu',
+    (tester) async {
+      tester.view
+        ..devicePixelRatio = 1
+        ..physicalSize = const Size(800, 360);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await pump(tester, [
+        _option('default', 'Default', _builtin),
+        for (var i = 0; i < 15; i++) _option('@gw/m$i', 'Model $i', _gateway),
+      ]);
+      await open(tester, 'Default');
+
+      final list = find.byType(SingleChildScrollView);
+      final footer = find.text('Manage Models…');
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.getBottomLeft(list).dy,
+        lessThan(tester.getTopLeft(footer).dy),
+      );
+      expect(tester.getBottomLeft(footer).dy, lessThan(350));
+
+      await tester.drag(list, const Offset(0, -700));
+      await tester.pumpAndSettle();
+      expect(find.text('Model 14'), findsOneWidget);
+      expect(tester.getBottomLeft(footer).dy, lessThan(350));
+      await tester.tap(footer);
+      await tester.pumpAndSettle();
+      expect(managed, 1);
+    },
+  );
+
+  testWidgets('long model list stays capped and scrolls internally', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(800, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await pump(tester, [
+      _option('default', 'Default', _builtin),
+      for (var i = 0; i < 24; i++) _option('@gw/m$i', 'Model $i', _gateway),
+    ]);
+    await open(tester, 'Default');
+
+    final list = find.byType(SingleChildScrollView);
+    final footer = find.text('Manage Models…');
+    final footerTop = tester.getTopLeft(footer).dy;
+    expect(tester.getSize(list).height, lessThanOrEqualTo(380));
+    expect(tester.getBottomLeft(list).dy, lessThan(footerTop));
+
+    await tester.drag(list, const Offset(0, -1200));
+    await tester.pumpAndSettle();
+    expect(find.text('Model 23'), findsOneWidget);
+    expect(tester.getTopLeft(footer).dy, footerTop);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('few options are not searched', (tester) async {
     await pump(tester, [
       _option('default', 'Default', _builtin),
