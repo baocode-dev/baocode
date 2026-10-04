@@ -97,7 +97,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     ChangeReviewOpener? openReview,
   }) : kernels = kernels ?? KernelRegistry.all,
        _openReview =
-           openReview ?? (ReviewStore.supported ? ChangeReview.open : null) {
+           openReview ?? (reviewSupported ? ChangeReview.open : null) {
     _transcript = Transcript(
       historyCount: historyCount,
       history: historyCount > 0 ? MockConversation.itemAt : null,

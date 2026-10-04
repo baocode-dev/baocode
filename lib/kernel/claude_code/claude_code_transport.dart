@@ -3,6 +3,8 @@ import 'dart:convert';
 import '../../models/launch_environment.dart';
 import '../commit_attribution.dart';
 
+export 'package:bao_remote/claude.dart' show ClaudeUnavailable;
+
 /// Claude Code's side of the adapter (the Adaptee): the messages of
 /// `claude -p --input-format stream-json --output-format stream-json`, one
 /// JSON object per line.
@@ -191,13 +193,3 @@ This is the ONLY acceptable format for code citations. The format is ```startLin
 typedef ClaudeTransportFactory = Future<ClaudeCodeTransport> Function(
   ClaudeLaunch launch,
 );
-
-class ClaudeUnavailable implements Exception {
-  const ClaudeUnavailable(this.message, {this.detail});
-
-  final String message;
-  final String? detail;
-
-  @override
-  String toString() => message;
-}

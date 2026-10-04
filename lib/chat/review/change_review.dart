@@ -62,9 +62,9 @@ class ChangeReview extends ChangeNotifier {
   ChangeReview(this._store);
 
   /// The review of the project at [root], continuing what [session] left;
-  /// null where there can be none (see [ReviewStore.open]).
+  /// null where there can be none (see [openReviewStore]).
   static Future<ChangeReview?> open(String root, {String? session}) async {
-    final store = await ReviewStore.open(root);
+    final store = await openReviewStore(root);
     if (store == null) return null;
     if (session == null) return ChangeReview(store);
     return resume(store, session);
