@@ -73,77 +73,6 @@ final Map<String, CommandInfo> commandCatalog = {
       category: 'Markdown',
     ),
     const CommandInfo(
-      'markdown.editor.toggleBold',
-      'Toggle Bold',
-      category: 'Markdown',
-    ),
-    const CommandInfo(
-      'markdown.editor.toggleItalic',
-      'Toggle Italic',
-      category: 'Markdown',
-    ),
-    const CommandInfo(
-      'markdown.editor.toggleStrikethrough',
-      'Toggle Strikethrough',
-      category: 'Markdown',
-    ),
-    const CommandInfo(
-      'markdown.editor.toggleCode',
-      'Toggle Inline Code',
-      category: 'Markdown',
-    ),
-    const CommandInfo(
-      'markdown.editor.paragraph',
-      'Paragraph',
-      category: 'Markdown',
-    ),
-    const CommandInfo(
-      'markdown.editor.toggleQuote',
-      'Toggle Quote',
-      category: 'Markdown',
-    ),
-    const CommandInfo(
-      'markdown.editor.toggleBulletList',
-      'Toggle Bullet List',
-      category: 'Markdown',
-    ),
-    const CommandInfo(
-      'markdown.editor.toggleOrderedList',
-      'Toggle Numbered List',
-      category: 'Markdown',
-    ),
-    const CommandInfo(
-      'markdown.editor.toggleTaskList',
-      'Toggle Task List',
-      category: 'Markdown',
-    ),
-    const CommandInfo(
-      'markdown.editor.insertTable',
-      'Insert Table',
-      category: 'Markdown',
-    ),
-    const CommandInfo(
-      'markdown.editor.insertCodeBlock',
-      'Insert Code Block',
-      category: 'Markdown',
-    ),
-    const CommandInfo(
-      'markdown.editor.insertMathBlock',
-      'Insert Math Block',
-      category: 'Markdown',
-    ),
-    const CommandInfo(
-      'markdown.editor.insertHorizontalRule',
-      'Insert Horizontal Rule',
-      category: 'Markdown',
-    ),
-    for (var level = 1; level <= 6; level++)
-      CommandInfo(
-        'markdown.editor.heading$level',
-        'Heading $level',
-        category: 'Markdown',
-      ),
-    const CommandInfo(
       'workbench.action.files.saveAll',
       'Save All',
       category: 'File',
@@ -835,31 +764,6 @@ final List<KeybindingEntry> defaultKeybindings = List.unmodifiable([
   ...editorExtraKeybindings,
   ...windowKeybindings,
   ...chatExtraKeybindings,
-  // A markdown preview's formatting, Typora's keys, while it has the
-  // keyboard: over the workbench's (the side bar's ⌘B, the editor groups'
-  // ⌘1).
-  ...[
-    ('toggleBold', 'ctrl+b', 'cmd+b'),
-    ('toggleItalic', 'ctrl+i', 'cmd+i'),
-    for (var level = 1; level <= 6; level++)
-      ('heading$level', 'ctrl+$level', 'cmd+$level'),
-    ('paragraph', 'ctrl+0', 'cmd+0'),
-    ('toggleQuote', 'ctrl+shift+q', 'alt+cmd+q'),
-    ('toggleOrderedList', 'ctrl+shift+[', 'alt+cmd+o'),
-    ('toggleBulletList', 'ctrl+shift+]', 'alt+cmd+u'),
-  ].map(
-    (binding) => KeybindingEntry(
-      key: binding.$2,
-      mac: binding.$3,
-      command: 'markdown.editor.${binding.$1}',
-      when: 'markdownEditorFocus',
-    ),
-  ),
-  const KeybindingEntry(
-    mac: 'alt+cmd+t',
-    command: 'markdown.editor.insertTable',
-    when: 'markdownEditorFocus',
-  ),
 ]);
 
 // Upstream's `when` clauses of the tree's and the explorer's keybindings.
@@ -890,7 +794,6 @@ const knownContextKeys = {
   'editorHasFormattingProvider',
   'textInputFocus',
   'terminalFocus',
-  'markdownEditorFocus',
   'inQuickOpen',
   'filesExplorerFocus',
   'foldersViewVisible',

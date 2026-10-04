@@ -224,11 +224,7 @@ void main() {
       modifiers: [LogicalKeyboardKey.metaLeft],
     );
     expect(find.text('cmd+b'), findsOneWidget);
-    // The side bar's, and a markdown preview's bold.
-    expect(
-      find.text('2 existing commands have this keybinding'),
-      findsOneWidget,
-    );
+    expect(find.text('1 existing command has this keybinding'), findsOneWidget);
     // Escape clears what was pressed, then closes.
     await press(tester, LogicalKeyboardKey.escape);
     expect(find.text('cmd+b'), findsNothing);
