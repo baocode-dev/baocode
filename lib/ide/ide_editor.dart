@@ -82,6 +82,7 @@ class IdeEditor extends StatefulWidget {
     this.formatOnSave = false,
     this.gitBlame = true,
     this.keyResolver,
+    this.onPaste,
   });
 
   final IdeWorkspace workspace;
@@ -124,6 +125,11 @@ class IdeEditor extends StatefulWidget {
   /// widgets' included; a key whose keybinding is one of this resolver's
   /// other commands (or none) goes on to the workbench.
   final EditorKeyResolver? keyResolver;
+
+  /// Takes a paste in [IdeDocument]'s editor before its text is pasted (a
+  /// markdown document's files): whether it pasted.
+  final Future<bool> Function(IdeDocument doc, EditorSurfaceController editor)?
+  onPaste;
 
   @override
   State<IdeEditor> createState() => IdeEditorState();
@@ -283,6 +289,8 @@ class IdeEditorState extends State<IdeEditor> {
           code: text,
         );
       }
+      controller.onPaste = () async =>
+          await widget.onPaste?.call(doc, controller) ?? false;
       unawaited(_loadLanguageConfiguration(doc, controller));
       var previousText = controller.value.text;
       controller.addListener(() {
@@ -1480,6 +1488,22 @@ class IdeEditorState extends State<IdeEditor> {
   /// Moves keyboard focus to the text.
   void focus() {
     if (_focusNode.canRequestFocus) _focusNode.requestFocus();
+  }
+
+  /// Puts [text] where the caret is, as a paste would (links to files
+  /// dropped on a markdown document).
+  void insertAtCaret(String text) {
+    if (widget.active.readOnly) return;
+    if (_nativeController case final controller?
+        when widget.nativeEditorEnabled) {
+      controller.pasteText(text);
+      return;
+    }
+    final value = _controller.value;
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+    _controller.value = value.replaced(selection, text);
   }
 
   void _toggleFindOption(void Function() toggle) {

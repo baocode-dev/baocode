@@ -1,5 +1,6 @@
 // Over a new chat's input: where it is to work. A menu of the projects
-// (none, the Desktop, first) and a button to pick a folder in the system's
+// (none, the Desktop, first; those on SSH hosts under their own heading,
+// with Open Remote Project…) and a button to pick a folder in the system's
 // file manager.
 
 import 'package:flutter/material.dart';
@@ -23,6 +24,7 @@ class NewChatFolderBar extends StatelessWidget {
     super.key,
     required this.workspace,
     required this.thread,
+    this.openRemote,
   });
 
   final Workspace workspace;
@@ -30,8 +32,15 @@ class NewChatFolderBar extends StatelessWidget {
   /// The new agent, nothing sent to it yet.
   final AgentThread thread;
 
-  /// The projects the menu lists, the most recent first: the rest are
-  /// reached by picking their folder.
+  /// Open Remote Project…: walks the user to a folder on an SSH host, then
+  /// gives its location to the function given. None, none offered.
+  final void Function(ValueChanged<String> onOpen)? openRemote;
+
+  /// The menu's row for Open Remote Project….
+  static const _openRemoteId = 'baocode.remote.openFolder';
+
+  /// The projects the menu lists of this machine, and of SSH hosts, the
+  /// most recent first: the rest are reached by picking their folder.
   static const _listed = 8;
 
   /// The folder of a chat in no project; replaceable under test.
@@ -63,11 +72,16 @@ class NewChatFolderBar extends StatelessWidget {
             Codicons.deviceDesktop,
             l10n.newChatNoFolderDetail,
           );
+    final remoteGroup = KernelOptionGroup('remote', l10n.newChatRemoteGroup);
     KernelOption option(Project project) => KernelOption(
       project.path,
       project.name,
-      Codicons.folder,
-      project.path,
+      project.host == null ? Codicons.folder : Codicons.remote,
+      switch (project.host) {
+        final host? => '$host:${project.root}',
+        null => project.path,
+      },
+      group: project.host == null ? null : remoteGroup,
       iconBuilder: switch (workspace.iconOf(project)) {
         null => null,
         // Takes the room of a glyph of [size]; a picture spills over it a
@@ -91,13 +105,31 @@ class NewChatFolderBar extends StatelessWidget {
       for (final project in workspace.sidebarProjects)
         if (project.path != desktop) project,
     ];
-    final listed = projects.take(_listed).toList();
+    final local = [
+      ...projects.where((project) => project.host == null).take(_listed),
+    ];
+    final remote = [
+      ...projects.where((project) => project.host != null).take(_listed),
+    ];
     if (current.path != desktop &&
         !workspace.isHidden(current) &&
-        !listed.contains(current)) {
-      listed.add(current);
+        !local.contains(current) &&
+        !remote.contains(current)) {
+      (current.host == null ? local : remote).add(current);
     }
-    final options = [?noFolder, for (final project in listed) option(project)];
+    final options = [
+      ?noFolder,
+      for (final project in local) option(project),
+      for (final project in remote) option(project),
+      if (openRemote != null)
+        KernelOption(
+          NewChatFolderBar._openRemoteId,
+          l10n.cmdOpenRemoteFolder,
+          Codicons.plug,
+          l10n.newChatOpenRemoteDetail,
+          group: remoteGroup,
+        ),
+    ];
     final selected = current.path == desktop ? noFolder! : option(current);
     final fileManager = AppPlatform.isWindows
         ? l10n.workspaceFileExplorer
@@ -110,7 +142,9 @@ class NewChatFolderBar extends StatelessWidget {
             selected: selected,
             title: l10n.newChatWorkingFolder,
             menuWidth: 290,
-            onSelected: (option) => _moveTo(option.id),
+            onSelected: (option) => option.id == NewChatFolderBar._openRemoteId
+                ? openRemote?.call(_moveTo)
+                : _moveTo(option.id),
           ),
         ),
         if (WindowControls.canPickDirectory) ...[

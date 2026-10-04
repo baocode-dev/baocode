@@ -26,6 +26,9 @@ class TreeFiles implements IdeFileService {
 
   final Map<String, String> contents;
   final Set<String> folders = {};
+
+  /// The files [writeBytes] made, whose [contents] mark them binary.
+  final Map<String, Uint8List> bytes = {};
   int listCalls = 0;
 
   bool _exists(String path) =>
@@ -103,6 +106,13 @@ class TreeFiles implements IdeFileService {
       path == from ? to : p.join(to, p.relative(path, from: from));
 
   @override
+  Future<void> writeBytes(String path, Uint8List bytes) async {
+    if (_exists(path)) throw IdeFileExistsException(path);
+    contents[path] = '\x00';
+    this.bytes[path] = bytes;
+  }
+
+  @override
   Future<void> rename(String from, String to) async {
     if (!_exists(from)) throw IdeFileNotFoundException(from);
     if (_exists(to)) throw IdeFileExistsException(to);
@@ -138,6 +148,10 @@ mixin ReadWriteOnlyFiles implements IdeFileService {
 
   @override
   Future<void> delete(String path) => throw UnsupportedError('delete');
+
+  @override
+  Future<void> writeBytes(String path, Uint8List bytes) =>
+      throw UnsupportedError('writeBytes');
 }
 
 final testRoot = p.join(p.separator, 'project');

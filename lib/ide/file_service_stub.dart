@@ -33,6 +33,10 @@ class LocalIdeFileService implements IdeFileService {
   @override
   Future<void> delete(String path) =>
       Future.error(UnsupportedError('Local editing requires the desktop app'));
+
+  @override
+  Future<void> writeBytes(String path, Uint8List bytes) =>
+      Future.error(UnsupportedError('Local editing requires the desktop app'));
 }
 
 Future<Uint8List> readFileBytes(String path) =>

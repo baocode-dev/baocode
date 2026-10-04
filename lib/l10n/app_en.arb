@@ -758,6 +758,11 @@
       }
     }
   },
+  "newChatRemoteGroup": "Remote",
+  "@newChatRemoteGroup": {
+    "description": "The heading of the projects on SSH hosts in the menu of where a new chat works."
+  },
+  "newChatOpenRemoteDetail": "A folder on a host over SSH",
   "newChatWorkingFolder": "Folder to work in",
   "@newChatWorkingFolder": {
     "description": "Heads the menu, over a new chat's input, of the folders it may work in."
@@ -1412,6 +1417,71 @@
   "tabCopyRelativePath": "Copy Relative Path",
   "tabRevealInExplorerView": "Reveal in Explorer View",
   "tabMoreActions": "More Actions…",
+  "markdownShowPreview": "Preview",
+  "@markdownShowPreview": {
+    "description": "A markdown file's tab: the button showing its preview (VS Code's Open Preview)."
+  },
+  "markdownShowSource": "Markdown",
+  "@markdownShowSource": {
+    "description": "A markdown file's tab: the button showing its source, the text as written."
+  },
+  "markdownAddBlock": "Click to add content",
+  "@markdownAddBlock": {
+    "description": "The room after a markdown preview's last block: a click starts a new block there."
+  },
+  "markdownBlockConflict": "The block was changed elsewhere while you edited it: your edit was discarded.",
+  "@markdownBlockConflict": {
+    "description": "A markdown preview's block edit given up, as the same text changed meanwhile (another editor, an agent, the file reloaded)."
+  },
+  "markdownFindInSource": "Find is not available in the preview: showing the Markdown source.",
+  "@markdownFindInSource": {
+    "description": "Find (Cmd+F) in a markdown preview: it switches to the source to find there."
+  },
+  "markdownPasteFolder": "Folders cannot be pasted into a document: {name}",
+  "@markdownPasteFolder": {
+    "description": "A folder on the clipboard, pasted into a markdown document.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "markdownPasteLargeTitle": "Copy a large file?",
+  "@markdownPasteLargeTitle": {
+    "description": "Title of the question before copying a large pasted file next to a markdown document."
+  },
+  "markdownPasteLargeMessage": "{name} is {size}. Copy it next to the document?",
+  "@markdownPasteLargeMessage": {
+    "description": "The question before copying a large pasted file next to a markdown document.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "markdownPasteLargeConfirm": "Copy",
+  "@markdownPasteLargeConfirm": {
+    "description": "The button copying a large pasted file next to the markdown document."
+  },
+  "markdownPasteFailed": "Could not paste {name}: {error}",
+  "@markdownPasteFailed": {
+    "description": "A file pasted into a markdown document could not be written next to it.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "markdownPasteMoved": "The document changed while pasting: the links were added at its end.",
+  "@markdownPasteMoved": {
+    "description": "Pasted files' links put at the end of a markdown document, where they were pasted having changed meanwhile."
+  },
   "tabCloseNamed": "Close {name}",
   "@tabCloseNamed": {
     "placeholders": {
@@ -3370,6 +3440,14 @@
   "cmdOpenFolder": "Open Folder...",
   "cmdOpenRecent": "Open Recent...",
   "cmdSaveAs": "Save As...",
+  "cmdMarkdownShowPreview": "Open Preview",
+  "@cmdMarkdownShowPreview": {
+    "description": "Command palette title (category Markdown): shows the active markdown file's preview."
+  },
+  "cmdMarkdownShowSource": "Show Source",
+  "@cmdMarkdownShowSource": {
+    "description": "Command palette title (category Markdown): shows the active markdown file's source."
+  },
   "cmdCloseFolder": "Close Folder",
   "cmdClearRecentlyOpened": "Clear Recently Opened...",
   "cmdInstallShellCommand": "Install '{name}' command in PATH",
@@ -4215,5 +4293,83 @@
         "type": "int"
       }
     }
-  }
+  },
+  "updateButton": "Update",
+  "@updateButton": {
+    "description": "The sidebar's button while an update waits to be installed: restarts into it."
+  },
+  "tipsSetupTitle": "Set Up BaoCode",
+  "tipsSetupCount": "{done}/{total}",
+  "@tipsSetupCount": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "tipsSetupEntry": "Setup {done}/{total}",
+  "@tipsSetupEntry": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "tipsHide": "Hide",
+  "tipsTurnOn": "Turn On",
+  "tipsDismiss": "Close",
+  "tipsDone": "Done",
+  "tipsDontShowAgain": "Don't Show Again",
+  "tipsFailed": "Couldn't turn on {title}: {error}",
+  "@tipsFailed": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "tipsUpdated": "BaoCode was updated to {version}. New: {features}.",
+  "@tipsUpdated": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "features": {
+        "type": "String"
+      }
+    }
+  },
+  "tipsListSeparator": ", ",
+  "tipsSettingsTitle": "Recommended",
+  "tipsSettingsDescription": "Features not turned on yet. Show Setup Guide brings back the setup checklist; \"workbench.tips.enabled\": false in settings.json turns tips off.",
+  "tipContextMenuBody": "Open files and folders in BaoCode from their context menu.",
+  "tipShellCommandTitle": "'{name}' Command",
+  "@tipShellCommandTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "tipShellCommandBody": "Open folders in BaoCode from a terminal: {name} <path>.",
+  "@tipShellCommandBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "tipImportKeybindingsTitle": "Import Keybindings",
+  "tipImportKeybindingsBody": "Bring your keybindings over from VS Code or Cursor.",
+  "tipColorThemeBody": "Pick the colors of the chat, the IDE and the terminal.",
+  "cmdShowSetupGuide": "Show Setup Guide"
 }

@@ -90,6 +90,22 @@ void main() {
       );
     });
 
+    test('bytes written to a new file, never over one', () async {
+      final bytes = List.generate(300000, (i) => i % 256);
+      await client().writeBytes(root, at('shot.png'), bytes);
+      expect(File(at('shot.png')).readAsBytesSync(), bytes);
+      File(at('taken.png')).writeAsBytesSync([7]);
+      await expectLater(
+        client().writeBytes(root, at('taken.png'), [1]),
+        throwsA(isA<IdeFileExistsException>()),
+      );
+      expect(File(at('taken.png')).readAsBytesSync(), [7]);
+      await expectLater(
+        client().writeBytes(root, at('no/such/folder/a.png'), [1]),
+        throwsA(isA<RemoteException>()),
+      );
+    });
+
     test('made, renamed, copied and deleted', () async {
       await client().create(root, at('dir'), directory: true);
       await client().create(root, at('dir/a.txt'));

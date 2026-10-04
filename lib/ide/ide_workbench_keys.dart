@@ -272,7 +272,7 @@ extension _WorkbenchKeys on IdeWorkbenchState {
       _select(doc).then((_) {
         if (inBackground || !mounted) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _editor?.focus();
+          if (mounted) _focusEditor();
         });
       }),
     );
@@ -1101,7 +1101,7 @@ extension _PanelKeys on IdeWorkbenchState {
   /// selected, the editor focused (upstream `preserveFocus: false`).
   Future<void> _openFocused(IdeLocation location, {bool select = true}) async {
     await _openLocation(location, select: select);
-    if (mounted) _editor?.focus();
+    if (mounted) _focusEditor();
   }
 
   /// The problems the Problems list's focused row stands for.

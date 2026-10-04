@@ -21,7 +21,7 @@ void main() {
   const files = {
     'lib/a.dart': 'foo one\nFoo two',
     'lib/b.dart': 'foo three',
-    'README.md': 'no match here',
+    'README.txt': 'no match here',
   };
 
   late IdeWorkspace workspace;
@@ -54,7 +54,7 @@ void main() {
     workspace = await pumpWorkbench(
       tester,
       files,
-      open: ['README.md'],
+      open: ['README.txt'],
       textSearch: engine,
     );
     await tester.pumpAndSettle();

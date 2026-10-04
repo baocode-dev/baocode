@@ -31,6 +31,9 @@ const uninstallShellCommandId = 'workbench.action.uninstallCommandLine';
 /// Check for Updates...: looks for a new version of the app now.
 const checkForUpdatesCommandId = 'update.checkForUpdate';
 
+/// Show Setup Guide: the setup checklist back (see FeatureTipsController).
+const showSetupGuideCommandId = 'baocode.tips.showSetupGuide';
+
 /// A command a keybinding may run, as the Keyboard Shortcuts page lists it.
 @immutable
 class CommandInfo {
@@ -55,6 +58,16 @@ final Map<String, CommandInfo> commandCatalog = {
     const CommandInfo('actions.find', 'Find'),
     const CommandInfo('editor.action.startFindReplaceAction', 'Replace'),
     const CommandInfo('workbench.action.files.save', 'Save', category: 'File'),
+    const CommandInfo(
+      'markdown.showPreview',
+      'Open Preview',
+      category: 'Markdown',
+    ),
+    const CommandInfo(
+      'markdown.showSource',
+      'Show Source',
+      category: 'Markdown',
+    ),
     const CommandInfo(
       'workbench.action.files.saveAll',
       'Save All',
@@ -106,6 +119,7 @@ final Map<String, CommandInfo> commandCatalog = {
       category: 'Shell Command',
     ),
     const CommandInfo(checkForUpdatesCommandId, 'Check for Updates...'),
+    const CommandInfo(showSetupGuideCommandId, 'Show Setup Guide', category: 'Help'),
     const CommandInfo(
       'workbench.action.closeActiveEditor',
       'Close Editor',
@@ -394,6 +408,21 @@ final List<KeybindingEntry> defaultKeybindings = List.unmodifiable([
     key: 'ctrl+alt+s',
     mac: 'alt+cmd+s',
     command: 'workbench.action.files.saveAll',
+  ),
+  // A markdown tab's preview and source, one key toggling them: each
+  // command runs only where the other shows. The terminal keeps its
+  // Ctrl+Shift+V (paste) on Windows.
+  const KeybindingEntry(
+    key: 'ctrl+shift+v',
+    mac: 'shift+cmd+v',
+    command: 'markdown.showPreview',
+    when: '!terminalFocus',
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+shift+v',
+    mac: 'shift+cmd+v',
+    command: 'markdown.showSource',
+    when: '!terminalFocus',
   ),
   const KeybindingEntry(
     key: 'ctrl+shift+s',

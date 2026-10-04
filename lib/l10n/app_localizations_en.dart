@@ -1536,6 +1536,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get newChatRemoteGroup => 'Remote';
+
+  @override
+  String get newChatOpenRemoteDetail => 'A folder on a host over SSH';
+
+  @override
   String get newChatWorkingFolder => 'Folder to work in';
 
   @override
@@ -2371,6 +2377,48 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tabMoreActions => 'More Actions…';
+
+  @override
+  String get markdownShowPreview => 'Preview';
+
+  @override
+  String get markdownShowSource => 'Markdown';
+
+  @override
+  String get markdownAddBlock => 'Click to add content';
+
+  @override
+  String get markdownBlockConflict =>
+      'The block was changed elsewhere while you edited it: your edit was discarded.';
+
+  @override
+  String get markdownFindInSource =>
+      'Find is not available in the preview: showing the Markdown source.';
+
+  @override
+  String markdownPasteFolder(String name) {
+    return 'Folders cannot be pasted into a document: $name';
+  }
+
+  @override
+  String get markdownPasteLargeTitle => 'Copy a large file?';
+
+  @override
+  String markdownPasteLargeMessage(String name, String size) {
+    return '$name is $size. Copy it next to the document?';
+  }
+
+  @override
+  String get markdownPasteLargeConfirm => 'Copy';
+
+  @override
+  String markdownPasteFailed(String name, String error) {
+    return 'Could not paste $name: $error';
+  }
+
+  @override
+  String get markdownPasteMoved =>
+      'The document changed while pasting: the links were added at its end.';
 
   @override
   String tabCloseNamed(String name) {
@@ -4799,6 +4847,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdSaveAs => 'Save As...';
 
   @override
+  String get cmdMarkdownShowPreview => 'Open Preview';
+
+  @override
+  String get cmdMarkdownShowSource => 'Show Source';
+
+  @override
   String get cmdCloseFolder => 'Close Folder';
 
   @override
@@ -6008,4 +6062,83 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get updateButton => 'Update';
+
+  @override
+  String get tipsSetupTitle => 'Set Up BaoCode';
+
+  @override
+  String tipsSetupCount(int done, int total) {
+    return '$done/$total';
+  }
+
+  @override
+  String tipsSetupEntry(int done, int total) {
+    return 'Setup $done/$total';
+  }
+
+  @override
+  String get tipsHide => 'Hide';
+
+  @override
+  String get tipsTurnOn => 'Turn On';
+
+  @override
+  String get tipsDismiss => 'Close';
+
+  @override
+  String get tipsDone => 'Done';
+
+  @override
+  String get tipsDontShowAgain => 'Don\'t Show Again';
+
+  @override
+  String tipsFailed(String title, String error) {
+    return 'Couldn\'t turn on $title: $error';
+  }
+
+  @override
+  String tipsUpdated(String version, String features) {
+    return 'BaoCode was updated to $version. New: $features.';
+  }
+
+  @override
+  String get tipsListSeparator => ', ';
+
+  @override
+  String get tipsSettingsTitle => 'Recommended';
+
+  @override
+  String get tipsSettingsDescription =>
+      'Features not turned on yet. Show Setup Guide brings back the setup checklist; \"workbench.tips.enabled\": false in settings.json turns tips off.';
+
+  @override
+  String get tipContextMenuBody =>
+      'Open files and folders in BaoCode from their context menu.';
+
+  @override
+  String tipShellCommandTitle(String name) {
+    return '\'$name\' Command';
+  }
+
+  @override
+  String tipShellCommandBody(String name) {
+    return 'Open folders in BaoCode from a terminal: $name <path>.';
+  }
+
+  @override
+  String get tipImportKeybindingsTitle => 'Import Keybindings';
+
+  @override
+  String get tipImportKeybindingsBody =>
+      'Bring your keybindings over from VS Code or Cursor.';
+
+  @override
+  String get tipColorThemeBody =>
+      'Pick the colors of the chat, the IDE and the terminal.';
+
+  @override
+  String get cmdShowSetupGuide => 'Show Setup Guide';
 }

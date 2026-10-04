@@ -130,6 +130,12 @@ class RemoteServer {
       await _filesOf(args).delete(args['path'] as String);
       return null;
     };
+    handlers[RemoteProtocol.fsWriteBytes] = (params, _) async {
+      final args = paramsOf(params);
+      await _filesOf(args)
+          .writeBytes(args['path'] as String, decodeBytes(args['data']));
+      return null;
+    };
     handlers[RemoteProtocol.fsReadBytes] = (params, _) async =>
         encodeBytes(await readFileBytes(paramsOf(params)['path'] as String));
     handlers[RemoteProtocol.fsWalk] = (params, _) async {

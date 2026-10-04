@@ -127,6 +127,10 @@ class RemoteIdeFileService implements IdeHostFiles {
   Future<void> delete(String path) async => (await _client).delete(root, path);
 
   @override
+  Future<void> writeBytes(String path, Uint8List bytes) async =>
+      (await _client).writeBytes(root, path, bytes);
+
+  @override
   Future<Uint8List> readBytes(String path) async =>
       (await _client).readBytes(path);
 

@@ -665,7 +665,10 @@ class ComposerPickerState extends State<ComposerPicker> {
     KernelOptionGroup? group;
     for (final (n, i) in visible.indexed) {
       final option = options[i];
-      if (grouped && (n == 0 || option.group?.id != group?.id)) {
+      // Those in no group (first, as a rule) go without one.
+      if (grouped &&
+          option.group != null &&
+          (n == 0 || option.group?.id != group?.id)) {
         rows.add(_GroupHeading(group: option.group, first: n == 0));
       }
       group = option.group;

@@ -11,6 +11,7 @@ import 'package:path/path.dart' as p;
 import 'chat/chat_keys.dart';
 import 'chat/chat_models.dart' show FileChange, FileChangeKind;
 import 'chat/chat_screen.dart';
+import 'chat/chat_session.dart' show ChatSession;
 import 'chat/composer/composer_files.dart' show ComposerFile;
 import 'chat/composer/file_drop.dart';
 import 'chat/panels/interaction_panel.dart';
@@ -59,6 +60,9 @@ import 'sidebar/sidebar.dart';
 import 'theme/codicons.dart';
 import 'theme/app_theme.dart';
 import 'theme/workbench_theme.dart' show WorkbenchThemeService, themeColors;
+import 'tips/feature_tip.dart';
+import 'tips/feature_tips_controller.dart';
+import 'tips/feature_tips_view.dart';
 import 'window/app_windows.dart';
 import 'window/code_args.dart';
 import 'window/window_settings.dart';
@@ -280,6 +284,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   /// The title bars' toggles and the window's commands follow them.
   void _terminalsChanged() {
+    if (!_terminalTipRaised && (_terminals?.shown ?? false)) {
+      _terminalTipRaised = true;
+      if (_tips case final tips?) {
+        unawaited(tips.scenario(TipScenarios.openedTerminal));
+      }
+    }
     if (mounted) setState(() {});
   }
 
@@ -375,8 +385,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   /// Files dropped on the window where nothing in it takes them: opened
   /// as the `code` command opens them.
-  bool _dropped(List<ComposerFile> files) =>
-      _windows?.dropped(_viewId, files) ?? false;
+  bool _dropped(List<ComposerFile> files) {
+    final opened = _windows?.dropped(_viewId, files) ?? false;
+    // Opened as a project in the IDE: no agent's answer to wait for.
+    if (opened && files.any((file) => file.directory)) {
+      if (_tips case final tips?) {
+        unawaited(tips.scenario(TipScenarios.openedFolder));
+      }
+    }
+    return opened;
+  }
 
   bool _attentionStarted = false;
 
@@ -393,14 +411,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   /// What the app asks once it shows: whether to remove what a move of
-  /// the data folder left behind, then (once ever) whether to import
-  /// another editor's keybindings; one after the other.
+  /// the data folder left behind; then the feature tips start (importing
+  /// another editor's keybindings among the checklist's).
   Future<void> _afterFirstFrame() async {
     final settings = widget.settings;
     if (settings?.files == null || !mounted) return;
     await offerOldDataDirRemoval(context);
     if (!mounted) return;
-    await settings!.offerImport(context);
+    await _startTips();
   }
 
   @override
@@ -414,6 +432,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _lifecycle?.dispose();
     _attention?.dispose();
     _stopUpdateOffers?.call();
+    if (_tipsPresenter case final presenter?) {
+      _tips
+        ?..detach(presenter)
+        ..removeListener(_tipsChanged);
+    }
+    _typingTimer?.cancel();
+    for (final MapEntry(key: session, value: listener)
+        in _turnWatches.entries) {
+      session.removeListener(listener);
+    }
     HardwareKeyboard.instance.removeHandler(_handleKey);
     _keybindings.removeListener(_keybindingsChanged);
     // The window's channels stay: a folder replaced builds the next
@@ -508,6 +536,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             unawaited(openSettings(SettingsSection.keyboard)),
         ideSelectColorThemeCommandId: _selectColorTheme,
         checkForUpdatesCommandId: _checkForUpdates,
+        if (_tipsEnabled) showSetupGuideCommandId: _showSetupGuide,
         ChatCommandIds.search: () => unawaited(_openPalette()),
         ..._terminalCommands(),
         ..._windowCommands(),
@@ -524,6 +553,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           unawaited(openSettings(SettingsSection.keyboard)),
       ideSelectColorThemeCommandId: _selectColorTheme,
       checkForUpdatesCommandId: _checkForUpdates,
+      if (_tipsEnabled) showSetupGuideCommandId: _showSetupGuide,
       // As the sidebar's New Agent button: a folder first, without one.
       if (_workspace.sidebarProjects.isNotEmpty)
         ChatCommandIds.newChat: _newAgent
@@ -838,6 +868,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ?action(openKeybindingsCommandId, Codicons.keyboard),
       ?action(ideSelectColorThemeCommandId, Codicons.symbolColor),
       ?action(checkForUpdatesCommandId, Codicons.cloudDownload),
+      ?action(showSetupGuideCommandId, Codicons.rocket),
       ?action(
         'workbench.action.toggleSidebarVisibility',
         Codicons.layoutSidebarLeft,
@@ -908,13 +939,133 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       label: commandCatalog[checkForUpdatesCommandId]!.title,
       run: _checkForUpdates,
     ),
+    IdeCommand(
+      id: showSetupGuideCommandId,
+      category: 'Help',
+      label: commandCatalog[showSetupGuideCommandId]!.title,
+      run: _showSetupGuide,
+    ),
   ];
+
+  // --- Feature tips ----------------------------------------------------------
+
+  /// The app's feature tips (see FeatureTipsController); none without
+  /// settings files.
+  FeatureTipsController? get _tips => widget.settings?.tips;
+
+  bool get _tipsEnabled => _tips?.enabled ?? false;
+
+  /// Where the tips that come up by themselves show: the main window's
+  /// notifications.
+  TipsPresenter? _tipsPresenter;
+
+  /// Whether a key went down lately: a tip waits until the user stops
+  /// typing.
+  bool _typing = false;
+  Timer? _typingTimer;
+
+  void _noteTyping() {
+    _typing = true;
+    _typingTimer?.cancel();
+    _typingTimer = Timer(const Duration(seconds: 3), () => _typing = false);
+  }
+
+  /// Whether a tip now would interrupt: an agent answering, or typing.
+  bool _busyForTips() =>
+      _typing || _workspace.threads.any((thread) => thread.session.isStreaming);
+
+  /// The tips start once the window shows: the checklist, the update's
+  /// notice, then those of what happens.
+  Future<void> _startTips() async {
+    final tips = _tips;
+    if (tips == null) return;
+    await tips.start();
+    if (!mounted) return;
+    final presenter = _tipsPresenter = TipsPresenter(
+      notifications: _notifications,
+      l10n: () => context.l10n,
+      context: () => mounted
+          ? TipContext(
+              context,
+              openSettings: (section) => unawaited(openSettings(section)),
+            )
+          : null,
+      busy: _busyForTips,
+    );
+    tips.attach(presenter);
+    _restores = tips.restores;
+    tips.addListener(_tipsChanged);
+  }
+
+  /// The restores of the card seen (see [_tipsChanged]).
+  int _restores = 0;
+
+  /// The card brought back (Show Setup Guide, from any window, or the
+  /// sidebar's entry): a new agent, where it shows, unless one shows.
+  void _tipsChanged() {
+    final tips = _tips;
+    if (tips == null || tips.restores == _restores) return;
+    _restores = tips.restores;
+    final current = _workspace.current;
+    if (current == null || _workspace.sidebarProjects.isEmpty) return;
+    if (current.record == null && current.session.itemCount == 0) return;
+    _newAgent();
+  }
+
+  /// Show Setup Guide: the checklist back, in the chat where it shows.
+  void _showSetupGuide() {
+    final tips = _tips;
+    if (tips == null) return;
+    unawaited(tips.restore());
+    if (_windows case final windows? when _multi || _agentWindow) {
+      if (_ideWindow || _agentWindow) windows.showChat();
+    } else if (_workspace.layout == WorkspaceLayout.ide) {
+      _workspace.layout = WorkspaceLayout.chat;
+    }
+  }
+
+  /// The sessions watched for the end of their first answer (see
+  /// [_watchFirstTurn]), to stop watching with the window.
+  final Map<ChatSession, VoidCallback> _turnWatches = {};
+
+  /// A project opened from its folder: the context menu's tip, once its
+  /// agent has answered (started a turn and ended it).
+  void _watchFirstTurn(AgentThread thread) {
+    final tips = _tips;
+    if (tips == null || !tips.enabled) return;
+    final session = thread.session;
+    if (_turnWatches.containsKey(session)) return;
+    var started = false;
+    void listener() {
+      if (session.isStreaming) {
+        started = true;
+        return;
+      }
+      if (!started) return;
+      session.removeListener(listener);
+      _turnWatches.remove(session);
+      unawaited(tips.scenario(TipScenarios.openedFolder));
+    }
+
+    _turnWatches[session] = listener;
+    session.addListener(listener);
+  }
+
+  /// Whether the terminal panel's tip was raised this launch.
+  bool _terminalTipRaised = false;
 
   // --- Updates -------------------------------------------------------------
 
   /// What the app's updates found by themselves, told of here: the main
   /// window's.
   VoidCallback? _stopUpdateOffers;
+
+  /// The sidebar's Update: Restart to Update, as the offer's button.
+  void _restartToUpdate() {
+    if (widget.settings?.updates case final updates?) {
+      unawaited(updates.restart(_notifications, context.l10n));
+    }
+  }
 
   /// Check for Updates...: what it finds told of in this window.
   void _checkForUpdates() {
@@ -944,6 +1095,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// where the focus is in none (the sidebar). The IDE resolves its own
   /// keys.
   bool _handleKey(KeyEvent event) {
+    if (event is KeyDownEvent) _noteTyping();
     if (event is KeyUpEvent ||
         _showsIde ||
         KeyChord.fromEvent(event) == null ||
@@ -1814,7 +1966,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       },
       onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
       onOpenSettings: () => unawaited(openSettings()),
+      updates: widget.settings?.updates?.service,
+      onUpdate: _restartToUpdate,
       onSearch: () => unawaited(_openPalette()),
+      setup: switch (_tips) {
+        final tips? when _main => FeatureTipsEntry(controller: tips),
+        _ => null,
+      },
       onCustomize: agent != null || widget.customizations == null
           ? null
           : () => _customizing ? _closeCustomize() : _showCustomize(),
@@ -2006,8 +2164,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   /// Open Remote Project…: a folder of a host reached over SSH, opened as
-  /// a project (in the IDE when asked [inIde]).
-  void _openRemoteProject({bool inIde = false}) {
+  /// a project (in the IDE when asked [inIde]), or given to [onOpen].
+  void _openRemoteProject({bool inIde = false, ValueChanged<String>? onOpen}) {
     final held = _newWindowHeld;
     unawaited(
       OpenRemoteFlow(
@@ -2015,7 +2173,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         l10n: context.l10n,
         onOpen: (location) {
           if (!mounted) return;
-          if (inIde) {
+          if (onOpen != null) {
+            onOpen(location);
+          } else if (inIde) {
             _openIdeFolder(location, held: held);
           } else {
             unawaited(_workspace.openFolder(location));
@@ -2028,8 +2188,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   Future<void> _openFolder() async {
     final path = await WindowControls.pickDirectory();
     if (path == null || !mounted) return;
-    await _workspace.openFolder(path);
+    final thread = await _workspace.openFolder(path);
     _closeDrawer();
+    if (mounted) _watchFirstTurn(thread);
   }
 
   /// The open agents side by side (see [ChatGridView]), the terminal panel
@@ -2151,6 +2312,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         : 12.0;
     if (thread == null) {
       return _EmptyWorkspace(
+        tips: _main ? _tips : null,
         loading: _workspace.loading,
         leading: leading,
         titleBarInset: titleBarInset,
@@ -2224,7 +2386,20 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         // project, and a kept session where it was.
         start: embedded || thread.record != null
             ? null
-            : NewChatFolderBar(workspace: _workspace, thread: thread),
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_main)
+                    if (_tips case final tips?)
+                      FeatureTipsCard(controller: tips),
+                  NewChatFolderBar(
+                    workspace: _workspace,
+                    thread: thread,
+                    openRemote: (onOpen) => _openRemoteProject(onOpen: onOpen),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -2547,6 +2722,7 @@ class _IdeNoFolderChat extends StatelessWidget {
 /// the kept ones to load. On the web, where agents cannot run, says so.
 class _EmptyWorkspace extends StatelessWidget {
   const _EmptyWorkspace({
+    this.tips,
     required this.loading,
     required this.titleBarInset,
     this.leading,
@@ -2558,6 +2734,9 @@ class _EmptyWorkspace extends StatelessWidget {
   final double titleBarInset;
   final Widget? leading;
   final VoidCallback? onOpenFolder;
+
+  /// The setup checklist, under the buttons.
+  final FeatureTipsController? tips;
 
   /// Open Remote Project…: a folder on a host reached over SSH.
   final VoidCallback? onOpenRemote;
@@ -2634,6 +2813,14 @@ class _EmptyWorkspace extends StatelessWidget {
                     ),
                   ],
                 ],
+                if (tips case final tips? when !loading)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 460),
+                      child: FeatureTipsCard(controller: tips),
+                    ),
+                  ),
               ],
             ),
           ),

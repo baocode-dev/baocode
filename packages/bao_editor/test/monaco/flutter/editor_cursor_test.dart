@@ -202,6 +202,35 @@ void main() {
       expect(_show(c), '1axy|\n2bxy|\n3cxy|');
     });
 
+    test('a paste hook takes the paste, or lets the text in', () async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.getData') return {'text': 'text'};
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      final c = _controller('ab', selections: [_at(1)]);
+      var taken = true;
+      var calls = 0;
+      c.onPaste = () async {
+        calls++;
+        if (taken) c.pasteText('[link]');
+        return taken;
+      };
+      await c.paste();
+      expect(_show(c), 'a[link]|b');
+      taken = false;
+      await c.paste();
+      expect(_show(c), 'a[link]text|b');
+      expect(calls, 2);
+      // Not editable: not asked.
+      await c.paste(canEdit: () => false);
+      expect(calls, 2);
+    });
+
     test(
       'copy with empty selections copies whole lines; paste above',
       () async {

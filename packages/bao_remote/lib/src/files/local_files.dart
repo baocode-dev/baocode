@@ -194,6 +194,28 @@ class LocalFiles {
         }
       });
 
+  /// Makes the file [path] of [bytes] (a picture pasted beside a
+  /// document); throws [IdeFileExistsException] when [path] exists, and
+  /// leaves no part of it when the write fails.
+  Future<void> writeBytes(String path, List<int> bytes) => _serialize(() async {
+    final target = await _newPath(path);
+    final file = File(target);
+    try {
+      await file.create(exclusive: true);
+    } on PathExistsException {
+      throw IdeFileExistsException(path);
+    } on FileSystemException {
+      if (await _exists(target)) throw IdeFileExistsException(path);
+      rethrow;
+    }
+    try {
+      await file.writeAsBytes(bytes, flush: true);
+    } catch (_) {
+      await file.delete().catchError((Object _) => file);
+      rethrow;
+    }
+  });
+
   Future<void> rename(String from, String to) => _serialize(() async {
     final source = await _newPath(from);
     final target = await _newPath(to);

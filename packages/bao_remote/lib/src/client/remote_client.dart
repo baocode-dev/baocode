@@ -360,6 +360,11 @@ class RemoteClient {
   Future<void> delete(String root, String path) =>
       _call(RemoteProtocol.fsDelete, {'root': root, 'path': path});
 
+  Future<void> writeBytes(String root, String path, List<int> bytes) => _call(
+    RemoteProtocol.fsWriteBytes,
+    {'root': root, 'path': path, 'data': encodeBytes(bytes)},
+  );
+
   Future<Uint8List> readBytes(String path) async => decodeBytes(
     await _call<String>(RemoteProtocol.fsReadBytes, {'path': path}),
   );

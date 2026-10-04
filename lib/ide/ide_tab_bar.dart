@@ -93,6 +93,8 @@ class IdeTabBar extends StatefulWidget {
     required this.onClose,
     required this.onAction,
     this.local = true,
+    this.markdownPreview,
+    this.onMarkdownPreview,
   });
 
   final List<IdeDocument> documents;
@@ -105,6 +107,13 @@ class IdeTabBar extends StatefulWidget {
   final ValueChanged<IdeDocument> onSelect;
   final ValueChanged<IdeDocument> onClose;
   final void Function(IdeDocument doc, IdeTabAction action) onAction;
+
+  /// Whether the active tab, a markdown file's, shows its preview (true)
+  /// or its source (false); null for other tabs, which have no switch.
+  final bool? markdownPreview;
+
+  /// Shows the active markdown file's preview (true) or source (false).
+  final ValueChanged<bool>? onMarkdownPreview;
 
   static const height = 35.0;
 
@@ -307,6 +316,11 @@ class _IdeTabBarState extends State<IdeTabBar> {
               ),
             ),
           ),
+          if ((widget.markdownPreview, widget.onMarkdownPreview) case (
+            final preview?,
+            final onChanged?,
+          ))
+            _MarkdownSwitch(preview: preview, onChanged: onChanged),
           if (widget.active case final active?)
             Builder(
               builder: (context) => _TabBarAction(
@@ -321,6 +335,63 @@ class _IdeTabBarState extends State<IdeTabBar> {
                 },
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A markdown tab's Preview | Markdown switch.
+class _MarkdownSwitch extends StatelessWidget {
+  const _MarkdownSwitch({required this.preview, required this.onChanged});
+
+  final bool preview;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    Widget option(String label, bool value) {
+      final selected = preview == value;
+      return Semantics(
+        button: true,
+        selected: selected,
+        child: MouseRegion(
+          cursor: selected ? MouseCursor.defer : SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: selected ? null : () => onChanged(value),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: selected
+                    ? themeColors['toolbar.activeBackground']
+                    : null,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                  color: selected
+                      ? themeColors['foreground']
+                      : themeColors['descriptionForeground'],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 6, right: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          option(l10n.markdownShowPreview, true),
+          const SizedBox(width: 2),
+          option(l10n.markdownShowSource, false),
         ],
       ),
     );

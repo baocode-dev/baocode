@@ -1484,6 +1484,12 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get newChatRemoteGroup => '远程';
+
+  @override
+  String get newChatOpenRemoteDetail => '通过 SSH 打开主机上的文件夹';
+
+  @override
   String get newChatWorkingFolder => '在哪个文件夹中工作';
 
   @override
@@ -2296,6 +2302,45 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get tabMoreActions => '更多操作…';
+
+  @override
+  String get markdownShowPreview => '预览';
+
+  @override
+  String get markdownShowSource => 'Markdown';
+
+  @override
+  String get markdownAddBlock => '点这里添加内容';
+
+  @override
+  String get markdownBlockConflict => '编辑期间这一块在其他地方被修改了，本次编辑已放弃。';
+
+  @override
+  String get markdownFindInSource => '预览中不能查找，已切换到 Markdown 源码。';
+
+  @override
+  String markdownPasteFolder(String name) {
+    return '不能把文件夹粘贴到文档里：$name';
+  }
+
+  @override
+  String get markdownPasteLargeTitle => '复制大文件？';
+
+  @override
+  String markdownPasteLargeMessage(String name, String size) {
+    return '$name 有 $size，确定复制到文档旁边吗？';
+  }
+
+  @override
+  String get markdownPasteLargeConfirm => '复制';
+
+  @override
+  String markdownPasteFailed(String name, String error) {
+    return '无法粘贴 $name：$error';
+  }
+
+  @override
+  String get markdownPasteMoved => '粘贴期间文档被修改，链接已插入到文末。';
 
   @override
   String tabCloseNamed(String name) {
@@ -4470,6 +4515,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdSaveAs => '另存为...';
 
   @override
+  String get cmdMarkdownShowPreview => '打开预览';
+
+  @override
+  String get cmdMarkdownShowSource => '显示源码';
+
+  @override
   String get cmdCloseFolder => '关闭文件夹';
 
   @override
@@ -5637,4 +5688,80 @@ class AppLocalizationsZh extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get updateButton => '更新';
+
+  @override
+  String get tipsSetupTitle => '设置 BaoCode';
+
+  @override
+  String tipsSetupCount(int done, int total) {
+    return '$done/$total';
+  }
+
+  @override
+  String tipsSetupEntry(int done, int total) {
+    return '设置 $done/$total';
+  }
+
+  @override
+  String get tipsHide => '收起';
+
+  @override
+  String get tipsTurnOn => '开启';
+
+  @override
+  String get tipsDismiss => '关闭';
+
+  @override
+  String get tipsDone => '已完成';
+
+  @override
+  String get tipsDontShowAgain => '不再提示';
+
+  @override
+  String tipsFailed(String title, String error) {
+    return '无法开启$title：$error';
+  }
+
+  @override
+  String tipsUpdated(String version, String features) {
+    return 'BaoCode 已更新到 $version。新功能：$features。';
+  }
+
+  @override
+  String get tipsListSeparator => '、';
+
+  @override
+  String get tipsSettingsTitle => '推荐功能';
+
+  @override
+  String get tipsSettingsDescription =>
+      '尚未开启的功能。「显示设置向导」可重新打开设置清单；在 settings.json 中设置 \"workbench.tips.enabled\": false 可关闭所有推荐。';
+
+  @override
+  String get tipContextMenuBody => '在右键菜单中直接用 BaoCode 打开文件和文件夹。';
+
+  @override
+  String tipShellCommandTitle(String name) {
+    return '$name 命令';
+  }
+
+  @override
+  String tipShellCommandBody(String name) {
+    return '在终端里用 $name <路径> 在 BaoCode 中打开文件夹。';
+  }
+
+  @override
+  String get tipImportKeybindingsTitle => '导入快捷键';
+
+  @override
+  String get tipImportKeybindingsBody => '从 VS Code 或 Cursor 导入你的快捷键。';
+
+  @override
+  String get tipColorThemeBody => '选择对话、IDE 和终端使用的配色。';
+
+  @override
+  String get cmdShowSetupGuide => '显示设置向导';
 }
