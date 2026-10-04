@@ -68,6 +68,9 @@ class _MemoryFiles implements IdeFileService {
 
   @override
   Future<void> delete(String path) async {}
+
+  @override
+  Future<void> writeBytes(String path, Uint8List bytes) async {}
 }
 
 double _ms(Duration d) => d.inMicroseconds / 1000;

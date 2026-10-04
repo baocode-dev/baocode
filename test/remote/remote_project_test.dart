@@ -7,6 +7,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:bao_remote/client.dart';
+import 'package:bao_remote/files.dart' show IdeFileExistsException;
 import 'package:bao_remote/local.dart' show ClaudeEnvironment, CliLocator;
 import 'package:baocode/ide/git/git_model.dart' show IdeGitGroup;
 import 'package:baocode/ide/ide_quick_input.dart';
@@ -185,6 +186,15 @@ void main() {
           await files.readBytes(at('a.txt')),
           Uint8List.fromList(utf8.encode('two')),
         );
+        // A pasted picture, uploaded beside the document; never over a file.
+        await files.writeBytes(at('shot.png'), Uint8List.fromList([1, 2, 3]));
+        expect(File(at('shot.png')).readAsBytesSync(), [1, 2, 3]);
+        await expectLater(
+          files.writeBytes(at('a.txt'), Uint8List.fromList([9])),
+          throwsA(isA<IdeFileExistsException>()),
+        );
+        expect(File(at('a.txt')).readAsStringSync(), 'two');
+        File(at('shot.png')).deleteSync();
         final listing = await files.listProject(root);
         expect(listing.paths, [at('a.txt')]);
 

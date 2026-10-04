@@ -43,6 +43,10 @@ abstract interface class IdeFileService {
 
   /// Deletes [path] (a folder with its contents) for good.
   Future<void> delete(String path);
+
+  /// Makes the file [path] of [bytes] (a picture pasted beside a
+  /// document); throws [IdeFileExistsException] when [path] exists.
+  Future<void> writeBytes(String path, Uint8List bytes);
 }
 
 /// A file service of files on another machine (a remote project's host):

@@ -52,6 +52,10 @@ class _Files implements IdeFileService {
 
   @override
   Future<void> delete(String path) => throw UnsupportedError('delete');
+
+  @override
+  Future<void> writeBytes(String path, Uint8List bytes) =>
+      throw UnsupportedError('writeBytes');
 }
 
 final _root = p.join(p.separator, 'editor-keys-project');
