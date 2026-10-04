@@ -267,7 +267,12 @@ class ClaudeCodeKernel
       Map<String, String>? env;
       if ((custom, model) case ((final provider, _), final model?)) {
         try {
-          env = await _providerEnvironment(provider, model);
+          env = {
+            // The window picked, as the model's own: else the CLI holds
+            // the conversation to 200K. The provider's env may say else.
+            ClaudeModelVariables.maxContextTokens: '${_autocompact!}',
+            ...await _providerEnvironment(provider, model),
+          };
         } on Object catch (error) {
           throw ClaudeUnavailable(
             '${provider.name} could not be set up',

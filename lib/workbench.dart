@@ -537,6 +537,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         ideSelectColorThemeCommandId: _selectColorTheme,
         checkForUpdatesCommandId: _checkForUpdates,
         if (_tipsEnabled) showSetupGuideCommandId: _showSetupGuide,
+        if (_tipsEnabled) resetFeatureTipsCommandId: _resetTips,
         ChatCommandIds.search: () => unawaited(_openPalette()),
         ..._terminalCommands(),
         ..._windowCommands(),
@@ -554,6 +555,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ideSelectColorThemeCommandId: _selectColorTheme,
       checkForUpdatesCommandId: _checkForUpdates,
       if (_tipsEnabled) showSetupGuideCommandId: _showSetupGuide,
+      if (_tipsEnabled) resetFeatureTipsCommandId: _resetTips,
       // As the sidebar's New Agent button: a folder first, without one.
       if (_workspace.sidebarProjects.isNotEmpty)
         ChatCommandIds.newChat: _newAgent
@@ -869,6 +871,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ?action(ideSelectColorThemeCommandId, Codicons.symbolColor),
       ?action(checkForUpdatesCommandId, Codicons.cloudDownload),
       ?action(showSetupGuideCommandId, Codicons.rocket),
+      ?action(resetFeatureTipsCommandId, Codicons.discard),
       ?action(
         'workbench.action.toggleSidebarVisibility',
         Codicons.layoutSidebarLeft,
@@ -945,6 +948,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       label: commandCatalog[showSetupGuideCommandId]!.title,
       run: _showSetupGuide,
     ),
+    IdeCommand(
+      id: resetFeatureTipsCommandId,
+      category: 'Help',
+      label: commandCatalog[resetFeatureTipsCommandId]!.title,
+      run: _resetTips,
+    ),
   ];
 
   // --- Feature tips ----------------------------------------------------------
@@ -1017,6 +1026,19 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     final tips = _tips;
     if (tips == null) return;
     unawaited(tips.restore());
+    _showTipsChat();
+  }
+
+  /// Reset Feature Tips: the tips as at a first launch, the checklist shown.
+  void _resetTips() {
+    final tips = _tips;
+    if (tips == null) return;
+    unawaited(tips.reset());
+    _showTipsChat();
+  }
+
+  /// The chat the checklist is in, in front.
+  void _showTipsChat() {
     if (_windows case final windows? when _multi || _agentWindow) {
       if (_ideWindow || _agentWindow) windows.showChat();
     } else if (_workspace.layout == WorkspaceLayout.ide) {
@@ -2386,20 +2408,19 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         // project, and a kept session where it was.
         start: embedded || thread.record != null
             ? null
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_main)
-                    if (_tips case final tips?)
-                      FeatureTipsCard(controller: tips),
-                  NewChatFolderBar(
-                    workspace: _workspace,
-                    thread: thread,
-                    openRemote: (onOpen) => _openRemoteProject(onOpen: onOpen),
-                  ),
-                ],
+            : NewChatFolderBar(
+                workspace: _workspace,
+                thread: thread,
+                openRemote: (onOpen) => _openRemoteProject(onOpen: onOpen),
               ),
+        // The setup checklist, over the new agent's composer.
+        startHint: switch (_tips) {
+          final tips? when _main => (context, hint) => FeatureTipsCard(
+            controller: tips,
+            orElse: hint,
+          ),
+          _ => null,
+        },
       ),
     );
   }

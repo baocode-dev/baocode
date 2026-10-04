@@ -60,19 +60,12 @@ class AppSettings {
   /// the build does not update itself.
   final UpdateController? updates;
 
-  /// The app's global storage, as the import offer and the tips remember
-  /// themselves in it; none under test without files.
-  late final GlobalStorageStore? offerStore = switch (files?.storage) {
-    final storage? => GlobalStorageStore(storage),
-    null => null,
-  };
-
   /// The feature tips (the setup checklist, the update's and the scenarios'
   /// notifications); none without settings files.
-  late final FeatureTipsController? tips = switch (offerStore) {
-    final store? => FeatureTipsController(
+  late final FeatureTipsController? tips = switch (files?.storage) {
+    final storage? => FeatureTipsController(
       tips: builtInFeatureTips(this),
-      storage: store,
+      storage: _TipStorage(storage),
       enabled: () =>
           files?.settings[FeatureTipsController.enabledSetting] != false,
       settingsChanges: files?.settings,
@@ -175,10 +168,9 @@ class AppSettings {
   }
 }
 
-/// The app's global storage, as the import offer and the tips remember
-/// themselves in it.
-class GlobalStorageStore implements ImportOfferStore, TipStorage {
-  GlobalStorageStore(this.storage);
+/// The app's global storage, as the tips remember themselves in it.
+class _TipStorage implements TipStorage {
+  _TipStorage(this.storage);
 
   final GlobalStorage storage;
 

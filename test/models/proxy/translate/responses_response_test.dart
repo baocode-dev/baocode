@@ -627,6 +627,72 @@ void main() {
     });
   });
 
+  group('empty text', () {
+    const keepAlive =
+        'data: {"type":"response.output_text.delta","item_id":"SSE-Keep-Alive","output_index":0,"content_index":0,"delta":"","SSE-Keep-Alive":true}';
+
+    test('a keep-alive starts no block, nor ends the thinking it comes in '
+        'the middle of', () {
+      final outputs = translate([
+        keepAlive,
+        'data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-5"}}',
+        'data: {"type":"response.output_item.added","item":{"type":"reasoning","id":"rs_1"},"output_index":0}',
+        'data: {"type":"response.reasoning_summary_part.added","item_id":"rs_1","output_index":0,"summary_index":0}',
+        'data: {"type":"response.reasoning_summary_text.delta","item_id":"rs_1","output_index":0,"delta":"Think"}',
+        keepAlive,
+        'data: {"type":"response.reasoning_summary_text.delta","item_id":"rs_1","output_index":0,"delta":"ing"}',
+        'data: {"type":"response.output_item.done","item":{"type":"reasoning","id":"rs_1","encrypted_content":"sig"},"output_index":0}',
+        'data: {"type":"response.content_part.added","item_id":"msg_1","output_index":1,"content_index":0,"part":{"type":"output_text","text":""}}',
+        'data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":1,"content_index":0,"delta":"Hi"}',
+        'data: {"type":"response.content_part.done","item_id":"msg_1","output_index":1,"content_index":0,"part":{"type":"output_text","text":"Hi"}}',
+        'data: {"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1}}}',
+      ]);
+      expect(outputs.first, isEmpty);
+      expect(dataOf(outputs).first.get('type').string, 'message_start');
+      final blocks = blockLifecycle(outputs);
+      expect(blocks.map((b) => b.type), ['thinking', 'text']);
+      expect(blocks.last.text, 'Hi');
+      final signature = dataOf(outputs)
+          .where((d) => d.get('delta.type').string == 'signature_delta');
+      expect(signature.single.get('delta.signature').string, 'sig');
+    });
+
+    test('a part of nothing but whitespace is no block; whitespace that '
+        'leads to text stays with it', () {
+      final outputs = translate([
+        'data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-5"}}',
+        'data: {"type":"response.content_part.added","item_id":"msg_1","output_index":0,"content_index":0,"part":{"type":"output_text","text":""}}',
+        'data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":" "}',
+        'data: {"type":"response.output_item.added","item":{"type":"reasoning","id":"rs_1"},"output_index":1}',
+        'data: {"type":"response.reasoning_summary_part.added","item_id":"rs_1","output_index":1,"summary_index":0}',
+        'data: {"type":"response.reasoning_summary_text.delta","item_id":"rs_1","output_index":1,"delta":"Hmm"}',
+        'data: {"type":"response.output_item.done","item":{"type":"reasoning","id":"rs_1"},"output_index":1}',
+        'data: {"type":"response.content_part.done","item_id":"msg_1","output_index":0,"content_index":0,"part":{"type":"output_text","text":" "}}',
+        'data: {"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":" "}]},"output_index":0}',
+        'data: {"type":"response.content_part.added","item_id":"msg_2","output_index":2,"content_index":0,"part":{"type":"output_text","text":""}}',
+        'data: {"type":"response.output_text.delta","item_id":"msg_2","output_index":2,"content_index":0,"delta":"\\n "}',
+        'data: {"type":"response.output_text.delta","item_id":"msg_2","output_index":2,"content_index":0,"delta":"Done"}',
+        'data: {"type":"response.output_text.delta","item_id":"msg_2","output_index":2,"content_index":0,"delta":" "}',
+        'data: {"type":"response.content_part.done","item_id":"msg_2","output_index":2,"content_index":0,"part":{"type":"output_text","text":"\\n Done "}}',
+        'data: {"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1}}}',
+      ]);
+      final blocks = blockLifecycle(outputs);
+      expect(blocks.map((b) => b.type), ['thinking', 'text']);
+      expect(blocks.last.text, '\n Done ');
+    });
+
+    test('a whole message of whitespace, at its end, is no block', () {
+      final blocks = blockLifecycle(
+        translate([
+          'data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-5"}}',
+          'data: {"type":"response.output_item.done","item":{"type":"message","content":[{"type":"output_text","text":" \\n"}]},"output_index":0}',
+          'data: {"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1}}}',
+        ]),
+      );
+      expect(blocks, isEmpty);
+    });
+  });
+
   test('empty terminal output falls back to output_item.done message', () {
     final data = dataOf(
       translate(request: '{"tools":[]}', [

@@ -10130,6 +10130,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show Setup Guide'**
   String get cmdShowSetupGuide;
+
+  /// No description provided for @cmdResetFeatureTips.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Feature Tips'**
+  String get cmdResetFeatureTips;
 }
 
 class _AppLocalizationsDelegate

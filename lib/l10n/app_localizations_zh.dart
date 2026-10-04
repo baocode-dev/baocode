@@ -5764,4 +5764,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdShowSetupGuide => '显示设置向导';
+
+  @override
+  String get cmdResetFeatureTips => '重置功能推荐';
 }

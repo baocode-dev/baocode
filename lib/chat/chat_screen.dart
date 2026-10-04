@@ -49,6 +49,7 @@ class ChatScreen extends StatefulWidget {
     this.colorizeCode,
     this.colorizeCodeBlock,
     this.start,
+    this.startHint,
   });
 
   final String title;
@@ -105,6 +106,11 @@ class ChatScreen extends StatefulWidget {
   /// Over the composer while nothing was sent, e.g. where the agent is to
   /// work: given, the composer waits in the middle of the screen until then.
   final Widget? start;
+
+  /// In place of the hint over the composer while nothing was sent (with
+  /// [start]): the setup checklist, say, which builds [hint] when it has
+  /// nothing to show.
+  final Widget Function(BuildContext context, Widget hint)? startHint;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -488,11 +494,30 @@ class _ChatScreenState extends State<ChatScreen>
                       ),
                       ListenableBuilder(
                         listenable: _session,
-                        builder: (context, _) => _session.itemCount == 0
-                            // Just over the composer, where it waits in
-                            // the middle.
-                            ? _EmptyHint(above: _starting)
-                            : const SizedBox.shrink(),
+                        builder: (context, _) => switch (widget.startHint) {
+                          _ when _session.itemCount != 0 =>
+                            const SizedBox.shrink(),
+                          final build? when _starting => Align(
+                            alignment: Alignment.bottomCenter,
+                            child: SingleChildScrollView(
+                              child: _ConversationColumn(
+                                maxWidth: _maxContentWidth,
+                                child: build(
+                                  context,
+                                  const IgnorePointer(
+                                    child: Padding(
+                                      padding: EdgeInsets.only(bottom: 16),
+                                      child: _EmptyHintText(),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Just over the composer, where it waits in the
+                          // middle.
+                          _ => _EmptyHint(above: _starting),
+                        },
                       ),
                     ],
                   ),
@@ -882,28 +907,34 @@ class _EmptyHint extends StatelessWidget {
         alignment: above ? Alignment.bottomCenter : Alignment.center,
         child: Padding(
           padding: EdgeInsets.only(bottom: above ? 28 : 0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.auto_awesome_outlined,
-                size: 22,
-                color: AppColors.textFaint,
-              ),
-              SizedBox(height: 10),
-              Text(
-                context.l10n.chatEmptyTitle,
-                style: TextStyle(color: AppColors.textMuted, fontSize: 14),
-              ),
-              SizedBox(height: 4),
-              Text(
-                context.l10n.chatEmptyHint,
-                style: TextStyle(color: AppColors.textFaint, fontSize: 12),
-              ),
-            ],
-          ),
+          child: const _EmptyHintText(),
         ),
       ),
+    );
+  }
+}
+
+/// [_EmptyHint]'s words, where they are put.
+class _EmptyHintText extends StatelessWidget {
+  const _EmptyHintText();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.auto_awesome_outlined, size: 22, color: AppColors.textFaint),
+        SizedBox(height: 10),
+        Text(
+          context.l10n.chatEmptyTitle,
+          style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+        ),
+        SizedBox(height: 4),
+        Text(
+          context.l10n.chatEmptyHint,
+          style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+        ),
+      ],
     );
   }
 }

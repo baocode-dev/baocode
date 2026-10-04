@@ -1,5 +1,4 @@
 import '../ide/ide_notifications.dart' show IdeSeverity;
-import '../keybindings/vscode_import.dart';
 import '../l10n/l10n.dart';
 import '../platform/app_platform.dart';
 import '../platform/context_menu.dart';
@@ -31,11 +30,9 @@ List<FeatureTip> builtInFeatureTips(AppSettings settings) => [
         : l10n.generalSettingsContextMenuExplorer,
     body: (l10n) => l10n.tipContextMenuBody,
     icon: Codicons.listSelection,
-    since: '1.0.1',
     settings: SettingsSection.general,
     triggers: {
       TipTrigger.firstLaunch,
-      TipTrigger.upgrade,
       TipTrigger.scenario(TipScenarios.openedFolder),
     },
     relevant: () async =>
@@ -83,26 +80,11 @@ List<FeatureTip> builtInFeatureTips(AppSettings settings) => [
     icon: Codicons.keyboard,
     settings: SettingsSection.keyboard,
     triggers: {TipTrigger.firstLaunch},
-    // Offered at launch before tips (keybindings.importOffered): not again.
-    relevant: () async {
-      final installs = settings.installs;
-      final store = settings.offerStore;
-      if (installs == null || store == null) return false;
-      if (store.get(keybindingsImportOfferedKey) == true) return false;
-      return shouldOfferKeybindingsImport(await installs.detect(), store);
-    },
+    relevant: () async =>
+        (await settings.installs?.detect())?.importable ?? false,
     apply: (at) async {
-      if (settings.offerStore case final store?) {
-        await markKeybindingsImportOffered(store);
-      }
-      if (!at.context.mounted) return false;
       await settings.showImport(at.context);
       return true;
-    },
-    onDismiss: () async {
-      if (settings.offerStore case final store?) {
-        await markKeybindingsImportOffered(store);
-      }
     },
   ),
   FeatureTip(

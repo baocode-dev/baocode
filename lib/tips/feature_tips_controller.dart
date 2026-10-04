@@ -290,7 +290,6 @@ class FeatureTipsController extends ChangeNotifier {
   /// Takes [tip] off the checklist, and out of the notifications for good.
   Future<void> dismiss(FeatureTip tip) async {
     await _setState(tip, TipState.dismissed);
-    await tip.onDismiss?.call();
     _checklist = [
       for (final listed in _checklist)
         if (!identical(listed, tip)) listed,
@@ -333,6 +332,26 @@ class FeatureTipsController extends ChangeNotifier {
       kept['collapsed'] = false;
       kept['idleLaunches'] = 0;
     });
+    _notify();
+  }
+
+  /// Reset Feature Tips: forgets what was done with the tips (seen, turned
+  /// on, dismissed) and the card's folding, as at a first launch: the card
+  /// shows again, and what happens may tell of a tip again.
+  Future<void> reset() async {
+    _retry?.cancel();
+    _retry = null;
+    _pending = null;
+    _notified = false;
+    _updatedFrom = null;
+    _upgradeTips = const [];
+    _showDismissed = false;
+    _collapsed = false;
+    errors.clear();
+    await storage.set(storageKey, {'lastVersion': '$_version'});
+    _restores++;
+    _started = true;
+    _checklist = await _listChecklist();
     _notify();
   }
 

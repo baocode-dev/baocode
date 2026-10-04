@@ -89,6 +89,10 @@ abstract final class ClaudeModelVariables {
   static const subagent = 'CLAUDE_CODE_SUBAGENT_MODEL';
   static const nonessentialTraffic = 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC';
 
+  /// The window of a model not Claude's: the CLI takes 200K for one it
+  /// does not know, and compacts within it whatever `--autocompact` says.
+  static const maxContextTokens = 'CLAUDE_CODE_MAX_CONTEXT_TOKENS';
+
   /// Those that hold a secret: a settings file, not a command line.
   static const secrets = {authToken, apiKey};
 

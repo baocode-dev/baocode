@@ -6141,4 +6141,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdShowSetupGuide => 'Show Setup Guide';
+
+  @override
+  String get cmdResetFeatureTips => 'Reset Feature Tips';
 }
