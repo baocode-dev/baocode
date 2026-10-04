@@ -9,6 +9,9 @@ class AppDelegate: FlutterAppDelegate {
   /// stays, as a Mac app does: the Dock's icon opens the main window again.
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     if AppWindows.shared?.started ?? false { return false }
+    // Launched for what the system asks to open, the main window is put
+    // out of sight before Flutter has started (see application(_:open:)).
+    if OpenRequests.shared.atLaunch { return false }
     return !(Attention.shared?.hidesOnClose ?? false)
   }
 
