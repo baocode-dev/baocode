@@ -175,6 +175,7 @@ class TerminalPanel extends StatelessWidget {
     super.key,
     required this.terminals,
     required this.onNew,
+    this.skipShell = const [],
     this.shouldSkipShell,
     this.resolveKey,
     this.onOpenLink,
@@ -184,6 +185,9 @@ class TerminalPanel extends StatelessWidget {
 
   /// New Terminal, from the tabs.
   final VoidCallback onNew;
+
+  /// Keys the window keeps (see [TerminalView.skipShell]).
+  final List<ShortcutActivator> skipShell;
 
   /// Whether the workbench takes a key rather than the shell (see
   /// [TerminalView.shouldSkipShell]).
@@ -210,6 +214,7 @@ class TerminalPanel extends StatelessWidget {
                 : TerminalView(
                     active,
                     key: ObjectKey(active),
+                    skipShell: skipShell,
                     shouldSkipShell: shouldSkipShell,
                     resolveKey: resolveKey,
                     onKill: () => terminals.kill(active),

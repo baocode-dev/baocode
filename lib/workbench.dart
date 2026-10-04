@@ -30,7 +30,9 @@ import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
 import 'ide/lsp/language_features.dart';
 import 'ide/lsp/lsp_protocol.dart';
+import 'ide/terminal/links/terminal_links.dart';
 import 'ide/terminal/terminal_instance.dart';
+import 'ide/terminal/terminal_panel.dart' show terminalCommandsToSkipShell;
 import 'keybindings/chat_keybindings.dart';
 import 'keybindings/default_keybindings.dart';
 import 'keybindings/key_chord.dart';
@@ -61,6 +63,8 @@ import 'window/code_args.dart';
 import 'window/window_settings.dart';
 import 'workspace/chat_drag.dart';
 import 'workspace/chat_grid_view.dart';
+import 'workspace/chat_terminal.dart';
+import 'workspace/editor_launcher.dart' show openExternal;
 import 'workspace/new_chat_folder_bar.dart';
 import 'workspace/open_in_editor_button.dart';
 import 'workspace/pin_window_button.dart';
@@ -254,6 +258,22 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// The window is kept above other apps' windows.
   bool _pinned = false;
 
+  /// The terminals under the conversations, in the focused agent's
+  /// project (see [ChatTerminals]); none where they cannot run, nor in an
+  /// IDE window (the IDE has its own).
+  late final ChatTerminals? _terminals = switch (widget.terminalBackend) {
+    final backend? when backend.supported && !_ideWindow => ChatTerminals(
+      backend,
+      rootOf: () => (_agentThread ?? _workspace.current)?.project.path,
+    )..onLastClosed = _focusCurrentChat,
+    _ => null,
+  }?..addListener(_terminalsChanged);
+
+  /// The title bars' toggles and the window's commands follow them.
+  void _terminalsChanged() {
+    if (mounted) setState(() {});
+  }
+
   /// An agent dragged from the sidebar onto the conversations.
   late final ChatDrag _drag = ChatDrag(onDrop: _drop, onStart: _closeDrawer);
 
@@ -371,6 +391,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   @override
   void dispose() {
+    _terminals
+      ?..removeListener(_terminalsChanged)
+      ..dispose();
     _chatCode?.dispose();
     _drag.dispose();
     _width.dispose();
@@ -467,6 +490,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         openSettingsCommandId: () => unawaited(openSettings()),
         openKeybindingsCommandId: () =>
             unawaited(openSettings(SettingsSection.keyboard)),
+        ..._terminalCommands(),
         ..._windowCommands(),
       };
     }
@@ -505,8 +529,65 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       if (widget.customizations != null) _customizeCommand: _showCustomize,
       if (current != null)
         ChatCommandIds.openIde: () => _workspace.openInIde(current),
+      ..._terminalCommands(),
       ..._windowCommands(),
     };
+  }
+
+  /// The terminal panel's: Toggle Terminal and Create New Terminal where
+  /// there is an agent's project for them; those on the terminal shown.
+  Map<String, VoidCallback> _terminalCommands() {
+    final terminals = _terminals;
+    if (terminals == null || terminals.root == null) return const {};
+    final current = terminals.shown ? terminals.current : null;
+    return {
+      toggleTerminalCommand: _toggleTerminal,
+      newTerminalCommand: terminals.create,
+      if (current?.active != null)
+        'workbench.action.terminal.kill': terminals.kill,
+      if ((current?.instances.length ?? 0) > 1) ...{
+        'workbench.action.terminal.focusNext': () =>
+            terminals.cycle(next: true),
+        'workbench.action.terminal.focusPrevious': () =>
+            terminals.cycle(next: false),
+      },
+    };
+  }
+
+  /// Toggle Terminal (⌃`): the panel, its terminal focused; or hidden, the
+  /// keyboard back in the chat if the terminal had it.
+  void _toggleTerminal() {
+    final terminals = _terminals;
+    if (terminals == null) return;
+    if (!terminals.shown) return terminals.show();
+    if (terminals.hide()) _focusCurrentChat();
+  }
+
+  /// The focused agent's input, once its chat is built.
+  void _focusCurrentChat() {
+    if (_agentThread ?? _workspace.current case final thread?) {
+      _focusChat(thread);
+    }
+  }
+
+  /// Opens a link from a terminal: a URL in the browser, a file in the IDE
+  /// at its line and column, a folder in the system's file manager.
+  void _openTerminalLink(TerminalLink link) {
+    final thread = _agentThread ?? _workspace.current;
+    switch (link.type) {
+      case TerminalLinkType.url:
+        unawaited(openExternal(link.text));
+      case TerminalLinkType.localFile when thread != null:
+        final at = LspPosition(
+          math.max(0, (link.line ?? 1) - 1),
+          math.max(0, (link.column ?? 1) - 1),
+        );
+        _inIdeOf(thread, (ide) => ide.openAt(link.path!, LspRange(at, at)));
+      case TerminalLinkType.localFolder:
+        unawaited(openExternal(link.path!));
+      case TerminalLinkType.localFile || TerminalLinkType.search:
+        break;
+    }
   }
 
   /// New Window, Close Window, Switch Window… and Show Chat Window, where
@@ -721,6 +802,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         Codicons.layoutSidebarLeft,
       ),
       ?action(ChatCommandIds.openIde, Codicons.code),
+      ?action(toggleTerminalCommand, Codicons.terminal),
+      ?action(newTerminalCommand, Codicons.add),
       if (WindowControls.canPickDirectory)
         ?action(
           'workbench.action.files.openFolder',
@@ -806,8 +889,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     }
     // So does an input method composing text.
     if (ChatKeys.isComposing) return false;
-    final focused = ChatKeys.focusedTargets();
-    final chat = focused.isNotEmpty
+    // In a terminal, the keys are the shell's but for the window's that
+    // skip it, as VS Code's (`terminal.integrated.commandsToSkipShell`, and
+    // ⌘ on macOS); none are the chat's.
+    final inTerminal = _terminals?.focused ?? false;
+    final focused = inTerminal
+        ? const <ChatKeyTarget>[]
+        : ChatKeys.focusedTargets();
+    final chat = focused.isNotEmpty || inTerminal
         ? focused
         : switch (_agentThread ?? _workspace.current) {
             final thread? => ChatKeys.targetsOf(
@@ -818,14 +907,34 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     final window = _chatCommands();
     final chatCommands = ChatKeys.commandsOf(chat);
     final pending = _pendingChords;
-    final result = KeybindingService.instance.resolveEvent(
-      event,
-      pending: pending ?? const [],
-      context: ChatKeys.lookupOf(chat, _chatKeyContext),
-      canRun: (item) =>
-          window.containsKey(item.command) ||
-          chatCommands.containsKey(item.command),
-    );
+    KeybindingResolution resolve(bool Function(String command) canRun) =>
+        KeybindingService.instance.resolveEvent(
+          event,
+          pending: pending ?? const [],
+          context: ChatKeys.lookupOf(chat, _chatKeyContext),
+          canRun: (item) => canRun(item.command),
+        );
+    bool skipsShell(String command) =>
+        HardwareKeyboard.instance.isMetaPressed ||
+        terminalCommandsToSkipShell.contains(command);
+    var result = inTerminal
+        // The terminal's own first (⇧⌘] is its next terminal there, the
+        // next agent elsewhere).
+        ? resolve(
+            (command) =>
+                command.startsWith('workbench.action.terminal.') &&
+                window.containsKey(command) &&
+                skipsShell(command),
+          )
+        : const NoKeybinding();
+    if (result is NoKeybinding) {
+      result = resolve(
+        (command) =>
+            (window.containsKey(command) &&
+                (!inTerminal || skipsShell(command))) ||
+            chatCommands.containsKey(command),
+      );
+    }
     _leaveChord();
     switch (result) {
       case KeybindingFound(:final command):
@@ -866,6 +975,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       'ideMode' => false,
       'inputFocus' || 'textInputFocus' =>
         focus?.context?.findAncestorStateOfType<EditableTextState>() != null,
+      'terminalFocus' || 'terminalFocusInAny' => _terminals?.focused ?? false,
+      'terminalProcessSupported' => _terminals != null,
+      'terminalIsOpen' || 'terminalHasBeenCreated' =>
+        _terminals?.current?.instances.isNotEmpty ?? false,
+      'terminalCount' => _terminals?.current?.instances.length ?? 0,
       _ => null,
     };
   }
@@ -1375,7 +1489,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (_agentThread case final thread?) {
       // Gone (deleted), its window goes with it.
       if (!_workspace.threads.contains(thread)) return const SizedBox.shrink();
-      final chat = _buildChat(showToggle: false, pane: thread);
+      final chat = _withTerminal(_buildChat(showToggle: false, pane: thread));
       // On Windows, with the sidebar the header's toggle shows, as the
       // chat's window has it: over the conversation while narrow, beside
       // it once wide.
@@ -1710,6 +1824,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ideLayout: ide ? _ideSpace(_ideFolder).layout : null,
       pinned: _pinned,
       onTogglePin: _setPinned,
+      terminalShown: _terminals?.shown ?? false,
+      onToggleTerminal: ide || _terminals?.root == null
+          ? null
+          : _toggleTerminal,
       onOpenFolder: _openFolder,
       onOpenSettings: () => unawaited(openSettings()),
       onToggleContextPanel: () {
@@ -1799,8 +1917,22 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _closeDrawer();
   }
 
-  /// The open agents side by side (see [ChatGridView]).
-  Widget _buildPanes({required bool showToggle}) {
+  /// The open agents side by side (see [ChatGridView]), the terminal panel
+  /// under them.
+  Widget _buildPanes({required bool showToggle}) =>
+      _withTerminal(_buildGrid(showToggle: showToggle));
+
+  /// [child] with the terminal panel under it (see [ChatTerminalArea]).
+  Widget _withTerminal(Widget child) => switch (_terminals) {
+    final terminals? => ChatTerminalArea(
+      terminals: terminals,
+      onOpenLink: _openTerminalLink,
+      child: child,
+    ),
+    null => child,
+  };
+
+  Widget _buildGrid({required bool showToggle}) {
     if (_customizing) {
       if (widget.customizations case final store?) {
         return _buildCustomize(store, showToggle: showToggle);
@@ -1914,8 +2046,17 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     // The window's, in whichever pane is top right: they are the focused
     // agent's (Fast Ide opens it), and a click on them leaves the focus
     // where it is. So does closing another pane.
+    final terminals = _terminals;
     final tools = [
       if (windowTools) ...[
+        if (terminals != null && terminals.root != null) ...[
+          ChatTerminalToggle(
+            shown: terminals.shown,
+            onTap: _toggleTerminal,
+            size: 22,
+          ),
+          const SizedBox(width: 6),
+        ],
         PinWindowButton(pinned: _pinned, onChanged: _setPinned),
         const SizedBox(width: 6),
         OpenInEditorButton(
@@ -2113,11 +2254,15 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   @override
-  bool terminalsRunning({required bool childProcesses}) => _ideKeys.values.any(
-    (key) =>
-        key.currentState?.terminalsRunning(childProcesses: childProcesses) ??
-        false,
-  );
+  bool terminalsRunning({required bool childProcesses}) =>
+      (_terminals?.running(childProcesses: childProcesses) ?? false) ||
+      _ideKeys.values.any(
+        (key) =>
+            key.currentState?.terminalsRunning(
+              childProcesses: childProcesses,
+            ) ??
+            false,
+      );
 
   @override
   void showQuickPick(IdeQuickPick pick) {

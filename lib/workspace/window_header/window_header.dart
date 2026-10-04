@@ -15,6 +15,7 @@ import '../../theme/codicons.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../back_to_chat_button.dart';
+import '../chat_terminal.dart';
 import '../open_in_editor_button.dart';
 import '../pin_window_button.dart';
 import '../window_controls.dart';
@@ -44,6 +45,8 @@ class WindowHeader extends StatefulWidget {
     required this.onTogglePin,
     required this.onOpenFolder,
     required this.onToggleContextPanel,
+    this.terminalShown = false,
+    this.onToggleTerminal,
     this.onOpenSettings,
     this.onCommand,
     this.onFileCommand,
@@ -114,6 +117,12 @@ class WindowHeader extends StatefulWidget {
   /// The View menu's Context Panel: the current chat's.
   final VoidCallback onToggleContextPanel;
 
+  /// Over the chat, the terminal panel under the conversations: whether it
+  /// shows, and its toggle (the button by the pin, and the View menu's
+  /// Terminal); with none, neither is offered.
+  final bool terminalShown;
+  final VoidCallback? onToggleTerminal;
+
   /// The File menu's Settings…: opens the settings dialog.
   final VoidCallback? onOpenSettings;
 
@@ -146,6 +155,7 @@ class _WindowHeaderState extends State<WindowHeader> {
   final _chat = GlobalKey(debugLabel: 'header chat');
   final _menus = GlobalKey(debugLabel: 'header menus');
   final _pin = GlobalKey(debugLabel: 'header pin');
+  final _terminal = GlobalKey(debugLabel: 'header terminal');
   final _open = GlobalKey(debugLabel: 'header open in editor');
   final _back = GlobalKey(debugLabel: 'header back to chat');
   final _minimize = GlobalKey(debugLabel: 'window minimize');
@@ -277,6 +287,18 @@ class _WindowHeaderState extends State<WindowHeader> {
                 KeyedSubtree(key: _chat, child: IdeLayoutToggle.chat(layout)),
                 const SizedBox(width: 2),
               ],
+              // The chat's; the IDE's panel is its own, above.
+              if (widget.onToggleTerminal case final toggle? when !ide) ...[
+                KeyedSubtree(
+                  key: _terminal,
+                  child: ChatTerminalToggle(
+                    shown: widget.terminalShown,
+                    onTap: toggle,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               KeyedSubtree(
                 key: _pin,
                 child: PinWindowButton(
@@ -334,7 +356,16 @@ class _WindowHeaderState extends State<WindowHeader> {
   /// drags it, and its three buttons are the system's own to run.
   void _report() {
     final controls = <Rect>[
-      for (final key in [_toggle, _menus, _panel, _chat, _pin, _open, _back])
+      for (final key in [
+        _toggle,
+        _menus,
+        _panel,
+        _chat,
+        _terminal,
+        _pin,
+        _open,
+        _back,
+      ])
         ?_rect(key),
     ];
     final minimize = _rect(_minimize);
@@ -528,6 +559,13 @@ class _WindowHeaderState extends State<WindowHeader> {
           if (widget.project != null)
             command(l10n.cmdChatOpenIde, ChatCommandIds.openIde),
         ],
+        if (widget.onToggleTerminal case final toggle? when !ide)
+          HeaderMenuItem(
+            l10n.idePanelTerminal,
+            checked: widget.terminalShown,
+            shortcut: _shortcut(toggleTerminalCommand),
+            onSelected: toggle,
+          ),
         HeaderMenuItem(
           l10n.menuKeepOnTop,
           checked: widget.pinned,
