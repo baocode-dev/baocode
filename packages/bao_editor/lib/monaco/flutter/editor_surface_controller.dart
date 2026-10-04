@@ -82,6 +82,12 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
   /// 1) it is from, when it is from one place: one selection, or one
   /// cursor's line.
   void Function(String text, int startLine, int endLine)? onCopy;
+
+  /// Takes a paste before the clipboard's text is read (files and pictures
+  /// in a markdown document): completes with whether it pasted, and then
+  /// the text is not. Every paste comes here: the keys, the Edit menu, the
+  /// context menu.
+  Future<bool> Function()? onPaste;
   final List<List<TextSelection>> _cursorUndoStack = [];
   ColumnSelectResult? _columnSelectData;
   (int, String?)? _eolCache;
@@ -1820,6 +1826,10 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
   /// [canEdit] is checked before and after the request (e.g. for focus/read-only).
   Future<void> paste({bool Function()? canEdit}) async {
     if (_disposed || canEdit?.call() == false) return;
+    if (onPaste case final hook?) {
+      if (await hook()) return;
+      if (_disposed || canEdit?.call() == false) return;
+    }
     final before = value;
     final beforeSelections = selections;
     final data = await Clipboard.getData(Clipboard.kTextPlain);

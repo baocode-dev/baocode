@@ -1,6 +1,10 @@
+import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/composer/composer_files.dart';
+import 'package:baocode/chat/composer/file_drop.dart';
 import 'package:baocode/ide/ide_editor.dart';
 import 'package:baocode/ide/ide_tab_bar.dart';
 import 'package:baocode/ide/ide_workbench.dart';
+import 'package:baocode/ide/markdown/markdown_paste.dart';
 import 'package:baocode/ide/markdown/markdown_preview.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +12,20 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_files.dart';
+
+class _Clipboard implements MarkdownClipboard {
+  List<ComposerFile> copied = const [];
+  List<ImageAttachment> pictures = const [];
+
+  @override
+  Future<List<ComposerFile>> files() async => copied;
+
+  @override
+  Future<List<ImageAttachment>> images() async => pictures;
+
+  @override
+  Future<bool> hasText() async => false;
+}
 
 /// A markdown file's tab: its preview first, its source a switch (or a key,
 /// or a command) away, and which one each file showed kept.
@@ -117,5 +135,111 @@ void main() {
     final contents = (workspace.files as TreeFiles).contents;
     expect(contents[inRoot('README.md')], '# Readme\n\nOther text.\n');
     expect(workspace.active!.dirty, isFalse);
+  });
+
+  group('pasting files', () {
+    late _Clipboard clipboard;
+    final picture = ImageAttachment(
+      bytes: Uint8List.fromList([137, 80, 78, 71]),
+      mediaType: 'image/png',
+    );
+
+    setUp(() {
+      clipboard = _Clipboard();
+      IdeWorkbench.markdownClipboard = clipboard;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+            if (call.method == 'Clipboard.getData') return {'text': 'plain '};
+            if (call.method == 'Clipboard.hasStrings') return {'value': true};
+            return null;
+          });
+    });
+    tearDown(() {
+      IdeWorkbench.markdownClipboard = const SystemMarkdownClipboard();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+
+    Future<void> paste(WidgetTester tester) async {
+      await chord(tester, LogicalKeyboardKey.keyV, control: true);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a picture pasted in the source goes beside the document, '
+        'linked where the caret is; other files paste text', (tester) async {
+      final workspace = await pumpWorkbench(
+        tester,
+        files,
+        open: ['notes.txt', 'README.md'],
+        nativeEditor: true,
+        viewState: {
+          'markdownSource': [inRoot('README.md')],
+        },
+      );
+      await tester.pumpAndSettle();
+      final tree = workspace.files as TreeFiles;
+      clipboard.pictures = [picture];
+      await tester.state<IdeEditorState>(find.byType(IdeEditor)).revealLine(3);
+      await tester.pump();
+      await paste(tester);
+      expect(workspace.active!.text, '# Readme\n\n![](image.png)Some text.\n');
+      expect(tree.bytes.keys, [inRoot('image.png')]);
+      expect(workspace.active!.dirty, isTrue);
+
+      // Not markdown: the clipboard's text, as ever.
+      await tester.tap(find.text('notes.txt').first);
+      await tester.pumpAndSettle();
+      await tester.state<IdeEditorState>(find.byType(IdeEditor)).revealLine(1);
+      await tester.pump();
+      await paste(tester);
+      expect(workspace.active!.text, 'plain x');
+      expect(tree.bytes, hasLength(1));
+    });
+
+    testWidgets('pasted in a block of the preview, and dropped on it', (
+      tester,
+    ) async {
+      final workspace = await pumpWorkbench(
+        tester,
+        {...files, '../elsewhere/shot.png': 'png'},
+        open: ['README.md'],
+      );
+      await tester.pumpAndSettle();
+      final tree = workspace.files as TreeFiles;
+      clipboard.pictures = [picture];
+      await tester.tap(find.text('Some text.', findRichText: true));
+      await tester.pumpAndSettle();
+      await paste(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(workspace.active!.text, '# Readme\n\nSome text.![](image.png)\n');
+      expect(tree.bytes.keys, [inRoot('image.png')]);
+
+      // A file dropped from another app, after the block it is let go on.
+      final shot = inRoot('../elsewhere/shot.png');
+      final at = tester.getCenter(find.text('Readme', findRichText: true));
+      final taken = await tester.runAsync(
+        () => FileDrops.handle(
+          MethodCall('drop', {
+            'x': at.dx,
+            'y': at.dy,
+            'files': [
+              {'path': shot},
+            ],
+          }),
+        ),
+      );
+      expect(taken, isTrue);
+      // Its size is read from the disk, for real.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        workspace.active!.text,
+        '# Readme\n\n![](shot.png)\n\nSome text.![](image.png)\n',
+      );
+      expect(tree.contents[inRoot('shot.png')], 'png');
+    });
   });
 }

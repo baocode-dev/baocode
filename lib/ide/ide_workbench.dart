@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../chat/chat_keys.dart';
+import '../chat/composer/composer_files.dart' show ComposerFile;
+import '../chat/composer/file_drop.dart';
 import '../keybindings/default_keybindings.dart'
     show commandCatalog, openSettingsCommandId;
 import '../keybindings/key_chord.dart';
@@ -28,6 +30,8 @@ import '../workspace/workspace.dart';
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart'
     show EditorContentChangeEvent, EditorDocumentModel;
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart'
+    show EditorSurfaceController;
 import 'package:bao_editor/monaco/flutter/editor_keybindings.dart'
     show editorChordPrefix;
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
@@ -131,6 +135,10 @@ class IdeWorkbench extends StatefulWidget {
   /// Hands a file to its default app; tests replace it.
   @visibleForTesting
   static Future<bool> Function(String path) openInDefaultApp = openExternal;
+
+  /// What a paste in a markdown document reads; tests replace it.
+  @visibleForTesting
+  static MarkdownClipboard markdownClipboard = const SystemMarkdownClipboard();
 
   final Project project;
   final bool visible;
@@ -706,8 +714,102 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   /// What a paste in [doc]'s preview puts in (see [MarkdownPaste]).
-  Future<MarkdownPasteOutcome> _pasteInMarkdown(IdeDocument doc) async =>
-      const MarkdownPasteText();
+  Future<MarkdownPasteOutcome> _pasteInMarkdown(IdeDocument doc) =>
+      _markdownPaste().paste(doc.path);
+
+  /// Pastes and drops of files into the project's markdown documents.
+  MarkdownPaste _markdownPaste() {
+    final l10n = context.l10n;
+    final workspace = widget.workspace;
+    return MarkdownPaste(
+      files: workspace.files,
+      l10n: l10n,
+      root: workspace.hasFolder ? workspace.root : null,
+      // A remote project's host is Linux; the clipboard's files are this
+      // machine's, uploaded there.
+      context: _local ? p.context : p.posix,
+      remote: !_local,
+      clipboard: IdeWorkbench.markdownClipboard,
+      confirmLarge: (name, size) async {
+        if (!mounted) return false;
+        final pick = await showIdeDialog(
+          context,
+          type: IdeDialogType.question,
+          message: l10n.markdownPasteLargeTitle,
+          detail: l10n.markdownPasteLargeMessage(name, ideFormatSize(size)),
+          buttons: [l10n.markdownPasteLargeConfirm],
+        );
+        return pick == 0;
+      },
+      report: (message) {
+        if (mounted) _notifications.notify(IdeSeverity.error, message);
+      },
+    );
+  }
+
+  /// A paste in [doc]'s source: a markdown document's files and pictures
+  /// put beside it and linked to (see [pasteMarkdownLinks]).
+  Future<bool> _pasteInEditor(
+    IdeDocument doc,
+    EditorSurfaceController editor,
+  ) async {
+    if (!isMarkdownPath(doc.path) || doc.readOnly || !mounted) return false;
+    final version = doc.model.version;
+    final pasted = await pasteMarkdownLinks(
+      editor,
+      () => _markdownPaste().paste(doc.path),
+      onMoved: () {
+        if (mounted) {
+          _notifications.notify(
+            IdeSeverity.info,
+            context.l10n.markdownPasteMoved,
+          );
+        }
+      },
+    );
+    if (doc.model.version != version) {
+      widget.workspace.notifyDocumentChanged(doc);
+    }
+    return pasted;
+  }
+
+  /// [editor], taking the files other apps drop on it when it is a
+  /// markdown document's (see [_dropOnMarkdown]).
+  Widget _markdownDrops(IdeDocument? active, Widget editor) {
+    if (active == null ||
+        !isMarkdownPath(active.path) ||
+        active.readOnly ||
+        active.diff != null ||
+        active.openError != null) {
+      return editor;
+    }
+    return FileDropRegion(delegate: _markdownDrop, child: editor);
+  }
+
+  late final _markdownDrop = _MarkdownDrop(
+    (position, files) => unawaited(_dropOnMarkdown(position, files)),
+  );
+
+  /// Files dropped from other apps on the active markdown document: put
+  /// beside it and linked to, at the caret, or after the block they were
+  /// dropped on.
+  Future<void> _dropOnMarkdown(
+    Offset position,
+    List<ComposerFile> files,
+  ) async {
+    final doc = widget.workspace.active;
+    if (doc == null || !isMarkdownPath(doc.path) || doc.readOnly) return;
+    final outcome = await _markdownPaste().drop(doc.path, files);
+    if (!mounted || outcome is! MarkdownPasteLinks) return;
+    if (!identical(widget.workspace.active, doc)) {
+      insertMarkdownAtEnd(doc.model, outcome.text);
+      widget.workspace.notifyDocumentChanged(doc);
+    } else if (_preview case final preview?) {
+      preview.insert(outcome.text, position: position);
+    } else {
+      _editor?.insertAtCaret(outcome.text);
+    }
+  }
 
   /// [setState], for the commands of ide_workbench_keys.dart.
   void _refresh(VoidCallback fn) => setState(fn);
@@ -3089,88 +3191,93 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               ),
           ],
           Expanded(
-            child: active == null && !widget.workspace.hasFolder
-                ? IdeStartPage(
-                    actions: [
-                      for (final id in const [
-                        'workbench.action.files.openFolder',
-                        'baocode.remote.openFolder',
-                        'workbench.action.files.openFile',
-                        'workbench.action.files.newUntitledFile',
-                      ])
-                        ...commands.where((command) => command.id == id),
-                    ],
-                    recent: widget.recentFolders,
-                    onOpenRecent: widget.onOpenRecent,
-                    onShowAllRecent: commands
-                        .where((c) => c.id == 'workbench.action.openRecent')
-                        .firstOrNull
-                        ?.run,
-                  )
-                : active == null
-                ? IdeWelcome(
-                    commands: [
-                      for (final id in const [
-                        'workbench.action.showCommands',
-                        'workbench.action.quickOpen',
-                        // Upstream's watermark: Show Search has no key of
-                        // its own, Find in Files takes its ⇧⌘F.
-                        'workbench.action.findInFiles',
-                        'actions.find',
-                        'workbench.action.gotoLine',
-                        'workbench.action.toggleSidebarVisibility',
-                        'workbench.action.toggleAuxiliaryBar',
-                      ])
-                        ...commands.where((command) => command.id == id),
-                    ],
-                  )
-                : active.isMedia
-                ? IdeImagePreview(
-                    key: ValueKey(active),
-                    path: active.path,
-                    read: switch (widget.workspace.files) {
-                      final IdeHostFiles files => files.readBytes,
-                      _ => null,
-                    },
-                    onOpenInDefaultApp:
-                        _local && WindowControls.canOpenInDefaultApp
-                        ? () => unawaited(_openInDefaultApp(active.path))
-                        : null,
-                  )
-                : active.openError != null
-                ? IdeEditorPlaceholder(
-                    key: ValueKey(active),
-                    error: active.openError!,
-                    onOpenAnyway: () =>
-                        unawaited(widget.workspace.reopen(active, force: true)),
-                    onRetry: () => unawaited(widget.workspace.reopen(active)),
-                    onOpenInDefaultApp:
-                        _local &&
-                            WindowControls.canOpenInDefaultApp &&
-                            active.readRevision == null
-                        ? () => unawaited(_openInDefaultApp(active.path))
-                        : null,
-                  )
-                : _previewing(active)
-                ? _markdownPreview(active)
-                : widget.editorBuilder?.call(context, widget.workspace) ??
-                      IdeEditor(
-                        nativeEditorEnabled: widget.nativeEditorEnabled,
-                        key: _editorKey,
-                        workspace: widget.workspace,
-                        active: active,
-                        onError: _report,
-                        onLspStatus: (status) {
-                          if (mounted) setState(() => _lspStatus = status);
-                        },
-                        onPositionChanged: _positionChanged,
-                        onOpenLocation: _openLocation,
-                        onShowReferences: _showReferences,
-                        onShowCommands: () => _showQuickInput('>'),
-                        formatOnSave: _formatOnSave,
-                        gitBlame: _gitBlame,
-                        keyResolver: _resolveEditorKey,
+            child: _markdownDrops(
+              active,
+              active == null && !widget.workspace.hasFolder
+                  ? IdeStartPage(
+                      actions: [
+                        for (final id in const [
+                          'workbench.action.files.openFolder',
+                          'baocode.remote.openFolder',
+                          'workbench.action.files.openFile',
+                          'workbench.action.files.newUntitledFile',
+                        ])
+                          ...commands.where((command) => command.id == id),
+                      ],
+                      recent: widget.recentFolders,
+                      onOpenRecent: widget.onOpenRecent,
+                      onShowAllRecent: commands
+                          .where((c) => c.id == 'workbench.action.openRecent')
+                          .firstOrNull
+                          ?.run,
+                    )
+                  : active == null
+                  ? IdeWelcome(
+                      commands: [
+                        for (final id in const [
+                          'workbench.action.showCommands',
+                          'workbench.action.quickOpen',
+                          // Upstream's watermark: Show Search has no key of
+                          // its own, Find in Files takes its ⇧⌘F.
+                          'workbench.action.findInFiles',
+                          'actions.find',
+                          'workbench.action.gotoLine',
+                          'workbench.action.toggleSidebarVisibility',
+                          'workbench.action.toggleAuxiliaryBar',
+                        ])
+                          ...commands.where((command) => command.id == id),
+                      ],
+                    )
+                  : active.isMedia
+                  ? IdeImagePreview(
+                      key: ValueKey(active),
+                      path: active.path,
+                      read: switch (widget.workspace.files) {
+                        final IdeHostFiles files => files.readBytes,
+                        _ => null,
+                      },
+                      onOpenInDefaultApp:
+                          _local && WindowControls.canOpenInDefaultApp
+                          ? () => unawaited(_openInDefaultApp(active.path))
+                          : null,
+                    )
+                  : active.openError != null
+                  ? IdeEditorPlaceholder(
+                      key: ValueKey(active),
+                      error: active.openError!,
+                      onOpenAnyway: () => unawaited(
+                        widget.workspace.reopen(active, force: true),
                       ),
+                      onRetry: () => unawaited(widget.workspace.reopen(active)),
+                      onOpenInDefaultApp:
+                          _local &&
+                              WindowControls.canOpenInDefaultApp &&
+                              active.readRevision == null
+                          ? () => unawaited(_openInDefaultApp(active.path))
+                          : null,
+                    )
+                  : _previewing(active)
+                  ? _markdownPreview(active)
+                  : widget.editorBuilder?.call(context, widget.workspace) ??
+                        IdeEditor(
+                          nativeEditorEnabled: widget.nativeEditorEnabled,
+                          key: _editorKey,
+                          workspace: widget.workspace,
+                          active: active,
+                          onError: _report,
+                          onLspStatus: (status) {
+                            if (mounted) setState(() => _lspStatus = status);
+                          },
+                          onPositionChanged: _positionChanged,
+                          onOpenLocation: _openLocation,
+                          onShowReferences: _showReferences,
+                          onShowCommands: () => _showQuickInput('>'),
+                          formatOnSave: _formatOnSave,
+                          gitBlame: _gitBlame,
+                          keyResolver: _resolveEditorKey,
+                          onPaste: _pasteInEditor,
+                        ),
+            ),
           ),
         ],
       ),
@@ -4278,4 +4385,22 @@ class _NoFolder extends StatelessWidget {
       ],
     );
   }
+}
+
+/// What a markdown document's editor does with files other apps drop on
+/// it: [onDrop].
+class _MarkdownDrop implements FileDropDelegate {
+  _MarkdownDrop(this.onDrop);
+
+  final void Function(Offset position, List<ComposerFile> files) onDrop;
+
+  @override
+  void fileDragOver(Offset position, List<ComposerFile> files) {}
+
+  @override
+  void fileDragLeave() {}
+
+  @override
+  void fileDrop(Offset position, List<ComposerFile> files) =>
+      onDrop(position, files);
 }
