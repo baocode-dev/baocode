@@ -500,9 +500,8 @@ void main() {
     });
   });
 
-  testWidgets('a running task\'s stop sits at the end of its row', (
-    tester,
-  ) async {
+  testWidgets('a running task\'s stop sits at the end of its row, what it '
+      'did last after its description', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -521,6 +520,7 @@ void main() {
               changes: const [],
               onStopTask: (_) {},
               onKeep: () {},
+              detailOf: (_) => 'Read game.js',
             ),
           ),
         ),
@@ -530,6 +530,13 @@ void main() {
     final strip = tester.getRect(find.byType(ActivityStrip));
     // The strip's margin and border, the row's margin and padding.
     expect(stop.right, strip.right - (10 + 1 + 3 + 7));
+    final description = tester.getRect(find.text('比较三份飞机大战代码'));
+    final detail = tester.getRect(find.text('· Read game.js'));
+    expect(detail.left, greaterThan(description.right));
+    expect(
+      tester.getRect(find.textContaining('Running')).left,
+      greaterThan(detail.right),
+    );
     // The ticking clock stopped.
     await tester.pumpWidget(const SizedBox());
   });

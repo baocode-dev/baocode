@@ -23,6 +23,7 @@ import 'panels/health_banner.dart';
 import 'panels/interaction_panel.dart';
 import 'panels/context_usage_panel.dart';
 import 'panels/todo_panel.dart';
+import 'widgets/agent_step.dart';
 import 'widgets/code_citation.dart';
 import 'widgets/inline_rename_field.dart';
 
@@ -408,6 +409,11 @@ class _ChatScreenState extends State<ChatScreen>
         if (_session.agentOf(task.toolUseId) case final agent?) {
           _openAgent(agent);
         }
+      },
+      // A subagent's last step, as its card has it.
+      detailOf: (task) => switch (_session.agentOf(task.toolUseId)) {
+        final agent? => AgentStep.latest(agent, l10n: context.l10n),
+        null => null,
       },
     );
   }
