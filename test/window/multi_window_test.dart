@@ -128,7 +128,7 @@ void main() {
   });
 
   _testWindows('an agent\'s window (Open with BaoCode): its agent\'s '
-      'conversation alone, a view of its own; closed, it goes', (tester) async {
+      'conversation, a view of its own; closed, it goes', (tester) async {
     final (windows, host, workspace) = await _pumpApp(tester);
     final opening = windows.openAgent(['~/code/baocode']);
     for (var i = 0; i < 4; i++) {
@@ -140,7 +140,8 @@ void main() {
     final chat = _inView(window.viewId, find.byType(ChatScreen));
     expect(chat, findsOneWidget);
     expect(tester.widget<ChatScreen>(chat).session, same(thread.session));
-    expect(_inView(window.viewId, find.byType(Sidebar)), findsNothing);
+    // Wide, its sidebar is docked, as the chat's window's.
+    expect(_inView(window.viewId, find.byType(Sidebar)), findsOneWidget);
     expect(_inView(window.viewId, find.byType(IdeWorkbench)), findsNothing);
     // The chat's window keeps its own.
     expect(_inView(0, find.byType(Sidebar)), findsOneWidget);
@@ -157,7 +158,7 @@ void main() {
   });
 
   testWidgets(
-    'Windows: an agent\'s window has the sidebar, as the chat\'s: '
+    'an agent\'s window has the sidebar, as the chat\'s: '
     'its toggle slides it out while narrow; an agent picked there shows in '
     'the window in place of its own',
     (tester) async {
@@ -208,7 +209,11 @@ void main() {
       expect(workspace.threads, isNot(contains(thread)));
     },
     semanticsEnabled: false,
-    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    // Its toggle is the header's on Windows, by the traffic lights on macOS.
+    variant: TargetPlatformVariant({
+      TargetPlatform.windows,
+      TargetPlatform.macOS,
+    }),
   );
 
   _testWindows('a window closed goes, its view and its workbench', (
