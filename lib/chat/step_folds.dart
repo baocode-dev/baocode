@@ -142,14 +142,18 @@ class StepFolds {
 
 /// Whether [item] is a quick step, folded with others like it: a thought,
 /// or a tool call that only looks around or runs something. Not an edit
-/// (shown on its own), a subagent, a message to another agent, a refused
-/// call, nor a command left running in the background.
+/// (shown on its own), a subagent, a message to another agent, a goal
+/// proposed, a refused call, nor a command left running in the
+/// background.
 bool isQuickStep(ChatItem item) => switch (item) {
   ThinkingItem() => true,
   ToolCallItem(:final kind, :final status) =>
     status != ToolStatus.denied &&
         switch (kind) {
-          ToolKind.edit || ToolKind.agent || ToolKind.message => false,
+          ToolKind.edit ||
+          ToolKind.agent ||
+          ToolKind.message ||
+          ToolKind.goal => false,
           _ => true,
         },
   TerminalItem(:final background) => !background,

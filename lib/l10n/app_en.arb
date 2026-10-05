@@ -1008,6 +1008,44 @@
   },
   "toolUsing": "Using",
   "toolUsed": "Used",
+  "toolProposingGoal": "Proposing a goal",
+  "toolProposedGoal": "Proposed a goal",
+  "goalAdopt": "Set as goal",
+  "@goalAdopt": {
+    "description": "Button on a goal the agent proposed: sets it as the session's goal."
+  },
+  "goalAdopted": "Goal set",
+  "goalLabel": "Goal",
+  "@goalLabel": {
+    "description": "Above the composer: the session's goal (Claude Code's /goal), which the agent keeps working toward until it is met."
+  },
+  "goalWorking": "In progress",
+  "goalWaiting": "Waiting",
+  "goalNeedsYou": "Waiting for you",
+  "goalMet": "Met",
+  "goalFailed": "Can't be met",
+  "goalChecks": "{count, plural, =1{checked once} other{checked {count} times}}",
+  "@goalChecks": {
+    "description": "How many times the goal was checked and found not met yet.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "goalLastCheck": "Last check",
+  "@goalLastCheck": {
+    "description": "Before why the last check found the goal not met yet."
+  },
+  "goalEdit": "Edit goal",
+  "goalClear": "Clear goal",
+  "goalClearConfirm": "Clear this goal?",
+  "goalSet": "Set goal",
+  "goalDismiss": "Dismiss",
+  "goalAfterTurn": "Takes effect when this turn ends",
+  "@goalAfterTurn": {
+    "description": "Under the goal being edited while the agent works: Claude Code takes it up once the turn ends."
+  },
   "imageChip": "Image {number}",
   "@imageChip": {
     "description": "An image's reference in a message's text, as a small tag.",

@@ -482,6 +482,30 @@ void main() {
       expect(header('Said Report back'), findsOneWidget);
     });
 
+    testWidgets('a proposed goal offers to set it, once', (tester) async {
+      final set = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatItemView(
+              item: const ToolCallItem(
+                kind: ToolKind.goal,
+                target: 'tests pass and lint is clean',
+                output: 'tests pass\nand lint is clean',
+              ),
+              onSetGoal: set.add,
+            ),
+          ),
+        ),
+      );
+      expect(header('Proposed a goal tests pass and lint is clean'), findsOne);
+      await tester.tap(find.text('Set as goal'));
+      await tester.pump();
+      expect(set, ['tests pass\nand lint is clean']);
+      expect(find.text('Set as goal'), findsNothing);
+      expect(find.text('Goal set'), findsOneWidget);
+    });
+
     test('the shell highlighter colors programs, strings and options', () {
       final spans = highlightShell(
         'cd /tmp && grep -rn "metadata" .gitignore | head -5',

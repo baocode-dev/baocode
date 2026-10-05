@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import '../floating/hover_tooltip.dart';
+import 'hover_builder.dart';
 import 'step_header.dart';
 
 /// A message to another agent's icon (Remix Icon's speak-ai-line).
@@ -26,6 +27,7 @@ class ToolCallRow extends StatelessWidget {
     this.output,
     this.expanded = false,
     this.onToggle,
+    this.onSetGoal,
   });
 
   final ToolKind kind;
@@ -38,6 +40,9 @@ class ToolCallRow extends StatelessWidget {
   final String? output;
   final bool expanded;
   final VoidCallback? onToggle;
+
+  /// Sets a proposed goal ([ToolKind.goal]; its condition the output).
+  final ValueChanged<String>? onSetGoal;
 
   bool get _running => status == ToolStatus.running;
 
@@ -57,20 +62,22 @@ class ToolCallRow extends StatelessWidget {
       running: _running,
       expanded: expanded,
       onToggle: _opens ? onToggle : null,
-      // A message to another agent: someone speaking, standing out.
-      icon: kind == ToolKind.message
-          ? SvgPicture.asset(
-              speakIcon,
-              width: 15,
-              height: 15,
-              // Amber: the theme's for an event, warm without the warning's
-              // mustard.
-              colorFilter: ColorFilter.mode(
-                themeColors['symbolIcon.eventForeground'],
-                BlendMode.srcIn,
-              ),
-            )
-          : null,
+      icon: switch (kind) {
+        // A message to another agent: someone speaking, standing out.
+        ToolKind.message => SvgPicture.asset(
+          speakIcon,
+          width: 15,
+          height: 15,
+          colorFilter: ColorFilter.mode(_amber, BlendMode.srcIn),
+        ),
+        ToolKind.goal => Icon(Icons.flag_outlined, size: 15, color: _amber),
+        _ => null,
+      },
+      action: switch ((kind, _shown, onSetGoal)) {
+        (ToolKind.goal, final condition?, final set?) when !_running =>
+          _SetGoalButton(onTap: () => set(condition)),
+        _ => null,
+      },
     );
     // A file read shows only its name: the whole path on hover.
     if (kind == ToolKind.read && path != null) {
@@ -90,6 +97,10 @@ class ToolCallRow extends StatelessWidget {
       ],
     );
   }
+
+  /// The theme's for an event: warm, standing out without the warning's
+  /// mustard.
+  static Color get _amber => themeColors['symbolIcon.eventForeground'];
 
   Widget _pathTooltip(BuildContext context) {
     final lines = switch (detail) {
@@ -144,6 +155,56 @@ String toolVerb(
           : status == ToolStatus.denied
           ? s.toolQuestionSkipped
           : s.toolAsked,
+    ToolKind.goal => running ? s.toolProposingGoal : s.toolProposedGoal,
     ToolKind.other => running ? s.toolUsing : s.toolUsed,
   };
+}
+
+/// Sets a proposed goal; once it has, says so.
+class _SetGoalButton extends StatefulWidget {
+  const _SetGoalButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_SetGoalButton> createState() => _SetGoalButtonState();
+}
+
+class _SetGoalButtonState extends State<_SetGoalButton> {
+  bool _set = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    if (_set) {
+      return Text(
+        l10n.goalAdopted,
+        style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+      );
+    }
+    return Semantics(
+      button: true,
+      child: HoverBuilder(
+        cursor: SystemMouseCursors.click,
+        builder: (context, hovered) => GestureDetector(
+          onTap: () {
+            setState(() => _set = true);
+            widget.onTap();
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: hovered ? AppColors.hover : null,
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(color: AppColors.borderStrong),
+            ),
+            child: Text(
+              l10n.goalAdopt,
+              style: TextStyle(color: AppColors.text, fontSize: 12),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

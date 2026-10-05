@@ -291,6 +291,67 @@ class TodoEntry {
   final String? activeForm;
 }
 
+// --- Goal -----------------------------------------------------------------------
+
+enum GoalState {
+  /// Being worked toward: the agent does not stop until it is met.
+  active,
+
+  /// Met, as the evaluator judged.
+  met,
+
+  /// Given up on: the evaluator judged it cannot be met.
+  failed,
+}
+
+/// The session's goal (Claude Code's `/goal`): a condition the agent works
+/// toward, checked by an evaluator each time it would stop.
+class KernelGoal {
+  const KernelGoal(
+    this.condition, {
+    this.state = GoalState.active,
+    this.checks = 0,
+    this.lastReason,
+    this.setAt,
+    this.duration,
+    this.tokens,
+  });
+
+  final String condition;
+  final GoalState state;
+
+  /// How many times it was checked and found not met yet.
+  final int checks;
+
+  /// Why the last check found it not met (or, once met, why it is).
+  final String? lastReason;
+
+  /// When it was set, as far as is known.
+  final DateTime? setAt;
+
+  /// How long it took to meet, once met.
+  final Duration? duration;
+
+  /// The tokens spent meeting it, once met (as Claude Code counts them).
+  final int? tokens;
+
+  KernelGoal copyWith({
+    GoalState? state,
+    int? checks,
+    String? lastReason,
+    Duration? duration,
+    int? tokens,
+  }) => KernelGoal(
+    condition,
+    state: state ?? this.state,
+    checks: checks ?? this.checks,
+    lastReason: lastReason ?? this.lastReason,
+    setAt: setAt,
+    duration: duration ?? this.duration,
+    tokens: tokens ?? this.tokens,
+  );
+}
+
 // --- Interactions -------------------------------------------------------------
 
 /// Something the agent waits on the user for.

@@ -1823,6 +1823,67 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toolUsed => '已使用';
 
   @override
+  String get toolProposingGoal => '正在提议目标';
+
+  @override
+  String get toolProposedGoal => '提议目标';
+
+  @override
+  String get goalAdopt => '设为目标';
+
+  @override
+  String get goalAdopted => '已设为目标';
+
+  @override
+  String get goalLabel => '目标';
+
+  @override
+  String get goalWorking => '进行中';
+
+  @override
+  String get goalWaiting => '等待中';
+
+  @override
+  String get goalNeedsYou => '等你回复';
+
+  @override
+  String get goalMet => '已达成';
+
+  @override
+  String get goalFailed => '无法达成';
+
+  @override
+  String goalChecks(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已检查 $count 次',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get goalLastCheck => '上次检查';
+
+  @override
+  String get goalEdit => '修改目标';
+
+  @override
+  String get goalClear => '清除目标';
+
+  @override
+  String get goalClearConfirm => '清除这个目标？';
+
+  @override
+  String get goalSet => '设定目标';
+
+  @override
+  String get goalDismiss => '关闭';
+
+  @override
+  String get goalAfterTurn => '本轮结束后生效';
+
+  @override
   String imageChip(int number) {
     return '图片 $number';
   }

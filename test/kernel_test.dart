@@ -2032,6 +2032,249 @@ void main() {
       expect(message.images.single.number, 4);
     });
 
+    group('goal', () {
+      Map<String, Object?> said(String text) => {
+        'type': 'assistant',
+        'uuid': 'a-${text.hashCode}',
+        'timestamp': '2026-10-05T10:00:00Z',
+        'message': {
+          'id': 'm-${text.hashCode}',
+          'model': '<synthetic>',
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': text},
+          ],
+        },
+      };
+      Map<String, Object?> told(String text, {bool meta = false}) => {
+        'type': 'user',
+        'uuid': 'u-${text.hashCode}',
+        'isMeta': ?(meta ? true : null),
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': text},
+          ],
+        },
+      };
+
+      test('is read from the answers to /goal, which do not show', () {
+        final transcript = Transcript();
+        var seq = 0;
+        final translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+        );
+        translator.translate(said('Goal set: all tests pass'));
+        expect(transcript.goal?.condition, 'all tests pass');
+        expect(transcript.goal?.state, GoalState.active);
+
+        // Checked, not met: the note to the model says why.
+        translator.translate(
+          told('Stop hook feedback:\n[all tests pass]: 2 still fail'),
+        );
+        expect(transcript.goal?.checks, 1);
+        expect(transcript.goal?.lastReason, '2 still fail');
+
+        translator.translate(
+          said(
+            'Goal active: all tests pass (3 turns)\n'
+            'Last check: 1 still fails',
+          ),
+        );
+        expect(transcript.goal?.checks, 3);
+        expect(transcript.goal?.lastReason, '1 still fails');
+
+        // Gone unasked: met.
+        translator.translate(said('No goal set. Usage: `/goal <condition>`'));
+        expect(transcript.goal?.state, GoalState.met);
+        expect(transcript.goal?.duration, Duration.zero);
+        expect(shown(transcript), isEmpty);
+
+        translator.translate(said('Goal set: ship it'));
+        translator.translate(said('Goal cleared: ship it'));
+        expect(transcript.goal, isNull);
+        expect(shown(transcript), isEmpty);
+      });
+
+      test('the check a client asks for does not show; one typed does', () {
+        final transcript = Transcript();
+        var seq = 0;
+        final translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+        );
+        // As Claude Code replays them.
+        String goal(String args) =>
+            '<command-name>/goal</command-name>\n'
+            '            <command-message>goal</command-message>\n'
+            '            <command-args>$args</command-args>';
+        translator.translate(told(goal('')));
+        translator.translate(told(goal('tests pass')));
+        expect(shown(transcript), ['user: /goal tests pass']);
+      });
+
+      test('a kept session has it as it stood, not once over', () {
+        final transcript = Transcript();
+        var seq = 0;
+        final translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+        )..replaying = true;
+        Map<String, Object?> status(Map<String, Object?> record) => {
+          'type': 'attachment',
+          'timestamp': '2026-10-05T10:00:00Z',
+          'attachment': {'type': 'goal_status', ...record},
+        };
+        translator.translate(
+          status({'condition': 'lint clean', 'met': false, 'sentinel': true}),
+        );
+        translator.translate(
+          status({'condition': 'lint clean', 'met': false, 'reason': '3 left'}),
+        );
+        expect(transcript.goal?.condition, 'lint clean');
+        expect(transcript.goal?.lastReason, '3 left');
+        expect(transcript.goal?.checks, 1);
+
+        translator.translate(
+          status({
+            'condition': 'lint clean',
+            'met': true,
+            'reason': 'clean',
+            'iterations': 2,
+            'durationMs': 5000,
+          }),
+        );
+        expect(transcript.goal, isNull);
+
+        // Live, met shows.
+        translator.replaying = false;
+        translator.translate(
+          status({'condition': 'docs built', 'met': false, 'sentinel': true}),
+        );
+        translator.translate(
+          status({
+            'condition': 'docs built',
+            'met': true,
+            'iterations': 1,
+            'durationMs': 5000,
+          }),
+        );
+        expect(transcript.goal?.state, GoalState.met);
+        expect(transcript.goal?.duration, const Duration(seconds: 5));
+      });
+
+      test(
+        'a kept session\'s goal records are read back, last or not',
+        () async {
+          final dir = Directory.systemTemp.createTempSync('goal');
+          addTearDown(() => dir.deleteSync(recursive: true));
+          final file = File('${dir.path}/s.jsonl')
+            ..writeAsStringSync(
+              [
+                {
+                  'type': 'user',
+                  'uuid': 'u1',
+                  'parentUuid': null,
+                  'message': {'role': 'user', 'content': 'hi'},
+                },
+                {
+                  'type': 'attachment',
+                  'uuid': 'g1',
+                  'parentUuid': 'u1',
+                  'attachment': {
+                    'type': 'goal_status',
+                    'condition': 'tests pass',
+                    'met': false,
+                    'sentinel': true,
+                  },
+                },
+                {
+                  'type': 'attachment',
+                  'uuid': 'x1',
+                  'parentUuid': 'g1',
+                  'attachment': {'type': 'hook_success'},
+                },
+              ].map(jsonEncode).join('\n'),
+            );
+          final kept = await ClaudeStorage.read(
+            SessionRecord(
+              id: 's',
+              title: '',
+              updatedAt: DateTime(2026),
+              cwd: '/p',
+              path: file.path,
+            ),
+          );
+          expect(kept.map((entry) => entry['uuid']), ['u1', 'g1']);
+        },
+      );
+
+      test('a proposed goal is a step with its condition', () {
+        final transcript = Transcript();
+        var seq = 0;
+        final translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+        );
+        translator.translate({
+          'type': 'assistant',
+          'uuid': 'p',
+          'message': {
+            'id': 'mp',
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': 't1',
+                'name': 'ProposeGoal',
+                'input': {'condition': 'all tests pass\nand lint is clean'},
+              },
+            ],
+          },
+        });
+        final step = transcript.itemAt(0) as ToolCallItem;
+        expect(step.kind, ToolKind.goal);
+        expect(step.target, 'all tests pass and lint is clean');
+        expect(step.output, 'all tests pass\nand lint is clean');
+      });
+
+      test('after a turn toward it, the kernel asks how it stands', () async {
+        final cli = FakeCli();
+        final (:kernel, :transcript, events: _) = claude(cli);
+        kernel.send(const KernelTurn(id: 'u1', text: '/goal tests pass'));
+        await pumpEventQueue();
+        cli
+          ..push(said('Goal set: tests pass'))
+          ..push({'type': 'result', 'subtype': 'success', 'is_error': false});
+        await pumpEventQueue();
+        // Set: the turn it was set in did no work toward it yet, but it is
+        // asked all the same; harmless.
+        final asked = cli.users.where(
+          (message) => ((message['message'] as Map)['content'] as List).any(
+            (block) => (block as Map)['text'] == '/goal',
+          ),
+        );
+        expect(asked, hasLength(1));
+
+        cli
+          ..push(said('No goal set. Usage: `/goal <condition>`'))
+          ..push({'type': 'result', 'subtype': 'success', 'is_error': false});
+        await pumpEventQueue();
+        expect(transcript.goal?.state, GoalState.met);
+        // Met: not asked again.
+        expect(
+          cli.users.where(
+            (message) => ((message['message'] as Map)['content'] as List).any(
+              (block) => (block as Map)['text'] == '/goal',
+            ),
+          ),
+          hasLength(1),
+        );
+        kernel.dispose();
+      });
+    });
+
     test(
       'suggests the next prompt once a turn ends, until one is sent',
       () async {

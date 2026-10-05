@@ -435,8 +435,7 @@ List<Map<String, Object?>> _branch(String path) {
   };
   Map<String, Object?>? leaf;
   for (final entry in entries.reversed) {
-    final type = entry['type'];
-    if ((type == 'user' || type == 'assistant' || type == 'system') &&
+    if (_kept(entry) &&
         entry['isSidechain'] != true &&
         entry['uuid'] is String) {
       leaf = entry;
@@ -455,9 +454,17 @@ List<Map<String, Object?>> _branch(String path) {
   }
   return [
     for (final entry in branch.reversed)
-      if (entry['type'] == 'user' ||
-          entry['type'] == 'assistant' ||
-          entry['type'] == 'system')
-        entry,
+      if (_kept(entry)) entry,
   ];
 }
+
+/// Whether [entry] is read back: a message, or how the session's goal
+/// stood (set, checked, met), which may follow the last message.
+bool _kept(Map<String, Object?> entry) => switch (entry['type']) {
+  'user' || 'assistant' || 'system' => true,
+  'attachment' => switch (entry['attachment']) {
+    {'type': 'goal_status'} => true,
+    _ => false,
+  },
+  _ => false,
+};
