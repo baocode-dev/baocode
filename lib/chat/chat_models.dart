@@ -119,6 +119,9 @@ enum ToolKind {
 
   /// A question for the user.
   question,
+
+  /// A goal proposed for the session (its condition the item's output).
+  goal,
   other,
 }
 

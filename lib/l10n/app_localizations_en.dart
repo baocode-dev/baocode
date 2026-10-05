@@ -1878,6 +1878,68 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolUsed => 'Used';
 
   @override
+  String get toolProposingGoal => 'Proposing a goal';
+
+  @override
+  String get toolProposedGoal => 'Proposed a goal';
+
+  @override
+  String get goalAdopt => 'Set as goal';
+
+  @override
+  String get goalAdopted => 'Goal set';
+
+  @override
+  String get goalLabel => 'Goal';
+
+  @override
+  String get goalWorking => 'In progress';
+
+  @override
+  String get goalWaiting => 'Waiting';
+
+  @override
+  String get goalNeedsYou => 'Waiting for you';
+
+  @override
+  String get goalMet => 'Met';
+
+  @override
+  String get goalFailed => 'Can\'t be met';
+
+  @override
+  String goalChecks(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'checked $count times',
+      one: 'checked once',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get goalLastCheck => 'Last check';
+
+  @override
+  String get goalEdit => 'Edit goal';
+
+  @override
+  String get goalClear => 'Clear goal';
+
+  @override
+  String get goalClearConfirm => 'Clear this goal?';
+
+  @override
+  String get goalSet => 'Set goal';
+
+  @override
+  String get goalDismiss => 'Dismiss';
+
+  @override
+  String get goalAfterTurn => 'Takes effect when this turn ends';
+
+  @override
   String imageChip(int number) {
     return 'Image $number';
   }

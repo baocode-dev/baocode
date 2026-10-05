@@ -26,6 +26,7 @@ class ChatItemView extends StatelessWidget {
     this.onMoveToBackground,
     this.onStop,
     this.onOpen,
+    this.onSetGoal,
   });
 
   final ChatItem item;
@@ -46,6 +47,9 @@ class ChatItemView extends StatelessWidget {
 
   /// Opens a subagent's own conversation.
   final VoidCallback? onOpen;
+
+  /// Sets a goal the agent proposed as the session's.
+  final ValueChanged<String>? onSetGoal;
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +99,7 @@ class ChatItemView extends StatelessWidget {
           output: output,
           expanded: expanded,
           onToggle: onToggle,
+          onSetGoal: onSetGoal,
         ),
       final AgentItem agent => AgentStep(
         item: agent,

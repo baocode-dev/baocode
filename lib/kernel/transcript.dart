@@ -69,6 +69,9 @@ class Transcript {
   List<KernelTask> tasks = const [];
   List<TodoEntry> todos = const [];
 
+  /// The session's goal, if it has one (or just met one).
+  KernelGoal? goal;
+
   int get length => _historyCount + _items.length;
 
   ChatItem itemAt(int index) =>
@@ -141,6 +144,8 @@ class Transcript {
         tasks = reported;
       case TodosReported(todos: final reported):
         todos = reported;
+      case GoalReported(goal: final reported):
+        goal = reported;
       case StatsReported(stats: final reported):
         stats = reported;
       case KernelInfoChanged():

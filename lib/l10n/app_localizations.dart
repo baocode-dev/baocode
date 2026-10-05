@@ -3578,6 +3578,114 @@ abstract class AppLocalizations {
   /// **'Used'**
   String get toolUsed;
 
+  /// No description provided for @toolProposingGoal.
+  ///
+  /// In en, this message translates to:
+  /// **'Proposing a goal'**
+  String get toolProposingGoal;
+
+  /// No description provided for @toolProposedGoal.
+  ///
+  /// In en, this message translates to:
+  /// **'Proposed a goal'**
+  String get toolProposedGoal;
+
+  /// Button on a goal the agent proposed: sets it as the session's goal.
+  ///
+  /// In en, this message translates to:
+  /// **'Set as goal'**
+  String get goalAdopt;
+
+  /// No description provided for @goalAdopted.
+  ///
+  /// In en, this message translates to:
+  /// **'Goal set'**
+  String get goalAdopted;
+
+  /// Above the composer: the session's goal (Claude Code's /goal), which the agent keeps working toward until it is met.
+  ///
+  /// In en, this message translates to:
+  /// **'Goal'**
+  String get goalLabel;
+
+  /// No description provided for @goalWorking.
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get goalWorking;
+
+  /// No description provided for @goalWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting'**
+  String get goalWaiting;
+
+  /// No description provided for @goalNeedsYou.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for you'**
+  String get goalNeedsYou;
+
+  /// No description provided for @goalMet.
+  ///
+  /// In en, this message translates to:
+  /// **'Met'**
+  String get goalMet;
+
+  /// No description provided for @goalFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t be met'**
+  String get goalFailed;
+
+  /// How many times the goal was checked and found not met yet.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{checked once} other{checked {count} times}}'**
+  String goalChecks(int count);
+
+  /// Before why the last check found the goal not met yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Last check'**
+  String get goalLastCheck;
+
+  /// No description provided for @goalEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit goal'**
+  String get goalEdit;
+
+  /// No description provided for @goalClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear goal'**
+  String get goalClear;
+
+  /// No description provided for @goalClearConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear this goal?'**
+  String get goalClearConfirm;
+
+  /// No description provided for @goalSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Set goal'**
+  String get goalSet;
+
+  /// No description provided for @goalDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get goalDismiss;
+
+  /// Under the goal being edited while the agent works: Claude Code takes it up once the turn ends.
+  ///
+  /// In en, this message translates to:
+  /// **'Takes effect when this turn ends'**
+  String get goalAfterTurn;
+
   /// An image's reference in a message's text, as a small tag.
   ///
   /// In en, this message translates to:

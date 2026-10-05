@@ -22,6 +22,7 @@ import 'panels/activity_strip.dart';
 import 'panels/health_banner.dart';
 import 'panels/interaction_panel.dart';
 import 'panels/context_usage_panel.dart';
+import 'panels/goal_panel.dart';
 import 'panels/todo_panel.dart';
 import 'widgets/agent_step.dart';
 import 'widgets/code_citation.dart';
@@ -191,6 +192,8 @@ class _ChatScreenState extends State<ChatScreen>
       });
     }
   }
+
+  void _setGoal(String condition) => _session.setGoal(condition);
 
   void _openAgent(AgentItem agent) {
     final id = agent.id;
@@ -497,6 +500,7 @@ class _ChatScreenState extends State<ChatScreen>
                         feed: _session,
                         maxContentWidth: _maxContentWidth,
                         onOpenAgent: _openAgent,
+                        onSetGoal: _setGoal,
                       ),
                       ListenableBuilder(
                         listenable: _session,
@@ -616,6 +620,7 @@ class _ChatScreenState extends State<ChatScreen>
             feed: layer.feed,
             maxContentWidth: _maxContentWidth,
             onOpenAgent: _openAgent,
+            onSetGoal: _setGoal,
           ),
         ),
       ],
@@ -629,6 +634,23 @@ class _ChatScreenState extends State<ChatScreen>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // First: what all the rest works toward.
+        _PanelSlot(
+          child: switch (_session.goal) {
+            final goal? => GoalPanel(
+              goal: goal,
+              activity: switch (_session) {
+                ChatSession(pendingInteraction: _?) => GoalActivity.needsYou,
+                ChatSession(isStreaming: true) => GoalActivity.working,
+                _ => GoalActivity.waiting,
+              },
+              onSet: _session.canSend ? _setGoal : null,
+              onClear: _session.canSend ? _session.clearGoal : null,
+              onDismiss: _session.dismissGoal,
+            ),
+            null => null,
+          },
+        ),
         _PanelSlot(
           child: switch (_session.context) {
             final usage? when _contextPanelOpen => ContextUsagePanel(

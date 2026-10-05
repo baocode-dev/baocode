@@ -141,6 +141,13 @@ final class TodosReported extends KernelEvent {
   final List<TodoEntry> todos;
 }
 
+/// The session's goal, as it now stands; null with none.
+final class GoalReported extends KernelEvent {
+  const GoalReported(super.seq, this.goal);
+
+  final KernelGoal? goal;
+}
+
 final class StatsReported extends KernelEvent {
   const StatsReported(super.seq, this.stats);
 

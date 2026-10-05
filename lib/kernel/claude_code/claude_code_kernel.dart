@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -1190,14 +1191,53 @@ class ClaudeCodeKernel
         );
       }
     }
+    final ended = _turn != null;
+    final done = message['subtype'] == 'success';
     _endTurn(
-      interrupted: message['subtype'] != 'success',
+      interrupted: !done,
       worked: switch (message['duration_ms']) {
         final num ms => Duration(milliseconds: ms.round()),
         _ => null,
       },
     );
     unawaited(_refreshContext());
+    // A goal being worked toward: met, it cleared itself without a word.
+    if (ended && done && _translator.goal?.state == GoalState.active) {
+      _askGoal();
+    }
+  }
+
+  /// Asks Claude Code how the goal stands, unseen: `/goal` is a local
+  /// command, answered without the model (no tokens) and without a turn
+  /// here. Its answer, "No goal set" once met, is read by the translator.
+  void _askGoal() {
+    if (_transport == null) return;
+    final id = _uuid();
+    _whenReady(
+      (transport) => transport.write({
+        'type': 'user',
+        'uuid': id,
+        'session_id': _sessionId ?? '',
+        'parent_tool_use_id': null,
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': '/goal'},
+          ],
+        },
+      }),
+    );
+  }
+
+  static final _random = math.Random.secure();
+
+  /// A random UUID (v4), for a message of this kernel's own.
+  static String _uuid() {
+    String hex(int length) =>
+        [for (var i = 0; i < length; i++) _random.nextInt(16).toRadixString(16)]
+            .join();
+    final variant = (8 + _random.nextInt(4)).toRadixString(16);
+    return '${hex(8)}-${hex(4)}-4${hex(3)}-$variant${hex(3)}-${hex(12)}';
   }
 
   static String _limitLabel(Object? type) => switch (type) {

@@ -582,6 +582,29 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   List<TodoEntry> get todos => _transcript.todos;
 
+  /// The goal the agent works toward (`/goal`), if any: just met, it is
+  /// still here, met, until [dismissGoal].
+  KernelGoal? get goal => switch (_transcript.goal) {
+    final goal? when !identical(goal, _dismissedGoal) => goal,
+    _ => null,
+  };
+  KernelGoal? _dismissedGoal;
+
+  /// Hides the [goal] there is; a new one shows again.
+  void dismissGoal() {
+    if (goal == null) return;
+    _dismissedGoal = _transcript.goal;
+    notifyListeners();
+  }
+
+  /// Sets [condition] as the goal, in place of any there is: when the turn
+  /// running, if any, ends.
+  void setGoal(String condition) =>
+      send(ComposerMessage(text: '/goal ${condition.trim()}'));
+
+  /// Clears the goal there is, when the turn running, if any, ends.
+  void clearGoal() => send(const ComposerMessage(text: '/goal clear'));
+
   /// The project's directory, which [fileChanges]' paths are in (on its
   /// host, for a remote one).
   String? get root =>

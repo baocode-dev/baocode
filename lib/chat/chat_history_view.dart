@@ -34,6 +34,7 @@ class ChatHistoryView extends StatefulWidget {
     required this.feed,
     this.maxContentWidth = 760,
     this.onOpenAgent,
+    this.onSetGoal,
   });
 
   /// The conversation shown: a session's, or a subagent's.
@@ -42,6 +43,9 @@ class ChatHistoryView extends StatefulWidget {
 
   /// Opens a subagent's own conversation, from its card.
   final ValueChanged<AgentItem>? onOpenAgent;
+
+  /// Sets a goal the agent proposed as the session's, from its card.
+  final ValueChanged<String>? onSetGoal;
 
   @override
   State<ChatHistoryView> createState() => _ChatHistoryViewState();
@@ -1202,6 +1206,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
             () => open(agent),
           _ => null,
         },
+        onSetGoal: widget.onSetGoal,
       );
       shown = switch (item) {
         // Meanwhile over the item it gave way to.
