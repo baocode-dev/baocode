@@ -1937,7 +1937,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get goalDismiss => 'Dismiss';
 
   @override
-  String get goalAfterTurn => 'Takes effect when this turn ends';
+  String get goalStopsTurn => 'Stops this turn to take effect now';
 
   @override
   String imageChip(int number) {

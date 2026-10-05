@@ -46,6 +46,19 @@ void main() {
     expect(find.text('Waiting'), findsOneWidget);
   });
 
+  testWidgets('counts the time it has been worked toward', (tester) async {
+    await pump(
+      tester,
+      KernelGoal(
+        'all tests pass',
+        setAt: DateTime.now().subtract(const Duration(seconds: 27)),
+      ),
+    );
+    expect(find.text(' · 27s'), findsOneWidget);
+    // Its ticking stops with it.
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('opened, it shows why it is not met yet and edits it', (
     tester,
   ) async {
@@ -64,8 +77,8 @@ void main() {
     await tester.tap(find.text('Edit goal'));
     await tester.pump();
     await tester.pump();
-    // The agent works: the new one waits for its turn to end.
-    expect(find.text('Takes effect when this turn ends'), findsOneWidget);
+    // The agent works: the new one stops it, to be taken up at once.
+    expect(find.text('Stops this turn to take effect now'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'all tests pass, twice');
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();

@@ -524,12 +524,17 @@ class KernelTurn {
     required this.text,
     this.mentions = const [],
     this.images = const [],
+    this.now = false,
   });
 
   /// Made by the client: sending the same turn twice runs it once.
   final String id;
   final String text;
   final List<String> mentions;
+
+  /// Taken up at once rather than after the turn running, which is stopped
+  /// for it (where a kernel queues messages).
+  final bool now;
 
   /// Only for kernels that accept images.
   final List<ImageAttachment> images;

@@ -597,7 +597,7 @@
   "goalClearConfirm": "清除这个目标？",
   "goalSet": "设定目标",
   "goalDismiss": "关闭",
-  "goalAfterTurn": "本轮结束后生效",
+  "goalStopsTurn": "将中断当前这一轮，立即生效",
   "imageChip": "图片 {number}",
   "imageReferenceRemoved": "[图片 {number}]",
   "imageCopy": "复制图片",

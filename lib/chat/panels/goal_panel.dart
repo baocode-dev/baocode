@@ -71,6 +71,9 @@ class _GoalPanelState extends State<GoalPanel> {
   bool _leaving = false;
   Timer? _metTimer;
 
+  /// Ticks the time it has been worked toward, while it is.
+  Timer? _clock;
+
   final TextEditingController _text = TextEditingController();
   final FocusNode _textFocus = FocusNode();
 
@@ -90,12 +93,30 @@ class _GoalPanelState extends State<GoalPanel> {
       _confirmingClear = false;
     }
     _scheduleLeave();
+    _tick();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _scheduleLeave();
+    _tick();
+  }
+
+  /// Keeps the time shown current, while it counts and is shown.
+  void _tick() {
+    final counting =
+        widget.goal.state == GoalState.active &&
+        widget.goal.setAt != null &&
+        TickerMode.valuesOf(context).enabled;
+    if (!counting) {
+      _clock?.cancel();
+      _clock = null;
+    } else {
+      _clock ??= Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   /// Once met, it goes after showing a while; only while shown (its tab in
@@ -121,6 +142,7 @@ class _GoalPanelState extends State<GoalPanel> {
   @override
   void dispose() {
     _metTimer?.cancel();
+    _clock?.cancel();
     _text.dispose();
     _textFocus.dispose();
     super.dispose();
@@ -265,7 +287,7 @@ class _GoalPanelState extends State<GoalPanel> {
     final l10n = context.l10n;
     final goal = widget.goal;
     final style = TextStyle(color: AppColors.textMuted, fontSize: 12);
-    return switch (goal.state) {
+    final state = switch (goal.state) {
       GoalState.met => Text(
         [
           l10n.goalMet,
@@ -292,6 +314,22 @@ class _GoalPanelState extends State<GoalPanel> {
         GoalActivity.waiting => Text(l10n.goalWaiting, style: style),
       },
     };
+    // How long it has been worked toward; once met, how long it took.
+    final setAt = goal.setAt;
+    if (goal.state != GoalState.active || setAt == null) return state;
+    final elapsed = DateTime.now().difference(setAt);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        state,
+        Text(
+          ' · ${AgentStep.formatDuration(elapsed.isNegative ? Duration.zero : elapsed, l10n: l10n)}',
+          style: style.copyWith(
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildBody() {
@@ -433,7 +471,7 @@ class _GoalPanelState extends State<GoalPanel> {
             if (widget.activity == GoalActivity.working)
               Flexible(
                 child: Text(
-                  l10n.goalAfterTurn,
+                  l10n.goalStopsTurn,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: AppColors.textFaint, fontSize: 12),

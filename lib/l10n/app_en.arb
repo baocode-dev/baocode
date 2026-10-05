@@ -1042,9 +1042,9 @@
   "goalClearConfirm": "Clear this goal?",
   "goalSet": "Set goal",
   "goalDismiss": "Dismiss",
-  "goalAfterTurn": "Takes effect when this turn ends",
-  "@goalAfterTurn": {
-    "description": "Under the goal being edited while the agent works: Claude Code takes it up once the turn ends."
+  "goalStopsTurn": "Stops this turn to take effect now",
+  "@goalStopsTurn": {
+    "description": "Under the goal being edited while the agent works: setting it stops the running turn, as Claude Code takes a goal up only between turns."
   },
   "imageChip": "Image {number}",
   "@imageChip": {

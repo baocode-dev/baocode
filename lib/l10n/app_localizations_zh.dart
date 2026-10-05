@@ -1881,7 +1881,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get goalDismiss => '关闭';
 
   @override
-  String get goalAfterTurn => '本轮结束后生效';
+  String get goalStopsTurn => '将中断当前这一轮，立即生效';
 
   @override
   String imageChip(int number) {
