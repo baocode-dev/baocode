@@ -597,13 +597,15 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     notifyListeners();
   }
 
-  /// Sets [condition] as the goal, in place of any there is: when the turn
-  /// running, if any, ends.
+  /// Sets [condition] as the goal, in place of any there is, and sets the
+  /// agent to work toward it. At once: Claude Code takes up `/goal` only
+  /// between turns.
   void setGoal(String condition) =>
-      send(ComposerMessage(text: '/goal ${condition.trim()}'));
+      send(ComposerMessage(text: '/goal ${condition.trim()}'), now: true);
 
-  /// Clears the goal there is, when the turn running, if any, ends.
-  void clearGoal() => send(const ComposerMessage(text: '/goal clear'));
+  /// Clears the goal there is, at once.
+  void clearGoal() =>
+      send(const ComposerMessage(text: '/goal clear'), now: true);
 
   /// The project's directory, which [fileChanges]' paths are in (on its
   /// host, for a remote one).
@@ -738,13 +740,16 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   // --- Commands ---------------------------------------------------------------
 
-  void send(ComposerMessage message) {
+  /// Sends [message]; [now], taken up at once, the turn running stopped
+  /// for it (rather than queued behind it).
+  void send(ComposerMessage message, {bool now = false}) {
     if (message.isEmpty || !canSend) return;
     final turn = KernelTurn(
       id: newTurnId(),
       text: message.text.trim(),
       mentions: message.mentions,
       images: acceptsImages ? message.images : const [],
+      now: now,
     );
     final opening = _reviewOpening;
     if (opening == null) {

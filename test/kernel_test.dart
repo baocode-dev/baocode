@@ -2210,6 +2210,46 @@ void main() {
         },
       );
 
+      test('set while the agent works, it is taken up at once: queued, '
+          'then the turn stopped', () async {
+        final cli = FakeCli();
+        final descriptor = KernelDescriptor(
+          id: 'claude-code',
+          label: 'Claude Code',
+          icon: Icons.auto_awesome_rounded,
+          description: '',
+          create: (context) => ClaudeCodeKernel(
+            MockKernels.claudeCode,
+            context,
+            start: (_) async => cli,
+          ),
+        );
+        final session = ChatSession(
+          kernel: descriptor,
+          kernels: [descriptor],
+          historyCount: 0,
+        );
+        addTearDown(session.dispose);
+        session.send(const ComposerMessage(text: 'work'));
+        await pumpEventQueue();
+        expect(session.isStreaming, isTrue);
+
+        session.setGoal('  tests pass ');
+        await pumpEventQueue();
+        final goal = cli.users.last;
+        expect((goal['message'] as Map)['content'], [
+          {'type': 'text', 'text': '/goal tests pass'},
+        ]);
+        // Stopped after it is sent: it is what the CLI takes up next.
+        final interrupt = cli.written.indexWhere(
+          (message) =>
+              message['type'] == 'control_request' &&
+              (message['request'] as Map)['subtype'] == 'interrupt',
+        );
+        expect(interrupt, greaterThan(cli.written.indexOf(goal)));
+        expect(session.isStreaming, isFalse);
+      });
+
       test('a proposed goal is a step with its condition', () {
         final transcript = Transcript();
         var seq = 0;

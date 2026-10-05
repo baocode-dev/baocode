@@ -504,8 +504,8 @@ class ClaudeCodeKernel
     final ask = _work == 'ask';
     final askEnded = _inAsk && !ask;
     _inAsk = ask;
-    _whenReady(
-      (transport) => transport.write({
+    _whenReady((transport) {
+      transport.write({
         'type': 'user',
         'uuid': turn.id,
         'session_id': _sessionId ?? '',
@@ -534,8 +534,11 @@ class ClaudeCodeKernel
               {'type': 'text', 'text': _askEndedNote},
           ],
         },
-      }),
-    );
+      });
+      // Queued behind the turn running: stopped once it is sent, so it is
+      // taken up next, as when the user stops the turn.
+      if (turn.now && _queued.contains(turn.id)) cancel();
+    });
   }
 
   void _beginTurn(String id, {bool unprompted = false}) {

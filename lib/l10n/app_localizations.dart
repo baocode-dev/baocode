@@ -3680,11 +3680,11 @@ abstract class AppLocalizations {
   /// **'Dismiss'**
   String get goalDismiss;
 
-  /// Under the goal being edited while the agent works: Claude Code takes it up once the turn ends.
+  /// Under the goal being edited while the agent works: setting it stops the running turn, as Claude Code takes a goal up only between turns.
   ///
   /// In en, this message translates to:
-  /// **'Takes effect when this turn ends'**
-  String get goalAfterTurn;
+  /// **'Stops this turn to take effect now'**
+  String get goalStopsTurn;
 
   /// An image's reference in a message's text, as a small tag.
   ///
