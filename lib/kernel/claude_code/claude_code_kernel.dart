@@ -289,7 +289,7 @@ class ClaudeCodeKernel
           resume: _sessionId,
           model: model,
           // Plan is entered once started.
-          permissionMode: _cliMode = _approval,
+          permissionMode: _cliMode = _cliApproval,
           autoModeDuringPlan: _planReviewed = _reviewsPlan,
           effort: direct && (custom == null || _cliEfforts.contains(effort))
               ? effort
@@ -341,7 +341,10 @@ class ClaudeCodeKernel
       _fail(error.message, error.detail);
       rethrow;
     } on ControlError catch (error) {
-      _fail('Claude Code did not start', '$error');
+      // Exited while starting: what it said is kept (see _exited).
+      if (_health.status != KernelHealthStatus.failed) {
+        _fail('Claude Code did not start', '$error');
+      }
       rethrow;
     }
   }
@@ -851,9 +854,9 @@ class ClaudeCodeKernel
   /// goes on in.
   String _startBuilding() {
     _work = 'agent';
-    _cliMode = _approval;
+    _cliMode = _cliApproval;
     emitInfoChanged();
-    return _approval;
+    return _cliApproval;
   }
 
   static Map<String, Object?> _setMode(String mode) => {
@@ -884,14 +887,16 @@ class ClaudeCodeKernel
       _control!.respond(requestId, {'behavior': 'deny', 'message': message});
       return;
     }
-    // Full access in Plan leaves to the classifier what the CLI cannot
-    // tell is read-only; with no classifier (another provider's model),
-    // it is approved here, as it would be by the classifier, not asked.
+    // Full access is approved here (see _cliApproval), but for what the
+    // CLI's own would ask all the same. In Plan it leaves to the
+    // classifier what the CLI cannot tell is read-only; with no
+    // classifier (another provider's model), that is approved here too,
+    // as it would be by the classifier.
     if (_approval == 'bypassPermissions' &&
-        _work == 'plan' &&
-        !_classifies &&
+        (_work != 'plan' || !_classifies) &&
         tool != 'AskUserQuestion' &&
-        tool != 'ExitPlanMode') {
+        tool != 'ExitPlanMode' &&
+        !_askedInFullAccess(request)) {
       _control!.respond(requestId, {
         'behavior': 'allow',
         'updatedInput': input,
@@ -2033,7 +2038,22 @@ class ClaudeCodeKernel
 
   /// The CLI's permission mode for what is picked: the approvals, but in
   /// Plan.
-  String get _mode => _work == 'plan' ? 'plan' : _approval;
+  String get _mode => _work == 'plan' ? 'plan' : _cliApproval;
+
+  /// The CLI's mode for the approvals picked. Full access is not the
+  /// CLI's bypassPermissions, which it refuses as root and cannot switch
+  /// to unless started allowing it: it accepts edits, and what it asks
+  /// about otherwise is approved in [_permission].
+  String get _cliApproval =>
+      _approval == 'bypassPermissions' ? 'acceptEdits' : _approval;
+
+  /// What is asked about in full access, as in the CLI's own: its safety
+  /// checks (a dangerous `rm`, the project's `.git`), also within a
+  /// compound command, and the user's ask rules.
+  static bool _askedInFullAccess(Map<String, Object?> request) =>
+      request['decision_reason_type'] == 'safetyCheck' ||
+      request['classifier_approvable'] != null ||
+      request['matched_ask_rule'] != null;
 
   /// Plan's commands are left to the classifier with the approvals that
   /// approve for the user; asked about with the others.

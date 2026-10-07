@@ -46,6 +46,12 @@ Map<String, Object?> recordedResponse(String name, bool Function(Map) match) {
 
 /// Claude Code as the test speaks it: answers control requests the way the
 /// CLI does (from recordings), and records what the kernel wrote.
+/// A CLI that answers nothing: one that exits before it does.
+class _SilentCli extends FakeCli {
+  @override
+  void write(Map<String, Object?> message) => written.add(message);
+}
+
 class FakeCli implements ClaudeCodeTransport {
   FakeCli({this.answers = const {}});
 
@@ -741,13 +747,19 @@ void main() {
       final (:kernel, :transcript, events: _) = claude(cli);
       kernel.send(const KernelTurn(id: 'u1', text: 'go'));
       await pumpEventQueue();
-      void ask(String id, String tool, Map<String, Object?> input) => cli.push({
+      void ask(
+        String id,
+        String tool,
+        Map<String, Object?> input, [
+        Map<String, Object?> why = const {},
+      ]) => cli.push({
         'type': 'control_request',
         'request_id': id,
         'request': {
           'subtype': 'can_use_tool',
           'tool_name': tool,
           'input': input,
+          ...why,
         },
       });
       const question = {
@@ -780,11 +792,34 @@ void main() {
         kernel.answer('r1-$mode', const QuestionAnswer([], skipped: true));
       }
       kernel.mode.select('agent');
-      // What the CLI still asks, and the plan, are the user's.
-      ask('r2', 'Bash', command);
+      // Approved here, the CLI only accepting edits.
+      expect(cli.requests('set_permission_mode').last['mode'], 'acceptEdits');
+      ask('r2', 'Bash', command, {'decision_reason_type': 'mode'});
       await pumpEventQueue();
-      expect(transcript.pendingInteraction, isA<ApprovalRequest>());
-      kernel.answer('r2', const ApprovalAnswer(ApprovalDecision.allowOnce));
+      expect(transcript.pendingInteraction, isNull);
+      expect(cli.responses.last['behavior'], 'allow');
+      expect(cli.responses.last['updatedInput'], command);
+      // What the CLI's own full access asks all the same, and the plan,
+      // are the user's.
+      for (final (i, why) in const [
+        {'decision_reason_type': 'safetyCheck'},
+        {
+          'decision_reason_type': 'subcommandResults',
+          'classifier_approvable': false,
+        },
+        {
+          'decision_reason_type': 'rule',
+          'matched_ask_rule': {'toolName': 'Bash'},
+        },
+      ].indexed) {
+        ask('r2-$i', 'Bash', command, why);
+        await pumpEventQueue();
+        expect(transcript.pendingInteraction, isA<ApprovalRequest>());
+        kernel.answer(
+          'r2-$i',
+          const ApprovalAnswer(ApprovalDecision.allowOnce),
+        );
+      }
       ask('r3', 'ExitPlanMode', {'plan': '1. Do it'});
       await pumpEventQueue();
       expect(transcript.pendingInteraction, isA<PlanReviewRequest>());
@@ -1438,6 +1473,29 @@ void main() {
       );
     });
 
+    test('one that exits while starting says what it printed', () async {
+      final cli = _SilentCli();
+      final kernel = ClaudeCodeKernel(
+        MockKernels.claudeCode,
+        const KernelContext(cwd: '/p'),
+        start: (_) async => cli,
+      );
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      cli.push(
+        ClaudeExit.message(
+          1,
+          '--dangerously-skip-permissions cannot be used with root/sudo '
+          'privileges for security reasons',
+        ),
+      );
+      await pumpEventQueue();
+      expect(kernel.health.status, KernelHealthStatus.failed);
+      expect(kernel.health.message, 'Claude Code stopped');
+      expect(kernel.health.detail, contains('root/sudo privileges'));
+      kernel.dispose();
+    });
+
     test(
       'a crash fails the turn and says why; retrying starts again',
       () async {
@@ -1701,7 +1759,8 @@ void main() {
       // Out of Ask: the CLI is told nothing, the model once.
       kernel.mode.select('agent');
       kernel.permission.select('bypassPermissions');
-      expect(modesSent(), ['plan', 'acceptEdits', 'bypassPermissions']);
+      // Full access is the CLI accepting edits, the rest approved here.
+      expect(modesSent(), ['plan', 'acceptEdits', 'acceptEdits']);
       kernel.send(const KernelTurn(id: 'u2', text: 'fix it'));
       kernel.send(const KernelTurn(id: 'u3', text: 'and test it'));
       await pumpEventQueue();
@@ -2486,6 +2545,31 @@ void main() {
       );
       kernel.dispose();
     });
+  });
+
+  test('full access is not the CLI\'s, which root cannot have', () async {
+    final cli = FakeCli();
+    final launches = <ClaudeLaunch>[];
+    final kernel = ClaudeCodeKernel(
+      MockKernels.claudeCode,
+      const KernelContext(
+        cwd: '/p',
+        settings: {'permission': 'bypassPermissions'},
+      ),
+      start: (launch) async {
+        launches.add(launch);
+        return cli;
+      },
+    );
+    kernel.prepare();
+    await pumpEventQueue();
+    expect(launches.single.permissionMode, 'acceptEdits');
+    expect(
+      launches.single.arguments.where((a) => a.contains('dangerously')),
+      isEmpty,
+    );
+    expect(kernel.permission.selected, 'bypassPermissions');
+    kernel.dispose();
   });
 
   test('Claude Code is asked to cite code in the chat\'s format', () {

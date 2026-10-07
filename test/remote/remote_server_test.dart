@@ -11,6 +11,7 @@ import 'package:bao_remote/local.dart'
     show ClaudeEnvironment, CliLocator, ClaudeUnavailable, watchRecursively;
 import 'package:bao_remote/lsp.dart';
 import 'package:bao_remote/search.dart';
+import 'package:bao_remote/server.dart' show ServerClaude;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
@@ -277,6 +278,47 @@ void main() {
   });
 
   group('Claude Code', () {
+    test('as root, started without allowing to skip the permissions', () {
+      const args = [
+        '-p',
+        '--allow-dangerously-skip-permissions',
+        '--permission-mode',
+        'default',
+      ];
+      expect(
+        ServerClaude.argumentsFor(args, root: true, environment: const {}),
+        ['-p', '--permission-mode', 'default'],
+      );
+      // Not root, or a sandbox: as asked.
+      expect(
+        ServerClaude.argumentsFor(args, root: false, environment: const {}),
+        args,
+      );
+      expect(
+        ServerClaude.argumentsFor(
+          args,
+          root: true,
+          environment: const {'IS_SANDBOX': '1'},
+        ),
+        args,
+      );
+      // Full access is refused there, saying why.
+      expect(
+        () => ServerClaude.argumentsFor(
+          ['-p', '--permission-mode', 'bypassPermissions'],
+          root: true,
+          environment: const {},
+        ),
+        throwsA(
+          isA<ClaudeUnavailable>().having(
+            (error) => error.message,
+            'message',
+            'Claude Code does not run with full access as root',
+          ),
+        ),
+      );
+    });
+
     late Directory home;
     late File fake;
 

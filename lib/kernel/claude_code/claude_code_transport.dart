@@ -160,7 +160,6 @@ class ClaudeLaunch {
     '--replay-user-messages',
     '--permission-prompt-tool',
     'stdio',
-    '--allow-dangerously-skip-permissions',
     '--thinking-display',
     'summarized',
     // A prompt_suggestion message after each turn.

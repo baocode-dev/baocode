@@ -54,6 +54,50 @@ class ServerClaude {
     }
   }
 
+  /// [arguments] as Claude Code starts with them run with [environment],
+  /// as root where [root]: there it will not start where skipping the
+  /// permissions is allowed at all, unless told it is in a sandbox
+  /// (`IS_SANDBOX=1`, or bubblewrap's). The allowing flag is left out
+  /// then; full access asked for is refused, saying why.
+  static List<String> argumentsFor(
+    List<String> arguments, {
+    required bool root,
+    required Map<String, String> environment,
+  }) {
+    final sandboxed =
+        environment['IS_SANDBOX'] == '1' ||
+        (environment['CLAUDE_CODE_BUBBLEWRAP'] ?? '').isNotEmpty;
+    if (!root || sandboxed) return arguments;
+    final mode = arguments.indexOf('--permission-mode');
+    if (mode >= 0 &&
+        mode + 1 < arguments.length &&
+        arguments[mode + 1] == 'bypassPermissions') {
+      throw const ClaudeUnavailable(
+        'Claude Code does not run with full access as root',
+        detail:
+            'It refuses to skip the permission checks with root privileges. '
+            'Pick another access mode, or connect as a user other than '
+            'root.\n\nOn a host that is a disposable sandbox, IS_SANDBOX=1 '
+            'in its environment lifts this.',
+      );
+    }
+    return [
+      for (final argument in arguments)
+        if (argument != '--allow-dangerously-skip-permissions') argument,
+    ];
+  }
+
+  /// Whether the server runs as root: `/proc/self/status`'s real user id.
+  static bool get runsAsRoot {
+    try {
+      final status = File('/proc/self/status').readAsStringSync();
+      final uid = RegExp(r'^Uid:\s+(\d+)', multiLine: true).firstMatch(status);
+      return uid?.group(1) == '0';
+    } on FileSystemException {
+      return false;
+    }
+  }
+
   /// Downloads and installs the current build unless one is: its progress,
   /// `{received, size}`, as a stream.
   int _install() {
