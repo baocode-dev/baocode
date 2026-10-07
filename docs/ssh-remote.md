@@ -153,7 +153,7 @@
 代码：`SshLauncher.connect`（`ssh_launcher.dart`）、`SshHost._attempt`（`ssh_host.dart`）。
 
 1. **找 ssh**：在本机 PATH 里找 `ssh`，找不到就是 `noSsh` 失败。
-2. **找服务端二进制**：先找应用目录里的（见第 9 节）；安装包里只有 `servers.json` 时，第一次用到某个架构才从 baocode.dev 下载；开发时没有就从源码编译。都没有就报错。
+2. **找服务端二进制**：先找应用目录里的（见第 9 节）；安装包里只有 `servers.json` 时，第一次用到某个架构才从 dl.baocode.dev 下载；开发时没有就从源码编译。都没有就报错。
 3. **探测**：执行 `ssh <参数> <主机> sh -s`，通过 stdin 送一段脚本，返回：
    - `uname -s` 和 `uname -m`：不是 Linux x64/arm64 就报 `unsupported`；
    - `~/.baocode-server/<VERSION>/baocode-server` 是否已经存在；
@@ -324,7 +324,7 @@ dart run tool/build_remote_server.dart --out <目录>
 
 会生成 `baocode-server-linux-x64`、`baocode-server-linux-arm64` 和 `VERSION`。用的是 `dart compile exe --target-os linux` 交叉编译，在 macOS 或 Windows 上都能编出 Linux 二进制。版本号通过 `-Dbaocode.version=<pubspec 版本>` 传给服务端。
 
-另外还会生成两个 gzip 后的 `baocode-server-linux-<arch>.gz`（约 3.3 MB，原文件约 8 MB），以及 `servers.json`：写明每个 `.gz` 的下载地址 `https://baocode.dev/releases/remote/<VERSION>/<文件>`、大小和 SHA-256。
+另外还会生成两个 gzip 后的 `baocode-server-linux-<arch>.gz`（约 3.3 MB，原文件约 8 MB），以及 `servers.json`：写明每个 `.gz` 的下载地址 `https://dl.baocode.dev/releases/remote/<VERSION>/<文件>`、大小和 SHA-256。
 
 ### 9.2 应用在哪里找服务端
 
@@ -347,7 +347,7 @@ dart run tool/build_remote_server.dart --out <目录>
 安装包**不带服务端二进制**，只带 `VERSION` 和 `servers.json`。两个二进制原本占 16 MB，大多数用户不连远程，而每台主机只需要其中一个架构。
 
 - **打包**：`tool/build_macos.dart` 和 `tool/build_windows.dart` 先编译到 `build/remote/`，再只把 `VERSION`、`servers.json` 放进 `BaoCode.app/Contents/Resources/remote/`（Windows 是 `<bundle>\remote\`），`.gz` 放到 `build/installers/remote/<VERSION>/`。
-- **发布**：把 `build/installers/remote/<VERSION>/` 里的 `.gz` 上传到 `https://baocode.dev/releases/remote/<VERSION>/`。**要在安装包发出去之前上传**，否则这个版本连不了远程。旧版本的目录要一直保留，因为装着旧版的用户还要下载。
+- **发布**：把 `build/installers/remote/<VERSION>/` 里的 `.gz` 上传到 `https://dl.baocode.dev/releases/remote/<VERSION>/`。**要在安装包发出去之前上传**，否则这个版本连不了远程（CI 会按这个顺序传，见 docs/release.md）。旧版本的目录要一直保留，因为装着旧版的用户还要下载。
 - **下载**：第一次连某个架构的主机时，应用下载对应的 `.gz`，按 `servers.json` 校验大小和 SHA-256，存到数据目录的 `cache/remote-server/<VERSION>/`，之后照旧经 ssh 推送到主机（第 4 节第 4 步）。远端主机不需要能上网。下载完会删掉其他版本的缓存；同时连多台同架构的主机只下载一次。
 - **安全**：`servers.json` 在安装包里，跟着应用一起签名，所以下载到的只能是这个版本编出来的那份；被替换的文件校验不过，连接报 `server` 失败。
 - 下载失败或校验不过，连接失败，报错里带着下载地址；下次连接重试。

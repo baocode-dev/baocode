@@ -11,8 +11,20 @@
 // server's gzipped builds, which the app downloads instead of carrying
 // them (tool/build_remote_server.dart), to upload with the release.
 //
-// Not done yet: signing and notarising (the TODO in main). Without them
-// Gatekeeper refuses the app on anyone else's machine.
+// Signed with a Developer ID and notarised when the environment says how
+// (docs/release.md has how to get each):
+//
+//   BAOCODE_MACOS_SIGN_IDENTITY  "Developer ID Application: <name> (<team>)",
+//                                its certificate in a keychain searched
+//   BAOCODE_NOTARY_KEY           an App Store Connect API key (.p8), its path
+//   BAOCODE_NOTARY_KEY_ID        that key's ID
+//   BAOCODE_NOTARY_ISSUER        its issuer ID
+//
+// Without an identity the app stays signed ad hoc, as flutter builds it:
+// fine on this machine, refused by Gatekeeper on anyone else's ("BaoCode is
+// damaged and can't be opened"). Signed but not notarised, it is refused
+// too, with another message.
+import 'dart:convert';
 import 'dart:io';
 
 /// Where the .app flutter leaves behind goes, and where the disk image is
@@ -96,45 +108,17 @@ Future<void> main(List<String> arguments) async {
     );
   }
 
-  // TODO(macos): sign and notarise here, before the disk image and the zip
-  // are made of the app. Without both, Gatekeeper refuses the app on anyone
-  // else's machine ("BaoCode is damaged and can't be opened"), and the .dmg
-  // is only good for people who can run `xattr -d com.apple.quarantine` on
-  // it. Both need an Apple Developer account ($99/year) and a "Developer ID
-  // Application" certificate:
-  //   codesign --deep --force --options runtime \
-  //     --entitlements macos/Runner/Release.entitlements \
-  //     --sign "Developer ID Application: <name> (<team>)" <the .app>
-  //   xcrun notarytool submit <the .dmg> --wait \
-  //     --apple-id <id> --team-id <team> --password <app-specific>
-  //   xcrun stapler staple <the .dmg>
-  // Sign before making the image, staple after: the ticket goes on the
-  // .dmg, and the .app inside it has to be signed already. The update's zip
-  // is made of the signed .app too (staple the .app itself before zipping
-  // it, so the zip carries the ticket).
-  //
-  // Not --deep, though: it would give the Finder extension
-  // (Contents/PlugIns/FinderExtension.appex) the app's entitlements, sandbox
-  // off, and the system refuses to load an extension that is not
-  // sandboxed. Sign the extension first, with its own, then the app around
-  // it (the frameworks under Contents/Frameworks, signed without
-  // entitlements, before the app too):
-  //   codesign --force --options runtime \
-  //     --entitlements macos/FinderExtension/FinderExtension.entitlements \
-  //     --sign "Developer ID Application: <name> (<team>)" \
-  //     <the .app>/Contents/PlugIns/FinderExtension.appex
-  //
-  // --entitlements is not optional here. macos/Runner/Release.entitlements
-  // turns the sandbox OFF, which this app needs: it runs the Claude Code
-  // CLI as a child process and reads its sessions under ~/.claude, and a
-  // sandboxed app can do neither — nor could it replace itself to update.
-  // Signing without it would silently re-enable the sandbox and the app
-  // would fail at runtime, not at build time. Do not take the Xcode default
-  // of DebugProfile's entitlements either: that one adds allow-jit and
-  // network.server, which are for debugging.
-  //
-  // Once signed, an update has to be signed by the same team: the app
-  // checks (lib/update/installer_io.dart).
+  final signing = _Signing.fromEnvironment(root);
+  if (signing == null) {
+    _step('Not signing: \$BAOCODE_MACOS_SIGN_IDENTITY is not set');
+    stdout.writeln(
+      '  Signed ad hoc, the app opens on this machine only: Gatekeeper\n'
+      '  refuses it anywhere else.',
+    );
+  } else {
+    _step('Signing the app as ${signing.identity}');
+    await signing.signApp(bundle);
+  }
 
   installers.createSync(recursive: true);
 
@@ -157,9 +141,29 @@ Future<void> main(List<String> arguments) async {
     dmg.path,
   ], root.path);
 
+  if (signing != null) {
+    _step('Signing the disk image');
+    await signing.sign(dmg.path);
+    if (signing.notary == null) {
+      _step('Not notarising: \$BAOCODE_NOTARY_KEY is not set');
+      stdout.writeln(
+        '  Signed but not notarised, the app is still refused by\n'
+        '  Gatekeeper on other machines.',
+      );
+    } else {
+      // Notarising the image notarises the app in it too: the ticket
+      // stapled to each is the one for its own signature.
+      _step('Notarising the disk image (a few minutes)');
+      await signing.notarise(dmg);
+      _step('Stapling the tickets');
+      await _run('xcrun', ['stapler', 'staple', dmg.path], root.path);
+      await _run('xcrun', ['stapler', 'staple', bundle.path], root.path);
+    }
+  }
+
   _step('Making the update archive');
-  // What the app downloads to update itself: the .app, zipped as Finder
-  // would (ditto keeps its symlinks, permissions and extended attributes,
+  // What the app downloads to update itself: the .app (signed and stapled
+  // when it was), zipped as Finder would (ditto keeps its symlinks, permissions and extended attributes,
   // which a framework's signature depends on).
   final zip = File('${installers.path}/BaoCode-${version.marketing}-mac.zip');
   if (zip.existsSync()) zip.deleteSync();
@@ -191,11 +195,128 @@ Future<void> main(List<String> arguments) async {
     ..writeln('Upload the remote server\'s builds, which the app downloads:')
     ..writeln(
       '  ${downloads.path}/*  ->  '
-      'https://baocode.dev/releases/remote/$remoteVersion/',
+      'https://dl.baocode.dev/releases/remote/$remoteVersion/',
     )
     ..writeln()
     ..writeln('To publish it as an update, sign the zip into the manifest:')
     ..writeln('  dart run tool/release_manifest.dart --macos ${zip.path}');
+}
+
+/// Signing with a Developer ID, and notarising, as the environment says
+/// (the variables at the top of this file).
+class _Signing {
+  _Signing(this.root, this.identity, this.notary);
+
+  /// Null when no identity is given: the app stays signed ad hoc.
+  static _Signing? fromEnvironment(Directory root) {
+    final environment = Platform.environment;
+    final identity = environment['BAOCODE_MACOS_SIGN_IDENTITY'] ?? '';
+    if (identity.isEmpty) return null;
+    final key = environment['BAOCODE_NOTARY_KEY'] ?? '';
+    final keyId = environment['BAOCODE_NOTARY_KEY_ID'] ?? '';
+    final issuer = environment['BAOCODE_NOTARY_ISSUER'] ?? '';
+    if (key.isEmpty) return _Signing(root, identity, null);
+    if (keyId.isEmpty || issuer.isEmpty) {
+      _fail(
+        '\$BAOCODE_NOTARY_KEY is set: \$BAOCODE_NOTARY_KEY_ID and '
+        '\$BAOCODE_NOTARY_ISSUER have to be too.',
+      );
+    }
+    if (!File(key).existsSync()) _fail('No API key at $key.');
+    return _Signing(root, identity, (key: key, keyId: keyId, issuer: issuer));
+  }
+
+  final Directory root;
+  final String identity;
+  final ({String key, String keyId, String issuer})? notary;
+
+  /// Signs the .app inside out: its frameworks, then the Finder extension,
+  /// then the app around them, each with the hardened runtime notarising
+  /// asks for and a secure timestamp.
+  ///
+  /// Not `codesign --deep`: it would give the Finder extension the app's
+  /// entitlements, sandbox off, and the system refuses to load an extension
+  /// that is not sandboxed. The extension takes its own.
+  ///
+  /// And the app takes macos/Runner/Release.entitlements, not none: those
+  /// turn the sandbox off, which this app needs (it runs the Claude Code
+  /// CLI as a child process and reads its sessions under ~/.claude, and
+  /// replaces itself to update). Signed without them it would fail at
+  /// runtime, not here. Not DebugProfile's either: allow-jit and
+  /// network.server are for debugging.
+  ///
+  /// Once released signed, an update has to be signed by the same team:
+  /// the app checks (lib/update/installer_io.dart).
+  Future<void> signApp(Directory app) async {
+    final frameworks = Directory('${app.path}/Contents/Frameworks');
+    for (final entry in frameworks.listSync()) {
+      if (entry.path.endsWith('.framework') || entry.path.endsWith('.dylib')) {
+        await sign(entry.path);
+      }
+    }
+    await sign(
+      '${app.path}/Contents/PlugIns/FinderExtension.appex',
+      entitlements: 'macos/FinderExtension/FinderExtension.entitlements',
+    );
+    await sign(app.path, entitlements: 'macos/Runner/Release.entitlements');
+    await _run('codesign', [
+      '--verify',
+      '--deep',
+      '--strict',
+      '--verbose=2',
+      app.path,
+    ], root.path);
+  }
+
+  Future<void> sign(String path, {String? entitlements}) => _run('codesign', [
+    '--force',
+    '--options',
+    'runtime',
+    '--timestamp',
+    if (entitlements != null) ...['--entitlements', entitlements],
+    '--sign',
+    identity,
+    path,
+  ], root.path);
+
+  /// Sends [file] to Apple's notary service and waits for its verdict;
+  /// stops with Apple's log when it is not accepted.
+  Future<void> notarise(File file) async {
+    final notary = this.notary!;
+    final credentials = [
+      '--key',
+      notary.key,
+      '--key-id',
+      notary.keyId,
+      '--issuer',
+      notary.issuer,
+    ];
+    final result = await Process.run('xcrun', [
+      'notarytool',
+      'submit',
+      file.path,
+      ...credentials,
+      '--wait',
+      '--output-format',
+      'json',
+    ]);
+    final Map<String, Object?> answer;
+    try {
+      answer = jsonDecode('${result.stdout}') as Map<String, Object?>;
+    } on FormatException {
+      _fail('notarytool answered:\n${result.stdout}\n${result.stderr}');
+    }
+    stdout.writeln('  ${answer['status']} (submission ${answer['id']})');
+    if (answer['status'] != 'Accepted') {
+      final log = await Process.run('xcrun', [
+        'notarytool',
+        'log',
+        '${answer['id']}',
+        ...credentials,
+      ]);
+      _fail('Apple did not notarise ${file.path}:\n${log.stdout}');
+    }
+  }
 }
 
 /// Puts [remote]'s VERSION and servers.json (tool/build_remote_server.dart)

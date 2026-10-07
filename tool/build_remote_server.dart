@@ -26,7 +26,7 @@ import 'package:crypto/crypto.dart';
 const _architectures = ['x64', 'arm64'];
 
 /// Where the gzipped builds are downloaded from: `<base>/<VERSION>/<file>`.
-const _downloadsBase = 'https://baocode.dev/releases/remote';
+const _downloadsBase = 'https://dl.baocode.dev/releases/remote';
 
 Future<void> main(List<String> arguments) async {
   final root = File.fromUri(Platform.script).parent.parent.absolute;

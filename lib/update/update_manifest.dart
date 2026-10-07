@@ -5,8 +5,8 @@ import 'dart:convert';
 import 'version.dart';
 
 /// Where the app looks for its next version: the release manifest
-/// baocode.dev serves (docs/auto-update.md has its format).
-const defaultManifestUrl = 'https://baocode.dev/releases/latest.json';
+/// dl.baocode.dev serves (docs/auto-update.md has its format).
+const defaultManifestUrl = 'https://dl.baocode.dev/releases/latest.json';
 
 /// The environment variable that points the app at another manifest, to
 /// try a release before it is published (a local server's, say).

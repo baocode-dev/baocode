@@ -38,7 +38,7 @@ VS Code and Cursor are built on Electron: each window is a web page, and every c
 
 ## Requirements
 
-- macOS (Universal: Apple silicon and Intel) or Windows (x64).
+- macOS 12 or later (Universal: Apple silicon and Intel), or Windows 10 or later (x64).
 - [Claude Code](https://github.com/anthropics/claude-code), installed.
 
 ## Building from source
@@ -60,7 +60,7 @@ dart run tool/build_remote_server.dart    # the SSH remote server, for Linux x64
 
 The full test suite is slow; run the tests for what you changed, for example `flutter test test/update`.
 
-More in [docs/](docs): [auto-update](docs/auto-update.md), [SSH remote](docs/ssh-remote.md), [Windows](docs/windows.md) (some are in Chinese).
+Releases are built and published by CI when a `v*` tag is pushed; versions, signing and where releases go are in [docs/release.md](docs/release.md). More in [docs/](docs): [auto-update](docs/auto-update.md), [SSH remote](docs/ssh-remote.md), [Windows](docs/windows.md) (some are in Chinese).
 
 ## Repository
 

@@ -1,0 +1,279 @@
+# Builds BaoCode for macOS and Windows and publishes it to dl.baocode.dev
+# (Cloudflare R2), where installed apps find their updates. docs/release.md
+# has the whole of it: versions, secrets, what goes where.
+#
+#   git tag v1.2.0 && git push origin v1.2.0   build and publish 1.2.0
+#   Actions → Release → Run workflow           build only, to try the build
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One release at a time; one that started is never cancelled halfway
+# through its upload.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.47.5
+
+jobs:
+  check:
+    name: Check the version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      marketing: ${{ steps.version.outputs.marketing }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        name: Read pubspec.yaml's version, and match the tag against it
+        run: |
+          version=$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml)
+          marketing=${version%%+*}
+          code=$(sed -n "s/^const appVersionString = '\(.*\)';/\1/p" lib/update/version.dart)
+          echo "pubspec.yaml: $version, lib/update/version.dart: $code"
+          if [ "$version" != "$code" ]; then
+            echo "::error::lib/update/version.dart says $code, pubspec.yaml $version: run tool/bump_version.dart"
+            exit 1
+          fi
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]]; then
+            echo "::error::$version is not x.y.z+build"
+            exit 1
+          fi
+          publish=false
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            if [ "$GITHUB_REF_NAME" != "v$marketing" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME, but pubspec.yaml is $version: the tag has to be v$marketing"
+              exit 1
+            fi
+            publish=true
+          fi
+          {
+            echo "version=$version"
+            echo "marketing=$marketing"
+            echo "publish=$publish"
+          } >> "$GITHUB_OUTPUT"
+      - name: Be newer than the version published
+        if: steps.version.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          published=$(curl -fsS https://dl.baocode.dev/releases/latest.json | jq -r .version || true)
+          echo "Published: ${published:-none}, this: $VERSION"
+          [ -z "$published" ] && exit 0
+          # x.y.z+build, compared number by number.
+          python3 - "$published" "$VERSION" <<'EOF'
+          import re, sys
+          def key(v):
+              m = re.fullmatch(r'v?(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?(?:\+(\d+))?', v)
+              return tuple(int(x or 0) for x in m.groups())
+          published, this = sys.argv[1:]
+          if key(this) <= key(published):
+              sys.exit(f'::error::{this} is not newer than {published}, which is published: installed apps would not take it')
+          EOF
+
+  macos:
+    name: Build for macOS
+    needs: check
+    runs-on: macos-15
+    # The Developer ID certificate and the notary key are the release
+    # environment's secrets, for tags only. Without them (a build only, or
+    # before they are set) the app is signed ad hoc, and only opens on the
+    # machine that built it.
+    environment: ${{ needs.check.outputs.publish == 'true' && 'release' || '' }}
+    env:
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Put the Developer ID certificate in a keychain
+        if: env.MACOS_CERTIFICATE != ''
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(openssl rand -hex 24)
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/certificate.p12"
+      - name: Put the notary key in a file
+        if: env.NOTARY_KEY != ''
+        run: |
+          echo "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
+          echo "BAOCODE_NOTARY_KEY=$RUNNER_TEMP/notary.p8" >> "$GITHUB_ENV"
+      - name: Build, sign and notarise
+        env:
+          BAOCODE_MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          BAOCODE_NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          BAOCODE_NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: dart run tool/build_macos.dart
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          if-no-files-found: error
+          path: |
+            build/installers/BaoCode-*.dmg
+            build/installers/BaoCode-*-mac.zip
+            build/installers/remote/
+      - name: Forget the certificate and the key
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/notary.p8"
+
+  windows:
+    name: Build for Windows
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Build
+        run: dart run tool/build_windows.dart
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          if-no-files-found: error
+          path: |
+            build/installers/BaoCode-*-setup.exe
+            build/installers/remote/
+
+  publish:
+    name: Publish to dl.baocode.dev
+    needs: [check, macos, windows]
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    # The update signing key and the R2 token are this environment's
+    # secrets.
+    environment: release
+    permissions:
+      contents: write # the GitHub release
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      MARKETING: ${{ needs.check.outputs.marketing }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      # R2 does not take every checksum newer AWS CLIs send by default.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Gather the files
+        run: |
+          mkdir -p out/remote
+          cp dist/macos/BaoCode-$MARKETING.dmg dist/macos/BaoCode-$MARKETING-mac.zip out/
+          cp dist/windows/BaoCode-$MARKETING-setup.exe out/
+          # The remote server, as each build made it: a folder per build.
+          # Both machines usually make the same one; if the same name holds
+          # different files, the apps' servers.json disagree about them.
+          for platform in macos windows; do
+            for dir in dist/$platform/remote/*/; do
+              name=$(basename "$dir")
+              if [ -d "out/remote/$name" ]; then
+                diff -r "$dir" "out/remote/$name" || {
+                  echo "::error::The remote server $name differs between the macOS and the Windows build"
+                  exit 1
+                }
+              else
+                cp -R "$dir" "out/remote/$name"
+              fi
+            done
+          done
+          find out -type f | sort
+      - name: Sign the release into latest.json
+        env:
+          SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          flutter pub get
+          key="$RUNNER_TEMP/update-signing.key"
+          echo "$SIGNING_KEY" > "$key"
+          notes=()
+          for language in en zh; do
+            file="release-notes/$MARKETING.$language.md"
+            [ -f "$file" ] && notes+=(--notes-$language "$file")
+          done
+          BAOCODE_UPDATE_SIGNING_KEY="$key" dart run tool/release_manifest.dart \
+            --version "$VERSION" \
+            --windows out/BaoCode-$MARKETING-setup.exe \
+            --macos out/BaoCode-$MARKETING-mac.zip \
+            --manifest out/latest.json \
+            "${notes[@]}"
+          rm "$key"
+      - name: Refuse to publish a version twice
+        run: |
+          # Downloads are cached for good: files uploaded again under the
+          # same names would reach some users as the old ones, and fail the
+          # new manifest's checksums.
+          if aws s3api head-object --bucket "$R2_BUCKET" \
+              --key "releases/$MARKETING/BaoCode-$MARKETING-setup.exe" > /dev/null 2>&1; then
+            echo "::error::releases/$MARKETING/ is already published: bump the version (tool/bump_version.dart)"
+            exit 1
+          fi
+      - name: Upload the remote server, then the installers
+        run: |
+          immutable='public, max-age=31536000, immutable'
+          aws s3 cp out/remote "s3://$R2_BUCKET/releases/remote/" --recursive \
+            --cache-control "$immutable"
+          for file in BaoCode-$MARKETING.dmg BaoCode-$MARKETING-mac.zip BaoCode-$MARKETING-setup.exe; do
+            aws s3 cp "out/$file" "s3://$R2_BUCKET/releases/$MARKETING/$file" \
+              --cache-control "$immutable"
+          done
+      - name: Check the downloads are served
+        run: |
+          for file in BaoCode-$MARKETING.dmg BaoCode-$MARKETING-mac.zip BaoCode-$MARKETING-setup.exe; do
+            url="https://dl.baocode.dev/releases/$MARKETING/$file"
+            served=$(curl -fsSI "$url" | tr -d '\r' | awk 'tolower($1) == "content-length:" { print $2 }')
+            expected=$(stat -c %s "out/$file")
+            echo "$url: $served bytes (expected $expected)"
+            [ "$served" = "$expected" ] || { echo "::error::$url is not served as uploaded"; exit 1; }
+          done
+      - name: Upload latest.json, last
+        run: |
+          # Apps check every 6 hours; a few minutes of cache spares R2
+          # without holding a release back.
+          aws s3 cp out/latest.json "s3://$R2_BUCKET/releases/latest.json" \
+            --cache-control 'public, max-age=300' --content-type application/json
+          curl -fsS "https://dl.baocode.dev/releases/latest.json?$GITHUB_RUN_ID" | jq .
+      - name: Make the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes=(--generate-notes)
+          [ -f "release-notes/$MARKETING.en.md" ] && notes=(--notes-file "release-notes/$MARKETING.en.md")
+          gh release create "v$MARKETING" --title "BaoCode $MARKETING" "${notes[@]}" \
+            out/BaoCode-$MARKETING.dmg out/BaoCode-$MARKETING-setup.exe

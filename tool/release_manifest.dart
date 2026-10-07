@@ -1,5 +1,5 @@
 // Signs a release's installers and writes the manifest the app reads to
-// update itself (https://baocode.dev/releases/latest.json; see
+// update itself (https://dl.baocode.dev/releases/latest.json; see
 // docs/auto-update.md). Run from anywhere in the repository:
 //
 //   dart run tool/release_manifest.dart \
@@ -28,7 +28,7 @@ import 'package:baocode/update/version.dart';
 import 'package:crypto/crypto.dart' as crypto;
 
 /// Where the downloads go: `<base>/<1.2.0>/<file>`.
-const _releasesBase = 'https://baocode.dev/releases';
+const _releasesBase = 'https://dl.baocode.dev/releases';
 
 /// Where the private key's path is given.
 const _keyVariable = 'BAOCODE_UPDATE_SIGNING_KEY';

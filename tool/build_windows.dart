@@ -112,7 +112,7 @@ Future<void> main(List<String> arguments) async {
     ..writeln('differs, goes beside it):')
     ..writeln(
       '  ${downloads.path}\\*  ->  '
-      'https://baocode.dev/releases/remote/$remoteVersion/',
+      'https://dl.baocode.dev/releases/remote/$remoteVersion/',
     );
   stdout.writeln();
   stdout.writeln(
