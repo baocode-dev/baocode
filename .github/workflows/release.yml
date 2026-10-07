@@ -158,6 +158,8 @@ jobs:
         with:
           name: remote
           path: build/remote
+      - name: Install create-dmg
+        run: brew install create-dmg
       - name: Build, sign and notarise
         env:
           BAOCODE_MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}

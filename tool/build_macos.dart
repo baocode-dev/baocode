@@ -48,6 +48,9 @@ const _installersRelative = 'build/installers';
 /// Where each architecture's app is made of the universal one.
 const _thinRelative = 'build/macos/thin';
 
+/// The disk image window's background (tool/dmg_background.swift).
+const _dmgBackgroundRelative = 'macos/packaging/dmg-background.tiff';
+
 /// The architectures shipped: ditto's and lipo's name for each, and the one
 /// in file names and in the manifest's platforms (`macos-arm64`).
 const _architectures = {'arm64': 'arm64', 'x86_64': 'x64'};
@@ -149,6 +152,7 @@ Future<void> main(List<String> arguments) async {
     );
   }
 
+  final createDmg = await _findCreateDmg();
   installers.createSync(recursive: true);
   final made = <File>[];
   for (final MapEntry(key: lipoArch, value: arch) in _architectures.entries) {
@@ -167,21 +171,38 @@ Future<void> main(List<String> arguments) async {
     final dmg = File(
       '${installers.path}/BaoCode-${version.marketing}-$arch.dmg',
     );
-    // hdiutil gives a bare folder in a window; for a background picture and
-    // an Applications shortcut, `brew install create-dmg` and drive that
-    // instead.
-    await _run('hdiutil', [
-      'create',
-      '-volname',
+    // A window with the app, an arrow and an Applications shortcut to drag
+    // it onto, on the background tool/dmg_background.swift draws (the
+    // icons where it expects them). create-dmg lays the window out with
+    // Finder, which asks this terminal for permission to the first time.
+    if (dmg.existsSync()) dmg.deleteSync();
+    await _run(createDmg, [
+      '--volname',
       'BaoCode ${version.marketing}',
-      '-srcfolder',
-      app.path,
-      '-ov',
+      '--background',
+      '${root.path}/$_dmgBackgroundRelative',
+      '--window-size',
+      '660',
+      '400',
+      '--icon-size',
+      '128',
+      '--icon',
+      'BaoCode.app',
+      '165',
+      '145',
+      '--hide-extension',
+      'BaoCode.app',
+      '--app-drop-link',
+      '495',
+      '145',
       // LZMA: a quarter smaller than the default UDZO's zlib; opens on
       // macOS 10.15 and later (the app needs 12).
-      '-format',
+      '--format',
       'ULMO',
+      '--no-internet-enable',
       dmg.path,
+      // The folder the app alone is in: all of it goes in the image.
+      app.parent.path,
     ], root.path);
     if (!signing.adHoc) {
       await signing.sign(dmg.path);
@@ -520,6 +541,18 @@ Future<void> _run(
   if (result.exitCode != 0) {
     _fail('$executable exited with code ${result.exitCode}.');
   }
+}
+
+/// create-dmg (`brew install create-dmg`), which makes the disk image;
+/// stops when there is none.
+Future<String> _findCreateDmg() async {
+  final result = await Process.run('/usr/bin/which', ['create-dmg']);
+  final path = '${result.stdout}'.trim();
+  if (result.exitCode == 0 && path.isNotEmpty) return path;
+  _fail(
+    'create-dmg makes the disk image, and is not installed:\n'
+    '  brew install create-dmg',
+  );
 }
 
 void _step(String message) => stdout.writeln('\n==> $message');
