@@ -119,16 +119,16 @@ CI 会照常构建，覆盖 R2 上的文件，重新建 GitHub Release。
 | --- | --- | --- |
 | `check` | Ubuntu | pubspec.yaml 和 `version.dart` 一致；版本是 `x.y.z+build`；标签是 `v<x.y.z>`；不比 `dl.baocode.dev` 上已发布的版本旧（一样就是重新发布，给个提示） |
 | `remote` | Ubuntu | 编译远程服务端（Linux x64 和 arm64）→ `tool/test_remote_server.sh`：在 Docker 里的 Ubuntu 20.04 / 24.04、Debian 12、Rocky Linux 8 上，两种架构各跑一遍（arm64 用 QEMU 模拟），要能启动、回答 `initialize`、列出目录 |
-| `macos` | macOS 15 | 有证书就导入临时钥匙串 → `tool/build_macos.dart --remote-built`：构建 .app，**检查是 universal**（每个可执行文件都有 arm64 和 x86_64，Intel Mac 也能用）→ 放进 `remote` 任务的 `servers.json` → 签名（有证书用 Developer ID，带 hardened runtime；没有就 ad hoc，**不带** hardened runtime，否则系统拒绝加载应用自己的框架、一启动就崩；总要重签，因为放进去的文件要包进签名）→ 做 dmg → 有证书时签 dmg、公证、钉票据 → 打更新用的 zip → **把 zip 解开真正启动一次**，15 秒内退出就不发 |
+| `macos` | macOS 15 | 有证书就导入临时钥匙串 → `tool/build_macos.dart --remote-built`：构建 universal 的 .app，**检查是 universal**（每个可执行文件都有 arm64 和 x86_64）→ 放进 `remote` 任务的 `servers.json` → 用 `ditto --arch` 拆成 Apple silicon（arm64）和 Intel（x64）两个应用，各自检查只剩一种架构，下面每个各做一遍：→ 签名（有证书用 Developer ID，带 hardened runtime；没有就 ad hoc，**不带** hardened runtime，否则系统拒绝加载应用自己的框架、一启动就崩；总要重签，因为放进去的文件要包进签名）→ 做 dmg → 有证书时签 dmg、公证、钉票据 → 打更新用的 zip → **把两个 zip 解开各真正启动一次**（Intel 版经 Rosetta），15 秒内退出就不发 |
 | `windows` | Windows | 装 Inno Setup → `tool/build_windows.dart --remote-built`：构建、放进 `servers.json`、打安装包 |
-| `publish` | Ubuntu | 汇总产物 → 用更新私钥签 `latest.json`（`tool/release_manifest.dart`，带上 dmg 给网站用）→ 上传远程服务端 → 上传安装包 → 按清单里的链接确认 CDN 给出的文件大小对 → **最后**上传 `latest.json` → 建 GitHub Release（附 dmg 和 exe；重新发布时先删掉旧的） |
+| `publish` | Ubuntu | 汇总产物 → 用更新私钥签 `latest.json`（`tool/release_manifest.dart`，带上 dmg 给网站用）→ 上传远程服务端 → 上传安装包 → 按清单里的链接确认 CDN 给出的文件大小对 → **最后**上传 `latest.json` → 建 GitHub Release（附两个 dmg 和 exe；重新发布时先删掉旧的） |
 
 几个设计上的考虑：
 
 - **`latest.json` 最后传**：应用一读到新清单就会去下载，安装包必须先就位。
 - **远程服务端只编译一次**：`remote` 任务编译，macOS 和 Windows 两个应用带的是同一份 `servers.json`，R2 上一个版本只有一个 `releases/remote/<版本>-<二进制哈希>/`。
 - **下载链接带哈希**：`latest.json` 里每个链接末尾是 `?sha256=<文件哈希前 16 位>`。CDN 按完整地址缓存，文件换了地址就换了，不会给出旧文件；应用取文件名时只看路径。
-- **`downloads`**：`latest.json` 里多了这一项，是给网站用的（dmg 和 Windows 安装包的链接、大小），应用不读它。
+- **`downloads`**：`latest.json` 里多了这一项，是给网站用的（两个 dmg 和 Windows 安装包的链接、大小，键是 `macos-arm64`、`macos-x64`、`windows`），应用不读它。
 - **密钥只在 `release` 环境里**，只有 `v*` 标签能用（见 7.2）。PR 和手动运行拿不到。
 - Flutter 版本固定在工作流的 `FLUTTER_VERSION`，升级 Flutter 时一起改。
 
@@ -141,8 +141,10 @@ releases/
   latest.json                            应用和下载页读的清单          max-age=300
   1.2.0/
     BaoCode-1.2.0-setup.exe              Windows：首次安装和自动更新   immutable，一年
-    BaoCode-1.2.0-mac.zip                macOS：自动更新用             immutable，一年
-    BaoCode-1.2.0.dmg                    macOS：首次安装（下载页）     immutable，一年
+    BaoCode-1.2.0-mac-arm64.zip          macOS Apple silicon：自动更新 immutable，一年
+    BaoCode-1.2.0-mac-x64.zip            macOS Intel：自动更新         immutable，一年
+    BaoCode-1.2.0-arm64.dmg              macOS Apple silicon：首次安装 immutable，一年
+    BaoCode-1.2.0-x64.dmg                macOS Intel：首次安装         immutable，一年
   remote/
     <VERSION>/                           远程服务端，应用连远程主机时按需下载
       baocode-server-linux-x64.gz        immutable，一年
@@ -165,7 +167,7 @@ releases/
 
 1. 启动 30 秒后、之后每 6 小时，GET `https://dl.baocode.dev/releases/latest.json`。
 2. 解析清单；下载链接必须是 `https://*.baocode.dev`。版本不比自己新，或者没有本平台的条目 → 已是最新，结束。
-3. 后台下载本平台的安装包到 `<数据目录>/updates/<版本>/`，支持断点续传。
+3. 后台下载本平台的安装包（Mac 按处理器取 Apple silicon 或 Intel 的包，见 [auto-update.md 5.2](auto-update.md#52-latestjson-格式)）到 `<数据目录>/updates/<版本>/`，支持断点续传。
 4. 依次校验大小 → SHA-256 → Ed25519 签名（公钥内置在应用里）。任何一项不过就删掉，报错。macOS 还会检查新 .app 的 bundle id，以及在当前应用有正式签名时，新 .app 是不是同一个 Team 签的。
 5. 主窗口右下角弹通知。用户点“立即重启更新”后，走和平时退出一样的确认（未保存的文件、运行中的 agent 和终端），确认了才安装：
    - Windows：应用退出后，带 `/SILENT /RELAUNCH` 运行新的 setup.exe，覆盖安装到原来的位置，再重新打开。
@@ -174,7 +176,7 @@ releases/
 
 设置和对话放在数据目录里，不在安装目录里，更新不会动它们。
 
-**官网**（首页和 `baocode.dev/download`，`site/site.js`）：浏览器读同一份 `latest.json`，按其中的 `downloads` 换上版本号、dmg 和 Windows 安装包的链接（带哈希）和大小。需要 R2 的 CORS 允许 `https://baocode.dev`（见 7.1）。读不到时显示页面里写死的版本。
+**官网**（首页和 `baocode.dev/download`，`site/site.js`）：浏览器读同一份 `latest.json`，按其中的 `downloads` 换上版本号、两个 dmg 和 Windows 安装包的链接（带哈希）和大小。下载页的 macOS 卡片有 Apple silicon 和 Intel 两个按钮，默认突出 Apple silicon；Chromium 系浏览器能报出处理器架构，Intel Mac 上会改为突出 Intel（`site/download.js`）。需要 R2 的 CORS 允许 `https://baocode.dev`（见 7.1）。读不到时显示页面里写死的版本。
 
 **两把“钥匙”管的是不同的事**：
 
@@ -267,7 +269,7 @@ releases/
 | `check` 失败：版本不一致 / 标签不对 | 按报错改，删掉远端标签（`git push origin :refs/tags/v1.2.0`），重新打标签推送 |
 | `check` 失败：比已发布的旧 | `tool/bump_version.dart` 加到比已发布的新 |
 | `remote` 失败：Docker 里跑不起来 | 日志里有每个系统、每种架构的结果和服务端的输出。在本机用 `dart run tool/build_remote_server.dart && tool/test_remote_server.sh` 复现（需要 Docker） |
-| `macos` 失败：Not universal | 某个框架只编了一种架构，日志里列出了是哪个。Intel Mac 会在用到它时崩溃，所以不发 |
+| `macos` 失败：Not universal | 某个框架只编了一种架构，日志里列出了是哪个。拆出来的某个包会少这个框架的代码，在用到它时崩溃，所以不发 |
 | `macos` 公证失败 | 日志里有 Apple 返回的详细原因（哪个文件、什么问题）。常见原因：某个二进制没开 hardened runtime、没有时间戳 |
 | `publish` 在上传 `latest.json` 之前失败 | 用户什么都看不到。修好后按第 3 节重新发布同一个版本即可 |
 | 发出去的版本有问题 | 尽快发一个修复版（版本号更高）。也可以把上一版的 `latest.json` 传回去，让还没更新的人停在旧版，但已经更新的人不会被降级。见 [auto-update.md 5.5](auto-update.md#55-撤回一个版本) |
@@ -287,7 +289,10 @@ dart run tool/build_windows.dart
 BAOCODE_UPDATE_SIGNING_KEY=~/.baocode-release/update-signing.key \
   dart run tool/release_manifest.dart \
     --windows build/installers/BaoCode-1.2.0-setup.exe \
-    --macos   build/installers/BaoCode-1.2.0-mac.zip \
+    --macos-arm64 build/installers/BaoCode-1.2.0-mac-arm64.zip \
+    --macos-x64   build/installers/BaoCode-1.2.0-mac-x64.zip \
+    --dmg-arm64   build/installers/BaoCode-1.2.0-arm64.dmg \
+    --dmg-x64     build/installers/BaoCode-1.2.0-x64.dmg \
     --notes-en release-notes/1.2.0.en.md --notes-zh release-notes/1.2.0.zh.md
 ```
 

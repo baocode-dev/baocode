@@ -43,7 +43,7 @@ void main() {
       for (final manifest in [
         manifestOf('1.0.0+1'),
         manifestOf('0.9.0'),
-        manifestOf('1.2.0', platforms: ['macos-universal']),
+        manifestOf('1.2.0', platforms: ['macos-arm64']),
       ]) {
         final service = serviceOf(FakeBackend(manifest));
         expect(await service.check(manual: true), isA<UpdateUpToDate>());

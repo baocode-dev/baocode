@@ -17,7 +17,7 @@ class UpdateRelease {
 
   final UpdateManifest manifest;
 
-  /// The platform key it is for (`windows-x64`, `macos-universal`).
+  /// The platform key it is for (`windows-x64`, `macos-arm64`, `macos-x64`).
   final String platform;
   final UpdateAsset asset;
 

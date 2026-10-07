@@ -4,8 +4,10 @@
 //
 //   dart run tool/release_manifest.dart \
 //     --windows build/installers/BaoCode-1.2.0-setup.exe \
-//     --macos build/installers/BaoCode-1.2.0-mac.zip \
-//     [--dmg build/installers/BaoCode-1.2.0.dmg] \
+//     --macos-arm64 build/installers/BaoCode-1.2.0-mac-arm64.zip \
+//     --macos-x64 build/installers/BaoCode-1.2.0-mac-x64.zip \
+//     [--dmg-arm64 build/installers/BaoCode-1.2.0-arm64.dmg] \
+//     [--dmg-x64 build/installers/BaoCode-1.2.0-x64.dmg] \
 //     [--notes-en <text or file>] [--notes-zh <text or file>] \
 //     [--minimum-version 1.0.0] [--version 1.2.0+12] \
 //     [--manifest build/installers/latest.json]
@@ -18,7 +20,7 @@
 // can make every installed BaoCode run their program.
 //
 // The version is pubspec.yaml's unless given. A manifest already there for
-// the same version keeps its other platform's entry, so the Windows and the
+// the same version keeps the other platforms' entries, so the Windows and the
 // macOS installers can be signed on their own machines one after the other.
 //
 // Each link ends in `?sha256=<the file's first 16 hex digits>`: a file
@@ -27,8 +29,8 @@
 // one. The app names a download by the path alone.
 //
 // Besides what the app reads, `downloads` gives the download page
-// (site/site.js) what it offers: the disk image (--dmg), which the app does
-// not update from, and the Windows installer.
+// (site/site.js) what it offers: the disk images (--dmg-arm64, --dmg-x64),
+// which the app does not update from, and the Windows installer.
 import 'dart:convert';
 import 'dart:io';
 
@@ -45,13 +47,19 @@ Uri _link(AppVersion version, String name, String sha256) => Uri.parse(
   '$_releasesBase/${version.marketing}/$name?sha256=${sha256.substring(0, 16)}',
 );
 
+/// The Macs built for, each its own download (tool/build_macos.dart), and
+/// the app takes its processor's (lib/update/installer_io.dart).
+const _macArchitectures = ['arm64', 'x64'];
+
 /// Where the private key's path is given.
 const _keyVariable = 'BAOCODE_UPDATE_SIGNING_KEY';
 
 const _usage = '''
 Usage:
-  dart run tool/release_manifest.dart [--windows <setup.exe>] [--macos <mac.zip>]
-      [--dmg <.dmg>] [--notes-en <text|file>] [--notes-zh <text|file>]
+  dart run tool/release_manifest.dart [--windows <setup.exe>]
+      [--macos-arm64 <mac-arm64.zip>] [--macos-x64 <mac-x64.zip>]
+      [--dmg-arm64 <arm64.dmg>] [--dmg-x64 <x64.dmg>]
+      [--notes-en <text|file>] [--notes-zh <text|file>]
       [--minimum-version <version>] [--version <version>]
       [--manifest <latest.json>]
   dart run tool/release_manifest.dart --generate-key <file>
@@ -87,10 +95,14 @@ Future<void> main(List<String> arguments) async {
   );
   final files = {
     if (options['windows'] case final path?) 'windows-x64': File(path),
-    if (options['macos'] case final path?) 'macos-universal': File(path),
+    for (final arch in _macArchitectures)
+      if (options['macos-$arch'] case final path?) 'macos-$arch': File(path),
   };
   if (files.isEmpty) {
-    _fail('Nothing to sign: give --windows and/or --macos.\n\n$_usage');
+    _fail(
+      'Nothing to sign: give --windows, --macos-arm64 or --macos-x64.\n\n'
+      '$_usage',
+    );
   }
   final manifestFile = File(
     options['manifest'] ?? '${root.path}/build/installers/latest.json',
@@ -155,14 +167,14 @@ Future<void> main(List<String> arguments) async {
       'sha256': installer.sha256,
     };
   }
-  final dmg = switch (options['dmg']) {
-    final String path => File(path),
-    null => null,
+  final dmgs = {
+    for (final arch in _macArchitectures)
+      if (options['dmg-$arch'] case final path?) 'macos-$arch': File(path),
   };
-  if (dmg != null) {
+  for (final MapEntry(key: platform, value: dmg) in dmgs.entries) {
     if (!dmg.existsSync()) _fail('No such file: ${dmg.path}');
     final sha256 = '${await crypto.sha256.bind(dmg.openRead()).first}';
-    downloads['macos'] = {
+    downloads[platform] = {
       'url': '${_link(version, dmg.uri.pathSegments.last, sha256)}',
       'size': dmg.lengthSync(),
       'sha256': sha256,
@@ -194,15 +206,15 @@ Future<void> main(List<String> arguments) async {
   for (final MapEntry(key: platform, value: file) in files.entries) {
     stdout.writeln('  ${file.path}\n    -> ${assets[platform]!.url}');
   }
-  if (dmg != null) {
+  for (final MapEntry(key: platform, value: dmg) in dmgs.entries) {
     stdout.writeln(
-      '  ${dmg.path}\n    -> ${(downloads['macos'] as Map)['url']}',
+      '  ${dmg.path}\n    -> ${(downloads[platform] as Map)['url']}',
     );
   }
   stdout.writeln('  ${manifestFile.path}\n    -> $defaultManifestUrl');
   final missing = {
     'windows-x64',
-    'macos-universal',
+    for (final arch in _macArchitectures) 'macos-$arch',
   }.difference(assets.keys.toSet());
   if (missing.isNotEmpty) {
     stdout.writeln(
@@ -267,13 +279,15 @@ Map<String, String?> _parse(List<String> arguments) {
   const flags = {'public-key', 'help'};
   const valued = {
     'windows',
-    'macos',
+    'macos-arm64',
+    'macos-x64',
+    'dmg-arm64',
+    'dmg-x64',
     'notes-en',
     'notes-zh',
     'minimum-version',
     'version',
     'manifest',
-    'dmg',
     'generate-key',
   };
   final options = <String, String?>{};

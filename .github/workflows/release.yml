@@ -164,30 +164,35 @@ jobs:
           BAOCODE_NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           BAOCODE_NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
         run: dart run tool/build_macos.dart --remote-built
-      - name: Launch the app, as an update installs it
+      - name: Launch each app, as an update installs it
         run: |
           # A valid signature is not enough: dyld can still refuse to load
-          # the app's frameworks (as with the hardened runtime ad hoc).
-          mkdir "$RUNNER_TEMP/launch"
-          ditto -x -k build/installers/BaoCode-*-mac.zip "$RUNNER_TEMP/launch"
-          BAOCODE_DATA_DIR="$RUNNER_TEMP/launch-data" \
-            "$RUNNER_TEMP/launch/BaoCode.app/Contents/MacOS/BaoCode" > "$RUNNER_TEMP/launch.log" 2>&1 &
-          pid=$!
-          sleep 15
-          if ! kill -0 $pid 2>/dev/null; then
-            cat "$RUNNER_TEMP/launch.log"
-            echo "::error::BaoCode exited within 15 seconds of launch"
-            exit 1
-          fi
-          echo "BaoCode is running after 15 seconds"
-          kill $pid
+          # the app's frameworks (as with the hardened runtime ad hoc). The
+          # Intel one runs under Rosetta here.
+          softwareupdate --install-rosetta --agree-to-license > /dev/null 2>&1 || true
+          for arch in arm64 x64; do
+            dir="$RUNNER_TEMP/launch-$arch"
+            mkdir "$dir"
+            ditto -x -k build/installers/BaoCode-*-mac-$arch.zip "$dir"
+            BAOCODE_DATA_DIR="$dir-data" \
+              "$dir/BaoCode.app/Contents/MacOS/BaoCode" > "$dir.log" 2>&1 &
+            pid=$!
+            sleep 15
+            if ! kill -0 $pid 2>/dev/null; then
+              cat "$dir.log"
+              echo "::error::BaoCode ($arch) exited within 15 seconds of launch"
+              exit 1
+            fi
+            echo "BaoCode ($arch) is running after 15 seconds"
+            kill $pid
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: macos
           if-no-files-found: error
           path: |
             build/installers/BaoCode-*.dmg
-            build/installers/BaoCode-*-mac.zip
+            build/installers/BaoCode-*-mac-*.zip
       - name: Forget the certificate and the key
         if: always()
         run: |
@@ -253,7 +258,9 @@ jobs:
       - name: Gather the files
         run: |
           mkdir -p out
-          cp dist/macos/BaoCode-$MARKETING.dmg dist/macos/BaoCode-$MARKETING-mac.zip out/
+          for arch in arm64 x64; do
+            cp dist/macos/BaoCode-$MARKETING-$arch.dmg dist/macos/BaoCode-$MARKETING-mac-$arch.zip out/
+          done
           cp dist/windows/BaoCode-$MARKETING-setup.exe out/
           # The remote server, under the name both apps' servers.json give it.
           remote="out/remote/$(cat dist/remote/VERSION)"
@@ -275,8 +282,10 @@ jobs:
           BAOCODE_UPDATE_SIGNING_KEY="$key" dart run tool/release_manifest.dart \
             --version "$VERSION" \
             --windows out/BaoCode-$MARKETING-setup.exe \
-            --macos out/BaoCode-$MARKETING-mac.zip \
-            --dmg out/BaoCode-$MARKETING.dmg \
+            --macos-arm64 out/BaoCode-$MARKETING-mac-arm64.zip \
+            --macos-x64 out/BaoCode-$MARKETING-mac-x64.zip \
+            --dmg-arm64 out/BaoCode-$MARKETING-arm64.dmg \
+            --dmg-x64 out/BaoCode-$MARKETING-x64.dmg \
             --manifest out/latest.json \
             "${notes[@]}"
           rm "$key"
@@ -285,7 +294,7 @@ jobs:
           immutable='public, max-age=31536000, immutable'
           aws s3 cp out/remote "s3://$R2_BUCKET/releases/remote/" --recursive \
             --cache-control "$immutable"
-          for file in BaoCode-$MARKETING.dmg BaoCode-$MARKETING-mac.zip BaoCode-$MARKETING-setup.exe; do
+          for file in $(cd out && ls BaoCode-*); do
             aws s3 cp "out/$file" "s3://$R2_BUCKET/releases/$MARKETING/$file" \
               --cache-control "$immutable"
           done
@@ -294,8 +303,7 @@ jobs:
           # At the manifest's links, which end in each file's hash: what
           # users will be given, not what the CDN may have kept of a
           # release published before under the same names.
-          jq -r '.downloads.macos, .downloads.windows, .platforms["macos-universal"]
-                 | "\(.url) \(.size)"' out/latest.json |
+          jq -r '(.downloads[], .platforms[]) | "\(.url) \(.size)"' out/latest.json | sort -u |
           while read -r url expected; do
             served=$(curl -fsSI "$url" | tr -d '\r' | awk 'tolower($1) == "content-length:" { print $2 }')
             echo "$url: $served bytes (expected $expected)"
@@ -317,4 +325,4 @@ jobs:
           # Published again: the release is made anew, on the tag's commit.
           gh release delete "v$MARKETING" --yes 2>/dev/null || true
           gh release create "v$MARKETING" --title "BaoCode $MARKETING" "${notes[@]}" \
-            out/BaoCode-$MARKETING.dmg out/BaoCode-$MARKETING-setup.exe
+            out/BaoCode-$MARKETING-arm64.dmg out/BaoCode-$MARKETING-x64.dmg out/BaoCode-$MARKETING-setup.exe

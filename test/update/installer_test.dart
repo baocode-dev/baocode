@@ -37,8 +37,8 @@ UpdateRelease _release() {
   final manifest = UpdateManifest.parse(manifestOf('1.2.0+12'));
   return UpdateRelease(
     manifest: manifest,
-    platform: 'macos-universal',
-    asset: manifest.assetFor('macos-universal')!,
+    platform: 'macos-arm64',
+    asset: manifest.assetFor('macos-arm64')!,
   );
 }
 
@@ -160,6 +160,14 @@ void main() {
       expect(script, contains("-FilePath 'setup.exe'"));
       expect(script, contains("'/CURRENTUSER'"));
     });
+  });
+
+  test('a Mac updates to the build for its processor', () {
+    expect(macUpdatePlatform(arm64: true, translated: false), 'macos-arm64');
+    expect(macUpdatePlatform(arm64: false, translated: false), 'macos-x64');
+    // The Intel build, run by Rosetta on Apple silicon, moves to the
+    // Apple silicon one.
+    expect(macUpdatePlatform(arm64: false, translated: true), 'macos-arm64');
   });
 
   group('macOS', () {

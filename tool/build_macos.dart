@@ -1,7 +1,9 @@
-// Builds the macOS distribution: the Release .app, the .dmg that ships it,
-// and the .zip the app updates itself from (lib/update/; signed into the
-// release manifest by tool/release_manifest.dart). Run from anywhere in the
-// repository:
+// Builds the macOS distribution, one for Apple silicon (arm64) and one for
+// Intel (x64): each a .dmg that ships the app and a .zip the app updates
+// itself from (lib/update/; signed into the release manifest by
+// tool/release_manifest.dart). Flutter builds the app once, universal; each
+// is that app thinned to one architecture (ditto --arch), about half its
+// size. Run from anywhere in the repository:
 //
 //   dart run tool/build_macos.dart                build, then package
 //   dart run tool/build_macos.dart --skip-build   package what is built
@@ -10,10 +12,11 @@
 //                                                build/remote/ (CI builds
 //                                                it once, for both apps)
 //
-// Both land in build/installers/: BaoCode-<version>.dmg and
-// BaoCode-<version>-mac.zip; beside them, remote/<VERSION>/, the remote
-// server's gzipped builds, which the app downloads instead of carrying
-// them (tool/build_remote_server.dart), to upload with the release.
+// They land in build/installers/: BaoCode-<version>-<arch>.dmg and
+// BaoCode-<version>-mac-<arch>.zip, arch arm64 or x64; beside them,
+// remote/<VERSION>/, the remote server's gzipped builds, which the app
+// downloads instead of carrying them (tool/build_remote_server.dart), to
+// upload with the release.
 //
 // Signed with a Developer ID and notarised when the environment says how
 // (docs/release.md has how to get each):
@@ -41,6 +44,13 @@ import 'dart:io';
 /// clean already removes.
 const _bundleRelative = 'build/macos/Build/Products/Release/BaoCode.app';
 const _installersRelative = 'build/installers';
+
+/// Where each architecture's app is made of the universal one.
+const _thinRelative = 'build/macos/thin';
+
+/// The architectures shipped: ditto's and lipo's name for each, and the one
+/// in file names and in the manifest's platforms (`macos-arm64`).
+const _architectures = {'arm64': 'arm64', 'x86_64': 'x64'};
 
 /// Where the remote server is built (tool/build_remote_server.dart).
 const _remoteRelative = 'build/remote';
@@ -122,75 +132,88 @@ Future<void> main(List<String> arguments) async {
   }
 
   // Signed again whatever the identity: flutter's signature does not
-  // cover the remote server's files, put in after it.
+  // cover the remote server's files, put in after it, and thinning an app
+  // breaks the signature of every binary in it.
   final signing = _Signing.fromEnvironment(root) ?? _Signing(root, '-', null);
   if (signing.adHoc) {
-    _step('Signing the app ad hoc: \$BAOCODE_MACOS_SIGN_IDENTITY is not set');
+    _step('Signing ad hoc: \$BAOCODE_MACOS_SIGN_IDENTITY is not set');
     stdout.writeln(
       '  It opens on this machine only: Gatekeeper refuses it anywhere\n'
       '  else.',
     );
-  } else {
-    _step('Signing the app as ${signing.identity}');
+  } else if (signing.notary == null) {
+    _step('Not notarising: \$BAOCODE_NOTARY_KEY is not set');
+    stdout.writeln(
+      '  Signed but not notarised, the app is still refused by\n'
+      '  Gatekeeper on other machines.',
+    );
   }
-  await signing.signApp(bundle);
 
   installers.createSync(recursive: true);
+  final made = <File>[];
+  for (final MapEntry(key: lipoArch, value: arch) in _architectures.entries) {
+    _step('Making the $arch app');
+    final app = Directory('${root.path}/$_thinRelative/$arch/BaoCode.app');
+    if (app.parent.existsSync()) app.parent.deleteSync(recursive: true);
+    app.parent.createSync(recursive: true);
+    await _run('ditto', ['--arch', lipoArch, bundle.path, app.path], root.path);
+    await _checkArchitecture(app, lipoArch);
+    _step(
+      'Signing the $arch app${signing.adHoc ? '' : ' as ${signing.identity}'}',
+    );
+    await signing.signApp(app);
 
-  _step('Making the disk image');
-  final dmg = File('${installers.path}/BaoCode-${version.marketing}.dmg');
-  // hdiutil gives a bare folder in a window; for a background picture and
-  // an Applications shortcut, `brew install create-dmg` and drive that
-  // instead.
-  await _run('hdiutil', [
-    'create',
-    '-volname',
-    'BaoCode ${version.marketing}',
-    '-srcfolder',
-    bundle.path,
-    '-ov',
-    // LZMA: a quarter smaller than the default UDZO's zlib; opens on
-    // macOS 10.15 and later (the app needs 12).
-    '-format',
-    'ULMO',
-    dmg.path,
-  ], root.path);
-
-  if (!signing.adHoc) {
-    _step('Signing the disk image');
-    await signing.sign(dmg.path);
-    if (signing.notary == null) {
-      _step('Not notarising: \$BAOCODE_NOTARY_KEY is not set');
-      stdout.writeln(
-        '  Signed but not notarised, the app is still refused by\n'
-        '  Gatekeeper on other machines.',
-      );
-    } else {
-      // Notarising the image notarises the app in it too: the ticket
-      // stapled to each is the one for its own signature.
-      _step('Notarising the disk image (a few minutes)');
-      await signing.notarise(dmg);
-      _step('Stapling the tickets');
-      await _run('xcrun', ['stapler', 'staple', dmg.path], root.path);
-      await _run('xcrun', ['stapler', 'staple', bundle.path], root.path);
+    _step('Making the $arch disk image');
+    final dmg = File(
+      '${installers.path}/BaoCode-${version.marketing}-$arch.dmg',
+    );
+    // hdiutil gives a bare folder in a window; for a background picture and
+    // an Applications shortcut, `brew install create-dmg` and drive that
+    // instead.
+    await _run('hdiutil', [
+      'create',
+      '-volname',
+      'BaoCode ${version.marketing}',
+      '-srcfolder',
+      app.path,
+      '-ov',
+      // LZMA: a quarter smaller than the default UDZO's zlib; opens on
+      // macOS 10.15 and later (the app needs 12).
+      '-format',
+      'ULMO',
+      dmg.path,
+    ], root.path);
+    if (!signing.adHoc) {
+      await signing.sign(dmg.path);
+      if (signing.notary != null) {
+        // Notarising the image notarises the app in it too: the ticket
+        // stapled to each is the one for its own signature.
+        _step('Notarising the $arch disk image (a few minutes)');
+        await signing.notarise(dmg);
+        await _run('xcrun', ['stapler', 'staple', dmg.path], root.path);
+        await _run('xcrun', ['stapler', 'staple', app.path], root.path);
+      }
     }
-  }
 
-  _step('Making the update archive');
-  // What the app downloads to update itself: the .app (stapled when it was
-  // notarised), zipped as Finder would (ditto keeps its symlinks,
-  // permissions and extended attributes, which a framework's signature
-  // depends on).
-  final zip = File('${installers.path}/BaoCode-${version.marketing}-mac.zip');
-  if (zip.existsSync()) zip.deleteSync();
-  await _run('ditto', [
-    '-c',
-    '-k',
-    '--sequesterRsrc',
-    '--keepParent',
-    bundle.path,
-    zip.path,
-  ], root.path);
+    _step('Making the $arch update archive');
+    // What the app downloads to update itself: the .app (stapled when it
+    // was notarised), zipped as Finder would (ditto keeps its symlinks,
+    // permissions and extended attributes, which a framework's signature
+    // depends on).
+    final zip = File(
+      '${installers.path}/BaoCode-${version.marketing}-mac-$arch.zip',
+    );
+    if (zip.existsSync()) zip.deleteSync();
+    await _run('ditto', [
+      '-c',
+      '-k',
+      '--sequesterRsrc',
+      '--keepParent',
+      app.path,
+      zip.path,
+    ], root.path);
+    made.addAll([dmg, zip]);
+  }
 
   _step('Putting the remote server\'s builds beside them');
   final downloads = Directory('${installers.path}/remote/$remoteVersion')
@@ -202,10 +225,11 @@ Future<void> main(List<String> arguments) async {
   ];
 
   _step('Done');
-  for (final file in [dmg, zip, ...servers]) {
+  for (final file in [...made, ...servers]) {
     final mb = (file.lengthSync() / (1024 * 1024)).toStringAsFixed(1);
     stdout.writeln('  ${file.path}  ($mb MB)');
   }
+  final base = '${installers.path}/BaoCode-${version.marketing}';
   stdout
     ..writeln()
     ..writeln('Upload the remote server\'s builds, which the app downloads:')
@@ -214,8 +238,12 @@ Future<void> main(List<String> arguments) async {
       'https://dl.baocode.dev/releases/remote/$remoteVersion/',
     )
     ..writeln()
-    ..writeln('To publish it as an update, sign the zip into the manifest:')
-    ..writeln('  dart run tool/release_manifest.dart --macos ${zip.path}');
+    ..writeln('To publish it as an update, sign the zips into the manifest:')
+    ..writeln('  dart run tool/release_manifest.dart \\')
+    ..writeln(
+      '    --macos-arm64 $base-mac-arm64.zip --dmg-arm64 $base-arm64.dmg \\',
+    )
+    ..writeln('    --macos-x64 $base-mac-x64.zip --dmg-x64 $base-x64.dmg');
 }
 
 /// Signing with a Developer ID, and notarising, as the environment says
@@ -378,21 +406,26 @@ String _bundleRemote(Directory remote, Directory target) {
   );
 }
 
+/// The executables in [app]: its own, the Finder extension's, and each
+/// framework's.
+List<String> _executables(Directory app) => [
+  '${app.path}/Contents/MacOS/BaoCode',
+  '${app.path}/Contents/PlugIns/FinderExtension.appex/Contents/MacOS/'
+      'FinderExtension',
+  // A framework's executable is named as the framework: X.framework/X.
+  for (final framework in Directory(
+    '${app.path}/Contents/Frameworks',
+  ).listSync())
+    if (framework.path.endsWith('.framework'))
+      '${framework.path}/${framework.path.split('/').last.split('.').first}',
+];
+
 /// Stops unless every executable in [app] runs on both Apple silicon and
-/// Intel: one disk image serves both (the download page says so), and an
-/// Intel Mac given an arm64-only framework fails only when it loads it.
+/// Intel: the app each architecture's is thinned from. A framework built
+/// for one alone would be missing from the other's, which fails only when
+/// it loads it.
 Future<void> _checkUniversal(Directory app) async {
-  final executables = [
-    '${app.path}/Contents/MacOS/BaoCode',
-    '${app.path}/Contents/PlugIns/FinderExtension.appex/Contents/MacOS/'
-        'FinderExtension',
-    // A framework's executable is named as the framework: X.framework/X.
-    for (final framework in Directory(
-      '${app.path}/Contents/Frameworks',
-    ).listSync())
-      if (framework.path.endsWith('.framework'))
-        '${framework.path}/${framework.path.split('/').last.split('.').first}',
-  ];
+  final executables = _executables(app);
   final missing = <String>[];
   for (final executable in executables) {
     final result = await Process.run('lipo', ['-archs', executable]);
@@ -413,6 +446,21 @@ Future<void> _checkUniversal(Directory app) async {
     '  Universal: arm64 and x86_64, ${executables.length} '
     'executables.',
   );
+}
+
+/// Stops unless every executable in [app] is for [lipoArch] alone: what
+/// `ditto --arch` should have left.
+Future<void> _checkArchitecture(Directory app, String lipoArch) async {
+  final wrong = <String>[];
+  for (final executable in _executables(app)) {
+    final result = await Process.run('lipo', ['-archs', executable]);
+    if ('${result.stdout}'.trim() != lipoArch) {
+      wrong.add('  $executable: ${'${result.stdout}'.trim()}');
+    }
+  }
+  if (wrong.isNotEmpty) {
+    _fail('Not $lipoArch alone:\n${wrong.join('\n')}');
+  }
 }
 
 /// [key] of the app's Info.plist; null when it has none.

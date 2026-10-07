@@ -136,6 +136,6 @@ h2.plain::before { content: none; }
 .platform h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 24px; }
 .platform h2 svg.ic { margin: 0; width: 22px; height: 22px; color: var(--ink); }
 .platform p { flex: 1; margin: 0 0 20px; font: 15px/1.55 var(--sans); color: var(--muted); }
-.platform .get { display: flex; align-items: center; }
-.platform .size { margin-left: 12px; font: 13.5px var(--sans); color: var(--muted); white-space: nowrap; }
+.platform .get { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.platform .size { margin-left: 4px; font: 13.5px var(--sans); color: var(--muted); white-space: nowrap; }
 @media (max-width: 640px) { .platforms { grid-template-columns: 1fr; } }

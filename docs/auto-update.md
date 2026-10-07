@@ -3,7 +3,7 @@
 BaoCode 的自动检查与升级：怎么工作、服务端约定、签名、出问题怎么查，以及以后改代码时要注意什么。版本号怎么定、怎么发版、CI 和 Cloudflare 怎么配，见 [release.md](release.md)。
 
 - 更新服务器：`https://dl.baocode.dev`（Cloudflare R2；`baocode.dev/releases/*` 302 到这里）
-- 平台：macOS（universal）、Windows（x64）
+- 平台：macOS（Apple silicon 和 Intel 各一个包）、Windows（x64）
 - 代码：`lib/update/`，测试：`test/update/`，发布工具：`tool/release_manifest.dart`
 
 ## 目录
@@ -243,8 +243,10 @@ https://dl.baocode.dev/
     latest.json                         ← 应用读取的清单
     1.2.0/
       BaoCode-1.2.0-setup.exe           ← Windows 更新 / 首次安装
-      BaoCode-1.2.0-mac.zip             ← macOS 更新
-      BaoCode-1.2.0.dmg                 ← macOS 首次安装（应用不读取）
+      BaoCode-1.2.0-mac-arm64.zip       ← macOS 更新（Apple silicon）
+      BaoCode-1.2.0-mac-x64.zip         ← macOS 更新（Intel）
+      BaoCode-1.2.0-arm64.dmg           ← macOS 首次安装（应用不读取）
+      BaoCode-1.2.0-x64.dmg
     remote/
       <VERSION>/                        ← 远程服务端，应用连远程主机时按需下载
         baocode-server-linux-x64.gz        （见 docs/ssh-remote.md 第 9.3 节；
@@ -270,8 +272,14 @@ https://dl.baocode.dev/
       "sha256": "64 位十六进制",
       "signature": "base64，解码后 64 字节"
     },
-    "macos-universal": {
-      "url": "https://dl.baocode.dev/releases/1.2.0/BaoCode-1.2.0-mac.zip",
+    "macos-arm64": {
+      "url": "https://dl.baocode.dev/releases/1.2.0/BaoCode-1.2.0-mac-arm64.zip?sha256=0123456789abcdef",
+      "size": 123456789,
+      "sha256": "...",
+      "signature": "..."
+    },
+    "macos-x64": {
+      "url": "https://dl.baocode.dev/releases/1.2.0/BaoCode-1.2.0-mac-x64.zip?sha256=fedcba9876543210",
       "size": 123456789,
       "sha256": "...",
       "signature": "..."
@@ -286,7 +294,7 @@ https://dl.baocode.dev/
 | `pubDate` | 否 | ISO 8601 格式，目前只是记录下来 |
 | `notes` | 否 | `{语言: 文本}`，也可以直接写一个字符串（当作英文）。界面按应用语言取，取不到用 `en`，再取不到用任意一种 |
 | `minimumVersion` | 否 | 低于它的版本视为强制更新。格式写错时整份清单都会被拒绝 |
-| `platforms` | 是 | 平台键目前有 `windows-x64` 和 `macos-universal` |
+| `platforms` | 是 | 平台键目前有 `windows-x64`、`macos-arm64`、`macos-x64`。Mac 按自己的处理器选：Apple silicon 取 `macos-arm64`；Intel 取 `macos-x64`；Intel 版在 Apple silicon 上经 Rosetta 运行时（`sysctl.proc_translated` 为 1）取 `macos-arm64`，借这次更新换成原生版（`installer_io.dart` 的 `macUpdatePlatform`）。1.0.0 最早发的是 universal 包、键是 `macos-universal`，那些安装找不到更新，要重新下载 |
 | `url` | 是 | 见 5.3 |
 | `size` | 是 | 正整数，单位字节 |
 | `sha256` | 是 | 64 位十六进制，大小写都可以 |
@@ -401,10 +409,10 @@ dart run tool/release_manifest.dart --generate-key <路径>
 
 ```sh
 # 1. 准备一个“更新版本”：版本号比要测试的那个构建高，签名后写到一个目录
-mkdir -p /tmp/rel && cp build/installers/BaoCode-1.2.0-mac.zip /tmp/rel/
+mkdir -p /tmp/rel && cp build/installers/BaoCode-1.2.0-mac-arm64.zip /tmp/rel/
 BAOCODE_UPDATE_SIGNING_KEY=~/.baocode-release/update-signing.key \
   dart run tool/release_manifest.dart --version 9.0.0 \
-  --macos /tmp/rel/BaoCode-1.2.0-mac.zip --manifest /tmp/rel/latest.json
+  --macos-arm64 /tmp/rel/BaoCode-1.2.0-mac-arm64.zip --manifest /tmp/rel/latest.json
 
 # 2. 把 latest.json 里的 url 换成本地地址（同源的链接会被接受）
 sed -i '' 's#https://dl.baocode.dev/releases/9.0.0/#http://127.0.0.1:8080/#' /tmp/rel/latest.json

@@ -38,7 +38,7 @@ VS Code and Cursor are built on Electron: each window is a web page, and every c
 
 ## Requirements
 
-- macOS 12 or later (Universal: Apple silicon and Intel), or Windows 10 or later (x64).
+- macOS 12 or later (Apple silicon or Intel, one download each), or Windows 10 or later (x64).
 - [Claude Code](https://github.com/anthropics/claude-code), installed.
 
 ## Building from source
@@ -53,7 +53,7 @@ flutter run -d macos        # or: flutter run -d windows
 To build what is released, into `build/installers/`:
 
 ```sh
-dart run tool/build_macos.dart            # BaoCode-<version>.dmg and BaoCode-<version>-mac.zip
+dart run tool/build_macos.dart            # BaoCode-<version>-{arm64,x64}.dmg and BaoCode-<version>-mac-{arm64,x64}.zip
 dart run tool/build_windows.dart          # BaoCode-<version>-setup.exe (needs Inno Setup)
 dart run tool/build_remote_server.dart    # the SSH remote server, for Linux x64 and arm64
 ```
