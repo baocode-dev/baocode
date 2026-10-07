@@ -52,6 +52,7 @@ import '../ide_list.dart';
 import '../ide_menu.dart';
 import '../ide_notifications.dart';
 import '../ide_panes.dart';
+import '../ide_spinning.dart';
 import '../ide_workspace.dart';
 import 'commit_message.dart';
 import 'git_graph_painter.dart';
@@ -2376,7 +2377,7 @@ class _SplitButtonState extends State<_SplitButton> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (widget.spinning) ...[
-                  _Spinning(Icon(Codicons.sync, size: 16, color: foreground)),
+                  IdeSpinning(Icon(Codicons.sync, size: 16, color: foreground)),
                   const SizedBox(width: 4),
                 ] else if (widget.icon case final icon?) ...[
                   Icon(icon, size: 16, color: foreground),
@@ -2467,57 +2468,6 @@ class _SplitButtonState extends State<_SplitButton> {
       ),
     );
   }
-}
-
-/// A codicon turning as `codicon-modifier-spin` turns one: once in 1.5s, in
-/// 30 steps; still where motion is turned down.
-class _Spinning extends StatefulWidget {
-  const _Spinning(this.child);
-
-  final Widget child;
-
-  @override
-  State<_Spinning> createState() => _SpinningState();
-}
-
-class _SpinningState extends State<_Spinning>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _turns = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1500),
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _turns.stop();
-    } else if (!_turns.isAnimating) {
-      unawaited(_turns.repeat());
-    }
-  }
-
-  @override
-  void dispose() {
-    _turns.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => RotationTransition(
-    turns: _turns.drive(CurveTween(curve: const _Steps(30))),
-    child: widget.child,
-  );
-}
-
-/// CSS `steps(n)`: jumps at the end of each of [steps] intervals.
-class _Steps extends Curve {
-  const _Steps(this.steps);
-
-  final int steps;
-
-  @override
-  double transformInternal(double t) => (t * steps).floor() / steps;
 }
 
 /// A reference badge: 18px high and round, in the reference's color, with

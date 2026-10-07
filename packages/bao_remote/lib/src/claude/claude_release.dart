@@ -224,12 +224,16 @@ class _DigestSink implements Sink<Digest> {
 
 /// The Claude Code BaoCode installs on a host where the user has none, as
 /// VS Code's extension carries its own: `<directory>/claude-<version>`, the
-/// one in use named by `<directory>/CURRENT`. Nothing of the user's
-/// (their PATH, `~/.local/bin`, their shell's files) is touched.
+/// one in use named by `<directory>/CURRENT`, and `<directory>/bin/claude`
+/// that runs it, for the app's terminals there (see [command]). Nothing of
+/// the user's (their PATH, `~/.local/bin`, their shell's files) is touched.
 class ManagedClaude {
   ManagedClaude(this.directory);
 
   final String directory;
+
+  /// Where `claude` is, for a terminal's PATH.
+  String get binDirectory => p.join(directory, 'bin');
 
   File get _current => File(p.join(directory, 'CURRENT'));
 
@@ -242,6 +246,36 @@ class ManagedClaude {
       if (version.isEmpty || version.contains('/')) return null;
       final binary = binaryOf(version);
       return binary.existsSync() ? binary.path : null;
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  /// [binDirectory], its `claude` written if need be (a build installed
+  /// before there was one); null when none is installed. That `claude` runs
+  /// the build `CURRENT` names, as the server does: its updater off, which
+  /// would put another in the user's `~/.local`.
+  String? command() {
+    if (installed == null || Platform.isWindows) return null;
+    final file = File(p.join(binDirectory, 'claude'));
+    final quoted = "'${directory.replaceAll("'", r"'\''")}'";
+    final script =
+        '#!/bin/sh\n'
+        '# BaoCode\'s Claude Code on this host, as BaoCode runs it.\n'
+        'dir=$quoted\n'
+        'DISABLE_AUTOUPDATER=1\n'
+        'export DISABLE_AUTOUPDATER\n'
+        'exec "\$dir/claude-\$(cat "\$dir/CURRENT")" "\$@"\n';
+    try {
+      if (file.existsSync() && file.readAsStringSync() == script) {
+        return binDirectory;
+      }
+      file.parent.createSync(recursive: true);
+      final part = File('${file.path}.part')..writeAsStringSync(script);
+      final chmod = Process.runSync('chmod', ['755', part.path]);
+      if (chmod.exitCode != 0) return null;
+      part.renameSync(file.path);
+      return binDirectory;
     } on FileSystemException {
       return null;
     }
@@ -268,6 +302,7 @@ class ManagedClaude {
     final next = File(p.join(directory, '.CURRENT'))
       ..writeAsStringSync('${build.version}\n');
     next.renameSync(_current.path);
+    command();
     for (final entry in Directory(directory).listSync()) {
       final name = p.basename(entry.path);
       if (name.startsWith('claude-') && entry.path != binary.path) {

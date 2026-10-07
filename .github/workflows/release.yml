@@ -279,7 +279,11 @@ jobs:
           notes=()
           for language in en zh; do
             file="release-notes/$MARKETING.$language.md"
-            [ -f "$file" ] && notes+=(--notes-$language "$file")
+            if [ -f "$file" ]; then
+              notes+=(--notes-$language "$file")
+            else
+              echo "::warning::No $file: the update notification and the changelog say nothing of $MARKETING"
+            fi
           done
           BAOCODE_UPDATE_SIGNING_KEY="$key" dart run tool/release_manifest.dart \
             --version "$VERSION" \

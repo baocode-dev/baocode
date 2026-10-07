@@ -28,6 +28,9 @@ a:hover { text-decoration-color: var(--ink); }
 .top a:hover { color: var(--ink); }
 .top .brand { display: flex; align-items: center; gap: 9px; margin-right: auto; color: var(--ink); font-weight: 600; }
 .top .brand img { width: 20px; height: 20px; border-radius: 5px; }
+.top a[aria-current="page"] { color: var(--ink); }
+/* English and Chinese: each page links to itself in the other language. */
+.top .lang { padding-left: 16px; border-left: 1px solid var(--rule); }
 
 /* Text in the middle column; the contents in the left margin, clear of the
    wider figures, when there is room. */
@@ -86,6 +89,7 @@ figure .img.missing img { visibility: hidden; }
 figure .img.missing::after { content: attr(data-src); position: absolute; inset: 0; display: grid; place-items: center; font: 13px var(--mono); color: var(--faint); }
 figcaption { max-width: var(--text); margin: 14px auto 0; font: 14px/1.55 var(--sans); color: var(--muted); }
 figcaption::before { content: "Figure " counter(fig) ". "; color: var(--ink); font-weight: 600; }
+:lang(zh) figcaption::before { content: "图 " counter(fig) "　"; }
 
 .table { margin: 28px 0 32px; counter-increment: tab; }
 table { width: 100%; border-collapse: collapse; font: 15px/1.5 var(--sans); font-variant-numeric: tabular-nums; }
@@ -96,6 +100,7 @@ tbody td:nth-child(2) { color: var(--ink); font-weight: 600; }
 td { color: var(--muted); }
 .table .caption { margin-top: 12px; font: 14px/1.55 var(--sans); color: var(--muted); }
 .table .caption::before { content: "Table " counter(tab) ". "; color: var(--ink); font-weight: 600; }
+:lang(zh) .table .caption::before { content: "表 " counter(tab) "　"; }
 
 sup { line-height: 0; font: 12px var(--sans); }
 sup a { text-decoration: none; color: var(--muted); }
@@ -139,3 +144,22 @@ h2.plain::before { content: none; }
 .platform .get { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .platform .size { margin-left: 4px; font: 13.5px var(--sans); color: var(--muted); white-space: nowrap; }
 @media (max-width: 640px) { .platforms { grid-template-columns: 1fr; } }
+
+/* The changelog (made by tool/build_changelog.dart): a version a section,
+   its heading a link to itself; the version the app links to is marked. */
+.release { margin-top: 56px; padding-top: 4px; }
+.release h2 { margin: 0 0 14px; font-size: 26px; }
+.release h2 a { text-decoration: none; }
+.release h2 a:hover { text-decoration: underline; text-decoration-color: var(--faint); }
+.release :is(p, li) { font-size: 17px; }
+.release p:has(+ ul) { margin: 20px 0 6px; font: 600 13.5px/1.5 var(--sans); color: var(--muted); }
+.release h2 + p:has(+ ul) { margin-top: 0; }
+.release:target h2 a { box-shadow: inset 0 -.35em 0 var(--tint); }
+
+/* The download page's thanks, with its ask for a star (download.js). */
+dialog.star { max-width: min(460px, calc(100vw - 48px)); padding: 26px 28px 24px; border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); color: var(--body); box-shadow: 0 24px 64px -24px rgba(0, 0, 0, .35); }
+dialog.star::backdrop { background: rgba(27, 26, 23, .28); }
+dialog.star h2 { margin: 0 0 10px; font-size: 22px; }
+dialog.star p { margin: 0 0 22px; font: 15px/1.6 var(--sans); color: var(--muted); }
+dialog.star .get { display: flex; flex-wrap: wrap; gap: 8px; }
+dialog.star button.button { background: var(--paper); cursor: pointer; }

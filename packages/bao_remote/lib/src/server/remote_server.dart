@@ -43,7 +43,11 @@ class RemoteServer {
   }) : _log = log ?? ((_) {}) {
     _streams = ServerStreams(peer);
     ServerReview(peer, checkpoints: p.join(dataDir, 'checkpoints'));
-    _pty = ServerPty(peer, log: _log);
+    _pty = ServerPty(
+      peer,
+      log: _log,
+      claudeDirectory: () => _claude.commandDirectory(),
+    );
     _tcp = ServerTcp(peer);
     _lsp = ServerLsp(
       peer,

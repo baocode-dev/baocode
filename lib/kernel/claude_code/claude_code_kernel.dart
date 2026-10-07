@@ -592,19 +592,38 @@ class ClaudeCodeKernel
     );
   }
 
+  /// Dropped here only once the CLI has: turned down, it goes on with all
+  /// of the conversation, and so does what is shown.
   @override
-  void rewind({
+  Future<bool> rewind({
     required String itemId,
     required int index,
     required int turns,
+    String? lastSeen,
   }) {
-    emit(Rewound(nextSeq, itemId: itemId, index: index));
+    final rewound = Completer<bool>();
     _writes = _writes
         .then(
-          (_) =>
-              _request('rewind_conversation', {'target_message_uuid': itemId}),
+          (_) => _request('rewind_conversation', {
+            'target_message_uuid': itemId,
+            // The turn stopped may not have stopped yet: the CLI turns a
+            // rewind down while one runs, unless it is to stop it.
+            'interrupt_if_running': true,
+            // Unsaid, a later message counts as unseen: turned down too.
+            'last_seen_user_message_uuid': ?lastSeen,
+          }),
         )
-        .then((_) {})
+        .then((response) {
+          // Turned down, it answers all the same.
+          if (response['rewound'] == false) {
+            throw ControlError(
+              'rewind_conversation',
+              '${response['error'] ?? response['reason'] ?? 'turned down'}',
+            );
+          }
+          emit(Rewound(nextSeq, itemId: itemId, index: index));
+          rewound.complete(true);
+        })
         .catchError((Object error) {
           emit(
             ItemUpserted(
@@ -613,7 +632,9 @@ class ClaudeCodeKernel
               NoticeItem(NoticeKind.error, 'Could not rewind: $error'),
             ),
           );
+          rewound.complete(false);
         });
+    return rewound.future;
   }
 
   @override

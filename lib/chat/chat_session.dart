@@ -803,15 +803,27 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
         when !message.isEmpty && itemAt(index) is UserMessageItem) {
       stop();
       var turns = 0;
+      String? lastSeen;
       for (var i = index; i < _transcript.length; i++) {
-        if (_transcript.itemAt(i) is UserMessageItem) turns++;
+        if (_transcript.itemAt(i) case UserMessageItem(:final queued)) {
+          turns++;
+          if (!queued) lastSeen = _transcript.idAt(i) ?? lastSeen;
+        }
       }
-      kernel.rewind(
-        itemId: _transcript.idAt(index) ?? '$index',
-        index: index,
-        turns: turns,
+      // Sent once the agent has gone back: turned down, it would follow
+      // all of the conversation.
+      unawaited(
+        kernel
+            .rewind(
+              itemId: _transcript.idAt(index) ?? '$index',
+              index: index,
+              turns: turns,
+              lastSeen: lastSeen,
+            )
+            .then((rewound) {
+              if (rewound && !_disposed) send(message);
+            }),
       );
-      send(message);
     }
   }
 

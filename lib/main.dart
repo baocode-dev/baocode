@@ -43,6 +43,9 @@ import 'settings/app_locale.dart';
 import 'settings/app_settings.dart';
 import 'settings/data_dir_startup.dart';
 import 'settings/user_settings.dart';
+import 'telemetry/telemetry_platform.dart';
+import 'telemetry/telemetry_service.dart';
+import 'telemetry/telemetry_store.dart';
 import 'theme/app_theme.dart';
 import 'theme/workbench_theme.dart';
 import 'update/update_controller.dart';
@@ -190,6 +193,7 @@ Future<void> main(List<String> arguments) async {
       installs: VsCodeInstalls.current(),
       updates: _startUpdates(files),
     );
+    _startTelemetry(files);
   }
   final app = BaoCodeApp(
     windows: windows,
@@ -247,6 +251,32 @@ UpdateController? _startUpdates(SettingsFiles files) {
     },
     openUrl: (url) => openExternal('$url'),
   );
+}
+
+/// The app's usage data (lib/telemetry/): once a UTC day it is in front,
+/// as settings.json's `telemetry.telemetryLevel` allows. None in a debug
+/// build, or with `DO_NOT_TRACK` set.
+void _startTelemetry(SettingsFiles files) {
+  final platform = platformTelemetry();
+  if (platform == null) return;
+  bool inFront() => switch (WidgetsBinding.instance.lifecycleState) {
+    null || AppLifecycleState.resumed => true,
+    _ => false,
+  };
+  final telemetry = TelemetryService(
+    current: currentAppVersion,
+    os: platform.os,
+    arch: platform.arch,
+    sender: platform.sender,
+    url: platform.url,
+    enabled: () =>
+        TelemetrySetting.enabled(files.settings[TelemetrySetting.settingKey]),
+    settingsChanges: files.settings,
+    store: GlobalTelemetryStore(files.storage),
+    inFront: inFront,
+  )..start();
+  // Back in front: a new day, if it is one. For the app's whole run.
+  AppLifecycleListener(onResume: telemetry.markActive);
 }
 
 class BaoCodeApp extends StatefulWidget {

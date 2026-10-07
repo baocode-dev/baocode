@@ -1203,10 +1203,22 @@ void main() {
       expect(cli.requests('rewind_files').single['user_message_id'], 'u1');
       expect(events.whereType<ChangesReverted>(), hasLength(1));
 
-      kernel
-        ..rewind(itemId: 'u1', index: 0, turns: 1)
-        ..send(const KernelTurn(id: 'u2', text: 'again'));
+      final rewound = kernel.rewind(
+        itemId: 'u1',
+        index: 0,
+        turns: 1,
+        lastSeen: 'u3',
+      );
+      kernel.send(const KernelTurn(id: 'u2', text: 'again'));
       await pumpEventQueue();
+      expect(await rewound, isTrue);
+      expect(cli.requests('rewind_conversation').single, {
+        'subtype': 'rewind_conversation',
+        'target_message_uuid': 'u1',
+        'interrupt_if_running': true,
+        'last_seen_user_message_uuid': 'u3',
+      });
+      expect(events.whereType<Rewound>().single.itemId, 'u1');
       final order = [
         for (final message in cli.written)
           if (message['type'] == 'user')
@@ -1217,6 +1229,105 @@ void main() {
       ];
       expect(order, ['rewind', 'user']);
       kernel.dispose();
+    });
+
+    test('a rewind the CLI turns down leaves the conversation as it was, '
+        'and says why', () async {
+      final cli = FakeCli(
+        answers: {
+          'rewind_conversation': {
+            'rewound': false,
+            'prefillText': null,
+            'precedingAssistantUuid': null,
+            'error': 'stale target',
+            'reason': 'stale_target',
+          },
+        },
+      );
+      final (:kernel, :transcript, :events) = claude(cli);
+      kernel.send(const KernelTurn(id: 'u1', text: 'one'));
+      await pumpEventQueue();
+      final before = transcript.length;
+      expect(await kernel.rewind(itemId: 'u1', index: 0, turns: 1), isFalse);
+      expect(events.whereType<Rewound>(), isEmpty);
+      expect(transcript.length, before + 1);
+      expect(
+        transcript.itemAt(transcript.length - 1),
+        isA<NoticeItem>().having(
+          (notice) => notice.text,
+          'text',
+          contains('stale target'),
+        ),
+      );
+      kernel.dispose();
+    });
+
+    test('an edit goes back past the later messages seen, and is sent only '
+        'once the CLI has gone back', () async {
+      Future<ChatSession> open(FakeCli cli) async {
+        final descriptor = KernelDescriptor(
+          id: 'claude-code',
+          label: 'Claude Code',
+          icon: Icons.auto_awesome_rounded,
+          description: '',
+          create: (context) => ClaudeCodeKernel(
+            MockKernels.claudeCode,
+            context,
+            start: (_) async => cli,
+          ),
+        );
+        final session = ChatSession(
+          kernel: descriptor,
+          kernels: [descriptor],
+          historyCount: 0,
+        );
+        addTearDown(session.dispose);
+        for (final text in ['one', 'two']) {
+          session.send(ComposerMessage(text: text));
+          await pumpEventQueue();
+          cli.push({
+            'type': 'result',
+            'subtype': 'success',
+            'is_error': false,
+            'session_id': 's',
+          });
+          await pumpEventQueue();
+        }
+        return session;
+      }
+
+      List<String> said(ChatSession session) => [
+        for (var i = 0; i < session.itemCount; i++)
+          if (session.itemAt(i) case UserMessageItem(:final text)) text,
+      ];
+
+      final cli = FakeCli(answers: {'rewind_conversation': {'rewound': true}});
+      final session = await open(cli);
+      final [first, second] = [
+        for (final user in cli.users) user['uuid'] as String,
+      ];
+      session.editMessage(0, const ComposerMessage(text: 'ONE'));
+      await pumpEventQueue();
+      final request = cli.requests('rewind_conversation').single;
+      expect(request['target_message_uuid'], first);
+      expect(request['last_seen_user_message_uuid'], second);
+      expect(said(session), ['ONE']);
+      expect(cli.users, hasLength(3));
+
+      final refusing = FakeCli(
+        answers: {
+          'rewind_conversation': {
+            'rewound': false,
+            'error': 'turn running',
+            'reason': 'turn_running',
+          },
+        },
+      );
+      final kept = await open(refusing);
+      kept.editMessage(0, const ComposerMessage(text: 'ONE'));
+      await pumpEventQueue();
+      expect(said(kept), ['one', 'two']);
+      expect(refusing.users, hasLength(2), reason: 'the edit is not sent');
     });
 
     test('reports cost, limits and what fills the context', () async {

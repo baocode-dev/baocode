@@ -7,6 +7,8 @@
 <meta name="description" content="Download BaoCode for macOS and Windows.">
 <link rel="icon" href="icon.png">
 <link rel="stylesheet" href="style.css">
+<link rel="alternate" hreflang="en" href="https://baocode.dev/download">
+<link rel="alternate" hreflang="zh" href="https://baocode.dev/zh/download">
 </head>
 <body>
 <canvas class="grid" aria-hidden="true"></canvas>
@@ -20,9 +22,10 @@
 </svg>
 <header class="top">
   <a class="brand" href="/"><img src="icon.png" alt="">BaoCode</a>
-  <a href="download.html">Download</a>
+  <a href="download.html" aria-current="page">Download</a>
   <a href="/changelog">Changelog</a>
   <a href="https://github.com/baocode-dev/baocode"><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>GitHub</a>
+  <a class="lang" href="/zh/download" hreflang="zh" lang="zh-CN">中文</a>
 </header>
 
 <main class="page">
@@ -56,8 +59,17 @@
   <p>BaoCode updates itself in the background and asks before restarting. If it sent you here, it couldn’t update itself: download the new version above and install it over the old one. Your settings and conversations are kept.</p>
   <p>What changed in each version: <a href="/changelog">the changelog</a>.</p>
 
-  <footer>BaoCode is an independent project, not affiliated with or endorsed by Anthropic. Claude Code is a product of Anthropic.</footer>
 </main>
+
+<!-- Opened by download.js once a download starts, once a browser. -->
+<dialog class="star" data-star aria-labelledby="star-title">
+  <h2 class="plain" id="star-title">Thanks for downloading BaoCode</h2>
+  <p>Your download has started. BaoCode is free and open source; if you like it, a star on GitHub helps other people find it.</p>
+  <div class="get">
+    <a class="button primary" href="https://github.com/baocode-dev/baocode" target="_blank" rel="noopener" data-star-go><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>Star on GitHub</a>
+    <button class="button" type="button" data-star-close>Maybe later</button>
+  </div>
+</dialog>
 
 <script src="site.js"></script>
 <script src="download.js"></script>

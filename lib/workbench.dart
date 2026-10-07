@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:bao_editor/textmate/textmate_syntax.dart';
+import 'package:bao_remote/client.dart' show SshPrompt;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, listEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -63,6 +64,7 @@ import 'theme/workbench_theme.dart' show WorkbenchThemeService, themeColors;
 import 'tips/feature_tip.dart';
 import 'tips/feature_tips_controller.dart';
 import 'tips/feature_tips_view.dart';
+import 'tips/star_prompt.dart';
 import 'window/app_windows.dart';
 import 'window/code_args.dart';
 import 'window/window_settings.dart';
@@ -71,6 +73,8 @@ import 'remote/project_host.dart';
 import 'remote/remote_location.dart';
 import 'remote/remote_status.dart';
 import 'remote/ssh_host.dart';
+import 'remote/ssh_password_dialog.dart';
+import 'remote/ssh_passwords.dart';
 import 'workspace/chat_drag.dart';
 import 'workspace/chat_grid_view.dart';
 import 'workspace/chat_terminal.dart';
@@ -343,6 +347,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     WindowControls.setMenuCommands(_viewId, _runMenuCommand);
     WindowControls.handleEditCommands(_viewId);
     WindowControls.handleWindowEvents(_viewId);
+    // What signing in to a host asks, asked here.
+    SshHosts.instance.passwords.ask = _askSshPassword;
     FileDrops.listen(_viewId);
     if (_windows?.started ?? false) {
       FileDrops.setUnhandledDrop(_viewId, _dropped);
@@ -360,7 +366,6 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       _stopUpdateOffers = widget.settings?.updates?.listen(
         _notifications,
         () => context.l10n,
-        openNotes: () => unawaited(openSettings(SettingsSection.updates)),
       );
     }
     widget.settings?.files?.changes.addListener(_settingsFilesChanged);
@@ -421,8 +426,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     await _startTips();
   }
 
+  Future<SshPasswordAnswer?> _askSshPassword(
+    SshPrompt prompt, {
+    required bool keepable,
+  }) async => mounted
+      ? showSshPasswordDialog(context, prompt, keepable: keepable)
+      : null;
+
   @override
   void dispose() {
+    if (SshHosts.instance.passwords.ask == _askSshPassword) {
+      SshHosts.instance.passwords.ask = null;
+    }
     _terminals
       ?..removeListener(_terminalsChanged)
       ..dispose();
@@ -431,6 +446,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _width.dispose();
     _lifecycle?.dispose();
     _attention?.dispose();
+    _starPrompt?.dispose();
     _stopUpdateOffers?.call();
     if (_tipsPresenter case final presenter?) {
       _tips
@@ -537,6 +553,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         checkForUpdatesCommandId: _checkForUpdates,
         if (_tipsEnabled) showSetupGuideCommandId: _showSetupGuide,
         if (_tipsEnabled) resetFeatureTipsCommandId: _resetTips,
+        starOnGitHubCommandId: _starOnGitHub,
         ChatCommandIds.search: () => unawaited(_openPalette()),
         ..._terminalCommands(),
         ..._windowCommands(),
@@ -555,6 +572,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       checkForUpdatesCommandId: _checkForUpdates,
       if (_tipsEnabled) showSetupGuideCommandId: _showSetupGuide,
       if (_tipsEnabled) resetFeatureTipsCommandId: _resetTips,
+      starOnGitHubCommandId: _starOnGitHub,
       // As the sidebar's New Agent button: a folder first, without one.
       if (_workspace.sidebarProjects.isNotEmpty)
         ChatCommandIds.newChat: _newAgent
@@ -874,6 +892,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ?action(checkForUpdatesCommandId, Codicons.cloudDownload),
       ?action(showSetupGuideCommandId, Codicons.rocket),
       ?action(resetFeatureTipsCommandId, Codicons.discard),
+      ?action(starOnGitHubCommandId, Codicons.star),
       ?action(
         'workbench.action.toggleSidebarVisibility',
         Codicons.layoutSidebarLeft,
@@ -956,6 +975,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       label: commandCatalog[resetFeatureTipsCommandId]!.title,
       run: _resetTips,
     ),
+    IdeCommand(
+      id: starOnGitHubCommandId,
+      category: 'Help',
+      label: commandCatalog[starOnGitHubCommandId]!.title,
+      run: _starOnGitHub,
+    ),
   ];
 
   // --- Feature tips ----------------------------------------------------------
@@ -1006,7 +1031,39 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     tips.attach(presenter);
     _restores = tips.restores;
     tips.addListener(_tipsChanged);
+    if (_main) {
+      _starPrompt = StarPrompt(
+        workspace: _workspace,
+        storage: tips.storage,
+        enabled: () => tips.enabled,
+        busy: () => _busyForTips() || !_inFront(),
+        ask: _showStarDialog,
+      )..start();
+    }
   }
+
+  // --- Asking for a star -----------------------------------------------------
+
+  /// Asks for a star on GitHub after the first conversations (see
+  /// StarPrompt): the main window's, once for the app.
+  StarPrompt? _starPrompt;
+
+  /// Whether the app is in front: the ask waits for the user to be back.
+  static bool _inFront() => switch (WidgetsBinding.instance.lifecycleState) {
+    null || AppLifecycleState.resumed => true,
+    _ => false,
+  };
+
+  Future<void> _showStarDialog() async {
+    if (!mounted) return;
+    await showStarDialog(
+      context,
+      openUrl: (url) async => unawaited(openExternal('$url')),
+    );
+  }
+
+  /// Star BaoCode on GitHub, the command: the ask, now.
+  void _starOnGitHub() => unawaited(_starPrompt?.show() ?? _showStarDialog());
 
   /// The restores of the card seen (see [_tipsChanged]).
   int _restores = 0;
@@ -1098,13 +1155,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       _notifications.notify(IdeSeverity.info, context.l10n.updateUnsupported);
       return;
     }
-    unawaited(
-      updates.checkNow(
-        _notifications,
-        context.l10n,
-        openNotes: () => unawaited(openSettings(SettingsSection.updates)),
-      ),
-    );
+    unawaited(updates.checkNow(_notifications, context.l10n));
   }
 
   /// The chords of a sequence typed so far (⌘K of ⌘K ⌘S).

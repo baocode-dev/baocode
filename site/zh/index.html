@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BaoCode — 好看又好用的 Claude Code 桌面应用</title>
+<meta name="description" content="好看又好用的 Claude Code 桌面应用，内置毫秒级响应的 IDE。">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/style.css">
+<link rel="alternate" hreflang="en" href="https://baocode.dev/">
+<link rel="alternate" hreflang="zh" href="https://baocode.dev/zh/">
+</head>
+<body>
+<svg class="sprite" aria-hidden="true">
+  <!-- Lucide (ISC), https://lucide.dev; the Apple and Windows logos from Simple Icons (CC0), https://simpleicons.org -->
+  <symbol id="ic-apple" viewBox="0 0 24 24"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04c-2.04.027-3.91 1.183-4.961 3.014c-2.117 3.675-.546 9.103 1.519 12.09c1.013 1.454 2.208 3.09 3.792 3.039c1.52-.065 2.09-.987 3.935-.987c1.831 0 2.35.987 3.96.948c1.637-.026 2.676-1.48 3.676-2.948c1.156-1.688 1.636-3.325 1.662-3.415c-.039-.013-3.182-1.221-3.22-4.857c-.026-3.04 2.48-4.494 2.597-4.559c-1.429-2.09-3.623-2.324-4.39-2.376c-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83c-1.207.052-2.662.805-3.532 1.818c-.78.896-1.454 2.338-1.273 3.714c1.338.104 2.715-.688 3.559-1.701"/></symbol>
+  <symbol id="ic-windows" viewBox="0 0 24 24"><path fill="currentColor" d="M0 0h11.377v11.372H0Zm12.623 0H24v11.372H12.623ZM0 12.623h11.377V24H0Zm12.623 0H24V24H12.623"/></symbol>
+  <symbol id="ic-github" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5c.08-1.25-.27-2.48-1-3.5c.28-1.15.28-2.35 0-3.5c0 0-1 0-3 1.5c-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5c-.39.49-.68 1.05-.85 1.65S8.93 17.38 9 18v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></g></symbol>
+  <symbol id="ic-lightbulb" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M15 14c.2-1 .7-1.7 1.5-2.5c1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5c.7.7 1.3 1.5 1.5 2.5m0 4h6m-5 4h4"/></symbol>
+  <symbol id="ic-panel-left" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></g></symbol>
+  <symbol id="ic-zap" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M15.914 4a1.5 1.5 0 0 0-2.474-1.561l-9 9A1.5 1.5 0 0 0 5.5 14h4.002a.5.5 0 0 1 .471.666L8.086 20a1.5 1.5 0 0 0 2.475 1.56l9-9A1.5 1.5 0 0 0 18.5 10h-3.997a.5.5 0 0 1-.472-.667z"/></symbol>
+  <symbol id="ic-palette" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a1 1 0 0 1 0-20a10 9 0 0 1 10 9a5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></g></symbol>
+  <symbol id="ic-code" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="m16 18l6-6l-6-6M8 6l-6 6l6 6"/></symbol>
+  <symbol id="ic-server" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><path d="M6 6h.01M6 18h.01"/></g></symbol>
+  <symbol id="ic-puzzle" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M15.39 4.39a1 1 0 0 0 1.68-.474a2.5 2.5 0 1 1 3.014 3.015a1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474a2.5 2.5 0 1 0-3.014 3.015a1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474a2.5 2.5 0 1 1-3.014-3.015a1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474a2.5 2.5 0 1 0 3.014-3.015a1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></symbol>
+  <symbol id="ic-sparkles" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594zM20 2v4m2-2h-4"/><circle cx="4" cy="20" r="2"/></g></symbol>
+  <symbol id="ic-bell" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M10.268 21a2 2 0 0 0 3.464 0m-10.47-5.674A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+  <symbol id="ic-target" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></g></symbol>
+  <symbol id="ic-download" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10l5 5l5-5"/></g></symbol>
+  <symbol id="ic-git-fork" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9m6 3v3"/></g></symbol>
+  <symbol id="ic-fold-vertical" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M12 22v-6m0-8V2M4 12H2m8 0H8m8 0h-2m8 0h-2m-5 7l-3-3l-3 3m6-14l-3 3l-3-3"/></symbol>
+  <symbol id="ic-git-compare" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7m-7 3H8a2 2 0 0 1-2-2V9"/></g></symbol>
+  <symbol id="ic-activity" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></symbol>
+  <symbol id="ic-flag" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"/></symbol>
+  <symbol id="ic-message-square-text" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2zM7 11h10M7 15h6M7 7h8"/></symbol>
+  <symbol id="ic-play" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol>
+  <symbol id="ic-square" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" rx="2"/></symbol>
+</svg>
+<canvas class="grid" aria-hidden="true"></canvas>
+<header class="top">
+  <a class="brand" href="/zh/"><img src="/icon.png" alt="">BaoCode</a>
+  <a href="/zh/download">下载</a>
+  <a href="/zh/changelog">更新日志</a>
+  <a href="https://github.com/baocode-dev/baocode"><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>GitHub</a>
+  <a class="lang" href="/" hreflang="en" lang="en">English</a>
+</header>
+
+<main class="page">
+  <nav class="toc" aria-label="目录">
+    <div class="label">目录</div>
+    <ol>
+      <li><a href="#why"><svg class="ic" aria-hidden="true"><use href="#ic-lightbulb"/></svg>为什么做它</a></li>
+      <li><a href="#interface"><svg class="ic" aria-hidden="true"><use href="#ic-panel-left"/></svg>界面</a></li>
+      <li><a href="#speed"><svg class="ic" aria-hidden="true"><use href="#ic-zap"/></svg>速度</a></li>
+      <li><a href="#themes"><svg class="ic" aria-hidden="true"><use href="#ic-palette"/></svg>你的主题</a></li>
+      <li><a href="#tools"><svg class="ic" aria-hidden="true"><use href="#ic-code"/></svg>Fast IDE</a></li>
+      <li><a href="#remote"><svg class="ic" aria-hidden="true"><use href="#ic-server"/></svg>SSH 远程项目</a></li>
+      <li><a href="#customize"><svg class="ic" aria-hidden="true"><use href="#ic-puzzle"/></svg>技能与 MCP</a></li>
+      <li><a href="#models"><svg class="ic" aria-hidden="true"><use href="#ic-sparkles"/></svg>任意模型</a></li>
+      <li><a href="#notifications"><svg class="ic" aria-hidden="true"><use href="#ic-bell"/></svg>通知</a></li>
+      <li><a href="#limits"><svg class="ic" aria-hidden="true"><use href="#ic-target"/></svg>它不做什么</a></li>
+      <li><a href="#download"><svg class="ic" aria-hidden="true"><use href="#ic-download"/></svg>下载</a></li>
+      <li><a href="#source"><svg class="ic" aria-hidden="true"><use href="#ic-git-fork"/></svg>源代码</a></li>
+    </ol>
+  </nav>
+
+  <h1>BaoCode</h1>
+  <p class="subtitle">好看又好用的 Claude Code 桌面应用，内置毫秒级响应的 IDE。</p>
+  <p class="meta"><span data-version>版本 1.0.0</span><span>macOS（Apple 芯片和 Intel）和 Windows</span><span>免费开源</span><span>更新于 2026 年 10 月 7 日</span></p>
+
+  <div class="actions">
+    <a class="button primary" href="/zh/download"><svg class="ic logo" aria-hidden="true"><use href="#ic-apple"/></svg>下载 Mac 版</a>
+    <a class="button" data-file="windows" href="https://dl.baocode.dev/releases/1.0.0/BaoCode-1.0.0-setup.exe"><svg class="ic logo" aria-hidden="true"><use href="#ic-windows"/></svg>下载 Windows 版</a>
+  </div>
+
+  <figure>
+    <div class="img" data-src="/shots/main.webp"><img decoding="async" src="/shots/main.webp" width="1568" height="976" alt="BaoCode 的主窗口，两个对话并排，模型选择器已打开" fetchpriority="high"></div>
+    <div class="img" data-src="/shots/main-ide.webp"><img decoding="async" loading="lazy" src="/shots/main-ide.webp" width="1568" height="1007" alt="Fast IDE，对话停靠在编辑器和终端旁边"></div>
+    <figcaption>上：BaoCode 的主窗口，智能体按项目分组，两个对话并排进行，后台智能体同时在运行，模型选择器已打开。下：Fast IDE，对话停靠在编辑器和终端旁边，Claude 正在运行五个分析智能体；选中的代码作为引用放进了消息。</figcaption>
+  </figure>
+
+  <h2 id="why"><svg class="ic" aria-hidden="true"><use href="#ic-lightbulb"/></svg>为什么做它</h2>
+  <p>我们每天都在用 Claude Code。终端适合运行它，却不适合阅读它：长长的 diff 一下就滚出视野，之前的步骤很难再找回来，想审查它改了什么还得切到别的应用。</p>
+  <p>BaoCode 就是我们想给它配的那个窗口。原生绘制，打开即用，界面从不拖 Claude 的后腿。</p>
+
+  <h2 id="interface"><svg class="ic" aria-hidden="true"><use href="#ic-panel-left"/></svg>界面</h2>
+  <p>界面是 BaoCode 的重点，所以大部分功夫都花在细节上。这些细节平时你未必注意得到，直到换回别的工具：</p>
+  <ul class="features">
+    <li><svg class="ic" aria-hidden="true"><use href="#ic-fold-vertical"/></svg><span><strong>步骤自动折叠。</strong>读文件、搜索和命令都收成一行，对话读起来就是 Claude 说了什么、做了什么。</span></li>
+    <li><svg class="ic" aria-hidden="true"><use href="#ic-git-compare"/></svg><span><strong>每处修改都能审查。</strong>按文件保留或撤销 Claude 的修改。检查点存放在 BaoCode 自己的数据目录里，从不放进你仓库的 <code>.git</code>。</span></li>
+    <li><svg class="ic" aria-hidden="true"><use href="#ic-activity"/></svg><span><strong>看得见它在做什么。</strong>Claude 工作时，当前任务和进度一直显示在输入框上方。</span></li>
+    <li><svg class="ic" aria-hidden="true"><use href="#ic-flag"/></svg><span><strong>给它一个目标。</strong>输入 <code>/goal</code> 和你想完成的事，Claude 会一直工作到目标达成。目标显示在输入框上方，附带已经工作了多久；展开可以看到它为什么还没达成，也可以修改目标。任务进行到一半时设定，也会立即生效。</span></li>
+    <li><svg class="ic" aria-hidden="true"><use href="#ic-message-square-text"/></svg><span><strong>输入框是富文本编辑器。</strong>从编辑器复制代码，粘贴过来就是对文件和行号的引用；粘贴图片或拖入文件，它们就留在你放进句子的那个位置。</span></li>
+  </ul>
+  <figure>
+    <div class="img" data-src="/shots/composer.webp"><img decoding="async" loading="lazy" src="/shots/composer.webp" width="1568" height="1089" alt="一条带五张图片和一个代码引用的已发送消息，重新打开编辑"></div>
+    <figcaption>一条消息里有五张粘贴的图片和一个对 <code>about-claude.html:4-7</code> 的引用，各自以标签的形式嵌在句子里；Claude 处理它的同时，又打开它重新编辑。</figcaption>
+  </figure>
+  <figure>
+    <div class="img" data-src="/shots/goal.webp"><img decoding="async" loading="lazy" src="/shots/goal.webp" width="1568" height="1224" alt="一个朝 /goal 设定的目标推进的对话，目标显示在输入框上方"></div>
+    <figcaption>用 <code>/goal</code> 设定的目标：Claude 朝它推进，输入框上方显示为进行中，并附带已花的时间。</figcaption>
+  </figure>
+
+  <h2 id="speed"><svg class="ic" aria-hidden="true"><use href="#ic-zap"/></svg>速度</h2>
+  <p>VS Code 和 Cursor 基于 Electron。每个窗口都是一个网页，每份应用都自带一个 Chromium 浏览器和 Node.js。启动要好几秒、内存动辄上 GB、安装包 200 MB，原因都在这里。</p>
+  <p>BaoCode 不是网页。它是原生应用，直接用 GPU 绘制自己的界面，底下没有浏览器。</p>
+  <div class="table">
+    <table>
+      <thead><tr><th></th><th>BaoCode</th><th>VS Code</th><th>Cursor</th></tr></thead>
+      <tbody>
+        <tr><td>启动</td><td>≈ 0.18 秒</td><td>≈ 2–3 秒</td><td>≈ 2–3 秒</td></tr>
+        <tr><td>内存（单窗口空闲）</td><td>≈ 120 MB</td><td>≈ 970 MB</td><td>≈ 1.9 GB</td></tr>
+        <tr><td>进程数（单窗口）</td><td>2</td><td>8</td><td>13</td></tr>
+        <tr><td>安装包大小（Windows）</td><td>≈ 16 MB</td><td>≈ 244 MB</td><td>≈ 214 MB</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="themes"><svg class="ic" aria-hidden="true"><use href="#ic-palette"/></svg>你的主题</h2>
+  <p>BaoCode 的配色就是 VS Code 的主题配色，你常用的主题看起来和你预期的一样：编辑器、对话和侧栏都跟着主题走。随时可以换主题；在列表里上下移动时，窗口会逐个预览。</p>
+  <p>BaoCode 对整个 VS Code 也是这么做的：留下最重要的部分，装进 Windows 上 16 MB 的安装包里。</p>
+  <figure>
+    <div class="img" data-src="/shots/themes-light.webp"><img decoding="async" loading="lazy" src="/shots/themes-light.webp" width="1568" height="974" alt="浅色主题下的 BaoCode 主窗口，打开了搜索"></div>
+    <div class="img" data-src="/shots/themes-dark.webp"><img decoding="async" loading="lazy" src="/shots/themes-dark.webp" width="1568" height="996" alt="Kimbie Dark 主题下的 Fast IDE，打开了颜色主题列表"></div>
+    <figcaption>上：浅色主题下的主窗口，打开了可同时搜索智能体、对话、文件和操作的搜索框。下：Kimbie Dark 主题下的 Fast IDE，主题选自 VS Code 自带的浅色和深色主题。</figcaption>
+  </figure>
+
+  <h2 id="tools"><svg class="ic" aria-hidden="true"><use href="#ic-code"/></svg>Fast IDE</h2>
+  <p>想自己看代码时，不用再开别的应用。Fast IDE 是内置的：编辑器、终端，以及带提交图的源代码管理，沿用你的 VS Code 快捷键和语言服务器。点一下就回到对话。</p>
+  <p>它的响应以毫秒计。即使在大项目里，打开文件、出搜索结果、按键上屏，都快到你感觉不到等待。</p>
+  <p>提交信息由 Claude Code 来写：它读你的改动，起草好提交信息，你修改后提交即可。它怎么写也可以自定义。</p>
+  <figure>
+    <div class="img" data-src="/shots/ide.webp"><img decoding="async" loading="lazy" src="/shots/ide.webp" width="1568" height="1157" alt="Fast IDE：源代码管理、编辑器和终端"></div>
+    <figcaption>Fast IDE：源代码管理（包括 Claude Code 起草的提交信息和提交图）、编辑器和终端。</figcaption>
+  </figure>
+
+  <h2 id="remote"><svg class="ic" aria-hidden="true"><use href="#ic-server"/></svg>SSH 远程项目</h2>
+  <p>代码不必放在你自己的电脑上。通过 SSH 打开 Linux 服务器上的文件夹，体验和 VS Code 的 Remote-SSH 一样：窗口留在本机，文件、搜索、Git、终端、语言服务器和 Claude Code 都在服务器上运行，就在代码旁边。</p>
+  <p>从 <code>~/.ssh/config</code> 里选一台主机，或者直接输入 <code>user@host</code>，再选一个文件夹就行。远程项目和其他项目一起列在侧栏里，标着所在的主机；新对话也可以从输入框上方的文件夹菜单直接在远程项目里开始。服务器上没有 Claude Code 时，BaoCode 会帮你装好，你添加的模型在那边也能用。</p>
+  <p>连接断了，BaoCode 会自己重连；被打断的对话，发下一条消息时就会接着进行。连不上主机时，它会告诉你原因，点一下就能重试。</p>
+  <p>服务器需要是 Linux（x64 或 arm64），并且能用 SSH 密钥或 ssh-agent 登录。暂不支持密码和二次验证登录。</p>
+
+  <h2 id="customize"><svg class="ic" aria-hidden="true"><use href="#ic-puzzle"/></svg>技能、MCP 服务器及其他</h2>
+  <p>Claude Code 能用来扩展的一切都集中在一处：插件、MCP 服务器、技能、子代理、规则、命令和钩子，可以对你全局生效，也可以只用于某个项目。你在 claude.ai 上的技能也会出现在这里。</p>
+  <figure>
+    <div class="img" data-src="/shots/customize.webp"><img decoding="async" loading="lazy" src="/shots/customize.webp" width="1568" height="1164" alt="BaoCode 的自定义页面，列出从 claude.ai 同步来的技能"></div>
+    <figcaption>自定义：插件、MCP 服务器、技能、子代理、规则、命令和钩子，图中是从 claude.ai 同步来的技能。</figcaption>
+  </figure>
+
+  <h2 id="models"><svg class="ic" aria-hidden="true"><use href="#ic-sparkles"/></svg>任意模型</h2>
+  <p>活由 Claude Code 来干，模型由你来选。添加一个支持 Anthropic API、OpenAI Chat Completions 或 OpenAI Responses 的上游，BaoCode 的本地代理会在它和 Claude Code 之间做转换。Claude Code 的工具、技能和工作方式都保持不变。你甚至可以让 Claude Code 跑在 GPT-6 Astra 上。</p>
+  <p>API 密钥保存在系统钥匙串里，而不是设置文件中；你还可以为 Claude Code 的每类工作分别指定模型。</p>
+  <figure>
+    <div class="img" data-src="/shots/models.webp"><img decoding="async" loading="lazy" src="/shots/models.webp" width="1568" height="1174" alt="在 BaoCode 设置中添加模型上游，协议菜单已打开"></div>
+    <figcaption>添加上游：协议、Base URL 和 API 密钥，它提供的模型，以及 Claude Code 在各个角色上用哪个模型。</figcaption>
+  </figure>
+
+  <h2 id="notifications"><svg class="ic" aria-hidden="true"><use href="#ic-bell"/></svg>通知</h2>
+  <p>你不用一直盯着窗口。当智能体需要你回答问题、授予权限或批准计划，或者它完成了这一轮，BaoCode 会用系统的方式告诉你：一条通知、一声提示音，应用图标上还会显示有几个智能体在等你。</p>
+  <p>关掉窗口后，智能体仍在菜单栏（Windows 上是托盘）里继续运行，菜单里能看到哪些在等你。提示音是微波炉的“叮”，因为活儿热好了：<button class="play" type="button" data-sound="/sounds/microwave-ding.m4a" aria-label="播放通知提示音"><svg class="ic start" aria-hidden="true"><use href="#ic-play"/></svg><svg class="ic stop" aria-hidden="true"><use href="#ic-square"/></svg>播放</button></p>
+  <figure>
+    <div class="img" data-src="/shots/notifications.webp"><img decoding="async" loading="lazy" src="/shots/notifications.webp" width="1568" height="1222" alt="BaoCode 的通知设置"></div>
+    <figcaption>通知设置：什么时候提醒、提示音，以及菜单栏图标。</figcaption>
+  </figure>
+
+  <h2 id="limits"><svg class="ic" aria-hidden="true"><use href="#ic-target"/></svg>它不做什么</h2>
+  <p><strong>BaoCode 没有自己的智能体，这是有意为之。</strong>Claude Code 就是那个智能体，它的生态无可比拟：工具、技能、插件、MCP 服务器、子代理和钩子。再做一个智能体只会把生态割裂开。BaoCode 要做的，是给 Claude Code 配上它应得的界面，并让周边的一切开箱即用。</p>
+  <p>所以 BaoCode 不附带模型，也不需要注册账号。它运行你已经装好的 Claude Code，使用你的设置和你的 <code>CLAUDE.md</code>。不支持 Codex 和其他智能体；其他模型可以像上面说的那样，通过 Claude Code 使用。</p>
+
+  <h2 id="download"><svg class="ic" aria-hidden="true"><use href="#ic-download"/></svg>下载</h2>
+  <ul class="features">
+    <li><svg class="ic logo" aria-hidden="true"><use href="#ic-apple"/></svg><span><strong>macOS</strong>：<a data-file="macos-arm64" href="https://dl.baocode.dev/releases/1.0.0/BaoCode-1.0.0-arm64.dmg">Apple 芯片</a>或 <a data-file="macos-x64" href="https://dl.baocode.dev/releases/1.0.0/BaoCode-1.0.0-x64.dmg">Intel</a> 版，macOS 12 Monterey 或更高版本。</span></li>
+    <li><svg class="ic logo" aria-hidden="true"><use href="#ic-windows"/></svg><span><strong>Windows</strong>：<a data-file="windows" data-name href="https://dl.baocode.dev/releases/1.0.0/BaoCode-1.0.0-setup.exe">BaoCode 1.0.0</a>，x64，Windows 10 或更高版本。</span></li>
+  </ul>
+  <p>BaoCode 会在后台自动更新，重启前会先询问。你可以在“设置 → 更新”里改为手动更新，或者关闭更新。</p>
+
+  <h2 id="source"><svg class="ic" aria-hidden="true"><use href="#ic-git-fork"/></svg>源代码</h2>
+  <p>BaoCode 以 <a href="https://github.com/baocode-dev/baocode/blob/main/LICENSE">GPL-3.0</a> 许可开源，其中的编辑器和终端包采用 MIT 许可。代码在 <a href="https://github.com/baocode-dev/baocode">GitHub</a> 上。欢迎提 Issue；不接受 Pull Request。</p>
+
+
+  <footer>BaoCode 是独立项目，与 Anthropic 没有关联，也未获其认可。Claude Code 是 Anthropic 的产品。</footer>
+</main>
+
+<script src="/site.js"></script>
+</body>
+</html>

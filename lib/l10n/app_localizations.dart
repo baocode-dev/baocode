@@ -9963,6 +9963,30 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get remoteRetry;
 
+  /// No description provided for @remoteSignInTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to {host}'**
+  String remoteSignInTitle(String host);
+
+  /// No description provided for @remoteSignInRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'That was not accepted. Try again.'**
+  String get remoteSignInRefused;
+
+  /// No description provided for @remoteSignInRemember.
+  ///
+  /// In en, this message translates to:
+  /// **'Remember on this computer (in the system keychain)'**
+  String get remoteSignInRemember;
+
+  /// No description provided for @remoteSignInConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect'**
+  String get remoteSignInConnect;
+
   /// No description provided for @remoteFolderPlaceholder.
   ///
   /// In en, this message translates to:
@@ -10196,6 +10220,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show Setup Guide'**
   String get cmdShowSetupGuide;
+
+  /// No description provided for @cmdStarOnGitHub.
+  ///
+  /// In en, this message translates to:
+  /// **'Star BaoCode on GitHub'**
+  String get cmdStarOnGitHub;
+
+  /// No description provided for @starPromptMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Enjoying BaoCode?'**
+  String get starPromptMessage;
+
+  /// No description provided for @starPromptDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode is free and open source. If it helps you, a star on GitHub helps other people find it.'**
+  String get starPromptDetail;
+
+  /// No description provided for @starPromptStar.
+  ///
+  /// In en, this message translates to:
+  /// **'Star on GitHub'**
+  String get starPromptStar;
+
+  /// No description provided for @starPromptLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Maybe Later'**
+  String get starPromptLater;
 
   /// No description provided for @cmdResetFeatureTips.
   ///

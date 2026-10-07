@@ -10,6 +10,7 @@ import 'package:baocode/ide/lsp_ui/document_symbols.dart';
 import 'package:baocode/ide/lsp_ui/semantic_tokens.dart';
 import 'package:baocode/theme/codicons.dart';
 
+import '../../flutter_test_config.dart' show testColorTheme;
 import '../workbench/fake_files.dart';
 import 'fake_language_features.dart';
 import 'lsp_test_helpers.dart';
@@ -145,12 +146,12 @@ void main() {
     // language-specific rules, so it styles as plaintext.
     final fixture = SemanticTokenFixture.instance;
     final classStyle = fixture.style(
-      ideDefaultColorThemeId,
+      testColorTheme,
       'class',
       {},
       'plaintext',
     )!;
-    final methodStyle = fixture.style(ideDefaultColorThemeId, 'method', {
+    final methodStyle = fixture.style(testColorTheme, 'method', {
       'declaration',
     }, 'plaintext')!;
     expect(classStyle.foreground, isNotNull);
@@ -198,7 +199,7 @@ void main() {
     expect(
       greeterColor(),
       fixture
-          .style(ideDefaultColorThemeId, 'property', modifiers, 'plaintext')!
+          .style(testColorTheme, 'property', modifiers, 'plaintext')!
           .foreground,
     );
 

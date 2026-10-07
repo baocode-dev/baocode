@@ -249,7 +249,7 @@ RemoteServerBinaries? bundledServerBinaries({
   executable ??= Platform.resolvedExecutable;
   current ??= Directory.current.path;
   final exeDir = p.dirname(executable);
-  for (final directory in [
+  final directories = [
     ?environment['BAOCODE_REMOTE_SERVER_DIR'],
     if (Platform.isMacOS) p.join(p.dirname(exeDir), 'Resources', 'remote'),
     p.join(exeDir, 'remote'),
@@ -258,7 +258,8 @@ RemoteServerBinaries? bundledServerBinaries({
     // A debug build's executable is under the checkout's build/.
     for (var dir = exeDir, i = 0; i < 10; dir = p.dirname(dir), i++)
       if (p.basename(dir) == 'build') p.join(dir, 'remote'),
-  ]) {
+  ];
+  for (final (i, directory) in directories.indexed) {
     if (DirectoryServerBinaries.at(directory) case final found?) return found;
     if (DownloadedServerBinaries.at(
           directory,
@@ -267,6 +268,14 @@ RemoteServerBinaries? bundledServerBinaries({
               p.join(DataDirectory.current.cacheDir, 'remote-server'),
         )
         case final found?) {
+      // The same builds at hand (an installer's app run from the checkout
+      // it was built in, its builds not yet released): not downloaded.
+      for (final other in directories.skip(i + 1)) {
+        if (DirectoryServerBinaries.at(other) case final carried?
+            when carried.version == found.version) {
+          return carried;
+        }
+      }
       return found;
     }
   }

@@ -22,7 +22,7 @@ import 'semantics_tree.dart';
 /// accessibility tree. Editors tokenize TextMate grammars in the test's
 /// isolate, on its fake clock. Each test reads assets afresh: the bundle
 /// caches futures, which answer in the zone of the test that made them.
-/// Each test starts in the default color theme, restored as the app
+/// Each test starts in [testColorTheme], restored as the app
 /// restores a kept theme, without reading assets. The `code` command and
 /// the context menu are stand-ins, never installed: none looks at the
 /// machine's own.
@@ -38,7 +38,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     ContextMenu.debugInstaller = _NoContextMenu();
     WorkbenchThemeService.instance = WorkbenchThemeService()
       ..restore(
-        setting: ThemeSettingDefaults.colorThemeDark,
+        setting: testColorTheme,
         data: defaultTheme,
       );
   });
@@ -73,12 +73,16 @@ class _NoContextMenu implements ContextMenuInstaller {
   Future<void> Function()? get openSystemSettings => null;
 }
 
-/// The default theme's storage data, read from the assets on disk.
+/// The theme tests start in: upstream's default dark theme, which their
+/// colors were written for, not the app's ([ThemeSettingDefaults]).
+const testColorTheme = 'Dark 2026';
+
+/// [testColorTheme]'s storage data, read from the assets on disk.
 Future<String> _defaultColorTheme() async {
   Future<String> read(String path) async =>
       File('$textMateAssetRoot/$path').readAsStringSync();
   final manifest = await TextMateManifest.load(read);
-  final contribution = manifest.themeById(ThemeSettingDefaults.colorThemeDark)!;
+  final contribution = manifest.themeById(testColorTheme)!;
   final theme = ColorThemeData.fromExtensionTheme(
     contribution,
     contribution.assetPath,

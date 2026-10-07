@@ -7,6 +7,8 @@
 <meta name="description" content="An awesome, easy-to-use desktop UI for Claude Code, with a millisecond-fast IDE built in.">
 <link rel="icon" href="icon.png">
 <link rel="stylesheet" href="style.css">
+<link rel="alternate" hreflang="en" href="https://baocode.dev/">
+<link rel="alternate" hreflang="zh" href="https://baocode.dev/zh/">
 </head>
 <body>
 <svg class="sprite" aria-hidden="true">
@@ -19,6 +21,7 @@
   <symbol id="ic-zap" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M15.914 4a1.5 1.5 0 0 0-2.474-1.561l-9 9A1.5 1.5 0 0 0 5.5 14h4.002a.5.5 0 0 1 .471.666L8.086 20a1.5 1.5 0 0 0 2.475 1.56l9-9A1.5 1.5 0 0 0 18.5 10h-3.997a.5.5 0 0 1-.472-.667z"/></symbol>
   <symbol id="ic-palette" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a1 1 0 0 1 0-20a10 9 0 0 1 10 9a5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></g></symbol>
   <symbol id="ic-code" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="m16 18l6-6l-6-6M8 6l-6 6l6 6"/></symbol>
+  <symbol id="ic-server" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><path d="M6 6h.01M6 18h.01"/></g></symbol>
   <symbol id="ic-puzzle" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M15.39 4.39a1 1 0 0 0 1.68-.474a2.5 2.5 0 1 1 3.014 3.015a1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474a2.5 2.5 0 1 0-3.014 3.015a1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474a2.5 2.5 0 1 1-3.014-3.015a1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474a2.5 2.5 0 1 0 3.014-3.015a1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></symbol>
   <symbol id="ic-sparkles" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594zM20 2v4m2-2h-4"/><circle cx="4" cy="20" r="2"/></g></symbol>
   <symbol id="ic-bell" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M10.268 21a2 2 0 0 0 3.464 0m-10.47-5.674A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
@@ -39,6 +42,7 @@
   <a href="download.html">Download</a>
   <a href="/changelog">Changelog</a>
   <a href="https://github.com/baocode-dev/baocode"><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>GitHub</a>
+  <a class="lang" href="/zh/" hreflang="zh" lang="zh-CN">中文</a>
 </header>
 
 <main class="page">
@@ -50,6 +54,7 @@
       <li><a href="#speed"><svg class="ic" aria-hidden="true"><use href="#ic-zap"/></svg>Speed</a></li>
       <li><a href="#themes"><svg class="ic" aria-hidden="true"><use href="#ic-palette"/></svg>Your themes</a></li>
       <li><a href="#tools"><svg class="ic" aria-hidden="true"><use href="#ic-code"/></svg>Fast IDE</a></li>
+      <li><a href="#remote"><svg class="ic" aria-hidden="true"><use href="#ic-server"/></svg>Remote over SSH</a></li>
       <li><a href="#customize"><svg class="ic" aria-hidden="true"><use href="#ic-puzzle"/></svg>Skills &amp; MCP</a></li>
       <li><a href="#models"><svg class="ic" aria-hidden="true"><use href="#ic-sparkles"/></svg>Any model</a></li>
       <li><a href="#notifications"><svg class="ic" aria-hidden="true"><use href="#ic-bell"/></svg>Notifications</a></li>
@@ -122,12 +127,18 @@
 
   <h2 id="tools"><svg class="ic" aria-hidden="true"><use href="#ic-code"/></svg>Fast IDE</h2>
   <p>When you want to look at the code yourself, you don’t need another app. Fast IDE is built in: an editor, a terminal and Source Control with a commit graph, with your VS Code keybindings and language servers. One click takes you back to the chat.</p>
-  <p>It responds in milliseconds. Files open, search results appear and keystrokes reach the screen before you notice a wait, even in large projects. <mark class="todo">More, in your words.</mark></p>
+  <p>It responds in milliseconds. Files open, search results appear and keystrokes reach the screen before you notice a wait, even in large projects.</p>
   <p>Commit messages are written by Claude Code: it reads your changes and drafts the message for you to edit and commit. You can customize how it writes them.</p>
   <figure>
     <div class="img" data-src="shots/ide.webp"><img decoding="async" loading="lazy" src="shots/ide.webp" width="1568" height="1157" alt="Fast IDE: Source Control, the editor and the terminal"></div>
     <figcaption>Fast IDE: Source Control with a commit message drafted by Claude Code and the commit graph, the editor, and the terminal.</figcaption>
   </figure>
+
+  <h2 id="remote"><svg class="ic" aria-hidden="true"><use href="#ic-server"/></svg>Remote projects over SSH</h2>
+  <p>Your code doesn’t have to be on your machine. Open a folder on a Linux server over SSH, the way VS Code’s Remote-SSH does: the window stays on your computer, and files, search, Git, terminals, language servers and Claude Code all run on the server, right next to the code.</p>
+  <p>Pick a host from your <code>~/.ssh/config</code>, or type <code>user@host</code>, then choose a folder. Remote projects sit in the sidebar with the rest, marked with their host, and a new chat can start in one from the folder menu above the input. If the server has no Claude Code, BaoCode installs it there, and the models you added work there too.</p>
+  <p>If the connection drops, BaoCode reconnects by itself, and a conversation that was cut off carries on with your next message. If a host can’t be reached, it tells you why, with a button to try again.</p>
+  <p>The server needs Linux (x64 or arm64) and to accept your SSH key or ssh-agent. Passwords and two-factor prompts aren’t supported yet.</p>
 
   <h2 id="customize"><svg class="ic" aria-hidden="true"><use href="#ic-puzzle"/></svg>Skills, MCP servers and more</h2>
   <p>Everything Claude Code can be extended with is in one place: plugins, MCP servers, skills, subagents, rules, commands and hooks, for you or for a single project. Skills you have on claude.ai show up here too.</p>

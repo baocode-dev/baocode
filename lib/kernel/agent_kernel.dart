@@ -172,8 +172,18 @@ abstract interface class RevertsChanges {
 
 abstract interface class RewindsConversation {
   /// Drops the conversation from the user message [itemId] (item [index],
-  /// with [turns] turns after it) on, to go on from there.
-  void rewind({required String itemId, required int index, required int turns});
+  /// with [turns] turns after it) on, to go on from there. [lastSeen] is
+  /// the latest user message shown, for the agent to tell nothing came
+  /// after it unseen.
+  ///
+  /// Completes with whether it did: turned down, the conversation is left
+  /// as it was.
+  Future<bool> rewind({
+    required String itemId,
+    required int index,
+    required int turns,
+    String? lastSeen,
+  });
 }
 
 abstract interface class RenamesSession {

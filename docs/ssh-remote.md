@@ -43,7 +43,7 @@
 | Windows 客户端打开远程项目 | **有已知问题**：见第 15 节 |
 | 真实主机端到端验证 | **未做**：见第 13 节 |
 
-不在范围内：Codex、macOS/Windows 远端、密码和二次验证登录、在访达中显示、用外部编辑器打开、往远程项目里拖文件。
+不在范围内：Codex、macOS/Windows 远端、Windows 客户端的密码登录、在访达中显示、用外部编辑器打开、往远程项目里拖文件。
 
 ---
 
@@ -169,7 +169,14 @@ ssh 参数固定为：
 -T -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ConnectTimeout=20 -e none [-p <端口>] <目的地>
 ```
 
-- `BatchMode=yes`：从不弹密码或主机密钥确认框，这类情况直接失败（`authentication` / `hostKey`）。所以必须先在终端里能 `ssh <主机>` 免密登录，并且主机密钥已经在 `known_hosts` 里。
+- `BatchMode=yes`：只在没有 `prompter` 时使用（Windows 上也是），ssh 从不提问，需要密码就直接失败（`authentication`）。
+- 应用里 `SshLauncher` 带有 `prompter`，此时改成 `BatchMode=no`，并设置 `SSH_ASKPASS`（一个 sh 脚本）和 `SSH_ASKPASS_REQUIRE=force`（OpenSSH 8.4 起支持）。ssh 要密码、密钥口令或验证码时，会运行这个脚本：脚本把提示写进这次 ssh 专用的临时目录（只有当前用户能读），然后等应用写回答案（见 `ssh_askpass.dart`）。应用弹窗问用户（`SshPasswords`、`showSshPasswordDialog`）：
+  - 同一提示在本次运行里只问一次：一次连接里的探测、上传、启动三个 ssh 共用同一个答案，断线重连也不再问；
+  - 勾选“在本机记住”的，等**登录成功后**才存进系统钥匙串（`SecretStore`，macOS 用钥匙串），名字是 `ssh:<主机>:<提示的哈希>`；下次启动直接取用，不再弹窗；
+  - 主机拒绝了（ssh 再问同一个提示，或最后报认证失败），就从内存和钥匙串里删掉，重新问；
+  - 验证码一类的提示（含 code、token、OTP 等字样）每次都问，不提供记住；
+  - 取消就停止重试，报“Signing in was cancelled.”。
+- 主机密钥确认（`yes/no`）不交给用户，脚本直接回答 no，和 `BatchMode=yes` 时一样失败（`hostKey`）。所以主机密钥仍然要先在 `known_hosts` 里。
 - `ServerAliveInterval=15` 加 `ServerAliveCountMax=3`：约 45 秒内发现死连接。
 - `-e none`：二进制数据里不处理转义字符。
 - 其他配置（用户名、端口、跳板机 `ProxyJump`、身份文件……）都来自用户自己的 `~/.ssh/config`。
@@ -249,6 +256,8 @@ ssh 参数固定为：
 4. **同一台主机同时只装一次**：几个对话同时启动也只下载一次。
 
 **不碰用户自己的环境**：不改 PATH，不写 `~/.local/bin`、`~/.local/share/claude`，也不改 shell 配置文件。所以用这份 claude 时会设置 `DISABLE_AUTOUPDATER=1`，因为 claude 自带的自动更新会往 `~/.local` 里装东西。
+
+**在远程终端里用 `claude`**（例如登录：`claude` 然后 `/login`）：安装时还会写一个 `~/.baocode-server/data/claude/bin/claude`（sh 脚本，设置 `DISABLE_AUTOUPDATER=1` 后执行 `CURRENT` 指向的那份；之前装的、还没有这个脚本的，开终端时补上）。服务端用的是这份 claude 时（用户自己没装），BaoCode 打开的远程终端会把这个 `bin` 目录加到 PATH 末尾，并设置 `VSCODE_PATH_PREFIX`，让 shell integration 在 login shell 读完 `/etc/profile` 重设 PATH 后再加回来（VS Code 往终端里放 `code` 也是这样）。用户自己装了 claude 就什么都不加，终端里的 `claude` 和对话用的始终是同一份。用户自己 `ssh` 上去的终端里没有它，要用完整路径。
 
 **更新**：每次启动这份 claude 时，服务端在后台检查是否有新版（每天最多一次，用 `.checked` 文件的修改时间记录），有就下载安装，下次启动时生效。出错就静默放弃，第二天再试。
 
@@ -407,7 +416,7 @@ flutter analyze
 | --- | --- | --- |
 | The BaoCode server for Linux x64 could not be downloaded（详情里是 HTTP 404） | 这个构建的服务端没有上传到 dl.baocode.dev。常见于本机打包的应用：每次构建的 `VERSION` 都不同，CI 发布的那份对不上 | 把打包时 `build/installers/remote/<VERSION>/` 里的 `.gz` 上传到 `dl.baocode.dev/releases/remote/<VERSION>/`；只在本机用的话，也可以把它们放进数据目录的 `cache/remote-server/<VERSION>/`。或者改装 CI 发布的版本 |
 | No ssh here | 本机没有 `ssh` | 安装 OpenSSH 客户端；Windows 上在“可选功能”里安装 |
-| 认证失败（authentication） | 需要密码，或密钥没加载 | 先在终端里 `ssh <主机>` 确认能免密登录；把密钥加到 ssh-agent，或在 `~/.ssh/config` 里写 `IdentityFile` |
+| 认证失败（authentication） | 密码不对、取消了登录，或密钥没加载（Windows 上不问密码） | 重连时重新输入密码；用密钥的话，把密钥加到 ssh-agent，或在 `~/.ssh/config` 里写 `IdentityFile` |
 | 主机密钥问题（hostKey） | 主机还不在 `known_hosts` 里，或密钥变了 | 先在终端里 `ssh <主机>` 一次，接受密钥；密钥确实换过的话，用 `ssh-keygen -R <主机>` 删掉旧记录 |
 | 不支持的系统（unsupported） | 远端不是 Linux x64/arm64 | 不支持 |
 | This build of the app has no remote server | 应用里没带服务端，也不是从源码目录运行 | 执行 `dart run tool/build_remote_server.dart`，或设置 `BAOCODE_REMOTE_SERVER_DIR` |
@@ -433,18 +442,19 @@ flutter analyze
 2. **连接和引导安装**：通过“打开远程项目”连接，确认远端出现了 `~/.baocode-server/<VERSION>/baocode-server`，状态栏显示 `SSH: <别名>`；第二次连接不会再上传。
 3. **文件、Git、搜索、终端**：打开、编辑、保存文件；新建和删除文件；在远端另开 shell 改文件，界面会刷新；Git 面板的状态、暂存、提交；全文搜索；终端能输入，窗口大小和 shell 集成正常。
 4. **断线和重连**：断开网络或杀掉本机的 ssh 进程：状态栏变成“正在重连”，恢复后自动连上；文件监听恢复，语言服务器重启，未保存的修改还在。
-5. **失败场景**：需要密码的主机、`known_hosts` 里没有的主机：应直接报错，不会一直重试，点状态栏可以重连。
-6. **Claude Code**：
+5. **密码登录**：只开密码登录的主机会弹窗；输错会提示“不正确”再问；勾选记住后，退出应用再连不再弹窗，钥匙串里有 `BaoCode` 服务下 `ssh:<主机>:…` 的条目；在主机上改掉密码后再连，会重新弹窗，旧条目被删掉。可以用 Docker 起一个只允许密码登录的 sshd 来测。
+6. **失败场景**：取消密码弹窗、`known_hosts` 里没有的主机：应直接报错，不会一直重试，点状态栏可以重连。
+7. **Claude Code**：
    - 远端没装 claude 时，会出现安装进度，装完正常对话；远端 `~/.local/bin` 里没有多出文件；
    - 远端屏蔽 `downloads.claude.ai` 后，改成本机下载再上传；
    - 远端已装 claude 时，直接用用户自己的那份；
    - 用第三方模型服务对话时，在远端执行 `ps aux | grep claude`，参数里没有 key；对话结束后，`$XDG_RUNTIME_DIR/baocode-settings-*` 下没有残留文件；
    - 本机模型代理能通过端口转发使用；
    - 会话列表、删除会话、自动标题、Keep/Undo、提交信息都正常。
-7. **语言服务器**：在远程项目里打开 `.dart`、`.ts` 文件，缺的语言服务器会装到远端；诊断、悬停、跳转都正常。
-8. **退出**：远端有对话或终端在运行时退出应用，确认框里有远程的那一句；退出后远端没有残留的 `baocode-server` 和 claude 进程。
-9. **打包**：用 `tool/build_windows.dart` / `tool/build_macos.dart` 打包，确认包里有 `remote/VERSION`，安装后不需要源码目录也能连接。
-10. **Windows 客户端**：打开远程项目，重点检查文件树、标签页、搜索、Git 的路径（见第 15 节）。
+8. **语言服务器**：在远程项目里打开 `.dart`、`.ts` 文件，缺的语言服务器会装到远端；诊断、悬停、跳转都正常。
+9. **退出**：远端有对话或终端在运行时退出应用，确认框里有远程的那一句；退出后远端没有残留的 `baocode-server` 和 claude 进程。
+10. **打包**：用 `tool/build_windows.dart` / `tool/build_macos.dart` 打包，确认包里有 `remote/VERSION`，安装后不需要源码目录也能连接。
+11. **Windows 客户端**：打开远程项目，重点检查文件树、标签页、搜索、Git 的路径（见第 15 节）。
 
 ---
 
@@ -478,7 +488,7 @@ flutter analyze
 3. **旧版本服务端不会自动清理**：`~/.baocode-server/<旧VERSION>/` 会一直留着，每个约几十 MB。可以在连接成功后删掉其他版本的目录。
 4. **Haiku 不会触发 Claude 自动安装**：远端没有 claude 时，标题和提交信息会失败，等到第一次对话装好后才正常。
 5. **自动安装没有开关**：远端没有 claude 时总是自动装。如果有用户不希望自动下载，需要加一个设置项。
-6. **不支持密码或二次验证登录**：用的是 `BatchMode=yes`。要支持的话，需要做一个让 ssh 弹窗询问的机制（`SSH_ASKPASS`）。
+6. **Windows 客户端不支持密码登录**：`SSH_ASKPASS` 用的是 sh 脚本，Windows 上仍是 `BatchMode=yes`，只能用密钥。
 7. **启动时会连接所有远程项目的主机**（因为要读会话列表）。主机很多或很慢时，可以改成在展开项目时再连接。
 8. **macOS 打包这一步还没实际跑过**，签名和公证也还没做（见 `tool/build_macos.dart` 里的 TODO）。
 9. **断线时远端进程都会结束**：sshd 断开会话时会发 SIGHUP。以后如果想让对话在断线期间继续跑，需要把服务端改成常驻进程（类似 VS Code 的 server 那样），每次连接再重新接上。

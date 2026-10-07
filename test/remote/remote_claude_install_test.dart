@@ -5,7 +5,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bao_remote/client.dart';
-import 'package:bao_remote/local.dart' show ClaudeEnvironment, CliLocator;
+import 'package:bao_remote/local.dart'
+    show ClaudeEnvironment, CliLocator, ManagedClaude;
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/remote/remote_binaries.dart';
@@ -177,6 +178,82 @@ void main() {
       isFalse,
     );
     expect(hosts['dev'].installingClaude, isNull);
+  });
+
+  /// What [command] prints in a terminal on the host, in [shell].
+  Future<String> inTerminal(
+    String command, {
+    String shell = '/bin/sh',
+    bool shellIntegration = false,
+  }) async {
+    final client = await hosts['dev'].ready;
+    final pty = await client.startPty(
+      cwd: root,
+      shell: [shell],
+      shellIntegration: shellIntegration,
+    );
+    final output = StringBuffer();
+    pty.output.listen((data) => output.write(utf8.decode(data)));
+    pty.write(utf8.encode('$command; exit\n'));
+    await pty.exitCode.timeout(const Duration(seconds: 10));
+    return '$output';
+  }
+
+  test('once it is there, the terminals there run it as `claude`, its '
+      'updater off', () async {
+    await converse(
+      await startClaude(ClaudeLaunch(cwd: RemoteLocation.of('dev', root))),
+    );
+    final command = p.join(dataDir.path, 'claude', 'bin', 'claude');
+    final installed = p.join(dataDir.path, 'claude', 'claude-9.9.9');
+    for (final (shell, integration) in [
+      ('/bin/sh', false),
+      ('/bin/bash', true),
+    ]) {
+      File(p.join(marks.path, 'self')).deleteSync();
+      final output = await inTerminal(
+        'command -v claude; echo hi | claude',
+        shell: shell,
+        shellIntegration: integration,
+      );
+      expect(output, contains(command), reason: shell);
+      expect(mark('self'), installed, reason: shell);
+      expect(mark('autoupdater'), '1', reason: shell);
+    }
+  });
+
+  test('the user\'s own: the terminals there are left as they are', () async {
+    await converse(
+      await startClaude(ClaudeLaunch(cwd: RemoteLocation.of('dev', root))),
+    );
+    final own = File(p.join(home.path, 'own-claude'))
+      ..writeAsStringSync(_fakeClaude);
+    Process.runSync('chmod', ['+x', own.path]);
+    CliLocator.candidatesOverride = (_) => [own.path];
+    CliLocator.use({
+      'PATH': '/usr/bin:/bin',
+      'HOME': home.path,
+      'MARKS': marks.path,
+    });
+    final output = await inTerminal('echo "path=\$PATH"');
+    expect(output, contains('path=/usr/bin:/bin'));
+    expect(output, isNot(contains(p.join('claude', 'bin'))));
+  });
+
+  test('a build installed before there was a `claude` is given one', () {
+    final directory = p.join(dataDir.path, 'claude');
+    final managed = ManagedClaude(directory);
+    expect(managed.command(), isNull);
+    File(p.join(directory, 'claude-1.0.0'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('#!/bin/sh\necho "one \$1"\n');
+    Process.runSync('chmod', ['+x', p.join(directory, 'claude-1.0.0')]);
+    File(p.join(directory, 'CURRENT')).writeAsStringSync('1.0.0\n');
+    expect(managed.command(), managed.binDirectory);
+    final run = Process.runSync(p.join(managed.binDirectory, 'claude'), [
+      'arg',
+    ]);
+    expect(run.stdout, 'one arg\n');
   });
 
   test('the user\'s own is run where there is one', () async {

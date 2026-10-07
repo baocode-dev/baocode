@@ -18,6 +18,7 @@ import 'package:bao_editor/textmate/textmate_syntax.dart';
 import 'package:bao_editor/textmate/textmate_worker.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 
+import '../../../flutter_test_config.dart' show testColorTheme;
 import 'textmate_fixture.dart';
 
 class _Codec implements ILanguageIdCodec {
@@ -117,7 +118,7 @@ void main() {
     var checked = 0;
     for (final sample in samples) {
       final cases = sample['cases']! as Map<String, Object?>;
-      var expected = cases[ThemeSettingDefaults.colorThemeDark];
+      var expected = cases[testColorTheme];
       if (expected is Map) expected = cases[expected['sameAs']];
       expected as List;
       final lines = File('$textMateFixtures/${sample['path']}')
@@ -170,7 +171,7 @@ void main() {
     expect(await syntax.theme, isNotNull);
     expect(
       (await syntax.theme)!.data.settingsId,
-      ThemeSettingDefaults.colorThemeDark,
+      testColorTheme,
     );
   });
 

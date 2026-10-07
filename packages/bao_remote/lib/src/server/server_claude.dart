@@ -54,6 +54,19 @@ class ServerClaude {
     }
   }
 
+  /// Where the `claude` of the build installed here is, for the terminals'
+  /// PATH: only when it is the one run, the user having none of their own.
+  Future<String?> commandDirectory() async {
+    try {
+      await CliLocator.locate();
+      return null;
+    } on ClaudeNotInstalled {
+      return managed.command();
+    } on Object {
+      return null;
+    }
+  }
+
   /// [arguments] as Claude Code starts with them run with [environment],
   /// as root where [root]: there it will not start where skipping the
   /// permissions is allowed at all, unless told it is in a sandbox

@@ -28,7 +28,8 @@ for (const button of document.querySelectorAll('[data-sound]')) {
     const res = await fetch('https://dl.baocode.dev/releases/latest.json', { signal: ctl.signal, cache: 'no-store' });
     const m = await res.json();
     const v = String(m.version).split('+')[0];
-    for (const el of document.querySelectorAll('[data-version]')) el.textContent = `Version ${v}`;
+    const zh = document.documentElement.lang.startsWith('zh');
+    for (const el of document.querySelectorAll('[data-version]')) el.textContent = zh ? `版本 ${v}` : `Version ${v}`;
     for (const [os, file] of Object.entries(m.downloads || {})) {
       for (const a of document.querySelectorAll(`[data-file="${os}"]`)) {
         a.href = file.url;

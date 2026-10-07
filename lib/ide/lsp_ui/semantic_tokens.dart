@@ -168,9 +168,9 @@ Color _flutterColor(vs.Color color) => Color.fromARGB(
   color.rgba.b,
 );
 
-/// The editor's default color theme (`workbench.colorTheme`): VS Code's
-/// default dark theme at the pinned revision.
-const String ideDefaultColorThemeId = 'Dark 2026';
+/// The editor's default color theme (`workbench.colorTheme`):
+/// `ThemeSettingDefaults.colorThemeDark`.
+const String ideDefaultColorThemeId = 'Monokai';
 
 // The stylers, not futures of them: a future answers in the zone it was made
 // in, which may be gone (a widget test's fake async zone).

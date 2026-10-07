@@ -4,6 +4,7 @@ import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/update/update_controller.dart';
 import 'package:baocode/update/update_service.dart';
 import 'package:baocode/update/update_settings.dart';
+import 'package:baocode/update/version.dart';
 
 import 'update_fakes.dart';
 
@@ -65,8 +66,7 @@ void main() {
 
     test('offers a version found: Restart, Later, Skip', () async {
       make(manifest: manifestOf('1.2.0', notes: {'en': 'Fixes'}));
-      var notes = 0;
-      await controller.checkNow(notifications, l10n, openNotes: () => notes++);
+      await controller.checkNow(notifications, l10n);
       final offer = notifications.notifications.single;
       expect(offer.message, l10n.updateAvailable('1.2.0'));
       expect(offer.sticky, isTrue);
@@ -77,10 +77,23 @@ void main() {
       ]);
       expect(offer.secondary.single.label, l10n.updateReleaseNotes);
       offer.secondary.single.run();
-      expect(notes, 1);
+      expect(opened, [Uri.parse('https://baocode.dev/changelog#v1.2.0')]);
 
       offer.primary[2].run();
       expect(service.skippedVersion, '1.2.0');
+    });
+
+    test('Release Notes opens the changelog in the app\'s language', () {
+      make();
+      final version = AppVersion.parse('1.2.0+13');
+      expect(
+        UpdateController.changelogUrl(version, 'zh'),
+        Uri.parse('https://baocode.dev/zh/changelog#v1.2.0'),
+      );
+      expect(
+        UpdateController.changelogUrl(version, 'en'),
+        Uri.parse('https://baocode.dev/changelog#v1.2.0'),
+      );
     });
 
     test('a mandatory update cannot be put off', () async {

@@ -15,6 +15,7 @@ import 'remote_binaries.dart';
 import 'remote_location.dart';
 import 'remote_lsp.dart';
 import 'remote_services.dart';
+import 'ssh_passwords.dart';
 
 /// How far installing Claude Code on a host is: [received] bytes of
 /// [size]; [uploading] once it is sent from here, the host unable to
@@ -251,12 +252,17 @@ class SshHost extends ChangeNotifier implements ProjectHost {
 
 /// The hosts of the open remote projects, one connection each.
 class SshHosts extends ChangeNotifier {
-  SshHosts({SshConnector? connect}) : _connectOverride = connect;
+  SshHosts({SshConnector? connect, SshPasswords? passwords})
+    : _connectOverride = connect,
+      passwords = passwords ?? SshPasswords();
 
   /// The app's; replaced under test.
   static SshHosts instance = SshHosts();
 
   final SshConnector? _connectOverride;
+
+  /// What `ssh` asks while signing in to the hosts.
+  final SshPasswords passwords;
   final Map<String, SshHost> _hosts = {};
   Future<SshLauncher>? _launcher;
 
@@ -281,17 +287,31 @@ class SshHosts extends ChangeNotifier {
       return connect(target, onProgress: onProgress);
     }
     final launcher = _launcher ??= _makeLauncher();
-    return launcher.then(
-      (launcher) => launcher.connect(target, onProgress: onProgress),
-      onError: (Object error, StackTrace stack) {
-        // Looked for again next time: it may be there by then.
-        _launcher = null;
-        Error.throwWithStackTrace(error, stack);
-      },
-    );
+    return launcher
+        .then(
+          (launcher) => launcher.connect(target, onProgress: onProgress),
+          onError: (Object error, StackTrace stack) {
+            // Looked for again next time: it may be there by then.
+            _launcher = null;
+            Error.throwWithStackTrace(error, stack);
+          },
+        )
+        .then(
+          (connection) async {
+            await passwords.signedIn(target.text);
+            return connection;
+          },
+          onError: (Object error, StackTrace stack) async {
+            await passwords.failed(
+              target.text,
+              error is SshConnectException ? error.failure : null,
+            );
+            Error.throwWithStackTrace(error, stack);
+          },
+        );
   }
 
-  static Future<SshLauncher> _makeLauncher() async {
+  Future<SshLauncher> _makeLauncher() async {
     final ssh = findSsh(Platform.environment);
     if (ssh == null) {
       throw const SshConnectException(
@@ -309,7 +329,11 @@ class SshHosts extends ChangeNotifier {
         '(dart run tool/build_remote_server.dart makes one).',
       );
     }
-    return SshLauncher(ssh: ssh, binaries: binaries);
+    return SshLauncher(
+      ssh: ssh,
+      binaries: binaries,
+      prompter: passwords.answer,
+    );
   }
 
   /// Ends every host's server and connection: for when the app quits.

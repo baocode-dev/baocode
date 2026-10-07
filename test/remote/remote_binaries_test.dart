@@ -112,6 +112,24 @@ void main() {
     },
   );
 
+  test('the same builds at hand, not downloaded', () async {
+    installer();
+    // The checkout the installer's app was built in.
+    final checkout = Directory(p.join(temp.path, 'build', 'remote'))
+      ..createSync(recursive: true);
+    File(p.join(checkout.path, 'baocode-server-linux-x64'))
+        .writeAsStringSync('built');
+    File(p.join(checkout.path, 'VERSION')).writeAsStringSync('1.0.0.1-abc\n');
+    final binaries = found();
+    expect(binaries, isA<DirectoryServerBinaries>());
+    expect(utf8.decode((await binaries!.read('x64'))!), 'built');
+    expect(requested, isEmpty);
+
+    // Another build's: downloaded.
+    File(p.join(checkout.path, 'VERSION')).writeAsStringSync('1.0.0.1-new\n');
+    expect(found(), isA<DownloadedServerBinaries>());
+  });
+
   test('two hosts at once download it once', () async {
     installer();
     final binaries = found()!;

@@ -64,6 +64,21 @@ case "$dest" in
   unreachable) echo "ssh: Could not resolve hostname unreachable: nodename nor servname provided, or not known" >&2; exit 255 ;;
   locked) echo "me@locked: Permission denied (publickey)." >&2; exit 255 ;;
   changed) echo "Host key verification failed." >&2; exit 255 ;;
+  secret)
+    # Signs in with a password, asked up to three times.
+    denied="me@secret: Permission denied (publickey,password)."
+    [ -n "$SSH_ASKPASS" ] || { echo "$denied" >&2; exit 255; }
+    n=0
+    while :; do
+      n=$((n + 1))
+      [ "$n" -gt 3 ] && { echo "$denied" >&2; exit 255; }
+      pw=$("$SSH_ASKPASS" "me@secret's password: ") || { echo "$denied" >&2; exit 255; }
+      [ "$pw" = hunter2 ] && break
+    done ;;
+  stranger)
+    answer=$("$SSH_ASKPASS" "The authenticity of host 'stranger' can't be established.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? ")
+    [ "$answer" = yes ] || { echo "Host key verification failed." >&2; exit 255; } ;;
 esac
 cd "$HOME" || exit 255
 exec /bin/sh -c "$*"
@@ -75,7 +90,7 @@ exec /bin/sh -c "$*"
   tearDown(() => sandbox.deleteSync(recursive: true));
 
   SshProcessStarter starter({Map<String, String> extra = const {}}) =>
-      (executable, arguments) => Process.start(
+      (executable, arguments, {environment}) => Process.start(
         executable,
         arguments,
         environment: {
@@ -83,6 +98,7 @@ exec /bin/sh -c "$*"
           'PATH': '$fakeBin:/usr/bin:/bin',
           'FAKE_LOG': log.path,
           ...extra,
+          ...?environment,
         },
         includeParentEnvironment: false,
       );
@@ -159,6 +175,82 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     expect(await failure('unreachable'), SshFailure.unreachable);
     expect(await failure('locked'), SshFailure.authentication);
     expect(await failure('changed'), SshFailure.hostKey);
+  });
+
+  test('a password is asked for each ssh, again when refused', () async {
+    final binaries = FakeBinaries('1-abc', {'x64': serverScript()});
+    final asked = <SshPrompt>[];
+    var answers = ['wrong', 'hunter2'];
+    final launcher = SshLauncher(
+      ssh: fakeSsh,
+      binaries: binaries,
+      start: starter(),
+      prompter: (prompt) async {
+        asked.add(prompt);
+        if (answers.isEmpty) return 'hunter2';
+        return answers.removeAt(0);
+      },
+    );
+    expect(
+      launcher.arguments(SshTarget.parse('dev'), 'cmd'),
+      contains('BatchMode=no'),
+    );
+    final connection = await launcher.connect(SshTarget.parse('secret'));
+    expect(connection.hello.home, home.path);
+    // The probe twice (the first refused), the upload, the server.
+    expect(
+      [for (final prompt in asked) prompt.retry],
+      [false, true, false, false],
+    );
+    expect(asked.first.text, "me@secret's password: ");
+    expect(asked.first.target.text, 'secret');
+    await connection.close();
+
+    // Cancelled: said so, nothing more asked.
+    asked.clear();
+    answers = [];
+    final cancelling = SshLauncher(
+      ssh: fakeSsh,
+      binaries: binaries,
+      start: starter(),
+      prompter: (prompt) async {
+        asked.add(prompt);
+        return null;
+      },
+    );
+    await expectLater(
+      cancelling.connect(SshTarget.parse('secret')),
+      throwsA(
+        isA<SshConnectException>()
+            .having((e) => e.failure, 'failure', SshFailure.authentication)
+            .having((e) => e.message, 'message', contains('cancelled')),
+      ),
+    );
+    expect(asked, hasLength(1));
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('a host key it does not know is refused, not asked', () async {
+    final asked = <SshPrompt>[];
+    final launcher = SshLauncher(
+      ssh: fakeSsh,
+      binaries: FakeBinaries('1', const {}),
+      start: starter(),
+      prompter: (prompt) async {
+        asked.add(prompt);
+        return 'yes';
+      },
+    );
+    await expectLater(
+      launcher.connect(SshTarget.parse('stranger')),
+      throwsA(
+        isA<SshConnectException>().having(
+          (e) => e.failure,
+          'failure',
+          SshFailure.hostKey,
+        ),
+      ),
+    );
+    expect(asked, isEmpty);
   });
 
   test('a host other than Linux on x64 or arm64 is refused', () async {

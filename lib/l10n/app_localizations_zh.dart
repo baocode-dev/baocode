@@ -5640,6 +5640,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get remoteRetry => '重试';
 
   @override
+  String remoteSignInTitle(String host) {
+    return '登录 $host';
+  }
+
+  @override
+  String get remoteSignInRefused => '不正确，请重试。';
+
+  @override
+  String get remoteSignInRemember => '在本机记住（保存在系统钥匙串中）';
+
+  @override
+  String get remoteSignInConnect => '连接';
+
+  @override
   String remoteFolderPlaceholder(String host) {
     return '$host 上的文件夹：选择一个，或输入路径';
   }
@@ -5803,6 +5817,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdShowSetupGuide => '显示设置向导';
+
+  @override
+  String get cmdStarOnGitHub => '在 GitHub 上为 BaoCode 点 Star';
+
+  @override
+  String get starPromptMessage => 'BaoCode 用得还顺手吗？';
+
+  @override
+  String get starPromptDetail =>
+      'BaoCode 免费开源。如果它对你有帮助，欢迎在 GitHub 上点个 Star，让更多人发现它。';
+
+  @override
+  String get starPromptStar => '去 GitHub 点 Star';
+
+  @override
+  String get starPromptLater => '以后再说';
 
   @override
   String get cmdResetFeatureTips => '重置功能推荐';

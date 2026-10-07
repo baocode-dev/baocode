@@ -223,17 +223,19 @@ class CodexKernel
   }
 
   @override
-  void rewind({
+  Future<bool> rewind({
     required String itemId,
     required int index,
     required int turns,
-  }) {
+    String? lastSeen,
+  }) async {
     if (_threadId case final threadId? when turns > 0) {
       unawaited(
         _request('thread/rollback', {'threadId': threadId, 'numTurns': turns}),
       );
     }
     emit(Rewound(nextSeq, itemId: itemId, index: index));
+    return true;
   }
 
   @override

@@ -75,17 +75,26 @@ dart run tool/bump_version.dart major    # 1.2.0+12 → 2.0.0+13
 dart run tool/bump_version.dart 1.4.0    # 1.2.0+12 → 1.4.0+13
 ```
 
-**更新日志**（可选）：`release-notes/<版本>.en.md` 和 `release-notes/<版本>.zh.md`。会写进 `latest.json`（应用的更新通知里显示，按应用语言选），英文那份也会作为 GitHub Release 的说明。没有的话，通知里不显示更新内容，GitHub Release 用自动生成的提交列表。
+**更新日志**：`release-notes/<版本>.en.md` 和 `release-notes/<版本>.zh.md`，是唯一的来源，不另外维护 CHANGELOG.md。它们会出现在：
+
+- `latest.json`：设置 → 更新里显示（纯文本，按应用语言选）
+- 网站的更新日志页 `baocode.dev/changelog`、`baocode.dev/zh/changelog`：`tool/build_changelog.dart` 生成 `site/changelog.html`、`site/zh/changelog.html`，跟 notes 一起提交（网站没有构建步骤，Cloudflare 原样发布 `site/`）。更新通知里的「更新日志」按钮直接打开这一页对应版本的位置（`#v1.2.0`）
+- GitHub Release 的说明（英文那份）
+
+`bump_version.dart` 会顺手生成草稿（`tool/draft_release_notes.dart`，也可以单独跑）：上一个标签以来的 `feat` / `perf` / `fix` 提交标题，分到「New / Improved / Fixed」（中文「新功能 / 改进 / 修复」）下面，不含 `site`、`ci` 的提交。提交标题是写给开发者的，**草稿要改写成用户看得懂的话**，每版十行左右，中文那份写中文。格式只用普通段落和 `-` 列表：设置页按纯文本显示，标题、加粗之类的 Markdown 符号会原样露出来。
+
+没有 notes 也能发，但 CI 会给出警告：通知里没有「更新日志」按钮，网站上也没有这个版本，GitHub Release 改用自动生成的提交列表。`test/tool/build_changelog_test.dart` 会检查网站页面是不是最新的。
 
 ## 3. 发一个版本
 
 以发布 `1.2.0` 为例：
 
 ```sh
-dart run tool/bump_version.dart minor          # 1.1.3+12 → 1.2.0+13
-# 可选：写 release-notes/1.2.0.en.md、release-notes/1.2.0.zh.md
-flutter test test/update/version_test.dart
-git add pubspec.yaml lib/update/version.dart release-notes/
+dart run tool/bump_version.dart minor          # 1.1.3+12 → 1.2.0+13，并生成更新日志草稿
+# 改写 release-notes/1.2.0.en.md、release-notes/1.2.0.zh.md
+dart run tool/build_changelog.dart             # 生成网站的更新日志页
+flutter test test/update/version_test.dart test/tool/build_changelog_test.dart
+git add pubspec.yaml lib/update/version.dart release-notes/ site/changelog.html site/zh/changelog.html
 git commit -m "chore: release 1.2.0"
 git push origin main
 git tag v1.2.0
@@ -98,6 +107,7 @@ git push origin v1.2.0                          # 从这里开始 CI 接手
 
 - [ ] `curl -s https://dl.baocode.dev/releases/latest.json` 是新版本
 - [ ] `https://baocode.dev/download` 显示新版本，两个按钮都能下载
+- [ ] `https://baocode.dev/changelog` 有这个版本
 - [ ] 装着旧版本的机器上点“检查更新”，能发现、下载、重启装上
 
 **重新发布同一个版本**（标签挪到新提交上）：

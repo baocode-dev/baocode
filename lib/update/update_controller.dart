@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../ide/ide_notifications.dart';
 import '../l10n/l10n.dart';
 import 'update_service.dart';
+import 'version.dart';
 
 /// What the app does with an update: Restart to Update (download, get it
 /// ready, quit — asked first, as quitting is), and telling the user in a
@@ -24,8 +25,15 @@ class UpdateController {
   /// install armed is started, or the quit cancelled and it disarmed.
   final Future<void> Function() quit;
 
-  /// Opens a link in the browser: the download page.
+  /// Opens a link in the browser: the download page, the changelog.
   final Future<void> Function(Uri url) openUrl;
+
+  /// [version]'s notes on the site's changelog (tool/build_changelog.dart
+  /// makes it), the Chinese page for [languageCode] `zh`.
+  static Uri changelogUrl(AppVersion version, String languageCode) => Uri.parse(
+    'https://baocode.dev/${languageCode.startsWith('zh') ? 'zh/' : ''}'
+    'changelog#v${version.marketing}',
+  );
 
   bool _restarting = false;
 
@@ -93,13 +101,13 @@ class UpdateController {
 
   /// Offers [offer] in [notifications]: Restart to Update, Later and Skip
   /// This Version (only the first when it is mandatory); Release Notes
-  /// opens [openNotes] (the settings' page) where there are notes.
+  /// opens the version's notes on the site's changelog where there are
+  /// notes.
   IdeNotification showOffer(
     IdeNotifications notifications,
     AppLocalizations l10n,
-    UpdateOffer offer, {
-    VoidCallback? openNotes,
-  }) {
+    UpdateOffer offer,
+  ) {
     final release = offer.release;
     final version = release.version.marketing;
     final hasNotes = release.manifest.notesFor(l10n.localeName) != null;
@@ -122,8 +130,13 @@ class UpdateController {
         ],
       ],
       secondary: [
-        if (hasNotes && openNotes != null)
-          IdeNotificationAction(l10n.updateReleaseNotes, openNotes),
+        if (hasNotes)
+          IdeNotificationAction(
+            l10n.updateReleaseNotes,
+            () => unawaited(
+              openUrl(changelogUrl(release.version, l10n.localeName)),
+            ),
+          ),
       ],
     );
   }
@@ -132,13 +145,12 @@ class UpdateController {
   /// [notifications].
   Future<void> checkNow(
     IdeNotifications notifications,
-    AppLocalizations l10n, {
-    VoidCallback? openNotes,
-  }) async {
+    AppLocalizations l10n,
+  ) async {
     final result = await service.check(manual: true);
     switch (result) {
       case UpdateFound(:final offer):
-        showOffer(notifications, l10n, offer, openNotes: openNotes);
+        showOffer(notifications, l10n, offer);
       case UpdateUpToDate():
         notifications.notify(IdeSeverity.info, l10n.updateUpToDate);
       case UpdatesDisabled():
@@ -158,11 +170,10 @@ class UpdateController {
   /// function is called. The main window's.
   VoidCallback listen(
     IdeNotifications notifications,
-    AppLocalizations Function() l10n, {
-    VoidCallback? openNotes,
-  }) {
+    AppLocalizations Function() l10n,
+  ) {
     final offers = service.offers.listen(
-      (offer) => showOffer(notifications, l10n(), offer, openNotes: openNotes),
+      (offer) => showOffer(notifications, l10n(), offer),
     );
     final failures = service.failures.listen(
       (error) => notifications.notify(

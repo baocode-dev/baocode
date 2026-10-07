@@ -6012,6 +6012,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get remoteRetry => 'Retry';
 
   @override
+  String remoteSignInTitle(String host) {
+    return 'Sign in to $host';
+  }
+
+  @override
+  String get remoteSignInRefused => 'That was not accepted. Try again.';
+
+  @override
+  String get remoteSignInRemember =>
+      'Remember on this computer (in the system keychain)';
+
+  @override
+  String get remoteSignInConnect => 'Connect';
+
+  @override
   String remoteFolderPlaceholder(String host) {
     return 'A folder on $host: pick one, or type a path';
   }
@@ -6179,6 +6194,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdShowSetupGuide => 'Show Setup Guide';
+
+  @override
+  String get cmdStarOnGitHub => 'Star BaoCode on GitHub';
+
+  @override
+  String get starPromptMessage => 'Enjoying BaoCode?';
+
+  @override
+  String get starPromptDetail =>
+      'BaoCode is free and open source. If it helps you, a star on GitHub helps other people find it.';
+
+  @override
+  String get starPromptStar => 'Star on GitHub';
+
+  @override
+  String get starPromptLater => 'Maybe Later';
 
   @override
   String get cmdResetFeatureTips => 'Reset Feature Tips';
