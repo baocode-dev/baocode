@@ -32,6 +32,7 @@ for (const button of document.querySelectorAll('[data-sound]')) {
     for (const [os, file] of Object.entries(m.downloads || {})) {
       for (const a of document.querySelectorAll(`[data-file="${os}"]`)) {
         a.href = file.url;
+        if (a.classList.contains('button')) a.title = `≈ ${Math.round(file.size / 1e6)} MB`;
         if (a.hasAttribute('data-name')) a.textContent = `BaoCode ${v}`;
       }
       for (const el of document.querySelectorAll(`[data-size="${os}"]`)) {
