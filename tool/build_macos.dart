@@ -251,8 +251,7 @@ class _Signing {
   final ({String key, String keyId, String issuer})? notary;
 
   /// Signs the .app inside out: its frameworks, then the Finder extension,
-  /// then the app around them, each with the hardened runtime notarising
-  /// asks for and a secure timestamp.
+  /// then the app around them ([sign] says with what).
   ///
   /// Not `codesign --deep`: it would give the Finder extension the app's
   /// entitlements, sandbox off, and the system refuses to load an extension
@@ -288,11 +287,14 @@ class _Signing {
     ], root.path);
   }
 
+  /// The hardened runtime and a secure timestamp only with a Developer ID,
+  /// which notarising asks for. Not ad hoc: the hardened runtime brings
+  /// library validation, which an ad hoc app fails on its own frameworks
+  /// (they have no Team ID to share with it), and dyld refuses to load
+  /// FlutterMacOS.framework at launch.
   Future<void> sign(String path, {String? entitlements}) => _run('codesign', [
     '--force',
-    '--options',
-    'runtime',
-    '--timestamp',
+    if (!adHoc) ...['--options', 'runtime', '--timestamp'],
     if (entitlements != null) ...['--entitlements', entitlements],
     '--sign',
     identity,

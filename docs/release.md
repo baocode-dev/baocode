@@ -119,7 +119,7 @@ CI 会照常构建，覆盖 R2 上的文件，重新建 GitHub Release。
 | --- | --- | --- |
 | `check` | Ubuntu | pubspec.yaml 和 `version.dart` 一致；版本是 `x.y.z+build`；标签是 `v<x.y.z>`；不比 `dl.baocode.dev` 上已发布的版本旧（一样就是重新发布，给个提示） |
 | `remote` | Ubuntu | 编译远程服务端（Linux x64 和 arm64）→ `tool/test_remote_server.sh`：在 Docker 里的 Ubuntu 20.04 / 24.04、Debian 12、Rocky Linux 8 上，两种架构各跑一遍（arm64 用 QEMU 模拟），要能启动、回答 `initialize`、列出目录 |
-| `macos` | macOS 15 | 有证书就导入临时钥匙串 → `tool/build_macos.dart --remote-built`：构建 .app，**检查是 universal**（每个可执行文件都有 arm64 和 x86_64，Intel Mac 也能用）→ 放进 `remote` 任务的 `servers.json` → 签名（有证书用 Developer ID，没有就 ad hoc，总要重签，因为放进去的文件要包进签名）→ 做 dmg → 有证书时签 dmg、公证、钉票据 → 打更新用的 zip |
+| `macos` | macOS 15 | 有证书就导入临时钥匙串 → `tool/build_macos.dart --remote-built`：构建 .app，**检查是 universal**（每个可执行文件都有 arm64 和 x86_64，Intel Mac 也能用）→ 放进 `remote` 任务的 `servers.json` → 签名（有证书用 Developer ID，带 hardened runtime；没有就 ad hoc，**不带** hardened runtime，否则系统拒绝加载应用自己的框架、一启动就崩；总要重签，因为放进去的文件要包进签名）→ 做 dmg → 有证书时签 dmg、公证、钉票据 → 打更新用的 zip → **把 zip 解开真正启动一次**，15 秒内退出就不发 |
 | `windows` | Windows | 装 Inno Setup → `tool/build_windows.dart --remote-built`：构建、放进 `servers.json`、打安装包 |
 | `publish` | Ubuntu | 汇总产物 → 用更新私钥签 `latest.json`（`tool/release_manifest.dart`，带上 dmg 给网站用）→ 上传远程服务端 → 上传安装包 → 按清单里的链接确认 CDN 给出的文件大小对 → **最后**上传 `latest.json` → 建 GitHub Release（附 dmg 和 exe；重新发布时先删掉旧的） |
 

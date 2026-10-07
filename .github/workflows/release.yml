@@ -164,6 +164,23 @@ jobs:
           BAOCODE_NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           BAOCODE_NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
         run: dart run tool/build_macos.dart --remote-built
+      - name: Launch the app, as an update installs it
+        run: |
+          # A valid signature is not enough: dyld can still refuse to load
+          # the app's frameworks (as with the hardened runtime ad hoc).
+          mkdir "$RUNNER_TEMP/launch"
+          ditto -x -k build/installers/BaoCode-*-mac.zip "$RUNNER_TEMP/launch"
+          BAOCODE_DATA_DIR="$RUNNER_TEMP/launch-data" \
+            "$RUNNER_TEMP/launch/BaoCode.app/Contents/MacOS/BaoCode" > "$RUNNER_TEMP/launch.log" 2>&1 &
+          pid=$!
+          sleep 15
+          if ! kill -0 $pid 2>/dev/null; then
+            cat "$RUNNER_TEMP/launch.log"
+            echo "::error::BaoCode exited within 15 seconds of launch"
+            exit 1
+          fi
+          echo "BaoCode is running after 15 seconds"
+          kill $pid
       - uses: actions/upload-artifact@v4
         with:
           name: macos
