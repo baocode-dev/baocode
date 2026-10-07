@@ -113,6 +113,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     ChatCommandIds.search => l10n.cmdChatSearch,
     ChatCommandIds.searchAgents => l10n.cmdChatSearchAgents,
     ChatCommandIds.openIde => l10n.cmdChatOpenIde,
+    ChatCommandIds.toggleSidePanel => l10n.cmdToggleSidePanel,
     ChatCommandIds.closeTab => l10n.cmdChatCloseTab,
     ChatCommandIds.focusInput => l10n.cmdChatFocusInput,
     ChatCommandIds.focusList => l10n.cmdChatFocusList,

@@ -652,6 +652,16 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     _save();
   }
 
+  /// How the agent window's side panel was left (shown, its width; see
+  /// `AgentSidePanel.toJson`), for the next run.
+  Map<String, Object?>? get sidePanelView => _sidePanelView;
+  Map<String, Object?>? _sidePanelView;
+
+  void keepSidePanelView(Map<String, Object?> state) {
+    _sidePanelView = state;
+    _save();
+  }
+
   /// [path]'s project: the listed one, or one that is not (yet) listed.
   Project projectAt(String path) {
     for (final project in _projects) {
@@ -1599,6 +1609,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         }
       }
     }
+    if (kept['sidePanel'] case final Map<Object?, Object?> panel) {
+      _sidePanelView = panel.cast<String, Object?>();
+    }
     if (!_colorThemeStored) {
       if (kept['colorTheme'] case final String setting) _colorTheme = setting;
       if (kept['colorThemeData'] case final String data) {
@@ -1656,6 +1669,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       'recentIcons': [for (final icon in _recentIcons) icon.toJson()],
       'emojiStyle': ?_emojiStyle?.name,
       'chat': ?_chatViewToSave(),
+      'sidePanel': ?_sidePanelView,
       'colorTheme': ?_colorTheme,
       'colorThemeData': ?_colorThemeData,
     }),

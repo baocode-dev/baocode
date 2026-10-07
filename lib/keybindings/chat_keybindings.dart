@@ -62,6 +62,10 @@ abstract final class ChatCommandIds {
   static const search = 'baocode.chat.search';
   static const openIde = 'baocode.chat.openIde';
 
+  /// The side panel at the right of the conversations: the focused
+  /// agent's changes and the files opened from its conversation.
+  static const toggleSidePanel = 'baocode.chat.toggleSidePanel';
+
   /// The IDE's chat's: closes the tab shown.
   static const closeTab = 'baocode.chat.closeTab';
 
@@ -168,6 +172,7 @@ final List<CommandInfo> chatExtraCommands = [
     (ChatCommandIds.search, 'Search'),
     (ChatCommandIds.searchAgents, 'Search Agents'),
     (ChatCommandIds.openIde, 'Open in Fast Ide'),
+    (ChatCommandIds.toggleSidePanel, 'Toggle Side Panel'),
     (ChatCommandIds.closeTab, 'Close Chat'),
     (ChatCommandIds.focusInput, 'Focus Chat Input'),
     (ChatCommandIds.focusList, 'Focus Chat List'),
@@ -331,6 +336,13 @@ final List<KeybindingEntry> chatExtraKeybindings = [
   const KeybindingEntry(
     key: 'f2',
     command: ChatCommandIds.renameAgent,
+    when: _window,
+  ),
+  // As upstream's Toggle Secondary Side Bar (the IDE's chat there).
+  const KeybindingEntry(
+    key: 'ctrl+alt+b',
+    mac: 'alt+cmd+b',
+    command: ChatCommandIds.toggleSidePanel,
     when: _window,
   ),
   // A chat's.

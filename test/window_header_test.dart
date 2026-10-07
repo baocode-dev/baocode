@@ -242,9 +242,14 @@ void main() {
       of: header,
       matching: find.byType(HeaderMenuBar),
     );
+    // The sidebar's, not the side panel's.
     final toggle = find.descendant(
       of: header,
-      matching: find.byType(SidebarIconButton),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is SidebarIconButton &&
+            widget.command == 'workbench.action.toggleSidebarVisibility',
+      ),
     );
     IconData icon() => tester.widget<SidebarIconButton>(toggle).icon;
     expect(

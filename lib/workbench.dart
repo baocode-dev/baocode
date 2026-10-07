@@ -16,10 +16,14 @@ import 'chat/chat_session.dart' show ChatSession;
 import 'chat/composer/composer_files.dart' show ComposerFile;
 import 'chat/composer/file_drop.dart';
 import 'chat/panels/interaction_panel.dart';
+import 'chat/side_panel/file_open.dart';
+import 'chat/side_panel/side_panel_controller.dart';
+import 'chat/side_panel/side_panel_view.dart';
 import 'customize/customization_store.dart';
 import 'customize/customizations.dart';
 import 'customize/customize_view.dart';
 import 'ide/git/git_repository.dart';
+import 'ide/file_service.dart' show IdeFileService, IdeHostFiles, readFileBytes;
 import 'ide/ide_chat_title.dart';
 import 'ide/ide_color_theme_picker.dart';
 import 'ide/ide_commands.dart';
@@ -297,6 +301,22 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (mounted) setState(() {});
   }
 
+  /// The panel at the right of the conversations: the focused agent's
+  /// changes and the files opened from its conversation (see
+  /// [AgentSidePanel]), shown and as wide as the last run left it.
+  late final AgentSidePanel _sidePanel = AgentSidePanel(
+    state: _workspace.sidePanelView,
+    onSave: () => _workspace.keepSidePanelView(_sidePanel.toJson()),
+  )..addListener(_sidePanelChanged);
+  bool _sidePanelShown = false;
+
+  /// The title bars' toggles follow it (not its width, as it is dragged).
+  void _sidePanelChanged() {
+    if (_sidePanel.shown == _sidePanelShown) return;
+    _sidePanelShown = _sidePanel.shown;
+    if (mounted) setState(() {});
+  }
+
   /// An agent dragged from the sidebar onto the conversations.
   late final ChatDrag _drag = ChatDrag(onDrop: _drop, onStart: _closeDrawer);
 
@@ -370,6 +390,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     }
     widget.settings?.files?.changes.addListener(_settingsFilesChanged);
     _settingsFilesChanged();
+    _sidePanelShown = _sidePanel.shown;
+    _workspace.addListener(_restoreSidePanel);
+    _restoreSidePanel();
+  }
+
+  /// The side panel as the last run left it, once the workspace has read
+  /// that (after this is built).
+  void _restoreSidePanel() {
+    if (_workspace.sidePanelView case final view?) {
+      _workspace.removeListener(_restoreSidePanel);
+      _sidePanel.restore(view);
+    }
   }
 
   /// The IDE moved to windows of its own (`window.ideWindows`): the main
@@ -442,6 +474,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ?..removeListener(_terminalsChanged)
       ..dispose();
     _chatCode?.dispose();
+    _workspace.removeListener(_restoreSidePanel);
+    _sidePanel
+      ..removeListener(_sidePanelChanged)
+      ..dispose();
     _drag.dispose();
     _width.dispose();
     _lifecycle?.dispose();
@@ -555,6 +591,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         if (_tipsEnabled) resetFeatureTipsCommandId: _resetTips,
         starOnGitHubCommandId: _starOnGitHub,
         ChatCommandIds.search: () => unawaited(_openPalette()),
+        ChatCommandIds.toggleSidePanel: _sidePanel.toggle,
         ..._terminalCommands(),
         ..._windowCommands(),
       };
@@ -597,8 +634,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ChatCommandIds.searchAgents: _searchAgents,
       ChatCommandIds.search: () => unawaited(_openPalette()),
       if (widget.customizations != null) _customizeCommand: _showCustomize,
-      if (current != null)
+      if (current != null) ...{
         ChatCommandIds.openIde: () => _workspace.openInIde(current),
+        ChatCommandIds.toggleSidePanel: _sidePanel.toggle,
+      },
       ..._terminalCommands(),
       ..._windowCommands(),
     };
@@ -898,6 +937,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         Codicons.layoutSidebarLeft,
       ),
       ?action(ChatCommandIds.openIde, Codicons.code),
+      ?action(ChatCommandIds.toggleSidePanel, Codicons.layoutSidebarRight),
       ?action(toggleTerminalCommand, Codicons.terminal),
       ?action(newTerminalCommand, Codicons.add),
       if (WindowControls.canPickDirectory)
@@ -1801,8 +1841,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       // With the sidebar, as the chat's window has it: over the
       // conversation while narrow, beside it once wide. Its toggle is the
       // header's on Windows, else by the traffic lights while it is hidden.
-      final chat = _withTerminal(
-        _buildChat(showToggle: narrow || !_docked, pane: thread),
+      final chat = _withSidePanel(
+        _withTerminal(_buildChat(showToggle: narrow || !_docked, pane: thread)),
       );
       return narrow ? _buildNarrow(body: chat) : _buildWide(body: chat);
     }
@@ -2157,6 +2197,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       onToggleTerminal: ide || _terminals?.root == null
           ? null
           : _toggleTerminal,
+      sidePanelShown: _sidePanel.shown,
+      onToggleSidePanel: ide || (agent ?? _workspace.current) == null
+          ? null
+          : _sidePanel.toggle,
       onOpenFolder: _openFolder,
       onOpenSettings: () => unawaited(openSettings()),
       onToggleContextPanel: () {
@@ -2270,9 +2314,77 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   /// The open agents side by side (see [ChatGridView]), the terminal panel
-  /// under them.
+  /// under them, the side panel at their right.
   Widget _buildPanes({required bool showToggle}) =>
-      _withTerminal(_buildGrid(showToggle: showToggle));
+      _withSidePanel(_withTerminal(_buildGrid(showToggle: showToggle)));
+
+  /// [child] with the side panel at its right (see [AgentSidePanelArea]),
+  /// for the focused agent.
+  Widget _withSidePanel(Widget child) => AgentSidePanelArea(
+    panel: _sidePanel,
+    builder: (context) => switch (_agentThread ?? _workspace.current) {
+      final thread? => _buildSidePanel(thread),
+      null => const SizedBox.shrink(),
+    },
+    child: child,
+  );
+
+  Widget _buildSidePanel(AgentThread thread) {
+    final (:files, :paths) = _projectFiles(thread);
+    return AgentSidePanelView(
+      panel: _sidePanel,
+      session: thread.session,
+      files: files,
+      readBytes: files is IdeHostFiles ? files.readBytes : readFileBytes,
+      paths: paths,
+      colorize: _colorizeCode,
+      onOpenInIde: (request) => _openRequestInIde(thread, request),
+    );
+  }
+
+  /// The files of [thread]'s project, on its host, and how it spells
+  /// their paths.
+  ({IdeFileService files, p.Context paths}) _projectFiles(AgentThread thread) {
+    final location = thread.project.path;
+    final host = ProjectHost.of(location);
+    return (
+      files: _projectFileServices[location] ??= host.files(
+        host.pathOf(location),
+      ),
+      paths: host.paths,
+    );
+  }
+
+  final Map<String, IdeFileService> _projectFileServices = {};
+  final Map<String, Future<bool> Function(String)> _projectFileChecks = {};
+
+  /// Where the files [thread]'s conversation names open: the side panel,
+  /// or the IDE for its chat ([embedded]).
+  FileLinkTarget _fileLinks(AgentThread thread, {required bool embedded}) {
+    final (:files, :paths) = _projectFiles(thread);
+    return FileLinkTarget(
+      open: embedded
+          ? (request) => _openRequestInIde(thread, request)
+          : (request) => _sidePanel.open(thread.session, request),
+      exists: _projectFileChecks[thread.project.path] ??= fileExistsIn(
+        files,
+        paths: paths,
+      ),
+      paths: paths,
+    );
+  }
+
+  /// Opens [request] in the IDE of [thread]'s project: a file's changes,
+  /// the lines asked for, or the file.
+  void _openRequestInIde(AgentThread thread, FileOpenRequest request) {
+    if (request.change case final change? when request.diff) {
+      return _openChange(thread, change, request.original);
+    }
+    if (request.range case final range?) {
+      return _openCode(thread, request.path, range.start, range.end);
+    }
+    _inIdeOf(thread, (ide) => ide.open(request.path));
+  }
 
   /// [child] with the terminal panel under it (see [ChatTerminalArea]).
   Widget _withTerminal(Widget child) => switch (_terminals) {
@@ -2411,6 +2523,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           ),
           const SizedBox(width: 6),
         ],
+        SidePanelToggle(
+          shown: _sidePanel.shown,
+          onTap: _sidePanel.toggle,
+          size: 22,
+        ),
+        const SizedBox(width: 6),
         PinWindowButton(pinned: _pinned, onChanged: _setPinned),
         const SizedBox(width: 6),
         OpenInEditorButton(
@@ -2454,6 +2572,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         onOpenChange: (change, original) =>
             _openChange(thread, change, original),
         onOpenCode: (path, start, end) => _openCode(thread, path, start, end),
+        fileLinks: _fileLinks(thread, embedded: embedded),
         colorizeCode: _colorizeCode,
         colorizeCodeBlock: _colorizeCodeBlock,
         // Where a new agent is to work: the IDE's chat works in the IDE's
