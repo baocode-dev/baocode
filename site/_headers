@@ -1,0 +1,22 @@
+# Response headers for Cloudflare Pages
+# (https://developers.cloudflare.com/pages/configuration/headers/).
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; media-src 'self'; connect-src 'self' https://dl.baocode.dev; frame-ancestors 'none'; base-uri 'self'; form-action 'none'
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+
+# Screenshots, the sound and the icon change rarely and keep their names:
+# cached a day, and served from cache for a week more while refetched.
+/shots/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/sounds/*
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/icon.png
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+# Not part of the site.
+/README.md
+  X-Robots-Tag: noindex

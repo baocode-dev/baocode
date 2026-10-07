@@ -6,136 +6,10 @@
 <title>BaoCode — An awesome, easy-to-use desktop UI for Claude Code</title>
 <meta name="description" content="An awesome, easy-to-use desktop UI for Claude Code, with a millisecond-fast IDE built in.">
 <link rel="icon" href="icon.png">
-<style>
-/* A document: one column of text, figures a little wider, notes at the end.
-   Copy marked <mark class="todo"> is still to be written or measured. */
-:root {
-  --paper: #FFFFFF; --ink: #1B1A17; --body: #2F2D29; --muted: #6F6B63;
-  --faint: #A9A49A; --rule: #E7E3DA; --tint: #F6F4EF;
-  --serif: Charter, "Iowan Old Style", "Source Serif 4", Cambria, Georgia, "Songti SC", "Noto Serif SC", serif;
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
-  --text: 640px;
-  --wide: 880px;
-  color-scheme: light;
-}
-* { box-sizing: border-box; }
-html { background: var(--paper); color: var(--body); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; scroll-padding-top: 24px; }
-body { margin: 0; font: 18px/1.7 var(--serif); }
-a { color: inherit; text-decoration: underline; text-decoration-color: var(--faint); text-decoration-thickness: 1px; text-underline-offset: 3px; }
-a:hover { text-decoration-color: var(--ink); }
-
-/* An endless tilted grid behind everything, slowly zooming in (drawn by the
-   script at the end). It fades toward the text column so it never sits
-   under the reading. */
-.grid { position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none;
-  --fade: linear-gradient(to right, #000, rgba(0, 0, 0, .3) calc(50% - 380px), rgba(0, 0, 0, .12) 50%, rgba(0, 0, 0, .3) calc(50% + 380px), #000);
-  -webkit-mask-image: var(--fade); mask-image: var(--fade); }
-
-.top { display: flex; align-items: center; gap: 24px; max-width: var(--wide); margin: 0 auto; padding: 22px 24px; font: 14px var(--sans); }
-.top a { text-decoration: none; color: var(--muted); }
-.top a:hover { color: var(--ink); }
-.top .brand { display: flex; align-items: center; gap: 9px; margin-right: auto; color: var(--ink); font-weight: 600; }
-.top .brand img { width: 20px; height: 20px; border-radius: 5px; }
-
-/* Text in the middle column; the contents in the left margin, clear of the
-   wider figures, when there is room. */
-.page { display: grid; grid-template-columns: 1fr min(var(--text), 100% - 48px) 1fr; padding: 48px 0 96px; }
-.page > * { grid-column: 2; }
-.toc { grid-column: 1; grid-row: 1 / span 99; justify-self: end; position: sticky; top: 32px; align-self: start; width: 180px; margin-right: calc((var(--wide) - var(--text)) / 2 + 32px); padding-top: 6px; font: 13.5px/1.5 var(--sans); }
-.toc .label { margin-bottom: 10px; font-size: 12px; color: var(--faint); }
-.toc ol { margin: 0; padding: 0; list-style: none; counter-reset: s; }
-.toc li { display: flex; margin: 0 0 7px; counter-increment: s; }
-.toc li::before { content: counter(s); flex: none; width: 26px; color: var(--faint); font-variant-numeric: tabular-nums; }
-.toc a { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); text-decoration: none; }
-.toc svg.ic { width: 15px; height: 15px; color: var(--faint); }
-.toc a:hover svg.ic { color: var(--ink); }
-.toc a:hover { color: var(--ink); }
-@media (max-width: 1340px) { .toc { display: none; } }
-
-h1 { margin: 0; font: 600 44px/1.15 var(--serif); letter-spacing: -.015em; color: var(--ink); }
-.subtitle { margin: 10px 0 0; font-size: 23px; line-height: 1.4; color: var(--muted); }
-.meta { margin: 22px 0 0; font: 13.5px/1.6 var(--sans); color: var(--muted); }
-.meta span + span::before { content: "·"; margin: 0 8px; color: var(--faint); }
-
-.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 30px 0 0; font: 15px var(--sans); }
-.button { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border: 1px solid var(--rule); border-radius: 6px; color: var(--ink); font-weight: 500; text-decoration: none; }
-.button:hover { border-color: var(--faint); }
-.button.primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }
-.button.primary:hover { background: #000; }
-.actions .note { margin-left: 6px; font-size: 13.5px; color: var(--muted); }
-
-h2 { margin: 72px 0 18px; font: 600 27px/1.3 var(--serif); letter-spacing: -.01em; color: var(--ink); counter-increment: h2; }
-svg.ic { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
-svg.ic.logo { stroke: none; }
-h2 svg.ic { margin-right: .4em; color: var(--muted); vertical-align: -.12em; stroke-width: 1.6; }
-.button svg.ic { width: 18px; height: 18px; margin-right: 8px; }
-.top svg.ic { width: 17px; height: 17px; margin-right: 6px; vertical-align: -3px; }
-ul.features { padding-left: 0; list-style: none; }
-ul.features li { display: grid; grid-template-columns: 30px 1fr; }
-ul.features li > svg.ic { width: 19px; height: 19px; margin-top: .3em; color: var(--muted); }
-h2::before { content: counter(h2); display: inline-block; min-width: 1.4em; color: var(--faint); font-weight: 400; }
-.page { counter-reset: h2 fig tab; }
-p { margin: 0 0 1.1em; }
-ul, ol { margin: 0 0 1.1em; padding-left: 1.3em; }
-li { margin: 0 0 .45em; }
-li::marker { color: var(--faint); }
-strong { color: var(--ink); font-weight: 600; }
-code { padding: .1em .35em; border-radius: 4px; background: var(--tint); font: .82em var(--mono); }
-kbd { padding: .05em .4em; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; font: .78em var(--sans); }
-mark.todo { padding: 0 .2em; border-radius: 3px; background: #FFF1B8; color: #6B5300; }
-
-/* Figures run wider than the text; their captions keep to the text's measure. */
-figure { margin: 40px calc(50% - min(var(--wide), 100vw - 48px) / 2); counter-increment: fig; }
-figure .img { position: relative; overflow: hidden; border: 1px solid var(--rule); border-radius: 10px; background: var(--tint); box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 16px 40px -20px rgba(0, 0, 0, .22); }
-figure img { display: block; width: 100%; height: auto; }
-figure .img.missing { aspect-ratio: 16 / 10; }
-figure .img + .img { margin-top: 24px; }
-figure .img.missing img { visibility: hidden; }
-figure .img.missing::after { content: attr(data-src); position: absolute; inset: 0; display: grid; place-items: center; font: 13px var(--mono); color: var(--faint); }
-figcaption { max-width: var(--text); margin: 14px auto 0; font: 14px/1.55 var(--sans); color: var(--muted); }
-figcaption::before { content: "Figure " counter(fig) ". "; color: var(--ink); font-weight: 600; }
-
-.table { margin: 28px 0 32px; counter-increment: tab; }
-table { width: 100%; border-collapse: collapse; font: 15px/1.5 var(--sans); font-variant-numeric: tabular-nums; }
-th, td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--rule); text-align: right; }
-th:first-child, td:first-child { text-align: left; }
-thead th { border-bottom-color: var(--ink); font-weight: 600; color: var(--ink); }
-tbody td:nth-child(2) { color: var(--ink); font-weight: 600; }
-td { color: var(--muted); }
-.table .caption { margin-top: 12px; font: 14px/1.55 var(--sans); color: var(--muted); }
-.table .caption::before { content: "Table " counter(tab) ". "; color: var(--ink); font-weight: 600; }
-
-sup { line-height: 0; font: 12px var(--sans); }
-sup a { text-decoration: none; color: var(--muted); }
-.notes { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--rule); font: 14px/1.6 var(--sans); color: var(--muted); }
-.notes ol { padding-left: 1.2em; }
-.notes :target { background: var(--tint); }
-
-.play { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); font: 500 14px var(--sans); vertical-align: 1px; cursor: pointer; }
-.play:hover { border-color: var(--faint); }
-.play svg.ic { width: 15px; height: 15px; }
-.play .stop { display: none; }
-.play.playing .start { display: none; }
-.play.playing .stop { display: block; }
-
-footer { margin-top: 40px; font: 13px/1.6 var(--sans); color: var(--faint); }
-
-@media (max-width: 640px) {
-  body { font-size: 17px; }
-  h1 { font-size: 36px; }
-  .subtitle { font-size: 20px; }
-  h2 { margin-top: 56px; font-size: 24px; }
-  th, td { padding-right: 8px; font-size: 14px; }
-}
-@media print {
-  .grid, .top, .toc, .actions { display: none; }
-  .page { padding-top: 0; }
-}
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<svg class="sprite" aria-hidden="true">
   <!-- Lucide (ISC), https://lucide.dev; the Apple and Windows logos from Simple Icons (CC0), https://simpleicons.org -->
   <symbol id="ic-apple" viewBox="0 0 24 24"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04c-2.04.027-3.91 1.183-4.961 3.014c-2.117 3.675-.546 9.103 1.519 12.09c1.013 1.454 2.208 3.09 3.792 3.039c1.52-.065 2.09-.987 3.935-.987c1.831 0 2.35.987 3.96.948c1.637-.026 2.676-1.48 3.676-2.948c1.156-1.688 1.636-3.325 1.662-3.415c-.039-.013-3.182-1.221-3.22-4.857c-.026-3.04 2.48-4.494 2.597-4.559c-1.429-2.09-3.623-2.324-4.39-2.376c-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83c-1.207.052-2.662.805-3.532 1.818c-.78.896-1.454 2.338-1.273 3.714c1.338.104 2.715-.688 3.559-1.701"/></symbol>
   <symbol id="ic-windows" viewBox="0 0 24 24"><path fill="currentColor" d="M0 0h11.377v11.372H0Zm12.623 0H24v11.372H12.623ZM0 12.623h11.377V24H0Zm12.623 0H24V24H12.623"/></symbol>
@@ -162,7 +36,7 @@ footer { margin-top: 40px; font: 13px/1.6 var(--sans); color: var(--faint); }
 <canvas class="grid" aria-hidden="true"></canvas>
 <header class="top">
   <a class="brand" href="/"><img src="icon.png" alt="">BaoCode</a>
-  <a href="#download">Download</a>
+  <a href="download.html">Download</a>
   <a href="/changelog">Changelog</a>
   <a href="https://github.com/baocode-dev/baocode"><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>GitHub</a>
 </header>
@@ -190,13 +64,13 @@ footer { margin-top: 40px; font: 13px/1.6 var(--sans); color: var(--faint); }
   <p class="meta"><span>Version 1.0.0</span><span>macOS and Windows</span><span>Free and open source</span><span>Updated 7 October 2026</span></p>
 
   <div class="actions">
-    <a class="button primary" href="https://baocode.dev/download"><svg class="ic logo" aria-hidden="true"><use href="#ic-apple"/></svg>Download for macOS</a>
-    <a class="button" href="https://baocode.dev/download"><svg class="ic logo" aria-hidden="true"><use href="#ic-windows"/></svg>Download for Windows</a>
+    <a class="button primary" href="https://dl.baocode.dev/releases/1.0.0/BaoCode-1.0.0.dmg"><svg class="ic logo" aria-hidden="true"><use href="#ic-apple"/></svg>Download for macOS</a>
+    <a class="button" href="https://dl.baocode.dev/releases/1.0.0/BaoCode-1.0.0-setup.exe"><svg class="ic logo" aria-hidden="true"><use href="#ic-windows"/></svg>Download for Windows</a>
   </div>
 
   <figure>
-    <div class="img" data-src="shots/main.png"><img src="shots/main.png" width="1568" height="976" alt="BaoCode’s main window with two conversations side by side and the model picker open" fetchpriority="high"></div>
-    <div class="img" data-src="shots/main-ide.png"><img src="shots/main-ide.png" width="1568" height="1007" alt="Fast IDE with a conversation docked beside the editor and terminal"></div>
+    <div class="img" data-src="shots/main.png"><picture><source srcset="shots/main.avif" type="image/avif"><img decoding="async" src="shots/main.png" width="1568" height="976" alt="BaoCode’s main window with two conversations side by side and the model picker open" fetchpriority="high"></picture></div>
+    <div class="img" data-src="shots/main-ide.png"><picture><source srcset="shots/main-ide.avif" type="image/avif"><img decoding="async" loading="lazy" src="shots/main-ide.png" width="1568" height="1007" alt="Fast IDE with a conversation docked beside the editor and terminal"></picture></div>
     <figcaption>Top: BaoCode’s main window, with your agents grouped by project, two conversations side by side while background agents run, and the model picker. Bottom: Fast IDE with the conversation docked beside the editor and terminal, while Claude runs five analysis agents; the selected code goes into the message as a reference.</figcaption>
   </figure>
 
@@ -214,11 +88,11 @@ footer { margin-top: 40px; font: 13px/1.6 var(--sans); color: var(--faint); }
     <li><svg class="ic" aria-hidden="true"><use href="#ic-message-square-text"/></svg><span><strong>The input is a rich-text editor.</strong> Copy code from the editor and it arrives as a reference to the file and its lines; paste images or drop in files and they sit right where you put them in the sentence.</span></li>
   </ul>
   <figure>
-    <div class="img" data-src="shots/composer.png"><img src="shots/composer.png" width="1568" height="1089" alt="A sent message with five images and a code reference, opened again to edit"></div>
+    <div class="img" data-src="shots/composer.png"><picture><source srcset="shots/composer.avif" type="image/avif"><img decoding="async" loading="lazy" src="shots/composer.png" width="1568" height="1089" alt="A sent message with five images and a code reference, opened again to edit"></picture></div>
     <figcaption>A message with five pasted images and a reference to <code>about-claude.html:4-7</code>, each a tag where it sits in the sentence, opened again to edit while Claude works on it.</figcaption>
   </figure>
   <figure>
-    <div class="img" data-src="shots/goal.png"><img src="shots/goal.png" width="1568" height="1224" alt="A conversation working toward a goal set with /goal, its goal shown above the input"></div>
+    <div class="img" data-src="shots/goal.png"><picture><source srcset="shots/goal.avif" type="image/avif"><img decoding="async" loading="lazy" src="shots/goal.png" width="1568" height="1224" alt="A conversation working toward a goal set with /goal, its goal shown above the input"></picture></div>
     <figcaption>A goal set with <code>/goal</code>: Claude works toward it, and above the input it shows as in progress, with the time spent so far.</figcaption>
   </figure>
 
@@ -241,8 +115,8 @@ footer { margin-top: 40px; font: 13px/1.6 var(--sans); color: var(--faint); }
   <p>BaoCode’s colors are VS Code’s theme colors, so the themes you already use look the way you expect: the editor, the conversation and the sidebar all follow them. Change the theme whenever you like; the window previews each one as you move through the list.</p>
   <p>This is what BaoCode does with VS Code as a whole: it keeps the parts that matter most and fits them into a 16 MB download on Windows.</p>
   <figure>
-    <div class="img" data-src="shots/themes-light.png"><img src="shots/themes-light.png" width="1568" height="974" alt="BaoCode’s main window in a light theme, with search open"></div>
-    <div class="img" data-src="shots/themes-dark.png"><img src="shots/themes-dark.png" width="1568" height="996" alt="Fast IDE in Kimbie Dark, with the color theme list open"></div>
+    <div class="img" data-src="shots/themes-light.png"><picture><source srcset="shots/themes-light.avif" type="image/avif"><img decoding="async" loading="lazy" src="shots/themes-light.png" width="1568" height="974" alt="BaoCode’s main window in a light theme, with search open"></picture></div>
+    <div class="img" data-src="shots/themes-dark.png"><picture><source srcset="shots/themes-dark.avif" type="image/avif"><img decoding="async" loading="lazy" src="shots/themes-dark.png" width="1568" height="996" alt="Fast IDE in Kimbie Dark, with the color theme list open"></picture></div>
     <figcaption>Top: the main window in a light theme, with search open across agents, conversations, files and actions. Bottom: Fast IDE in Kimbie Dark, picked from VS Code’s own light and dark themes.</figcaption>
   </figure>
 
@@ -251,14 +125,14 @@ footer { margin-top: 40px; font: 13px/1.6 var(--sans); color: var(--faint); }
   <p>It responds in milliseconds. Files open, search results appear and keystrokes reach the screen before you notice a wait, even in large projects. <mark class="todo">More, in your words.</mark></p>
   <p>Commit messages are written by Claude Code: it reads your changes and drafts the message for you to edit and commit. You can customize how it writes them.</p>
   <figure>
-    <div class="img" data-src="shots/ide.png"><img src="shots/ide.png" width="1568" height="1157" alt="Fast IDE: Source Control, the editor and the terminal"></div>
+    <div class="img" data-src="shots/ide.png"><picture><source srcset="shots/ide.avif" type="image/avif"><img decoding="async" loading="lazy" src="shots/ide.png" width="1568" height="1157" alt="Fast IDE: Source Control, the editor and the terminal"></picture></div>
     <figcaption>Fast IDE: Source Control with a commit message drafted by Claude Code and the commit graph, the editor, and the terminal.</figcaption>
   </figure>
 
   <h2 id="customize"><svg class="ic" aria-hidden="true"><use href="#ic-puzzle"/></svg>Skills, MCP servers and more</h2>
   <p>Everything Claude Code can be extended with is in one place: plugins, MCP servers, skills, subagents, rules, commands and hooks, for you or for a single project. Skills you have on claude.ai show up here too.</p>
   <figure>
-    <div class="img" data-src="shots/customize.png"><img src="shots/customize.png" width="1568" height="1164" alt="Customize in BaoCode, listing skills synced from claude.ai"></div>
+    <div class="img" data-src="shots/customize.png"><picture><source srcset="shots/customize.avif" type="image/avif"><img decoding="async" loading="lazy" src="shots/customize.png" width="1568" height="1164" alt="Customize in BaoCode, listing skills synced from claude.ai"></picture></div>
     <figcaption>Customize: plugins, MCP servers, skills, subagents, rules, commands and hooks, here with the skills synced from claude.ai.</figcaption>
   </figure>
 
@@ -266,7 +140,7 @@ footer { margin-top: 40px; font: 13px/1.6 var(--sans); color: var(--faint); }
   <p>Claude Code does the work; you choose the model. Add an upstream that speaks Anthropic’s API, OpenAI’s Chat Completions or OpenAI’s Responses, and BaoCode’s local proxy translates between it and Claude Code. Its tools, skills and way of working stay the same. You can even run Claude Code on GPT-6 Astra.</p>
   <p>API keys are kept in the system keychain, not in a settings file, and you can choose which model Claude Code uses for each part of its work.</p>
   <figure>
-    <div class="img" data-src="shots/models.png"><img src="shots/models.png" width="1568" height="1174" alt="Adding a model upstream in BaoCode’s settings, with its protocol menu open"></div>
+    <div class="img" data-src="shots/models.png"><picture><source srcset="shots/models.avif" type="image/avif"><img decoding="async" loading="lazy" src="shots/models.png" width="1568" height="1174" alt="Adding a model upstream in BaoCode’s settings, with its protocol menu open"></picture></div>
     <figcaption>Adding an upstream: its protocol, base URL and API key, the models it offers, and which model Claude Code uses for each role.</figcaption>
   </figure>
 
@@ -274,7 +148,7 @@ footer { margin-top: 40px; font: 13px/1.6 var(--sans); color: var(--faint); }
   <p>You don’t have to watch the window. When an agent needs you, to answer a question, grant a permission or approve a plan, or when it finishes its turn, BaoCode tells you the way your system does: a notification, a sound, and a count on the app’s icon of the agents waiting on you.</p>
   <p>Close the window and the agents keep running in the menu bar (the tray on Windows), whose menu shows which of them are waiting on you. The sound is a microwave’s ding, because the work is ready: <button class="play" type="button" data-sound="sounds/microwave-ding.m4a" aria-label="Play the notification sound"><svg class="ic start" aria-hidden="true"><use href="#ic-play"/></svg><svg class="ic stop" aria-hidden="true"><use href="#ic-square"/></svg>Play</button></p>
   <figure>
-    <div class="img" data-src="shots/notifications.png"><img src="shots/notifications.png" width="1568" height="1222" alt="BaoCode’s notification settings"></div>
+    <div class="img" data-src="shots/notifications.png"><picture><source srcset="shots/notifications.avif" type="image/avif"><img decoding="async" loading="lazy" src="shots/notifications.png" width="1568" height="1222" alt="BaoCode’s notification settings"></picture></div>
     <figcaption>Notification settings: when to be told, the sound, and the menu bar icon.</figcaption>
   </figure>
 
@@ -284,8 +158,8 @@ footer { margin-top: 40px; font: 13px/1.6 var(--sans); color: var(--faint); }
 
   <h2 id="download"><svg class="ic" aria-hidden="true"><use href="#ic-download"/></svg>Download</h2>
   <ul class="features">
-    <li><svg class="ic logo" aria-hidden="true"><use href="#ic-apple"/></svg><span><strong>macOS</strong>: <a href="https://baocode.dev/download">BaoCode 1.0.0</a>, Universal (Apple silicon and Intel), macOS <mark class="todo">version</mark> or later.</span></li>
-    <li><svg class="ic logo" aria-hidden="true"><use href="#ic-windows"/></svg><span><strong>Windows</strong>: <a href="https://baocode.dev/download">BaoCode 1.0.0</a>, x64, Windows <mark class="todo">version</mark> or later.</span></li>
+    <li><svg class="ic logo" aria-hidden="true"><use href="#ic-apple"/></svg><span><strong>macOS</strong>: <a href="https://dl.baocode.dev/releases/1.0.0/BaoCode-1.0.0.dmg">BaoCode 1.0.0</a>, Universal (Apple silicon and Intel), macOS <mark class="todo">version</mark> or later.</span></li>
+    <li><svg class="ic logo" aria-hidden="true"><use href="#ic-windows"/></svg><span><strong>Windows</strong>: <a href="https://dl.baocode.dev/releases/1.0.0/BaoCode-1.0.0-setup.exe">BaoCode 1.0.0</a>, x64, Windows <mark class="todo">version</mark> or later.</span></li>
   </ul>
   <p>BaoCode updates itself in the background and asks before restarting. You can make updates manual, or turn them off, in Settings → Updates.</p>
 
@@ -296,75 +170,6 @@ footer { margin-top: 40px; font: 13px/1.6 var(--sans); color: var(--faint); }
   <footer>BaoCode is an independent project, not affiliated with or endorsed by Anthropic. Claude Code is a product of Anthropic.</footer>
 </main>
 
-<script>
-// Until a screenshot exists, its frame shows the file it is waiting for.
-for (const img of document.querySelectorAll('figure img')) {
-  const missing = () => img.parentElement.classList.add('missing');
-  img.addEventListener('error', missing);
-  if (img.complete && !img.naturalWidth) missing();
-}
-
-// The notification sound, played on the page.
-for (const button of document.querySelectorAll('[data-sound]')) {
-  const audio = new Audio(button.dataset.sound);
-  audio.preload = 'none';
-  audio.addEventListener('ended', () => button.classList.remove('playing'));
-  button.addEventListener('click', () => {
-    if (!audio.paused) { audio.pause(); audio.currentTime = 0; button.classList.remove('playing'); return; }
-    audio.play().then(() => button.classList.add('playing'), () => {});
-  });
-}
-
-// The background grid: tilted, zooming in for ever. Each level of lines is
-// twice the spacing of the one below; as the view zooms one octave, every
-// level grows into the next, so the loop has no seam. A level's strength
-// depends only on its spacing on screen: fine ones fade in from nothing.
-(() => {
-  const canvas = document.querySelector('canvas.grid');
-  const ctx = canvas.getContext('2d');
-  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const ANGLE = -14 * Math.PI / 180;   // the tilt
-  const OCTAVE = 14;                   // seconds to zoom 2×
-  const BASE = 12;                     // the finest spacing, in CSS px
-  const ALPHA = .07;                   // strongest line
-  let w = 0, h = 0, dpr = 1;
-  function resize() {
-    dpr = Math.min(devicePixelRatio || 1, 2);
-    w = innerWidth; h = innerHeight;
-    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
-  }
-  const smooth = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); };
-  const strength = (s) => ALPHA * smooth(BASE, BASE * 6, s) * (1 - .6 * smooth(400, 1600, s));
-  function draw(seconds) {
-    const z = (seconds / OCTAVE) % 1;
-    const scale = 2 ** z;
-    const reach = Math.hypot(w, h) / 2 + 2;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    ctx.translate(w / 2, h / 2);
-    ctx.rotate(ANGLE);
-    ctx.lineWidth = 1 / dpr;
-    for (let s = BASE * scale; s < reach * 4; s *= 2) {
-      const a = strength(s);
-      if (a < .002) continue;
-      ctx.strokeStyle = `rgba(27, 26, 23, ${a})`;
-      ctx.beginPath();
-      const n = Math.ceil(reach / s);
-      for (let i = -n; i <= n; i++) {
-        const x = Math.round(i * s * dpr) / dpr;
-        ctx.moveTo(x, -reach); ctx.lineTo(x, reach);
-        ctx.moveTo(-reach, x); ctx.lineTo(reach, x);
-      }
-      ctx.stroke();
-    }
-  }
-  resize();
-  addEventListener('resize', () => { resize(); if (still) draw(0); });
-  if (still) { draw(0); return; }
-  const t0 = performance.now();
-  const frame = (now) => { draw((now - t0) / 1000); requestAnimationFrame(frame); };
-  requestAnimationFrame(frame);
-})();
-</script>
+<script src="site.js"></script>
 </body>
 </html>
