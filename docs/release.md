@@ -220,13 +220,13 @@ releases/
 **需要 Apple 开发者账号吗？** 要。没有的话应用照样能构建、能自动更新，但新用户第一次从网上下载打开时会被 Gatekeeper 拦下（“BaoCode 已损坏，无法打开”），只能在终端里运行 `xattr -dr com.apple.quarantine` 才能打开。对外发布基本绕不过去。
 
 1. **加入 Apple Developer Program**（每年 99 美元）：<https://developer.apple.com/programs/enroll/>
-   - 我们**以个人身份**加入：用本人的 Apple ID（要开双重认证，姓名填身份证件上的真实姓名），在 iPhone 或 Mac 的 Apple Developer App 里注册最快，要拍证件做身份验证；也可以在网页上注册。付款后一般一两天内通过。
-   - 证书上显示的是个人姓名（`Developer ID Application: <姓名> (<Team ID>)`），用户在签名信息里能看到。
+   - 我们**以个人身份**加入：用本人的 Apple ID（要开双重认证）。中国大陆的表单要求填身份证上的中文姓名和身份证号。在 iPhone 或 Mac 的 Apple Developer App 里注册最快，要拍证件做身份验证；也可以在网页上注册。付款后一般一两天内通过。
+   - 证书上显示的是个人姓名（`Developer ID Application: <姓名> (<Team ID>)`），用户在签名信息里能看到，双击打开时的提示里看不到。
    - 以后想改成组织：可以联系 Apple 把个人账号转成组织账号（需要 D-U-N-S 编号）。转换前向 Apple 确认 Team ID 不变，否则见下面的注意。
 2. **Developer ID Application 证书**：只有账号持有人（Account Holder）能创建。
    - 在 Mac 上打开 Xcode → Settings → Accounts → 登录 Apple ID → Manage Certificates → 左下角 `+` → **Developer ID Application**。
    - 打开“钥匙串访问” → 登录 → 我的证书 → 找到 “Developer ID Application: <名字> (<Team ID>)” → 右键导出为 `.p12`，设一个密码。
-   - 终端运行 `security find-identity -v -p codesigning`，复制那一行引号里的完整名字。
+   - 终端运行 `security find-identity -v -p codesigning`，复制那一行开头的 40 位十六进制指纹（也可以用引号里的完整名字，但名字里有中文时用指纹更稳）。
 3. **公证用的 API 密钥**：App Store Connect → 用户和访问 → 集成 → App Store Connect API → 团队密钥 → `+`，访问权限选 **Developer**。下载 `.p8` 文件（只能下载一次），记下 Key ID 和页面上方的 Issuer ID。
 4. **填进 `release` 环境的密钥**：
 
@@ -234,7 +234,7 @@ releases/
    | --- | --- |
    | `MACOS_CERTIFICATE` | `base64 -i 证书.p12 \| pbcopy` 复制出来的内容 |
    | `MACOS_CERTIFICATE_PASSWORD` | 导出 `.p12` 时设的密码 |
-   | `MACOS_SIGN_IDENTITY` | 第 2 步复制的名字，例如 `Developer ID Application: Zhang San (AB12CD34EF)` |
+   | `MACOS_SIGN_IDENTITY` | 第 2 步复制的指纹，例如 `1A2B3C…`（40 位）；或完整名字 `Developer ID Application: <姓名> (<Team ID>)` |
    | `NOTARY_KEY` | `.p8` 文件的全部内容（包括 `-----BEGIN PRIVATE KEY-----` 那两行） |
    | `NOTARY_KEY_ID` | Key ID |
    | `NOTARY_ISSUER` | Issuer ID |
@@ -287,7 +287,7 @@ macOS 本机签名时用的环境变量：
 
 | 变量 | 值 |
 | --- | --- |
-| `BAOCODE_MACOS_SIGN_IDENTITY` | `Developer ID Application: <名字> (<Team ID>)`，证书在钥匙串里 |
+| `BAOCODE_MACOS_SIGN_IDENTITY` | 证书的 40 位指纹，或 `Developer ID Application: <名字> (<Team ID>)`；证书在钥匙串里 |
 | `BAOCODE_NOTARY_KEY` | `.p8` 文件的路径 |
 | `BAOCODE_NOTARY_KEY_ID` | Key ID |
 | `BAOCODE_NOTARY_ISSUER` | Issuer ID |

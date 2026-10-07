@@ -14,8 +14,11 @@
 // Signed with a Developer ID and notarised when the environment says how
 // (docs/release.md has how to get each):
 //
-//   BAOCODE_MACOS_SIGN_IDENTITY  "Developer ID Application: <name> (<team>)",
-//                                its certificate in a keychain searched
+//   BAOCODE_MACOS_SIGN_IDENTITY  the certificate's SHA-1 (40 hex digits, as
+//                                `security find-identity -v -p codesigning`
+//                                lists it) or its name, "Developer ID
+//                                Application: <name> (<team>)"; in a
+//                                keychain searched
 //   BAOCODE_NOTARY_KEY           an App Store Connect API key (.p8), its path
 //   BAOCODE_NOTARY_KEY_ID        that key's ID
 //   BAOCODE_NOTARY_ISSUER        its issuer ID
