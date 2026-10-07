@@ -174,9 +174,8 @@ class TelemetryService {
   /// Sends the days not reported yet, if any. A report the server refuses
   /// (a 4xx but 429) is dropped, as sending it again would not help; one
   /// that does not get through waits for the next look.
-  Future<void> flush() => _flushing ??= _flush().whenComplete(
-    () => _flushing = null,
-  );
+  Future<void> flush() =>
+      _flushing ??= _flush().whenComplete(() => _flushing = null);
 
   Future<void> _flush() async {
     final days = store.pendingDays;
