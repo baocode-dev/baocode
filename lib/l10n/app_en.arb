@@ -610,6 +610,17 @@
   "@cmdToggleSidePanel": {
     "description": "Command title: shows or hides the agent window's side panel."
   },
+  "cmdSidePanelChanges": "Show Agent Changes",
+  "cmdSidePanelFiles": "Show Agent Files",
+  "cmdSidePanelTerminal": "Show Agent Terminals",
+  "sidePanelFiles": "Files",
+  "sidePanelTerminal": "Terminal",
+  "sidePanelNoFiles": "No open files",
+  "sidePanelNoTerminals": "No background commands",
+  "sidePanelTaskCompleted": "Completed",
+  "sidePanelTaskFailed": "Failed",
+  "sidePanelWaitingOutput": "Waiting for output",
+  "sidePanelOutputUnavailable": "Output unavailable",
   "sidePanelShow": "Show side panel",
   "@sidePanelShow": {
     "description": "Tooltip of the title bar button that shows the side panel."

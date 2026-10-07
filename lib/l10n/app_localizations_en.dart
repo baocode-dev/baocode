@@ -1368,6 +1368,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdToggleSidePanel => 'Toggle Side Panel';
 
   @override
+  String get cmdSidePanelChanges => 'Show Agent Changes';
+
+  @override
+  String get cmdSidePanelFiles => 'Show Agent Files';
+
+  @override
+  String get cmdSidePanelTerminal => 'Show Agent Terminals';
+
+  @override
+  String get sidePanelFiles => 'Files';
+
+  @override
+  String get sidePanelTerminal => 'Terminal';
+
+  @override
+  String get sidePanelNoFiles => 'No open files';
+
+  @override
+  String get sidePanelNoTerminals => 'No background commands';
+
+  @override
+  String get sidePanelTaskCompleted => 'Completed';
+
+  @override
+  String get sidePanelTaskFailed => 'Failed';
+
+  @override
+  String get sidePanelWaitingOutput => 'Waiting for output';
+
+  @override
+  String get sidePanelOutputUnavailable => 'Output unavailable';
+
+  @override
   String get sidePanelShow => 'Show side panel';
 
   @override

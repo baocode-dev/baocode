@@ -13,6 +13,7 @@ import '../workspace/window_controls.dart';
 import 'ide_hover.dart';
 import 'ide_menu.dart';
 import 'ide_workspace.dart';
+import 'tab_strip_scroll.dart';
 
 /// The actions of a tab's context menu.
 enum IdeTabAction {
@@ -164,23 +165,6 @@ class _IdeTabBarState extends State<IdeTabBar> {
     });
   }
 
-  void _wheel(PointerSignalEvent event) {
-    if (event is! PointerScrollEvent || !_scroll.hasClients) return;
-    final delta = event.scrollDelta.dx != 0
-        ? event.scrollDelta.dx
-        : event.scrollDelta.dy;
-    if (delta == 0) return;
-    GestureBinding.instance.pointerSignalResolver.register(event, (_) {
-      final position = _scroll.position;
-      _scroll.jumpTo(
-        (position.pixels + delta).clamp(
-          position.minScrollExtent,
-          position.maxScrollExtent,
-        ),
-      );
-    });
-  }
-
   /// `MenuId.EditorTitleContext`: at [position] for a right click, or
   /// below [anchor] for the tab bar's More Actions.
   Future<void> _showMenu(IdeDocument doc, {Offset? position, Rect? anchor}) {
@@ -289,30 +273,26 @@ class _IdeTabBarState extends State<IdeTabBar> {
       child: Row(
         children: [
           Expanded(
-            child: Listener(
-              onPointerSignal: _wheel,
-              child: SingleChildScrollView(
-                controller: _scroll,
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final (i, doc) in docs.indexed)
-                      _draggable(
-                        doc,
-                        _Tab(
-                          key: _keys.putIfAbsent(doc, GlobalKey.new),
-                          doc: doc,
-                          description: descriptions[i],
-                          active: identical(doc, widget.active),
-                          onSelect: () => widget.onSelect(doc),
-                          onClose: () => widget.onClose(doc),
-                          onMenu: (position) =>
-                              _showMenu(doc, position: position),
-                        ),
+            child: TabStripScroll(
+              controller: _scroll,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final (i, doc) in docs.indexed)
+                    _draggable(
+                      doc,
+                      _Tab(
+                        key: _keys.putIfAbsent(doc, GlobalKey.new),
+                        doc: doc,
+                        description: descriptions[i],
+                        active: identical(doc, widget.active),
+                        onSelect: () => widget.onSelect(doc),
+                        onClose: () => widget.onClose(doc),
+                        onMenu: (position) =>
+                            _showMenu(doc, position: position),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
           ),

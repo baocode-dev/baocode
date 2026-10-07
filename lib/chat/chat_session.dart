@@ -522,6 +522,15 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     );
   }
 
+  /// Background commands, including completed ones for their output tabs.
+  List<KernelTask> get terminalTasks => _cached(
+    #terminalTasks,
+    () => [
+      for (final task in _transcript.tasks)
+        if (task.background && task.kind == KernelTaskKind.command) task,
+    ],
+  );
+
   void stopTask(KernelTask task) {
     if (_kernel case final RunsBackgroundTasks kernel) kernel.stopTask(task.id);
   }

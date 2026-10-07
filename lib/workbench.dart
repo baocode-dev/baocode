@@ -591,7 +591,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         if (_tipsEnabled) resetFeatureTipsCommandId: _resetTips,
         starOnGitHubCommandId: _starOnGitHub,
         ChatCommandIds.search: () => unawaited(_openPalette()),
-        ChatCommandIds.toggleSidePanel: _sidePanel.toggle,
+        ..._sidePanelCommands(),
         ..._terminalCommands(),
         ..._windowCommands(),
       };
@@ -636,7 +636,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       if (widget.customizations != null) _customizeCommand: _showCustomize,
       if (current != null) ...{
         ChatCommandIds.openIde: () => _workspace.openInIde(current),
-        ChatCommandIds.toggleSidePanel: _sidePanel.toggle,
+        ..._sidePanelCommands(),
       },
       ..._terminalCommands(),
       ..._windowCommands(),
@@ -938,6 +938,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ),
       ?action(ChatCommandIds.openIde, Codicons.code),
       ?action(ChatCommandIds.toggleSidePanel, Codicons.layoutSidebarRight),
+      for (final section in SidePanelSection.values)
+        ?action(section.command, section.icon),
       ?action(toggleTerminalCommand, Codicons.terminal),
       ?action(newTerminalCommand, Codicons.add),
       if (WindowControls.canPickDirectory)
@@ -2318,10 +2320,22 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   Widget _buildPanes({required bool showToggle}) =>
       _withSidePanel(_withTerminal(_buildGrid(showToggle: showToggle)));
 
-  /// [child] with the side panel at its right (see [AgentSidePanelArea]),
-  /// for the focused agent.
+  void _showSidePanelSection(SidePanelSection section) {
+    final thread = _agentThread ?? _workspace.current;
+    if (thread != null) _sidePanel.showSection(thread.session, section);
+  }
+
+  Map<String, VoidCallback> _sidePanelCommands() => {
+    ChatCommandIds.toggleSidePanel: _sidePanel.toggle,
+    for (final section in SidePanelSection.values)
+      section.command: () => _showSidePanelSection(section),
+  };
+
   Widget _withSidePanel(Widget child) => AgentSidePanelArea(
     panel: _sidePanel,
+    rail: (_agentThread ?? _workspace.current) == null
+        ? null
+        : SidePanelRail(onSelect: _showSidePanelSection),
     builder: (context) => switch (_agentThread ?? _workspace.current) {
       final thread? => _buildSidePanel(thread),
       null => const SizedBox.shrink(),
@@ -2523,12 +2537,6 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           ),
           const SizedBox(width: 6),
         ],
-        SidePanelToggle(
-          shown: _sidePanel.shown,
-          onTap: _sidePanel.toggle,
-          size: 22,
-        ),
-        const SizedBox(width: 6),
         PinWindowButton(pinned: _pinned, onChanged: _setPinned),
         const SizedBox(width: 6),
         OpenInEditorButton(
@@ -2545,6 +2553,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           tooltip: context.l10n.workspaceClosePane,
           command: ChatCommandIds.closePane,
           onTap: () => _workspace.closePane(thread),
+        ),
+      ],
+      if (windowTools) ...[
+        const SizedBox(width: 6),
+        SidePanelToggle(
+          shown: _sidePanel.shown,
+          onTap: _sidePanel.toggle,
+          size: 22,
         ),
       ],
     ];
@@ -2573,6 +2589,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             _openChange(thread, change, original),
         onOpenCode: (path, start, end) => _openCode(thread, path, start, end),
         fileLinks: _fileLinks(thread, embedded: embedded),
+        onOpenTerminalTask: embedded
+            ? null
+            : (task) => _sidePanel.openTerminal(thread.session, task.id),
         colorizeCode: _colorizeCode,
         colorizeCodeBlock: _colorizeCodeBlock,
         // Where a new agent is to work: the IDE's chat works in the IDE's

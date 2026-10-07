@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/panels/context_usage_panel.dart';
 import 'package:baocode/ide/ide_layout.dart';
@@ -449,8 +450,12 @@ void main() {
     final button = tester.getRect(
       find.descendant(
         of: find.byType(ChatScreen),
-        matching: find.byType(OpenInEditorButton),
+        matching: find.byType(SidePanelToggle),
       ),
+    );
+    expect(
+      button.left,
+      greaterThan(tester.getRect(find.byType(OpenInEditorButton)).right),
     );
     // Level with the composer's, as the title is with its left.
     expect(button.right, tester.getRect(find.byType(ChatComposer)).right);

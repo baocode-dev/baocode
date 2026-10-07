@@ -51,6 +51,7 @@ class ChatScreen extends StatefulWidget {
     this.onOpenChange,
     this.onOpenCode,
     this.fileLinks,
+    this.onOpenTerminalTask,
     this.colorizeCode,
     this.colorizeCodeBlock,
     this.start,
@@ -107,6 +108,8 @@ class ChatScreen extends StatefulWidget {
   /// cites and the files it changed (in place of [onOpenCode] and
   /// [onOpenChange]). None: only those two open.
   final FileLinkTarget? fileLinks;
+
+  final ValueChanged<KernelTask>? onOpenTerminalTask;
 
   /// Colors the code the agent cites.
   final CodeColorizer? colorizeCode;
@@ -408,15 +411,14 @@ class _ChatScreenState extends State<ChatScreen>
     final links = widget.fileLinks;
     final open = links == null
         ? widget.onOpenChange
-        : (FileChange change, Future<String> Function()? original) =>
-              _openFile(
-                FileOpenRequest(
-                  change.path,
-                  diff: true,
-                  change: change,
-                  original: original,
-                ),
-              );
+        : (FileChange change, Future<String> Function()? original) => _openFile(
+            FileOpenRequest(
+              change.path,
+              diff: true,
+              change: change,
+              original: original,
+            ),
+          );
     return ActivityStrip(
       tasks: tasks,
       changes: changes,
@@ -429,8 +431,13 @@ class _ChatScreenState extends State<ChatScreen>
           ? null
           : (change) => open(change, _session.originalOf(change)),
       onStopTask: _session.stopTask,
+      canOpenTask: (task) => task.kind == KernelTaskKind.command
+          ? widget.onOpenTerminalTask != null
+          : _session.agentOf(task.toolUseId) != null,
       onOpenTask: (task) {
-        if (_session.agentOf(task.toolUseId) case final agent?) {
+        if (task.kind == KernelTaskKind.command) {
+          widget.onOpenTerminalTask?.call(task);
+        } else if (_session.agentOf(task.toolUseId) case final agent?) {
           _openAgent(agent);
         }
       },

@@ -2690,6 +2690,72 @@ abstract class AppLocalizations {
   /// **'Toggle Side Panel'**
   String get cmdToggleSidePanel;
 
+  /// No description provided for @cmdSidePanelChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Agent Changes'**
+  String get cmdSidePanelChanges;
+
+  /// No description provided for @cmdSidePanelFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Agent Files'**
+  String get cmdSidePanelFiles;
+
+  /// No description provided for @cmdSidePanelTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Agent Terminals'**
+  String get cmdSidePanelTerminal;
+
+  /// No description provided for @sidePanelFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get sidePanelFiles;
+
+  /// No description provided for @sidePanelTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal'**
+  String get sidePanelTerminal;
+
+  /// No description provided for @sidePanelNoFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'No open files'**
+  String get sidePanelNoFiles;
+
+  /// No description provided for @sidePanelNoTerminals.
+  ///
+  /// In en, this message translates to:
+  /// **'No background commands'**
+  String get sidePanelNoTerminals;
+
+  /// No description provided for @sidePanelTaskCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get sidePanelTaskCompleted;
+
+  /// No description provided for @sidePanelTaskFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get sidePanelTaskFailed;
+
+  /// No description provided for @sidePanelWaitingOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for output'**
+  String get sidePanelWaitingOutput;
+
+  /// No description provided for @sidePanelOutputUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Output unavailable'**
+  String get sidePanelOutputUnavailable;
+
   /// Tooltip of the title bar button that shows the side panel.
   ///
   /// In en, this message translates to:

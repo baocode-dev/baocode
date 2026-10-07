@@ -72,6 +72,7 @@ class ClaudeTranslator {
   final Set<String> _denied = {};
 
   final Map<String, KernelTask> _tasks = {};
+  final Map<String, String> _taskOutputs = {};
   final Map<String, TodoEntry> _todos = {};
 
   /// The session's goal (`/goal`), as last reported.
@@ -810,6 +811,18 @@ class ClaudeTranslator {
       case 'Bash':
         final taskId = structured?['backgroundTaskId'] as String?;
         if (taskId != null && !replaying) {
+          final outputFile =
+              _string(structured?['outputFile']) ??
+              RegExp(r'Output is being written to: (.+?\.output)(?:\.|\s|$)')
+                  .firstMatch(text)
+                  ?.group(1);
+          if (outputFile != null) {
+            _taskOutputs[taskId] = outputFile;
+            if (_tasks[taskId] case final task?) {
+              _tasks[taskId] = task.copyWith(outputFile: outputFile);
+              _reportTasks();
+            }
+          }
           _put(
             id,
             TerminalItem(
@@ -1113,6 +1126,7 @@ class ClaudeTranslator {
           startedAt: DateTime.now(),
           toolUseId: message['tool_use_id'] as String?,
           background: message['is_backgrounded'] == true,
+          outputFile: _string(message['output_file']) ?? _taskOutputs[taskId],
         );
         _reportTasks();
         if (message['is_backgrounded'] == true) {
@@ -1159,6 +1173,7 @@ class ClaudeTranslator {
           _taskStatus(message['status']) ?? CommandStatus.succeeded,
           toolUseId: message['tool_use_id'] as String?,
           summary: _string(message['summary']),
+          outputFile: _string(message['output_file']),
           usage: _map(message['usage']),
         );
       case 'background_tasks_changed' when !replaying:
@@ -1211,10 +1226,15 @@ class ClaudeTranslator {
     CommandStatus status, {
     String? toolUseId,
     String? summary,
+    String? outputFile,
     Map<String, Object?> usage = const {},
   }) {
     if (_tasks[taskId] case final task?) {
-      _tasks[taskId] = task.copyWith(status: status, summary: summary);
+      _tasks[taskId] = task.copyWith(
+        status: status,
+        summary: summary,
+        outputFile: outputFile,
+      );
       _reportTasks();
     }
     // A background command's row in the history settles too, and a

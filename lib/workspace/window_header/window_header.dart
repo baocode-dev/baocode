@@ -309,17 +309,6 @@ class _WindowHeaderState extends State<WindowHeader> {
                 ),
                 const SizedBox(width: 6),
               ],
-              if (widget.onToggleSidePanel case final toggle? when !ide) ...[
-                KeyedSubtree(
-                  key: _sidePanel,
-                  child: SidePanelToggle(
-                    shown: widget.sidePanelShown,
-                    onTap: toggle,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 6),
-              ],
               KeyedSubtree(
                 key: _pin,
                 child: PinWindowButton(
@@ -357,6 +346,17 @@ class _WindowHeaderState extends State<WindowHeader> {
                           widget.onBack ??
                           () => widget.workspace.layout = WorkspaceLayout.chat,
                     ),
+                  ),
+                ),
+              ],
+              if (widget.onToggleSidePanel case final toggle? when !ide) ...[
+                const SizedBox(width: 6),
+                KeyedSubtree(
+                  key: _sidePanel,
+                  child: SidePanelToggle(
+                    shown: widget.sidePanelShown,
+                    onTap: toggle,
+                    size: 22,
                   ),
                 ),
               ],

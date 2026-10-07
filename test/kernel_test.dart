@@ -200,7 +200,21 @@ void main() {
       )..turnId = '11111111-1111-4111-8111-111111111111';
       for (final message in recorded('tasks')) {
         translator.translate(message);
+        if ((message['tool_use_result'] as Map?)?['backgroundTaskId'] != null) {
+          final task = transcript.tasks
+              .where((task) => task.kind == KernelTaskKind.command)
+              .single;
+          expect(task.status, CommandStatus.running);
+          expect(task.outputFile, endsWith('/tasks/bft071fdo.output'));
+        }
       }
+      expect(
+        transcript.tasks
+            .where((task) => task.kind == KernelTaskKind.command)
+            .single
+            .outputFile,
+        endsWith('/tasks/bft071fdo.output'),
+      );
       expect(shown(transcript), [
         'user: Do these steps in order: 1) Write file a.txt containing '
             "'one'. 2) Run `sleep 4; echo bg-done` with the Bash tool using "

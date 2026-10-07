@@ -245,6 +245,7 @@ class KernelTask {
     this.toolUseId,
     this.background = true,
     this.summary,
+    this.outputFile,
   });
 
   final String id;
@@ -260,11 +261,15 @@ class KernelTask {
   /// Its last progress line, or how it ended.
   final String? summary;
 
+  /// The command's output on the project's host, reported by the CLI.
+  final String? outputFile;
+
   KernelTask copyWith({
     CommandStatus? status,
     String? summary,
     bool? background,
     String? description,
+    String? outputFile,
   }) => KernelTask(
     id: id,
     description: description ?? this.description,
@@ -274,6 +279,7 @@ class KernelTask {
     toolUseId: toolUseId,
     background: background ?? this.background,
     summary: summary ?? this.summary,
+    outputFile: outputFile ?? this.outputFile,
   );
 }
 

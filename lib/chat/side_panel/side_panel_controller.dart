@@ -17,11 +17,15 @@ class SidePanelTab {
   bool get diff => request.diff;
 }
 
-/// What the side panel shows for one conversation: its files, and the one
-/// in front (none: its changes).
+enum SidePanelSection { changes, files, terminal }
+
+/// Each conversation keeps its section and selected file and terminal.
 class SidePanelTabs {
+  SidePanelSection section = SidePanelSection.changes;
   final List<SidePanelTab> files = [];
   SidePanelTab? active;
+  String? terminal;
+  final Set<String> closedTerminals = {};
 }
 
 /// The agent window's side panel, at the right of the conversations as
@@ -79,6 +83,26 @@ class AgentSidePanel extends ChangeNotifier {
   void hide() => _setShown(false);
   void toggle() => _setShown(!_shown);
 
+  void showSection(Object conversation, SidePanelSection section) {
+    tabsOf(conversation).section = section;
+    show();
+    notifyListeners();
+  }
+
+  void openTerminal(Object conversation, String id) {
+    final tabs = tabsOf(conversation);
+    tabs.closedTerminals.remove(id);
+    tabs.terminal = id;
+    showSection(conversation, SidePanelSection.terminal);
+  }
+
+  void closeTerminal(Object conversation, String id) {
+    final tabs = tabsOf(conversation);
+    tabs.closedTerminals.add(id);
+    if (tabs.terminal == id) tabs.terminal = null;
+    notifyListeners();
+  }
+
   void _setShown(bool shown) {
     if (shown == _shown) return;
     _shown = shown;
@@ -117,6 +141,7 @@ class AgentSidePanel extends ChangeNotifier {
         ..reveal += 1;
     }
     tabs.active = tab;
+    tabs.section = SidePanelSection.files;
     if (!_shown) {
       _shown = true;
       _changed = true;
@@ -128,13 +153,14 @@ class AgentSidePanel extends ChangeNotifier {
   /// Brings [tab] to the front for [conversation]; null for its changes.
   void activate(Object conversation, SidePanelTab? tab) {
     final tabs = tabsOf(conversation);
-    if (identical(tabs.active, tab)) return;
-    tabs.active = tab;
+    if (tab != null) tabs.active = tab;
+    tabs.section = tab == null
+        ? SidePanelSection.changes
+        : SidePanelSection.files;
     notifyListeners();
   }
 
-  /// Closes [tab]; the one after it comes to the front if it was there,
-  /// else the one before, else the changes.
+  /// Closes [tab]; selects the one after it, else before it, else no file.
   void close(Object conversation, SidePanelTab tab) {
     final tabs = tabsOf(conversation);
     final index = tabs.files.indexOf(tab);

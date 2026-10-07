@@ -1331,6 +1331,39 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdToggleSidePanel => '切换侧栏';
 
   @override
+  String get cmdSidePanelChanges => '显示智能体变更';
+
+  @override
+  String get cmdSidePanelFiles => '显示智能体文件';
+
+  @override
+  String get cmdSidePanelTerminal => '显示智能体终端';
+
+  @override
+  String get sidePanelFiles => '文件';
+
+  @override
+  String get sidePanelTerminal => '终端';
+
+  @override
+  String get sidePanelNoFiles => '没有打开的文件';
+
+  @override
+  String get sidePanelNoTerminals => '没有后台命令';
+
+  @override
+  String get sidePanelTaskCompleted => '已完成';
+
+  @override
+  String get sidePanelTaskFailed => '失败';
+
+  @override
+  String get sidePanelWaitingOutput => '等待输出';
+
+  @override
+  String get sidePanelOutputUnavailable => '无法读取输出';
+
+  @override
   String get sidePanelShow => '显示侧栏';
 
   @override

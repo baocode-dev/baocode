@@ -65,6 +65,9 @@ abstract final class ChatCommandIds {
   /// The side panel at the right of the conversations: the focused
   /// agent's changes and the files opened from its conversation.
   static const toggleSidePanel = 'baocode.chat.toggleSidePanel';
+  static const sidePanelChanges = 'baocode.chat.sidePanel.changes';
+  static const sidePanelFiles = 'baocode.chat.sidePanel.files';
+  static const sidePanelTerminal = 'baocode.chat.sidePanel.terminal';
 
   /// The IDE's chat's: closes the tab shown.
   static const closeTab = 'baocode.chat.closeTab';
@@ -173,6 +176,9 @@ final List<CommandInfo> chatExtraCommands = [
     (ChatCommandIds.searchAgents, 'Search Agents'),
     (ChatCommandIds.openIde, 'Open in Fast Ide'),
     (ChatCommandIds.toggleSidePanel, 'Toggle Side Panel'),
+    (ChatCommandIds.sidePanelChanges, 'Show Agent Changes'),
+    (ChatCommandIds.sidePanelFiles, 'Show Agent Files'),
+    (ChatCommandIds.sidePanelTerminal, 'Show Agent Terminals'),
     (ChatCommandIds.closeTab, 'Close Chat'),
     (ChatCommandIds.focusInput, 'Focus Chat Input'),
     (ChatCommandIds.focusList, 'Focus Chat List'),
@@ -343,6 +349,24 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     key: 'ctrl+alt+b',
     mac: 'alt+cmd+b',
     command: ChatCommandIds.toggleSidePanel,
+    when: _window,
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+shift+g',
+    mac: 'shift+cmd+g',
+    command: ChatCommandIds.sidePanelChanges,
+    when: _window,
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+shift+e',
+    mac: 'shift+cmd+e',
+    command: ChatCommandIds.sidePanelFiles,
+    when: _window,
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+alt+t',
+    mac: 'alt+cmd+t',
+    command: ChatCommandIds.sidePanelTerminal,
     when: _window,
   ),
   // A chat's.
