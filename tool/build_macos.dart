@@ -7,7 +7,9 @@
 //   dart run tool/build_macos.dart --skip-build   package what is built
 //
 // Both land in build/installers/: BaoCode-<version>.dmg and
-// BaoCode-<version>-mac.zip.
+// BaoCode-<version>-mac.zip; beside them, remote/<VERSION>/, the remote
+// server's gzipped builds, which the app downloads instead of carrying
+// them (tool/build_remote_server.dart), to upload with the release.
 //
 // Not done yet: signing and notarising (the TODO in main). Without them
 // Gatekeeper refuses the app on anyone else's machine.
@@ -18,6 +20,9 @@ import 'dart:io';
 /// clean already removes.
 const _bundleRelative = 'build/macos/Build/Products/Release/BaoCode.app';
 const _installersRelative = 'build/installers';
+
+/// Where the remote server is built (tool/build_remote_server.dart).
+const _remoteRelative = 'build/remote';
 
 /// What has to be in the .app for it to start. As on Windows, a build that
 /// failed late still leaves an .app behind that looks complete — these are
@@ -34,8 +39,10 @@ const _required = [
   // turns on.
   'Contents/PlugIns/FinderExtension.appex',
   // The server remote projects run on their host (Linux x64 and arm64;
-  // tool/build_remote_server.dart).
+  // tool/build_remote_server.dart): which build, and where it is
+  // downloaded from.
   'Contents/Resources/remote/VERSION',
+  'Contents/Resources/remote/servers.json',
 ];
 
 Future<void> main(List<String> arguments) async {
@@ -51,23 +58,30 @@ Future<void> main(List<String> arguments) async {
   final root = File.fromUri(Platform.script).parent.parent.absolute;
   final bundle = Directory('${root.path}/$_bundleRelative');
   final installers = Directory('${root.path}/$_installersRelative');
+  final remote = Directory('${root.path}/$_remoteRelative');
   final version = _readVersion(File('${root.path}/pubspec.yaml'));
 
   if (!skipBuild) {
     _step('Building the Release app');
     await _run('flutter', ['build', 'macos', '--release'], root.path);
-    // Into the .app before it is signed: its files are resources, sealed
-    // with the rest (Linux executables, not code macOS runs).
     _step('Building the remote server');
     await _run(Platform.resolvedExecutable, [
       'run',
       'tool/build_remote_server.dart',
       '--out',
-      '${bundle.path}/Contents/Resources/remote',
+      remote.path,
     ], root.path);
   } else {
     _step('Using the app already built');
   }
+
+  // Into the .app before it is signed: its files are resources, sealed
+  // with the rest. Not the builds themselves, which the app downloads.
+  _step('Putting the remote server\'s download list in the app');
+  final remoteVersion = _bundleRemote(
+    remote,
+    Directory('${bundle.path}/Contents/Resources/remote'),
+  );
 
   _step('Checking the app');
   _checkBundle(bundle, _required);
@@ -136,8 +150,10 @@ Future<void> main(List<String> arguments) async {
     '-srcfolder',
     bundle.path,
     '-ov',
+    // LZMA: a quarter smaller than the default UDZO's zlib; opens on
+    // macOS 10.15 and later (the app needs 12).
     '-format',
-    'UDZO',
+    'ULMO',
     dmg.path,
   ], root.path);
 
@@ -156,15 +172,49 @@ Future<void> main(List<String> arguments) async {
     zip.path,
   ], root.path);
 
+  _step('Putting the remote server\'s builds beside them');
+  final downloads = Directory('${installers.path}/remote/$remoteVersion')
+    ..createSync(recursive: true);
+  final servers = [
+    for (final file in remote.listSync())
+      if (file is File && file.path.endsWith('.gz'))
+        file.copySync('${downloads.path}/${file.uri.pathSegments.last}'),
+  ];
+
   _step('Done');
-  for (final file in [dmg, zip]) {
+  for (final file in [dmg, zip, ...servers]) {
     final mb = (file.lengthSync() / (1024 * 1024)).toStringAsFixed(1);
     stdout.writeln('  ${file.path}  ($mb MB)');
   }
   stdout
     ..writeln()
+    ..writeln('Upload the remote server\'s builds, which the app downloads:')
+    ..writeln(
+      '  ${downloads.path}/*  ->  '
+      'https://baocode.dev/releases/remote/$remoteVersion/',
+    )
+    ..writeln()
     ..writeln('To publish it as an update, sign the zip into the manifest:')
     ..writeln('  dart run tool/release_manifest.dart --macos ${zip.path}');
+}
+
+/// Puts [remote]'s VERSION and servers.json (tool/build_remote_server.dart)
+/// in [target], and nothing else: the builds an older run put there go.
+/// Answers the VERSION.
+String _bundleRemote(Directory remote, Directory target) {
+  if (!File('${remote.path}/servers.json').existsSync()) {
+    _fail(
+      'No remote server built in ${remote.path}.\n'
+      'Build it first, without --skip-build '
+      '(or: dart run tool/build_remote_server.dart).',
+    );
+  }
+  if (target.existsSync()) target.deleteSync(recursive: true);
+  target.createSync(recursive: true);
+  for (final name in ['VERSION', 'servers.json']) {
+    File('${remote.path}/$name').copySync('${target.path}/$name');
+  }
+  return File('${remote.path}/VERSION').readAsStringSync().trim();
 }
 
 /// The version pubspec.yaml carries, as `1.0.0+1`: the whole of it, the part

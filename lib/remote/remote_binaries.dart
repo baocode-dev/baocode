@@ -4,23 +4,36 @@ import 'dart:typed_data';
 
 import 'package:bao_remote/client.dart';
 import 'package:bao_remote/local.dart' show ClaudeEnvironment;
-import 'package:crypto/crypto.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
+
+import '../platform/data_dir.dart';
 
 /// The server builds in [directory] (tool/build_remote_server.dart writes
 /// them): `baocode-server-linux-<arch>`, and `VERSION`, which names them.
 class DirectoryServerBinaries implements RemoteServerBinaries {
   DirectoryServerBinaries(this.directory, this.version);
 
-  /// Those in [directory], if it has a `VERSION`.
+  /// Those in [directory], if it has a `VERSION` and a build.
   static DirectoryServerBinaries? at(String directory) {
+    final version = readVersion(directory);
+    if (version == null) return null;
+    final built = architectures.any(
+      (arch) => File(p.join(directory, fileName(arch))).existsSync(),
+    );
+    return built ? DirectoryServerBinaries(directory, version) : null;
+  }
+
+  /// [directory]'s `VERSION`; null when it has none, or not one that can
+  /// name a folder.
+  static String? readVersion(String directory) {
     final file = File(p.join(directory, 'VERSION'));
     if (!file.existsSync()) return null;
     final version = file.readAsStringSync().trim();
     if (version.isEmpty || version.contains(RegExp(r'[^A-Za-z0-9._+-]'))) {
       return null;
     }
-    return DirectoryServerBinaries(directory, version);
+    return version;
   }
 
   final String directory;
@@ -30,6 +43,9 @@ class DirectoryServerBinaries implements RemoteServerBinaries {
 
   static String fileName(String arch) => 'baocode-server-linux-$arch';
 
+  /// Those there are builds for.
+  static const architectures = ['x64', 'arm64'];
+
   @override
   Future<List<int>?> read(String arch) async {
     final file = File(p.join(directory, fileName(arch)));
@@ -37,7 +53,188 @@ class DirectoryServerBinaries implements RemoteServerBinaries {
   }
 }
 
-/// The server builds the app carries: in the bundle's resources on macOS
+/// One build `servers.json` names: where it is downloaded from, gzipped,
+/// and the size and SHA-256 (lowercase hex) of what is downloaded.
+class ServerDownload {
+  const ServerDownload({
+    required this.url,
+    required this.size,
+    required this.sha256,
+  });
+
+  final Uri url;
+  final int size;
+  final String sha256;
+
+  /// Whether [bytes] are this download.
+  bool matches(List<int> bytes) =>
+      bytes.length == size && '${crypto.sha256.convert(bytes)}' == sha256;
+}
+
+/// The server builds the app downloads as hosts need them, instead of
+/// carrying them: those `servers.json` beside `VERSION` names
+/// (tool/build_remote_server.dart writes it; the installers carry the two
+/// alone). Each is checked against the size and SHA-256 there, so it can
+/// only be the build this app was made with, and kept in
+/// `<cacheDir>/<version>/` for the next host; it is sent to the host as the
+/// carried builds were (see [SshLauncher]).
+class DownloadedServerBinaries implements RemoteServerBinaries {
+  DownloadedServerBinaries(
+    this.version,
+    this.downloads, {
+    required this.cacheDir,
+    HttpClient Function()? client,
+    this.timeout = const Duration(seconds: 30),
+  }) : _client = client ?? HttpClient.new;
+
+  /// What [directory]'s `servers.json` names; null when it has none, or
+  /// one not for its `VERSION`.
+  static DownloadedServerBinaries? at(
+    String directory, {
+    required String cacheDir,
+    HttpClient Function()? client,
+  }) {
+    final version = DirectoryServerBinaries.readVersion(directory);
+    final file = File(p.join(directory, fileName));
+    if (version == null || !file.existsSync()) return null;
+    try {
+      final json = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      if (json['version'] != version) return null;
+      final files = json['files'] as Map<String, Object?>;
+      return DownloadedServerBinaries(
+        version,
+        {
+          for (final MapEntry(:key, :value) in files.entries)
+            if (value case {
+              'url': final String url,
+              'size': final int size,
+              'sha256': final String sha256,
+            })
+              key: ServerDownload(
+                url: Uri.parse(url),
+                size: size,
+                sha256: sha256.toLowerCase(),
+              ),
+        },
+        cacheDir: cacheDir,
+        client: client,
+      );
+    } on Object {
+      // Not one tool/build_remote_server.dart wrote.
+      return null;
+    }
+  }
+
+  static const fileName = 'servers.json';
+
+  @override
+  final String version;
+
+  /// By architecture (`x64`, `arm64`).
+  final Map<String, ServerDownload> downloads;
+
+  /// Where the downloads are kept, a folder per [version].
+  final String cacheDir;
+
+  /// For connecting, and for a response that stops sending.
+  final Duration timeout;
+
+  final HttpClient Function() _client;
+
+  /// Those being fetched, so that two hosts connecting at once download
+  /// one build once.
+  final Map<String, Future<List<int>>> _fetching = {};
+
+  @override
+  Future<List<int>?> read(String arch) async {
+    final download = downloads[arch];
+    if (download == null) return null;
+    final fetching = _fetching[arch] ??= _fetch(arch, download).whenComplete(
+      () {
+        // Not returned: whenComplete would wait for it, itself.
+        _fetching.remove(arch);
+      },
+    );
+    return gzip.decode(await fetching);
+  }
+
+  Future<List<int>> _fetch(String arch, ServerDownload download) async {
+    final file = File(
+      p.join(cacheDir, version, 'baocode-server-linux-$arch.gz'),
+    );
+    if (await file.exists()) {
+      final kept = await file.readAsBytes();
+      if (download.matches(kept)) return kept;
+    }
+    final List<int> bytes;
+    try {
+      bytes = await _download(download);
+    } on Object catch (error) {
+      throw SshConnectException(
+        SshFailure.server,
+        'The BaoCode server for Linux $arch could not be downloaded',
+        detail: '${download.url}: $error',
+      );
+    }
+    if (!download.matches(bytes)) {
+      throw SshConnectException(
+        SshFailure.server,
+        'The BaoCode server downloaded for Linux $arch is not the one this '
+        'app was built with',
+        detail: '${download.url}',
+      );
+    }
+    try {
+      await file.parent.create(recursive: true);
+      final part = File('${file.path}.part');
+      await part.writeAsBytes(bytes, flush: true);
+      await part.rename(file.path);
+      await _removeOtherVersions();
+    } on FileSystemException {
+      // Not kept: downloaded again for the next host.
+    }
+    return bytes;
+  }
+
+  Future<List<int>> _download(ServerDownload download) async {
+    final client = _client()..connectionTimeout = timeout;
+    try {
+      final request = await client.getUrl(download.url).timeout(timeout);
+      final response = await request.close().timeout(timeout);
+      if (response.statusCode != HttpStatus.ok) {
+        await response.drain<void>();
+        throw HttpException('HTTP ${response.statusCode}', uri: download.url);
+      }
+      final bytes = BytesBuilder(copy: false);
+      await for (final chunk in response.timeout(timeout)) {
+        bytes.add(chunk);
+        if (bytes.length > download.size) {
+          throw HttpException('more than ${download.size} bytes');
+        }
+      }
+      return bytes.takeBytes();
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// The builds of other versions kept before: only this app's is wanted.
+  Future<void> _removeOtherVersions() async {
+    await for (final entry in Directory(cacheDir).list(followLinks: false)) {
+      if (entry is Directory && p.basename(entry.path) != version) {
+        try {
+          await entry.delete(recursive: true);
+        } on FileSystemException {
+          // Next time.
+        }
+      }
+    }
+  }
+}
+
+/// The server builds the app carries, or downloads (see
+/// [DownloadedServerBinaries], keeping them in [cacheDir], the data
+/// folder's cache by default): in the bundle's resources on macOS
 /// (`Contents/Resources/remote`), beside the executable elsewhere
 /// (`remote/`); `BAOCODE_REMOTE_SERVER_DIR`, else `build/remote` of the
 /// checkout (the working folder's, or one the executable is built under),
@@ -46,6 +243,7 @@ RemoteServerBinaries? bundledServerBinaries({
   Map<String, String>? environment,
   String? executable,
   String? current,
+  String? cacheDir,
 }) {
   environment ??= Platform.environment;
   executable ??= Platform.resolvedExecutable;
@@ -62,6 +260,15 @@ RemoteServerBinaries? bundledServerBinaries({
       if (p.basename(dir) == 'build') p.join(dir, 'remote'),
   ]) {
     if (DirectoryServerBinaries.at(directory) case final found?) return found;
+    if (DownloadedServerBinaries.at(
+          directory,
+          cacheDir:
+              cacheDir ??
+              p.join(DataDirectory.current.cacheDir, 'remote-server'),
+        )
+        case final found?) {
+      return found;
+    }
   }
   return null;
 }
@@ -192,6 +399,6 @@ class SourceServerBinaries implements RemoteServerBinaries {
         ..add(utf8.encode(p.relative(file.path, from: package.path)))
         ..add(file.readAsBytesSync());
     }
-    return '${sha256.convert(bytes.takeBytes())}'.substring(0, 12);
+    return '${crypto.sha256.convert(bytes.takeBytes())}'.substring(0, 12);
   }
 }

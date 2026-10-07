@@ -243,6 +243,10 @@ https://baocode.dev/
       BaoCode-1.2.0-setup.exe           ← Windows 更新 / 首次安装
       BaoCode-1.2.0-mac.zip             ← macOS 更新
       BaoCode-1.2.0.dmg                 ← macOS 首次安装（应用不读取）
+    remote/
+      <VERSION>/                        ← 远程服务端，应用连远程主机时按需下载
+        baocode-server-linux-x64.gz        （见 docs/ssh-remote.md 第 9.3 节；
+        baocode-server-linux-arm64.gz       旧版本的目录要一直保留）
   download                              ← 下载页：应用无法自己更新时会打开它
 ```
 
@@ -396,6 +400,7 @@ build 号一定要递增，即使 marketing 版本没变：`1.2.0+12` 之后要�
 
 - [ ] Windows（在 Windows 上）：`dart run tool/build_windows.dart` → `build\installers\BaoCode-1.2.0-setup.exe`
 - [ ] macOS（在 Mac 上）：`dart run tool/build_macos.dart` → `build/installers/BaoCode-1.2.0.dmg` 和 `BaoCode-1.2.0-mac.zip`
+  - 两个平台的脚本还会生成 `build/installers/remote/<VERSION>/`：远程服务端的 `.gz`，安装包里不再带它们。
   - 脚本会检查 .app 的 `CFBundleShortVersionString` / `CFBundleVersion` 和 pubspec 是否一致，防止 `--skip-build` 用了旧的构建。
   - 签名和公证还没做（见第 13 节）。
 
@@ -421,7 +426,8 @@ dart run tool/release_manifest.dart \
 
 **⑤ 上传**（按工具最后打印的列表）
 
-- [ ] 先上传安装包到 `releases/1.2.0/`
+- [ ] 先上传远程服务端：`build/installers/remote/<VERSION>/` → `releases/remote/<VERSION>/`（两台机器的 `<VERSION>` 不同就都传）。不传的话，这个版本连不了远程主机
+- [ ] 再上传安装包到 `releases/1.2.0/`
 - [ ] 确认下载链接能访问，并且大小正确
 - [ ] **最后**上传 `latest.json`，清掉 CDN 缓存
 

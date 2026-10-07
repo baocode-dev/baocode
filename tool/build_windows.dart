@@ -4,7 +4,10 @@
 //   dart run tool/build_windows.dart                build, then package
 //   dart run tool/build_windows.dart --skip-build   package what is built
 //
-// The installer lands in build/installers/.
+// The installer lands in build/installers/; beside it, remote\<VERSION>\,
+// the remote server's gzipped builds, which the app downloads instead of
+// carrying them (tool/build_remote_server.dart), to upload with the
+// release.
 import 'dart:io';
 
 /// Where the bundle flutter leaves behind goes, and where the installer is
@@ -50,16 +53,29 @@ Future<void> main(List<String> arguments) async {
   _step('Checking the bundle');
   _checkBundle(bundle, _required);
 
-  // The server remote projects run on their host (Linux x64 and arm64),
-  // beside the executable: the installer takes the bundle whole.
+  // The server remote projects run on their host (Linux x64 and arm64):
+  // which build, and where it is downloaded from, beside the executable
+  // (the installer takes the bundle whole); not the builds themselves,
+  // which the app downloads.
   _step('Building the remote server');
+  final remote = Directory('${root.path}\\build\\remote');
   await _run(Platform.resolvedExecutable, [
     'run',
     '${root.path}\\tool\\build_remote_server.dart',
     '--out',
-    '${bundle.path}\\remote',
+    remote.path,
   ], root.path);
-  _checkBundle(bundle, [r'remote\VERSION']);
+  final bundleRemote = Directory('${bundle.path}\\remote');
+  // The builds an older run put there go.
+  if (bundleRemote.existsSync()) bundleRemote.deleteSync(recursive: true);
+  bundleRemote.createSync(recursive: true);
+  for (final name in ['VERSION', 'servers.json']) {
+    File('${remote.path}\\$name').copySync('${bundleRemote.path}\\$name');
+  }
+  _checkBundle(bundle, [r'remote\VERSION', r'remote\servers.json']);
+  final remoteVersion = File(
+    '${remote.path}\\VERSION',
+  ).readAsStringSync().trim();
 
   _step('Compiling the installer');
   final iscc = _findIscc();
@@ -71,14 +87,33 @@ Future<void> main(List<String> arguments) async {
     '${root.path}\\tool\\baocode.iss',
   ], root.path);
 
+  _step('Putting the remote server\'s builds beside it');
+  final downloads = Directory('${installers.path}\\remote\\$remoteVersion')
+    ..createSync(recursive: true);
+  final servers = [
+    for (final file in remote.listSync())
+      if (file is File && file.path.endsWith('.gz'))
+        file.copySync('${downloads.path}\\${file.uri.pathSegments.last}'),
+  ];
+
   _step('Done');
   final installer = File(
     '${installers.path}\\BaoCode-${version.marketing}-setup.exe',
   );
-  if (installer.existsSync()) {
-    final mb = (installer.lengthSync() / (1024 * 1024)).toStringAsFixed(1);
-    stdout.writeln('  ${installer.path}  ($mb MB)');
+  for (final file in [installer, ...servers]) {
+    if (!file.existsSync()) continue;
+    final mb = (file.lengthSync() / (1024 * 1024)).toStringAsFixed(1);
+    stdout.writeln('  ${file.path}  ($mb MB)');
   }
+  stdout
+    ..writeln()
+    ..writeln('Upload the remote server\'s builds, which the app downloads')
+    ..writeln('(their folder is named by the build: the macOS one\'s, if it')
+    ..writeln('differs, goes beside it):')
+    ..writeln(
+      '  ${downloads.path}\\*  ->  '
+      'https://baocode.dev/releases/remote/$remoteVersion/',
+    );
   stdout.writeln();
   stdout.writeln(
     'The app needs the Microsoft Visual C++ Redistributable (x64). Windows\n'

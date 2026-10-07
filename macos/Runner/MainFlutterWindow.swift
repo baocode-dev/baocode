@@ -90,9 +90,42 @@ class BaoWindow: NSWindow {
       }
       self.handle(call, result: result)
     }
+
+    let center = NotificationCenter.default
+    for name in [
+      NSWindow.didChangeBackingPropertiesNotification, NSWindow.didChangeScreenNotification,
+      NSWindow.didBecomeKeyNotification,
+    ] {
+      center.addObserver(self, selector: #selector(syncScale), name: name, object: self)
+    }
   }
 
   private var drops: FileDropView?
+
+  /// Keeps the Flutter view's scale the window's. Flutter takes the pixel
+  /// ratio from the view's layer (`contentsScale`) but the size in pixels
+  /// from the window: a window opened while the app was not in front
+  /// (Finder's Open with BaoCode) can show with its layer still at 1x on a
+  /// 2x screen, everything drawn half size until the window is dragged.
+  @objc func syncScale() {
+    guard let flutter = flutterViewController,
+          flutter.responds(to: NSSelectorFromString("flutterView")),
+          let view = flutter.value(forKey: "flutterView") as? NSView,
+          let layer = view.layer
+    else { return }
+    let scale = backingScaleFactor
+    guard layer.contentsScale != scale else { return }
+    layer.contentsScale = scale
+    // Flutter's view tells the engine its new metrics.
+    view.viewDidChangeBackingProperties()
+  }
+
+  override func makeKeyAndOrderFront(_ sender: Any?) {
+    super.makeKeyAndOrderFront(sender)
+    syncScale()
+    // AppKit can settle the window's scale only once the app is in front.
+    DispatchQueue.main.async { [weak self] in self?.syncScale() }
+  }
 
   /// Lets go of the channels (the window is gone).
   func tearDown() {

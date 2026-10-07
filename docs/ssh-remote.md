@@ -133,7 +133,7 @@
 | `lib/remote/remote_lsp.dart` | 远端的 LSP 管理和 mason 安装 |
 | `lib/remote/remote_claude.dart` | 远端的 Claude Code：启动、会话目录、历史、Haiku、模型代理转发 |
 | `lib/remote/remote_claude_install.dart` | 远端没有 Claude Code 时的自动安装 |
-| `lib/remote/remote_binaries.dart` | 找应用自带的服务端二进制；开发时从源码编译 |
+| `lib/remote/remote_binaries.dart` | 找应用的服务端二进制：目录里的，或按 `servers.json` 下载的；开发时从源码编译 |
 | `lib/remote/open_remote.dart` | “打开远程项目”的快速选择流程 |
 | `lib/remote/remote_status.dart` | 状态栏的 `SSH: 主机`、聊天上方的 Claude 安装进度条 |
 | `packages/bao_remote/lib/src/client/ssh_launcher.dart` | 调用 `ssh`：探测、上传、启动服务端；失败分类 |
@@ -144,7 +144,7 @@
 | `packages/bao_remote/lib/src/claude/claude_release.dart` | 从官方地址下载 Claude Code 并校验；远端由 BaoCode 管理的那份 Claude |
 | `packages/bao_remote/lib/src/protocol.dart` | 协议方法名、版本号和数据结构 |
 | `packages/bao_remote/lib/src/rpc/` | JSON-RPC 收发（`rpc_peer.dart`），以及异常的跨端传递（`rpc_error.dart`） |
-| `tool/build_remote_server.dart` | 编译 x64 和 arm64 两个服务端，并生成 `VERSION` |
+| `tool/build_remote_server.dart` | 编译 x64 和 arm64 两个服务端，生成 `VERSION`、两个 `.gz` 和 `servers.json` |
 
 ---
 
@@ -153,7 +153,7 @@
 代码：`SshLauncher.connect`（`ssh_launcher.dart`）、`SshHost._attempt`（`ssh_host.dart`）。
 
 1. **找 ssh**：在本机 PATH 里找 `ssh`，找不到就是 `noSsh` 失败。
-2. **找服务端二进制**：先找应用自带的（见第 9 节）；开发时没有就从源码编译。都没有就报错。
+2. **找服务端二进制**：先找应用目录里的（见第 9 节）；安装包里只有 `servers.json` 时，第一次用到某个架构才从 baocode.dev 下载；开发时没有就从源码编译。都没有就报错。
 3. **探测**：执行 `ssh <参数> <主机> sh -s`，通过 stdin 送一段脚本，返回：
    - `uname -s` 和 `uname -m`：不是 Linux x64/arm64 就报 `unsupported`；
    - `~/.baocode-server/<VERSION>/baocode-server` 是否已经存在；
@@ -324,9 +324,11 @@ dart run tool/build_remote_server.dart --out <目录>
 
 会生成 `baocode-server-linux-x64`、`baocode-server-linux-arm64` 和 `VERSION`。用的是 `dart compile exe --target-os linux` 交叉编译，在 macOS 或 Windows 上都能编出 Linux 二进制。版本号通过 `-Dbaocode.version=<pubspec 版本>` 传给服务端。
 
+另外还会生成两个 gzip 后的 `baocode-server-linux-<arch>.gz`（约 3.3 MB，原文件约 8 MB），以及 `servers.json`：写明每个 `.gz` 的下载地址 `https://baocode.dev/releases/remote/<VERSION>/<文件>`、大小和 SHA-256。
+
 ### 9.2 应用在哪里找服务端
 
-按顺序（`bundledServerBinaries`），哪个目录里有合法的 `VERSION` 就用哪个：
+按顺序（`bundledServerBinaries`），哪个目录里有合法的 `VERSION` 就用哪个。目录里有二进制本身就直接用（`DirectoryServerBinaries`）；只有 `servers.json` 就按需下载（`DownloadedServerBinaries`，见 9.3）：
 
 1. 环境变量 `BAOCODE_REMOTE_SERVER_DIR`
 2. macOS：`BaoCode.app/Contents/Resources/remote/`
@@ -340,10 +342,15 @@ dart run tool/build_remote_server.dart --out <目录>
 - 编译结果放在 `build/remote/dev/`，按源码哈希命名，改了 `packages/bao_remote` 下的代码会自动换新版本。
 - 编译要几十秒，期间连接进度显示“Installing the BaoCode server”。
 
-### 9.3 打包
+### 9.3 打包与按需下载
 
-- **Windows**：`tool/build_windows.dart` 会执行 `build_remote_server.dart --out <bundle>\remote`，并检查 `remote\VERSION` 是否存在。Inno Setup 脚本（`tool/baocode.iss`）会把整个 bundle 打进安装包。
-- **macOS**：`tool/build_macos.dart` 在 `flutter build macos` 之后、签名之前，编译到 `BaoCode.app/Contents/Resources/remote/`，并把 `Contents/Resources/remote/VERSION` 列为必须存在的文件。这两个 Linux 二进制作为资源文件随 app 一起签名。**这一步还没在真实打包里跑过。**
+安装包**不带服务端二进制**，只带 `VERSION` 和 `servers.json`。两个二进制原本占 16 MB，大多数用户不连远程，而每台主机只需要其中一个架构。
+
+- **打包**：`tool/build_macos.dart` 和 `tool/build_windows.dart` 先编译到 `build/remote/`，再只把 `VERSION`、`servers.json` 放进 `BaoCode.app/Contents/Resources/remote/`（Windows 是 `<bundle>\remote\`），`.gz` 放到 `build/installers/remote/<VERSION>/`。
+- **发布**：把 `build/installers/remote/<VERSION>/` 里的 `.gz` 上传到 `https://baocode.dev/releases/remote/<VERSION>/`。**要在安装包发出去之前上传**，否则这个版本连不了远程。旧版本的目录要一直保留，因为装着旧版的用户还要下载。
+- **下载**：第一次连某个架构的主机时，应用下载对应的 `.gz`，按 `servers.json` 校验大小和 SHA-256，存到数据目录的 `cache/remote-server/<VERSION>/`，之后照旧经 ssh 推送到主机（第 4 节第 4 步）。远端主机不需要能上网。下载完会删掉其他版本的缓存；同时连多台同架构的主机只下载一次。
+- **安全**：`servers.json` 在安装包里，跟着应用一起签名，所以下载到的只能是这个版本编出来的那份；被替换的文件校验不过，连接报 `server` 失败。
+- 下载失败或校验不过，连接失败，报错里带着下载地址；下次连接重试。
 
 ---
 
@@ -351,7 +358,7 @@ dart run tool/build_remote_server.dart --out <目录>
 
 | 变量 | 在哪边 | 作用 |
 | --- | --- | --- |
-| `BAOCODE_REMOTE_SERVER_DIR` | 本机 | 指定服务端二进制所在目录（里面要有 `VERSION`） |
+| `BAOCODE_REMOTE_SERVER_DIR` | 本机 | 指定服务端二进制所在目录（里面要有 `VERSION`，以及二进制或 `servers.json`） |
 | `FLUTTER_ROOT` | 本机 | 开发时从源码编译服务端用哪个 `dart` |
 | `BAOCODE_CLAUDE_PATH` | 远端（登录 shell） | 指定远端要运行的 claude；设置了就不会自动安装 |
 | `XDG_RUNTIME_DIR` | 远端 | 存放带密钥的临时 settings 文件的目录（在内存里） |
