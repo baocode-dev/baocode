@@ -67,6 +67,31 @@ void main() {
       );
     });
 
+    test('names a download by its path, whatever its query', () {
+      // tool/release_manifest.dart ends links in the file's hash, so a
+      // release redone is not served from the CDN's cache of the old one;
+      // and adds `downloads`, for the site, which the app has no use for.
+      final text = jsonEncode({
+        ...jsonDecode(
+          _manifest(
+            platforms: {
+              'windows-x64': _asset(
+                url:
+                    'https://dl.baocode.dev/releases/1.2.0/'
+                    'BaoCode-1.2.0-setup.exe?sha256=0123456789abcdef',
+              ),
+            },
+          ),
+        ),
+        'downloads': {
+          'macos': {'url': 'https://dl.baocode.dev/x.dmg', 'size': 1},
+        },
+      });
+      final asset = UpdateManifest.parse(text).assetFor('windows-x64')!;
+      expect(asset.fileName, 'BaoCode-1.2.0-setup.exe');
+      expect(asset.url.query, 'sha256=0123456789abcdef');
+    });
+
     test('a platform it has no download for has none', () {
       final manifest = UpdateManifest.parse(
         _manifest(platforms: {'windows-x64': _asset()}),

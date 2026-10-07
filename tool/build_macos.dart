@@ -5,6 +5,10 @@
 //
 //   dart run tool/build_macos.dart                build, then package
 //   dart run tool/build_macos.dart --skip-build   package what is built
+//   dart run tool/build_macos.dart --remote-built build the app, take the
+//                                                remote server already in
+//                                                build/remote/ (CI builds
+//                                                it once, for both apps)
 //
 // Both land in build/installers/: BaoCode-<version>.dmg and
 // BaoCode-<version>-mac.zip; beside them, remote/<VERSION>/, the remote
@@ -23,10 +27,12 @@
 //   BAOCODE_NOTARY_KEY_ID        that key's ID
 //   BAOCODE_NOTARY_ISSUER        its issuer ID
 //
-// Without an identity the app stays signed ad hoc, as flutter builds it:
-// fine on this machine, refused by Gatekeeper on anyone else's ("BaoCode is
-// damaged and can't be opened"). Signed but not notarised, it is refused
-// too, with another message.
+// Without an identity the app is signed ad hoc, again: the remote server's
+// files put in it after flutter signed it have to be sealed too, or the
+// signature is broken and the app refuses the update (lib/update/
+// installer_io.dart checks it). Ad hoc, it opens on this machine; Gatekeeper
+// refuses it on anyone else's ("BaoCode is damaged and can't be opened").
+// Signed but not notarised, it is refused too, with another message.
 import 'dart:convert';
 import 'dart:io';
 
@@ -68,6 +74,7 @@ Future<void> main(List<String> arguments) async {
     );
   }
   final skipBuild = arguments.contains('--skip-build');
+  final remoteBuilt = skipBuild || arguments.contains('--remote-built');
 
   // The script lives in tool/, so the repository is one level above it.
   final root = File.fromUri(Platform.script).parent.parent.absolute;
@@ -79,6 +86,10 @@ Future<void> main(List<String> arguments) async {
   if (!skipBuild) {
     _step('Building the Release app');
     await _run('flutter', ['build', 'macos', '--release'], root.path);
+  } else {
+    _step('Using the app already built');
+  }
+  if (!remoteBuilt) {
     _step('Building the remote server');
     await _run(Platform.resolvedExecutable, [
       'run',
@@ -86,8 +97,6 @@ Future<void> main(List<String> arguments) async {
       '--out',
       remote.path,
     ], root.path);
-  } else {
-    _step('Using the app already built');
   }
 
   // Into the .app before it is signed: its files are resources, sealed
@@ -100,6 +109,7 @@ Future<void> main(List<String> arguments) async {
 
   _step('Checking the app');
   _checkBundle(bundle, _required);
+  await _checkUniversal(bundle);
   // An app built before pubspec.yaml's version changed (--skip-build) would
   // be shipped as the new version, and offered as an update to itself.
   final built = await _plist(bundle, 'CFBundleShortVersionString');
@@ -111,17 +121,19 @@ Future<void> main(List<String> arguments) async {
     );
   }
 
-  final signing = _Signing.fromEnvironment(root);
-  if (signing == null) {
-    _step('Not signing: \$BAOCODE_MACOS_SIGN_IDENTITY is not set');
+  // Signed again whatever the identity: flutter's signature does not
+  // cover the remote server's files, put in after it.
+  final signing = _Signing.fromEnvironment(root) ?? _Signing(root, '-', null);
+  if (signing.adHoc) {
+    _step('Signing the app ad hoc: \$BAOCODE_MACOS_SIGN_IDENTITY is not set');
     stdout.writeln(
-      '  Signed ad hoc, the app opens on this machine only: Gatekeeper\n'
-      '  refuses it anywhere else.',
+      '  It opens on this machine only: Gatekeeper refuses it anywhere\n'
+      '  else.',
     );
   } else {
     _step('Signing the app as ${signing.identity}');
-    await signing.signApp(bundle);
   }
+  await signing.signApp(bundle);
 
   installers.createSync(recursive: true);
 
@@ -144,7 +156,7 @@ Future<void> main(List<String> arguments) async {
     dmg.path,
   ], root.path);
 
-  if (signing != null) {
+  if (!signing.adHoc) {
     _step('Signing the disk image');
     await signing.sign(dmg.path);
     if (signing.notary == null) {
@@ -165,9 +177,10 @@ Future<void> main(List<String> arguments) async {
   }
 
   _step('Making the update archive');
-  // What the app downloads to update itself: the .app (signed and stapled
-  // when it was), zipped as Finder would (ditto keeps its symlinks, permissions and extended attributes,
-  // which a framework's signature depends on).
+  // What the app downloads to update itself: the .app (stapled when it was
+  // notarised), zipped as Finder would (ditto keeps its symlinks,
+  // permissions and extended attributes, which a framework's signature
+  // depends on).
   final zip = File('${installers.path}/BaoCode-${version.marketing}-mac.zip');
   if (zip.existsSync()) zip.deleteSync();
   await _run('ditto', [
@@ -210,7 +223,7 @@ Future<void> main(List<String> arguments) async {
 class _Signing {
   _Signing(this.root, this.identity, this.notary);
 
-  /// Null when no identity is given: the app stays signed ad hoc.
+  /// Null when no identity is given (the app is then signed ad hoc).
   static _Signing? fromEnvironment(Directory root) {
     final environment = Platform.environment;
     final identity = environment['BAOCODE_MACOS_SIGN_IDENTITY'] ?? '';
@@ -230,7 +243,11 @@ class _Signing {
   }
 
   final Directory root;
+
+  /// A Developer ID's name or SHA-1; `-` for ad hoc.
   final String identity;
+  bool get adHoc => identity == '-';
+
   final ({String key, String keyId, String issuer})? notary;
 
   /// Signs the .app inside out: its frameworks, then the Finder extension,
@@ -356,6 +373,43 @@ String _bundleRemote(Directory remote, Directory target) {
     full: full,
     marketing: plus < 0 ? full : full.substring(0, plus),
     build: plus < 0 ? '0' : full.substring(plus + 1),
+  );
+}
+
+/// Stops unless every executable in [app] runs on both Apple silicon and
+/// Intel: one disk image serves both (the download page says so), and an
+/// Intel Mac given an arm64-only framework fails only when it loads it.
+Future<void> _checkUniversal(Directory app) async {
+  final executables = [
+    '${app.path}/Contents/MacOS/BaoCode',
+    '${app.path}/Contents/PlugIns/FinderExtension.appex/Contents/MacOS/'
+        'FinderExtension',
+    // A framework's executable is named as the framework: X.framework/X.
+    for (final framework in Directory(
+      '${app.path}/Contents/Frameworks',
+    ).listSync())
+      if (framework.path.endsWith('.framework'))
+        '${framework.path}/${framework.path.split('/').last.split('.').first}',
+  ];
+  final missing = <String>[];
+  for (final executable in executables) {
+    final result = await Process.run('lipo', ['-archs', executable]);
+    final archs = '${result.stdout}'.trim().split(' ');
+    if (result.exitCode != 0 ||
+        !archs.contains('arm64') ||
+        !archs.contains('x86_64')) {
+      missing.add('  $executable: ${'${result.stdout}'.trim()}');
+    }
+  }
+  if (missing.isNotEmpty) {
+    _fail(
+      'Not universal (arm64 and x86_64), so not for every Mac:\n'
+      '${missing.join('\n')}',
+    );
+  }
+  stdout.writeln(
+    '  Universal: arm64 and x86_64, ${executables.length} '
+    'executables.',
   );
 }
 

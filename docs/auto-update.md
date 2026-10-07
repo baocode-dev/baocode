@@ -318,7 +318,7 @@ https://dl.baocode.dev/
 CI 上传时已经按下面这些设置好（见 [release.md 第 5 节](release.md#5-dlbaocodedev-上有什么)）：
 
 - **`latest.json` 不要缓存太久**：`Cache-Control: max-age=300`。CDN 缓存旧清单会导致新版本推送延迟；撤回某个版本时也要清 CDN 缓存。
-- **安装包可以长期缓存**：每个版本的路径都不同，内容不会变（`immutable`，一年）。所以同一个版本不能重新上传，见 [release.md 第 2 节](release.md#2-版本号)。
+- **安装包可以长期缓存**（`immutable`，一年）：清单里的链接末尾带文件哈希（`?sha256=…`），文件换了链接就换了，所以同一个版本重新发布也不会拿到旧文件，见 [release.md 第 2 节](release.md#2-版本号)。
 - **建议支持 `Range` 请求**（回 206）：用于断点续传。不支持也没关系，应用会从头重新下载。
 - **返回 `Content-Length`**：不强制，但没有的话进度显示不准。
 - **上传顺序**：先上传安装包，**最后**上传 `latest.json`。

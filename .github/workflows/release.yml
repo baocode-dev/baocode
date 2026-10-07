@@ -4,6 +4,10 @@
 #
 #   git tag v1.2.0 && git push origin v1.2.0   build and publish 1.2.0
 #   Actions → Release → Run workflow           build only, to try the build
+#
+# A version may be published again (the tag moved to a fixed commit): the
+# links end in each file's hash, so the CDN serves the new files at once.
+# Installed apps already on that version are not offered it again.
 name: Release
 
 on:
@@ -61,7 +65,7 @@ jobs:
             echo "marketing=$marketing"
             echo "publish=$publish"
           } >> "$GITHUB_OUTPUT"
-      - name: Be newer than the version published
+      - name: Be no older than the version published
         if: steps.version.outputs.publish == 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -76,13 +80,44 @@ jobs:
               m = re.fullmatch(r'v?(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?(?:\+(\d+))?', v)
               return tuple(int(x or 0) for x in m.groups())
           published, this = sys.argv[1:]
-          if key(this) <= key(published):
-              sys.exit(f'::error::{this} is not newer than {published}, which is published: installed apps would not take it')
+          if key(this) < key(published):
+              sys.exit(f'::error::{this} is older than {published}, which is published: installed apps would not take it')
+          if key(this) == key(published):
+              print(f'::warning::{this} is published already: publishing it again')
           EOF
+
+  remote:
+    name: Build the remote server
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      # Once, for both apps: they carry its servers.json, and download the
+      # build a host needs from dl.baocode.dev (docs/ssh-remote.md, 9.3).
+      - name: Build for Linux x64 and arm64
+        run: dart run tool/build_remote_server.dart --out build/remote
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - name: Run it on Linux distributions, in Docker
+        run: tool/test_remote_server.sh build/remote
+      - uses: actions/upload-artifact@v4
+        with:
+          name: remote
+          if-no-files-found: error
+          path: |
+            build/remote/VERSION
+            build/remote/servers.json
+            build/remote/*.gz
 
   macos:
     name: Build for macOS
-    needs: check
+    needs: [check, remote]
     runs-on: macos-15
     # The Developer ID certificate and the notary key are the release
     # environment's secrets, for tags only. Without them (a build only, or
@@ -119,12 +154,16 @@ jobs:
         run: |
           echo "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
           echo "BAOCODE_NOTARY_KEY=$RUNNER_TEMP/notary.p8" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: remote
+          path: build/remote
       - name: Build, sign and notarise
         env:
           BAOCODE_MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
           BAOCODE_NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           BAOCODE_NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
-        run: dart run tool/build_macos.dart
+        run: dart run tool/build_macos.dart --remote-built
       - uses: actions/upload-artifact@v4
         with:
           name: macos
@@ -132,7 +171,6 @@ jobs:
           path: |
             build/installers/BaoCode-*.dmg
             build/installers/BaoCode-*-mac.zip
-            build/installers/remote/
       - name: Forget the certificate and the key
         if: always()
         run: |
@@ -141,7 +179,7 @@ jobs:
 
   windows:
     name: Build for Windows
-    needs: check
+    needs: [check, remote]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -152,19 +190,21 @@ jobs:
           cache: true
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
+      - uses: actions/download-artifact@v4
+        with:
+          name: remote
+          path: build/remote
       - name: Build
-        run: dart run tool/build_windows.dart
+        run: dart run tool/build_windows.dart --remote-built
       - uses: actions/upload-artifact@v4
         with:
           name: windows
           if-no-files-found: error
-          path: |
-            build/installers/BaoCode-*-setup.exe
-            build/installers/remote/
+          path: build/installers/BaoCode-*-setup.exe
 
   publish:
     name: Publish to dl.baocode.dev
-    needs: [check, macos, windows]
+    needs: [check, remote, macos, windows]
     if: needs.check.outputs.publish == 'true'
     runs-on: ubuntu-latest
     # The update signing key and the R2 token are this environment's
@@ -195,25 +235,13 @@ jobs:
           path: dist
       - name: Gather the files
         run: |
-          mkdir -p out/remote
+          mkdir -p out
           cp dist/macos/BaoCode-$MARKETING.dmg dist/macos/BaoCode-$MARKETING-mac.zip out/
           cp dist/windows/BaoCode-$MARKETING-setup.exe out/
-          # The remote server, as each build made it: a folder per build.
-          # Both machines usually make the same one; if the same name holds
-          # different files, the apps' servers.json disagree about them.
-          for platform in macos windows; do
-            for dir in dist/$platform/remote/*/; do
-              name=$(basename "$dir")
-              if [ -d "out/remote/$name" ]; then
-                diff -r "$dir" "out/remote/$name" || {
-                  echo "::error::The remote server $name differs between the macOS and the Windows build"
-                  exit 1
-                }
-              else
-                cp -R "$dir" "out/remote/$name"
-              fi
-            done
-          done
+          # The remote server, under the name both apps' servers.json give it.
+          remote="out/remote/$(cat dist/remote/VERSION)"
+          mkdir -p "$remote"
+          cp dist/remote/*.gz "$remote/"
           find out -type f | sort
       - name: Sign the release into latest.json
         env:
@@ -231,19 +259,10 @@ jobs:
             --version "$VERSION" \
             --windows out/BaoCode-$MARKETING-setup.exe \
             --macos out/BaoCode-$MARKETING-mac.zip \
+            --dmg out/BaoCode-$MARKETING.dmg \
             --manifest out/latest.json \
             "${notes[@]}"
           rm "$key"
-      - name: Refuse to publish a version twice
-        run: |
-          # Downloads are cached for good: files uploaded again under the
-          # same names would reach some users as the old ones, and fail the
-          # new manifest's checksums.
-          if aws s3api head-object --bucket "$R2_BUCKET" \
-              --key "releases/$MARKETING/BaoCode-$MARKETING-setup.exe" > /dev/null 2>&1; then
-            echo "::error::releases/$MARKETING/ is already published: bump the version (tool/bump_version.dart)"
-            exit 1
-          fi
       - name: Upload the remote server, then the installers
         run: |
           immutable='public, max-age=31536000, immutable'
@@ -255,10 +274,13 @@ jobs:
           done
       - name: Check the downloads are served
         run: |
-          for file in BaoCode-$MARKETING.dmg BaoCode-$MARKETING-mac.zip BaoCode-$MARKETING-setup.exe; do
-            url="https://dl.baocode.dev/releases/$MARKETING/$file"
+          # At the manifest's links, which end in each file's hash: what
+          # users will be given, not what the CDN may have kept of a
+          # release published before under the same names.
+          jq -r '.downloads.macos, .downloads.windows, .platforms["macos-universal"]
+                 | "\(.url) \(.size)"' out/latest.json |
+          while read -r url expected; do
             served=$(curl -fsSI "$url" | tr -d '\r' | awk 'tolower($1) == "content-length:" { print $2 }')
-            expected=$(stat -c %s "out/$file")
             echo "$url: $served bytes (expected $expected)"
             [ "$served" = "$expected" ] || { echo "::error::$url is not served as uploaded"; exit 1; }
           done
@@ -275,5 +297,7 @@ jobs:
         run: |
           notes=(--generate-notes)
           [ -f "release-notes/$MARKETING.en.md" ] && notes=(--notes-file "release-notes/$MARKETING.en.md")
+          # Published again: the release is made anew, on the tag's commit.
+          gh release delete "v$MARKETING" --yes 2>/dev/null || true
           gh release create "v$MARKETING" --title "BaoCode $MARKETING" "${notes[@]}" \
             out/BaoCode-$MARKETING.dmg out/BaoCode-$MARKETING-setup.exe

@@ -3,6 +3,10 @@
 //
 //   dart run tool/build_windows.dart                build, then package
 //   dart run tool/build_windows.dart --skip-build   package what is built
+//   dart run tool/build_windows.dart --remote-built take the remote server
+//                                                  already in build\remote\
+//                                                  (CI builds it once, for
+//                                                  both apps)
 //
 // The installer lands in build/installers/; beside it, remote\<VERSION>\,
 // the remote server's gzipped builds, which the app downloads instead of
@@ -36,6 +40,7 @@ Future<void> main(List<String> arguments) async {
     );
   }
   final skipBuild = arguments.contains('--skip-build');
+  final remoteBuilt = arguments.contains('--remote-built');
 
   // The script lives in tool/, so the repository is one level above it.
   final root = File.fromUri(Platform.script).parent.parent.absolute;
@@ -57,14 +62,21 @@ Future<void> main(List<String> arguments) async {
   // which build, and where it is downloaded from, beside the executable
   // (the installer takes the bundle whole); not the builds themselves,
   // which the app downloads.
-  _step('Building the remote server');
   final remote = Directory('${root.path}\\build\\remote');
-  await _run(Platform.resolvedExecutable, [
-    'run',
-    '${root.path}\\tool\\build_remote_server.dart',
-    '--out',
-    remote.path,
-  ], root.path);
+  if (remoteBuilt) {
+    _step('Using the remote server already built');
+    if (!File('${remote.path}\\servers.json').existsSync()) {
+      _fail('No remote server built in ${remote.path}.');
+    }
+  } else {
+    _step('Building the remote server');
+    await _run(Platform.resolvedExecutable, [
+      'run',
+      '${root.path}\\tool\\build_remote_server.dart',
+      '--out',
+      remote.path,
+    ], root.path);
+  }
   final bundleRemote = Directory('${bundle.path}\\remote');
   // The builds an older run put there go.
   if (bundleRemote.existsSync()) bundleRemote.deleteSync(recursive: true);

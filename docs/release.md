@@ -29,7 +29,8 @@ BaoCode 的版本号怎么定、一个版本怎么发出去、发到哪里、已
  tool/bump_version.dart
  改版本号、写更新日志
  git push / git push 标签 ──▶ Actions：release.yml
-                               ├ check    版本号对不对，比已发布的新吗
+                               ├ check    版本号对不对，不比已发布的旧
+                               ├ remote   远程服务端：编译一次，Docker 里跑一遍
                                ├ macos    构建、签名、公证（macOS 机器）
                                ├ windows  构建、打安装包（Windows 机器）
                                └ publish  签 latest.json，上传 ────────▶ R2 存储桶
@@ -62,7 +63,7 @@ BaoCode 的版本号怎么定、一个版本怎么发出去、发到哪里、已
 - `主.次.修订` 是给人看的版本（marketing 版本），按 semver：修 bug 加修订号，加功能加次版本号，不兼容的大改加主版本号。
 - `+build` 是给机器比较的序号，**每次发布都加 1，永远不回退**。应用只接受比自己新的版本（先比 `主.次.修订`，再比 build），build 号没涨，用户就收不到。
 - **标签**：`v` + marketing 版本，例如 `v1.2.0`。CI 会核对标签和 pubspec.yaml 是否一致。
-- **一个 marketing 版本只发一次**。`releases/1.2.0/` 下的文件被 CDN 永久缓存，再传同名文件，部分用户会拿到旧文件，校验失败。发错了就发 `1.2.1`。CI 会拒绝重复发布。
+- **同一个版本可以重新发布**（比如发出去才发现包有问题，修好后把标签挪到新提交上重推，见第 3 节）。下载链接末尾带着文件哈希（`?sha256=<前 16 位>`），重新发布后是新的地址，CDN 不会给出旧文件。但已经装上这个版本的用户不会再收到它（版本号没变），所以只适合还没人装上、或者问题不影响已装用户的时候；否则发 `1.2.1`。
 - **预发布版**（`1.2.0-beta.1`）目前不支持：只有一个更新渠道，所有用户读同一份 `latest.json`，发 beta 就是发给所有人。以后要做的话见 [auto-update.md 第 13 节](auto-update.md#13-已知限制与待办)。
 
 **改版本号用工具**，两处一起改，build 号自动加 1：
@@ -99,6 +100,15 @@ git push origin v1.2.0                          # 从这里开始 CI 接手
 - [ ] `https://baocode.dev/download` 显示新版本，两个按钮都能下载
 - [ ] 装着旧版本的机器上点“检查更新”，能发现、下载、重启装上
 
+**重新发布同一个版本**（标签挪到新提交上）：
+
+```sh
+git push origin :refs/tags/v1.2.0                # 删掉远端的标签
+git tag -f v1.2.0 && git push origin v1.2.0      # 打在现在的提交上，重新推
+```
+
+CI 会照常构建，覆盖 R2 上的文件，重新建 GitHub Release。
+
 **只想试一下构建**：Actions → Release → Run workflow。只构建、不发布，产物在这次运行的 Artifacts 里（macOS 包这时是 ad hoc 签名，只能在自己机器上打开）。
 
 ## 4. CI 做了什么
@@ -107,15 +117,18 @@ git push origin v1.2.0                          # 从这里开始 CI 接手
 
 | Job | 机器 | 做什么 |
 | --- | --- | --- |
-| `check` | Ubuntu | pubspec.yaml 和 `version.dart` 一致；版本是 `x.y.z+build`；标签是 `v<x.y.z>`；比 `dl.baocode.dev` 上已发布的版本新 |
-| `macos` | macOS 15 | 有证书就导入临时钥匙串 → `tool/build_macos.dart`：构建 universal .app、远程服务端 → 签名（框架、Finder 扩展、主程序，各用各的 entitlements）→ 做 dmg 并签名 → 公证 dmg → 给 dmg 和 .app 钉上公证票据 → 打更新用的 zip |
-| `windows` | Windows | 装 Inno Setup → `tool/build_windows.dart`：构建、远程服务端、安装包 |
-| `publish` | Ubuntu | 汇总产物 → 用更新私钥签 `latest.json`（`tool/release_manifest.dart`）→ 同一版本已发布就停 → 上传远程服务端 → 上传安装包 → 确认 CDN 上的文件大小对得上 → **最后**上传 `latest.json` → 建 GitHub Release（附 dmg 和 exe） |
+| `check` | Ubuntu | pubspec.yaml 和 `version.dart` 一致；版本是 `x.y.z+build`；标签是 `v<x.y.z>`；不比 `dl.baocode.dev` 上已发布的版本旧（一样就是重新发布，给个提示） |
+| `remote` | Ubuntu | 编译远程服务端（Linux x64 和 arm64）→ `tool/test_remote_server.sh`：在 Docker 里的 Ubuntu 20.04 / 24.04、Debian 12、Rocky Linux 8 上，两种架构各跑一遍（arm64 用 QEMU 模拟），要能启动、回答 `initialize`、列出目录 |
+| `macos` | macOS 15 | 有证书就导入临时钥匙串 → `tool/build_macos.dart --remote-built`：构建 .app，**检查是 universal**（每个可执行文件都有 arm64 和 x86_64，Intel Mac 也能用）→ 放进 `remote` 任务的 `servers.json` → 签名（有证书用 Developer ID，没有就 ad hoc，总要重签，因为放进去的文件要包进签名）→ 做 dmg → 有证书时签 dmg、公证、钉票据 → 打更新用的 zip |
+| `windows` | Windows | 装 Inno Setup → `tool/build_windows.dart --remote-built`：构建、放进 `servers.json`、打安装包 |
+| `publish` | Ubuntu | 汇总产物 → 用更新私钥签 `latest.json`（`tool/release_manifest.dart`，带上 dmg 给网站用）→ 上传远程服务端 → 上传安装包 → 按清单里的链接确认 CDN 给出的文件大小对 → **最后**上传 `latest.json` → 建 GitHub Release（附 dmg 和 exe；重新发布时先删掉旧的） |
 
 几个设计上的考虑：
 
 - **`latest.json` 最后传**：应用一读到新清单就会去下载，安装包必须先就位。
-- **远程服务端**：macOS 和 Windows 各自编译了一份，目录名是 `<版本>-<二进制哈希>`。两边一样就只传一份；同名但内容不同，CI 会报错停下，因为两个平台的应用里的 `servers.json` 会对不上。
+- **远程服务端只编译一次**：`remote` 任务编译，macOS 和 Windows 两个应用带的是同一份 `servers.json`，R2 上一个版本只有一个 `releases/remote/<版本>-<二进制哈希>/`。
+- **下载链接带哈希**：`latest.json` 里每个链接末尾是 `?sha256=<文件哈希前 16 位>`。CDN 按完整地址缓存，文件换了地址就换了，不会给出旧文件；应用取文件名时只看路径。
+- **`downloads`**：`latest.json` 里多了这一项，是给网站用的（dmg 和 Windows 安装包的链接、大小），应用不读它。
 - **密钥只在 `release` 环境里**，只有 `v*` 标签能用（见 7.2）。PR 和手动运行拿不到。
 - Flutter 版本固定在工作流的 `FLUTTER_VERSION`，升级 Flutter 时一起改。
 
@@ -161,7 +174,7 @@ releases/
 
 设置和对话放在数据目录里，不在安装目录里，更新不会动它们。
 
-**下载页**（`baocode.dev/download`）：浏览器读同一份 `latest.json`，显示版本号、Windows 安装包的链接和大小、对应版本的 dmg 链接。需要 R2 的 CORS 允许 `https://baocode.dev`（见 7.1）。读不到时显示页面里写死的版本。
+**官网**（首页和 `baocode.dev/download`，`site/site.js`）：浏览器读同一份 `latest.json`，按其中的 `downloads` 换上版本号、dmg 和 Windows 安装包的链接（带哈希）和大小。需要 R2 的 CORS 允许 `https://baocode.dev`（见 7.1）。读不到时显示页面里写死的版本。
 
 **两把“钥匙”管的是不同的事**：
 
@@ -252,9 +265,11 @@ releases/
 | 情况 | 怎么办 |
 | --- | --- |
 | `check` 失败：版本不一致 / 标签不对 | 按报错改，删掉远端标签（`git push origin :refs/tags/v1.2.0`），重新打标签推送 |
-| `check` 失败：不比已发布的新 | `tool/bump_version.dart` 再加一个版本 |
+| `check` 失败：比已发布的旧 | `tool/bump_version.dart` 加到比已发布的新 |
+| `remote` 失败：Docker 里跑不起来 | 日志里有每个系统、每种架构的结果和服务端的输出。在本机用 `dart run tool/build_remote_server.dart && tool/test_remote_server.sh` 复现（需要 Docker） |
+| `macos` 失败：Not universal | 某个框架只编了一种架构，日志里列出了是哪个。Intel Mac 会在用到它时崩溃，所以不发 |
 | `macos` 公证失败 | 日志里有 Apple 返回的详细原因（哪个文件、什么问题）。常见原因：某个二进制没开 hardened runtime、没有时间戳 |
-| `publish` 在上传 `latest.json` 之前失败 | 用户什么都看不到。修好后要发**新的**版本号（安装包可能已经传了一部分，同名文件不能再传） |
+| `publish` 在上传 `latest.json` 之前失败 | 用户什么都看不到。修好后按第 3 节重新发布同一个版本即可 |
 | 发出去的版本有问题 | 尽快发一个修复版（版本号更高）。也可以把上一版的 `latest.json` 传回去，让还没更新的人停在旧版，但已经更新的人不会被降级。见 [auto-update.md 5.5](auto-update.md#55-撤回一个版本) |
 | 用户报“检查更新失败” | 见 [auto-update.md 第 10 节](auto-update.md#10-故障排查) |
 

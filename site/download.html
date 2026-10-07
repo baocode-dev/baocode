@@ -30,22 +30,27 @@
   <p class="meta"><span data-version>Version 1.0.0</span><span>Free and open source</span></p>
 
   <div class="platforms" data-platforms>
-    <section class="platform" data-os="mac">
+    <section class="platform" data-os="macos">
       <h2 class="plain"><svg class="ic logo" aria-hidden="true"><use href="#ic-apple"/></svg>macOS</h2>
-      <p>Universal: Apple silicon and Intel. macOS 12 Monterey or later.</p>
-      <a class="button primary" data-file="mac" href="https://dl.baocode.dev/releases/1.0.0/BaoCode-1.0.0.dmg"><svg class="ic" aria-hidden="true"><use href="#ic-download"/></svg>Download .dmg</a>
-      <span class="size" data-size="mac">≈ 27 MB</span>
+      <p>One download for every Mac, Apple silicon and Intel. macOS 12 Monterey or later.</p>
+      <div class="get">
+        <a class="button primary" data-file="macos" href="https://dl.baocode.dev/releases/1.0.0/BaoCode-1.0.0.dmg"><svg class="ic" aria-hidden="true"><use href="#ic-download"/></svg>Download .dmg</a>
+        <span class="size" data-size="macos">≈ 27 MB</span>
+      </div>
     </section>
-    <section class="platform" data-os="win">
+    <section class="platform" data-os="windows">
       <h2 class="plain"><svg class="ic logo" aria-hidden="true"><use href="#ic-windows"/></svg>Windows</h2>
       <p>x64. Windows 10 or later.</p>
-      <a class="button primary" data-file="win" href="https://dl.baocode.dev/releases/1.0.0/BaoCode-1.0.0-setup.exe"><svg class="ic" aria-hidden="true"><use href="#ic-download"/></svg>Download installer</a>
-      <span class="size" data-size="win">≈ 16 MB</span>
+      <div class="get">
+        <a class="button primary" data-file="windows" href="https://dl.baocode.dev/releases/1.0.0/BaoCode-1.0.0-setup.exe"><svg class="ic" aria-hidden="true"><use href="#ic-download"/></svg>Download installer</a>
+        <span class="size" data-size="windows">≈ 16 MB</span>
+      </div>
     </section>
   </div>
 
   <h2 class="plain">Before you start</h2>
   <p>BaoCode runs Claude Code; it doesn’t replace it. Install <a href="https://github.com/anthropics/claude-code">Claude Code</a> first, then open a folder in BaoCode and start a chat.</p>
+  <p>On a Mac, drag BaoCode into Applications. It isn’t notarised by Apple yet, so the first time you open it macOS stops it: open System Settings, then Privacy &amp; Security, and click Open Anyway beside BaoCode. Only the first time.</p>
 
   <h2 class="plain">Updating</h2>
   <p>BaoCode updates itself in the background and asks before restarting. If it sent you here, it couldn’t update itself: download the new version above and install it over the old one. Your settings and conversations are kept.</p>

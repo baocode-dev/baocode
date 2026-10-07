@@ -16,6 +16,31 @@ for (const button of document.querySelectorAll('[data-sound]')) {
   });
 }
 
+// The release published on dl.baocode.dev, once its manifest loads: the
+// version, and each download's link (ending in its hash, so a release redone
+// is not served from the CDN's cache of the old one) and size. Until then,
+// and if it does not load, the page's own.
+(async () => {
+  if (!document.querySelector('[data-file], [data-version]')) return;
+  try {
+    const ctl = new AbortController();
+    setTimeout(() => ctl.abort(), 4000);
+    const res = await fetch('https://dl.baocode.dev/releases/latest.json', { signal: ctl.signal, cache: 'no-store' });
+    const m = await res.json();
+    const v = String(m.version).split('+')[0];
+    for (const el of document.querySelectorAll('[data-version]')) el.textContent = `Version ${v}`;
+    for (const [os, file] of Object.entries(m.downloads || {})) {
+      for (const a of document.querySelectorAll(`[data-file="${os}"]`)) {
+        a.href = file.url;
+        if (a.hasAttribute('data-name')) a.textContent = `BaoCode ${v}`;
+      }
+      for (const el of document.querySelectorAll(`[data-size="${os}"]`)) {
+        el.textContent = `≈ ${Math.round(file.size / 1e6)} MB`;
+      }
+    }
+  } catch {}
+})();
+
 // The background grid: tilted, zooming in for ever. Each level of lines is
 // twice the spacing of the one below; as the view zooms one octave, every
 // level grows into the next, so the loop has no seam. A level's strength
