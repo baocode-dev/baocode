@@ -606,6 +606,66 @@
   "@chatTerminalHide": {
     "description": "Tooltip of the chat window's terminal panel close button."
   },
+  "cmdToggleSidePanel": "Toggle Side Panel",
+  "@cmdToggleSidePanel": {
+    "description": "Command title: shows or hides the agent window's side panel."
+  },
+  "sidePanelShow": "Show side panel",
+  "@sidePanelShow": {
+    "description": "Tooltip of the title bar button that shows the side panel."
+  },
+  "sidePanelHide": "Hide side panel",
+  "@sidePanelHide": {
+    "description": "Tooltip of the button that hides the side panel."
+  },
+  "sidePanelChanges": "Changes",
+  "@sidePanelChanges": {
+    "description": "The side panel's tab listing the files the agent changed."
+  },
+  "sidePanelNoChanges": "No changes yet",
+  "@sidePanelNoChanges": {
+    "description": "The side panel's Changes tab while the agent changed nothing."
+  },
+  "sidePanelNoChangesDetail": "Files the agent changes show here. Click a file in the conversation to preview it.",
+  "@sidePanelNoChangesDetail": {
+    "description": "Under sidePanelNoChanges."
+  },
+  "sidePanelOpenFile": "Open in side panel",
+  "@sidePanelOpenFile": {
+    "description": "Hover of a file read in the conversation: a click opens it in the side panel."
+  },
+  "sidePanelOpenDiff": "Show changes in side panel",
+  "@sidePanelOpenDiff": {
+    "description": "Hover of a file edit in the conversation: a click shows its changes in the side panel."
+  },
+  "sidePanelOpenInIde": "Open in Fast Ide",
+  "@sidePanelOpenInIde": {
+    "description": "Button of a side panel preview that opens the file in the IDE."
+  },
+  "sidePanelCloseTab": "Close",
+  "@sidePanelCloseTab": {
+    "description": "Tooltip of a side panel tab's close button."
+  },
+  "sidePanelPreview": "Preview",
+  "@sidePanelPreview": {
+    "description": "Shows a markdown file rendered."
+  },
+  "sidePanelSource": "Source",
+  "@sidePanelSource": {
+    "description": "Shows a markdown file's text."
+  },
+  "sidePanelNoOriginal": "The file before the agent's changes is not known: showing it as it is.",
+  "@sidePanelNoOriginal": {
+    "description": "Over a side panel preview asked for a diff it cannot show."
+  },
+  "sidePanelUnchanged": "No differences",
+  "@sidePanelUnchanged": {
+    "description": "A side panel diff whose two sides are the same."
+  },
+  "sidePanelDeleted": "The agent deleted this file.",
+  "@sidePanelDeleted": {
+    "description": "Over the diff of a deleted file."
+  },
   "windowMinimize": "Minimize",
   "windowMaximize": "Maximize",
   "windowRestore": "Restore",

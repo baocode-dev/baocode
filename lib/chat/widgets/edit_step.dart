@@ -4,10 +4,14 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
+import '../side_panel/file_link.dart';
+import '../side_panel/file_open.dart';
 import 'code_citation.dart';
 import 'step_header.dart';
 
-/// A file edit as a step: "Edited main.dart +12 -3", opening to its diff.
+/// A file edit as a step: "Edited main.dart +12 -3", opening to its diff;
+/// where the chat's files open (see [FileOpenScope]), a click shows the
+/// file's changes there, and its chevron the diff here.
 class EditStep extends StatelessWidget {
   const EditStep({
     super.key,
@@ -23,6 +27,9 @@ class EditStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const count = TextStyle(fontFamily: AppFonts.mono, fontSize: 11.5);
+    final files = FileOpenScope.maybeOf(context);
+    final path = files?.resolve(item.path);
+    final first = item.firstChangedLine;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -31,6 +38,16 @@ class EditStep extends StatelessWidget {
           object: item.fileName,
           expanded: expanded,
           onToggle: onToggle,
+          onOpen: path == null
+              ? null
+              : () => files!.onOpen(
+                  FileOpenRequest(
+                    path,
+                    diff: true,
+                    range: first == null ? null : FileLineRange(first),
+                  ),
+                ),
+          openTooltip: path == null ? null : context.l10n.sidePanelOpenDiff,
           trailing: Text.rich(
             TextSpan(
               // A count of none is left out.

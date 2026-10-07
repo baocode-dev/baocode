@@ -1365,6 +1365,53 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatTerminalHide => 'Hide terminal';
 
   @override
+  String get cmdToggleSidePanel => 'Toggle Side Panel';
+
+  @override
+  String get sidePanelShow => 'Show side panel';
+
+  @override
+  String get sidePanelHide => 'Hide side panel';
+
+  @override
+  String get sidePanelChanges => 'Changes';
+
+  @override
+  String get sidePanelNoChanges => 'No changes yet';
+
+  @override
+  String get sidePanelNoChangesDetail =>
+      'Files the agent changes show here. Click a file in the conversation to preview it.';
+
+  @override
+  String get sidePanelOpenFile => 'Open in side panel';
+
+  @override
+  String get sidePanelOpenDiff => 'Show changes in side panel';
+
+  @override
+  String get sidePanelOpenInIde => 'Open in Fast Ide';
+
+  @override
+  String get sidePanelCloseTab => 'Close';
+
+  @override
+  String get sidePanelPreview => 'Preview';
+
+  @override
+  String get sidePanelSource => 'Source';
+
+  @override
+  String get sidePanelNoOriginal =>
+      'The file before the agent\'s changes is not known: showing it as it is.';
+
+  @override
+  String get sidePanelUnchanged => 'No differences';
+
+  @override
+  String get sidePanelDeleted => 'The agent deleted this file.';
+
+  @override
   String get windowMinimize => 'Minimize';
 
   @override
@@ -2743,6 +2790,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get generalSettingsCommitAttributionDescription =>
       'Who the commits and pull requests an agent writes credit. Applies to agents started after a change; Claude Code only for now.';
+
+  @override
+  String get generalSettingsTelemetry => 'Send Usage Data';
+
+  @override
+  String get generalSettingsTelemetryDescription =>
+      'Once a day BaoCode is used, it sends a random install ID, its version, and your system and processor type, so we can tell how many people use it and come back. Nothing about you, your code, or what you do in BaoCode (telemetry.telemetryLevel).';
 
   @override
   String generalSettingsCommitAttributionLabel(String name) {

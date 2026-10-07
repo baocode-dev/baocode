@@ -5,6 +5,7 @@ import 'package:markdown/markdown.dart' as md;
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../workspace/editor_launcher.dart';
+import '../side_panel/file_open.dart';
 import 'code_citation.dart';
 import 'inline_code.dart';
 import 'markdown_math.dart';
@@ -52,7 +53,26 @@ class MarkdownView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nodes = _document.parse(data);
-    return MarkdownBlocks(nodes: nodes, style: style ?? baseStyle);
+    // In a chat whose files open (see FileOpenScope): links to them, and
+    // inline code naming one once it is known to be there.
+    final files = FileOpenScope.maybeOf(context);
+    if (files == null) {
+      return MarkdownBlocks(nodes: nodes, style: style ?? baseStyle);
+    }
+    final options = MarkdownOptions(
+      link: (href) => _linkRecognizer(href) ?? files.linkRecognizer(href),
+      code: files.codeRecognizer,
+    );
+    Widget blocks(BuildContext context) => MarkdownBlocks(
+      nodes: nodes,
+      style: style ?? baseStyle,
+      options: options,
+    );
+    if (!data.contains('`')) return blocks(context);
+    return ListenableBuilder(
+      listenable: files.existence,
+      builder: (context, _) => blocks(context),
+    );
   }
 }
 
@@ -66,6 +86,7 @@ class MarkdownOptions {
     this.gap = 8,
     this.headingGap = 12,
     this.link,
+    this.code,
     this.image,
     this.onToggleTask,
   });
@@ -83,6 +104,10 @@ class MarkdownOptions {
   /// What a tap on a link to `href` does; web and mail links open in the
   /// browser when null, others nothing.
   final GestureRecognizer? Function(String? href)? link;
+
+  /// What a tap on inline code does (it names a file, say); nothing when
+  /// null, or it gives none.
+  final GestureRecognizer? Function(String code)? code;
 
   /// An image (`![alt](src "title")`); its alt text in brackets when null.
   final Widget Function(String src, String alt, String? title)? image;
@@ -503,10 +528,21 @@ InlineSpan _inline(md.Node node, MarkdownOptions options) {
       style: const TextStyle(decoration: TextDecoration.lineThrough),
       children: inner(),
     ),
-    'code' => InlineCodeSpan(
-      text: ' ${_unescape(node.textContent)} ',
-      style: MarkdownView.codeStyle,
-    ),
+    'code' => switch (options.code?.call(_unescape(node.textContent))) {
+      final recognizer? => InlineCodeSpan(
+        text: ' ${_unescape(node.textContent)} ',
+        style: MarkdownView.codeStyle.copyWith(
+          decoration: TextDecoration.underline,
+          decorationColor: MarkdownView.codeStyle.color?.withValues(alpha: 0.5),
+        ),
+        recognizer: recognizer,
+        mouseCursor: SystemMouseCursors.click,
+      ),
+      null => InlineCodeSpan(
+        text: ' ${_unescape(node.textContent)} ',
+        style: MarkdownView.codeStyle,
+      ),
+    },
     'a' => switch ((options.link ?? _linkRecognizer)(node.attributes['href'])) {
       final recognizer? => TextSpan(
         style: TextStyle(color: AppColors.accent),
@@ -554,8 +590,13 @@ GestureRecognizer? _linkRecognizer(String? href) {
 /// innermost span, which does not inherit its parent's recognizer.
 InlineSpan _linked(InlineSpan span, GestureRecognizer recognizer) =>
     switch (span) {
-      // Code in a link keeps its background (and is not tappable).
-      InlineCodeSpan() => span,
+      // Code in a link keeps its background, and goes where the link does.
+      InlineCodeSpan(:final text, :final style) => InlineCodeSpan(
+        text: text,
+        style: style,
+        recognizer: recognizer,
+        mouseCursor: SystemMouseCursors.click,
+      ),
       // An image in a link (`[![alt](src)](href)`).
       WidgetSpan(:final child, :final alignment)
           when recognizer is TapGestureRecognizer =>

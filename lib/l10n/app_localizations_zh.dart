@@ -1328,6 +1328,51 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatTerminalHide => '隐藏终端';
 
   @override
+  String get cmdToggleSidePanel => '切换侧栏';
+
+  @override
+  String get sidePanelShow => '显示侧栏';
+
+  @override
+  String get sidePanelHide => '隐藏侧栏';
+
+  @override
+  String get sidePanelChanges => '变更';
+
+  @override
+  String get sidePanelNoChanges => '还没有变更';
+
+  @override
+  String get sidePanelNoChangesDetail => '智能体修改的文件会显示在这里。点击对话中的文件即可预览。';
+
+  @override
+  String get sidePanelOpenFile => '在侧栏中打开';
+
+  @override
+  String get sidePanelOpenDiff => '在侧栏中查看改动';
+
+  @override
+  String get sidePanelOpenInIde => '在 Fast Ide 中打开';
+
+  @override
+  String get sidePanelCloseTab => '关闭';
+
+  @override
+  String get sidePanelPreview => '预览';
+
+  @override
+  String get sidePanelSource => '源码';
+
+  @override
+  String get sidePanelNoOriginal => '不知道智能体修改前的文件内容，显示当前内容。';
+
+  @override
+  String get sidePanelUnchanged => '没有差异';
+
+  @override
+  String get sidePanelDeleted => '智能体删除了这个文件。';
+
+  @override
   String get windowMinimize => '最小化';
 
   @override
@@ -2646,6 +2691,13 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get generalSettingsCommitAttributionDescription =>
       'Agent 在它写的提交和 Pull Request 中添加的署名。更改对之后启动的 Agent 生效；目前仅支持 Claude Code。';
+
+  @override
+  String get generalSettingsTelemetry => '发送使用数据';
+
+  @override
+  String get generalSettingsTelemetryDescription =>
+      '每天使用 BaoCode 时，发送一次随机的安装 ID、版本号以及系统和处理器类型，让我们知道有多少人在用、有多少人会回来。不包含任何关于你、你的代码或你在 BaoCode 中所做之事的信息（telemetry.telemetryLevel）。';
 
   @override
   String generalSettingsCommitAttributionLabel(String name) {

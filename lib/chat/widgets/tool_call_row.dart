@@ -6,6 +6,8 @@ import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import '../floating/hover_tooltip.dart';
+import '../side_panel/file_link.dart';
+import '../side_panel/file_open.dart';
 import 'hover_builder.dart';
 import 'step_header.dart';
 
@@ -53,8 +55,25 @@ class ToolCallRow extends StatelessWidget {
 
   bool get _opens => results.isNotEmpty || _shown != null;
 
+  /// The file read or written, where the chat's files open (see
+  /// [FileOpenScope]) and it is in the project.
+  FileOpenRequest? _file(FileOpenScope? files) {
+    final path = this.path;
+    if (files == null || path == null) return null;
+    if (kind != ToolKind.read && kind != ToolKind.edit) return null;
+    final full = files.resolve(path);
+    if (full == null) return null;
+    return FileOpenRequest(
+      full,
+      range: kind == ToolKind.read ? FileLineRange.parseDetail(detail) : null,
+      diff: kind == ToolKind.edit,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final files = FileOpenScope.maybeOf(context);
+    final file = _file(files);
     Widget header = StepHeader(
       verb: label ?? toolVerb(kind, status: status, l10n: context.l10n),
       object: target,
@@ -62,6 +81,8 @@ class ToolCallRow extends StatelessWidget {
       running: _running,
       expanded: expanded,
       onToggle: _opens ? onToggle : null,
+      onOpen: file == null ? null : () => files!.onOpen(file),
+      openTooltip: file == null ? null : context.l10n.sidePanelOpenFile,
       icon: switch (kind) {
         // A message to another agent: someone speaking, standing out.
         ToolKind.message => SvgPicture.asset(
@@ -89,10 +110,12 @@ class ToolCallRow extends StatelessWidget {
         header,
         if (expanded && _opens)
           StepBody(
-            child: Text(
-              results.isNotEmpty ? results.join('\n') : _shown!,
-              style: stepMono,
-            ),
+            child: results.isNotEmpty && files != null
+                ? _Results(results: results, files: files)
+                : Text(
+                    results.isNotEmpty ? results.join('\n') : _shown!,
+                    style: stepMono,
+                  ),
           ),
       ],
     );
@@ -123,6 +146,46 @@ class ToolCallRow extends StatelessWidget {
             style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
           ),
       ],
+    );
+  }
+}
+
+/// A search's matches (`path`, `path:line`), each opening its file where
+/// it is in the project.
+class _Results extends StatelessWidget {
+  const _Results({required this.results, required this.files});
+
+  final List<String> results;
+  final FileOpenScope files;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final result in results) _result(result),
+      ],
+    );
+  }
+
+  Widget _result(String result) {
+    final link = FileLink.parseText(result, blanks: true);
+    final path = link == null ? null : files.resolve(link.path);
+    final text = Text(result, style: stepMono);
+    if (link == null || path == null) return text;
+    return HoverBuilder(
+      cursor: SystemMouseCursors.click,
+      builder: (context, hovered) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => files.openLink(link),
+        child: Text(
+          result,
+          style: stepMono.copyWith(
+            color: hovered ? AppColors.text : null,
+            decoration: hovered ? TextDecoration.underline : null,
+          ),
+        ),
+      ),
     );
   }
 }

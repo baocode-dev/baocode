@@ -2684,6 +2684,96 @@ abstract class AppLocalizations {
   /// **'Hide terminal'**
   String get chatTerminalHide;
 
+  /// Command title: shows or hides the agent window's side panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Side Panel'**
+  String get cmdToggleSidePanel;
+
+  /// Tooltip of the title bar button that shows the side panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Show side panel'**
+  String get sidePanelShow;
+
+  /// Tooltip of the button that hides the side panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide side panel'**
+  String get sidePanelHide;
+
+  /// The side panel's tab listing the files the agent changed.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes'**
+  String get sidePanelChanges;
+
+  /// The side panel's Changes tab while the agent changed nothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No changes yet'**
+  String get sidePanelNoChanges;
+
+  /// Under sidePanelNoChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Files the agent changes show here. Click a file in the conversation to preview it.'**
+  String get sidePanelNoChangesDetail;
+
+  /// Hover of a file read in the conversation: a click opens it in the side panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in side panel'**
+  String get sidePanelOpenFile;
+
+  /// Hover of a file edit in the conversation: a click shows its changes in the side panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Show changes in side panel'**
+  String get sidePanelOpenDiff;
+
+  /// Button of a side panel preview that opens the file in the IDE.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in Fast Ide'**
+  String get sidePanelOpenInIde;
+
+  /// Tooltip of a side panel tab's close button.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get sidePanelCloseTab;
+
+  /// Shows a markdown file rendered.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get sidePanelPreview;
+
+  /// Shows a markdown file's text.
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get sidePanelSource;
+
+  /// Over a side panel preview asked for a diff it cannot show.
+  ///
+  /// In en, this message translates to:
+  /// **'The file before the agent\'s changes is not known: showing it as it is.'**
+  String get sidePanelNoOriginal;
+
+  /// A side panel diff whose two sides are the same.
+  ///
+  /// In en, this message translates to:
+  /// **'No differences'**
+  String get sidePanelUnchanged;
+
+  /// Over the diff of a deleted file.
+  ///
+  /// In en, this message translates to:
+  /// **'The agent deleted this file.'**
+  String get sidePanelDeleted;
+
   /// No description provided for @windowMinimize.
   ///
   /// In en, this message translates to:
@@ -4891,6 +4981,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Who the commits and pull requests an agent writes credit. Applies to agents started after a change; Claude Code only for now.'**
   String get generalSettingsCommitAttributionDescription;
+
+  /// No description provided for @generalSettingsTelemetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Usage Data'**
+  String get generalSettingsTelemetry;
+
+  /// No description provided for @generalSettingsTelemetryDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Once a day BaoCode is used, it sends a random install ID, its version, and your system and processor type, so we can tell how many people use it and come back. Nothing about you, your code, or what you do in BaoCode (telemetry.telemetryLevel).'**
+  String get generalSettingsTelemetryDescription;
 
   /// The commit attribution dropdown, as read out: its setting and the choice in effect.
   ///
