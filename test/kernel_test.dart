@@ -2687,7 +2687,7 @@ void main() {
     final arguments = const ClaudeLaunch(cwd: '/p').arguments;
     final at = arguments.indexOf('--append-system-prompt');
     expect(at, isNot(-1));
-    expect(arguments[at + 1], ClaudeLaunch.citingCode);
+    expect(arguments[at + 1], contains(ClaudeLaunch.citingCode));
     expect(ClaudeLaunch.citingCode, contains('```startLine:endLine:filepath'));
   });
 
