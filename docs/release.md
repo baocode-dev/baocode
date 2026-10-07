@@ -220,8 +220,9 @@ releases/
 **需要 Apple 开发者账号吗？** 要。没有的话应用照样能构建、能自动更新，但新用户第一次从网上下载打开时会被 Gatekeeper 拦下（“BaoCode 已损坏，无法打开”），只能在终端里运行 `xattr -dr com.apple.quarantine` 才能打开。对外发布基本绕不过去。
 
 1. **加入 Apple Developer Program**（每年 99 美元）：<https://developer.apple.com/programs/enroll/>
-   - **以组织身份**加入，Gatekeeper 和“关于”里显示的是组织名。需要一个 D-U-N-S 编号（免费，申请要几天到两周），以及组织的网站和邮箱。
-   - 以个人身份加入更快，但显示的是个人姓名。之后改成组织要重新走流程，证书的 Team 也会变（见下面的注意）。
+   - 我们**以个人身份**加入：用本人的 Apple ID（要开双重认证，姓名填身份证件上的真实姓名），在 iPhone 或 Mac 的 Apple Developer App 里注册最快，要拍证件做身份验证；也可以在网页上注册。付款后一般一两天内通过。
+   - 证书上显示的是个人姓名（`Developer ID Application: <姓名> (<Team ID>)`），用户在签名信息里能看到。
+   - 以后想改成组织：可以联系 Apple 把个人账号转成组织账号（需要 D-U-N-S 编号）。转换前向 Apple 确认 Team ID 不变，否则见下面的注意。
 2. **Developer ID Application 证书**：只有账号持有人（Account Holder）能创建。
    - 在 Mac 上打开 Xcode → Settings → Accounts → 登录 Apple ID → Manage Certificates → 左下角 `+` → **Developer ID Application**。
    - 打开“钥匙串访问” → 登录 → 我的证书 → 找到 “Developer ID Application: <名字> (<Team ID>)” → 右键导出为 `.p12`，设一个密码。
@@ -233,7 +234,7 @@ releases/
    | --- | --- |
    | `MACOS_CERTIFICATE` | `base64 -i 证书.p12 \| pbcopy` 复制出来的内容 |
    | `MACOS_CERTIFICATE_PASSWORD` | 导出 `.p12` 时设的密码 |
-   | `MACOS_SIGN_IDENTITY` | 第 2 步复制的名字，例如 `Developer ID Application: BaoCode Ltd (AB12CD34EF)` |
+   | `MACOS_SIGN_IDENTITY` | 第 2 步复制的名字，例如 `Developer ID Application: Zhang San (AB12CD34EF)` |
    | `NOTARY_KEY` | `.p8` 文件的全部内容（包括 `-----BEGIN PRIVATE KEY-----` 那两行） |
    | `NOTARY_KEY_ID` | Key ID |
    | `NOTARY_ISSUER` | Issuer ID |
@@ -242,7 +243,7 @@ releases/
 
 **注意**
 
-- **Team 一旦用上就别换**：应用正式签名之后，只接受同一个 Team 签名的更新（`lib/update/installer_io.dart`）。从 ad hoc 签名的版本（现在的 1.0.0）更新到第一个正式签名的版本没问题；之后换 Team（比如个人转组织），老用户就得手动重装一次。
+- **Team 一旦用上就别换**：应用正式签名之后，只接受同一个 Team 签名的更新（`lib/update/installer_io.dart`）。从 ad hoc 签名的版本（现在的 1.0.0）更新到第一个正式签名的版本没问题；之后换 Team（比如另注册一个组织账号），老用户就得手动重装一次。
 - **证书有效期 5 年**：到期前在同一个 Team 下新建一张，换掉 `MACOS_CERTIFICATE` 等密钥即可，Team 不变，老用户不受影响。已经公证过的版本过期后仍然能打开。
 - **不需要提供给我**：证书、密码、密钥都只填在 GitHub 里。脚本和工作流已经按上面这些名字写好了，填好就能用。
 
