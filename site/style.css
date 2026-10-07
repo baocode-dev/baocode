@@ -79,7 +79,6 @@ mark.todo { padding: 0 .2em; border-radius: 3px; background: #FFF1B8; color: #6B
 /* Figures run wider than the text; their captions keep to the text's measure. */
 figure { margin: 40px calc(50% - min(var(--wide), 100vw - 48px) / 2); counter-increment: fig; }
 figure .img { position: relative; overflow: hidden; border: 1px solid var(--rule); border-radius: 10px; background: var(--tint); box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 16px 40px -20px rgba(0, 0, 0, .22); }
-figure picture { display: block; }
 figure img { display: block; width: 100%; height: auto; }
 figure .img.missing { aspect-ratio: 16 / 10; }
 figure .img + .img { margin-top: 24px; }
