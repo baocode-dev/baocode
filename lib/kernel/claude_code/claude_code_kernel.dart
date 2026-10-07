@@ -884,6 +884,20 @@ class ClaudeCodeKernel
       _control!.respond(requestId, {'behavior': 'deny', 'message': message});
       return;
     }
+    // Full access in Plan leaves to the classifier what the CLI cannot
+    // tell is read-only; with no classifier (another provider's model),
+    // it is approved here, as it would be by the classifier, not asked.
+    if (_approval == 'bypassPermissions' &&
+        _work == 'plan' &&
+        !_classifies &&
+        tool != 'AskUserQuestion' &&
+        tool != 'ExitPlanMode') {
+      _control!.respond(requestId, {
+        'behavior': 'allow',
+        'updatedInput': input,
+      });
+      return;
+    }
     final InteractionRequest interaction;
     var questions = const <String>[];
     switch (tool) {
@@ -2026,6 +2040,11 @@ class ClaudeCodeKernel
   bool get _reviewsPlan =>
       _approval == 'auto' || _approval == 'bypassPermissions';
 
+  /// Whether the auto mode classifier runs on the model: not on another
+  /// provider's.
+  bool get _classifies =>
+      _custom == null && (_currentModel?.supportsAuto ?? true);
+
   /// Tells a running CLI what is picked now.
   void _applyMode() {
     _applyPlanReview();
@@ -2086,9 +2105,7 @@ class ClaudeCodeKernel
   late final KernelChoiceSource permission = _Choice(
     options: () => [
       for (final option in _approvals)
-        if (option.id != 'auto' ||
-            (_custom == null && (_currentModel?.supportsAuto ?? true)))
-          option,
+        if (option.id != 'auto' || _classifies) option,
     ],
     selected: () => _approval,
     select: (id) {
