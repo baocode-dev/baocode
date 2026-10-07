@@ -238,6 +238,39 @@ void main() {
     expect(read('a.txt'), '1\n2\n3\n4\n5\n');
   }, skip: !hasGit);
 
+  test('leaves out its checkpoints where the project holds them', () async {
+    // A home folder opened as the project, the data folder in it.
+    checkpoints = path('.baocode-server/data/checkpoints');
+    final review = await open();
+    await review.begin();
+    await review.begin();
+    write('a.txt', 'one\n');
+    await review.observe();
+    expect(changesOf(review).keys, ['a.txt']);
+
+    // Snapshots of an earlier build that took them in are let go.
+    final store = (await GitReviewStore.open(root, checkpoints: checkpoints))!;
+    final repository = p.relative(store.gitDir, from: root);
+    await Process.run('git', [
+      '--git-dir=${store.gitDir}',
+      '--work-tree=$root',
+      'add',
+      '-f',
+      '--',
+      repository,
+    ], workingDirectory: root);
+    final reopened = (await GitReviewStore.open(
+      root,
+      checkpoints: checkpoints,
+    ))!;
+    final before = await reopened.snapshot();
+    write('lib/b.txt', 'two\n');
+    final after = await reopened.snapshot();
+    expect((await reopened.diff(before, after)).map((change) => change.path), [
+      'lib/b.txt',
+    ]);
+  }, skip: !hasGit);
+
   test("leaves the project's own repository alone", () async {
     Future<String> git(List<String> arguments) async {
       final result = await Process.run(
