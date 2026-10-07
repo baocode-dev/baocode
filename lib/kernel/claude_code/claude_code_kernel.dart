@@ -2068,13 +2068,17 @@ class ClaudeCodeKernel
   String get _cliApproval =>
       _approval == 'bypassPermissions' ? 'acceptEdits' : _approval;
 
-  /// What is asked about in full access, as in the CLI's own: its safety
-  /// checks (a dangerous `rm`, the project's `.git`), also within a
-  /// compound command, and the user's ask rules.
+  /// What the CLI would still ask in full access: safety checks requiring
+  /// manual approval (also inside compound commands), explicit ask rules,
+  /// and tools that require user interaction. Protected-path checks that
+  /// the classifier may approve do not require a prompt in full access.
   static bool _askedInFullAccess(Map<String, Object?> request) =>
-      request['decision_reason_type'] == 'safetyCheck' ||
-      request['classifier_approvable'] != null ||
-      request['matched_ask_rule'] != null;
+      request['classifier_approvable'] == false ||
+      (request['decision_reason_type'] == 'safetyCheck' &&
+          request['classifier_approvable'] != true) ||
+      request['matched_ask_rule'] != null ||
+      request['requires_user_interaction'] == true ||
+      request['decision_reason_code'] != null;
 
   /// Plan's commands are left to the classifier with the approvals that
   /// approve for the user; asked about with the others.

@@ -91,6 +91,8 @@ class ClaudeTranslator {
         _replayedAt(message);
       case 'system':
         _system(message);
+      case 'active_goal':
+        _activeGoal(message['value']);
       // Kept beside a session's messages: how its goal stood.
       case 'attachment':
         _attachment(message);
@@ -1291,6 +1293,33 @@ class ClaudeTranslator {
     if (replaying && goal?.state != GoalState.active) goal = null;
     _goal = goal;
     emit(GoalReported(nextSeq(), goal));
+  }
+
+  /// The live goal state from the CLI, before its transcript attachment.
+  void _activeGoal(Object? value) {
+    if (value == null) {
+      if (_goal != null) _setGoal(null);
+      return;
+    }
+    if (value is! Map) return;
+    final condition = _string(value['condition']);
+    if (condition == null || condition.isEmpty) return;
+    final known = _goal?.condition == condition ? _goal : null;
+    final setAt = switch (value['set_at']) {
+      final num milliseconds => DateTime.fromMillisecondsSinceEpoch(
+        milliseconds.toInt(),
+        isUtc: true,
+      ).toLocal(),
+      _ => known?.setAt,
+    };
+    _setGoal(
+      KernelGoal(
+        condition,
+        checks: (value['iterations'] as num?)?.toInt() ?? known?.checks ?? 0,
+        lastReason: _string(value['last_reason']) ?? known?.lastReason,
+        setAt: setAt,
+      ),
+    );
   }
 
   static DateTime _timeOf(Map<String, Object?> message) =>

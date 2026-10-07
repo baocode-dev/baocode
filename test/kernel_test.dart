@@ -799,10 +799,38 @@ void main() {
       expect(transcript.pendingInteraction, isNull);
       expect(cli.responses.last['behavior'], 'allow');
       expect(cli.responses.last['updatedInput'], command);
-      // What the CLI's own full access asks all the same, and the plan,
-      // are the user's.
+      // Protected paths may be classifier-approved in Accept edits; full
+      // access allows them without prompting, including inside compound Bash.
+      const protectedCommand = {
+        'command': "sed -E 's/token/***/g' ~/.claude/settings.local.json",
+        'description': 'Inspect local settings',
+      };
+      for (final (i, why) in const [
+        {
+          'decision_reason_type': 'safetyCheck',
+          'classifier_approvable': true,
+          'decision_reason':
+              'Claude requested permissions to write to '
+              '~/.claude/settings.local.json, but you haven\'t granted it yet.',
+        },
+        {
+          'decision_reason_type': 'subcommandResults',
+          'classifier_approvable': true,
+        },
+      ].indexed) {
+        ask('r2-protected-$i', 'Bash', protectedCommand, why);
+        await pumpEventQueue();
+        expect(transcript.pendingInteraction, isNull);
+        expect(cli.responses.last, {
+          'behavior': 'allow',
+          'updatedInput': protectedCommand,
+        });
+      }
+      // Manual-only safety checks, explicit ask rules and the plan remain
+      // the user's decisions, even when a protected-path check is approvable.
       for (final (i, why) in const [
         {'decision_reason_type': 'safetyCheck'},
+        {'decision_reason_type': 'safetyCheck', 'classifier_approvable': false},
         {
           'decision_reason_type': 'subcommandResults',
           'classifier_approvable': false,
@@ -811,6 +839,13 @@ void main() {
           'decision_reason_type': 'rule',
           'matched_ask_rule': {'toolName': 'Bash'},
         },
+        {
+          'decision_reason_type': 'safetyCheck',
+          'classifier_approvable': true,
+          'matched_ask_rule': {'toolName': 'Bash'},
+        },
+        {'requires_user_interaction': true},
+        {'decision_reason_code': 'outside_reads_blocked'},
       ].indexed) {
         ask('r2-$i', 'Bash', command, why);
         await pumpEventQueue();
@@ -1301,7 +1336,11 @@ void main() {
           if (session.itemAt(i) case UserMessageItem(:final text)) text,
       ];
 
-      final cli = FakeCli(answers: {'rewind_conversation': {'rewound': true}});
+      final cli = FakeCli(
+        answers: {
+          'rewind_conversation': {'rewound': true},
+        },
+      );
       final session = await open(cli);
       final [first, second] = [
         for (final user in cli.users) user['uuid'] as String,
@@ -2227,6 +2266,32 @@ void main() {
           ],
         },
       };
+
+      test('clears immediately when the CLI reports an inactive goal', () {
+        final transcript = Transcript();
+        var seq = 0;
+        final translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+        );
+        translator.translate({
+          'type': 'active_goal',
+          'value': {
+            'condition': 'all tests pass',
+            'iterations': 2,
+            'set_at': DateTime.utc(2026, 10, 5, 10).millisecondsSinceEpoch,
+            'last_reason': '2 still fail',
+          },
+        });
+        expect(transcript.goal?.condition, 'all tests pass');
+        expect(transcript.goal?.checks, 2);
+        expect(transcript.goal?.lastReason, '2 still fail');
+        expect(transcript.goal?.setAt, DateTime(2026, 10, 5, 18));
+
+        translator.translate({'type': 'active_goal', 'value': null});
+        expect(transcript.goal, isNull);
+        expect(shown(transcript), isEmpty);
+      });
 
       test('is read from the answers to /goal, which do not show', () {
         final transcript = Transcript();
