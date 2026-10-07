@@ -9,20 +9,25 @@ import 'dart:typed_data';
 import 'package:bao_remote/client.dart';
 import 'package:bao_remote/files.dart' show IdeFileExistsException;
 import 'package:bao_remote/local.dart' show ClaudeEnvironment, CliLocator;
+import 'package:baocode/chat/panels/health_banner.dart';
 import 'package:baocode/ide/git/git_model.dart' show IdeGitGroup;
 import 'package:baocode/ide/ide_quick_input.dart';
 import 'package:baocode/ide/lsp/lsp_manager.dart';
 import 'package:baocode/ide/lsp/language_features.dart';
 import 'package:baocode/ide/lsp/lsp_server_definition.dart';
+import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
+import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/remote/open_remote.dart';
 import 'package:baocode/remote/project_host.dart';
 import 'package:baocode/remote/remote_claude.dart';
 import 'package:baocode/remote/remote_location.dart';
 import 'package:baocode/remote/remote_services.dart';
+import 'package:baocode/remote/remote_status.dart';
 import 'package:baocode/remote/ssh_host.dart';
-import 'package:baocode/workspace/workspace.dart' show Project;
+import 'package:baocode/workspace/workspace.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
@@ -162,6 +167,92 @@ void main() {
       expect(scheduled, greaterThan(0));
       connector.failure = null;
       await until(() => host.state == SshHostState.connected);
+    });
+
+    test('a project\'s sessions are listed once its host is reached', () async {
+      final mock = MockKernels.claudeCode;
+      final workspace = Workspace(
+        projects: const [],
+        kernels: [
+          KernelDescriptor(
+            id: mock.id,
+            label: mock.label,
+            icon: mock.icon,
+            description: mock.description,
+            create: mock.create,
+            catalog: _HostCatalog(),
+          ),
+        ],
+      );
+      addTearDown(workspace.dispose);
+      connector.failure = const SshConnectException(
+        SshFailure.unreachable,
+        'The host could not be reached.',
+      );
+      workspace.openFolder(RemoteLocation.of('dev', root));
+      await until(() => hosts['dev'].state == SshHostState.failed);
+      expect(
+        workspace.threads.where((thread) => thread.record != null),
+        isEmpty,
+      );
+
+      connector.failure = null;
+      await hosts['dev'].reconnect();
+      await until(
+        () => workspace.threads.any((thread) => thread.title == 'Kept there'),
+      );
+    });
+
+    testWidgets('one that fails is said over the chat, and retried there', (
+      tester,
+    ) async {
+      final location = RemoteLocation.of('dev', root);
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Column(
+              children: [
+                SshHostBanner(location: location),
+                SshHostBanner(location: root),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(find.byType(HealthBanner), findsNothing);
+
+      connector.failure = const SshConnectException(
+        SshFailure.server,
+        'The BaoCode server for Linux x64 could not be downloaded',
+        detail: 'https://dl.baocode.dev/x.gz: HTTP 404',
+      );
+      await tester.runAsync(
+        () => hosts['dev'].ready.then((_) {}, onError: (_) {}),
+      );
+      await tester.pump();
+      expect(
+        find.text(
+          'Could not connect to dev: '
+          'The BaoCode server for Linux x64 could not be downloaded',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Details'));
+      await tester.pump();
+      expect(
+        find.text('https://dl.baocode.dev/x.gz: HTTP 404'),
+        findsOneWidget,
+      );
+
+      connector.failure = null;
+      await tester.tap(find.text('Retry'));
+      await tester.runAsync(
+        () => until(() => hosts['dev'].state == SshHostState.connected),
+      );
+      await tester.pump();
+      expect(find.byType(HealthBanner), findsNothing);
     });
   });
 
@@ -587,4 +678,26 @@ class _DartProvider implements LspServerProvider {
 Object _httpOverridden() {
   HttpOverrides.global = null;
   return false;
+}
+
+/// The sessions on the host its folder is on: one, once it is reached.
+class _HostCatalog implements SessionCatalog {
+  @override
+  Future<List<ProjectRecord>> projects() async => const [];
+
+  @override
+  Future<List<SessionRecord>> sessionsIn(String cwd) async {
+    await SshHosts.instance[RemoteLocation.hostOf(cwd)!].ready;
+    return [
+      SessionRecord(
+        id: 'kept',
+        title: 'Kept there',
+        updatedAt: DateTime(2026, 10, 7),
+        cwd: cwd,
+      ),
+    ];
+  }
+
+  @override
+  Future<void> delete(String id) async {}
 }

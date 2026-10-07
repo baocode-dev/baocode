@@ -20,6 +20,7 @@ import '../l10n/l10n.dart';
 import '../models/model_providers.dart';
 import '../theme/workbench_theme.dart' show ColorThemeStorage;
 import '../remote/remote_location.dart';
+import '../remote/ssh_host.dart' show SshHostState, SshHosts;
 import 'agent_title.dart';
 import 'chat_grid.dart';
 import 'editor_launcher.dart';
@@ -394,6 +395,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       try {
         sessions = await kernel.catalog?.sessionsIn(project.path) ?? const [];
       } on Object {
+        // Its host out of reach: listed once it is reached.
+        if (project.host case final host?) _listWhenReached(host, project);
         continue;
       }
       if (_disposed) return;
@@ -402,6 +405,25 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       }
     }
     if (_threads.length != before) notifyListeners();
+  }
+
+  /// The listeners of the hosts that could not be reached to list their
+  /// projects' sessions, by project.
+  final Map<String, VoidCallback> _unreached = {};
+
+  /// Lists [project]'s sessions once [host] is connected.
+  void _listWhenReached(String host, Project project) {
+    if (_disposed || _unreached.containsKey(project.path)) return;
+    final ssh = SshHosts.instance[host];
+    void listener() {
+      if (ssh.state != SshHostState.connected) return;
+      ssh.removeListener(listener);
+      _unreached.remove(project.path);
+      if (!_disposed) unawaited(_listKept(project));
+    }
+
+    _unreached[project.path] = listener;
+    ssh.addListener(listener);
   }
 
   /// Lists [project], first, kept for the next run (see [_folders]).
@@ -2172,6 +2194,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   void dispose() {
     _disposed = true;
     icons.removeListener(notifyListeners);
+    for (final MapEntry(key: path, value: listener) in _unreached.entries) {
+      SshHosts.instance[RemoteLocation.hostOf(path)!].removeListener(listener);
+    }
     if (_draftTimer?.isActive ?? false) {
       _draftTimer!.cancel();
       _writeDrafts();

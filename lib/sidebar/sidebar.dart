@@ -16,6 +16,8 @@ import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
 import '../keybindings/chat_keybindings.dart';
 import '../keybindings/default_keybindings.dart' show openSettingsCommandId;
+import '../remote/remote_status.dart' show sshErrorText;
+import '../remote/ssh_host.dart' show SshHostState, SshHosts;
 import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
@@ -1412,40 +1414,85 @@ class _GroupHeader extends StatelessWidget {
       ),
     );
     if (project == null) return label;
-    // A remote project: its host after its name.
     final host = project.host;
-    final named = host == null
-        ? label
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(child: label),
-              const SizedBox(width: 6),
-              Icon(Codicons.remote, size: 11, color: AppColors.textFaint),
-              const SizedBox(width: 3),
-              Flexible(
-                child: Text(
-                  host,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: AppColors.textFaint, fontSize: 11),
-                ),
+    if (host == null) {
+      // Where the project is: its name says only which. Over the name
+      // alone, not the buttons beside it, which come and go with the
+      // pointer.
+      return _RowHover(
+        content: (context) => Text(project.path),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          widthFactor: 1,
+          child: label,
+        ),
+      );
+    }
+    // A remote project: its host after its name, red while it cannot be
+    // reached (a click tries again).
+    final ssh = SshHosts.instance[host];
+    return ListenableBuilder(
+      listenable: ssh,
+      builder: (context, _) {
+        final failed = ssh.state == SshHostState.failed;
+        final color = failed
+            ? themeColors['errorForeground']
+            : AppColors.textFaint;
+        final (message, _) = failed ? sshErrorText(ssh.error) : (null, null);
+        Widget badge = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              failed ? Codicons.debugDisconnect : Codicons.remote,
+              size: 11,
+              color: color,
+            ),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                host,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: color, fontSize: 11),
               ),
-            ],
+            ),
+          ],
+        );
+        if (failed) {
+          badge = MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => ssh.reconnect().ignore(),
+              child: badge,
+            ),
           );
-    // Where the project is: its name says only which. Over the name alone,
-    // not the buttons beside it, which come and go with the pointer.
-    return _RowHover(
-      content: (context) => Text(
-        host == null
-            ? project.path
-            : '${project.root}\n${context.l10n.remoteProjectTooltip(host)}',
-      ),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        widthFactor: 1,
-        child: named,
-      ),
+        }
+        return _RowHover(
+          content: (context) => Text(
+            [
+              project.root,
+              context.l10n.remoteProjectTooltip(host),
+              if (failed) ...[
+                context.l10n.remoteStatusTooltipLost(host),
+                ?message,
+              ],
+            ].join('\n'),
+          ),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            widthFactor: 1,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(child: label),
+                const SizedBox(width: 6),
+                Flexible(child: badge),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
