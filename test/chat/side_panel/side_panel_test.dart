@@ -14,12 +14,15 @@ import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/workspace/preference_store.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
+import '../../workspace/chat_window_keys_test.dart' show press;
 import '../../workspace_test.dart' show pumpLoaded;
 
 /// A project's files, in memory.
@@ -433,4 +436,28 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AgentSidePanelView), findsNothing);
   });
+
+  testWidgets('Toggle Side Panel\'s keys, as upstream\'s secondary side '
+      'bar\'s: Ctrl+Alt+B, ⌥⌘B on macOS', (tester) async {
+    await pumpLoaded(tester);
+    final meta = defaultTargetPlatform == TargetPlatform.macOS;
+    await press(
+      tester,
+      LogicalKeyboardKey.keyB,
+      alt: true,
+      meta: meta,
+      control: !meta,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(AgentSidePanelView), findsOneWidget);
+    await press(
+      tester,
+      LogicalKeyboardKey.keyB,
+      alt: true,
+      meta: meta,
+      control: !meta,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(AgentSidePanelView), findsNothing);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 }
