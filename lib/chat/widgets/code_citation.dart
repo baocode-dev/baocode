@@ -364,7 +364,12 @@ class _CodeCardState extends State<_CodeCard> {
                     right: 6,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: background,
+                        // Opaque, to hide the text under it: the card's
+                        // color is often a see-through one.
+                        color: Color.alphaBlend(
+                          background,
+                          colors['editor.background'],
+                        ),
                         borderRadius: BorderRadius.circular(5),
                       ),
                       child: _copyButton(context),
@@ -512,7 +517,9 @@ class _CodeCardState extends State<_CodeCard> {
   }
 
   /// Line numbers from the citation's first, beside the code; both scroll
-  /// down together, the code alone sideways. A code block has none.
+  /// down together, the code alone sideways. A code block has none. Both
+  /// scrollbars at the edges of the card, not of the code as long as it
+  /// is.
   Widget _body() {
     final lines = widget.code.split('\n');
     final citation = widget.citation;
@@ -538,6 +545,14 @@ class _CodeCardState extends State<_CodeCard> {
       ),
       null => const SizedBox(width: 12),
     };
+    // Where the code starts: the sideways scrollbar's track from there.
+    final gutter = switch (citation) {
+      final citation? => _numbersWidth(
+        '${citation.start + lines.length - 1}',
+        style,
+      ),
+      null => 12.0,
+    };
     final code = Text.rich(
       TextSpan(
         style: style,
@@ -559,38 +574,55 @@ class _CodeCardState extends State<_CodeCard> {
       constraints: const BoxConstraints(
         maxHeight: CodeCitationCard.maxCodeHeight,
       ),
-      child: Scrollbar(
-        controller: _vertical,
-        thumbVisibility: _hovered,
-        child: SingleChildScrollView(
-          controller: _vertical,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: WheelLatch(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                numbers,
-                Expanded(
-                  child: Scrollbar(
-                    controller: _horizontal,
-                    thumbVisibility: _hovered,
-                    // Not the vertical one's.
-                    notificationPredicate: (notification) =>
-                        notification.metrics.axis == Axis.horizontal,
-                    child: SingleChildScrollView(
-                      controller: _horizontal,
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.only(right: 12),
-                      child: code,
+      // The scrollbar's padding is the media's.
+      child: MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(padding: EdgeInsets.only(left: gutter)),
+        child: Scrollbar(
+          controller: _horizontal,
+          thumbVisibility: _hovered,
+          // The code's, inside the vertical one.
+          notificationPredicate: (notification) =>
+              notification.metrics.axis == Axis.horizontal,
+          child: Scrollbar(
+            controller: _vertical,
+            thumbVisibility: _hovered,
+            child: SingleChildScrollView(
+              controller: _vertical,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: WheelLatch(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    numbers,
+                    Expanded(
+                      child: SingleChildScrollView(
+                        controller: _horizontal,
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.only(right: 12),
+                        child: code,
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// The line numbers' width with their padding: as wide as the last.
+  double _numbersWidth(String last, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: last, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width + 12 + 14;
   }
 }
 

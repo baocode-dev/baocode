@@ -186,6 +186,30 @@ void main() {}
       expect(scroll.position.maxScrollExtent, greaterThan(0));
     });
 
+    testWidgets('its sideways scrollbar is at the card\'s bottom, not the '
+        'code\'s', (tester) async {
+      final code = [for (var i = 0; i < 60; i++) 'line $i ${'x' * 400}']
+          .join('\n');
+      await pumpMarkdown(tester, '```1:60:a.txt\n$code\n```');
+      final sideways = tester
+          .stateList<ScrollableState>(
+            find.descendant(
+              of: find.byType(CodeCitationCard),
+              matching: find.byType(Scrollable),
+            ),
+          )
+          .singleWhere((scroll) => scroll.position.axis == Axis.horizontal);
+      final scrollbar = find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollbar &&
+            widget.controller == sideways.widget.controller,
+      );
+      final card = tester.getRect(find.byType(CodeCitationCard));
+      final bar = tester.getRect(scrollbar);
+      expect(bar.height, lessThanOrEqualTo(CodeCitationCard.maxCodeHeight));
+      expect(card.bottom - bar.bottom, lessThan(2));
+    });
+
     testWidgets('folds to its title', (tester) async {
       await pumpMarkdown(tester, cited);
       final open = tester.getSize(find.byType(CodeCitationCard)).height;
