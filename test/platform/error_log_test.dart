@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' show PlatformDispatcher;
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/platform/error_log.dart';
@@ -87,6 +88,33 @@ void main() {
     expect(text, contains('Bad state: error 0'));
     expect(text, endsWith('(No more this run: the log reached 2000 bytes.)\n'));
     expect(text.length, lessThan(2100));
+  });
+
+  testWidgets('the Windows app is told the folder, for its own logs', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      ErrorLog.channel,
+      (call) async => calls.add(call),
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        ErrorLog.channel,
+        null,
+      ),
+    );
+    final errors = log();
+
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    await errors.shareWithHost();
+    expect(calls, isEmpty);
+
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    await errors.shareWithHost();
+    debugDefaultTargetPlatformOverride = null;
+    expect(calls.single.method, 'setFolder');
+    expect(calls.single.arguments, errors.directory);
   });
 
   test('installed, it hands what it is told on to the handlers there were', () {

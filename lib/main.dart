@@ -74,6 +74,7 @@ Future<void> main(List<String> arguments) async {
   // All the app keeps is in its data folder: found first, once. One the
   // user set that cannot be used (a drive gone) is reported before the app
   // shows, never swapped for the default unasked.
+  ErrorLog? errors;
   if (!kIsWeb) {
     final resolution = resolveDataDirectory();
     if (resolution.ok) {
@@ -83,12 +84,14 @@ Future<void> main(List<String> arguments) async {
       DataDirectory.current = await recoverDataDirectory(resolution);
     }
     // What goes wrong unseen from here on, kept for the user to send.
-    ErrorLog(DataDirectory.current.logsDir).install();
+    errors = ErrorLog(DataDirectory.current.logsDir)..install();
   }
   unawaited(reapClaudeProcesses());
   unawaited(reapLspProcesses());
   unawaited(reapPtyProcesses());
   WidgetsFlutterBinding.ensureInitialized();
+  // The Windows app's own logs go beside it.
+  if (errors != null) unawaited(errors.shareWithHost());
   // Emoji as pictures: fetched into the cache the first run, in the
   // background.
   EmojiSheet.start(EmojiSheetStore.cache());

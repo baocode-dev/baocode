@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+#include "log_folder.h"
+
 namespace hang_watchdog {
 namespace {
 
@@ -32,18 +34,14 @@ std::atomic<ULONGLONG> g_answered{0};
 std::atomic<ULONGLONG> g_loop_ended{0};
 DWORD g_windows_thread = 0;
 
-// %APPDATA%\baocode\hangs (the data folder's default place), made if need
-// be; empty if there is none.
+// The data folder's logs\hangs (see log_folder.h), made if need be; empty
+// if there is none.
 std::wstring ReportFolder() {
-  wchar_t app_data[MAX_PATH];
-  const DWORD length =
-      ::GetEnvironmentVariableW(L"APPDATA", app_data, MAX_PATH);
-  if (length == 0 || length >= MAX_PATH) {
+  const std::wstring logs = log_folder::Path();
+  if (logs.empty()) {
     return std::wstring();
   }
-  std::wstring folder = std::wstring(app_data) + L"\\baocode";
-  ::CreateDirectoryW(folder.c_str(), nullptr);
-  folder += L"\\hangs";
+  const std::wstring folder = logs + L"\\hangs";
   ::CreateDirectoryW(folder.c_str(), nullptr);
   return folder;
 }

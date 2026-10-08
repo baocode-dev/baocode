@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <string>
 
+#include "log_folder.h"
 #include "resource.h"
 
 namespace {
@@ -32,26 +33,19 @@ constexpr int kMaxResyncAttempts = 8;
 constexpr int kMaxLogLines = 300;
 constexpr ULONGLONG kMaxLogBytes = 1024 * 1024;
 
-// A line in %APPDATA%\baocode\logs\window.log (the data folder's default
-// place, as the hang watchdog's reports are), for a user to send: how the
-// windows' content was kept in step with the engine (see
-// Win32Window::SizeContent).
+// A line in the data folder's logs\window.log (see log_folder.h), for a
+// user to send: how the windows' content was kept in step with the engine
+// (see Win32Window::SizeContent).
 void LogContent(const char* format, ...) {
   static int lines = 0;
   static bool started = false;
   if (lines >= kMaxLogLines) {
     return;
   }
-  wchar_t app_data[MAX_PATH];
-  const DWORD length =
-      ::GetEnvironmentVariableW(L"APPDATA", app_data, MAX_PATH);
-  if (length == 0 || length >= MAX_PATH) {
+  const std::wstring folder = log_folder::Path();
+  if (folder.empty()) {
     return;
   }
-  std::wstring folder = std::wstring(app_data) + L"\\baocode";
-  ::CreateDirectoryW(folder.c_str(), nullptr);
-  folder += L"\\logs";
-  ::CreateDirectoryW(folder.c_str(), nullptr);
   const std::wstring path = folder + L"\\window.log";
   if (!started) {
     started = true;

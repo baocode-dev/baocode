@@ -7,9 +7,10 @@
 // Flutter's too, its platform and UI threads being one. When that thread
 // stops answering for a while, or the app is still there a while after its
 // windows went, what each of the app's threads was doing is written to
-// %APPDATA%\baocode\hangs: a text report (each thread's name and the calls
-// on its stack, as module+offset, named where the symbols are known) and a
-// minidump beside it. A hang, told apart from a slow close, and where it is.
+// the data folder's logs\hangs (see log_folder.h): a text report (each
+// thread's name and the calls on its stack, as module+offset, named where
+// the symbols are known) and a minidump beside it. A hang, told apart from
+// a slow close, and where it is.
 //
 // The folder is made as the app starts: there, it tells that the copy that
 // ran watched itself.

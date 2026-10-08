@@ -11,6 +11,7 @@
 
 #include "app_windows.h"
 #include "attention.h"
+#include "log_folder.h"
 #include "open_requests.h"
 #include "view_window.h"
 
@@ -58,6 +59,9 @@ class FlutterWindow : public ViewWindow {
   // Notifications, the taskbar button's count and the tray icon, which the
   // close button hides the window to (see attention.h).
   std::unique_ptr<Attention> attention_;
+
+  // Where Flutter says the logs go (see log_folder.h).
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> logs_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../update/version.dart';
+import 'app_platform.dart';
 
 /// What went wrong in the app unseen, kept in the data folder's
 /// `logs/errors.log` (`DataDirectory.logsDir`) for a user to send: a
@@ -61,6 +63,22 @@ class ErrorLog {
       return platform?.call(error, stack) ?? false;
     };
   }
+
+  /// Tells the Windows app where [directory] is: its own logs go there too
+  /// (window.log, the hang reports in hangs/), and it keeps the folder for
+  /// what it writes before Dart runs (windows/runner/log_folder.h).
+  Future<void> shareWithHost() async {
+    if (!AppPlatform.isWindows) return;
+    try {
+      await channel.invokeMethod<void>('setFolder', directory);
+    } on MissingPluginException {
+      // A host without the channel.
+    } on PlatformException catch (error) {
+      debugPrint('logs.setFolder: $error');
+    }
+  }
+
+  static const channel = MethodChannel('baocode/logs');
 
   /// An error the framework caught: in a build, a layout, a paint, a
   /// gesture's handler.
