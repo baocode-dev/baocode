@@ -58,6 +58,9 @@ abstract interface class UpdateInstaller {
   /// Gets [file] ready to install (on macOS, the app unpacked and checked).
   /// Throws a [ManualUpdateRequired] where the app cannot replace itself.
   Future<PreparedUpdate> prepare(String file, UpdateRelease release);
+
+  /// Where the install writes what it did; null where it writes nothing.
+  String? get log;
 }
 
 /// An install ready to start: [launch] starts what waits for the app to
@@ -88,6 +91,13 @@ abstract interface class UpdateStore {
 
   DateTime? get lastChecked;
   set lastChecked(DateTime? time);
+
+  /// The version an install was started for as the app last quit; null
+  /// once the next launch has looked.
+  String? get installingVersion;
+
+  /// Kept by the time it completes: the app quits right after.
+  Future<void> setInstallingVersion(String? version);
 }
 
 /// Kept for the run only (under test).
@@ -97,6 +107,13 @@ class MemoryUpdateStore implements UpdateStore {
 
   @override
   DateTime? lastChecked;
+
+  @override
+  String? installingVersion;
+
+  @override
+  Future<void> setInstallingVersion(String? version) async =>
+      installingVersion = version;
 }
 
 enum UpdateStatus {
@@ -289,6 +306,7 @@ class UpdateService extends ChangeNotifier {
   void start() {
     if (_started || !supported) return;
     _started = true;
+    _lookAtLastInstall();
     settingsChanges?.addListener(_schedule);
     _schedule();
     unawaited(
@@ -296,6 +314,29 @@ class UpdateService extends ChangeNotifier {
         debugPrint('update: cleaning up the downloads failed: $error');
       }),
     );
+  }
+
+  AppVersion? _unfinishedInstall;
+
+  /// An install started as the app last quit (Restart to Update) that this
+  /// launch is still older than: it failed (elevation refused, files held,
+  /// Setup unable to start), or the app was opened before it was done.
+  /// Null once [takeUnfinishedInstall] has taken it.
+  AppVersion? get unfinishedInstall => _unfinishedInstall;
+
+  /// [unfinishedInstall], told of once.
+  AppVersion? takeUnfinishedInstall() {
+    final version = _unfinishedInstall;
+    _unfinishedInstall = null;
+    return version;
+  }
+
+  void _lookAtLastInstall() {
+    final installing = store.installingVersion;
+    if (installing == null) return;
+    unawaited(store.setInstallingVersion(null));
+    final version = AppVersion.tryParse(installing);
+    if (version != null && current < version) _unfinishedInstall = version;
   }
 
   /// Checks by itself while the mode is `default`: [firstCheckDelay] after
@@ -460,6 +501,9 @@ class UpdateService extends ChangeNotifier {
 
   PreparedUpdate? _armed;
 
+  /// The version [_armed] installs.
+  AppVersion? _armedVersion;
+
   /// Whether an install waits for the app to quit.
   bool get armed => _armed != null;
 
@@ -473,20 +517,26 @@ class UpdateService extends ChangeNotifier {
   }
 
   /// Has [update] installed as the app quits ([launchArmed]).
-  void arm(PreparedUpdate update) => _armed = update;
+  void arm(PreparedUpdate update) {
+    _armed = update;
+    _armedVersion = _release?.version;
+  }
 
   /// The quit was cancelled: nothing is installed.
-  void disarm() => _armed = null;
+  void disarm() {
+    _armed = null;
+    _armedVersion = null;
+  }
 
   /// The app is quitting: starts the install armed, if any. False when it
   /// could not start ([error] says why), and the app should stay.
   Future<bool> launchArmed() async {
     final update = _armed;
-    _armed = null;
+    final version = _armedVersion;
+    disarm();
     if (update == null) return true;
     try {
       await update.launch();
-      return true;
     } on Object catch (error) {
       debugPrint('update: install failed to start: $error');
       _error = error;
@@ -494,6 +544,15 @@ class UpdateService extends ChangeNotifier {
       _failures.add(error);
       return false;
     }
+    // The next launch tells whether it got there (unfinishedInstall).
+    if (version != null) {
+      try {
+        await store.setInstallingVersion('$version');
+      } on Object catch (error) {
+        debugPrint('update: the install under way not kept: $error');
+      }
+    }
+    return true;
   }
 
   final StreamController<Object> _failures =

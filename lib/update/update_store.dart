@@ -6,8 +6,8 @@ import '../settings/user_settings.dart';
 import 'update_service.dart';
 
 /// What the updates keep across runs, in the app's global storage
-/// (state/storage.json): the version the user skipped, and when the app
-/// last looked.
+/// (state/storage.json): the version the user skipped, when the app last
+/// looked, and the version an install was started for as it quit.
 class GlobalUpdateStore implements UpdateStore {
   GlobalUpdateStore(this.storage);
 
@@ -15,6 +15,7 @@ class GlobalUpdateStore implements UpdateStore {
 
   static const skippedKey = 'update.skippedVersion';
   static const lastCheckedKey = 'update.lastChecked';
+  static const installingKey = 'update.installingVersion';
 
   @override
   String? get skippedVersion => storage.get<String>(skippedKey);
@@ -31,6 +32,13 @@ class GlobalUpdateStore implements UpdateStore {
   @override
   set lastChecked(DateTime? time) =>
       _set(lastCheckedKey, time?.toUtc().toIso8601String());
+
+  @override
+  String? get installingVersion => storage.get<String>(installingKey);
+
+  @override
+  Future<void> setInstallingVersion(String? version) =>
+      storage.set(installingKey, version);
 
   void _set(String key, Object? value) => unawaited(
     storage.set(key, value).catchError((Object error) {

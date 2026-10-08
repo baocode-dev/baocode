@@ -141,6 +141,7 @@ class WindowsUpdateInstaller implements UpdateInstaller {
   final UpdateProcesses processes;
 
   /// Setup's log of the last update.
+  @override
   String get log => p.join(updatesDirectory, 'install.log');
 
   /// Whether Setup installed the app per machine: its uninstall entry is
@@ -257,6 +258,10 @@ class MacUpdateInstaller implements UpdateInstaller {
   final String updatesDirectory;
   final UpdateProcesses processes;
 
+  /// The script's log, the updates' one after another.
+  @override
+  String get log => p.join(updatesDirectory, 'install.log');
+
   /// The `.app` running.
   String get appBundle => p.dirname(p.dirname(p.dirname(executable)));
 
@@ -312,7 +317,7 @@ class MacUpdateInstaller implements UpdateInstaller {
       source: next,
       target: app,
       staging: staging.path,
-      log: p.join(updatesDirectory, 'install.log'),
+      log: log,
     );
     return _LaunchedUpdate(() async {
       await script.writeAsString(text, flush: true);

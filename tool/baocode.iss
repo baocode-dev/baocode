@@ -49,8 +49,14 @@ WizardStyle=modern
 ; The app is 64-bit only (flutter build windows is x64 here).
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; Installing under Program Files needs elevation; per-user is offered instead
-; on a machine where the user cannot elevate.
+; Per user by default ({autopf} is then %LOCALAPPDATA%\Programs): neither
+; the install nor the app's updates ask for elevation, which a machine may
+; not grant (no admin; UAC set to elevate signed programs only, and Setup is
+; not signed) or show behind other windows. For all users (Program Files,
+; elevated) is the dialog's other choice; an update keeps the install mode
+; there is (UsePreviousPrivileges, and lib/update/installer_io.dart passes
+; it).
+PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 DisableProgramGroupPage=yes
 ; A running BaoCode is asked to close (it quits on WM_ENDSESSION, see

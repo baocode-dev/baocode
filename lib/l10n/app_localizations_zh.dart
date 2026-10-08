@@ -5694,6 +5694,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get updateOpenDownloadPage => '打开下载页';
 
   @override
+  String updateUnfinished(String version, String current) {
+    return 'BaoCode $version 没有装上，当前仍是 $current。可以在“设置 → 更新”里重试，或者从 baocode.dev 下载安装。';
+  }
+
+  @override
+  String get updateShowLog => '查看安装日志';
+
+  @override
   String get updateReleaseNotes => '更新日志';
 
   @override

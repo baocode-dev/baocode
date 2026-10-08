@@ -269,6 +269,7 @@ UpdateController? _startUpdates(SettingsFiles files) {
       await ServicesBinding.instance.exitApplication(AppExitType.cancelable);
     },
     openUrl: (url) => openExternal('$url'),
+    openFile: openExternal,
   );
 }
 

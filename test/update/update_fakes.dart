@@ -72,6 +72,9 @@ class FakeInstaller implements UpdateInstaller {
   int launches = 0;
 
   @override
+  String? log;
+
+  @override
   Future<PreparedUpdate> prepare(String file, UpdateRelease release) async {
     prepared.add(file);
     if (prepareError case final error?) throw error;

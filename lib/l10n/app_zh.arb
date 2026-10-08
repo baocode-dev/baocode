@@ -1665,6 +1665,8 @@
   "updateUnsupported": "此版本的 BaoCode 不支持自动更新。",
   "updateManual": "BaoCode 无法在当前位置自动更新（{reason}），请从 baocode.dev 下载新版本。",
   "updateOpenDownloadPage": "打开下载页",
+  "updateUnfinished": "BaoCode {version} 没有装上，当前仍是 {current}。可以在“设置 → 更新”里重试，或者从 baocode.dev 下载安装。",
+  "updateShowLog": "查看安装日志",
   "updateReleaseNotes": "更新日志",
   "updateReleaseNotesFor": "{version} 更新内容",
   "updateMode": "更新方式",

@@ -4241,6 +4241,18 @@
     }
   },
   "updateOpenDownloadPage": "Open Download Page",
+  "updateUnfinished": "BaoCode {version} wasn't installed: this is still {current}. Try again from Settings > Updates, or download it from baocode.dev.",
+  "@updateUnfinished": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "current": {
+        "type": "String"
+      }
+    }
+  },
+  "updateShowLog": "Show Install Log",
   "updateReleaseNotes": "Release Notes",
   "updateReleaseNotesFor": "What's New in {version}",
   "@updateReleaseNotesFor": {

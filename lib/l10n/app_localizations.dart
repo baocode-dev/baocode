@@ -10095,6 +10095,18 @@ abstract class AppLocalizations {
   /// **'Open Download Page'**
   String get updateOpenDownloadPage;
 
+  /// No description provided for @updateUnfinished.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode {version} wasn\'t installed: this is still {current}. Try again from Settings > Updates, or download it from baocode.dev.'**
+  String updateUnfinished(String version, String current);
+
+  /// No description provided for @updateShowLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Install Log'**
+  String get updateShowLog;
+
   /// No description provided for @updateReleaseNotes.
   ///
   /// In en, this message translates to:

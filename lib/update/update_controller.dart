@@ -16,6 +16,7 @@ class UpdateController {
     required this.service,
     required this.quit,
     required this.openUrl,
+    this.openFile,
   });
 
   final UpdateService service;
@@ -27,6 +28,9 @@ class UpdateController {
 
   /// Opens a link in the browser: the download page, the changelog.
   final Future<void> Function(Uri url) openUrl;
+
+  /// Opens a file in the app the system opens it with: the install's log.
+  final Future<void> Function(String path)? openFile;
 
   /// [version]'s notes on the site's changelog (tool/build_changelog.dart
   /// makes it), the Chinese page for [languageCode] `zh`.
@@ -165,13 +169,47 @@ class UpdateController {
     }
   }
 
-  /// Tells [notifications] of what the service finds by itself, and of an
-  /// install that would not start as the app quit, until the returned
-  /// function is called. The main window's.
+  /// Tells [notifications] that the install started as the app last quit
+  /// did not get [version] in: how to try again, or update by hand.
+  IdeNotification showUnfinished(
+    IdeNotifications notifications,
+    AppLocalizations l10n,
+    AppVersion version,
+  ) {
+    final log = service.installer.log;
+    final openFile = this.openFile;
+    return notifications.notify(
+      IdeSeverity.warning,
+      l10n.updateUnfinished(version.marketing, service.current.marketing),
+      sticky: true,
+      primary: [
+        IdeNotificationAction(
+          l10n.updateOpenDownloadPage,
+          () => unawaited(openUrl(ManualUpdateRequired.downloadPage)),
+        ),
+        if (log != null && openFile != null)
+          IdeNotificationAction(
+            l10n.updateShowLog,
+            () => unawaited(openFile(log)),
+          ),
+      ],
+    );
+  }
+
+  /// Tells [notifications] of what the service finds by itself, of an
+  /// install that would not start as the app quit, and of one that did
+  /// not finish as it last quit, until the returned function is called.
+  /// The main window's.
   VoidCallback listen(
     IdeNotifications notifications,
     AppLocalizations Function() l10n,
   ) {
+    // Once the window that listens is built (its l10n is not there before).
+    final unfinished = Timer(Duration.zero, () {
+      if (service.takeUnfinishedInstall() case final version?) {
+        showUnfinished(notifications, l10n(), version);
+      }
+    });
     final offers = service.offers.listen(
       (offer) => showOffer(notifications, l10n(), offer),
     );
@@ -183,6 +221,7 @@ class UpdateController {
       ),
     );
     return () {
+      unfinished.cancel();
       unawaited(offers.cancel());
       unawaited(failures.cancel());
     };

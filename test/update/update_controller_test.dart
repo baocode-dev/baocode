@@ -15,24 +15,32 @@ void main() {
   late UpdateService service;
   late IdeNotifications notifications;
   late List<Uri> opened;
+  late List<String> files;
   late int quits;
   late UpdateController controller;
 
-  void make({String manifest = '', UpdateMode mode = UpdateMode.automatic}) {
+  void make({
+    String manifest = '',
+    UpdateMode mode = UpdateMode.automatic,
+    UpdateStore? store,
+  }) {
     backend = FakeBackend(manifest);
     installer = FakeInstaller();
     service = serviceOf(
       backend,
       installer: installer,
       mode: FakeModeSetting(mode),
+      store: store,
     );
     notifications = IdeNotifications();
     opened = [];
+    files = [];
     quits = 0;
     controller = UpdateController(
       service: service,
       quit: () async => quits++,
       openUrl: (url) async => opened.add(url),
+      openFile: (path) async => files.add(path),
     );
   }
 
@@ -174,6 +182,37 @@ void main() {
       stop();
       service.dispose();
       // Their toasts' timers.
+      notifications.dispose();
+      make();
+    });
+
+    testWidgets('an install that did not finish is told at the next launch', (
+      tester,
+    ) async {
+      make(
+        mode: UpdateMode.manual,
+        store: MemoryUpdateStore()..installingVersion = '1.2.0',
+      );
+      installer.log = '/updates/install.log';
+      service.start();
+      final stop = controller.listen(notifications, () => l10n);
+      expect(notifications.notifications, isEmpty, reason: 'once built');
+      await tester.pump(Duration.zero);
+      final note = notifications.notifications.single;
+      expect(note.severity, IdeSeverity.warning);
+      expect(note.message, l10n.updateUnfinished('1.2.0', '1.0.0'));
+      expect(labels(note), [l10n.updateOpenDownloadPage, l10n.updateShowLog]);
+      note.primary.first.run();
+      expect(opened, [ManualUpdateRequired.downloadPage]);
+      note.primary.last.run();
+      expect(files, ['/updates/install.log']);
+
+      // Told once: not by the next window that listens.
+      stop();
+      final again = controller.listen(notifications, () => l10n);
+      await tester.pump(Duration.zero);
+      expect(notifications.notifications, hasLength(1));
+      again();
       notifications.dispose();
       make();
     });

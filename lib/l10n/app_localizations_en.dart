@@ -6068,6 +6068,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateOpenDownloadPage => 'Open Download Page';
 
   @override
+  String updateUnfinished(String version, String current) {
+    return 'BaoCode $version wasn\'t installed: this is still $current. Try again from Settings > Updates, or download it from baocode.dev.';
+  }
+
+  @override
+  String get updateShowLog => 'Show Install Log';
+
+  @override
   String get updateReleaseNotes => 'Release Notes';
 
   @override
