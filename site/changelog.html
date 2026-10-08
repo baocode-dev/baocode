@@ -29,6 +29,34 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.0.1">
+    <h2 class="plain"><a href="#v1.0.1">1.0.1</a></h2>
+    <p>New</p>
+    <ul>
+    <li>A side panel beside the chat: browse the project’s files, review, stage and commit Git changes (with a commit message Claude can draft), and open terminals and the commands an agent runs in the background</li>
+    <li>See the files Claude changed in the side panel, and edit and save them there</li>
+    <li>Workspaces: put several folders together and let an agent work across them all; Git repositories nested in them are found too</li>
+    <li>Refer to other conversations with @ in the input, and copy a session’s ID from an agent’s menu in the sidebar</li>
+    <li>SSH remote projects on macOS hosts</li>
+    <li>Mermaid diagrams in chat and Markdown files drawn as diagrams, offline, and zoomable</li>
+    <li>The agent’s plan shown as a card, and a setting for the width of the chat</li>
+    <li>Copy, cut and paste files in the explorer</li>
+    </ul>
+    <p>Improved</p>
+    <ul>
+    <li>Claude Code’s first-run onboarding is skipped for you, and you’re told when Claude Code can’t be found</li>
+    <li>A file opened again is colored at once, without waiting to be highlighted anew</li>
+    <li>In a narrow window, the sidebar and the side panel give way to whichever was opened last</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>With themes such as Dark 2026 and Dark Modern, the program, strings and options of a command in the chat were invisible</li>
+    <li>With light themes, commands and their output in the chat were too faint; they now keep the terminal’s contrast</li>
+    <li>A project icon in cyan or magenta showed no color with some themes</li>
+    <li>Moving the data directory names the files another program holds open, instead of only reporting that copying failed</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.0.0">
     <h2 class="plain"><a href="#v1.0.0">1.0.0</a></h2>
     <p>The first release of BaoCode: a desktop app for Claude Code, with a fast IDE built in. For macOS (Apple silicon and Intel) and Windows.</p>
