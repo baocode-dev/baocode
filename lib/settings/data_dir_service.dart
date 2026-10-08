@@ -61,6 +61,50 @@ String localizedDataDirectoryProblem(
   DataDirectoryProblem.invalidPointer => error ?? '',
 };
 
+/// Whether [error] is a file in use for now, which may not be a moment
+/// later. On Windows ([windows]; this platform when null): open in a
+/// program that shares it with no one (a language server, git, a virus
+/// scanner, the search indexer), a part of it locked, or removed but still
+/// open (its folder then not empty yet). Elsewhere: busy.
+bool isFileInUse(FileSystemException error, {bool? windows}) {
+  final code = error.osError?.errorCode;
+  if (code == null) return false;
+  return (windows ?? Platform.isWindows)
+      // ERROR_ACCESS_DENIED, _SHARING_VIOLATION, _LOCK_VIOLATION,
+      // _DIR_NOT_EMPTY, _USER_MAPPED_FILE.
+      ? const {5, 32, 33, 145, 1224}.contains(code)
+      // EBUSY, ETXTBSY.
+      : const {16, 26}.contains(code);
+}
+
+/// How long [retryWhileInUse] waits before each try again: some three
+/// seconds in all.
+const fileInUseDelays = [
+  Duration(milliseconds: 50),
+  Duration(milliseconds: 100),
+  Duration(milliseconds: 200),
+  Duration(milliseconds: 400),
+  Duration(milliseconds: 800),
+  Duration(milliseconds: 1600),
+];
+
+/// Runs [action], and again after each of [delays] while it fails on a
+/// file [inUse].
+Future<T> retryWhileInUse<T>(
+  Future<T> Function() action, {
+  List<Duration> delays = fileInUseDelays,
+  bool Function(FileSystemException error) inUse = isFileInUse,
+}) async {
+  for (var attempt = 0; ; attempt++) {
+    try {
+      return await action();
+    } on FileSystemException catch (error) {
+      if (attempt >= delays.length || !inUse(error)) rethrow;
+      await Future<void>.delayed(delays[attempt]);
+    }
+  }
+}
+
 /// Moving the data directory: checking a folder, copying the app's data
 /// there (or using what is there), and pointing the next run at it through
 /// `~/.baocode/config-dir.json`, written last. The run that made the change

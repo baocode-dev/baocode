@@ -148,7 +148,11 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
     final highlight = _highlight;
     _highlight = null;
     highlight?.removeListener(_highlighted);
-    if (old.highlights == null) highlight?.dispose();
+    if (old.highlights == null) {
+      highlight?.dispose();
+    } else {
+      highlight?.clearViewport();
+    }
   }
 
   void _show(TextMateDocument? highlight) {

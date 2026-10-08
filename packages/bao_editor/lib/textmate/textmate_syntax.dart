@@ -711,6 +711,15 @@ class TextMateDocument extends ChangeNotifier {
     });
   }
 
+  /// No view shows it now, as a detached view's visible ranges go
+  /// (`AttachedViews`): a viewport not sent yet is dropped. The next view
+  /// sets its own.
+  void clearViewport() {
+    _viewportTimer?.cancel();
+    _viewportTimer = null;
+    _viewport = null;
+  }
+
   /// `TextMateWorkerTokenizerController.setTokensAndStates`: tokens of an
   /// older version are moved past the changes made since, and dropped on
   /// lines those changes touched (the worker sends those again).
