@@ -13,6 +13,7 @@ import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/lsp_ui/problems_panel.dart';
 import 'package:baocode/ide/terminal/terminal_instance.dart';
 import 'package:baocode/main.dart';
+import 'package:baocode/settings/settings_dialog.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/app_theme.dart';
@@ -21,7 +22,9 @@ import 'package:baocode/workspace/editor_launcher.dart';
 import 'package:baocode/workspace/open_in_editor_button.dart';
 import 'package:baocode/workspace/pin_window_button.dart';
 import 'package:baocode/workspace/window_header/about_dialog.dart';
+import 'package:baocode/workspace/title_bar_double_click.dart';
 import 'package:baocode/workspace/window_header/header_menu_bar.dart';
+import 'package:baocode/workspace/window_header/window_buttons.dart';
 import 'package:baocode/workspace/window_header/window_header.dart';
 import 'package:baocode/workspace/workspace.dart';
 
@@ -196,8 +199,8 @@ void main() {
     expect(
       report()['controls'],
       containsAll([
-        encoded(controlsOf(collapse)),
-        encoded(controlsOf(panelToggle)),
+        equals(encoded(controlsOf(collapse))),
+        equals(encoded(controlsOf(panelToggle))),
       ]),
     );
 
@@ -213,7 +216,7 @@ void main() {
       Codicons.layoutSidebarLeftOff,
     );
     expect(tester.getRect(expand).left, lessThan(tester.getRect(title).left));
-    expect(report()['controls'], contains(encoded(controlsOf(expand))));
+    expect(report()['controls'], contains(equals(encoded(controlsOf(expand)))));
 
     // Narrow, the same: the title in the chat's own title bar.
     tester.view.physicalSize = const Size(520, 760);
@@ -228,14 +231,29 @@ void main() {
   testWidgets('the settings leave the window\'s caption above them', (
     tester,
   ) async {
-    final (workspace, _) = await pumpWindowsApp(tester);
+    await pumpWindowsApp(tester);
     await tester.pump();
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
-    await tester.sendKeyEvent(LogicalKeyboardKey.comma);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(Sidebar),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is SidebarIconButton &&
+              widget.icon == Codicons.settingsGear,
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
+    final page = find
+        .descendant(
+          of: find.byType(SettingsDialog),
+          matching: find.byType(Material),
+        )
+        .first;
+    expect(tester.getRect(page).top, AppMetrics.titleBarHeight);
+    // The window's buttons stay in sight.
     expect(
-      tester.getRect(find.byType(SettingsDialog)).top,
+      tester.getRect(find.byType(WindowButtons)).bottom,
       AppMetrics.titleBarHeight,
     );
   }, variant: _windows);
@@ -246,17 +264,16 @@ void main() {
     tester,
   ) async {
     await pumpWindowsApp(tester);
-    final header = find.byType(WindowHeader);
-    final sidebarToggle = find.descendant(
-      of: header,
-      matching: find.byWidgetPredicate(
-        (widget) =>
-            widget is SidebarIconButton &&
-            widget.command == 'workbench.action.toggleSidebarVisibility',
-      ),
-    );
+    // The sidebar's own, or the chat's while it is hidden.
+    final sidebarToggle = find
+        .byWidgetPredicate(
+          (widget) =>
+              widget is SidebarIconButton &&
+              widget.command == 'workbench.action.toggleSidebarVisibility',
+        )
+        .hitTestable();
     final panelToggle = find.descendant(
-      of: header,
+      of: find.byType(ChatScreen),
       matching: find.byType(SidePanelToggle),
     );
     final sash = find.byKey(const ValueKey('side-panel-sash'));
@@ -436,19 +453,6 @@ void main() {
     expect(find.text('TERMINAL'), findsOneWidget);
     expect(ptys, hasLength(1));
     expect(ptys.single.launch!.executable, '/bin/zsh');
-  }, variant: _windows);
-
-  testWidgets('View → Context Panel opens the chat\'s, wherever the focus '
-      'is', (tester) async {
-    await pumpWindowsApp(tester);
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pump();
-    expect(find.byType(ContextUsagePanel), findsNothing);
-    await tester.tap(find.text('View'));
-    await tester.pump();
-    await tester.tap(find.text('Context Panel'));
-    await tester.pump();
-    expect(find.byType(ContextUsagePanel), findsOneWidget);
   }, variant: _windows);
 
   testWidgets('code falls back to a monospaced font Windows has', (

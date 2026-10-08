@@ -2384,9 +2384,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       pinned: _pinned,
       onTogglePin: _setPinned,
       onOpenSettings: () => unawaited(openSettings()),
+      // The IDE's chat's.
       onToggleContextPanel: () {
-        if (_workspace.current case final thread?) {
-          ChatScreen.toggleContextPanel(_chatKey(thread));
+        if (_ideFolder case final folder when folder != _noFolder) {
+          if (_workspace.ideChat(folder) case final thread?) {
+            ChatScreen.toggleContextPanel(_chatKey(thread));
+          }
         }
       },
       onFileCommand: _runMenuCommand,
