@@ -23,6 +23,7 @@ import 'ide/terminal/terminal_instance.dart';
 import 'icons/emoji_sheet.dart';
 import 'icons/icon_library.dart';
 import 'icons/icon_storage.dart';
+import 'kernel/claude_code/claude_onboarding.dart';
 import 'kernel/claude_code/process_transport.dart';
 import 'kernel/commit_attribution.dart';
 import 'keybindings/keybindings_sync.dart';
@@ -109,6 +110,7 @@ Future<void> main(List<String> arguments) async {
       () => files.settings[ChatWidth.settingKey],
     );
   }
+  await prepareClaudeOnboarding();
   final locale = AppLocale(storage: files?.argv);
   final workspace = Workspace(
     preferences: PreferenceStore.file(),

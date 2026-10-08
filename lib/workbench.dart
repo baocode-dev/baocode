@@ -2539,7 +2539,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     // Not in a narrow window, where the conversation has no room to spare
     // (the title bar's toggle shows the panel).
     rail: switch (_agentThread ?? _workspace.current) {
-      final thread? when !_narrow => _sidePanelRail(thread),
+      final thread? when !_narrow && !thread.untouched => _sidePanelRail(
+        thread,
+      ),
       _ => null,
     },
     builder: (context) => switch (_agentThread ?? _workspace.current) {

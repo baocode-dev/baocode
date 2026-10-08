@@ -497,6 +497,68 @@ void main() {
     );
   });
 
+  testWidgets('the terminal rail badge counts running background commands', (
+    tester,
+  ) async {
+    final (:session, :cli) = await pumpScripted(tester);
+    await tester.pumpWidget(
+      _app(
+        Align(
+          alignment: Alignment.topLeft,
+          child: SidePanelRail(onSelect: (_) {}, session: session),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    for (final id in ['one', 'two']) {
+      cli.push({
+        'type': 'system',
+        'subtype': 'task_started',
+        'task_id': id,
+        'task_type': 'local_bash',
+        'is_backgrounded': true,
+        'description': 'command $id',
+        'output_file': '/tmp/$id.output',
+      });
+    }
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    final badge = ValueKey(('rail', SidePanelSection.terminal));
+    expect(find.byKey(badge), findsOneWidget);
+    expect(
+      find.descendant(of: find.byKey(badge), matching: find.text('2')),
+      findsOneWidget,
+    );
+
+    cli.push({
+      'type': 'system',
+      'subtype': 'task_notification',
+      'task_id': 'one',
+      'status': 'completed',
+      'output_file': '/tmp/one.output',
+      'summary': 'done',
+    });
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(
+      find.descendant(of: find.byKey(badge), matching: find.text('1')),
+      findsOneWidget,
+    );
+
+    cli.push({
+      'type': 'system',
+      'subtype': 'task_notification',
+      'task_id': 'two',
+      'status': 'completed',
+      'output_file': '/tmp/two.output',
+      'summary': 'done',
+    });
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(badge), findsNothing);
+  });
+
   testWidgets('two levels keep the selected file when switching sections', (
     tester,
   ) async {
@@ -1593,7 +1655,14 @@ void main() {
     'top right: the conversation, its title bar and scrollbar, reach the '
     'edge; its column keeps clear of the rail',
     (tester) async {
-      await pumpLoaded(tester);
+      final workspace = await pumpLoaded(tester);
+      await tester.pumpAndSettle();
+      expect(find.byType(SidePanelRail), findsNothing);
+
+      final existing = workspace.threads.firstWhere(
+        (thread) => thread.record != null,
+      );
+      workspace.select(existing);
       await tester.pumpAndSettle();
       final chat = tester.getRect(find.byType(ChatScreen));
       final rail = tester.getRect(find.byType(SidePanelRail));
