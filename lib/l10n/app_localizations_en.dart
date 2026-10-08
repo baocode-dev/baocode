@@ -1383,9 +1383,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidePanelTerminal => 'Terminal';
 
   @override
-  String get sidePanelNoFiles => 'No open files';
-
-  @override
   String get sidePanelNoTerminals => 'No background commands';
 
   @override
@@ -1414,7 +1411,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sidePanelNoChangesDetail =>
-      'Files the agent changes show here. Click a file in the conversation to preview it.';
+      'Changes in the project\'s Git working tree and index show here.';
 
   @override
   String get sidePanelOpenFile => 'Open in side panel';
@@ -1443,6 +1440,38 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sidePanelDeleted => 'The agent deleted this file.';
+
+  @override
+  String get sidePanelTerminals => 'Terminals';
+
+  @override
+  String get sidePanelRevealInFiles => 'Reveal in Files';
+
+  @override
+  String get sidePanelAddToChat => 'Add to Chat';
+
+  @override
+  String get sidePanelBackgroundTasks => 'Background Tasks';
+
+  @override
+  String get sidePanelSelectFile => 'Select a file to preview it';
+
+  @override
+  String get sidePanelSelectChange =>
+      'Select a changed file to see its changes';
+
+  @override
+  String get sidePanelSelectTerminal =>
+      'Select a background task to see its output';
+
+  @override
+  String get sidePanelNoFolder => 'This conversation has no project folder';
+
+  @override
+  String get sidePanelShowList => 'Show List';
+
+  @override
+  String get sidePanelHideList => 'Hide List';
 
   @override
   String get windowMinimize => 'Minimize';

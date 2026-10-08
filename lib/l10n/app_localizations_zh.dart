@@ -1346,9 +1346,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidePanelTerminal => '终端';
 
   @override
-  String get sidePanelNoFiles => '没有打开的文件';
-
-  @override
   String get sidePanelNoTerminals => '没有后台命令';
 
   @override
@@ -1376,7 +1373,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidePanelNoChanges => '还没有变更';
 
   @override
-  String get sidePanelNoChangesDetail => '智能体修改的文件会显示在这里。点击对话中的文件即可预览。';
+  String get sidePanelNoChangesDetail => '项目 Git 工作区和暂存区的变更会显示在这里。';
 
   @override
   String get sidePanelOpenFile => '在侧栏中打开';
@@ -1404,6 +1401,36 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sidePanelDeleted => '智能体删除了这个文件。';
+
+  @override
+  String get sidePanelTerminals => '终端';
+
+  @override
+  String get sidePanelRevealInFiles => '在文件中显示';
+
+  @override
+  String get sidePanelAddToChat => '添加到对话';
+
+  @override
+  String get sidePanelBackgroundTasks => '后台任务';
+
+  @override
+  String get sidePanelSelectFile => '选择一个文件以预览';
+
+  @override
+  String get sidePanelSelectChange => '选择一个变更的文件以查看差异';
+
+  @override
+  String get sidePanelSelectTerminal => '选择一个后台任务以查看输出';
+
+  @override
+  String get sidePanelNoFolder => '这个对话没有项目文件夹';
+
+  @override
+  String get sidePanelShowList => '显示列表';
+
+  @override
+  String get sidePanelHideList => '隐藏列表';
 
   @override
   String get windowMinimize => '最小化';

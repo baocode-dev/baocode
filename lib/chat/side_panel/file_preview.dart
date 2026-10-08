@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:path/path.dart' as p;
 
 import '../../ide/file_service.dart';
@@ -17,6 +18,7 @@ import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../workspace/editor_launcher.dart' show openExternal;
 import '../chat_models.dart' show DiffLineType;
+import '../composer/composer_files.dart' show CopiedCode;
 import '../widgets/code_citation.dart' show CodeColorizer;
 import 'file_link.dart';
 import 'file_open.dart';
@@ -129,6 +131,7 @@ class _FilePreviewState extends State<FilePreview> {
     if (old.path != _request.path ||
         old.diff != _request.diff ||
         old.original != _request.original ||
+        old.modified != _request.modified ||
         oldWidget.files != widget.files) {
       _start();
     }
@@ -155,7 +158,8 @@ class _FilePreviewState extends State<FilePreview> {
     String? text;
     Object? error;
     try {
-      text = await widget.files.read(request.path);
+      text =
+          await (request.modified?.call() ?? widget.files.read(request.path));
     } catch (e) {
       error = e;
     }
@@ -334,6 +338,12 @@ class _FilePreviewState extends State<FilePreview> {
           reveal: widget.reveal,
           target: _diffTarget(rows),
           width: _width(rows.map((row) => row.text)),
+          // Lines of the file as it is now, none taken out.
+          onCopy: (first, last, text) {
+            final copied = rows.sublist(first, last + 1);
+            if (copied.any((row) => row.modified == null)) return;
+            _copied(copied.first.modified!, copied.last.modified!, text);
+          },
           row: (context, i) => _LineRow(
             numbers: (rows[i].original, rows[i].modified),
             type: rows[i].type,
@@ -363,6 +373,7 @@ class _FilePreviewState extends State<FilePreview> {
           reveal: widget.reveal,
           target: range == null ? null : range.start - 1,
           width: _width(lines),
+          onCopy: (first, last, text) => _copied(first + 1, last + 1, text),
           row: (context, i) => _LineRow(
             numbers: (null, i + 1),
             type: DiffLineType.context,
@@ -374,6 +385,16 @@ class _FilePreviewState extends State<FilePreview> {
         );
     }
   }
+
+  /// Lines [start] to [end] copied, as [text]: pasted into the chat's
+  /// composer, they go in as a reference to those lines of the file, as
+  /// the IDE's editor's do.
+  void _copied(int start, int end, String text) => CopiedCode.record(
+    path: _request.path,
+    start: start,
+    end: end,
+    code: text,
+  );
 
   /// A link in a markdown file: to a file beside it.
   void _openLinked(String path, String? fragment) {
@@ -387,7 +408,8 @@ class _FilePreviewState extends State<FilePreview> {
   int? _diffTarget(List<FileDiffRow> rows) {
     if (_request.range?.start case final line?) {
       final at = rows.indexWhere(
-        (row) => row.type != DiffLineType.context && row.modified == line ||
+        (row) =>
+            row.type != DiffLineType.context && row.modified == line ||
             row.type == DiffLineType.removed && (row.original ?? 0) >= line,
       );
       if (at >= 0) return at;
@@ -412,6 +434,9 @@ class _FilePreviewState extends State<FilePreview> {
 /// The lines, built as they come into view, scrolled to [target] (a
 /// row, from 0) first and as [reveal] goes up; sideways, as wide as
 /// [width] needs.
+///
+/// Copied, the lines selected go one to a line, and [onCopy] hears which
+/// rows (from 0, the first and the last) they are.
 class _Lines extends StatefulWidget {
   const _Lines({
     super.key,
@@ -420,6 +445,7 @@ class _Lines extends StatefulWidget {
     required this.width,
     this.target,
     this.reveal = 0,
+    this.onCopy,
   });
 
   final int count;
@@ -427,6 +453,7 @@ class _Lines extends StatefulWidget {
   final double width;
   final int? target;
   final int reveal;
+  final void Function(int first, int last, String text)? onCopy;
 
   @override
   State<_Lines> createState() => _LinesState();
@@ -435,6 +462,9 @@ class _Lines extends StatefulWidget {
 class _LinesState extends State<_Lines> {
   final _scroll = ScrollController();
   final _sideways = ScrollController();
+  late final _selection = _LinesSelection(
+    (first, last, text) => widget.onCopy?.call(first, last, text),
+  );
 
   @override
   void initState() {
@@ -467,6 +497,7 @@ class _LinesState extends State<_Lines> {
   void dispose() {
     _scroll.dispose();
     _sideways.dispose();
+    _selection.dispose();
     super.dispose();
   }
 
@@ -477,24 +508,31 @@ class _LinesState extends State<_Lines> {
         // Room for the line numbers and the markers besides the text.
         final width = math.max(constraints.maxWidth, widget.width + 120);
         return SelectionArea(
-          child: Scrollbar(
-            controller: _sideways,
-            notificationPredicate: (notification) =>
-                notification.metrics.axis == Axis.horizontal,
-            child: SingleChildScrollView(
+          child: SelectionContainer(
+            delegate: _selection,
+            child: Scrollbar(
               controller: _sideways,
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: width,
-                height: constraints.maxHeight,
-                child: Scrollbar(
-                  controller: _scroll,
-                  child: ListView.builder(
+              notificationPredicate: (notification) =>
+                  notification.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
+                controller: _sideways,
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: width,
+                  height: constraints.maxHeight,
+                  child: Scrollbar(
                     controller: _scroll,
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    itemExtent: FilePreview.lineHeight,
-                    itemCount: widget.count,
-                    itemBuilder: widget.row,
+                    child: ListView.builder(
+                      controller: _scroll,
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      itemExtent: FilePreview.lineHeight,
+                      itemCount: widget.count,
+                      itemBuilder: (context, index) => _SelectableRow(
+                        index: index,
+                        lines: _selection,
+                        child: widget.row(context, index),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -503,6 +541,79 @@ class _LinesState extends State<_Lines> {
         );
       },
     );
+  }
+}
+
+/// The selection of [_Lines]: what is selected of each row, one to a line
+/// (each row's text is a selection of its own, which the list would run
+/// together), and which rows, told as it is copied.
+class _LinesSelection extends StaticSelectionContainerDelegate {
+  _LinesSelection(this.onCopy);
+
+  final void Function(int first, int last, String text) onCopy;
+
+  /// The rows' selected text, as each row gives it while it is asked for.
+  final List<(int, String)> _rows = [];
+
+  @override
+  SelectedContent? getSelectedContent() {
+    _rows.clear();
+    final content = super.getSelectedContent();
+    if (content == null || _rows.isEmpty) return content;
+    final rows = [..._rows]..sort((a, b) => a.$1.compareTo(b.$1));
+    _rows.clear();
+    final text = [for (final (_, text) in rows) text].join('\n');
+    onCopy(rows.first.$1, rows.last.$1, text);
+    return SelectedContent(plainText: text);
+  }
+}
+
+/// The row [index] of [_Lines], whose selected text it tells [lines].
+class _SelectableRow extends StatefulWidget {
+  const _SelectableRow({
+    required this.index,
+    required this.lines,
+    required this.child,
+  });
+
+  final int index;
+  final _LinesSelection lines;
+  final Widget child;
+
+  @override
+  State<_SelectableRow> createState() => _SelectableRowState();
+}
+
+class _SelectableRowState extends State<_SelectableRow> {
+  late final _selection = _RowSelection(widget);
+
+  @override
+  void didUpdateWidget(_SelectableRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _selection.row = widget;
+  }
+
+  @override
+  void dispose() {
+    _selection.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      SelectionContainer(delegate: _selection, child: widget.child);
+}
+
+class _RowSelection extends StaticSelectionContainerDelegate {
+  _RowSelection(this.row);
+
+  _SelectableRow row;
+
+  @override
+  SelectedContent? getSelectedContent() {
+    final content = super.getSelectedContent();
+    if (content != null) row.lines._rows.add((row.index, content.plainText));
+    return content;
   }
 }
 
@@ -591,10 +702,7 @@ class _LineRow extends StatelessWidget {
           ),
           Expanded(
             child: Text.rich(
-              TextSpan(
-                children: colors,
-                text: colors == null ? shown : null,
-              ),
+              TextSpan(children: colors, text: colors == null ? shown : null),
               maxLines: 1,
               softWrap: false,
               overflow: TextOverflow.clip,

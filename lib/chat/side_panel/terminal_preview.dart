@@ -11,16 +11,22 @@ import '../../theme/codicons.dart';
 import '../widgets/terminal_output.dart';
 import '../chat_models.dart' show CommandStatus;
 
-/// A background command's output, read on its host only while visible.
+/// A background command as a terminal shows it: what it is for and how it
+/// is doing above, the command, then its output, read on its host only
+/// while visible.
 class TerminalPreview extends StatefulWidget {
   const TerminalPreview({
     super.key,
     required this.task,
+    this.command,
     required this.files,
     required this.onStop,
   });
 
   final KernelTask task;
+
+  /// The command line it runs, where its tool call is known.
+  final String? command;
   final IdeFileService files;
   final VoidCallback onStop;
 
@@ -139,6 +145,11 @@ class _TerminalPreviewState extends State<TerminalPreview> {
       CommandStatus.failed => l10n.sidePanelTaskFailed,
     };
     final output = _text.isNotEmpty ? _text : task.summary ?? '';
+    final mono = TextStyle(
+      fontFamily: AppFonts.mono,
+      fontSize: 12,
+      height: 1.5,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -150,8 +161,21 @@ class _TerminalPreviewState extends State<TerminalPreview> {
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  status,
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      if (task.description.isNotEmpty) ...[
+                        TextSpan(
+                          text: task.description,
+                          style: TextStyle(color: AppColors.text),
+                        ),
+                        const TextSpan(text: '  ·  '),
+                      ],
+                      TextSpan(text: status),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               ),
@@ -181,33 +205,51 @@ class _TerminalPreviewState extends State<TerminalPreview> {
             ),
           ),
         Expanded(
-          child: output.isEmpty
-              ? Center(
-                  child: Text(
-                    _running
-                        ? l10n.sidePanelWaitingOutput
-                        : l10n.sidePanelOutputUnavailable,
-                    style: TextStyle(fontSize: 12, color: AppColors.textFaint),
-                  ),
-                )
-              : SelectionArea(
-                  child: Scrollbar(
-                    controller: _scroll,
-                    child: SingleChildScrollView(
-                      controller: _scroll,
-                      padding: const EdgeInsets.all(12),
-                      child: Text.rich(
-                        terminalOutput(output).span,
-                        style: TextStyle(
-                          fontFamily: AppFonts.mono,
-                          fontSize: 12,
-                          height: 1.5,
-                          color: AppColors.textMuted,
+          child: SelectionArea(
+            child: Scrollbar(
+              controller: _scroll,
+              child: SingleChildScrollView(
+                controller: _scroll,
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (widget.command case final command?)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: r'$ ',
+                                style: TextStyle(color: AppColors.textFaint),
+                              ),
+                              TextSpan(text: command),
+                            ],
+                          ),
+                          style: mono.copyWith(color: AppColors.text),
                         ),
                       ),
-                    ),
-                  ),
+                    if (output.isEmpty)
+                      Text(
+                        _running
+                            ? l10n.sidePanelWaitingOutput
+                            : l10n.sidePanelOutputUnavailable,
+                        style: mono.copyWith(
+                          color: AppColors.textFaint,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      )
+                    else
+                      Text.rich(
+                        terminalOutput(output).span,
+                        style: mono.copyWith(color: AppColors.textMuted),
+                      ),
+                  ],
                 ),
+              ),
+            ),
+          ),
         ),
       ],
     );

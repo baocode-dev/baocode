@@ -184,10 +184,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   double _windowWidth = double.infinity;
 
   /// At most 20 short of the window's width, so the border (and its drag
-  /// strip) stays in it.
+  /// strip) stays in it; with the side panel beside it, short of what the
+  /// conversations and the panel take at their least.
   double get _maxWidth => math.min(
     Workbench.maxSidebarWidth,
-    _windowWidth - Workbench.sidebarWindowMargin,
+    _windowWidth -
+        (_bothSides ? _sidePanelRoom : Workbench.sidebarWindowMargin),
   );
 
   double get _shownWidth => _width.value.clamp(
@@ -199,8 +201,50 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// Pointer and sidebar width when the resize drag began.
   ({double x, double width})? _dragOrigin;
 
-  /// Shown beside the chat (wide window).
+  /// Shown beside the chat (wide window), as asked; see [_sidebarDocked].
   bool _docked = true;
+
+  /// The least the conversations and the side panel take at the sidebar's
+  /// right: its border, theirs and their minimums.
+  static const _sidePanelRoom =
+      _handleWidth +
+      AgentSidePanelArea.minChat +
+      AgentSidePanelArea.sashWidth +
+      AgentSidePanel.minWidth;
+
+  /// Whether the side panel was asked for after the docked sidebar: where
+  /// the window has not the room for both, the one asked for last stays and
+  /// the other gives way, as the IDE's side bar and chat do (see
+  /// [IdeLayout]); the panel at first, as the IDE's chat. One that gave
+  /// way to the other asked for stays hidden until asked for again; one
+  /// that gave way to a narrow window is back as it widens.
+  bool _sidePanelLast = true;
+
+  /// [AgentSidePanel.asks] as last seen.
+  int _sidePanelAsks = 0;
+
+  /// The side panel shown for a conversation, beside the docked sidebar.
+  bool get _sidePanelWanted =>
+      _sidePanel.shown && (_agentThread ?? _workspace.current) != null;
+
+  /// Whether the window has the docked sidebar, at its least, beside the
+  /// conversations and the side panel, at theirs.
+  bool get _roomForSides =>
+      _windowWidth - _sidePanelRoom >= Workbench.minSidebarWidth;
+
+  /// Both asked for in a wide window too narrow for the two.
+  bool get _sidesClash =>
+      !_narrow && _docked && _sidePanelWanted && !_roomForSides;
+
+  /// Whether the sidebar is docked, not having given way to the side panel.
+  bool get _sidebarDocked => _docked && !(_sidesClash && _sidePanelLast);
+
+  /// Whether the side panel gave way to the docked sidebar.
+  bool get _sidePanelHidden => _sidesClash && !_sidePanelLast;
+
+  /// Whether the side panel and the docked sidebar both show.
+  bool get _bothSides =>
+      !_narrow && _docked && _sidePanelWanted && !_sidesClash;
 
   /// Shown over the chat (narrow window). A closed drawer is not built,
   /// once it has slid out.
@@ -314,11 +358,28 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   bool _sidePanelShown = false;
 
   /// The title bars' toggles follow it (not its width, as it is dragged).
+  /// Asked for where it had given way, or with no room for it and the
+  /// docked sidebar, it stays and the sidebar gives way (see
+  /// [_sidePanelLast]).
   void _sidePanelChanged() {
-    if (_sidePanel.shown == _sidePanelShown) return;
+    final asked = _sidePanel.asks != _sidePanelAsks;
+    if (_sidePanel.shown == _sidePanelShown && !asked) return;
+    if (asked) {
+      _sidePanelAsks = _sidePanel.asks;
+      // Showing already, the sidebar gives way only to a narrower window.
+      final shown = _sidePanelShown && !_sidePanelHidden;
+      _sidePanelLast = true;
+      if (!shown && _sidesClash) _docked = false;
+    }
     _sidePanelShown = _sidePanel.shown;
     if (mounted) setState(() {});
   }
+
+  /// Toggle Side Panel, as the title bars' toggles show it: shown where it
+  /// gave way, it is asked for again.
+  void _toggleSidePanel() => _sidePanelShown && !_sidePanelHidden
+      ? _sidePanel.hide()
+      : _sidePanel.show();
 
   /// An agent dragged from the sidebar onto the conversations.
   late final ChatDrag _drag = ChatDrag(onDrop: _drop, onStart: _closeDrawer);
@@ -394,6 +455,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     widget.settings?.files?.changes.addListener(_settingsFilesChanged);
     _settingsFilesChanged();
     _sidePanelShown = _sidePanel.shown;
+    _sidePanelAsks = _sidePanel.asks;
     _workspace.addListener(_restoreSidePanel);
     _restoreSidePanel();
     _workspace.addListener(_syncWorkspaceFolders);
@@ -519,6 +581,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _sidePanel
       ..removeListener(_sidePanelChanged)
       ..dispose();
+    for (final git in _sidePanelGits.values) {
+      git.dispose();
+    }
     _drag.dispose();
     _width.dispose();
     _lifecycle?.dispose();
@@ -1808,13 +1873,20 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     }
   }
 
+  /// Toggle Sidebar. Docked where it had given way to the side panel, or
+  /// with no room for the two, it stays and the panel gives way (see
+  /// [_sidePanelLast]).
   void _toggle() {
     setState(() {
       if (_narrow) {
         _drawerClosing = _drawerOpen;
         _drawerOpen = !_drawerOpen;
+      } else if (_sidebarDocked) {
+        _docked = false;
       } else {
-        _docked = !_docked;
+        _docked = true;
+        _sidePanelLast = false;
+        if (_sidesClash) _sidePanel.hide();
       }
     });
   }
@@ -1892,7 +1964,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       // conversation while narrow, beside it once wide. Its toggle is the
       // header's on Windows, else by the traffic lights while it is hidden.
       final chat = _withSidePanel(
-        _withTerminal(_buildChat(showToggle: narrow || !_docked, pane: thread)),
+        _withTerminal(
+          _buildChat(showToggle: narrow || !_sidebarDocked, pane: thread),
+        ),
       );
       return narrow ? _buildNarrow(body: chat) : _buildWide(body: chat);
     }
@@ -1981,7 +2055,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   Widget _buildWide({Widget? body}) {
     // Built once for the widths a drag goes through (see [_width]).
     final sidebar = _buildSidebar();
-    final panes = body ?? _buildPanes(showToggle: !_docked);
+    final panes = body ?? _buildPanes(showToggle: !_sidebarDocked);
     final row = ValueListenableBuilder(
       valueListenable: _width,
       builder: (context, _, _) => Row(
@@ -1990,7 +2064,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           AnimatedContainer(
             duration: _dragging ? Duration.zero : _duration,
             curve: Curves.easeOutCubic,
-            width: _docked ? _shownWidth : 0,
+            width: _sidebarDocked ? _shownWidth : 0,
             child: ClipRect(
               child: OverflowBox(
                 alignment: Alignment.centerRight,
@@ -2008,7 +2082,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_docked) _buildResizeHandle(),
+                  if (_sidebarDocked) _buildResizeHandle(),
                   Expanded(child: panes),
                 ],
               ),
@@ -2263,7 +2337,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       onCloseWindow: windows == null
           ? null
           : _windowCommands()[WindowCommandIds.closeWindow],
-      sidebarShown: _narrow ? _drawerOpen : _docked,
+      sidebarShown: _narrow ? _drawerOpen : _sidebarDocked,
       onToggleSidebar: _toggle,
       ideLayout: ide ? _ideSpace(_ideFolder).layout : null,
       pinned: _pinned,
@@ -2272,10 +2346,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       onToggleTerminal: ide || _terminals?.root == null
           ? null
           : _toggleTerminal,
-      sidePanelShown: _sidePanel.shown,
+      sidePanelShown: _sidePanel.shown && !_sidePanelHidden,
       onToggleSidePanel: ide || (agent ?? _workspace.current) == null
           ? null
-          : _sidePanel.toggle,
+          : _toggleSidePanel,
       onOpenFolder: _openFolder,
       onOpenSettings: () => unawaited(openSettings()),
       onToggleContextPanel: () {
@@ -2399,13 +2473,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   Map<String, VoidCallback> _sidePanelCommands() => {
-    ChatCommandIds.toggleSidePanel: _sidePanel.toggle,
+    ChatCommandIds.toggleSidePanel: _toggleSidePanel,
     for (final section in SidePanelSection.values)
       section.command: () => _showSidePanelSection(section),
   };
 
   Widget _withSidePanel(Widget child) => AgentSidePanelArea(
     panel: _sidePanel,
+    hidden: _sidePanelHidden,
     rail: (_agentThread ?? _workspace.current) == null
         ? null
         : SidePanelRail(onSelect: _showSidePanelSection),
@@ -2426,6 +2501,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       paths: paths,
       colorize: _colorizeCode,
       onOpenInIde: (request) => _openRequestInIde(thread, request),
+      git: _sidePanelGit(thread),
+      terminals: _terminals?.sidePanelTerminals(thread.project.path),
+      terminalSkipShell: chatTerminalSkipShell,
+      onOpenTerminalLink: _openTerminalLink,
     );
   }
 
@@ -2443,6 +2522,19 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   final Map<String, IdeFileService> _projectFileServices = {};
+
+  /// The repository whose changes the side panel lists for [thread]'s
+  /// project: its IDE's, once open, else one of the panel's own (on the
+  /// project's host); none without Git.
+  IdeGitRepository? _sidePanelGit(AgentThread thread) {
+    final location = thread.project.path;
+    if (_ideSpaces[location]?.git case final git?) return git;
+    final gitFor = widget.gitFor;
+    if (gitFor == null) return null;
+    return _sidePanelGits[location] ??= gitFor(location);
+  }
+
+  final Map<String, IdeGitRepository> _sidePanelGits = {};
   final Map<String, Future<bool> Function(String)> _projectFileChecks = {};
 
   /// Where the files [thread]'s conversation names open: the side panel,
@@ -2631,8 +2723,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       if (windowTools) ...[
         const SizedBox(width: 6),
         SidePanelToggle(
-          shown: _sidePanel.shown,
-          onTap: _sidePanel.toggle,
+          shown: _sidePanel.shown && !_sidePanelHidden,
+          onTap: _toggleSidePanel,
           size: 22,
         ),
       ],

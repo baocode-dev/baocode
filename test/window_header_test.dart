@@ -263,6 +263,82 @@ void main() {
     expect(icon(), Codicons.layoutSidebarLeftOff);
   }, variant: _windows);
 
+  testWidgets('where the window has not the room for the sidebar and the '
+      'side panel, the one asked for last stays: the other gives way to the '
+      'window until it widens, to the one asked for until asked again', (
+    tester,
+  ) async {
+    await pumpWindowsApp(tester);
+    final header = find.byType(WindowHeader);
+    final sidebarToggle = find.descendant(
+      of: header,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is SidebarIconButton &&
+            widget.command == 'workbench.action.toggleSidebarVisibility',
+      ),
+    );
+    final panelToggle = find.descendant(
+      of: header,
+      matching: find.byType(SidePanelToggle),
+    );
+    final sash = find.byKey(const ValueKey('side-panel-sash'));
+    Future<void> resize(double width) async {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> tap(Finder toggle) async {
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+    }
+
+    /// Whether the sidebar is docked and the panel shows, as the toggles
+    /// have them and as laid out.
+    (bool, bool) shown() {
+      final sidebar =
+          tester.widget<SidebarIconButton>(sidebarToggle).icon ==
+          Codicons.layoutSidebarLeft;
+      final panel = tester.widget<SidePanelToggle>(panelToggle).shown;
+      expect(sash.evaluate().isNotEmpty, panel);
+      // The conversation at the sidebar's right, or at the window's left.
+      expect(tester.getRect(find.byType(ChatScreen)).left > 100, sidebar);
+      return (sidebar, panel);
+    }
+
+    await tap(panelToggle);
+    expect(shown(), (true, true));
+
+    // The panel asked for last, the sidebar gives way to a narrow window,
+    // and is back as it widens.
+    await resize(800);
+    expect(shown(), (false, true));
+    await resize(1400);
+    expect(shown(), (true, true));
+
+    // Asked for, the sidebar stays and the panel closes, until asked again.
+    await resize(800);
+    await tap(sidebarToggle);
+    expect(shown(), (true, false));
+    await resize(1400);
+    expect(shown(), (true, false));
+
+    // As the panel, asked for again: the sidebar closes.
+    await resize(800);
+    await tap(panelToggle);
+    expect(shown(), (false, true));
+    await resize(1400);
+    expect(shown(), (false, true));
+
+    // The sidebar asked for last, the panel gives way to a narrow window.
+    await tap(sidebarToggle);
+    expect(shown(), (true, true));
+    await resize(800);
+    expect(shown(), (true, false));
+    await resize(1400);
+    expect(shown(), (true, true));
+  }, variant: _windows);
+
   testWidgets('over the IDE, the IDE\'s layout toggles as on its own title '
       'bar: the side bar\'s after the menus, the panel\'s and the chat\'s on '
       'the right; no editor to open the project in', (tester) async {

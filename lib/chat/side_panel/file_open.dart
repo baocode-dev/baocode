@@ -9,7 +9,7 @@ import '../chat_models.dart';
 import 'file_link.dart';
 
 /// A file to show: at [range], or as its changes ([diff]) against
-/// [original], its text before the agent changed it.
+/// [original], its text before (the agent's edit, or Git's HEAD or index).
 @immutable
 class FileOpenRequest {
   const FileOpenRequest(
@@ -18,6 +18,7 @@ class FileOpenRequest {
     this.diff = false,
     this.change,
     this.original,
+    this.modified,
   });
 
   /// Absolute, on the project's host.
@@ -30,8 +31,12 @@ class FileOpenRequest {
   /// The change [diff] shows, when the session lists it.
   final FileChange? change;
 
-  /// Reads [path]'s text before the agent changed it; null when unknown.
+  /// Reads [path]'s text before it changed; null when unknown.
   final Future<String> Function()? original;
+
+  /// Reads [path]'s text after it changed (a staged change's, the index's);
+  /// the file's when null.
+  final Future<String> Function()? modified;
 
   FileOpenRequest copyWith({
     FileLineRange? range,
@@ -43,6 +48,7 @@ class FileOpenRequest {
     diff: diff,
     change: change ?? this.change,
     original: original ?? this.original,
+    modified: modified,
   );
 
   @override
@@ -82,12 +88,14 @@ Future<bool> Function(String path) fileExistsIn(
     if (listing == null || now.difference(listing.at).inSeconds >= 5) {
       listing = (
         at: now,
-        names: files.list(folder).then(
-          (entries) => {
-            for (final entry in entries)
-              if (!entry.isDirectory) entry.name,
-          },
-        ),
+        names: files
+            .list(folder)
+            .then(
+              (entries) => {
+                for (final entry in entries)
+                  if (!entry.isDirectory) entry.name,
+              },
+            ),
       );
       listings[folder] = listing;
     }
@@ -118,13 +126,11 @@ class FileExistence extends ChangeNotifier {
     if (check == null) return false;
     if (_asking.add(path)) {
       unawaited(
-        check(path)
-            .then((found) => found, onError: (_) => false)
-            .then((found) {
-              _asking.remove(path);
-              _known[path] = found;
-              if (found) _notifySoon();
-            }),
+        check(path).then((found) => found, onError: (_) => false).then((found) {
+          _asking.remove(path);
+          _known[path] = found;
+          if (found) _notifySoon();
+        }),
       );
     }
     return null;

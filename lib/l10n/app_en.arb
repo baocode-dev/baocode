@@ -615,7 +615,6 @@
   "cmdSidePanelTerminal": "Show Agent Terminals",
   "sidePanelFiles": "Files",
   "sidePanelTerminal": "Terminal",
-  "sidePanelNoFiles": "No open files",
   "sidePanelNoTerminals": "No background commands",
   "sidePanelTaskCompleted": "Completed",
   "sidePanelTaskFailed": "Failed",
@@ -637,7 +636,7 @@
   "@sidePanelNoChanges": {
     "description": "The side panel's Changes tab while the agent changed nothing."
   },
-  "sidePanelNoChangesDetail": "Files the agent changes show here. Click a file in the conversation to preview it.",
+  "sidePanelNoChangesDetail": "Changes in the project's Git working tree and index show here.",
   "@sidePanelNoChangesDetail": {
     "description": "Under sidePanelNoChanges."
   },
@@ -676,6 +675,46 @@
   "sidePanelDeleted": "The agent deleted this file.",
   "@sidePanelDeleted": {
     "description": "Over the diff of a deleted file."
+  },
+  "sidePanelTerminals": "Terminals",
+  "@sidePanelTerminals": {
+    "description": "The side panel's terminal page: the group of the project's terminals in its list."
+  },
+  "sidePanelRevealInFiles": "Reveal in Files",
+  "@sidePanelRevealInFiles": {
+    "description": "Shows a file in the tree of the side panel's files page."
+  },
+  "sidePanelAddToChat": "Add to Chat",
+  "@sidePanelAddToChat": {
+    "description": "Puts the files of a row or tab of the side panel in the chat's composer."
+  },
+  "sidePanelBackgroundTasks": "Background Tasks",
+  "@sidePanelBackgroundTasks": {
+    "description": "The side panel's terminal page: the group of the agent's background commands in its list."
+  },
+  "sidePanelSelectFile": "Select a file to preview it",
+  "@sidePanelSelectFile": {
+    "description": "The side panel's files page with no file open."
+  },
+  "sidePanelSelectChange": "Select a changed file to see its changes",
+  "@sidePanelSelectChange": {
+    "description": "The side panel's changes page with no file's changes open."
+  },
+  "sidePanelSelectTerminal": "Select a background task to see its output",
+  "@sidePanelSelectTerminal": {
+    "description": "The side panel's terminal page with no command's output open."
+  },
+  "sidePanelNoFolder": "This conversation has no project folder",
+  "@sidePanelNoFolder": {
+    "description": "The side panel's files page for a conversation without a folder."
+  },
+  "sidePanelShowList": "Show List",
+  "@sidePanelShowList": {
+    "description": "Shows the list at the left of the side panel's pages."
+  },
+  "sidePanelHideList": "Hide List",
+  "@sidePanelHideList": {
+    "description": "Hides the list at the left of the side panel's pages."
   },
   "windowMinimize": "Minimize",
   "windowMaximize": "Maximize",

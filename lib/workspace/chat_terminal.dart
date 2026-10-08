@@ -55,6 +55,10 @@ class ChatTerminals extends ChangeNotifier {
 
   final Map<String, TerminalService> _services = {};
 
+  /// Each project's terminals in the side panel's terminal page: its own,
+  /// apart from the panel's, as a terminal shows in one place at a time.
+  final Map<String, TerminalService> _sideServices = {};
+
   String? get root => rootOf();
 
   /// The terminals of [root]; none until the panel first shows there.
@@ -86,6 +90,15 @@ class ChatTerminals extends ChangeNotifier {
     )..addListener(() => _changed(service));
     return service;
   });
+
+  /// The side panel's terminals of the project in [root] (none made).
+  TerminalService sidePanelTerminals(String root) => _sideServices.putIfAbsent(
+    root,
+    () => TerminalService(
+      root: pathOf?.call(root) ?? root,
+      backend: backendFor?.call(root) ?? backend,
+    ),
+  );
 
   void _changed(TerminalService service) {
     if (_shown && identical(service, current) && service.instances.isEmpty) {
@@ -154,7 +167,7 @@ class ChatTerminals extends ChangeNotifier {
   /// Whether a shell is alive, or ([childProcesses]) one runs a command
   /// (`terminal.integrated.confirmOnExit`), in any project's terminals.
   bool running({required bool childProcesses}) {
-    for (final service in _services.values) {
+    for (final service in [..._services.values, ..._sideServices.values]) {
       for (final terminal in service.instances) {
         if (terminal.exited) continue;
         if (!childProcesses) return true;
@@ -169,10 +182,11 @@ class ChatTerminals extends ChangeNotifier {
   /// Hangs up every terminal.
   @override
   void dispose() {
-    for (final service in _services.values) {
+    for (final service in [..._services.values, ..._sideServices.values]) {
       service.dispose();
     }
     _services.clear();
+    _sideServices.clear();
     super.dispose();
   }
 }
@@ -313,9 +327,6 @@ class _ChatTerminalPanel extends StatelessWidget {
   final TerminalService service;
   final ValueChanged<TerminalLink>? onOpenLink;
 
-  /// The window's keys skip the shell: those it has run (see ChatKeys).
-  static const _skipShell = <ShortcutActivator>[_HandledByWindow()];
-
   @override
   Widget build(BuildContext context) {
     final colors = themeColors;
@@ -365,7 +376,7 @@ class _ChatTerminalPanel extends StatelessWidget {
             child: TerminalPanel(
               terminals: service,
               onNew: terminals.create,
-              skipShell: _skipShell,
+              skipShell: chatTerminalSkipShell,
               onOpenLink: onOpenLink,
             ),
           ),
@@ -374,6 +385,10 @@ class _ChatTerminalPanel extends StatelessWidget {
     );
   }
 }
+
+/// The window's keys skip the shell of a terminal in it: those it has run
+/// (see ChatKeys).
+const chatTerminalSkipShell = <ShortcutActivator>[_HandledByWindow()];
 
 /// A key the window's keyboard handler ran a command for (which sees every
 /// key before the focus does): not the shell's.

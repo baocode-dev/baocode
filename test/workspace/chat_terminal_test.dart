@@ -259,4 +259,25 @@ void main() {
     await _settle(tester);
     expect(_panel, findsNothing);
   }, variant: _windows);
+
+  test('the side panel\'s terminals are each project\'s own, apart from the '
+      'panel\'s, and keep the window asking before it closes', () async {
+    final started = <FakePty>[];
+    final terminals = ChatTerminals(
+      fakeTerminalBackend(started),
+      rootOf: () => '/p',
+      pathOf: (root) => '$root-host',
+    );
+    addTearDown(terminals.dispose);
+    final side = terminals.sidePanelTerminals('/p');
+    expect(terminals.sidePanelTerminals('/p'), same(side));
+    expect(terminals.sidePanelTerminals('/q'), isNot(same(side)));
+    expect(terminals.running(childProcesses: false), isFalse);
+    side.create();
+    await pumpEventQueue();
+    expect(started.single.launch!.workingDirectory, '/p-host');
+    expect(terminals.current, isNull);
+    expect(terminals.shown, isFalse);
+    expect(terminals.running(childProcesses: false), isTrue);
+  });
 }

@@ -2720,12 +2720,6 @@ abstract class AppLocalizations {
   /// **'Terminal'**
   String get sidePanelTerminal;
 
-  /// No description provided for @sidePanelNoFiles.
-  ///
-  /// In en, this message translates to:
-  /// **'No open files'**
-  String get sidePanelNoFiles;
-
   /// No description provided for @sidePanelNoTerminals.
   ///
   /// In en, this message translates to:
@@ -2783,7 +2777,7 @@ abstract class AppLocalizations {
   /// Under sidePanelNoChanges.
   ///
   /// In en, this message translates to:
-  /// **'Files the agent changes show here. Click a file in the conversation to preview it.'**
+  /// **'Changes in the project\'s Git working tree and index show here.'**
   String get sidePanelNoChangesDetail;
 
   /// Hover of a file read in the conversation: a click opens it in the side panel.
@@ -2839,6 +2833,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The agent deleted this file.'**
   String get sidePanelDeleted;
+
+  /// The side panel's terminal page: the group of the project's terminals in its list.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminals'**
+  String get sidePanelTerminals;
+
+  /// Shows a file in the tree of the side panel's files page.
+  ///
+  /// In en, this message translates to:
+  /// **'Reveal in Files'**
+  String get sidePanelRevealInFiles;
+
+  /// Puts the files of a row or tab of the side panel in the chat's composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to Chat'**
+  String get sidePanelAddToChat;
+
+  /// The side panel's terminal page: the group of the agent's background commands in its list.
+  ///
+  /// In en, this message translates to:
+  /// **'Background Tasks'**
+  String get sidePanelBackgroundTasks;
+
+  /// The side panel's files page with no file open.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a file to preview it'**
+  String get sidePanelSelectFile;
+
+  /// The side panel's changes page with no file's changes open.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a changed file to see its changes'**
+  String get sidePanelSelectChange;
+
+  /// The side panel's terminal page with no command's output open.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a background task to see its output'**
+  String get sidePanelSelectTerminal;
+
+  /// The side panel's files page for a conversation without a folder.
+  ///
+  /// In en, this message translates to:
+  /// **'This conversation has no project folder'**
+  String get sidePanelNoFolder;
+
+  /// Shows the list at the left of the side panel's pages.
+  ///
+  /// In en, this message translates to:
+  /// **'Show List'**
+  String get sidePanelShowList;
+
+  /// Hides the list at the left of the side panel's pages.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide List'**
+  String get sidePanelHideList;
 
   /// No description provided for @windowMinimize.
   ///

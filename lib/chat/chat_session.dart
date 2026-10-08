@@ -567,6 +567,17 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     return null;
   }
 
+  /// The command the tool call [id] ran, in the conversation itself: what a
+  /// background command's task does.
+  String? commandOf(String? id) {
+    final index = id == null ? null : _transcript.indexOf(id);
+    if (index == null) return null;
+    return switch (_transcript.itemAt(index)) {
+      TerminalItem(:final command) when command.isNotEmpty => command,
+      _ => null,
+    };
+  }
+
   /// Stops the subagent at [index]; null unless it runs as a task.
   @override
   VoidCallback? stopAt(int index) =>
