@@ -140,11 +140,53 @@ class Win32Window {
   // top, where the app draws the header.
   SIZE ResizeBorder() const;
 
+  // The content sized to the client, as the window's size changes.
+  //
+  // The engine, told the content's new size, waits for a frame of it, and
+  // presents no frame of another size until one comes (FlutterWindowsView's
+  // OnWindowSizeChanged and OnFrameGenerated). It stops blocking after
+  // 100ms, but goes on dropping frames of other sizes; and told a size back
+  // to the one its surface still has, it starts no wait of its own. A size
+  // that came and went before a frame of it was presented — a maximized
+  // window following the work area as a display sleeps and wakes, a window
+  // resized while hidden — leaves it dropping every frame: the window shows
+  // what it last did and seems not to answer, until it is resized by hand.
+  //
+  // So a move of the content the engine took that long over marks the
+  // content for ResyncContent.
+  void SizeContent();
+
+  // Clears what SizeContent may have left: once the window can present
+  // again, the content is moved a pixel or two shorter than the client —
+  // a size other than the surface's, which the engine waits for afresh —
+  // and, once that wait ends with a frame presented, back to the client.
+  // A wait that times out (the display still asleep) leaves the content
+  // short, tried again later at the other of the two sizes: a move back
+  // to the client is never made but from a size the engine presented.
+  void ResyncContent();
+
+  // Moves the content to |rect|: how long that took, in milliseconds — as
+  // long as the engine waits, or longer, when it gave up waiting for a frame
+  // of the new size.
+  long long MoveContent(const RECT& rect);
+
+  // ResyncContent in |milliseconds|.
+  void ScheduleResync(UINT milliseconds);
+
   // window handle for top level window.
   HWND window_handle_ = nullptr;
 
   // window handle for hosted content.
   HWND child_content_ = nullptr;
+
+  // Whether the content may be out of step with the engine (see
+  // SizeContent), and how many times ResyncContent tried in vain since.
+  bool resync_pending_ = false;
+  int resync_attempts_ = 0;
+
+  // Whether the user is moving or sizing the window: a resync waits for the
+  // end.
+  bool sizing_ = false;
 };
 
 #endif  // RUNNER_WIN32_WINDOW_H_

@@ -3,9 +3,91 @@
 #include <dwmapi.h>
 #include <flutter_windows.h>
 
+#include <algorithm>
+#include <chrono>
+#include <cstdarg>
+#include <cstdio>
+#include <string>
+
 #include "resource.h"
 
 namespace {
+
+// The longest the engine blocks waiting for a frame of the content's new
+// size (kWindowResizeTimeout in flutter_windows_view.cc): a move of the
+// content that takes as long gave up on it (see Win32Window::SizeContent).
+constexpr std::chrono::milliseconds kEngineResizeWait{100};
+
+// The timer of Win32Window::ResyncContent, and when it runs: soon after
+// the window settles, then less and less often while the engine presents
+// nothing (the display asleep); after kMaxResyncAttempts, only as the
+// window is shown or activated again.
+constexpr UINT_PTR kResyncTimer = 0x4243;
+constexpr UINT kResyncDelayMilliseconds = 300;
+constexpr UINT kMaxResyncDelayMilliseconds = 8000;
+constexpr int kMaxResyncAttempts = 8;
+
+// The most lines a run writes to window.log, and the size past which the
+// next run starts it anew (the old one kept as window.1.log).
+constexpr int kMaxLogLines = 300;
+constexpr ULONGLONG kMaxLogBytes = 1024 * 1024;
+
+// A line in %APPDATA%\baocode\logs\window.log (the data folder's default
+// place, as the hang watchdog's reports are), for a user to send: how the
+// windows' content was kept in step with the engine (see
+// Win32Window::SizeContent).
+void LogContent(const char* format, ...) {
+  static int lines = 0;
+  static bool started = false;
+  if (lines >= kMaxLogLines) {
+    return;
+  }
+  wchar_t app_data[MAX_PATH];
+  const DWORD length =
+      ::GetEnvironmentVariableW(L"APPDATA", app_data, MAX_PATH);
+  if (length == 0 || length >= MAX_PATH) {
+    return;
+  }
+  std::wstring folder = std::wstring(app_data) + L"\\baocode";
+  ::CreateDirectoryW(folder.c_str(), nullptr);
+  folder += L"\\logs";
+  ::CreateDirectoryW(folder.c_str(), nullptr);
+  const std::wstring path = folder + L"\\window.log";
+  if (!started) {
+    started = true;
+    WIN32_FILE_ATTRIBUTE_DATA data = {};
+    if (::GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data) &&
+        ((static_cast<ULONGLONG>(data.nFileSizeHigh) << 32) |
+         data.nFileSizeLow) > kMaxLogBytes) {
+      ::MoveFileExW(path.c_str(), (folder + L"\\window.1.log").c_str(),
+                    MOVEFILE_REPLACE_EXISTING);
+    }
+  }
+  FILE* out = nullptr;
+  if (_wfopen_s(&out, path.c_str(), L"a") != 0 || out == nullptr) {
+    return;
+  }
+  SYSTEMTIME now = {};
+  ::GetLocalTime(&now);
+  std::fprintf(out, "%04u-%02u-%02u %02u:%02u:%02u.%03u ", now.wYear,
+               now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond,
+               now.wMilliseconds);
+  va_list arguments;
+  va_start(arguments, format);
+  std::vfprintf(out, format, arguments);
+  va_end(arguments);
+  std::fputc('\n', out);
+  std::fclose(out);
+  lines++;
+}
+
+LONG WidthOf(const RECT& rect) {
+  return rect.right - rect.left;
+}
+
+LONG HeightOf(const RECT& rect) {
+  return rect.bottom - rect.top;
+}
 
 /// Window attribute that enables dark mode window decorations.
 ///
@@ -340,21 +422,46 @@ Win32Window::MessageHandler(HWND hwnd,
 
       return 0;
     }
-    case WM_SIZE: {
-      RECT rect = GetClientArea();
-      if (child_content_ != nullptr) {
-        // Size and position the child window.
-        MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
-                   rect.bottom - rect.top, TRUE);
-      }
+    case WM_SIZE:
+      SizeContent();
       return 0;
-    }
 
     case WM_ACTIVATE:
       if (child_content_ != nullptr) {
         SetFocus(child_content_);
       }
+      // Back in front: a resync that gave up tries again.
+      if (LOWORD(wparam) != WA_INACTIVE && resync_pending_) {
+        resync_attempts_ = 0;
+        ScheduleResync(kResyncDelayMilliseconds);
+      }
       return 0;
+
+    case WM_SHOWWINDOW:
+      if (wparam && resync_pending_) {
+        resync_attempts_ = 0;
+        ScheduleResync(kResyncDelayMilliseconds);
+      }
+      break;
+
+    case WM_ENTERSIZEMOVE:
+      sizing_ = true;
+      break;
+
+    case WM_EXITSIZEMOVE:
+      sizing_ = false;
+      if (resync_pending_) {
+        ScheduleResync(kResyncDelayMilliseconds);
+      }
+      break;
+
+    case WM_TIMER:
+      if (wparam == kResyncTimer) {
+        ::KillTimer(hwnd, kResyncTimer);
+        ResyncContent();
+        return 0;
+      }
+      break;
 
     case WM_GETMINMAXINFO: {
       // At the dpi the window has now, with the frame it has (see
@@ -423,6 +530,90 @@ RECT Win32Window::GetClientArea() {
   RECT frame;
   GetClientRect(window_handle_, &frame);
   return frame;
+}
+
+void Win32Window::SizeContent() {
+  if (child_content_ == nullptr) {
+    return;
+  }
+  const RECT client = GetClientArea();
+  const long long waited = MoveContent(client);
+  if (waited >= kEngineResizeWait.count() && !resync_pending_) {
+    LogContent("%p: content %ldx%ld waited %lldms for a frame: resync pending",
+               window_handle_, WidthOf(client), HeightOf(client), waited);
+    resync_pending_ = true;
+  }
+  // Pending, a quick move clears nothing: back to the size of the engine's
+  // surface, the engine does not wait at all.
+  if (resync_pending_) {
+    resync_attempts_ = 0;
+    ScheduleResync(kResyncDelayMilliseconds);
+  }
+}
+
+long long Win32Window::MoveContent(const RECT& rect) {
+  const auto start = std::chrono::steady_clock::now();
+  ::MoveWindow(child_content_, rect.left, rect.top, WidthOf(rect),
+               HeightOf(rect), TRUE);
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::steady_clock::now() - start)
+      .count();
+}
+
+void Win32Window::ScheduleResync(UINT milliseconds) {
+  if (window_handle_ != nullptr) {
+    ::SetTimer(window_handle_, kResyncTimer, milliseconds, nullptr);
+  }
+}
+
+void Win32Window::ResyncContent() {
+  if (!resync_pending_ || child_content_ == nullptr ||
+      window_handle_ == nullptr) {
+    return;
+  }
+  // Only where the engine can present: shown, not minimized, not being
+  // sized. Each schedules this again as it ends.
+  if (sizing_ || !::IsWindowVisible(window_handle_) ||
+      ::IsIconic(window_handle_)) {
+    return;
+  }
+  const RECT client = GetClientArea();
+  if (HeightOf(client) <= 2) {
+    resync_pending_ = false;
+    return;
+  }
+  // A pixel shorter, or two when the content is a pixel short already (a
+  // try that timed out left it there): a size other than the content's, so
+  // one the engine waits for.
+  RECT content = {};
+  ::GetClientRect(child_content_, &content);
+  RECT shorter = client;
+  shorter.bottom -= HeightOf(content) == HeightOf(client) - 1 ? 2 : 1;
+  const long long waited = MoveContent(shorter);
+  if (waited >= kEngineResizeWait.count()) {
+    // No frame of it presented in time: the content stays short (a size the
+    // engine still waits for, and presents once it can) until a later try.
+    resync_attempts_++;
+    const bool again = resync_attempts_ < kMaxResyncAttempts;
+    LogContent("%p: resync %d: content %ldx%ld waited %lldms for a frame: %s",
+               window_handle_, resync_attempts_, WidthOf(shorter),
+               HeightOf(shorter), waited,
+               again ? "tried again later"
+                     : "tried again as the window is shown or activated");
+    if (again) {
+      ScheduleResync((std::min)(kMaxResyncDelayMilliseconds,
+                                kResyncDelayMilliseconds << resync_attempts_));
+    }
+    return;
+  }
+  // Presented: the engine's surface is no longer the client's size, so the
+  // move back is one it waits for too.
+  const long long back = MoveContent(client);
+  resync_pending_ = false;
+  LogContent("%p: resynced: content %ldx%ld in %lldms, back to %ldx%ld in "
+             "%lldms",
+             window_handle_, WidthOf(shorter), HeightOf(shorter), waited,
+             WidthOf(client), HeightOf(client), back);
 }
 
 HWND Win32Window::GetHandle() {
