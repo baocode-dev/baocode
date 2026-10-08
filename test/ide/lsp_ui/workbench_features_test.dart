@@ -145,12 +145,7 @@ void main() {
     // In the workbench's theme (Dark 2026 under test); Dart has no
     // language-specific rules, so it styles as plaintext.
     final fixture = SemanticTokenFixture.instance;
-    final classStyle = fixture.style(
-      testColorTheme,
-      'class',
-      {},
-      'plaintext',
-    )!;
+    final classStyle = fixture.style(testColorTheme, 'class', {}, 'plaintext')!;
     final methodStyle = fixture.style(testColorTheme, 'method', {
       'declaration',
     }, 'plaintext')!;
@@ -169,6 +164,52 @@ void main() {
     // Lines without tokens keep the syntax spans.
     final line3 = [const TextSpan(text: '    print(1);')];
     expect(languageSession(tester).styledLines({3: line3})![3], same(line3));
+  });
+
+  testWidgets('a document shown again paints its last semantic tokens at '
+      'once', (tester) async {
+    List<LspSemanticToken>? answer = const [
+      // `print` as a class: not the color TextMate gives it.
+      LspSemanticToken(2, 4, 5, 'class', {}),
+    ];
+    final languages = FakeLanguageFeatures()
+      ..onSemanticTokens = (path) => path.endsWith(_a) ? answer : null;
+    const b = 'lib/b.dart';
+    final workspace = await pumpLanguageWorkbench(
+      tester,
+      {_a: _source, b: 'void b() {}\n'},
+      languages,
+      open: [b, _a],
+    );
+    await settle(tester, const Duration(milliseconds: 350));
+    final classColor = SemanticTokenFixture.instance
+        .style(testColorTheme, 'class', {}, 'plaintext')!
+        .foreground;
+    Color? printColor() {
+      final line = tester
+          .widget<EditorSurface>(find.byType(EditorSurface))
+          .styledLines?[3];
+      for (final span in line ?? const <TextSpan>[]) {
+        if (span.text == 'print') return span.style?.color;
+      }
+      return null;
+    }
+
+    expect(printColor(), classColor);
+
+    workspace.select(
+      workspace.documents.firstWhere((d) => d.path.endsWith(b)).key,
+    );
+    await settle(tester, const Duration(milliseconds: 350));
+    // The server has no answer yet when the tab is shown again.
+    answer = null;
+    workspace.select(
+      workspace.documents.firstWhere((d) => d.path.endsWith(_a)).key,
+    );
+    await tester.pump();
+    expect(printColor(), classColor);
+    await settle(tester, const Duration(milliseconds: 350));
+    expect(printColor(), classColor);
   });
 
   testWidgets('the session restyles its tokens for a new theme or language', (

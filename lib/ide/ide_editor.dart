@@ -174,6 +174,10 @@ class IdeEditorState extends State<IdeEditor> {
   int _syntaxRequest = 0;
   EditorLanguageSession? _language;
 
+  /// Each open document's last semantic tokens, for its next session to
+  /// paint at once when its tab is shown again.
+  final Map<IdeDocument, SemanticTokensSource> _semanticSources = {};
+
   /// Each open diff tab's diff and original side.
   final Map<IdeDocument, _DiffOriginal> _diffs = {};
 
@@ -354,6 +358,7 @@ class IdeEditorState extends State<IdeEditor> {
       onFocusEditor: focus,
       semanticTokenStyler: _semanticTokenStyler,
       languageId: _textMateDocuments[doc]?.$2.languageId ?? 'plaintext',
+      semanticSource: _semanticSources[doc],
     )..addListener(_languageChanged);
     _language!.l10n = _l10n;
   }
@@ -362,6 +367,10 @@ class IdeEditorState extends State<IdeEditor> {
     final session = _language;
     if (session == null) return;
     _language = null;
+    if (session.semanticSource case final source?
+        when widget.workspace.documents.contains(session.document)) {
+      _semanticSources[session.document] = source;
+    }
     session
       ..removeListener(_languageChanged)
       ..dispose();
@@ -969,6 +978,7 @@ class IdeEditorState extends State<IdeEditor> {
           if (identical(_language?.controller, controller)) {
             _disposeLanguageSession();
           }
+          _semanticSources.remove(entry.key);
           if (identical(_nativeController, controller)) {
             _nativeController = null;
             _focusNode.unfocus();

@@ -129,6 +129,9 @@ class IdeEditorMessage {
 
 enum IdeGoToKind { definition, typeDefinition, implementation, references }
 
+/// A document's semantic tokens and the text they were computed for.
+typedef SemanticTokensSource = (DocumentSnapshot, List<LspSemanticToken>);
+
 /// Language features for the document one editor shows: diagnostics
 /// decorations, hover, go to, completion ([suggest]), signature help,
 /// rename, formatting, code actions and semantic tokens. The editor forwards
@@ -149,12 +152,27 @@ class EditorLanguageSession extends ChangeNotifier
     required this.onFocusEditor,
     this._semanticTokenStyler,
     this._languageId = 'plaintext',
+    SemanticTokensSource? semanticSource,
   }) {
     suggest = IdeSuggestSession(this);
     _version = document.model.version;
     _selection = controller.value.selection;
     controller.addListener(_controllerChanged);
     languages.addListener(_languagesChanged);
+    // The document's last tokens paint at once, as VS Code keeps them with
+    // the model rather than the editor; fresh ones replace them.
+    _semanticSource = semanticSource;
+    if ((semanticSource, _semanticTokenStyler) case (
+      (final snapshot, final tokens)?,
+      final styler?,
+    )) {
+      _semantic = IdeSemanticTokens(
+        snapshot,
+        tokens,
+        styler: styler,
+        languageId: _languageId,
+      );
+    }
     _scheduleSemanticTokens(delay: Duration.zero);
   }
 
@@ -332,7 +350,11 @@ class EditorLanguageSession extends ChangeNotifier
   Timer? _semanticTimer;
   int _semanticRequest = 0;
   int _semanticStyling = 0;
-  (DocumentSnapshot, List<LspSemanticToken>)? _semanticSource;
+  SemanticTokensSource? _semanticSource;
+
+  /// The latest semantic tokens and the text they were for, for the next
+  /// session of the document to start with.
+  SemanticTokensSource? get semanticSource => _semanticSource;
   IdeSemanticTokenStyler? _semanticTokenStyler;
   String _languageId;
   Map<int, List<TextSpan>>? _overlayBase;
