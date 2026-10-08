@@ -127,12 +127,7 @@ class PlanCard extends StatelessWidget {
                   )
                 : AppColors.surface,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              // Waiting on the user, in a faint one of its icon's color.
-              color: item.status == PlanStatus.awaiting
-                  ? AppColors.caution.withValues(alpha: 0.45)
-                  : AppColors.border,
-            ),
+            border: Border.all(color: AppColors.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
