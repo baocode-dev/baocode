@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show FileSystemException;
 import 'dart:ui' show AppExitType;
 
 import 'package:flutter/material.dart';
@@ -163,7 +164,13 @@ class _DataDirectoryPageState extends State<DataDirectoryPage> {
       await _offerRestart();
     } on Object catch (error) {
       if (mounted) {
-        setState(() => _error = l10n.dataDirMoveFailed('$error'));
+        setState(
+          () => _error = switch (error) {
+            FileSystemException(:final path?) when isFileInUse(error) =>
+              l10n.dataDirMoveInUse(path),
+            _ => l10n.dataDirMoveFailed('$error'),
+          },
+        );
       }
     } finally {
       if (mounted) {

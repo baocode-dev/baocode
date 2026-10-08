@@ -7869,6 +7869,12 @@ abstract class AppLocalizations {
   /// **'The data could not be moved: {error}'**
   String dataDirMoveFailed(String error);
 
+  /// No description provided for @dataDirMoveInUse.
+  ///
+  /// In en, this message translates to:
+  /// **'{path} is in use by another program. Close that program, then try again.'**
+  String dataDirMoveInUse(String path);
+
   /// No description provided for @dataDirRestartTitle.
   ///
   /// In en, this message translates to:
@@ -8078,6 +8084,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Keep'**
   String get dataDirKeep;
+
+  /// No description provided for @dataDirRemoveOldInUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Some of the old data could not be removed'**
+  String get dataDirRemoveOldInUse;
+
+  /// No description provided for @dataDirRemoveOldInUseDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Files in {items} are in use, perhaps by another program. Everything else was removed; BaoCode offers to remove the rest the next time it starts.'**
+  String dataDirRemoveOldInUseDetail(String items);
 
   /// No description provided for @impTitle.
   ///

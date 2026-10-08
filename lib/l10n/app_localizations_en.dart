@@ -4726,6 +4726,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String dataDirMoveInUse(String path) {
+    return '$path is in use by another program. Close that program, then try again.';
+  }
+
+  @override
   String get dataDirRestartTitle =>
       'Restart BaoCode to use the new data folder';
 
@@ -4858,6 +4863,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dataDirKeep => 'Keep';
+
+  @override
+  String get dataDirRemoveOldInUse =>
+      'Some of the old data could not be removed';
+
+  @override
+  String dataDirRemoveOldInUseDetail(String items) {
+    return 'Files in $items are in use, perhaps by another program. Everything else was removed; BaoCode offers to remove the rest the next time it starts.';
+  }
 
   @override
   String get impTitle => 'Import Keybindings';

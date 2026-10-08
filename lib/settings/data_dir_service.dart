@@ -258,9 +258,12 @@ class DataDirectoryService {
 
   /// Copies the app's data to [target] (checked by [check]), makes sure it
   /// all arrived, and only then points the next run at it. The process
-  /// lists (`state/*-processes.json`) and files left aside (`*.tmp`) stay:
-  /// they are this run's. What was copied is taken back when anything
-  /// fails. [onProgress] hears how many files of how many are done.
+  /// lists (`state/*-processes.json`), files left aside (`*.tmp`) and the
+  /// locks of git at work in the checkpoints stay: they are this run's.
+  /// A file in use is waited for a little ([retryWhileInUse]); one removed
+  /// since it was listed is not copied. What was copied is taken back when
+  /// anything fails. [onProgress] hears how many files of how many are
+  /// done.
   Future<void> migrate(
     String target, {
     void Function(int done, int total)? onProgress,
@@ -278,6 +281,8 @@ class DataDirectoryService {
     ];
     try {
       var done = 0;
+      // The length of each file copied.
+      final copied = <String, int>{};
       onProgress?.call(done, total);
       for (final entry in entries) {
         final to = p.join(target, entry.relative);
@@ -291,18 +296,20 @@ class DataDirectoryService {
             );
           case _FileEntry(:final path):
             await Directory(p.dirname(to)).create(recursive: true);
-            await File(path).copy(to);
+            if (await _copy(path, to) case final length?) {
+              copied[entry.relative] = length;
+            }
             onProgress?.call(++done, total);
         }
       }
-      await _verify(entries, target);
+      await _verify(entries, target, copied);
       await DataDirectoryPointer(
         dataDir: _same(target, defaultPath) ? null : target,
         previousDataDir: source,
       ).write(File(pointerFile));
     } on Object {
       for (final path in created) {
-        await _delete(path);
+        await _remove(path);
       }
       rethrow;
     }
@@ -334,15 +341,20 @@ class DataDirectoryService {
   ];
 
   /// Removes the app's entries from [directory], the folder itself and
-  /// everything else in it left as they are; then forgets it.
-  Future<void> removeOldData(String directory) async {
+  /// everything else in it left as they are; then forgets it. Returns the
+  /// entries that could not all go, a file in them still in use (on
+  /// Windows, open in another program): what could of them is removed,
+  /// and the folder is offered again on the next start.
+  Future<List<String>> removeOldData(String directory) async {
     if (_same(directory, current.path) || _within(directory, current.path)) {
       throw ArgumentError.value(directory, 'directory', 'is in use');
     }
-    for (final item in leftoverItems(directory)) {
-      await _delete(p.join(directory, item));
-    }
-    await forgetPrevious();
+    final left = [
+      for (final item in leftoverItems(directory))
+        if (!await _remove(p.join(directory, item))) item,
+    ];
+    if (left.isEmpty) await forgetPrevious();
+    return left;
   }
 
   /// Stops offering to remove the old folder's data.
@@ -360,30 +372,35 @@ class DataDirectoryService {
   // --- Files ---------------------------------------------------------------
 
   /// Everything under [item] in [root], parents first; a link as a link.
+  /// What goes as it is listed is passed over.
   static Future<List<_Entry>> _entries(String root, String item) async {
     final path = p.join(root, item);
     final entries = <_Entry>[];
     Future<void> visit(String path) async {
       final relative = p.relative(path, from: root);
       if (_left(relative)) return;
-      switch (FileSystemEntity.typeSync(path, followLinks: false)) {
-        case FileSystemEntityType.link:
-          entries.add(_LinkEntry(relative, await Link(path).target()));
-        case FileSystemEntityType.directory:
-          entries.add(_DirectoryEntry(relative));
-          final children =
-              await Directory(path)
-                    .list(followLinks: false)
-                    .map((entity) => entity.path)
-                    .toList()
-                ..sort();
-          for (final child in children) {
-            await visit(child);
-          }
-        case FileSystemEntityType.file:
-          entries.add(_FileEntry(relative, path, await File(path).length()));
-        default:
-          break;
+      try {
+        switch (FileSystemEntity.typeSync(path, followLinks: false)) {
+          case FileSystemEntityType.link:
+            entries.add(_LinkEntry(relative, await Link(path).target()));
+          case FileSystemEntityType.directory:
+            entries.add(_DirectoryEntry(relative));
+            final children =
+                await Directory(path)
+                      .list(followLinks: false)
+                      .map((entity) => entity.path)
+                      .toList()
+                  ..sort();
+            for (final child in children) {
+              await visit(child);
+            }
+          case FileSystemEntityType.file:
+            entries.add(_FileEntry(relative, path));
+          default:
+            break;
+        }
+      } on FileSystemException {
+        if (_exists(path)) rethrow;
       }
     }
 
@@ -392,12 +409,43 @@ class DataDirectoryService {
   }
 
   /// Whether the entry at [relative] stays behind: this run's process
-  /// lists, and files left aside.
+  /// lists, files left aside (`<name>.<pid>.<n>.tmp`, as
+  /// [writeFileAtomically] writes them), and the locks of git at work in
+  /// a checkpoint (a copy would keep it locked there for good).
   static bool _left(String relative) {
     final parts = p.split(relative);
-    if (parts.first != 'state') return false;
     final name = parts.last;
-    return name.endsWith('-processes.json') || name.endsWith('.tmp');
+    return switch (parts.first) {
+      'state' => name.endsWith('-processes.json') || name.endsWith('.tmp'),
+      'checkpoints' => name.endsWith('.lock') || _writtenAside.hasMatch(name),
+      _ => _writtenAside.hasMatch(name),
+    };
+  }
+
+  static final _writtenAside = RegExp(r'\.\d+\.\d+\.tmp$');
+
+  /// How many times [_copy] copies a file that changes as it is copied.
+  static const _copyTries = 3;
+
+  /// Copies the file [from] to [to], waiting a little while it is in use,
+  /// and again when it changed as it was copied; the length copied, or
+  /// null when it is gone (removed since it was listed: a file written
+  /// aside, a lock let go).
+  static Future<int?> _copy(String from, String to) async {
+    for (var tries = 1; ; tries++) {
+      try {
+        await retryWhileInUse(() => File(from).copy(to));
+        final length = await File(to).length();
+        if (length == await File(from).length()) return length;
+      } on FileSystemException {
+        if (_exists(from)) rethrow;
+        await _remove(to);
+        return null;
+      }
+      if (tries == _copyTries) {
+        throw FileSystemException('Changed while copied', from);
+      }
+    }
   }
 
   /// A link's target [link], or where it points into the folder [from]
@@ -411,16 +459,25 @@ class DataDirectoryService {
     return p.join(to, p.relative(link, from: from));
   }
 
-  static Future<void> _verify(List<_Entry> entries, String target) async {
+  /// Whether every entry is in [target], each file [copied] at its length
+  /// (one gone before it was copied passed over).
+  static Future<void> _verify(
+    List<_Entry> entries,
+    String target,
+    Map<String, int> copied,
+  ) async {
     for (final entry in entries) {
       final path = p.join(target, entry.relative);
       final type = FileSystemEntity.typeSync(path, followLinks: false);
       final ok = switch (entry) {
         _DirectoryEntry() => type == FileSystemEntityType.directory,
         _LinkEntry() => type == FileSystemEntityType.link,
-        _FileEntry(:final length) =>
-          type == FileSystemEntityType.file &&
-              await File(path).length() == length,
+        _FileEntry() => switch (copied[entry.relative]) {
+          null => true,
+          final length =>
+            type == FileSystemEntityType.file &&
+                await File(path).length() == length,
+        },
       };
       if (!ok) {
         throw FileSystemException('Not copied whole', path);
@@ -432,20 +489,53 @@ class DataDirectoryService {
       FileSystemEntity.typeSync(path, followLinks: false) !=
       FileSystemEntityType.notFound;
 
-  static Future<void> _delete(String path) async {
+  /// Removes [path], a folder with all in it, waiting a little while a
+  /// file is in use; when one still is, all of it that can go. Whether it
+  /// is gone.
+  static Future<bool> _remove(String path) async {
     try {
-      switch (FileSystemEntity.typeSync(path, followLinks: false)) {
-        case FileSystemEntityType.link:
-          await Link(path).delete();
-        case FileSystemEntityType.directory:
-          await Directory(path).delete(recursive: true);
-        case FileSystemEntityType.notFound:
-          break;
-        default:
-          await File(path).delete();
-      }
+      await retryWhileInUse(() => _delete(path, recursive: true));
     } on FileSystemException {
-      // Best effort.
+      await _removeWhatCan(path);
+    }
+    return !_exists(path);
+  }
+
+  /// Removes what can go of [path] at once: in a folder, all but what is
+  /// in use.
+  static Future<void> _removeWhatCan(String path) async {
+    try {
+      return await _delete(path, recursive: true);
+    } on FileSystemException {
+      if (FileSystemEntity.typeSync(path, followLinks: false) !=
+          FileSystemEntityType.directory) {
+        return;
+      }
+    }
+    try {
+      final children = await Directory(path)
+          .list(followLinks: false)
+          .map((entity) => entity.path)
+          .toList();
+      for (final child in children) {
+        await _removeWhatCan(child);
+      }
+      await Directory(path).delete();
+    } on FileSystemException {
+      // Still in use: left.
+    }
+  }
+
+  static Future<void> _delete(String path, {bool recursive = false}) async {
+    switch (FileSystemEntity.typeSync(path, followLinks: false)) {
+      case FileSystemEntityType.link:
+        await Link(path).delete();
+      case FileSystemEntityType.directory:
+        await Directory(path).delete(recursive: recursive);
+      case FileSystemEntityType.notFound:
+        break;
+      default:
+        await File(path).delete();
     }
   }
 
@@ -489,8 +579,7 @@ class _LinkEntry extends _Entry {
 }
 
 class _FileEntry extends _Entry {
-  const _FileEntry(super.relative, this.path, this.length);
+  const _FileEntry(super.relative, this.path);
 
   final String path;
-  final int length;
 }

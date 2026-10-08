@@ -4414,6 +4414,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String dataDirMoveInUse(String path) {
+    return '$path 正被其他程序占用。请关闭该程序后重试。';
+  }
+
+  @override
   String get dataDirRestartTitle => '重启 BaoCode 以使用新的数据文件夹';
 
   @override
@@ -4542,6 +4547,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get dataDirKeep => '保留';
+
+  @override
+  String get dataDirRemoveOldInUse => '部分旧数据未能移除';
+
+  @override
+  String dataDirRemoveOldInUseDetail(String items) {
+    return '$items 中有文件正在使用(可能被其他程序占用)。其余内容均已移除；BaoCode 下次启动时会再次询问是否移除剩下的部分。';
+  }
 
   @override
   String get impTitle => '导入快捷键';

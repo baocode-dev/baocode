@@ -3323,6 +3323,14 @@
       }
     }
   },
+  "dataDirMoveInUse": "{path} is in use by another program. Close that program, then try again.",
+  "@dataDirMoveInUse": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "dataDirRestartTitle": "Restart BaoCode to use the new data folder",
   "dataDirRestartDetail": "BaoCode keeps using {current} until it restarts. The next start uses {next}, and offers to remove what is left in the old one.",
   "@dataDirRestartDetail": {
@@ -3451,6 +3459,15 @@
   },
   "dataDirRemove": "Remove",
   "dataDirKeep": "Keep",
+  "dataDirRemoveOldInUse": "Some of the old data could not be removed",
+  "dataDirRemoveOldInUseDetail": "Files in {items} are in use, perhaps by another program. Everything else was removed; BaoCode offers to remove the rest the next time it starts.",
+  "@dataDirRemoveOldInUseDetail": {
+    "placeholders": {
+      "items": {
+        "type": "String"
+      }
+    }
+  },
   "impTitle": "Import Keybindings",
   "impImport": "Import",
   "impNothingFound": "No keybindings or keymaps of Visual Studio Code, Cursor, Windsurf or VSCodium were found.",

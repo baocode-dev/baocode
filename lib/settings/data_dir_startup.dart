@@ -316,7 +316,8 @@ class _DataDirectoryRecoveryState extends State<DataDirectoryRecovery> {
 /// whether to remove what is left in the old one: only the app's own
 /// entries there ([DataDirectory.items]), never the folder itself or the
 /// other files in it. Remove or Keep settle it; dismissing asks again on
-/// the next start. The workbench calls it once it shows.
+/// the next start, as does Remove when a file there is still in use (shown
+/// then). The workbench calls it once it shows.
 Future<void> offerOldDataDirRemoval(
   BuildContext context, {
   DataDirectoryService? service,
@@ -341,7 +342,16 @@ Future<void> offerOldDataDirRemoval(
   );
   switch (choice) {
     case 0:
-      await service.removeOldData(previous);
+      final left = await service.removeOldData(previous);
+      if (left.isEmpty || !context.mounted) return;
+      await showIdeDialog(
+        context,
+        message: l10n.dataDirRemoveOldInUse,
+        detail:
+            '$previous\n\n${l10n.dataDirRemoveOldInUseDetail(left.join(', '))}',
+        buttons: [l10n.commonOk],
+        cancel: null,
+      );
     case 1:
       await service.forgetPrevious();
   }
