@@ -105,6 +105,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.4.1"
+  elk:
+    dependency: transitive
+    description:
+      name: elk
+      sha256: "4a3ad94128a1b9128fed5881ff7dcfe72054b5b92f5f9dcc070be16f8b8eaa32"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.0"
   fake_async:
     dependency: transitive
     description:
@@ -325,6 +333,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.1"
+  katex_dart:
+    dependency: transitive
+    description:
+      name: katex_dart
+      sha256: "9ffb18e394a3817f4cdfa04fd497ca30d3e3b45661e3e17f7705b8ae68dd5be9"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.1"
   leak_tracker:
     dependency: transitive
     description:
@@ -389,6 +405,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.0"
+  mermaid_core:
+    dependency: "direct main"
+    description:
+      name: mermaid_core
+      sha256: "8137f28d430f41de87247ac4f14af80a8b1b768cfbd1382d432615975bf03e2e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.0"
+  mermaid_flutter:
+    dependency: "direct main"
+    description:
+      name: mermaid_flutter
+      sha256: "2ada823e866a83c2cd63936e9ffc59e4ef85bfb55e70a0fc856ab833051b1ce6"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.0"
   meta:
     dependency: transitive
     description:

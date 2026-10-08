@@ -11,6 +11,7 @@ import '../side_panel/file_open.dart';
 import 'code_citation.dart';
 import 'inline_code.dart';
 import 'markdown_math.dart';
+import 'mermaid_code_block.dart';
 
 /// GitHub-flavored markdown as plain widgets (so a surrounding
 /// `SelectionArea` selects and copies it): headings, paragraphs, lists
@@ -243,6 +244,9 @@ Widget? _block(md.Node node, TextStyle style, MarkdownOptions options) {
       }
       // `python title="a.py"`: the language is the first word.
       final name = language?.trim().split(RegExp(r'\s')).first;
+      if (name?.toLowerCase() == 'mermaid') {
+        return MermaidCodeBlock(code: body);
+      }
       return MarkdownCodeBlock(
         code: body,
         language: name == null || name.isEmpty ? null : name,

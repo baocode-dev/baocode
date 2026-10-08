@@ -196,23 +196,45 @@ class CodeCitationCard extends StatelessWidget {
 /// A fenced code block as a [CodeCitationCard] is, its language (the
 /// first word of the fence's info string) for a title and no line numbers.
 class MarkdownCodeBlock extends StatelessWidget {
-  const MarkdownCodeBlock({super.key, required this.code, this.language});
+  const MarkdownCodeBlock({
+    super.key,
+    required this.code,
+    this.language,
+    this.preview,
+    this.onOpenPreview,
+  });
 
   final String code;
   final String? language;
 
+  /// A diagram in place of the source; the title can switch between them.
+  final Widget? preview;
+  final VoidCallback? onOpenPreview;
+
   @override
-  Widget build(BuildContext context) =>
-      _CodeCard(code: code, language: language);
+  Widget build(BuildContext context) => _CodeCard(
+    code: code,
+    language: language,
+    preview: preview,
+    onOpenPreview: onOpenPreview,
+  );
 }
 
 /// A [citation]'s card, or a code block's in [language] without one.
 class _CodeCard extends StatefulWidget {
-  const _CodeCard({required this.code, this.citation, this.language});
+  const _CodeCard({
+    required this.code,
+    this.citation,
+    this.language,
+    this.preview,
+    this.onOpenPreview,
+  });
 
   final String code;
   final CodeCitation? citation;
   final String? language;
+  final Widget? preview;
+  final VoidCallback? onOpenPreview;
 
   @override
   State<_CodeCard> createState() => _CodeCardState();
@@ -222,6 +244,7 @@ class _CodeCardState extends State<_CodeCard> {
   final _vertical = ScrollController();
   final _horizontal = ScrollController();
   bool _expanded = true;
+  bool _showSource = false;
   bool _hovered = false;
   bool _copied = false;
   Timer? _copiedTimer;
@@ -335,7 +358,9 @@ class _CodeCardState extends State<_CodeCard> {
             _title(context),
             if (_expanded) ...[
               Divider(height: 1, thickness: 1, color: line),
-              _body(),
+              !_showSource && widget.preview != null
+                  ? widget.preview!
+                  : _body(),
             ],
           ],
         ),
@@ -388,6 +413,21 @@ class _CodeCardState extends State<_CodeCard> {
                     },
                   ),
                 ),
+                if (widget.preview != null) ...[
+                  _IconButton(
+                    icon: _showSource ? Codicons.preview : Codicons.code,
+                    tooltip: _showSource
+                        ? l10n.sidePanelPreview
+                        : l10n.sidePanelSource,
+                    onTap: () => setState(() => _showSource = !_showSource),
+                  ),
+                  if (!_showSource && widget.onOpenPreview != null)
+                    _IconButton(
+                      icon: Codicons.screenFull,
+                      tooltip: l10n.cmdListExpand,
+                      onTap: widget.onOpenPreview!,
+                    ),
+                ],
                 Visibility.maintain(
                   visible: _hovered || _copied,
                   child: _IconButton(
