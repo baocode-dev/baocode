@@ -92,6 +92,7 @@ import 'workspace/open_in_editor_button.dart';
 import 'workspace/pin_window_button.dart';
 import 'workspace/project_workspace.dart' show ProjectWorkspace;
 import 'workspace/title_bar_double_click.dart';
+import 'workspace/window_caption.dart';
 import 'workspace/window_controls.dart';
 import 'workspace/window_header/window_header.dart';
 import 'workspace/workspace.dart';
@@ -1943,14 +1944,21 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
               // The header too: it opens the current session's project.
               ListenableBuilder(
                 listenable: _workspace,
-                builder: (context, _) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Windows draws its own header over both columns (see
-                    // window_header/); elsewhere the system's is above them.
-                    if (WindowControls.drawsHeader) _buildHeader(),
-                    Expanded(child: _buildContent(narrow)),
-                  ],
+                // Over the chat, the sidebar's and the conversations' title
+                // bars are at the top of the window, as on macOS, Windows'
+                // buttons over its right (see WindowCaption); over the IDE,
+                // Windows draws a header of its own above it, with the
+                // menus (see window_header/).
+                builder: (context, _) => WindowCaption(
+                  enabled: !_showsIde,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (WindowControls.drawsHeader && _showsIde)
+                        _buildHeader(),
+                      Expanded(child: _buildContent(narrow)),
+                    ],
+                  ),
                 ),
               ),
               ChatDragLayer(drag: _drag),
@@ -1982,8 +1990,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       // Gone (deleted), its window goes with it.
       if (!_workspace.threads.contains(thread)) return const SizedBox.shrink();
       // With the sidebar, as the chat's window has it: over the
-      // conversation while narrow, beside it once wide. Its toggle is the
-      // header's on Windows, else by the traffic lights while it is hidden.
+      // conversation while narrow, beside it once wide. Its toggle is by
+      // the traffic lights while it is hidden.
       final chat = _withSidePanel(
         _withTerminal(
           _buildChat(showToggle: narrow || !_sidebarDocked, pane: thread),
@@ -2410,18 +2418,6 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     );
   }
 
-  /// Whether the session's title is in Windows' header (see
-  /// [WindowHeader.title]), not a row of the chat's own: the narrow
-  /// window's, with one conversation in it, as macOS's title bar has it.
-  bool get _titleInHeader =>
-      WindowControls.drawsHeader &&
-      _narrow &&
-      !_showsIde &&
-      !_customizing &&
-      // An agent's window has its one conversation.
-      (_agentWindow ||
-          (_workspace.grid.length <= 1 && _workspace.current != null));
-
   /// The chat of [thread]: a state of its own for each (and kept as it
   /// moves between the wide and narrow layouts), reached by the header.
   /// Each window's own: the same agent may show in two.
@@ -2546,10 +2542,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     panel: _sidePanel,
     hidden: _sidePanelHidden,
     // Just under the conversation's title bar, whose right has the
-    // window's buttons on macOS; at the top under Windows' header, already
-    // a bar of its own (the title row's right is empty, the rail beside
-    // its column).
-    railTop: WindowControls.drawsHeader ? 12 : AppMetrics.titleBarHeight + 4,
+    // window's buttons; Windows' over the window's top right.
+    captionInset: WindowCaption.buttonsWidth,
     // Not in a narrow window, where the conversation has no room to spare
     // (the title bar's toggle shows the panel).
     rail: switch (_agentThread ?? _workspace.current) {
@@ -2716,7 +2710,6 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// Customize, in place of the conversations: its title bar as a chat's,
   /// the sidebar's toggle by the traffic lights while it is hidden.
   Widget _buildCustomize(CustomizationStore store, {required bool showToggle}) {
-    final header = WindowControls.drawsHeader;
     return CustomizeView(
       key: _customizeKey,
       store: store,
@@ -2724,7 +2717,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       project: _paletteProject,
       kind: _customizeKind,
       onClose: _closeCustomize,
-      leading: !header && showToggle
+      leading: showToggle
           ? SidebarIconButton(
               icon: Codicons.layoutSidebarLeftOff,
               tooltip: context.l10n.windowShowSidebar,
@@ -2732,9 +2725,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
               onTap: _toggle,
             )
           : null,
-      titleBarInset: !header && showToggle
-          ? AppMetrics.trafficLightsWidth + 8
-          : 12.0,
+      titleBarInset: showToggle ? AppMetrics.trafficLightsWidth + 8 : 12.0,
       onOpenFile: (path) => _openIdeFiles([path]),
     );
   }
@@ -2774,14 +2765,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     ChatPanePlace place = _whole,
   }) {
     final thread = pane ?? _workspace.current;
-    // Windows keeps the toggle, the pin and the editor button in its header
-    // (see window_header/): all that is left for this row is the session's
-    // title, which then sits in the middle of it. Elsewhere the toggle is
-    // in the top left pane, by the traffic lights, and the pin and the
-    // editor button in the top right one.
-    final header = WindowControls.drawsHeader;
+    // The toggle is in the top left pane, by the traffic lights, and the
+    // pin and the editor button in the top right one.
     showToggle = showToggle && place.topLeft;
-    final leading = !header && showToggle
+    final leading = showToggle
         ? SidebarIconButton(
             icon: Codicons.layoutSidebarLeftOff,
             tooltip: context.l10n.windowShowSidebar,
@@ -2789,9 +2776,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             onTap: _toggle,
           )
         : null;
-    final titleBarInset = !header && showToggle
-        ? AppMetrics.trafficLightsWidth + 8
-        : 12.0;
+    final titleBarInset = showToggle ? AppMetrics.trafficLightsWidth + 8 : 12.0;
     if (thread == null) {
       return _EmptyWorkspace(
         tips: _main ? _tips : null,
@@ -2805,7 +2790,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             : null,
       );
     }
-    final windowTools = !header && !embedded && place.topRight;
+    final windowTools = !embedded && place.topRight;
     // The window's, in whichever pane is top right: they are the focused
     // agent's (Fast Ide opens it), and a click on them leaves the focus
     // where it is. So does closing another pane.
@@ -2866,7 +2851,6 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
                 child: Row(mainAxisSize: MainAxisSize.min, children: tools),
               ),
         windowTitleBar: place.top,
-        titleBar: !(place.alone && _titleInHeader),
         focused: place.alone || identical(thread, _workspace.current),
         onOpenChange: (change, original) =>
             _openChange(thread, change, original),
@@ -2898,8 +2882,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         sessions: () => _mentionable(thread),
       ),
     );
-    // The side panel's rail is over the top right pane alone.
-    return place.topRight ? chat : ChatColumnInset(right: 0, child: chat);
+    // The side panel's rail is over the top right pane alone, as Windows'
+    // buttons are.
+    return place.topRight
+        ? chat
+        : CaptionInset(right: 0, child: ChatColumnInset(right: 0, child: chat));
   }
 
   /// The conversations [thread]'s messages may refer to, under their
@@ -3273,7 +3260,7 @@ class _EmptyWorkspace extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Nothing to put in it (Windows keeps the toggle in its header):
+        // Nothing to put in it (the sidebar's toggle is in the sidebar):
         // the empty state starts at the top instead of under an empty row.
         if (leading case final leading?)
           TitleBarDoubleClick(
@@ -3281,7 +3268,7 @@ class _EmptyWorkspace extends StatelessWidget {
               height: AppMetrics.titleBarHeight,
               child: Padding(
                 padding: EdgeInsets.only(left: titleBarInset),
-                child: Row(children: [leading]),
+                child: Row(children: [TitleBarControls(child: leading)]),
               ),
             ),
           ),

@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import 'window_caption.dart';
 import 'window_controls.dart';
 
 /// A title bar the app draws under the macOS traffic lights: a double click
@@ -111,14 +112,40 @@ class _TitleBarDoubleClickState extends State<TitleBarDoubleClick> {
 /// them included: not its empty part, as VS Code's title bar toolbars are
 /// `no-drag` as a whole (titlebarpart.css), so a double click that misses a
 /// button by a little does nothing.
-class TitleBarControls extends StatelessWidget {
+///
+/// Where the app draws the window's caption (see [WindowCaption]), the
+/// window leaves their pixels to Flutter, rather than dragging itself by
+/// them.
+class TitleBarControls extends StatefulWidget {
   const TitleBarControls({super.key, required this.child});
 
   final Widget child;
 
   @override
+  State<TitleBarControls> createState() => _TitleBarControlsState();
+}
+
+class _TitleBarControlsState extends State<TitleBarControls> {
+  WindowCaptionState? _caption;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final caption = WindowCaption.maybeOf(context);
+    if (identical(caption, _caption)) return;
+    _caption?.remove(context);
+    _caption = caption?..add(context);
+  }
+
+  @override
+  void dispose() {
+    _caption?.remove(context);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) =>
-      Listener(behavior: HitTestBehavior.opaque, child: child);
+      Listener(behavior: HitTestBehavior.opaque, child: widget.child);
 }
 
 /// Gives [onEvent] the pointer events of presses where none of [child] is
