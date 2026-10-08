@@ -4,11 +4,10 @@ import '../../chat/panels/interaction_panel.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
+import '../../update/version.dart';
 
-/// The version this build is of, as pubspec.yaml says; kept here rather than
-/// read at runtime, which would mean another package for one line. A test
-/// holds the two together.
-const baocodeVersion = '1.0.0';
+/// The app's icon, as the Dock and the taskbar show it.
+const aboutIconAsset = 'assets/branding/app_icon.png';
 
 /// Help → About: what the app is, and which build this is.
 Future<void> showAboutBaoCode(BuildContext context) => showDialog<void>(
@@ -52,12 +51,13 @@ class _AboutBaoCodeDialog extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.auto_awesome_outlined,
-                  size: 18,
-                  color: AppColors.accent,
+                Image.asset(
+                  aboutIconAsset,
+                  width: 28,
+                  height: 28,
+                  filterQuality: FilterQuality.medium,
                 ),
-                SizedBox(width: 9),
+                SizedBox(width: 10),
                 Text(
                   'BaoCode',
                   style: TextStyle(
@@ -68,7 +68,7 @@ class _AboutBaoCodeDialog extends StatelessWidget {
                 ),
                 SizedBox(width: 10),
                 Text(
-                  baocodeVersion,
+                  currentAppVersion.marketing,
                   style: TextStyle(
                     color: AppColors.textFaint,
                     fontSize: 12,

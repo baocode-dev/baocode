@@ -89,6 +89,8 @@ flutter:
     # Icons of the chat's own, not in Material's or the codicons (each says
     # where it is from).
     - assets/icons/
+    # The app's icon (macos/Runner/Assets.xcassets' 128 px one), for About.
+    - assets/branding/
     # Built-in keymaps: VS Code keymap extensions' keybindings (lib/keybindings/keymap.dart).
     - assets/keymaps/
     - assets/keymaps/LICENSES/

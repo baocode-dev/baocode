@@ -24,6 +24,7 @@ import 'package:baocode/workspace/window_header/about_dialog.dart';
 import 'package:baocode/workspace/window_header/header_menu_bar.dart';
 import 'package:baocode/workspace/window_header/window_header.dart';
 import 'package:baocode/workspace/workspace.dart';
+import 'package:baocode/update/version.dart';
 
 import 'ide/terminal/fake_pty.dart';
 import 'ide/terminal/fake_terminal.dart';
@@ -537,11 +538,26 @@ void main() {
     expect(button.right, tester.getRect(find.byType(ChatComposer)).right);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-  test('About shows the version pubspec.yaml gives the build', () {
-    final version = RegExp(
-      r'^version: ([^+\s]+)',
-      multiLine: true,
-    ).firstMatch(File('pubspec.yaml').readAsStringSync())!.group(1);
-    expect(baocodeVersion, version);
+  testWidgets('About shows the app icon and the version this build is', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showAboutBaoCode(context),
+            child: const Text('About'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('About'));
+    await tester.pumpAndSettle();
+    // version.dart's, which tool/bump_version.dart keeps with pubspec.yaml.
+    expect(find.text(currentAppVersion.marketing), findsOneWidget);
+    final icon = tester.widget<Image>(find.byType(Image));
+    expect((icon.image as AssetImage).assetName, aboutIconAsset);
+    expect(File(aboutIconAsset).existsSync(), isTrue);
   });
 }
