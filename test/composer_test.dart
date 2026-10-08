@@ -787,26 +787,33 @@ void main() {
     });
   });
 
-  testWidgets('double-clicking text in the composer selects a word', (
-    tester,
-  ) async {
-    await pumpScreen(tester);
-    await typeText(tester, 'hello world');
-    final editor = find.byType(QuillEditor);
-    final position = tester.getTopLeft(editor) + const Offset(95, 12);
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.down(position);
-    await mouse.up();
-    await tester.pump(const Duration(milliseconds: 100));
-    await mouse.down(position);
-    await mouse.up();
-    await tester.pump();
-    final controller = composerController(tester);
-    expect(
-      controller.selection.textInside(controller.document.toPlainText()),
-      'world',
-    );
-  });
+  testWidgets(
+    'double-clicking the composer with nothing selected selects all',
+    (tester) async {
+      await pumpScreen(tester);
+      await typeText(tester, 'hello world');
+      final editor = find.byType(QuillEditor);
+      final position = tester.getTopLeft(editor) + const Offset(95, 12);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      Future<void> doubleClick() async {
+        await mouse.down(position);
+        await mouse.up();
+        await tester.pump(const Duration(milliseconds: 100));
+        await mouse.down(position);
+        await mouse.up();
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+
+      final controller = composerController(tester);
+      String selected() =>
+          controller.selection.textInside(controller.document.toPlainText());
+      await doubleClick();
+      expect(selected(), 'hello world');
+      // With text selected, a double-click selects a word as usual.
+      await doubleClick();
+      expect(selected(), 'world');
+    },
+  );
 
   testWidgets('a mouse drag selection follows every move, unthrottled', (
     tester,
@@ -1280,7 +1287,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     });
 
-    testWidgets('double-clicking in the message editor selects a word', (
+    testWidgets('double-clicking in the message editor selects all', (
       tester,
     ) async {
       await pumpScreen(tester);
@@ -1306,7 +1313,7 @@ void main() {
       await tester.pump();
       expect(
         controller.selection.textInside(controller.document.toPlainText()),
-        'world',
+        'hello world',
       );
     });
 

@@ -523,6 +523,30 @@ class ChatComposerState extends State<ChatComposer>
 
   // --- Editor state --------------------------------------------------------
 
+  /// Whether text was selected when the last press came down.
+  bool _pressedOnSelection = false;
+
+  /// A double-click with nothing selected selects everything, not a word.
+  bool _handleEditorTapDown(
+    TapDownDetails details,
+    TextPosition Function(Offset offset) _,
+  ) {
+    // A double-click's first press collapses the selection, so its second
+    // asks the press before.
+    final hadSelection = _pressedOnSelection;
+    _pressedOnSelection = !_controller.selection.isCollapsed;
+    if (!hadSelection && !_pressedOnSelection) {
+      // Quill handles the press after this; only a double-click's second
+      // press selects (a word) on the way down.
+      scheduleMicrotask(() {
+        if (mounted && !_controller.selection.isCollapsed) {
+          _editorKey.currentState?.selectAll(SelectionChangedCause.tap);
+        }
+      });
+    }
+    return false;
+  }
+
   bool get _isComposing {
     final state = _editorKey.currentState;
     return state is QuillRawEditorState && state.composingRange.value.isValid;
@@ -1420,6 +1444,7 @@ class ChatComposerState extends State<ChatComposer>
         ],
         // ignore: experimental_member_use
         onKeyPressed: _handleKey,
+        onTapDown: _handleEditorTapDown,
         onTapOutside: (event, focusNode) {},
         showCursor: false,
         customStyles: _editorStyles(context),

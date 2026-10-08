@@ -40,17 +40,32 @@ Future<void> _pump(
     theme: ThemeData(fontFamily: _fontPath == null ? null : 'MermaidSnapshot'),
     home: Scaffold(
       body: SelectionArea(
-        child: Align(
-          alignment: Alignment.topLeft,
-          child: SizedBox(
-            width: width,
-            child: MarkdownView('```$language\n$code${closed ? '\n```' : ''}'),
+        // As the chat's list scrolls: diagrams show whole, however tall.
+        child: SingleChildScrollView(
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: width,
+              child: MarkdownView(
+                '```$language\n$code${closed ? '\n```' : ''}',
+              ),
+            ),
           ),
         ),
       ),
     ),
   ),
 );
+
+/// A mouse over the diagram, which shows its toolbar.
+Future<TestGesture> _hover(WidgetTester tester) async {
+  final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
+  await mouse.addPointer(location: Offset.zero);
+  addTearDown(mouse.removePointer);
+  await mouse.moveTo(tester.getCenter(find.byType(MermaidCodeBlock)));
+  await tester.pump();
+  return mouse;
+}
 
 Future<void> _snapshot(WidgetTester tester, String name) async {
   final directory = Platform.environment['BAOCODE_MERMAID_SNAPSHOTS'];
@@ -130,7 +145,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('source switch, copy and collapse reuse the code card', (
+  testWidgets('a bare diagram: no card, no fold, no background of its own', (
+    tester,
+  ) async {
+    await _pump(tester, _flow);
+    expect(find.byType(MarkdownCodeBlock), findsNothing);
+    expect(find.byIcon(Codicons.chevronDown), findsNothing);
+    expect(_scene(tester).background, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the diagram and its toolbar sit at the start, not centered', (
+    tester,
+  ) async {
+    await _pump(tester, 'graph LR; A --> B');
+    final block = tester.getRect(find.byType(MermaidCodeBlock));
+    final diagram = tester.getRect(_paint);
+    expect(diagram.width, lessThan(block.width / 2));
+    expect(diagram.topLeft, block.topLeft);
+    final toolbar = tester.getRect(
+      find.ancestor(
+        of: find.byIcon(Codicons.code),
+        matching: find.byType(PositionedDirectional),
+      ),
+    );
+    expect(toolbar.topLeft, block.topLeft);
+  });
+
+  testWidgets('hover toolbar switches to the source and back, and copies', (
     tester,
   ) async {
     final copied = <String>[];
@@ -150,34 +192,48 @@ void main() {
       ),
     );
     await _pump(tester, _flow);
+    expect(
+      tester
+          .widget<Visibility>(
+            find.ancestor(
+              of: find.byIcon(Codicons.copy),
+              matching: find.byType(Visibility),
+            ),
+          )
+          .visible,
+      isFalse,
+    );
+    await _hover(tester);
+    await tester.tap(find.byIcon(Codicons.copy));
+    await tester.pump();
+    expect(copied, [_flow]);
     await tester.tap(find.byIcon(Codicons.code));
     await tester.pump();
+    expect(find.byType(MarkdownCodeBlock), findsOneWidget);
     expect(find.text(_flow), findsOneWidget);
     expect(_paint, findsNothing);
     await tester.tap(find.byIcon(Codicons.preview));
     await tester.pump();
+    expect(find.byType(MarkdownCodeBlock), findsNothing);
     expect(_paint, findsOneWidget);
-    final mouse = await tester.createGesture(kind: ui.PointerDeviceKind.mouse);
-    await mouse.addPointer(location: Offset.zero);
-    await mouse.moveTo(tester.getCenter(find.byType(MarkdownCodeBlock)));
-    await tester.pump();
-    await tester.tap(find.byIcon(Codicons.copy));
-    await tester.pump();
-    expect(copied, [_flow]);
-    await tester.tap(find.byIcon(Codicons.chevronDown));
-    await tester.pump();
-    expect(_paint, findsNothing);
-    await tester.tap(find.byIcon(Codicons.chevronRight));
-    await tester.pump();
-    expect(_paint, findsOneWidget);
-    await mouse.removePointer();
     await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('tapping the diagram opens it expanded', (tester) async {
+    await _pump(tester, _flow);
+    await tester.tap(_paint);
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsOneWidget);
+    await tester.tap(find.byIcon(Codicons.close));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
   });
 
   testWidgets('expand opens a pannable and zoomable diagram, close returns', (
     tester,
   ) async {
     await _pump(tester, _flow);
+    await _hover(tester);
     await tester.tap(find.byIcon(Codicons.screenFull));
     await tester.pumpAndSettle();
     expect(find.byType(Dialog), findsOneWidget);
@@ -211,25 +267,55 @@ void main() {
     expect(_paint, findsOneWidget);
   });
 
+  testWidgets('the expanded dialog hugs a small diagram at its own size', (
+    tester,
+  ) async {
+    await _pump(tester, 'graph LR; A --> B');
+    final scene = _scene(tester);
+    await tester.tap(_paint);
+    await tester.pumpAndSettle();
+    final dialog = tester.getSize(
+      find.descendant(of: find.byType(Dialog), matching: find.byType(Material)),
+    );
+    final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+    expect(dialog.width, lessThan(screen.width - 80));
+    expect(dialog.height, lessThan(screen.height - 80));
+    final painted = tester.getSize(
+      find.descendant(of: find.byType(Dialog), matching: _paint),
+    );
+    expect(
+      (painted.width, painted.height),
+      (scene.size.width, scene.size.height),
+    );
+    final shape =
+        tester.widget<Dialog>(find.byType(Dialog)).shape!
+            as RoundedRectangleBorder;
+    expect(shape.borderRadius, BorderRadius.circular(8));
+    await tester.tap(find.byIcon(Codicons.close));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('expanded wide scenes can reach native text size', (
     tester,
   ) async {
     await _pump(tester, 'graph LR; A[${'x' * 15000}]');
     final scene = _scene(tester);
+    await _hover(tester);
     await tester.tap(find.byIcon(Codicons.screenFull));
     await tester.pumpAndSettle();
     final viewer = tester.widget<InteractiveViewer>(
       find.byType(InteractiveViewer),
     );
     final viewport = tester.getSize(find.byType(InteractiveViewer));
-    final fit = (viewport.width - 32) / scene.size.width;
+    final fit = (viewport.width - 48) / scene.size.width;
     expect(viewer.maxScale * fit, greaterThanOrEqualTo(1));
     await tester.tap(find.byIcon(Codicons.close));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('wide and tall diagrams fit a narrow column without overflow', (
+  testWidgets('wide diagrams shrink to a narrow column, tall ones show whole', (
     tester,
   ) async {
     for (final direction in ['LR', 'TD']) {
@@ -239,30 +325,27 @@ void main() {
       await _pump(tester, code, width: 220);
       await tester.pump(const Duration(milliseconds: 200));
       expect(_paint, findsOneWidget);
-      final preview = tester
-          .widget<MarkdownCodeBlock>(find.byType(MarkdownCodeBlock))
-          .preview!;
-      final rect = tester.getRect(find.byWidget(preview));
-      expect(rect.width, lessThanOrEqualTo(220));
-      expect(rect.height, lessThanOrEqualTo(344));
-      expect(tester.takeException(), isNull);
-      final axis = direction == 'LR' ? Axis.horizontal : Axis.vertical;
-      final scroll = tester
-          .stateList<ScrollableState>(
-            find.descendant(
-              of: find.byWidget(preview),
-              matching: find.byType(Scrollable),
-            ),
-          )
-          .firstWhere((state) => state.position.axis == axis);
-      expect(scroll.position.maxScrollExtent, greaterThan(0));
-      await tester.drag(
-        find.byWidget(preview),
-        axis == Axis.horizontal ? const Offset(-100, 0) : const Offset(0, -100),
+      expect(
+        find.descendant(
+          of: find.byType(MermaidCodeBlock),
+          matching: find.byType(Scrollable),
+        ),
+        findsNothing,
       );
-      await tester.pumpAndSettle();
-      expect(scroll.position.pixels, greaterThan(0));
-      expect(tester.getSize(_paint).height, _scene(tester).size.height);
+      final scene = _scene(tester);
+      final rect = tester.getRect(_paint);
+      expect(rect.width, lessThanOrEqualTo(220.001));
+      expect(
+        rect.width / rect.height,
+        closeTo(scene.size.width / scene.size.height, 0.01),
+      );
+      if (direction == 'TD') {
+        expect(scene.size.height, greaterThan(344));
+        expect(rect.height, closeTo(scene.size.height, 0.01));
+      } else {
+        expect(rect.width, lessThan(scene.size.width));
+      }
+      expect(tester.takeException(), isNull);
       await _snapshot(tester, 'narrow_$direction');
     }
   });
@@ -342,10 +425,7 @@ void main() {
     await tester.runAsync(() => themes.setColorTheme('Quiet Light'));
     await _pump(tester, _flow);
     expect(identical(_scene(tester), dark), isFalse);
-    expect(
-      _scene(tester).background!.value,
-      themeColors['textCodeBlock.background'].toARGB32(),
-    );
+    expect(_scene(tester).background, isNull);
     expect(tester.takeException(), isNull);
     await _snapshot(tester, 'flow_light');
   });

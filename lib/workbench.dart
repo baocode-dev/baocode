@@ -2533,9 +2533,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   Widget _withSidePanel(Widget child) => AgentSidePanelArea(
     panel: _sidePanel,
     hidden: _sidePanelHidden,
-    // Under the conversation's title bar; at the top where the window's
-    // header (Windows) has its title.
-    railTop: _titleInHeader ? 12 : AppMetrics.titleBarHeight + 12,
+    // Under the conversation's title bar, which macOS's traffic lights
+    // share; at the top under Windows' header, already a bar of its own
+    // (the title row's right is empty, the rail beside its column).
+    railTop: WindowControls.drawsHeader ? 12 : AppMetrics.titleBarHeight + 12,
     // Not in a narrow window, where the conversation has no room to spare
     // (the title bar's toggle shows the panel).
     rail: switch (_agentThread ?? _workspace.current) {

@@ -200,24 +200,18 @@ class MarkdownCodeBlock extends StatelessWidget {
     super.key,
     required this.code,
     this.language,
-    this.preview,
-    this.onOpenPreview,
+    this.onPreview,
   });
 
   final String code;
   final String? language;
 
-  /// A diagram in place of the source; the title can switch between them.
-  final Widget? preview;
-  final VoidCallback? onOpenPreview;
+  /// Back to what the source draws (a diagram), from the title.
+  final VoidCallback? onPreview;
 
   @override
-  Widget build(BuildContext context) => _CodeCard(
-    code: code,
-    language: language,
-    preview: preview,
-    onOpenPreview: onOpenPreview,
-  );
+  Widget build(BuildContext context) =>
+      _CodeCard(code: code, language: language, onPreview: onPreview);
 }
 
 /// A [citation]'s card, or a code block's in [language] without one.
@@ -226,15 +220,13 @@ class _CodeCard extends StatefulWidget {
     required this.code,
     this.citation,
     this.language,
-    this.preview,
-    this.onOpenPreview,
+    this.onPreview,
   });
 
   final String code;
   final CodeCitation? citation;
   final String? language;
-  final Widget? preview;
-  final VoidCallback? onOpenPreview;
+  final VoidCallback? onPreview;
 
   @override
   State<_CodeCard> createState() => _CodeCardState();
@@ -244,7 +236,6 @@ class _CodeCardState extends State<_CodeCard> {
   final _vertical = ScrollController();
   final _horizontal = ScrollController();
   bool _expanded = true;
-  bool _showSource = false;
   bool _hovered = false;
   bool _copied = false;
   Timer? _copiedTimer;
@@ -358,9 +349,7 @@ class _CodeCardState extends State<_CodeCard> {
             _title(context),
             if (_expanded) ...[
               Divider(height: 1, thickness: 1, color: line),
-              !_showSource && widget.preview != null
-                  ? widget.preview!
-                  : _body(),
+              _body(),
             ],
           ],
         ),
@@ -385,7 +374,7 @@ class _CodeCardState extends State<_CodeCard> {
             padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
             child: Row(
               children: [
-                _IconButton(
+                CodeBlockIconButton(
                   icon: _expanded
                       ? Codicons.chevronDown
                       : Codicons.chevronRight,
@@ -413,24 +402,15 @@ class _CodeCardState extends State<_CodeCard> {
                     },
                   ),
                 ),
-                if (widget.preview != null) ...[
-                  _IconButton(
-                    icon: _showSource ? Codicons.preview : Codicons.code,
-                    tooltip: _showSource
-                        ? l10n.sidePanelPreview
-                        : l10n.sidePanelSource,
-                    onTap: () => setState(() => _showSource = !_showSource),
+                if (widget.onPreview case final onPreview?)
+                  CodeBlockIconButton(
+                    icon: Codicons.preview,
+                    tooltip: l10n.sidePanelPreview,
+                    onTap: onPreview,
                   ),
-                  if (!_showSource && widget.onOpenPreview != null)
-                    _IconButton(
-                      icon: Codicons.screenFull,
-                      tooltip: l10n.cmdListExpand,
-                      onTap: widget.onOpenPreview!,
-                    ),
-                ],
                 Visibility.maintain(
                   visible: _hovered || _copied,
-                  child: _IconButton(
+                  child: CodeBlockIconButton(
                     icon: _copied ? Codicons.check : Codicons.copy,
                     tooltip: l10n.commonCopy,
                     onTap: _copy,
@@ -580,9 +560,10 @@ class _CodeCardState extends State<_CodeCard> {
   }
 }
 
-/// A small icon button of the card's title.
-class _IconButton extends StatelessWidget {
-  const _IconButton({
+/// A small icon button of a code card's title, or a diagram's toolbar.
+class CodeBlockIconButton extends StatelessWidget {
+  const CodeBlockIconButton({
+    super.key,
     required this.icon,
     required this.tooltip,
     required this.onTap,

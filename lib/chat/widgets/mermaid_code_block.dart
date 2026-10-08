@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mermaid_core/mermaid_core.dart' as mermaid;
 import 'package:mermaid_flutter/mermaid_flutter.dart';
 
@@ -10,7 +11,6 @@ import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'code_citation.dart';
-import 'wheel_latch.dart';
 
 /// Native, offline Mermaid rendering, with the ordinary code block as fallback.
 class MermaidCodeBlock extends StatefulWidget {
@@ -24,10 +24,12 @@ class MermaidCodeBlock extends StatefulWidget {
 
 class _MermaidCodeBlockState extends State<MermaidCodeBlock> {
   Timer? _pending;
-  final _horizontal = ScrollController();
-  final _vertical = ScrollController();
   mermaid.MermaidTheme? _theme;
   mermaid.RenderScene? _scene;
+  bool _showSource = false;
+  bool _hovered = false;
+  bool _copied = false;
+  Timer? _copiedTimer;
 
   @override
   void didUpdateWidget(MermaidCodeBlock oldWidget) {
@@ -69,26 +71,34 @@ class _MermaidCodeBlockState extends State<MermaidCodeBlock> {
           scene.size.height.isFinite &&
           scene.size.width > 0 &&
           scene.size.height > 0) {
-        _scene = scene;
+        // Drawn straight on the conversation: its fills already match it.
+        _scene = mermaid.RenderScene(size: scene.size, nodes: scene.nodes);
       }
     } catch (_) {
       // Incomplete streamed fences and unsupported syntax stay readable.
     }
   }
 
-  @override
-  void dispose() {
-    _pending?.cancel();
-    _horizontal.dispose();
-    _vertical.dispose();
-    super.dispose();
+  void _copy() {
+    unawaited(Clipboard.setData(ClipboardData(text: widget.code)));
+    _copiedTimer?.cancel();
+    setState(() => _copied = true);
+    _copiedTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _copied = false);
+    });
   }
+
+  void _openDialog(mermaid.RenderScene scene) => showDialog<void>(
+    context: context,
+    builder: (context) => _DiagramDialog(scene: scene, source: widget.code),
+  );
 
   @override
   Widget build(BuildContext context) {
     final colors = themeColors;
     mermaid.Color color(Color value) => mermaid.Color(value.toARGB32());
-    final background = colors['textCodeBlock.background'];
+    // The conversation's, which shapes filled "with the background" match.
+    final background = colors['editor.background'];
     final foreground = colors['editor.foreground'];
     final theme =
         (colors.dark
@@ -113,58 +123,82 @@ class _MermaidCodeBlockState extends State<MermaidCodeBlock> {
             );
     if (_theme != theme) _render(theme);
     final scene = _scene;
-    return MarkdownCodeBlock(
-      code: widget.code,
-      language: 'mermaid',
-      preview: scene == null
-          ? null
-          : SelectionContainer.disabled(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 320),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) => Scrollbar(
-                      controller: _vertical,
-                      child: SingleChildScrollView(
-                        controller: _vertical,
-                        child: WheelLatch(
-                          child: Scrollbar(
-                            controller: _horizontal,
-                            thumbVisibility: true,
-                            notificationPredicate: (notification) =>
-                                notification.metrics.axis == Axis.horizontal,
-                            child: SingleChildScrollView(
-                              controller: _horizontal,
-                              scrollDirection: Axis.horizontal,
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  minWidth: constraints.maxWidth,
-                                ),
-                                child: Center(
-                                  child: _Scene(
-                                    scene: scene,
-                                    source: widget.code,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+    if (scene == null || _showSource) {
+      return MarkdownCodeBlock(
+        code: widget.code,
+        language: 'mermaid',
+        onPreview: scene == null
+            ? null
+            : () => setState(() => _showSource = false),
+      );
+    }
+    final l10n = context.l10n;
+    return SelectionContainer.disabled(
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: Stack(
+          children: [
+            // Its own size, or narrowed to the column's; never scrolled.
+            Align(
+              alignment: AlignmentDirectional.topStart,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.zoomIn,
+                child: GestureDetector(
+                  onTap: () => _openDialog(scene),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: _Scene(scene: scene, source: widget.code),
                   ),
                 ),
               ),
             ),
-      onOpenPreview: scene == null
-          ? null
-          : () => showDialog<void>(
-              context: context,
-              builder: (context) =>
-                  _DiagramDialog(scene: scene, source: widget.code),
+            PositionedDirectional(
+              top: 0,
+              start: 0,
+              child: Visibility.maintain(
+                visible: _hovered || _copied,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceRaised,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: colors['chat.requestBorder']),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CodeBlockIconButton(
+                        icon: Codicons.code,
+                        tooltip: l10n.sidePanelSource,
+                        onTap: () => setState(() => _showSource = true),
+                      ),
+                      CodeBlockIconButton(
+                        icon: Codicons.screenFull,
+                        tooltip: l10n.cmdListExpand,
+                        onTap: () => _openDialog(scene),
+                      ),
+                      CodeBlockIconButton(
+                        icon: _copied ? Codicons.check : Codicons.copy,
+                        tooltip: l10n.commonCopy,
+                        onTap: _copy,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
+          ],
+        ),
+      ),
     );
+  }
+
+  @override
+  void dispose() {
+    _pending?.cancel();
+    _copiedTimer?.cancel();
+    super.dispose();
   }
 }
 
@@ -185,52 +219,101 @@ class _Scene extends StatelessWidget {
   );
 }
 
+/// The diagram as large as it is, or as fits the window: zoomable, pannable.
 class _DiagramDialog extends StatelessWidget {
   const _DiagramDialog({required this.scene, required this.source});
 
   final mermaid.RenderScene scene;
   final String source;
 
+  static const _padding = 24.0;
+  static const _titleHeight = 34.0;
+
+  /// The title's and the line under it.
+  static const _chrome = _titleHeight + 1;
+
   @override
-  Widget build(BuildContext context) => Dialog(
-    backgroundColor: themeColors['textCodeBlock.background'],
-    insetPadding: const EdgeInsets.all(24),
-    child: Column(
-      children: [
-        Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: IconButton(
-            tooltip: context.l10n.commonClose,
-            icon: Icon(Codicons.close, color: AppColors.text),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final fitScale = math.min(
-                math.max(1, constraints.maxWidth - 32) / scene.size.width,
-                math.max(1, constraints.maxHeight - 32) / scene.size.height,
-              );
-              return ClipRect(
-                child: InteractiveViewer(
-                  minScale: 0.2,
-                  // Even an extremely wide scene can reach its native text size.
-                  maxScale: math.max(8, 8 / fitScale),
-                  child: Center(
+  Widget build(BuildContext context) {
+    final colors = themeColors;
+    return Dialog(
+      backgroundColor: colors['editor.background'],
+      insetPadding: const EdgeInsets.all(40),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: colors['chat.requestBorder']),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final fitScale = math.min(
+            1.0,
+            math.min(
+              math.max(1, constraints.maxWidth - 2 * _padding) /
+                  scene.size.width,
+              math.max(1, constraints.maxHeight - _chrome - 2 * _padding) /
+                  scene.size.height,
+            ),
+          );
+          final width = scene.size.width * fitScale;
+          final height = scene.size.height * fitScale;
+          return SizedBox(
+            width: math.min(constraints.maxWidth, width + 2 * _padding),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: _titleHeight,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 6, 0),
+                    child: Row(
+                      children: [
+                        Text(
+                          'mermaid',
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const Spacer(),
+                        CodeBlockIconButton(
+                          icon: Codicons.close,
+                          tooltip: context.l10n.commonClose,
+                          onTap: () => Navigator.of(context).pop(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: colors['chat.requestBorder'],
+                ),
+                ClipRect(
+                  child: InteractiveViewer(
+                    minScale: 0.5,
+                    // Even an extremely wide scene can reach its native text size.
+                    maxScale: math.max(8, 8 / fitScale),
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: FittedBox(
-                        child: _Scene(scene: scene, source: source),
+                      padding: const EdgeInsets.all(_padding),
+                      child: Center(
+                        child: SizedBox(
+                          width: width,
+                          height: height,
+                          child: FittedBox(
+                            child: _Scene(scene: scene, source: source),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              );
-            },
-          ),
-        ),
-      ],
-    ),
-  );
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
