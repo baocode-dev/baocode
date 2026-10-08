@@ -114,7 +114,8 @@ class WindowCaptionState extends State<WindowCaption> {
     final close = _rect(_close.currentContext);
     // Not laid out yet (or going away): leave the window as it is.
     if (minimize == null || maximize == null || close == null) return;
-    final width = MediaQuery.sizeOf(context).width;
+    // The close button ends at the window's right.
+    final width = close.right;
     final controls = <Rect>[
       for (final control in _controls)
         // Those in the strip: not a lower pane's title bar, nor a sidebar

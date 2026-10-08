@@ -239,25 +239,21 @@ void main() {
     expect(ptys, isEmpty);
   }, variant: _mac);
 
-  testWidgets('on Windows the header has the button by the pin, and View → '
-      'Terminal', (tester) async {
+  testWidgets('on Windows the chat\'s title bar has the button by the pin, '
+      'as on macOS: no header, no menus', (tester) async {
     final ptys = <FakePty>[];
     await _pumpApp(tester, terminalBackend: fakeTerminalBackend(ptys));
+    expect(find.byType(WindowHeader), findsNothing);
     final toggle = find.descendant(
-      of: find.byType(WindowHeader),
-      matching: find.byType(ChatTerminalToggle),
+      of: find.byType(ChatScreen),
+      matching: _toggle,
     );
     expect(toggle, findsOneWidget);
 
     await tester.tap(toggle);
     await _settle(tester);
     expect(_panel, findsOneWidget);
-
-    await tester.tap(find.text('View'));
-    await tester.pump();
-    await tester.tap(find.text('Terminal'));
-    await _settle(tester);
-    expect(_panel, findsNothing);
+    expect(find.text('View'), findsNothing);
   }, variant: _windows);
 
   test('the side panel\'s terminals are each project\'s own, apart from the '

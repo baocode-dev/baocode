@@ -62,8 +62,8 @@ Future<(Workspace, List<MethodCall>)> pumpWindowsApp(
 final _windows = TargetPlatformVariant.only(TargetPlatform.windows);
 
 void main() {
-  testWidgets('the header opens the current session\'s project, as the '
-      'session changes', (tester) async {
+  testWidgets('the chat\'s title bar opens the current session\'s project, '
+      'as the session changes', (tester) async {
     final (workspace, _) = await pumpWindowsApp(tester);
     final other = workspace.threads.firstWhere(
       (thread) => thread.project != workspace.current!.project,
@@ -72,7 +72,7 @@ void main() {
     await tester.pump();
     final button = tester.widget<OpenInEditorButton>(
       find.descendant(
-        of: find.byType(WindowHeader),
+        of: find.byType(ChatScreen),
         matching: find.byType(OpenInEditorButton),
       ),
     );
@@ -99,40 +99,33 @@ void main() {
     expect(controls(reports().last), isNot(controls(reports().first)));
   }, variant: _windows);
 
-  testWidgets('over the IDE it is the IDE\'s title bar: no line under it, '
-      'and the way back to the chat on the right', (tester) async {
+  testWidgets('over the IDE it is the IDE\'s title bar, with the menus and '
+      'the way back to the chat on the right; over the chat there is none', (
+    tester,
+  ) async {
     final (workspace, calls) = await pumpWindowsApp(tester);
     final header = find.byType(WindowHeader);
-    BoxBorder? line() =>
-        (tester
-                    .widget<DecoratedBox>(
-                      find
-                          .descendant(
-                            of: header,
-                            matching: find.byType(DecoratedBox),
-                          )
-                          .first,
-                    )
-                    .decoration
-                as BoxDecoration)
-            .border;
     final back = find.descendant(
       of: header,
       matching: find.byType(BackToChatButton),
     );
-    expect(line(), isNotNull);
-    expect(back, findsNothing);
+    expect(header, findsNothing);
 
     workspace.layout = WorkspaceLayout.ide;
     await tester.pump();
     await tester.pump();
-    expect(line(), isNull);
+    expect(header, findsOneWidget);
+    expect(
+      find.descendant(of: header, matching: find.byType(HeaderMenuBar)),
+      findsOneWidget,
+    );
     expect(back, findsOneWidget);
     final button = tester.getRect(back);
     expect(button.height, 22);
     expect(button.center.dy, tester.getRect(header).center.dy);
     // The window leaves it to Flutter, rather than dragging by it.
     final report = calls.lastWhere((call) => call.method == 'setHitTestAreas');
+    expect((report.arguments as Map)['height'], AppMetrics.headerHeight);
     expect(
       (report.arguments as Map)['controls'],
       contains(
@@ -149,118 +142,102 @@ void main() {
     await tester.pump();
     expect(workspace.layout, WorkspaceLayout.chat);
     await tester.pump();
-    expect(back, findsNothing);
+    expect(header, findsNothing);
   }, variant: _windows);
 
-  testWidgets('narrow, the session\'s title is in the header, as macOS\'s '
-      'title bar has it: the menus folded into one button, the '
-      'conversation\'s background, no line', (tester) async {
-    final (workspace, _) = await pumpWindowsApp(tester);
+  testWidgets('over the chat, the sidebar\'s and the conversation\'s title '
+      'bars reach the window\'s top, as on macOS: no menus, the window\'s '
+      'buttons over its top right, their controls left to Flutter', (
+    tester,
+  ) async {
+    final (workspace, calls) = await pumpWindowsApp(tester);
+    await tester.pump();
+    Map<Object?, Object?> report() =>
+        calls.lastWhere((call) => call.method == 'setHitTestAreas').arguments
+            as Map;
+    Map<String, double> encoded(Rect rect) => {
+      'left': rect.left,
+      'top': rect.top,
+      'width': rect.width,
+      'height': rect.height,
+    };
+    Rect controlsOf(Finder finder) => tester.getRect(
+      find.ancestor(of: finder, matching: find.byType(TitleBarControls)).first,
+    );
+    expect(find.byType(HeaderMenuBar), findsNothing);
+    expect(find.text('File'), findsNothing);
+    expect(tester.getRect(find.byType(Sidebar)).top, 0);
+    final chat = find.byType(ChatScreen);
+    final title = find.descendant(
+      of: chat,
+      matching: find.text(workspace.current!.title),
+    );
+    expect(tester.getRect(title).center.dy, AppMetrics.titleBarHeight / 2);
+
+    final buttons = tester.getRect(find.byType(WindowButtons));
+    expect(buttons.topRight, const Offset(1400, 0));
+    expect(buttons.height, AppMetrics.titleBarHeight);
+    final panelToggle = find.descendant(
+      of: chat,
+      matching: find.byType(SidePanelToggle),
+    );
+    expect(tester.getRect(panelToggle).right, lessThan(buttons.left));
+
+    // The sidebar's toggle at its top right, as under macOS's traffic
+    // lights; the window drags itself by the rest of the strip.
+    bool isToggle(Widget widget) =>
+        widget is SidebarIconButton &&
+        widget.command == 'workbench.action.toggleSidebarVisibility';
+    final collapse = find.descendant(
+      of: find.byType(Sidebar),
+      matching: find.byWidgetPredicate(isToggle),
+    );
+    expect(report()['height'], AppMetrics.titleBarHeight);
+    expect(
+      report()['controls'],
+      containsAll([
+        encoded(controlsOf(collapse)),
+        encoded(controlsOf(panelToggle)),
+      ]),
+    );
+
+    // Hidden, its toggle is the chat's, first in its title bar.
+    await tester.tap(collapse);
+    await tester.pumpAndSettle();
+    final expand = find.descendant(
+      of: chat,
+      matching: find.byWidgetPredicate(isToggle),
+    );
+    expect(
+      tester.widget<SidebarIconButton>(expand).icon,
+      Codicons.layoutSidebarLeftOff,
+    );
+    expect(tester.getRect(expand).left, lessThan(tester.getRect(title).left));
+    expect(report()['controls'], contains(encoded(controlsOf(expand))));
+
+    // Narrow, the same: the title in the chat's own title bar.
     tester.view.physicalSize = const Size(520, 760);
-    await tester.pump();
-    await tester.pump();
-    final header = find.byType(WindowHeader);
-    final title = workspace.current!.title;
-    final inHeader = find.descendant(of: header, matching: find.text(title));
-    expect(inHeader, findsOneWidget);
-    // Not again in a row of the chat's own.
+    await tester.pumpAndSettle();
+    expect(title, findsOneWidget);
     expect(
-      find.descendant(of: find.byType(ChatScreen), matching: find.text(title)),
-      findsNothing,
-    );
-    expect(
-      find.descendant(of: header, matching: find.text('File')),
-      findsNothing,
-    );
-    final decoration =
-        tester
-                .widget<DecoratedBox>(
-                  find
-                      .descendant(
-                        of: header,
-                        matching: find.byType(DecoratedBox),
-                      )
-                      .first,
-                )
-                .decoration
-            as BoxDecoration;
-    expect(decoration.border, isNull);
-    final material = tester.widget<Material>(
-      find.descendant(of: header, matching: find.byType(Material)).first,
-    );
-    expect(material.color, AppColors.conversationSurface);
-    // The sidebar's toggle first, as by macOS's traffic lights, then the
-    // menus' button, then the title.
-    final menu = find.descendant(
-      of: header,
-      matching: find.widgetWithIcon(SidebarIconButton, Codicons.menu),
-    );
-    final toggle = find.descendant(
-      of: header,
-      matching: find.widgetWithIcon(
-        SidebarIconButton,
-        Codicons.layoutSidebarLeftOff,
-      ),
-    );
-    expect(
-      tester.getRect(menu).left,
-      greaterThan(tester.getRect(toggle).right),
-    );
-    expect(
-      tester.getRect(inHeader).left,
-      greaterThan(tester.getRect(menu).right),
-    );
-
-    // The menus, and a menu's commands beside it.
-    await tester.tap(menu);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.text('File'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('Close Window'), findsOneWidget);
-
-    // Wide again: the menu bar, the title back in the chat.
-    tester.view.physicalSize = const Size(1400, 900);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-    expect(inHeader, findsNothing);
-    expect(
-      find.descendant(of: header, matching: find.text('File')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: find.byType(ChatScreen), matching: find.text(title)),
-      findsOneWidget,
+      tester.getRect(panelToggle).right,
+      lessThan(tester.getRect(find.byType(WindowButtons)).left),
     );
   }, variant: _windows);
 
-  testWidgets('the sidebar toggle comes after the menus, in the IDE\'s '
-      'layout icons', (tester) async {
-    await pumpWindowsApp(tester);
-    final header = find.byType(WindowHeader);
-    final menus = find.descendant(
-      of: header,
-      matching: find.byType(HeaderMenuBar),
-    );
-    // The sidebar's, not the side panel's.
-    final toggle = find.descendant(
-      of: header,
-      matching: find.byWidgetPredicate(
-        (widget) =>
-            widget is SidebarIconButton &&
-            widget.command == 'workbench.action.toggleSidebarVisibility',
-      ),
-    );
-    IconData icon() => tester.widget<SidebarIconButton>(toggle).icon;
-    expect(
-      tester.getRect(toggle).left,
-      greaterThan(tester.getRect(menus).right),
-    );
-    expect(icon(), Codicons.layoutSidebarLeft);
-    await tester.tap(toggle);
+  testWidgets('the settings leave the window\'s caption above them', (
+    tester,
+  ) async {
+    final (workspace, _) = await pumpWindowsApp(tester);
     await tester.pump();
-    expect(icon(), Codicons.layoutSidebarLeftOff);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+    await tester.sendKeyEvent(LogicalKeyboardKey.comma);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(find.byType(SettingsDialog)).top,
+      AppMetrics.titleBarHeight,
+    );
   }, variant: _windows);
 
   testWidgets('where the window has not the room for the sidebar and the '
