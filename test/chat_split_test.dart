@@ -522,14 +522,10 @@ void main() {
       'alone or side by side', (tester) async {
     await pumpApp(tester);
 
-    /// The title at the column's left; the buttons at its right, or, in
-    /// a pane whose column keeps clear of the side panel's rail, at the
-    /// edge ([gutter] in), the rail under them.
-    void expectInColumn(String title, Finder rightmost, {double? gutter}) {
+    void expectInColumn(String title, Finder rightmost) {
       final composer = tester.getRect(
         find.descendant(of: pane(title), matching: find.byType(ChatComposer)),
       );
-      final edge = tester.getRect(pane(title)).right;
       final text = find.descendant(
         of: find.descendant(
           of: pane(title),
@@ -542,15 +538,8 @@ void main() {
         tester
             .getTopRight(find.descendant(of: pane(title), matching: rightmost))
             .dx,
-        gutter == null ? composer.right : edge - gutter,
+        composer.right,
       );
-      if (gutter != null) {
-        expect(composer.right, edge - AgentSidePanelArea.railInset);
-        expect(
-          tester.getRect(find.byKey(const ValueKey('side-panel-rail'))).left,
-          greaterThan(composer.right),
-        );
-      }
     }
 
     // A wide window: the column in the middle, well in from the sides.
@@ -560,9 +549,10 @@ void main() {
 
     await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
     expectInColumn(first, find.bySemanticsLabel('Close pane'));
-    // The window's tools at the right pane's end, after its close, at the
-    // edge; its column clear of the rail, under its title bar.
-    expectInColumn(second, find.byType(SidePanelToggle), gutter: 16);
+    // The window's tools at the right pane's end, after its close; the
+    // composer in the middle, though the side panel's rail is over the
+    // pane (at its top, never level with the composer).
+    expectInColumn(second, find.byType(SidePanelToggle));
   });
 
   testWidgets('dragging the sidebar\'s border or a line lays the chats out '

@@ -2505,7 +2505,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     // Under the conversation's title bar; at the top where the window's
     // header (Windows) has its title.
     railTop: _titleInHeader ? 12 : AppMetrics.titleBarHeight + 12,
-    rail: (_agentThread ?? _workspace.current) == null
+    // Not in a narrow window, where the conversation has no room to spare
+    // (the title bar's toggle shows the panel).
+    rail: _narrow || (_agentThread ?? _workspace.current) == null
         ? null
         : SidePanelRail(onSelect: _showSidePanelSection),
     builder: (context) => switch (_agentThread ?? _workspace.current) {

@@ -1277,6 +1277,11 @@ void main() {
       expect(composer.center.dx, closeTo(chat.center.dx, 0.5));
       // Under the conversation's title bar.
       expect(rail.top - chat.top, AppMetrics.titleBarHeight + 12);
+
+      // A narrow window has no room to spare: no rail.
+      tester.view.physicalSize = const Size(700, 900);
+      await tester.pumpAndSettle();
+      expect(find.byType(SidePanelRail), findsNothing);
     },
     variant: TargetPlatformVariant(const {
       TargetPlatform.macOS,

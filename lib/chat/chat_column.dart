@@ -20,11 +20,12 @@ class ChatColumnInset extends InheritedWidget {
       oldWidget.right != right;
 }
 
-/// [child] no wider than [maxWidth], in the middle of the width it has as
-/// long as it stays [right] clear of that width's right edge; else as far
-/// left as that takes, narrower where it must (as `Align` over a
-/// `ConstrainedBox` would lay it out, but for [right]). Worked out as it is
-/// laid out, so a new width only lays [child] out again.
+/// [child] no wider than [maxWidth], in the middle of the width it has (as
+/// `Align` over a `ConstrainedBox` would lay it out), but narrower at its
+/// right where it would come within [right] of that width's right edge: its
+/// left stays where it would be without, level with the composer's, which
+/// is always in the middle. Worked out as it is laid out, so a new width
+/// only lays [child] out again.
 class ChatColumn extends SingleChildRenderObjectWidget {
   const ChatColumn({
     super.key,
@@ -73,12 +74,12 @@ class RenderChatColumn extends RenderShiftedBox {
     required double maxWidth,
     double right = 0,
   }) {
-    final column = math.max(0.0, math.min(maxWidth, width - right));
-    final left = math.max(
-      0.0,
-      math.min((width - column) / 2, width - right - column),
+    final centered = math.max(0.0, math.min(maxWidth, width));
+    final left = (width - centered) / 2;
+    return (
+      left: left,
+      width: math.max(0.0, math.min(centered, width - right - left)),
     );
-    return (left: left, width: column);
   }
 
   BoxConstraints _childConstraints(BoxConstraints constraints) =>

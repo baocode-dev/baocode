@@ -10,7 +10,6 @@ import '../remote/remote_status.dart' show ClaudeInstallBanner, SshHostBanner;
 import '../theme/app_theme.dart';
 import '../workspace/title_bar_double_click.dart';
 import 'agent_view.dart';
-import 'chat_column.dart';
 import 'chat_feed.dart';
 import 'chat_history_view.dart';
 import 'chat_keys.dart';
@@ -593,7 +592,6 @@ class _ChatScreenState extends State<ChatScreen>
                             child: SingleChildScrollView(
                               child: _ConversationColumn(
                                 maxWidth: _maxContentWidth,
-                                right: ChatColumnInset.of(context),
                                 child: build(
                                   context,
                                   const IgnorePointer(
@@ -631,7 +629,6 @@ class _ChatScreenState extends State<ChatScreen>
             // width: a pane being resized does not build the composer anew.
             builder: (context, _) => _ConversationColumn(
               maxWidth: _maxContentWidth,
-              right: ChatColumnInset.of(context),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -824,36 +821,28 @@ class _TitleBarLayout extends MultiChildLayoutDelegate {
 }
 
 /// [child] 16 in from either side and no wider than [maxWidth], in the
-/// middle (but [right] clear of the right edge, see [ChatColumn]), with 12
-/// under it, at any width. Worked out as it is laid out, so a new width
-/// only lays [child] out again.
+/// middle, with 12 under it, at any width. Worked out as it is laid out, so a
+/// new width only lays [child] out again.
 class _ConversationColumn extends SingleChildRenderObjectWidget {
-  const _ConversationColumn({
-    required this.maxWidth,
-    this.right = 0,
-    required super.child,
-  });
+  const _ConversationColumn({required this.maxWidth, required super.child});
 
   final double maxWidth;
-  final double right;
 
   @override
   _RenderConversationColumn createRenderObject(BuildContext context) =>
-      _RenderConversationColumn(maxWidth, right);
+      _RenderConversationColumn(maxWidth);
 
   @override
   void updateRenderObject(
     BuildContext context,
     _RenderConversationColumn renderObject,
   ) {
-    renderObject
-      ..maxWidth = maxWidth
-      ..right = right;
+    renderObject.maxWidth = maxWidth;
   }
 }
 
 class _RenderConversationColumn extends RenderShiftedBox {
-  _RenderConversationColumn(this._maxWidth, this._right) : super(null);
+  _RenderConversationColumn(this._maxWidth) : super(null);
 
   double get maxWidth => _maxWidth;
   double _maxWidth;
@@ -863,27 +852,11 @@ class _RenderConversationColumn extends RenderShiftedBox {
     markNeedsLayout();
   }
 
-  double get right => _right;
-  double _right;
-  set right(double value) {
-    if (value == _right) return;
-    _right = value;
-    markNeedsLayout();
-  }
-
   static const _gutter = 16.0;
   static const _bottom = 12.0;
 
-  ({double left, double width}) _place(double width) {
-    final place = RenderChatColumn.place(
-      math.max(0, width - 2 * _gutter),
-      maxWidth: _maxWidth,
-      right: math.max(0, _right - _gutter),
-    );
-    return (left: _gutter + place.left, width: place.width);
-  }
-
-  double _width(double width) => _place(width).width;
+  double _width(double width) =>
+      math.max(0, math.min(width - 2 * _gutter, _maxWidth));
 
   BoxConstraints _childConstraints(BoxConstraints constraints) {
     return BoxConstraints.tightFor(width: _width(constraints.maxWidth))
@@ -911,9 +884,10 @@ class _RenderConversationColumn extends RenderShiftedBox {
     final child = this.child;
     var height = 0.0;
     if (child != null) {
-      child.layout(_childConstraints(constraints), parentUsesSize: true);
+      final childConstraints = _childConstraints(constraints);
+      child.layout(childConstraints, parentUsesSize: true);
       (child.parentData! as BoxParentData).offset = Offset(
-        _place(width).left,
+        (width - childConstraints.maxWidth) / 2,
         0,
       );
       height = child.size.height;
