@@ -76,6 +76,11 @@ class AgentSidePanelArea extends StatefulWidget {
   /// The strip at its left edge that takes the drag.
   static const sashWidth = 5.0;
 
+  /// What the rail keeps at the conversations' right while the panel is
+  /// hidden, as VS Code's activity bar keeps its own: they are this much
+  /// narrower, not under it.
+  static const railWidth = 48.0;
+
   @override
   State<AgentSidePanelArea> createState() => _AgentSidePanelAreaState();
 }
@@ -121,7 +126,7 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
               right: shown && !overlay
                   ? width + AgentSidePanelArea.sashWidth
                   : !shown && widget.rail != null
-                  ? 48
+                  ? AgentSidePanelArea.railWidth
                   : 0,
               child: widget.child,
             ),

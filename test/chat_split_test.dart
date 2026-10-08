@@ -13,6 +13,7 @@ import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/workspace/chat_grid.dart';
 import 'package:baocode/workspace/chat_grid_view.dart';
 import 'package:baocode/workspace/editor_launcher.dart';
+import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/workspace/open_in_editor_button.dart';
 import 'package:baocode/workspace/title_bar_double_click.dart';
 import 'package:baocode/workspace/workspace.dart';
@@ -504,14 +505,16 @@ void main() {
     expect(find.byType(Sidebar), findsNothing);
     await gesture.up();
     await tester.pumpAndSettle();
+    // The panes beside the side panel's rail.
+    const rail = AgentSidePanelArea.railWidth;
     final needed = 2 * ChatGridView.minPane.width + ChatGridView.gap;
     expect(grown, [
-      {'width': needed - 700, 'height': 0.0},
+      {'width': needed + rail - 700, 'height': 0.0},
     ]);
     expect(paneTitles(tester), unorderedEquals([first, second]));
 
-    // The window grew as asked: the panes have it all.
-    tester.view.physicalSize = Size(needed, 900);
+    // The window grew as asked: the panes have all but the rail's.
+    tester.view.physicalSize = Size(needed + rail, 900);
     await tester.pumpAndSettle();
     expect(gridRect(tester).width, needed);
     expect(tester.getRect(pane(first)).width, ChatGridView.minPane.width);
@@ -543,11 +546,12 @@ void main() {
     // A wide window: the column in the middle, well in from the sides.
     final composer = tester.getRect(find.byType(ChatComposer));
     expect(composer.left - gridRect(tester).left, greaterThan(100));
-    expectInColumn(first, find.byType(OpenInEditorButton));
+    expectInColumn(first, find.byType(SidePanelToggle));
 
     await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
     expectInColumn(first, find.bySemanticsLabel('Close pane'));
-    expectInColumn(second, find.bySemanticsLabel('Close pane'));
+    // The window's tools at the right pane's end, after its close.
+    expectInColumn(second, find.byType(SidePanelToggle));
   });
 
   testWidgets('dragging the sidebar\'s border or a line lays the chats out '

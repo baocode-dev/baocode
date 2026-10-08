@@ -77,7 +77,7 @@ void main() {
           // The sidebar's.
           'Hide sidebar (⌘B)',
           'New Chat (⌘N)',
-          'Search Agents (⇧⌘F)',
+          'Search (⇧⌘P)',
           'Settings (⌘,)',
           // The title bar's.
           'Open in Fast Ide (⌃⌘I)',
