@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -20,7 +19,6 @@ import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/editor_launcher.dart';
 import '../workspace/title_bar_double_click.dart';
-import '../workspace/window_caption.dart';
 import '../workspace/workspace.dart';
 import 'customization_store.dart';
 import 'customizations.dart';
@@ -253,10 +251,8 @@ class CustomizeViewState extends State<CustomizeView> {
           children: [
             SizedBox(width: widget.leading == null ? widget.titleBarInset : 0),
             if (widget.leading case final leading?) ...[
-              // Level with the chat's on Windows, which has no traffic
-              // lights to clear.
-              SizedBox(width: math.max(8, widget.titleBarInset - 34)),
-              TitleBarControls(child: leading),
+              SizedBox(width: widget.titleBarInset - 34),
+              leading,
               const SizedBox(width: 10),
             ],
             Expanded(
@@ -269,15 +265,12 @@ class CustomizeViewState extends State<CustomizeView> {
                 ),
               ),
             ),
-            TitleBarControls(
-              child: SidebarIconButton(
-                icon: Codicons.close,
-                tooltip: l10n.customizeClose,
-                onTap: widget.onClose,
-              ),
+            SidebarIconButton(
+              icon: Codicons.close,
+              tooltip: l10n.customizeClose,
+              onTap: widget.onClose,
             ),
-            // Clear of Windows' buttons, where they are over its right.
-            SizedBox(width: 8 + CaptionInset.of(context)),
+            const SizedBox(width: 8),
           ],
         ),
       ),

@@ -602,6 +602,28 @@ List<Color> terminalAnsiColors([List<Color> ansi = TerminalColors.ansi]) {
   return colors;
 }
 
+/// VS Code's `terminal.integrated.minimumContrastRatio` default: text the
+/// terminal draws is made at least this far from what is behind it.
+const double terminalMinimumContrastRatio = 4.5;
+
+/// [foreground] on [background] as the terminal draws it: lightened or
+/// darkened to [ratio] (xterm.js' `ensureContrastRatio`), opaque; as it is
+/// when it already meets it. E.g. the yellow of a dark palette on a light
+/// theme's background.
+Color terminalContrast(
+  Color foreground,
+  Color background, {
+  double ratio = terminalMinimumContrastRatio,
+}) {
+  int rgbaOf(Color color) => ((color.toARGB32() & 0xFFFFFF) << 8) | 0xFF;
+  final result = xterm.rgba.ensureContrastRatio(
+    rgbaOf(background),
+    rgbaOf(foreground),
+    ratio,
+  );
+  return result == null ? foreground : Color(0xFF000000 | (result >>> 8));
+}
+
 /// [color] as VS Code's `Color.toString()` gives it: `#rrggbb` when opaque,
 /// else `rgba(r, g, b, a)` with the alpha (rounded to three decimals, as
 /// VS Code keeps it) to two.

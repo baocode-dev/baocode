@@ -452,7 +452,7 @@ ITerminalOptions vscodeTerminalOptions({
   fontSize: 13,
   letterSpacing: 0,
   lineHeight: 1,
-  minimumContrastRatio: 4.5,
+  minimumContrastRatio: terminalMinimumContrastRatio,
   tabStopWidth: 8,
   cursorBlink: false,
   blinkIntervalDuration: 0,

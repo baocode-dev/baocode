@@ -9,6 +9,10 @@ import 'package:baocode/theme/app_theme.dart';
 const _red = Color(0xFFCD3131);
 const _brightGreen = Color(0xFF23D18B);
 
+/// [color] as the terminal draws it on the step's box: at its minimum
+/// contrast.
+Color _onCode(Color color) => terminalContrast(color, AppColors.code);
+
 void main() {
   group('plain output', () {
     test('comes back as it is, trimmed at the end', () {
@@ -33,10 +37,10 @@ void main() {
       expect(shown.text, 'error: ok');
       expect(shown.styled, isTrue);
       expect(shown.runs, [
-        const TerminalRun('error', foreground: _red),
+        TerminalRun('error', foreground: _onCode(_red)),
         const TerminalRun(': '),
         // Bold brightens the first eight, as VS Code's terminal draws it.
-        const TerminalRun('ok', foreground: _brightGreen, bold: true),
+        TerminalRun('ok', foreground: _onCode(_brightGreen), bold: true),
       ]);
       expect(TerminalColors.ansi[1], _red);
       expect(TerminalColors.ansi[10], _brightGreen);
@@ -47,8 +51,8 @@ void main() {
         '\x1b[38;5;208mA\x1b[38;2;1;2;3mB\x1b[0;44mC\x1b[0m',
       );
       expect(shown.runs, [
-        TerminalRun('A', foreground: terminalAnsiColors()[208]),
-        const TerminalRun('B', foreground: Color(0xFF010203)),
+        TerminalRun('A', foreground: _onCode(terminalAnsiColors()[208])),
+        TerminalRun('B', foreground: _onCode(const Color(0xFF010203))),
         const TerminalRun('C', background: Color(0xFF2472C8)),
       ]);
     });
@@ -58,10 +62,14 @@ void main() {
       expect(shown.runs, [
         TerminalRun(
           'A',
-          foreground: AppColors.code,
+          foreground: terminalContrast(AppColors.code, AppColors.textMuted),
           background: AppColors.textMuted,
         ),
-        TerminalRun('B', foreground: AppColors.code, background: _red),
+        TerminalRun(
+          'B',
+          foreground: terminalContrast(AppColors.code, _red),
+          background: _red,
+        ),
       ]);
     });
 
@@ -95,7 +103,7 @@ void main() {
       final shown = terminalOutput('\x1b[31ma\nb\x1b[0m\nc');
       // A line break goes with what comes before it.
       expect(shown.runs, [
-        const TerminalRun('a\nb\n', foreground: _red),
+        TerminalRun('a\nb\n', foreground: _onCode(_red)),
         const TerminalRun('c'),
       ]);
     });
@@ -123,9 +131,9 @@ void main() {
       expect(shown.text, 'layer 1: done\nlayer 2: done');
       expect(shown.runs, [
         const TerminalRun('layer 1: '),
-        const TerminalRun('done\n', foreground: Color(0xFF0DBC79)),
+        TerminalRun('done\n', foreground: _onCode(const Color(0xFF0DBC79))),
         const TerminalRun('layer 2: '),
-        const TerminalRun('done', foreground: Color(0xFF0DBC79)),
+        TerminalRun('done', foreground: _onCode(const Color(0xFF0DBC79))),
       ]);
     });
 

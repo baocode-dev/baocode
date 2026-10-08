@@ -13,6 +13,7 @@ import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/search/search_palette.dart';
 import 'package:baocode/workspace/chat_grid.dart';
+import 'package:baocode/workspace/window_header/header_menu_bar.dart';
 import 'package:baocode/workspace/workspace.dart';
 
 const _window = MethodChannel('baocode/window');
@@ -298,6 +299,51 @@ void main() {
     await press(tester, LogicalKeyboardKey.keyN, control: true, alt: true);
     expect(workspace.current, isNot(same(before)));
   });
+
+  testWidgets('the Windows header\'s menus show the keys in effect', (
+    tester,
+  ) async {
+    final workspace = await pumpApp(tester);
+    Future<void> openMenu(String name) async {
+      await tester.tap(find.text(name));
+      await tester.pump();
+    }
+
+    Future<void> closeMenu() async {
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+    }
+
+    await openMenu('File');
+    expect(find.byType(HeaderMenuBar), findsOneWidget);
+    expect(find.text('New Chat'), findsWidgets);
+    expect(find.text('Ctrl+N'), findsOneWidget);
+    await closeMenu();
+    await openMenu('View');
+    expect(find.text('Search Agents'), findsOneWidget);
+    expect(find.text('Ctrl+Shift+F'), findsOneWidget);
+    expect(find.text('Open in Fast Ide'), findsOneWidget);
+    expect(find.text('Ctrl+Alt+I'), findsOneWidget);
+    await closeMenu();
+
+    KeybindingService.instance.userEntries = const [
+      KeybindingEntry(
+        key: 'ctrl+alt+n',
+        command: ChatCommandIds.newChat,
+        when: 'chatMode',
+      ),
+    ];
+    await tester.pump();
+    await openMenu('File');
+    expect(find.text('Ctrl+Alt+N'), findsOneWidget);
+    expect(find.text('Ctrl+N'), findsNothing);
+    // Chosen, it runs (the sidebar's button is the other New Chat).
+    final before = workspace.current;
+    await tester.tap(find.text('New Chat').last, warnIfMissed: false);
+    await tester.pump();
+    await tester.pump();
+    expect(workspace.current, isNot(same(before)));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 }
 
 /// A dialog with a text field over the window, left open.

@@ -181,19 +181,31 @@ List<List<(String, _Style)>> _lines(IBuffer buffer) {
 }
 
 /// [cell]'s look as VS Code's terminal draws it: inverse swaps the colors
-/// (the default ones too), bold brightens the first eight, dim halves the
-/// text's opacity and invisible text is not seen.
+/// (the default ones too), bold brightens the first eight, a color too close
+/// to what is behind it is moved to the minimum contrast (half of it for
+/// dim text, and then not dimmed), dim halves the text's opacity and
+/// invisible text is not seen. The step's own text color is left as it is.
 _Style _styleOf(CellData cell) {
   final inverse = cell.isInverse() != 0;
   final bold = cell.isBold() != 0;
+  final dim = cell.isDim() != 0;
   var foreground =
       _color(inverse ? cell.bg : cell.fg, bright: bold) ??
       (inverse ? _background : null);
   final background =
       _color(inverse ? cell.fg : cell.bg) ?? (inverse ? _foreground : null);
+  var contrasted = false;
+  if (foreground case final color?) {
+    foreground = terminalContrast(
+      color,
+      background ?? _background,
+      ratio: terminalMinimumContrastRatio / (dim ? 2 : 1),
+    );
+    contrasted = foreground != color;
+  }
   if (cell.isInvisible() != 0) {
     foreground = const Color(0x00000000);
-  } else if (cell.isDim() != 0) {
+  } else if (dim && !contrasted) {
     foreground = (foreground ?? _foreground).withValues(alpha: 0.5);
   }
   return (

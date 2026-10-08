@@ -1773,8 +1773,14 @@ void main() {
       expect(composer.right, lessThan(rail.left));
       // Room enough: the column in the middle, as without the rail.
       expect(composer.center.dx, closeTo(chat.center.dx, 0.5));
-      // Just under the conversation's title bar, on Windows too.
-      expect(rail.top - chat.top, AppMetrics.titleBarHeight + 4);
+      // Just under the conversation's title bar; at the top under
+      // Windows' header.
+      expect(
+        rail.top - chat.top,
+        defaultTargetPlatform == TargetPlatform.windows
+            ? 12
+            : AppMetrics.titleBarHeight + 4,
+      );
 
       // A narrow window has no room to spare: no rail.
       tester.view.physicalSize = const Size(700, 900);

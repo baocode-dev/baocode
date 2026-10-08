@@ -25,7 +25,6 @@ import '../../ide/terminal/terminal_instance.dart';
 import '../../ide/terminal/terminal_service.dart';
 import '../../ide/terminal/terminal_view.dart';
 import '../../kernel/kernel_types.dart' show KernelTask;
-import '../../workspace/window_caption.dart';
 import '../../workspace/window_controls.dart';
 import '../chat_models.dart' show CommandStatus;
 import '../../keybindings/chat_keybindings.dart';
@@ -62,7 +61,6 @@ class AgentSidePanelArea extends StatefulWidget {
     required this.builder,
     this.rail,
     this.railTop = AppMetrics.titleBarHeight + 4,
-    this.captionInset = 0,
     this.hidden = false,
     required this.child,
   });
@@ -78,12 +76,6 @@ class AgentSidePanelArea extends StatefulWidget {
   /// How far down [rail] is: under the conversation's title bar, where it
   /// has one.
   final double railTop;
-
-  /// What the window's buttons take at its top right, where the app draws
-  /// them (Windows; see WindowCaption): the panel's own content keeps under
-  /// their row, and the conversations' title bar clear of them where it
-  /// reaches them (see CaptionInset).
-  final double captionInset;
 
   /// Whether it gave way to the window's sidebar, though shown: the rail
   /// is there instead, to ask for it again.
@@ -149,14 +141,11 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
               right: shown && !overlay
                   ? width + AgentSidePanelArea.sashWidth
                   : 0,
-              child: CaptionInset(
-                right: shown && !overlay ? 0 : widget.captionInset,
-                child: ChatColumnInset(
-                  right: !shown && widget.rail != null
-                      ? AgentSidePanelArea.railInset
-                      : 0,
-                  child: widget.child,
-                ),
+              child: ChatColumnInset(
+                right: !shown && widget.rail != null
+                    ? AgentSidePanelArea.railInset
+                    : 0,
+                child: widget.child,
               ),
             ),
             if (!shown && widget.rail != null)
@@ -209,14 +198,7 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
                             focusNode: _panel.focusNode,
                             child: ColoredBox(
                               color: AppColors.background,
-                              child: Padding(
-                                padding: EdgeInsets.only(
-                                  top: widget.captionInset > 0
-                                      ? WindowCaption.height
-                                      : 0,
-                                ),
-                                child: widget.builder(context),
-                              ),
+                              child: widget.builder(context),
                             ),
                           ),
                         ),

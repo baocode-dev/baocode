@@ -26,6 +26,7 @@ import '../update/update_service.dart';
 import '../workspace/chat_drag.dart';
 import '../workspace/editor_launcher.dart';
 import '../workspace/title_bar_double_click.dart';
+import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
 import '../workspace/workspace_dialog.dart';
 import 'sidebar_menu.dart';
@@ -465,7 +466,9 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
         builder: (context, _) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildTopBar(),
+            // The toggle lives in the window's header on Windows (see
+            // window_header/), which is where this row would have been.
+            if (!WindowControls.drawsHeader) _buildTopBar(),
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 8,
@@ -510,8 +513,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     );
   }
 
-  /// Under the window's traffic lights (at the top of the window's caption
-  /// on Windows, see WindowCaption); the collapse button on the right.
+  /// Under the window's traffic lights; the collapse button on the right.
   Widget _buildTopBar() {
     return TitleBarDoubleClick(
       child: SizedBox(
@@ -519,13 +521,11 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
         child: Row(
           children: [
             const Spacer(),
-            TitleBarControls(
-              child: SidebarIconButton(
-                icon: Codicons.layoutSidebarLeft,
-                tooltip: context.l10n.windowHideSidebar,
-                command: 'workbench.action.toggleSidebarVisibility',
-                onTap: widget.onCollapse,
-              ),
+            SidebarIconButton(
+              icon: Codicons.layoutSidebarLeft,
+              tooltip: context.l10n.windowHideSidebar,
+              command: 'workbench.action.toggleSidebarVisibility',
+              onTap: widget.onCollapse,
             ),
             const SizedBox(width: 6),
           ],

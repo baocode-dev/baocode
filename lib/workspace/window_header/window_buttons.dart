@@ -19,7 +19,6 @@ class WindowButtons extends StatelessWidget {
     required this.minimizeKey,
     required this.maximizeKey,
     required this.closeKey,
-    this.height = AppMetrics.headerHeight,
   });
 
   /// Where each button is, read back for the window's hit test (see
@@ -27,10 +26,6 @@ class WindowButtons extends StatelessWidget {
   final Key minimizeKey;
   final Key maximizeKey;
   final Key closeKey;
-
-  /// As high as the strip they end: the header, or the chat's title bars
-  /// (see WindowCaption).
-  final double height;
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +43,6 @@ class WindowButtons extends StatelessWidget {
                 label: context.l10n.windowMinimize,
                 glyph: Glyph.minimize,
                 hovered: hovered == WindowButton.minimize,
-                height: height,
                 onPressed: () =>
                     WindowControls.windowCommand('minimize', viewId: viewId),
               ),
@@ -61,7 +55,6 @@ class WindowButtons extends StatelessWidget {
                     : context.l10n.windowMaximize,
                 glyph: maximized ? Glyph.restore : Glyph.maximize,
                 hovered: hovered == WindowButton.maximize,
-                height: height,
                 onPressed: () =>
                     WindowControls.windowCommand('maximize', viewId: viewId),
               ),
@@ -72,7 +65,6 @@ class WindowButtons extends StatelessWidget {
                 label: context.l10n.windowClose,
                 glyph: Glyph.close,
                 hovered: hovered == WindowButton.close,
-                height: height,
                 onPressed: () =>
                     WindowControls.windowCommand('close', viewId: viewId),
                 closes: true,
@@ -101,7 +93,6 @@ class _WindowButton extends StatelessWidget {
     required this.glyph,
     required this.hovered,
     required this.onPressed,
-    required this.height,
     this.closes = false,
   });
 
@@ -109,7 +100,6 @@ class _WindowButton extends StatelessWidget {
   final String glyph;
   final bool hovered;
   final VoidCallback onPressed;
-  final double height;
 
   /// One that closes the window: red under the pointer, as the system
   /// paints it.
@@ -135,7 +125,7 @@ class _WindowButton extends StatelessWidget {
           onTap: onPressed,
           child: Container(
             width: AppMetrics.windowButtonWidth,
-            height: height,
+            height: AppMetrics.headerHeight,
             alignment: Alignment.center,
             color: !hovered
                 ? Colors.transparent

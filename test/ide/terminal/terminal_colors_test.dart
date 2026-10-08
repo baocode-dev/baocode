@@ -482,6 +482,25 @@ void main() {
     });
   });
 
+  test('terminalContrast moves a color to the minimum contrast, as the '
+      'terminal draws it', () {
+    double ratio(Color a, Color b) {
+      final la = a.computeLuminance(), lb = b.computeLuminance();
+      return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+    }
+
+    const yellow = Color(0xFFE5E510);
+    const white = Color(0xFFFFFFFF);
+    // On a light theme's background, darkened to readable.
+    final onWhite = terminalContrast(yellow, white);
+    expect(onWhite, isNot(yellow));
+    expect(ratio(onWhite, white), greaterThanOrEqualTo(4.4));
+    expect(onWhite.computeLuminance(), lessThan(yellow.computeLuminance()));
+    // Already far enough on a dark one: as it is.
+    expect(terminalContrast(yellow, const Color(0xFF000000)), yellow);
+    expect(terminalMinimumContrastRatio, 4.5);
+  });
+
   test("cssColor is VS Code's Color.toString()", () {
     expect(cssColor(const Color(0xFF1B81A8)), '#1b81a8');
     expect(cssColor(const Color(0x40FFFFFF)), 'rgba(255, 255, 255, 0.25)');

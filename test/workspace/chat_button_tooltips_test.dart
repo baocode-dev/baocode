@@ -18,7 +18,6 @@ import 'package:baocode/keybindings/chat_keybindings.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
-import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/workspace/back_to_chat_button.dart';
 import 'package:baocode/workspace/chat_grid.dart';
@@ -148,16 +147,13 @@ void main() {
       expect(shown, isNot(contains('Hide sidebar (⌘B)')));
     }, variant: _mac);
 
-    testWidgets('on Windows, the sidebar\'s toggle, as on macOS; over the '
-        'IDE, its header\'s Back to Chat, button and menu item, with the '
-        'IDE\'s keys', (tester) async {
+    testWidgets('on Windows, the header\'s sidebar toggle; over the IDE, its '
+        'Back to Chat, button and menu item, with the IDE\'s keys', (
+      tester,
+    ) async {
       final workspace = await pumpApp(tester);
       final header = find.byType(WindowHeader);
-      expect(header, findsNothing);
-      expect(
-        hovers(tester, find.byType(Sidebar)),
-        contains('Hide sidebar (Ctrl+B)'),
-      );
+      expect(hovers(tester, header), contains('Hide sidebar (Ctrl+B)'));
 
       workspace.layout = WorkspaceLayout.ide;
       await tester.pump();

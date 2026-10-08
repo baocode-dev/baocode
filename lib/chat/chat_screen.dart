@@ -9,7 +9,6 @@ import '../l10n/l10n.dart';
 import '../remote/remote_status.dart' show ClaudeInstallBanner, SshHostBanner;
 import '../theme/app_theme.dart';
 import '../workspace/title_bar_double_click.dart';
-import '../workspace/window_caption.dart';
 import 'agent_view.dart';
 import 'chat_feed.dart';
 import 'chat_history_view.dart';
@@ -48,6 +47,7 @@ class ChatScreen extends StatefulWidget {
     this.autofocus = false,
     this.embedded = false,
     this.windowTitleBar = true,
+    this.titleBar = true,
     this.focused = true,
     this.onOpenChange,
     this.onOpenCode,
@@ -87,6 +87,10 @@ class ChatScreen extends StatefulWidget {
   /// macOS traffic lights' row): a double click on it does what one on the
   /// system's does. Not so for a pane below another.
   final bool windowTitleBar;
+
+  /// Whether it shows its title row: not where the window's header shows
+  /// the title (Windows' narrow window); renaming shows it all the same.
+  final bool titleBar;
 
   /// Whether it is the conversation focused, of several side by side: the
   /// others' titles are dimmer.
@@ -378,17 +382,15 @@ class _ChatScreenState extends State<ChatScreen>
     final inset = widget.titleBarInset ?? AppMetrics.trafficLightsWidth + 12;
     final Widget title;
     if (_renaming && onRename != null) {
-      title = TitleBarControls(
-        child: SizedBox(
-          width: 320,
-          child: InlineRenameField(
-            initial: widget.title,
-            style: style.copyWith(color: AppColors.textPrimary),
-            onDone: (text) {
-              if (text != null) onRename(text);
-              setState(() => _renaming = false);
-            },
-          ),
+      title = SizedBox(
+        width: 320,
+        child: InlineRenameField(
+          initial: widget.title,
+          style: style.copyWith(color: AppColors.textPrimary),
+          onDone: (text) {
+            if (text != null) onRename(text);
+            setState(() => _renaming = false);
+          },
         ),
       );
     } else {
@@ -407,17 +409,10 @@ class _ChatScreenState extends State<ChatScreen>
     final bar = SizedBox(
       height: AppMetrics.titleBarHeight,
       child: CustomMultiChildLayout(
-        delegate: _TitleBarLayout(
-          inset: inset,
-          maxWidth: _maxContentWidth,
-          end: CaptionInset.of(context),
-        ),
+        delegate: _TitleBarLayout(inset: inset, maxWidth: _maxContentWidth),
         children: [
           if (widget.leading case final leading?)
-            LayoutId(
-              id: _TitleBarSlot.leading,
-              child: TitleBarControls(child: leading),
-            ),
+            LayoutId(id: _TitleBarSlot.leading, child: leading),
           LayoutId(
             id: _TitleBarSlot.title,
             child: Row(
@@ -593,10 +588,10 @@ class _ChatScreenState extends State<ChatScreen>
     return Scaffold(
       body: Column(
         children: [
-          // The session's title, at the top of the window: the traffic
-          // lights over its left on macOS, Windows' buttons over its right
-          // (see WindowCaption).
-          if (!widget.embedded) _buildTitleBar(),
+          // The session's title, in the row the window's header leaves it
+          // (macOS draws a title bar of its own over it; see AppMetrics).
+          if (!widget.embedded && (widget.titleBar || _renaming))
+            _buildTitleBar(),
           // Esc goes back from a subagent: a keybinding of the chat's
           // (closeSubagent).
           Expanded(
@@ -816,21 +811,14 @@ double _columnWidth(double width, double maxWidth) =>
 
 /// The title bar's [_TitleBarSlot.leading] at [inset], clear of the traffic
 /// lights; the title and the buttons after it across the conversation's
-/// column, clear of the leading and of the window's buttons ([end]).
+/// column, clear of the leading.
 class _TitleBarLayout extends MultiChildLayoutDelegate {
-  _TitleBarLayout({
-    required this.inset,
-    required this.maxWidth,
-    required this.end,
-  });
+  _TitleBarLayout({required this.inset, required this.maxWidth});
 
   final double inset;
 
   /// The conversation's column's at most.
   final double maxWidth;
-
-  /// What the window's buttons take at the right (see CaptionInset).
-  final double end;
 
   /// Between the leading and the title.
   static const _gap = 6.0;
@@ -856,7 +844,7 @@ class _TitleBarLayout extends MultiChildLayoutDelegate {
     final left = math.max(start, column);
     final width = math.max(
       0.0,
-      size.width - left - math.max(_endInset + end, column),
+      size.width - left - math.max(_endInset, column),
     );
     layoutChild(
       _TitleBarSlot.title,
@@ -867,9 +855,7 @@ class _TitleBarLayout extends MultiChildLayoutDelegate {
 
   @override
   bool shouldRelayout(_TitleBarLayout oldDelegate) =>
-      oldDelegate.inset != inset ||
-      oldDelegate.maxWidth != maxWidth ||
-      oldDelegate.end != end;
+      oldDelegate.inset != inset || oldDelegate.maxWidth != maxWidth;
 }
 
 /// [child] 16 in from either side and no wider than [maxWidth], in the
