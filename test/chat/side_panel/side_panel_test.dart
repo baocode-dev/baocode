@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/kernel/kernel_types.dart';
@@ -23,6 +24,7 @@ import 'package:baocode/ide/ide_code_editor.dart';
 import 'package:baocode/ide/ide_explorer.dart';
 import 'package:baocode/ide/ide_hover.dart' show IdeActionButton;
 import 'package:baocode/ide/ide_list.dart';
+import 'package:baocode/ide/terminal/terminal_instance.dart';
 import 'package:baocode/ide/terminal/terminal_service.dart';
 import 'package:baocode/ide/terminal/terminal_view.dart';
 import 'package:baocode/ide/tab_strip_scroll.dart';
@@ -233,6 +235,30 @@ SidePanelTab? _active(AgentSidePanel panel, ChatSession session) =>
 TextEditingValue _edited(WidgetTester tester) =>
     tester.widget<IdeCodeEditor>(find.byType(IdeCodeEditor)).controller.value;
 
+/// The terminal a background command's output shows in.
+TerminalInstance _previewTerminal(WidgetTester tester) => tester
+    .widget<TerminalView>(
+      find.descendant(
+        of: find.byType(TerminalPreview),
+        matching: find.byType(TerminalView),
+      ),
+    )
+    .instance;
+
+/// What that terminal shows, once what was printed is parsed: its lines,
+/// wrapped ones joined.
+Future<String> _previewScreen(WidgetTester tester) async {
+  await tester.pump(const Duration(milliseconds: 20));
+  final lines = _previewTerminal(tester).terminal.buffer.lines;
+  final text = StringBuffer();
+  for (var i = 0; i < lines.length; i++) {
+    final line = lines.get(i)!;
+    if (i > 0 && !line.isWrapped) text.write('\n');
+    text.write(line.translateToString(true));
+  }
+  return text.toString().trimRight();
+}
+
 void main() {
   testWidgets('completion queues a final read; hiding cancels polling', (
     tester,
@@ -270,7 +296,7 @@ void main() {
     expect(reads, 2);
     last.complete('final output');
     await tester.pumpAndSettle();
-    expect(find.textContaining('final output'), findsOneWidget);
+    expect(await _previewScreen(tester), 'final output');
     await tester.pump(const Duration(seconds: 5));
     expect(reads, 2);
     task.value = task.value.copyWith(status: CommandStatus.running);
@@ -300,17 +326,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('test  ·  Failed'), findsOneWidget);
     expect(find.textContaining('Output unavailable:'), findsOneWidget);
-    expect(find.textContaining('command failed'), findsOneWidget);
+    expect(await _previewScreen(tester), 'command failed');
     files.texts['/tmp/missing.output'] = 'recovered output';
     await tester.tap(find.byIcon(Codicons.refresh));
     await tester.pumpAndSettle();
-    expect(find.textContaining('recovered output'), findsOneWidget);
+    // Not what it showed with more: printed again, on a reset screen.
+    expect(await _previewScreen(tester), 'recovered output');
     expect(find.textContaining('Output unavailable:'), findsNothing);
   });
 
-  testWidgets('a background command is colored as in the chat', (
-    tester,
-  ) async {
+  testWidgets('a background command is colored as in the chat', (tester) async {
     final task = KernelTask(
       id: 'grep',
       description: 'Search',
@@ -330,20 +355,44 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final line = tester
-        .widgetList<RichText>(find.byType(RichText))
-        .map((text) => text.text)
-        .firstWhere((span) => span.toPlainText() == r'$ grep -rn "x" .');
-    final colors = <String, Color?>{};
-    line.visitChildren((span) {
-      if (span case TextSpan(:final text?, :final style)) {
-        colors[text.trim()] = style?.color;
-      }
-      return true;
-    });
-    expect(colors['grep'], AppColors.syntaxCommand);
-    expect(colors['-rn'], AppColors.syntaxOption);
-    expect(colors['"x"'], AppColors.syntaxString);
+    expect(await _previewScreen(tester), '\$ grep -rn "x" .\ndone');
+    // In the terminal's own yellow, cyan and magenta, which the chat's are.
+    final line = _previewTerminal(tester).xterm.buffer.active.getLine(0)!;
+    int? color(int x) {
+      final cell = line.getCell(x)!;
+      return cell.isFgPalette() ? cell.getFgColor() : null;
+    }
+
+    expect([color(2), color(7), color(11), color(15)], [3, 6, 5, null]);
+  });
+
+  testWidgets('a running command waits for output, then has only what '
+      'it added printed', (tester) async {
+    final files = _Files({'/tmp/run.output': ''});
+    final task = KernelTask(
+      id: 'run',
+      description: 'Run',
+      kind: KernelTaskKind.command,
+      status: CommandStatus.running,
+      startedAt: DateTime.now(),
+      outputFile: '/tmp/run.output',
+    );
+    await tester.pumpWidget(
+      _app(TerminalPreview(task: task, files: files, onStop: () {})),
+    );
+    expect(await _previewScreen(tester), 'Waiting for output');
+    final printed = <String>[];
+    final listening = _previewTerminal(tester).output
+        .listen((data) => printed.add(utf8.decode(data)));
+    addTearDown(listening.cancel);
+    files.texts['/tmp/run.output'] = 'one\n';
+    await tester.pump(const Duration(seconds: 1));
+    expect(await _previewScreen(tester), 'one');
+    files.texts['/tmp/run.output'] = 'one\n\x1b[31mtwo\x1b[0m\n';
+    await tester.pump(const Duration(seconds: 1));
+    expect(await _previewScreen(tester), 'one\ntwo');
+    expect(printed.last, '\x1b[31mtwo\x1b[0m\n');
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('lines selected in a diff copy one to a line, and paste '
@@ -1196,18 +1245,17 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.byType(TerminalPreview), findsOneWidget);
       expect(panel.tabsOf(session).terminal, 'one');
-      expect(find.textContaining('first output'), findsOneWidget);
       expect(
-        find.descendant(
-          of: find.byType(TerminalPreview),
-          matching: find.text(r'$ sleep 120 && echo one'),
-        ),
-        findsOneWidget,
+        await _previewScreen(tester),
+        '\$ sleep 120 && echo one\nfirst output',
       );
       files.texts['/tmp/one.output'] = 'first output\nnew output';
       await tester.pump(const Duration(seconds: 1));
       await tester.pump();
-      expect(find.textContaining('new output'), findsOneWidget);
+      expect(
+        await _previewScreen(tester),
+        '\$ sleep 120 && echo one\nfirst output\nnew output',
+      );
       // Each command is a row of the list; its output opens in a tab.
       final list = find.byKey(const ValueKey('side-panel-terminals'));
       expect(
@@ -1219,16 +1267,9 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(find.textContaining('second output'), findsOneWidget);
       expect(panel.tabsOf(session).terminals, ['one', 'two']);
       // Its command not known, its output alone.
-      expect(
-        find.descendant(
-          of: find.byType(TerminalPreview),
-          matching: find.textContaining(r'$ '),
-        ),
-        findsNothing,
-      );
+      expect(await _previewScreen(tester), 'second output');
       final preview = find.byType(TerminalPreview);
       await tester.tap(
         find.descendant(of: preview, matching: find.byIcon(Codicons.debugStop)),
@@ -1255,7 +1296,7 @@ void main() {
       panel.closeTerminal(session, 'two');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(find.textContaining('first output'), findsOneWidget);
+      expect(await _previewScreen(tester), contains('first output'));
       panel.hide();
       await tester.pump();
       expect(find.byType(SidePanelRail), findsOneWidget);

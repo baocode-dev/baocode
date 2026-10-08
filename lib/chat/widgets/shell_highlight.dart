@@ -2,26 +2,58 @@ import 'package:flutter/painting.dart';
 
 import '../../theme/app_theme.dart';
 
+/// What a word of a shell command is, for its color.
+enum _ShellToken { plain, program, string, option }
+
 /// [command] colored as a shell reads it: the program each pipeline stage
 /// runs, quoted strings, options. A light tokenizer, not a parser: anything
 /// it does not know stays plain.
 List<TextSpan> highlightShell(String command) {
-  final plain = TextStyle(color: AppColors.textPrimary);
-  final program = TextStyle(color: AppColors.syntaxCommand);
-  final string = TextStyle(color: AppColors.syntaxString);
-  final option = TextStyle(color: AppColors.syntaxOption);
+  final styles = {
+    _ShellToken.plain: TextStyle(color: AppColors.textPrimary),
+    _ShellToken.program: TextStyle(color: AppColors.syntaxCommand),
+    _ShellToken.string: TextStyle(color: AppColors.syntaxString),
+    _ShellToken.option: TextStyle(color: AppColors.syntaxOption),
+  };
+  return [
+    for (final (text, token) in _shellTokens(command))
+      TextSpan(text: text, style: styles[token]),
+  ];
+}
 
-  final spans = <TextSpan>[];
-  void add(String text, TextStyle style) {
+/// [command] as [highlightShell] colors it, in the terminal's own colors
+/// ([AppColors.syntaxCommand]… are its ANSI yellow, magenta and cyan): SGR
+/// sequences around each colored run, for a terminal to print.
+String highlightShellAnsi(String command) {
+  const codes = {
+    _ShellToken.program: 33,
+    _ShellToken.string: 35,
+    _ShellToken.option: 36,
+  };
+  return [
+    for (final (text, token) in _shellTokens(command))
+      switch (codes[token]) {
+        final code? => '\x1b[${code}m$text\x1b[39m',
+        null => text,
+      },
+  ].join();
+}
+
+/// [command] cut into runs of one [_ShellToken], in order.
+List<(String, _ShellToken)> _shellTokens(String command) {
+  const plain = _ShellToken.plain;
+  const program = _ShellToken.program;
+  const string = _ShellToken.string;
+  const option = _ShellToken.option;
+
+  final tokens = <(String, _ShellToken)>[];
+  void add(String text, _ShellToken token) {
     if (text.isEmpty) return;
-    // Merge runs of one style, for fewer spans.
-    if (spans.isNotEmpty && spans.last.style == style) {
-      spans[spans.length - 1] = TextSpan(
-        text: spans.last.text! + text,
-        style: style,
-      );
+    // Merge runs of one token, for fewer spans.
+    if (tokens.isNotEmpty && tokens.last.$2 == token) {
+      tokens[tokens.length - 1] = (tokens.last.$1 + text, token);
     } else {
-      spans.add(TextSpan(text: text, style: style));
+      tokens.add((text, token));
     }
   }
 
@@ -81,5 +113,5 @@ List<TextSpan> highlightShell(String command) {
     }
     i = end;
   }
-  return spans;
+  return tokens;
 }

@@ -739,6 +739,10 @@ class AgentSidePanelView extends StatelessWidget {
           command: session.commandOf(task.toolUseId),
           files: files,
           onStop: () => stop(task),
+          root: terminals?.root ?? session.root ?? '',
+          linkStat: terminals?.backend.linkStat,
+          skipShell: terminalSkipShell,
+          onOpenLink: onOpenTerminalLink,
         ),
         // The list says when there are none.
         _ when shells.isEmpty && tasks.isEmpty && panel.listShown =>
