@@ -42,7 +42,7 @@ class _Output {
 /// disk (`info/attributes`), so that what is put back is byte for byte
 /// what was there.
 class GitReviewStore implements ReviewStore {
-  GitReviewStore._(this.root, this.gitDir);
+  GitReviewStore._(this.root, this.gitDir, this._own);
 
   /// The store for [root], its repository under [checkpoints] (made the
   /// first time); null when Git cannot run or [root] is not a folder.
@@ -51,16 +51,36 @@ class GitReviewStore implements ReviewStore {
     required String checkpoints,
   }) async {
     root = p.normalize(p.absolute(root));
+    checkpoints = p.normalize(p.absolute(checkpoints));
     if (!await Directory(root).exists() || !await _gitUsable) return null;
     final gitDir = p.join(checkpoints, _folderName(root));
+    final own = p.isWithin(root, checkpoints)
+        ? p.relative(checkpoints, from: root)
+        : null;
+    final store = GitReviewStore._(root, gitDir, own);
     try {
       if (!await File(p.join(gitDir, 'HEAD')).exists()) {
         await _initialize(gitDir, root);
+      } else if (own != null) {
+        // Taken by snapshots before they left it out.
+        await store._locked(
+          () => store._git([
+            'rm',
+            '--cached',
+            // Whatever is staged there: only the index changes.
+            '-f',
+            '-r',
+            '-q',
+            '--ignore-unmatch',
+            '--',
+            ':(literal)$own',
+          ]),
+        );
       }
     } on Object {
       return null;
     }
-    return GitReviewStore._(root, gitDir);
+    return store;
   }
 
   @override
@@ -68,6 +88,16 @@ class GitReviewStore implements ReviewStore {
 
   /// The repository: `checkpoints/<folder name>-<hash of its path>`.
   final String gitDir;
+
+  /// The checkpoints folder relative to the root, where the project holds
+  /// it (a home folder, say): left out of the snapshots, which would
+  /// otherwise take in what they write there.
+  final String? _own;
+
+  bool _isOwn(String path) {
+    final own = _own;
+    return own != null && (path == own || p.isWithin(own, path));
+  }
 
   /// Past this size a file is left out of the snapshots.
   static int maxFileBytes = 10 * 1024 * 1024;
@@ -255,24 +285,33 @@ class GitReviewStore implements ReviewStore {
   Future<String> snapshot({Iterable<String>? paths}) => _locked(() async {
     final specs = <String>[];
     if (paths == null) {
+      final everything = [
+        '.',
+        if (_own case final own?) ':(exclude,literal)$own',
+      ];
       final changed = (await _git([
         'ls-files',
         '-z',
         '--others',
         '--modified',
         '--exclude-standard',
+        '--',
+        ...everything,
       ], timeout: const Duration(minutes: 5))).records;
       if (changed.length > maxFiles) {
         throw ReviewUnavailable(
           'The project has too many files to snapshot (${changed.length}).',
         );
       }
-      specs.add('.');
+      specs.addAll(everything);
       for (final path in changed) {
         if (_tooLarge(path)) specs.add(':(exclude,literal)$path');
       }
     } else {
-      final wanted = paths.toSet();
+      final wanted = {
+        for (final path in paths)
+          if (!_isOwn(path)) path,
+      };
       final missing = [
         for (final path in wanted)
           if (!_exists(path)) path,

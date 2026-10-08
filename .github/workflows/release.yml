@@ -1,0 +1,372 @@
+# Builds BaoCode for macOS and Windows and publishes it to dl.baocode.dev
+# (Cloudflare R2), where installed apps find their updates. docs/release.md
+# has the whole of it: versions, secrets, what goes where.
+#
+#   git tag v1.2.0 && git push origin v1.2.0   build and publish 1.2.0
+#   Actions → Release → Run workflow           build only, to try the build
+#
+# A version may be published again (the tag moved to a fixed commit): the
+# links end in each file's hash, so the CDN serves the new files at once.
+# Installed apps already on that version are not offered it again.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One release at a time; one that started is never cancelled halfway
+# through its upload.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.47.5
+
+jobs:
+  check:
+    name: Check the version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      marketing: ${{ steps.version.outputs.marketing }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        name: Read pubspec.yaml's version, and match the tag against it
+        run: |
+          version=$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml)
+          marketing=${version%%+*}
+          code=$(sed -n "s/^const appVersionString = '\(.*\)';/\1/p" lib/update/version.dart)
+          echo "pubspec.yaml: $version, lib/update/version.dart: $code"
+          if [ "$version" != "$code" ]; then
+            echo "::error::lib/update/version.dart says $code, pubspec.yaml $version: run tool/bump_version.dart"
+            exit 1
+          fi
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]]; then
+            echo "::error::$version is not x.y.z+build"
+            exit 1
+          fi
+          publish=false
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            if [ "$GITHUB_REF_NAME" != "v$marketing" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME, but pubspec.yaml is $version: the tag has to be v$marketing"
+              exit 1
+            fi
+            publish=true
+          fi
+          {
+            echo "version=$version"
+            echo "marketing=$marketing"
+            echo "publish=$publish"
+          } >> "$GITHUB_OUTPUT"
+      - name: Be no older than the version published
+        if: steps.version.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          published=$(curl -fsS https://dl.baocode.dev/releases/latest.json | jq -r .version || true)
+          echo "Published: ${published:-none}, this: $VERSION"
+          [ -z "$published" ] && exit 0
+          # x.y.z+build, compared number by number.
+          python3 - "$published" "$VERSION" <<'EOF'
+          import re, sys
+          def key(v):
+              m = re.fullmatch(r'v?(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?(?:\+(\d+))?', v)
+              return tuple(int(x or 0) for x in m.groups())
+          published, this = sys.argv[1:]
+          if key(this) < key(published):
+              sys.exit(f'::error::{this} is older than {published}, which is published: installed apps would not take it')
+          if key(this) == key(published):
+              print(f'::warning::{this} is published already: publishing it again')
+          EOF
+
+  remote:
+    name: Build the remote server
+    needs: check
+    # A Mac, as only one builds for macOS: the Linux builds are
+    # cross-compiled, the macOS x64 one by an x64 Dart SDK under Rosetta.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Get the x64 Dart SDK of Flutter's version
+        run: |
+          softwareupdate --install-rosetta --agree-to-license > /dev/null 2>&1 || true
+          version=$(dart --version 2>&1 | sed -n 's/^Dart SDK version: \([^ ]*\) (\([a-z]*\)).*/\1 \2/p')
+          read -r dart channel <<< "$version"
+          echo "Dart $dart ($channel)"
+          curl -fsSL -o "$RUNNER_TEMP/dart-x64.zip" \
+            "https://storage.googleapis.com/dart-archive/channels/$channel/release/$dart/sdk/dartsdk-macos-x64-release.zip"
+          unzip -q "$RUNNER_TEMP/dart-x64.zip" -d "$RUNNER_TEMP/dart-x64"
+          "$RUNNER_TEMP/dart-x64/dart-sdk/bin/dart" --version
+      # Once, for both apps: they carry its servers.json, and download the
+      # build a host needs from dl.baocode.dev (docs/ssh-remote.md, 9.3).
+      - name: Build for Linux and macOS, x64 and arm64
+        run: |
+          dart run tool/build_remote_server.dart --out build/remote --all \
+            --macos-x64-dart "$RUNNER_TEMP/dart-x64/dart-sdk/bin/dart"
+      - name: Run the macOS builds here
+        run: tool/test_remote_server_macos.sh build/remote
+      - uses: actions/upload-artifact@v4
+        with:
+          name: remote
+          if-no-files-found: error
+          path: |
+            build/remote/VERSION
+            build/remote/servers.json
+            build/remote/*.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: remote-linux
+          if-no-files-found: error
+          path: |
+            build/remote/VERSION
+            build/remote/baocode-server-linux-*
+            !build/remote/*.gz
+
+  remote-linux:
+    name: Run the remote server on Linux
+    needs: remote
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: remote-linux
+          path: build/remote
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - name: Run it on Linux distributions, in Docker
+        run: |
+          # Artifacts keep no modes.
+          chmod 755 build/remote/baocode-server-linux-*
+          tool/test_remote_server.sh build/remote
+
+  macos:
+    name: Build for macOS
+    needs: [check, remote]
+    runs-on: macos-15
+    # The Developer ID certificate and the notary key are the release
+    # environment's secrets, for tags only. Without them (a build only, or
+    # before they are set) the app is signed ad hoc, and only opens on the
+    # machine that built it.
+    environment: ${{ needs.check.outputs.publish == 'true' && 'release' || '' }}
+    env:
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Put the Developer ID certificate in a keychain
+        if: env.MACOS_CERTIFICATE != ''
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(openssl rand -hex 24)
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/certificate.p12"
+      - name: Put the notary key in a file
+        if: env.NOTARY_KEY != ''
+        run: |
+          echo "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
+          echo "BAOCODE_NOTARY_KEY=$RUNNER_TEMP/notary.p8" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: remote
+          path: build/remote
+      - name: Install create-dmg
+        run: brew install create-dmg
+      - name: Build, sign and notarise
+        env:
+          BAOCODE_MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          BAOCODE_NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          BAOCODE_NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: dart run tool/build_macos.dart --remote-built
+      - name: Launch each app, as an update installs it
+        run: |
+          # A valid signature is not enough: dyld can still refuse to load
+          # the app's frameworks (as with the hardened runtime ad hoc). The
+          # Intel one runs under Rosetta here.
+          softwareupdate --install-rosetta --agree-to-license > /dev/null 2>&1 || true
+          for arch in arm64 x64; do
+            dir="$RUNNER_TEMP/launch-$arch"
+            mkdir "$dir"
+            ditto -x -k build/installers/BaoCode-*-mac-$arch.zip "$dir"
+            BAOCODE_DATA_DIR="$dir-data" \
+              "$dir/BaoCode.app/Contents/MacOS/BaoCode" > "$dir.log" 2>&1 &
+            pid=$!
+            sleep 15
+            if ! kill -0 $pid 2>/dev/null; then
+              cat "$dir.log"
+              echo "::error::BaoCode ($arch) exited within 15 seconds of launch"
+              exit 1
+            fi
+            echo "BaoCode ($arch) is running after 15 seconds"
+            kill $pid
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          if-no-files-found: error
+          path: |
+            build/installers/BaoCode-*.dmg
+            build/installers/BaoCode-*-mac-*.zip
+      - name: Forget the certificate and the key
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/notary.p8"
+
+  windows:
+    name: Build for Windows
+    needs: [check, remote]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - uses: actions/download-artifact@v4
+        with:
+          name: remote
+          path: build/remote
+      - name: Build
+        run: dart run tool/build_windows.dart --remote-built
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          if-no-files-found: error
+          path: build/installers/BaoCode-*-setup.exe
+
+  publish:
+    name: Publish to dl.baocode.dev
+    needs: [check, remote, remote-linux, macos, windows]
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    # The update signing key and the R2 token are this environment's
+    # secrets.
+    environment: release
+    permissions:
+      contents: write # the GitHub release
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      MARKETING: ${{ needs.check.outputs.marketing }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      # R2 does not take every checksum newer AWS CLIs send by default.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Gather the files
+        run: |
+          mkdir -p out
+          for arch in arm64 x64; do
+            cp dist/macos/BaoCode-$MARKETING-$arch.dmg dist/macos/BaoCode-$MARKETING-mac-$arch.zip out/
+          done
+          cp dist/windows/BaoCode-$MARKETING-setup.exe out/
+          # The remote server, under the name both apps' servers.json give it.
+          remote="out/remote/$(cat dist/remote/VERSION)"
+          mkdir -p "$remote"
+          cp dist/remote/*.gz "$remote/"
+          find out -type f | sort
+      - name: Sign the release into latest.json
+        env:
+          SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          flutter pub get
+          key="$RUNNER_TEMP/update-signing.key"
+          echo "$SIGNING_KEY" > "$key"
+          notes=()
+          for language in en zh; do
+            file="release-notes/$MARKETING.$language.md"
+            if [ -f "$file" ]; then
+              notes+=(--notes-$language "$file")
+            else
+              echo "::warning::No $file: the update notification and the changelog say nothing of $MARKETING"
+            fi
+          done
+          BAOCODE_UPDATE_SIGNING_KEY="$key" dart run tool/release_manifest.dart \
+            --version "$VERSION" \
+            --windows out/BaoCode-$MARKETING-setup.exe \
+            --macos-arm64 out/BaoCode-$MARKETING-mac-arm64.zip \
+            --macos-x64 out/BaoCode-$MARKETING-mac-x64.zip \
+            --dmg-arm64 out/BaoCode-$MARKETING-arm64.dmg \
+            --dmg-x64 out/BaoCode-$MARKETING-x64.dmg \
+            --manifest out/latest.json \
+            "${notes[@]}"
+          rm "$key"
+      - name: Upload the remote server, then the installers
+        run: |
+          immutable='public, max-age=31536000, immutable'
+          aws s3 cp out/remote "s3://$R2_BUCKET/releases/remote/" --recursive \
+            --cache-control "$immutable"
+          for file in $(cd out && ls BaoCode-*); do
+            aws s3 cp "out/$file" "s3://$R2_BUCKET/releases/$MARKETING/$file" \
+              --cache-control "$immutable"
+          done
+      - name: Check the downloads are served
+        run: |
+          # At the manifest's links, which end in each file's hash: what
+          # users will be given, not what the CDN may have kept of a
+          # release published before under the same names.
+          jq -r '(.downloads[], .platforms[]) | "\(.url) \(.size)"' out/latest.json | sort -u |
+          while read -r url expected; do
+            served=$(curl -fsSI "$url" | tr -d '\r' | awk 'tolower($1) == "content-length:" { print $2 }')
+            echo "$url: $served bytes (expected $expected)"
+            [ "$served" = "$expected" ] || { echo "::error::$url is not served as uploaded"; exit 1; }
+          done
+      - name: Upload latest.json, last
+        run: |
+          # Apps check every 6 hours; a few minutes of cache spares R2
+          # without holding a release back.
+          aws s3 cp out/latest.json "s3://$R2_BUCKET/releases/latest.json" \
+            --cache-control 'public, max-age=300' --content-type application/json
+          curl -fsS "https://dl.baocode.dev/releases/latest.json?$GITHUB_RUN_ID" | jq .
+      - name: Make the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes=(--generate-notes)
+          [ -f "release-notes/$MARKETING.en.md" ] && notes=(--notes-file "release-notes/$MARKETING.en.md")
+          # Published again: the release is made anew, on the tag's commit.
+          gh release delete "v$MARKETING" --yes 2>/dev/null || true
+          gh release create "v$MARKETING" --title "BaoCode $MARKETING" "${notes[@]}" \
+            out/BaoCode-$MARKETING-arm64.dmg out/BaoCode-$MARKETING-x64.dmg out/BaoCode-$MARKETING-setup.exe

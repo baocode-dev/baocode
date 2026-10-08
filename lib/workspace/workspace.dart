@@ -20,10 +20,12 @@ import '../l10n/l10n.dart';
 import '../models/model_providers.dart';
 import '../theme/workbench_theme.dart' show ColorThemeStorage;
 import '../remote/remote_location.dart';
+import '../remote/ssh_host.dart' show SshHostState, SshHosts;
 import 'agent_title.dart';
 import 'chat_grid.dart';
 import 'editor_launcher.dart';
 import 'preference_store.dart';
+import 'project_workspace.dart';
 
 /// The arrangement of the project and its conversation in the window.
 enum WorkspaceLayout { chat, ide }
@@ -88,7 +90,9 @@ class AgentThread {
   }) : _seenSeq = unread ? -1 : 0,
        _wantsTitle = record == null && _title.isEmpty;
 
-  final Project project;
+  /// Its project: replaced by one of the new name when a workspace is
+  /// renamed.
+  Project project;
 
   /// The kept session it continues, if any.
   final SessionRecord? record;
@@ -211,6 +215,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     IconLibrary? icons,
     this.titler,
     AppLocalizations Function()? l10n,
+    this.workspaceDirectories = const ProjectWorkspaceDirectories(),
   }) : _projects = [...projects],
        icons = icons ?? IconLibrary(),
        l10n = l10n ?? (() => englishLocalizations),
@@ -284,6 +289,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
           _addKept(kernel, project, session);
         }
       }
+    }
+    // Listed though nothing was asked there yet, nor is its folder opened.
+    for (final workspace in _workspaces.values) {
+      _project(workspace.path);
     }
     for (final folder in _folders) {
       if (listed.contains(folder)) continue;
@@ -394,6 +403,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       try {
         sessions = await kernel.catalog?.sessionsIn(project.path) ?? const [];
       } on Object {
+        // Its host out of reach: listed once it is reached.
+        if (project.host case final host?) _listWhenReached(host, project);
         continue;
       }
       if (_disposed) return;
@@ -402,6 +413,25 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       }
     }
     if (_threads.length != before) notifyListeners();
+  }
+
+  /// The listeners of the hosts that could not be reached to list their
+  /// projects' sessions, by project.
+  final Map<String, VoidCallback> _unreached = {};
+
+  /// Lists [project]'s sessions once [host] is connected.
+  void _listWhenReached(String host, Project project) {
+    if (_disposed || _unreached.containsKey(project.path)) return;
+    final ssh = SshHosts.instance[host];
+    void listener() {
+      if (ssh.state != SshHostState.connected) return;
+      ssh.removeListener(listener);
+      _unreached.remove(project.path);
+      if (!_disposed) unawaited(_listKept(project));
+    }
+
+    _unreached[project.path] = listener;
+    ssh.addListener(listener);
   }
 
   /// Lists [project], first, kept for the next run (see [_folders]).
@@ -418,10 +448,16 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     for (final project in _projects) {
       if (project.path == path) return project;
     }
-    final project = Project.at(path);
+    final project = _projectNamed(path);
     _projects.add(project);
     return project;
   }
+
+  /// [path]'s project: its folder's, or a workspace's of that name.
+  Project _projectNamed(String path) => switch (_workspaces[path]) {
+    final workspace? => Project(workspace.name, path),
+    null => Project.at(path),
+  };
 
   void _addKept(
     KernelDescriptor kernel,
@@ -462,6 +498,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
             resume: session,
             // As it was left, or as a new agent starts.
             settings: {..._preferredSettings, ...?_agentSettings[session.id]},
+            workspace: () => _kernelWorkspace(session.cwd),
           ),
           historyCount: 0,
         ),
@@ -630,6 +667,16 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     _save();
   }
 
+  /// How the agent window's side panel was left (shown, its width; see
+  /// `AgentSidePanel.toJson`), for the next run.
+  Map<String, Object?>? get sidePanelView => _sidePanelView;
+  Map<String, Object?>? _sidePanelView;
+
+  void keepSidePanelView(Map<String, Object?> state) {
+    _sidePanelView = state;
+    _save();
+  }
+
   /// [path]'s project: the listed one, or one that is not (yet) listed.
   Project projectAt(String path) {
     for (final project in _projects) {
@@ -638,7 +685,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     for (final thread in _threads) {
       if (thread.project.path == path) return thread.project;
     }
-    return Project.at(path);
+    return _projectNamed(path);
   }
 
   /// Has the IDE show [path], with a chat of its own there.
@@ -1104,6 +1151,32 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     ];
   }
 
+  /// The conversations [from]'s message may refer to (see the composer's
+  /// `@`): those the sidebar lists, not archived, with a session to find
+  /// them by, but [from] itself; under their projects, in the sidebar's
+  /// order of both.
+  List<({Project project, List<AgentThread> threads})> mentionable(
+    AgentThread? from,
+  ) {
+    final threads = [
+      for (final thread in _threads)
+        if (!identical(thread, from) &&
+            !thread.archived &&
+            thread.id != null &&
+            listsInSidebar(thread))
+          thread,
+    ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return [
+      for (final project in sidebarProjects)
+        if (inProjectOrder(project, [
+              for (final thread in threads)
+                if (thread.project == project) thread,
+            ])
+            case final listed when listed.isNotEmpty)
+          (project: project, threads: listed),
+    ];
+  }
+
   /// Lists [project]'s agents in the order of [ordered] from now on.
   void reorder(Project project, List<AgentThread> ordered) {
     final ids = [for (final thread in ordered) ?thread.id];
@@ -1192,6 +1265,124 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       _keepMarks(thread);
       _leave(thread);
     }
+    notifyListeners();
+  }
+
+  // --- Workspaces -------------------------------------------------------------
+
+  /// Where workspaces' folders are made.
+  final ProjectWorkspaceDirectories workspaceDirectories;
+
+  /// The multi-folder workspaces, by their folder's path, oldest first.
+  final Map<String, ProjectWorkspace> _workspaces = {};
+
+  List<ProjectWorkspace> get workspaces =>
+      List.unmodifiable(_workspaces.values);
+
+  /// The workspace whose folder is [path]; null for a folder's project.
+  ProjectWorkspace? workspaceAt(String path) => _workspaces[path];
+
+  /// [project]'s workspace; null when it is a folder.
+  ProjectWorkspace? workspaceOf(Project project) => _workspaces[project.path];
+
+  KernelWorkspace? _kernelWorkspace(String? cwd) => switch (_workspaces[cwd]) {
+    final workspace? => KernelWorkspace(
+      folders: workspace.folders,
+      instructions: workspace.systemPrompt,
+    ),
+    null => null,
+  };
+
+  /// Makes a workspace of [folders] named [name], listed first: new agents
+  /// in it work across them. Null where workspaces cannot be kept (the
+  /// web).
+  ProjectWorkspace? createWorkspace(String name, List<String> folders) {
+    final root = workspaceDirectories.root;
+    if (root == null) return null;
+    final id = _newWorkspaceId(root);
+    final workspace = ProjectWorkspace(
+      id: id,
+      name: name.trim(),
+      path: p.join(root, id),
+      folders: [
+        ...{...folders},
+      ],
+    );
+    workspaceDirectories.write(workspace);
+    _workspaces[workspace.path] = workspace;
+    _openProject(workspace.path);
+    _save();
+    notifyListeners();
+    return workspace;
+  }
+
+  String _newWorkspaceId(String root) {
+    final now = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    var id = now;
+    for (var n = 2; _workspaces.containsKey(p.join(root, id)); n++) {
+      id = '$now-$n';
+    }
+    return id;
+  }
+
+  /// Renames [workspace], or has it hold [folders] instead: agents started
+  /// from then on (and those that start again) work across those.
+  void updateWorkspace(
+    ProjectWorkspace workspace, {
+    String? name,
+    List<String>? folders,
+  }) {
+    final current = _workspaces[workspace.path];
+    if (current == null) return;
+    final updated = current.copyWith(
+      name: name?.trim(),
+      folders: folders == null
+          ? null
+          : [
+              ...{...folders},
+            ],
+    );
+    if (updated == current) return;
+    workspaceDirectories.write(updated);
+    _workspaces[updated.path] = updated;
+    if (updated.name != current.name) {
+      final renamed = Project(updated.name, updated.path);
+      final index = _projects.indexWhere((p) => p.path == updated.path);
+      if (index >= 0) _projects[index] = renamed;
+      for (final thread in _threads) {
+        if (thread.project.path == updated.path) thread.project = renamed;
+      }
+    }
+    _save();
+    notifyListeners();
+  }
+
+  /// Adds [folder] to [workspace], if not in it.
+  void addWorkspaceFolder(ProjectWorkspace workspace, String folder) {
+    final current = _workspaces[workspace.path] ?? workspace;
+    if (current.folders.contains(folder)) return;
+    updateWorkspace(current, folders: [...current.folders, folder]);
+  }
+
+  /// Takes [folder] out of [workspace]; nothing of it is deleted.
+  void removeWorkspaceFolder(ProjectWorkspace workspace, String folder) {
+    final current = _workspaces[workspace.path] ?? workspace;
+    updateWorkspace(
+      current,
+      folders: [
+        for (final kept in current.folders)
+          if (kept != folder) kept,
+      ],
+    );
+  }
+
+  /// Forgets [workspace] and takes it off the sidebar. Its folders, and
+  /// the sessions kept in it, stay as they are.
+  void deleteWorkspace(ProjectWorkspace workspace) {
+    if (_workspaces.remove(workspace.path) == null) return;
+    _folders.remove(workspace.path);
+    _hiddenProjects[workspace.path] = DateTime.now();
+    _save();
     notifyListeners();
   }
 
@@ -1530,6 +1721,14 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         }
       }
     }
+    if (kept['workspaces'] case final List<Object?> workspaces) {
+      final root = workspaceDirectories.root;
+      for (final json in workspaces) {
+        if (ProjectWorkspace.fromJson(json, root: root) case final workspace?) {
+          _workspaces[workspace.path] = workspace;
+        }
+      }
+    }
     if (kept['projectIcons'] case final Map<Object?, Object?> icons) {
       for (final MapEntry(:key, :value) in icons.entries) {
         if ((key, ProjectIcon.fromJson(value)) case (
@@ -1576,6 +1775,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
           }
         }
       }
+    }
+    if (kept['sidePanel'] case final Map<Object?, Object?> panel) {
+      _sidePanelView = panel.cast<String, Object?>();
     }
     if (!_colorThemeStored) {
       if (kept['colorTheme'] case final String setting) _colorTheme = setting;
@@ -1627,6 +1829,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
               folder: {'tabs': ids, 'shown': ?_keptTab(_ideChatShown[folder])},
         },
       },
+      'workspaces': [
+        for (final workspace in _workspaces.values) workspace.toJson(),
+      ],
       'projectIcons': {
         for (final MapEntry(:key, :value) in _projectIcons.entries)
           key: value.toJson(),
@@ -1634,6 +1839,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       'recentIcons': [for (final icon in _recentIcons) icon.toJson()],
       'emojiStyle': ?_emojiStyle?.name,
       'chat': ?_chatViewToSave(),
+      'sidePanel': ?_sidePanelView,
       'colorTheme': ?_colorTheme,
       'colorThemeData': ?_colorThemeData,
     }),
@@ -1997,7 +2203,11 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       open: () => ChatSession(
         kernel: kernel,
         kernels: kernels,
-        kernelContext: KernelContext(cwd: cwd, settings: settings),
+        kernelContext: KernelContext(
+          cwd: cwd,
+          settings: settings,
+          workspace: () => _kernelWorkspace(cwd),
+        ),
         historyCount: 0,
       ),
     );
@@ -2172,6 +2382,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   void dispose() {
     _disposed = true;
     icons.removeListener(notifyListeners);
+    for (final MapEntry(key: path, value: listener) in _unreached.entries) {
+      SshHosts.instance[RemoteLocation.hostOf(path)!].removeListener(listener);
+    }
     if (_draftTimer?.isActive ?? false) {
       _draftTimer!.cancel();
       _writeDrafts();

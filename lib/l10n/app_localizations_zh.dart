@@ -1328,6 +1328,114 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatTerminalHide => '隐藏终端';
 
   @override
+  String get cmdToggleSidePanel => '切换侧栏';
+
+  @override
+  String get cmdSidePanelChanges => '显示智能体变更';
+
+  @override
+  String get cmdSidePanelFiles => '显示智能体文件';
+
+  @override
+  String get cmdSidePanelTerminal => '显示智能体终端';
+
+  @override
+  String get cmdSidePanelCloseTab => '关闭侧边面板标签页';
+
+  @override
+  String get sidePanelFiles => '文件';
+
+  @override
+  String get sidePanelTerminal => '终端';
+
+  @override
+  String get sidePanelNoTerminals => '没有后台命令';
+
+  @override
+  String get sidePanelTaskCompleted => '已完成';
+
+  @override
+  String get sidePanelTaskFailed => '失败';
+
+  @override
+  String get sidePanelWaitingOutput => '等待输出';
+
+  @override
+  String get sidePanelOutputUnavailable => '无法读取输出';
+
+  @override
+  String get sidePanelShow => '显示侧栏';
+
+  @override
+  String get sidePanelHide => '隐藏侧栏';
+
+  @override
+  String get sidePanelChanges => '变更';
+
+  @override
+  String get sidePanelNoChanges => '还没有变更';
+
+  @override
+  String get sidePanelNoChangesDetail => '项目 Git 工作区和暂存区的变更会显示在这里。';
+
+  @override
+  String get sidePanelOpenFile => '在侧栏中打开';
+
+  @override
+  String get sidePanelOpenDiff => '在侧栏中查看改动';
+
+  @override
+  String get sidePanelOpenInIde => '在 Fast Ide 中打开';
+
+  @override
+  String get sidePanelCloseTab => '关闭';
+
+  @override
+  String get sidePanelPreview => '预览';
+
+  @override
+  String get sidePanelSource => '源码';
+
+  @override
+  String get sidePanelNoOriginal => '不知道智能体修改前的文件内容，显示当前内容。';
+
+  @override
+  String get sidePanelUnchanged => '没有差异';
+
+  @override
+  String get sidePanelDeleted => '智能体删除了这个文件。';
+
+  @override
+  String get sidePanelTerminals => '终端';
+
+  @override
+  String get sidePanelRevealInFiles => '在文件中显示';
+
+  @override
+  String get sidePanelAddToChat => '添加到对话';
+
+  @override
+  String get sidePanelBackgroundTasks => '后台任务';
+
+  @override
+  String get sidePanelSelectFile => '选择一个文件以预览';
+
+  @override
+  String get sidePanelSelectChange => '选择一个变更的文件以查看差异';
+
+  @override
+  String get sidePanelSelectTerminal => '选择一个后台任务以查看输出';
+
+  @override
+  String get sidePanelNoFolder => '这个对话没有项目文件夹';
+
+  @override
+  String get sidePanelShowList => '显示列表';
+
+  @override
+  String get sidePanelHideList => '隐藏列表';
+
+  @override
   String get windowMinimize => '最小化';
 
   @override
@@ -1511,6 +1619,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sidebarUnarchive => '取消归档';
+
+  @override
+  String get sidebarCopySessionId => '复制会话 ID';
 
   @override
   String sidebarShowMore(int count) {
@@ -2023,6 +2134,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get composerCommands => '命令';
+
+  @override
+  String get composerConversations => '对话';
 
   @override
   String get composerPlaceholder => '规划、搜索、构建任何内容  ·  拖入或粘贴文件  / 命令';
@@ -2646,6 +2760,13 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get generalSettingsCommitAttributionDescription =>
       'Agent 在它写的提交和 Pull Request 中添加的署名。更改对之后启动的 Agent 生效；目前仅支持 Claude Code。';
+
+  @override
+  String get generalSettingsTelemetry => '发送使用数据';
+
+  @override
+  String get generalSettingsTelemetryDescription =>
+      '每天使用 BaoCode 时，发送一次随机的安装 ID、版本号以及系统和处理器类型，让我们知道有多少人在用、有多少人会回来。不包含任何关于你、你的代码或你在 BaoCode 中所做之事的信息（telemetry.telemetryLevel）。';
 
   @override
   String generalSettingsCommitAttributionLabel(String name) {
@@ -5640,6 +5761,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get remoteRetry => '重试';
 
   @override
+  String remoteSignInTitle(String host) {
+    return '登录 $host';
+  }
+
+  @override
+  String get remoteSignInRefused => '不正确，请重试。';
+
+  @override
+  String get remoteSignInRemember => '在本机记住（保存在系统钥匙串中）';
+
+  @override
+  String get remoteSignInConnect => '连接';
+
+  @override
   String remoteFolderPlaceholder(String host) {
     return '$host 上的文件夹：选择一个，或输入路径';
   }
@@ -5805,5 +5940,111 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdShowSetupGuide => '显示设置向导';
 
   @override
+  String get cmdStarOnGitHub => '在 GitHub 上为 BaoCode 点 Star';
+
+  @override
+  String get starPromptMessage => 'BaoCode 用得还顺手吗？';
+
+  @override
+  String get starPromptDetail =>
+      'BaoCode 免费开源。如果它对你有帮助，欢迎在 GitHub 上点个 Star，让更多人发现它。';
+
+  @override
+  String get starPromptStar => '去 GitHub 点 Star';
+
+  @override
+  String get starPromptLater => '以后再说';
+
+  @override
   String get cmdResetFeatureTips => '重置功能推荐';
+
+  @override
+  String get newChatWorkspaceGroup => '工作区';
+
+  @override
+  String newChatWorkspaceDetail(int count, String names) {
+    return '$count 个文件夹 · $names';
+  }
+
+  @override
+  String get newChatCreateWorkspace => '创建工作区…';
+
+  @override
+  String get newChatCreateWorkspaceDetail => '在多个文件夹中工作';
+
+  @override
+  String get workspaceCreateTitle => '创建工作区';
+
+  @override
+  String get workspaceEditTitle => '编辑工作区';
+
+  @override
+  String get workspaceName => '名称';
+
+  @override
+  String get workspaceNameHint => '我的工作区';
+
+  @override
+  String get workspaceFolders => '文件夹';
+
+  @override
+  String get workspaceFoldersDescription => '在此工作区中对话时，智能体可以读写这些文件夹中的文件。';
+
+  @override
+  String workspaceFoldersEmpty(String app) {
+    return '还没有文件夹。从已有项目或$app添加。';
+  }
+
+  @override
+  String get workspaceNoFolders => '请至少添加一个文件夹。';
+
+  @override
+  String get workspaceAddProject => '从已有项目添加';
+
+  @override
+  String workspaceAddFolder(String app) {
+    return '从$app添加…';
+  }
+
+  @override
+  String get workspaceNoProjects => '没有可添加的项目';
+
+  @override
+  String workspaceRemoveFolder(String name) {
+    return '移除 $name';
+  }
+
+  @override
+  String get workspaceCreate => '创建';
+
+  @override
+  String workspaceHover(String folders) {
+    return '工作区：$folders';
+  }
+
+  @override
+  String get sidebarEditWorkspace => '编辑工作区…';
+
+  @override
+  String get sidebarDeleteWorkspace => '删除工作区';
+
+  @override
+  String ideWorkspaceTitle(String name) {
+    return '$name（工作区）';
+  }
+
+  @override
+  String get ideAddFolderToWorkspace => '将文件夹添加到工作区…';
+
+  @override
+  String get ideRemoveFolderFromWorkspace => '从工作区中移除文件夹';
+
+  @override
+  String get ideEmptyWorkspace => '此工作区中还没有文件夹。';
+
+  @override
+  String get scmRepositories => '存储库';
+
+  @override
+  String get cmdCreateWorkspace => '创建工作区...';
 }

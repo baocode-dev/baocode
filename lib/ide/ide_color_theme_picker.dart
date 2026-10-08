@@ -74,9 +74,10 @@ const ideSelectColorThemeKeybinding = IdeKeybinding(
   second: IdeKeybinding(LogicalKeyboardKey.keyT, primary: true),
 );
 
-/// `ThemeSettingDefaults.COLOR_THEME_DARK` and `COLOR_THEME_LIGHT`.
-const _defaultDark = 'Dark 2026';
-const _defaultLight = 'Light 2026';
+/// `ThemeSettingDefaults.COLOR_THEME_DARK` and `COLOR_THEME_LIGHT` (ours:
+/// workbench_theme.dart).
+const _defaultDark = 'Monokai';
+const _defaultLight = 'Quiet Light';
 
 /// `defaultThemeDescriptions`.
 Map<String, String> _defaultThemeDescriptions(AppLocalizations l10n) => {

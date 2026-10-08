@@ -31,6 +31,7 @@ enum DataDirectorySource {
 /// <path>/state/{state.json,storage.json,*-processes.json}
 /// <path>/servers/  <path>/language-packs/
 /// <path>/checkpoints/             snapshots of the projects agents change
+/// <path>/workspaces/              the folders of multi-folder workspaces
 /// <path>/cache/                   what can be made again, to start faster
 /// ```
 ///
@@ -91,6 +92,10 @@ class DataDirectory {
   /// summaries of Claude Code's sessions).
   String get cacheDir => p.join(path, 'cache');
 
+  /// A folder per multi-folder workspace, where its agents start (see
+  /// project_workspace.dart).
+  String get workspacesDir => p.join(path, 'workspaces');
+
   /// The pictures uploaded as project icons, and `index.json` listing them
   /// (see icon_library.dart).
   String get iconsDir => p.join(path, 'icons');
@@ -111,6 +116,7 @@ class DataDirectory {
     'checkpoints',
     'cache',
     'icons',
+    'workspaces',
   ];
 
   /// Entries that show a folder holds the app's data.

@@ -57,7 +57,12 @@ class IdeStartPage extends StatelessWidget {
     this.onOpenRecent,
     this.onShowAllRecent,
     this.home,
+    this.workspaceOf,
   });
+
+  /// The multi-folder workspace a recent entry is (its own folder), listed
+  /// by its name and folders; null for a folder.
+  final IdeRecentWorkspace? Function(String path)? workspaceOf;
 
   final List<IdeCommand> actions;
 
@@ -143,6 +148,7 @@ class IdeStartPage extends StatelessWidget {
                         _RecentRow(
                           path: path,
                           home: home,
+                          workspace: workspaceOf?.call(path),
                           onOpen: () => open(path),
                         ),
                     ],
@@ -173,6 +179,7 @@ class _StartTileState extends State<_StartTile> {
   static IconData _icon(String id) => switch (id) {
     'workbench.action.files.openFolder' => Codicons.folderOpened,
     'baocode.remote.openFolder' => Codicons.remote,
+    'baocode.workspace.create' => Codicons.folderLibrary,
     'workbench.action.files.openFile' => Codicons.goToFile,
     'workbench.action.files.newUntitledFile' => Codicons.newFile,
     'workbench.action.openRecent' => Codicons.history,
@@ -300,18 +307,25 @@ class _LinkState extends State<_Link> {
   }
 }
 
+/// A multi-folder workspace among the recent folders: its name, and the
+/// folders it has.
+typedef IdeRecentWorkspace = ({String name, List<String> folders});
+
 /// A recent folder on the start page: its name, and where it is (`~` for
-/// the home folder), the row lit under the pointer.
+/// the home folder), the row lit under the pointer. A workspace: its name,
+/// and its folders' names.
 class _RecentRow extends StatefulWidget {
   const _RecentRow({
     required this.path,
     required this.home,
     required this.onOpen,
+    this.workspace,
   });
 
   final String path;
   final String home;
   final VoidCallback onOpen;
+  final IdeRecentWorkspace? workspace;
 
   @override
   State<_RecentRow> createState() => _RecentRowState();
@@ -323,10 +337,13 @@ class _RecentRowState extends State<_RecentRow> {
   @override
   Widget build(BuildContext context) {
     final colors = themeColors;
-    final name = p.basename(widget.path);
+    final workspace = widget.workspace;
+    final name = workspace?.name ?? p.basename(widget.path);
     final parent = p.dirname(widget.path);
     final home = widget.home;
-    final where = home.isEmpty
+    final where = workspace != null
+        ? workspace.folders.map(p.basename).join(', ')
+        : home.isEmpty
         ? parent
         : p.equals(parent, home)
         ? '~'
@@ -356,7 +373,9 @@ class _RecentRowState extends State<_RecentRow> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      Codicons.folder,
+                      workspace == null
+                          ? Codicons.folder
+                          : Codicons.folderLibrary,
                       size: 14,
                       color: colors['icon.foreground'],
                     ),

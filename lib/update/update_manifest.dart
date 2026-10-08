@@ -5,8 +5,8 @@ import 'dart:convert';
 import 'version.dart';
 
 /// Where the app looks for its next version: the release manifest
-/// baocode.dev serves (docs/auto-update.md has its format).
-const defaultManifestUrl = 'https://baocode.dev/releases/latest.json';
+/// dl.baocode.dev serves (docs/auto-update.md has its format).
+const defaultManifestUrl = 'https://dl.baocode.dev/releases/latest.json';
 
 /// The environment variable that points the app at another manifest, to
 /// try a release before it is published (a local server's, say).
@@ -119,7 +119,7 @@ class UpdateManifest {
   /// The platform keys with a usable download.
   Iterable<String> get platforms => _platforms.keys;
 
-  /// [platform]'s download (`windows-x64`, `macos-universal`); null when
+  /// [platform]'s download (`windows-x64`, `macos-arm64`, `macos-x64`); null when
   /// the release has none for it. Throws an [UpdateManifestException] when
   /// its entry is there but wrong.
   UpdateAsset? assetFor(String platform) {

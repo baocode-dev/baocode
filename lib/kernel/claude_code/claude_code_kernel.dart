@@ -232,6 +232,9 @@ class ClaudeCodeKernel
 
   String get _cwd => _context.cwd ?? _context.resume?.cwd ?? '.';
 
+  /// The workspace [_cwd] is the folder of, as it is at this launch.
+  KernelWorkspace? get _workspace => _context.workspace?.call();
+
   /// Starts the process, if not yet, and waits until it is ready.
   Future<void> _ensureStarted() {
     if (_disposed) return Future.error(StateError('disposed'));
@@ -281,6 +284,7 @@ class ClaudeCodeKernel
           );
         }
       }
+      final workspace = _workspace;
       _launchedProvider = _providerKey;
       _launchedWindow = _autocompact;
       final transport = await _start(
@@ -289,7 +293,7 @@ class ClaudeCodeKernel
           resume: _sessionId,
           model: model,
           // Plan is entered once started.
-          permissionMode: _cliMode = _approval,
+          permissionMode: _cliMode = _cliApproval,
           autoModeDuringPlan: _planReviewed = _reviewsPlan,
           effort: direct && (custom == null || _cliEfforts.contains(effort))
               ? effort
@@ -298,6 +302,8 @@ class ClaudeCodeKernel
           autocompact: _autocompact,
           attribution: CommitAttribution.current(),
           env: env,
+          directories: workspace?.folders ?? const [],
+          instructions: workspace?.instructions,
         ),
       );
       if (_disposed) {
@@ -341,7 +347,10 @@ class ClaudeCodeKernel
       _fail(error.message, error.detail);
       rethrow;
     } on ControlError catch (error) {
-      _fail('Claude Code did not start', '$error');
+      // Exited while starting: what it said is kept (see _exited).
+      if (_health.status != KernelHealthStatus.failed) {
+        _fail('Claude Code did not start', '$error');
+      }
       rethrow;
     }
   }
@@ -589,19 +598,38 @@ class ClaudeCodeKernel
     );
   }
 
+  /// Dropped here only once the CLI has: turned down, it goes on with all
+  /// of the conversation, and so does what is shown.
   @override
-  void rewind({
+  Future<bool> rewind({
     required String itemId,
     required int index,
     required int turns,
+    String? lastSeen,
   }) {
-    emit(Rewound(nextSeq, itemId: itemId, index: index));
+    final rewound = Completer<bool>();
     _writes = _writes
         .then(
-          (_) =>
-              _request('rewind_conversation', {'target_message_uuid': itemId}),
+          (_) => _request('rewind_conversation', {
+            'target_message_uuid': itemId,
+            // The turn stopped may not have stopped yet: the CLI turns a
+            // rewind down while one runs, unless it is to stop it.
+            'interrupt_if_running': true,
+            // Unsaid, a later message counts as unseen: turned down too.
+            'last_seen_user_message_uuid': ?lastSeen,
+          }),
         )
-        .then((_) {})
+        .then((response) {
+          // Turned down, it answers all the same.
+          if (response['rewound'] == false) {
+            throw ControlError(
+              'rewind_conversation',
+              '${response['error'] ?? response['reason'] ?? 'turned down'}',
+            );
+          }
+          emit(Rewound(nextSeq, itemId: itemId, index: index));
+          rewound.complete(true);
+        })
         .catchError((Object error) {
           emit(
             ItemUpserted(
@@ -610,7 +638,9 @@ class ClaudeCodeKernel
               NoticeItem(NoticeKind.error, 'Could not rewind: $error'),
             ),
           );
+          rewound.complete(false);
         });
+    return rewound.future;
   }
 
   @override
@@ -851,9 +881,9 @@ class ClaudeCodeKernel
   /// goes on in.
   String _startBuilding() {
     _work = 'agent';
-    _cliMode = _approval;
+    _cliMode = _cliApproval;
     emitInfoChanged();
-    return _approval;
+    return _cliApproval;
   }
 
   static Map<String, Object?> _setMode(String mode) => {
@@ -882,6 +912,22 @@ class ClaudeCodeKernel
         }
         case final message?) {
       _control!.respond(requestId, {'behavior': 'deny', 'message': message});
+      return;
+    }
+    // Full access is approved here (see _cliApproval), but for what the
+    // CLI's own would ask all the same. In Plan it leaves to the
+    // classifier what the CLI cannot tell is read-only; with no
+    // classifier (another provider's model), that is approved here too,
+    // as it would be by the classifier.
+    if (_approval == 'bypassPermissions' &&
+        (_work != 'plan' || !_classifies) &&
+        tool != 'AskUserQuestion' &&
+        tool != 'ExitPlanMode' &&
+        !_askedInFullAccess(request)) {
+      _control!.respond(requestId, {
+        'behavior': 'allow',
+        'updatedInput': input,
+      });
       return;
     }
     final InteractionRequest interaction;
@@ -2019,12 +2065,36 @@ class ClaudeCodeKernel
 
   /// The CLI's permission mode for what is picked: the approvals, but in
   /// Plan.
-  String get _mode => _work == 'plan' ? 'plan' : _approval;
+  String get _mode => _work == 'plan' ? 'plan' : _cliApproval;
+
+  /// The CLI's mode for the approvals picked. Full access is not the
+  /// CLI's bypassPermissions, which it refuses as root and cannot switch
+  /// to unless started allowing it: it accepts edits, and what it asks
+  /// about otherwise is approved in [_permission].
+  String get _cliApproval =>
+      _approval == 'bypassPermissions' ? 'acceptEdits' : _approval;
+
+  /// What the CLI would still ask in full access: safety checks requiring
+  /// manual approval (also inside compound commands), explicit ask rules,
+  /// and tools that require user interaction. Protected-path checks that
+  /// the classifier may approve do not require a prompt in full access.
+  static bool _askedInFullAccess(Map<String, Object?> request) =>
+      request['classifier_approvable'] == false ||
+      (request['decision_reason_type'] == 'safetyCheck' &&
+          request['classifier_approvable'] != true) ||
+      request['matched_ask_rule'] != null ||
+      request['requires_user_interaction'] == true ||
+      request['decision_reason_code'] != null;
 
   /// Plan's commands are left to the classifier with the approvals that
   /// approve for the user; asked about with the others.
   bool get _reviewsPlan =>
       _approval == 'auto' || _approval == 'bypassPermissions';
+
+  /// Whether the auto mode classifier runs on the model: not on another
+  /// provider's.
+  bool get _classifies =>
+      _custom == null && (_currentModel?.supportsAuto ?? true);
 
   /// Tells a running CLI what is picked now.
   void _applyMode() {
@@ -2086,9 +2156,7 @@ class ClaudeCodeKernel
   late final KernelChoiceSource permission = _Choice(
     options: () => [
       for (final option in _approvals)
-        if (option.id != 'auto' ||
-            (_custom == null && (_currentModel?.supportsAuto ?? true)))
-          option,
+        if (option.id != 'auto' || _classifies) option,
     ],
     selected: () => _approval,
     select: (id) {

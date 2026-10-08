@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../../chat/chat_keys.dart';
+import '../../chat/side_panel/side_panel_view.dart' show SidePanelToggle;
 import '../../icons/project_icon_view.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_layout.dart';
@@ -47,6 +48,8 @@ class WindowHeader extends StatefulWidget {
     required this.onToggleContextPanel,
     this.terminalShown = false,
     this.onToggleTerminal,
+    this.sidePanelShown = false,
+    this.onToggleSidePanel,
     this.onOpenSettings,
     this.onCommand,
     this.onFileCommand,
@@ -123,6 +126,12 @@ class WindowHeader extends StatefulWidget {
   final bool terminalShown;
   final VoidCallback? onToggleTerminal;
 
+  /// Over the chat, the side panel at the right of the conversations:
+  /// whether it shows, and its toggle (the button by the terminal's, and
+  /// the View menu's Side Panel); with none, neither is offered.
+  final bool sidePanelShown;
+  final VoidCallback? onToggleSidePanel;
+
   /// The File menu's Settings…: opens the settings dialog.
   final VoidCallback? onOpenSettings;
 
@@ -156,6 +165,7 @@ class _WindowHeaderState extends State<WindowHeader> {
   final _menus = GlobalKey(debugLabel: 'header menus');
   final _pin = GlobalKey(debugLabel: 'header pin');
   final _terminal = GlobalKey(debugLabel: 'header terminal');
+  final _sidePanel = GlobalKey(debugLabel: 'header side panel');
   final _open = GlobalKey(debugLabel: 'header open in editor');
   final _back = GlobalKey(debugLabel: 'header back to chat');
   final _minimize = GlobalKey(debugLabel: 'window minimize');
@@ -339,6 +349,17 @@ class _WindowHeaderState extends State<WindowHeader> {
                   ),
                 ),
               ],
+              if (widget.onToggleSidePanel case final toggle? when !ide) ...[
+                const SizedBox(width: 6),
+                KeyedSubtree(
+                  key: _sidePanel,
+                  child: SidePanelToggle(
+                    shown: widget.sidePanelShown,
+                    onTap: toggle,
+                    size: 22,
+                  ),
+                ),
+              ],
               const SizedBox(width: 10),
               WindowButtons(
                 minimizeKey: _minimize,
@@ -362,6 +383,7 @@ class _WindowHeaderState extends State<WindowHeader> {
         _panel,
         _chat,
         _terminal,
+        _sidePanel,
         _pin,
         _open,
         _back,
@@ -564,6 +586,13 @@ class _WindowHeaderState extends State<WindowHeader> {
             l10n.idePanelTerminal,
             checked: widget.terminalShown,
             shortcut: _shortcut(toggleTerminalCommand),
+            onSelected: toggle,
+          ),
+        if (widget.onToggleSidePanel case final toggle? when !ide)
+          HeaderMenuItem(
+            l10n.cmdToggleSidePanel,
+            checked: widget.sidePanelShown,
+            shortcut: _shortcut(ChatCommandIds.toggleSidePanel),
             onSelected: toggle,
           ),
         HeaderMenuItem(

@@ -51,9 +51,19 @@ class ClaudeLaunch {
     this.persist = true,
     this.env,
     this.settingsPath,
+    this.directories = const [],
+    this.instructions,
   });
 
   final String cwd;
+
+  /// Folders it works in besides [cwd] (a multi-folder workspace's): each
+  /// an `--add-dir`, their `CLAUDE.md` read as [cwd]'s is.
+  final List<String> directories;
+
+  /// Told the agent after [appendedSystemPrompt] (what the workspace it
+  /// works in is); none when null.
+  final String? instructions;
 
   /// The session id to continue.
   final String? resume;
@@ -124,6 +134,8 @@ class ClaudeLaunch {
     persist: persist,
     env: env ?? this.env,
     settingsPath: settingsPath ?? this.settingsPath,
+    directories: directories,
+    instructions: instructions,
   );
 
   Map<String, String>? get _attribution => switch (attribution) {
@@ -140,7 +152,18 @@ class ClaudeLaunch {
     'attribution': ?_attribution,
     'useAutoModeDuringPlan': ?autoModeDuringPlan,
     'alwaysThinkingEnabled': ?thinking,
-    if (env case final env? when env.isNotEmpty) 'env': env,
+    if ({
+          ...?env,
+          if (directories.isNotEmpty) ...additionalDirectoriesEnvironment,
+        }
+        case final env when env.isNotEmpty)
+      'env': env,
+  };
+
+  /// Has Claude Code read the `CLAUDE.md` of the folders given with
+  /// `--add-dir`, as it does its working directory's.
+  static const additionalDirectoriesEnvironment = {
+    'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD': '1',
   };
 
   List<String> get arguments => _arguments(withSettings: true);
@@ -160,7 +183,6 @@ class ClaudeLaunch {
     '--replay-user-messages',
     '--permission-prompt-tool',
     'stdio',
-    '--allow-dangerously-skip-permissions',
     '--thinking-display',
     'summarized',
     // A prompt_suggestion message after each turn.
@@ -170,6 +192,7 @@ class ClaudeLaunch {
     if (effort case final effort?) ...['--effort', effort],
     if (autocompact case final tokens?) ...['--autocompact', '$tokens'],
     if (resume case final id?) ...['--resume', id],
+    for (final directory in directories) ...['--add-dir', directory],
     if (!withSettings)
       ...const <String>[]
     else if (settingsPath case final path?) ...[
@@ -181,8 +204,16 @@ class ClaudeLaunch {
     ],
     if (!persist) '--no-session-persistence',
     '--append-system-prompt',
-    citingCode,
+    switch (instructions) {
+      final instructions? when instructions.isNotEmpty =>
+        '$appendedSystemPrompt\n\n$instructions',
+      _ => appendedSystemPrompt,
+    },
   ];
+
+  /// What the chat asks of the agent besides Claude Code's own prompt: how
+  /// to cite code and point at files, so the chat can open them.
+  static const appendedSystemPrompt = '$citingCode\n\n$fileLinks';
 
   /// Has the agent cite code as ```` ```12:15:path ```` blocks, which the
   /// chat shows as cards that open the file there (see code_citation.dart).
@@ -196,6 +227,22 @@ You MUST use the following format when citing code regions or blocks:
 
 This is the ONLY acceptable format for code citations. The format is ```startLine:endLine:filepath where startLine and endLine are line numbers.
 </citing_code>''';
+
+  /// Has the agent point at files as markdown links (`[a.dart](lib/a.dart#L12)`),
+  /// which the chat opens in its side panel (see file_link.dart): over
+  /// Claude Code's own `file_path:line_number`, which the chat reads too.
+  static const fileLinks = '''
+<file_links>
+When you mention a specific file in your reply (a file you read, changed, created or point the user to), write it as a markdown link so the user can open it with a click:
+
+[display name](path/relative/to/working/directory#L42)
+
+- The link target is the path relative to the current working directory (an absolute path is fine for a file outside it). Never use file://, vscode://, http:// or https:// links for local files.
+- Add a line with #L42, or a range with #L42-L58, when you mean specific lines.
+- If the path contains spaces, wrap the target in angle brackets: [notes.md](<docs/release notes.md#L3>).
+- The display name is usually the file name, optionally with the line: [chat_screen.dart:42](lib/chat/chat_screen.dart#L42).
+- Do not put links inside code blocks; code citations keep the format of <citing_code>.
+</file_links>''';
 
   /// Lets the host rewind the files a turn changed, and has the CLI say
   /// when it is at work and when idle (`session_state_changed`).

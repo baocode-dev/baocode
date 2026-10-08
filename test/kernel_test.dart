@@ -46,6 +46,12 @@ Map<String, Object?> recordedResponse(String name, bool Function(Map) match) {
 
 /// Claude Code as the test speaks it: answers control requests the way the
 /// CLI does (from recordings), and records what the kernel wrote.
+/// A CLI that answers nothing: one that exits before it does.
+class _SilentCli extends FakeCli {
+  @override
+  void write(Map<String, Object?> message) => written.add(message);
+}
+
 class FakeCli implements ClaudeCodeTransport {
   FakeCli({this.answers = const {}});
 
@@ -194,7 +200,21 @@ void main() {
       )..turnId = '11111111-1111-4111-8111-111111111111';
       for (final message in recorded('tasks')) {
         translator.translate(message);
+        if ((message['tool_use_result'] as Map?)?['backgroundTaskId'] != null) {
+          final task = transcript.tasks
+              .where((task) => task.kind == KernelTaskKind.command)
+              .single;
+          expect(task.status, CommandStatus.running);
+          expect(task.outputFile, endsWith('/tasks/bft071fdo.output'));
+        }
       }
+      expect(
+        transcript.tasks
+            .where((task) => task.kind == KernelTaskKind.command)
+            .single
+            .outputFile,
+        endsWith('/tasks/bft071fdo.output'),
+      );
       expect(shown(transcript), [
         'user: Do these steps in order: 1) Write file a.txt containing '
             "'one'. 2) Run `sleep 4; echo bg-done` with the Bash tool using "
@@ -741,13 +761,19 @@ void main() {
       final (:kernel, :transcript, events: _) = claude(cli);
       kernel.send(const KernelTurn(id: 'u1', text: 'go'));
       await pumpEventQueue();
-      void ask(String id, String tool, Map<String, Object?> input) => cli.push({
+      void ask(
+        String id,
+        String tool,
+        Map<String, Object?> input, [
+        Map<String, Object?> why = const {},
+      ]) => cli.push({
         'type': 'control_request',
         'request_id': id,
         'request': {
           'subtype': 'can_use_tool',
           'tool_name': tool,
           'input': input,
+          ...why,
         },
       });
       const question = {
@@ -780,11 +806,69 @@ void main() {
         kernel.answer('r1-$mode', const QuestionAnswer([], skipped: true));
       }
       kernel.mode.select('agent');
-      // What the CLI still asks, and the plan, are the user's.
-      ask('r2', 'Bash', command);
+      // Approved here, the CLI only accepting edits.
+      expect(cli.requests('set_permission_mode').last['mode'], 'acceptEdits');
+      ask('r2', 'Bash', command, {'decision_reason_type': 'mode'});
       await pumpEventQueue();
-      expect(transcript.pendingInteraction, isA<ApprovalRequest>());
-      kernel.answer('r2', const ApprovalAnswer(ApprovalDecision.allowOnce));
+      expect(transcript.pendingInteraction, isNull);
+      expect(cli.responses.last['behavior'], 'allow');
+      expect(cli.responses.last['updatedInput'], command);
+      // Protected paths may be classifier-approved in Accept edits; full
+      // access allows them without prompting, including inside compound Bash.
+      const protectedCommand = {
+        'command': "sed -E 's/token/***/g' ~/.claude/settings.local.json",
+        'description': 'Inspect local settings',
+      };
+      for (final (i, why) in const [
+        {
+          'decision_reason_type': 'safetyCheck',
+          'classifier_approvable': true,
+          'decision_reason':
+              'Claude requested permissions to write to '
+              '~/.claude/settings.local.json, but you haven\'t granted it yet.',
+        },
+        {
+          'decision_reason_type': 'subcommandResults',
+          'classifier_approvable': true,
+        },
+      ].indexed) {
+        ask('r2-protected-$i', 'Bash', protectedCommand, why);
+        await pumpEventQueue();
+        expect(transcript.pendingInteraction, isNull);
+        expect(cli.responses.last, {
+          'behavior': 'allow',
+          'updatedInput': protectedCommand,
+        });
+      }
+      // Manual-only safety checks, explicit ask rules and the plan remain
+      // the user's decisions, even when a protected-path check is approvable.
+      for (final (i, why) in const [
+        {'decision_reason_type': 'safetyCheck'},
+        {'decision_reason_type': 'safetyCheck', 'classifier_approvable': false},
+        {
+          'decision_reason_type': 'subcommandResults',
+          'classifier_approvable': false,
+        },
+        {
+          'decision_reason_type': 'rule',
+          'matched_ask_rule': {'toolName': 'Bash'},
+        },
+        {
+          'decision_reason_type': 'safetyCheck',
+          'classifier_approvable': true,
+          'matched_ask_rule': {'toolName': 'Bash'},
+        },
+        {'requires_user_interaction': true},
+        {'decision_reason_code': 'outside_reads_blocked'},
+      ].indexed) {
+        ask('r2-$i', 'Bash', command, why);
+        await pumpEventQueue();
+        expect(transcript.pendingInteraction, isA<ApprovalRequest>());
+        kernel.answer(
+          'r2-$i',
+          const ApprovalAnswer(ApprovalDecision.allowOnce),
+        );
+      }
       ask('r3', 'ExitPlanMode', {'plan': '1. Do it'});
       await pumpEventQueue();
       expect(transcript.pendingInteraction, isA<PlanReviewRequest>());
@@ -1168,10 +1252,22 @@ void main() {
       expect(cli.requests('rewind_files').single['user_message_id'], 'u1');
       expect(events.whereType<ChangesReverted>(), hasLength(1));
 
-      kernel
-        ..rewind(itemId: 'u1', index: 0, turns: 1)
-        ..send(const KernelTurn(id: 'u2', text: 'again'));
+      final rewound = kernel.rewind(
+        itemId: 'u1',
+        index: 0,
+        turns: 1,
+        lastSeen: 'u3',
+      );
+      kernel.send(const KernelTurn(id: 'u2', text: 'again'));
       await pumpEventQueue();
+      expect(await rewound, isTrue);
+      expect(cli.requests('rewind_conversation').single, {
+        'subtype': 'rewind_conversation',
+        'target_message_uuid': 'u1',
+        'interrupt_if_running': true,
+        'last_seen_user_message_uuid': 'u3',
+      });
+      expect(events.whereType<Rewound>().single.itemId, 'u1');
       final order = [
         for (final message in cli.written)
           if (message['type'] == 'user')
@@ -1182,6 +1278,109 @@ void main() {
       ];
       expect(order, ['rewind', 'user']);
       kernel.dispose();
+    });
+
+    test('a rewind the CLI turns down leaves the conversation as it was, '
+        'and says why', () async {
+      final cli = FakeCli(
+        answers: {
+          'rewind_conversation': {
+            'rewound': false,
+            'prefillText': null,
+            'precedingAssistantUuid': null,
+            'error': 'stale target',
+            'reason': 'stale_target',
+          },
+        },
+      );
+      final (:kernel, :transcript, :events) = claude(cli);
+      kernel.send(const KernelTurn(id: 'u1', text: 'one'));
+      await pumpEventQueue();
+      final before = transcript.length;
+      expect(await kernel.rewind(itemId: 'u1', index: 0, turns: 1), isFalse);
+      expect(events.whereType<Rewound>(), isEmpty);
+      expect(transcript.length, before + 1);
+      expect(
+        transcript.itemAt(transcript.length - 1),
+        isA<NoticeItem>().having(
+          (notice) => notice.text,
+          'text',
+          contains('stale target'),
+        ),
+      );
+      kernel.dispose();
+    });
+
+    test('an edit goes back past the later messages seen, and is sent only '
+        'once the CLI has gone back', () async {
+      Future<ChatSession> open(FakeCli cli) async {
+        final descriptor = KernelDescriptor(
+          id: 'claude-code',
+          label: 'Claude Code',
+          icon: Icons.auto_awesome_rounded,
+          description: '',
+          create: (context) => ClaudeCodeKernel(
+            MockKernels.claudeCode,
+            context,
+            start: (_) async => cli,
+          ),
+        );
+        final session = ChatSession(
+          kernel: descriptor,
+          kernels: [descriptor],
+          historyCount: 0,
+        );
+        addTearDown(session.dispose);
+        for (final text in ['one', 'two']) {
+          session.send(ComposerMessage(text: text));
+          await pumpEventQueue();
+          cli.push({
+            'type': 'result',
+            'subtype': 'success',
+            'is_error': false,
+            'session_id': 's',
+          });
+          await pumpEventQueue();
+        }
+        return session;
+      }
+
+      List<String> said(ChatSession session) => [
+        for (var i = 0; i < session.itemCount; i++)
+          if (session.itemAt(i) case UserMessageItem(:final text)) text,
+      ];
+
+      final cli = FakeCli(
+        answers: {
+          'rewind_conversation': {'rewound': true},
+        },
+      );
+      final session = await open(cli);
+      final [first, second] = [
+        for (final user in cli.users) user['uuid'] as String,
+      ];
+      session.editMessage(0, const ComposerMessage(text: 'ONE'));
+      await pumpEventQueue();
+      final request = cli.requests('rewind_conversation').single;
+      expect(request['target_message_uuid'], first);
+      expect(request['last_seen_user_message_uuid'], second);
+      expect(said(session), ['ONE']);
+      expect(cli.users, hasLength(3));
+
+      final refusing = FakeCli(
+        answers: {
+          'rewind_conversation': {
+            'rewound': false,
+            'error': 'turn running',
+            'reason': 'turn_running',
+          },
+        },
+      );
+      final kept = await open(refusing);
+      kept.editMessage(0, const ComposerMessage(text: 'ONE'));
+      await pumpEventQueue();
+      expect(said(kept), ['one', 'two']);
+      expect(refusing.users, hasLength(2), reason: 'the edit is not sent');
     });
 
     test('reports cost, limits and what fills the context', () async {
@@ -1436,6 +1635,29 @@ void main() {
           kernel.dispose();
         },
       );
+    });
+
+    test('one that exits while starting says what it printed', () async {
+      final cli = _SilentCli();
+      final kernel = ClaudeCodeKernel(
+        MockKernels.claudeCode,
+        const KernelContext(cwd: '/p'),
+        start: (_) async => cli,
+      );
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      cli.push(
+        ClaudeExit.message(
+          1,
+          '--dangerously-skip-permissions cannot be used with root/sudo '
+          'privileges for security reasons',
+        ),
+      );
+      await pumpEventQueue();
+      expect(kernel.health.status, KernelHealthStatus.failed);
+      expect(kernel.health.message, 'Claude Code stopped');
+      expect(kernel.health.detail, contains('root/sudo privileges'));
+      kernel.dispose();
     });
 
     test(
@@ -1701,7 +1923,8 @@ void main() {
       // Out of Ask: the CLI is told nothing, the model once.
       kernel.mode.select('agent');
       kernel.permission.select('bypassPermissions');
-      expect(modesSent(), ['plan', 'acceptEdits', 'bypassPermissions']);
+      // Full access is the CLI accepting edits, the rest approved here.
+      expect(modesSent(), ['plan', 'acceptEdits', 'acceptEdits']);
       kernel.send(const KernelTurn(id: 'u2', text: 'fix it'));
       kernel.send(const KernelTurn(id: 'u3', text: 'and test it'));
       await pumpEventQueue();
@@ -2057,6 +2280,32 @@ void main() {
           ],
         },
       };
+
+      test('clears immediately when the CLI reports an inactive goal', () {
+        final transcript = Transcript();
+        var seq = 0;
+        final translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+        );
+        translator.translate({
+          'type': 'active_goal',
+          'value': {
+            'condition': 'all tests pass',
+            'iterations': 2,
+            'set_at': DateTime.utc(2026, 10, 5, 10).millisecondsSinceEpoch,
+            'last_reason': '2 still fail',
+          },
+        });
+        expect(transcript.goal?.condition, 'all tests pass');
+        expect(transcript.goal?.checks, 2);
+        expect(transcript.goal?.lastReason, '2 still fail');
+        expect(transcript.goal?.setAt, DateTime(2026, 10, 5, 18));
+
+        translator.translate({'type': 'active_goal', 'value': null});
+        expect(transcript.goal, isNull);
+        expect(shown(transcript), isEmpty);
+      });
 
       test('is read from the answers to /goal, which do not show', () {
         final transcript = Transcript();
@@ -2488,11 +2737,36 @@ void main() {
     });
   });
 
+  test('full access is not the CLI\'s, which root cannot have', () async {
+    final cli = FakeCli();
+    final launches = <ClaudeLaunch>[];
+    final kernel = ClaudeCodeKernel(
+      MockKernels.claudeCode,
+      const KernelContext(
+        cwd: '/p',
+        settings: {'permission': 'bypassPermissions'},
+      ),
+      start: (launch) async {
+        launches.add(launch);
+        return cli;
+      },
+    );
+    kernel.prepare();
+    await pumpEventQueue();
+    expect(launches.single.permissionMode, 'acceptEdits');
+    expect(
+      launches.single.arguments.where((a) => a.contains('dangerously')),
+      isEmpty,
+    );
+    expect(kernel.permission.selected, 'bypassPermissions');
+    kernel.dispose();
+  });
+
   test('Claude Code is asked to cite code in the chat\'s format', () {
     final arguments = const ClaudeLaunch(cwd: '/p').arguments;
     final at = arguments.indexOf('--append-system-prompt');
     expect(at, isNot(-1));
-    expect(arguments[at + 1], ClaudeLaunch.citingCode);
+    expect(arguments[at + 1], contains(ClaudeLaunch.citingCode));
     expect(ClaudeLaunch.citingCode, contains('```startLine:endLine:filepath'));
   });
 

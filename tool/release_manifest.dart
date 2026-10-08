@@ -1,10 +1,13 @@
 // Signs a release's installers and writes the manifest the app reads to
-// update itself (https://baocode.dev/releases/latest.json; see
+// update itself (https://dl.baocode.dev/releases/latest.json; see
 // docs/auto-update.md). Run from anywhere in the repository:
 //
 //   dart run tool/release_manifest.dart \
 //     --windows build/installers/BaoCode-1.2.0-setup.exe \
-//     --macos build/installers/BaoCode-1.2.0-mac.zip \
+//     --macos-arm64 build/installers/BaoCode-1.2.0-mac-arm64.zip \
+//     --macos-x64 build/installers/BaoCode-1.2.0-mac-x64.zip \
+//     [--dmg-arm64 build/installers/BaoCode-1.2.0-arm64.dmg] \
+//     [--dmg-x64 build/installers/BaoCode-1.2.0-x64.dmg] \
 //     [--notes-en <text or file>] [--notes-zh <text or file>] \
 //     [--minimum-version 1.0.0] [--version 1.2.0+12] \
 //     [--manifest build/installers/latest.json]
@@ -17,8 +20,17 @@
 // can make every installed BaoCode run their program.
 //
 // The version is pubspec.yaml's unless given. A manifest already there for
-// the same version keeps its other platform's entry, so the Windows and the
+// the same version keeps the other platforms' entries, so the Windows and the
 // macOS installers can be signed on their own machines one after the other.
+//
+// Each link ends in `?sha256=<the file's first 16 hex digits>`: a file
+// published again under the same name (a release redone) is another address
+// to the CDN, which keeps downloads for a year, so no one is served the old
+// one. The app names a download by the path alone.
+//
+// Besides what the app reads, `downloads` gives the download page
+// (site/site.js) what it offers: the disk images (--dmg-arm64, --dmg-x64),
+// which the app does not update from, and the Windows installer.
 import 'dart:convert';
 import 'dart:io';
 
@@ -28,14 +40,25 @@ import 'package:baocode/update/version.dart';
 import 'package:crypto/crypto.dart' as crypto;
 
 /// Where the downloads go: `<base>/<1.2.0>/<file>`.
-const _releasesBase = 'https://baocode.dev/releases';
+const _releasesBase = 'https://dl.baocode.dev/releases';
+
+/// [name]'s link, for the file whose SHA-256 is [sha256].
+Uri _link(AppVersion version, String name, String sha256) => Uri.parse(
+  '$_releasesBase/${version.marketing}/$name?sha256=${sha256.substring(0, 16)}',
+);
+
+/// The Macs built for, each its own download (tool/build_macos.dart), and
+/// the app takes its processor's (lib/update/installer_io.dart).
+const _macArchitectures = ['arm64', 'x64'];
 
 /// Where the private key's path is given.
 const _keyVariable = 'BAOCODE_UPDATE_SIGNING_KEY';
 
 const _usage = '''
 Usage:
-  dart run tool/release_manifest.dart [--windows <setup.exe>] [--macos <mac.zip>]
+  dart run tool/release_manifest.dart [--windows <setup.exe>]
+      [--macos-arm64 <mac-arm64.zip>] [--macos-x64 <mac-x64.zip>]
+      [--dmg-arm64 <arm64.dmg>] [--dmg-x64 <x64.dmg>]
       [--notes-en <text|file>] [--notes-zh <text|file>]
       [--minimum-version <version>] [--version <version>]
       [--manifest <latest.json>]
@@ -72,10 +95,14 @@ Future<void> main(List<String> arguments) async {
   );
   final files = {
     if (options['windows'] case final path?) 'windows-x64': File(path),
-    if (options['macos'] case final path?) 'macos-universal': File(path),
+    for (final arch in _macArchitectures)
+      if (options['macos-$arch'] case final path?) 'macos-$arch': File(path),
   };
   if (files.isEmpty) {
-    _fail('Nothing to sign: give --windows and/or --macos.\n\n$_usage');
+    _fail(
+      'Nothing to sign: give --windows, --macos-arm64 or --macos-x64.\n\n'
+      '$_usage',
+    );
   }
   final manifestFile = File(
     options['manifest'] ?? '${root.path}/build/installers/latest.json',
@@ -84,15 +111,20 @@ Future<void> main(List<String> arguments) async {
   // The other platform's entry, signed before for the same version.
   var previous = <String, UpdateAsset>{};
   var notes = <String, String>{};
+  var downloads = <String, Object?>{};
   AppVersion? minimum;
   if (manifestFile.existsSync()) {
-    final old = UpdateManifest.parse(manifestFile.readAsStringSync());
+    final text = manifestFile.readAsStringSync();
+    final old = UpdateManifest.parse(text);
     if (old.version == version) {
       previous = {
         for (final platform in old.platforms) platform: old.assetFor(platform)!,
       };
       notes = {...old.notes};
       minimum = old.minimumVersion;
+      if (jsonDecode(text) case {'downloads': final Map<String, Object?> d}) {
+        downloads = {...d};
+      }
     }
   }
   for (final language in ['en', 'zh']) {
@@ -122,11 +154,31 @@ Future<void> main(List<String> arguments) async {
     }
     final name = file.uri.pathSegments.last;
     assets[platform] = UpdateAsset(
-      url: Uri.parse('$_releasesBase/${version.marketing}/$name'),
+      url: _link(version, name, sha256),
       size: size,
       sha256: sha256,
       signature: signature,
     );
+  }
+  if (assets['windows-x64'] case final installer?) {
+    downloads['windows'] = {
+      'url': '${installer.url}',
+      'size': installer.size,
+      'sha256': installer.sha256,
+    };
+  }
+  final dmgs = {
+    for (final arch in _macArchitectures)
+      if (options['dmg-$arch'] case final path?) 'macos-$arch': File(path),
+  };
+  for (final MapEntry(key: platform, value: dmg) in dmgs.entries) {
+    if (!dmg.existsSync()) _fail('No such file: ${dmg.path}');
+    final sha256 = '${await crypto.sha256.bind(dmg.openRead()).first}';
+    downloads[platform] = {
+      'url': '${_link(version, dmg.uri.pathSegments.last, sha256)}',
+      'size': dmg.lengthSync(),
+      'sha256': sha256,
+    };
   }
 
   final manifest = UpdateManifest(
@@ -136,8 +188,11 @@ Future<void> main(List<String> arguments) async {
     minimumVersion: minimum,
     platforms: assets,
   );
-  final text =
-      '${const JsonEncoder.withIndent('  ').convert(manifest.toJson())}\n';
+  final json = {
+    ...manifest.toJson(),
+    if (downloads.isNotEmpty) 'downloads': downloads,
+  };
+  final text = '${const JsonEncoder.withIndent('  ').convert(json)}\n';
   // What the app will read: it has to read it back the same.
   UpdateManifest.parse(text);
   manifestFile.parent.createSync(recursive: true);
@@ -151,10 +206,15 @@ Future<void> main(List<String> arguments) async {
   for (final MapEntry(key: platform, value: file) in files.entries) {
     stdout.writeln('  ${file.path}\n    -> ${assets[platform]!.url}');
   }
+  for (final MapEntry(key: platform, value: dmg) in dmgs.entries) {
+    stdout.writeln(
+      '  ${dmg.path}\n    -> ${(downloads[platform] as Map)['url']}',
+    );
+  }
   stdout.writeln('  ${manifestFile.path}\n    -> $defaultManifestUrl');
   final missing = {
     'windows-x64',
-    'macos-universal',
+    for (final arch in _macArchitectures) 'macos-$arch',
   }.difference(assets.keys.toSet());
   if (missing.isNotEmpty) {
     stdout.writeln(
@@ -219,7 +279,10 @@ Map<String, String?> _parse(List<String> arguments) {
   const flags = {'public-key', 'help'};
   const valued = {
     'windows',
-    'macos',
+    'macos-arm64',
+    'macos-x64',
+    'dmg-arm64',
+    'dmg-x64',
     'notes-en',
     'notes-zh',
     'minimum-version',

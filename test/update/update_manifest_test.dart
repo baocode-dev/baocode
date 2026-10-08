@@ -32,7 +32,7 @@ String _manifest({
       platforms ??
       {
         'windows-x64': _asset(),
-        'macos-universal': _asset(
+        'macos-arm64': _asset(
           url: 'https://baocode.dev/releases/1.2.0/BaoCode-1.2.0-mac.zip',
         ),
       },
@@ -61,17 +61,39 @@ void main() {
       expect(asset.size, 1000);
       expect(asset.sha256, 'a' * 64);
       expect(asset.fileName, 'BaoCode-1.2.0-setup.exe');
-      expect(
-        manifest.platforms,
-        containsAll(['windows-x64', 'macos-universal']),
-      );
+      expect(manifest.platforms, containsAll(['windows-x64', 'macos-arm64']));
+    });
+
+    test('names a download by its path, whatever its query', () {
+      // tool/release_manifest.dart ends links in the file's hash, so a
+      // release redone is not served from the CDN's cache of the old one;
+      // and adds `downloads`, for the site, which the app has no use for.
+      final text = jsonEncode({
+        ...jsonDecode(
+          _manifest(
+            platforms: {
+              'windows-x64': _asset(
+                url:
+                    'https://dl.baocode.dev/releases/1.2.0/'
+                    'BaoCode-1.2.0-setup.exe?sha256=0123456789abcdef',
+              ),
+            },
+          ),
+        ),
+        'downloads': {
+          'macos': {'url': 'https://dl.baocode.dev/x.dmg', 'size': 1},
+        },
+      });
+      final asset = UpdateManifest.parse(text).assetFor('windows-x64')!;
+      expect(asset.fileName, 'BaoCode-1.2.0-setup.exe');
+      expect(asset.url.query, 'sha256=0123456789abcdef');
     });
 
     test('a platform it has no download for has none', () {
       final manifest = UpdateManifest.parse(
         _manifest(platforms: {'windows-x64': _asset()}),
       );
-      expect(manifest.assetFor('macos-universal'), isNull);
+      expect(manifest.assetFor('macos-arm64'), isNull);
     });
 
     test('notes may be one text, or none', () {
@@ -108,13 +130,13 @@ void main() {
         _manifest(
           platforms: {
             'windows-x64': _asset(size: null),
-            'macos-universal': _asset(
+            'macos-arm64': _asset(
               url: 'https://baocode.dev/releases/1.2.0/BaoCode-1.2.0-mac.zip',
             ),
           },
         ),
       );
-      expect(manifest.assetFor('macos-universal'), isNotNull);
+      expect(manifest.assetFor('macos-arm64'), isNotNull);
       expect(() => manifest.assetFor('windows-x64'), _invalid('size'));
     });
 
@@ -204,8 +226,8 @@ void main() {
       expect(again.notes, manifest.notes);
       expect(again.pubDate, manifest.pubDate);
       expect(
-        again.assetFor('macos-universal')!.toJson(),
-        manifest.assetFor('macos-universal')!.toJson(),
+        again.assetFor('macos-arm64')!.toJson(),
+        manifest.assetFor('macos-arm64')!.toJson(),
       );
     });
   });

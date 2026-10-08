@@ -74,8 +74,9 @@ Name: "contextmenu"; \
 [Files]
 ; The whole bundle: baocode.exe, the engine and plugin DLLs, data\ (the
 ; AOT app.so and flutter_assets) which sit beside the executable, and
-; remote\ (baocode-server for Linux x64 and arm64, and its VERSION: what
-; remote projects run on their host; tool/build_windows.dart builds it).
+; remote\ (VERSION and servers.json: which baocode-server remote projects
+; run on their host, and where the app downloads it; tool/build_windows.dart
+; puts them there).
 Source: "{#BundleDir}\*"; DestDir: "{app}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
 

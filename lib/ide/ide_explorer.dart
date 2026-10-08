@@ -8,7 +8,7 @@ import 'dart:collection' show UnmodifiableSetView;
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show kIsWeb, setEquals;
+import 'package:flutter/foundation.dart' show kIsWeb, listEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -44,6 +44,7 @@ class IdeExplorerRow {
     required this.isDirectory,
     this.expanded = false,
     this.message,
+    this.isRoot = false,
   });
 
   final String path;
@@ -51,6 +52,10 @@ class IdeExplorerRow {
   final int depth;
   final bool isDirectory;
   final bool expanded;
+
+  /// A folder of a multi-folder workspace, at the top of the tree: not
+  /// renamed, moved nor deleted from it, only taken out of the workspace.
+  final bool isRoot;
 
   /// A non-selectable note under a folder instead of an entry: the error
   /// reading it.
@@ -67,6 +72,7 @@ class IdeExplorerController extends ChangeNotifier {
     required this.files,
     required String root,
     Stream<void> Function(String directory)? watch,
+    List<String> roots = const [],
   }) : root = p.normalize(root),
        _watchDirectory =
            watch ??
@@ -75,11 +81,62 @@ class IdeExplorerController extends ChangeNotifier {
              _ => watchDirectory,
            } {
     unawaited(_load(this.root));
+    this.roots = roots;
     _watchExpanded();
   }
 
   final IdeFileService files;
   final String root;
+
+  /// A multi-folder workspace's folders, the tree's top rows in place of
+  /// [root]'s entries (as VS Code lists workspace folders); none for a
+  /// folder's project.
+  List<String> get roots => _roots;
+  List<String> _roots = const [];
+
+  /// Shows [roots] at the top of the tree: those added expanded, as VS
+  /// Code opens them.
+  set roots(List<String> roots) {
+    final normalized = [for (final root in roots) p.normalize(root)];
+    if (listEquals(normalized, _roots)) return;
+    for (final root in normalized) {
+      if (!_roots.contains(root)) {
+        _expanded.add(root);
+        unawaited(_load(root));
+      }
+    }
+    _expanded.removeWhere(
+      (path) => !_inTree(path, normalized) && p.isWithin(root, path),
+    );
+    _roots = normalized;
+    _changed();
+  }
+
+  /// Whether [path] is a row's: under [roots], or [root] for a folder.
+  bool _inTree(String path, List<String> roots) => roots.isEmpty
+      ? p.isWithin(root, path)
+      : roots.any((r) => r == path || p.isWithin(r, path));
+
+  /// Whether [path] is a workspace folder: the top of a tree.
+  bool isRoot(String path) => path == root || _roots.contains(path);
+
+  /// The top of [path]'s tree: its workspace folder, or [root].
+  String rootOf(String path) {
+    for (final root in _roots) {
+      if (root == path || p.isWithin(root, path)) return root;
+    }
+    return root;
+  }
+
+  /// Whether [path] is a folder with a row: one that may hold others
+  /// selected (a workspace folder's, but not [root]).
+  bool isFolderRow(String path) => _roots.isEmpty
+      ? path != root && p.isWithin(root, path)
+      : _inTree(path, _roots);
+
+  /// Where new items go when no row says: [root], or the first workspace
+  /// folder.
+  String get defaultFolder => _roots.firstOrNull ?? root;
 
   /// The root and the expanded folders, watched so the tree shows files
   /// made, moved or deleted outside it (an agent's, a terminal's), as VS
@@ -149,7 +206,24 @@ class IdeExplorerController extends ChangeNotifier {
       }
     }
 
-    add(root, 0);
+    if (_roots.isEmpty) {
+      add(root, 0);
+      return rows;
+    }
+    for (final folder in _roots) {
+      final expanded = _expanded.contains(folder);
+      rows.add(
+        IdeExplorerRow(
+          path: folder,
+          name: p.basename(folder),
+          depth: 0,
+          isDirectory: true,
+          expanded: expanded,
+          isRoot: true,
+        ),
+      );
+      if (expanded) add(folder, 1);
+    }
     return rows;
   }
 
@@ -301,9 +375,12 @@ class IdeExplorerController extends ChangeNotifier {
   /// Expands the folders above [path], then selects and scrolls to it.
   Future<void> reveal(String path) async {
     final target = p.normalize(path);
-    if (target == root || !p.isWithin(root, target)) return;
-    final parts = p.split(p.relative(target, from: root));
-    var directory = root;
+    if (target == root || !_inTree(target, _roots)) return;
+    final top = rootOf(target);
+    if (top == target) return select(target, reveal: true);
+    final parts = p.split(p.relative(target, from: top));
+    var directory = top;
+    if (top != root && _expanded.add(top)) _changed();
     await _load(directory);
     for (final part in parts.take(parts.length - 1)) {
       directory = p.join(directory, part);
@@ -327,7 +404,7 @@ class IdeExplorerController extends ChangeNotifier {
 
   /// What was cut or copied, to paste into a folder (the explorer's own
   /// clipboard, as VS Code keeps one).
-  ({List<String> paths, bool cut})? clipboard;
+  IdeExplorerClipboard? clipboard;
 
   /// Forgets [path] and what was under it (after a move or delete), so
   /// folders re-read and the expansion does not point at nothing.
@@ -353,10 +430,38 @@ class IdeExplorerController extends ChangeNotifier {
   }
 }
 
+/// What was cut or copied in an explorer, and what the system's clipboard
+/// held once it was: files copied there since (in Finder, in Explorer, in
+/// another tree) are what a paste puts in instead.
+class IdeExplorerClipboard {
+  IdeExplorerClipboard(this.files, {required this.cut, required this.system});
+
+  final List<ComposerFile> files;
+  final bool cut;
+
+  /// The paths on the system's clipboard once [files] were cut or copied.
+  final Future<Set<String>> system;
+}
+
+/// The files and folders on the system's clipboard; none when it cannot be
+/// read.
+Future<List<ComposerFile>> _systemClipboardFiles() async {
+  try {
+    return await WindowControls.readPasteboardFiles();
+  } on PlatformException {
+    return const [];
+  }
+}
+
+Set<String> _pathsOf(List<ComposerFile> files) => {
+  for (final file in files) p.normalize(file.path),
+};
+
 /// The file tree, as VS Code's explorer: chevrons, file icons, indent
 /// guides, Git's colors and letters, selection that follows the active
 /// editor, keyboard navigation while focused, and the context menu's file
-/// operations (new, rename and delete in place, cut, copy and paste).
+/// operations (new, rename and delete in place, cut, copy and paste, with
+/// the system's clipboard too).
 ///
 /// Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 /// src/vs/workbench/contrib/files/browser (fileActions.ts,
@@ -364,7 +469,11 @@ class IdeExplorerController extends ChangeNotifier {
 /// extension's decorations (extensions/git/src/decorationProvider.ts).
 ///
 /// Deviations: items drag only onto the chat's composer (not to move
-/// them), and deleting cannot be undone from the editor.
+/// them), and deleting cannot be undone from the editor. Copied, local
+/// items are on the system's clipboard too, and files copied there (in
+/// Finder, in Explorer) paste in as copies, onto a remote project's host
+/// too. Where no workbench runs its keybindings (the chat's side panel), it
+/// runs those of its own commands itself.
 class IdeExplorer extends StatefulWidget {
   const IdeExplorer({
     super.key,
@@ -381,9 +490,22 @@ class IdeExplorer extends StatefulWidget {
     this.onFindInFolder,
     this.isBound,
     this.local = true,
+    this.repositories = const [],
+    this.onAddFolder,
+    this.onRemoveFolder,
   });
 
   final IdeExplorerController controller;
+
+  /// A multi-folder workspace's repositories, for the rows' colors and
+  /// letters in place of [git]'s: each path's, that of the folder it is in.
+  final List<IdeGitRepository> repositories;
+
+  /// Add Folder to Workspace...; none for a folder's project.
+  final VoidCallback? onAddFolder;
+
+  /// Remove Folder from Workspace, of a workspace folder's row.
+  final ValueChanged<String>? onRemoveFolder;
 
   /// Whether the files are this machine's: a remote project's are not
   /// shown in the file manager.
@@ -454,6 +576,9 @@ class IdeExplorerState extends State<IdeExplorer> {
     super.initState();
     _controller.addListener(_changed);
     widget.git?.addListener(_changed);
+    for (final repository in widget.repositories) {
+      repository.addListener(_changed);
+    }
     _focusNode.addListener(_focusChanged);
     _revealed = _controller.revealRequest;
     if (_controller.selected != null) _scheduleReveal();
@@ -470,12 +595,23 @@ class IdeExplorerState extends State<IdeExplorer> {
       oldWidget.git?.removeListener(_changed);
       widget.git?.addListener(_changed);
     }
+    if (!listEquals(oldWidget.repositories, widget.repositories)) {
+      for (final repository in oldWidget.repositories) {
+        repository.removeListener(_changed);
+      }
+      for (final repository in widget.repositories) {
+        repository.addListener(_changed);
+      }
+    }
   }
 
   @override
   void dispose() {
     _controller.removeListener(_changed);
     widget.git?.removeListener(_changed);
+    for (final repository in widget.repositories) {
+      repository.removeListener(_changed);
+    }
     _focusNode.removeListener(_focusChanged);
     _ownFocusNode?.dispose();
     _scroll.dispose();
@@ -564,7 +700,7 @@ class IdeExplorerState extends State<IdeExplorer> {
     bool underSelected(String path) {
       for (
         var parent = p.dirname(path);
-        parent != _controller.root && p.isWithin(_controller.root, parent);
+        _controller.isFolderRow(parent);
         parent = p.dirname(parent)
       ) {
         if (selection.contains(parent)) return true;
@@ -584,7 +720,7 @@ class IdeExplorerState extends State<IdeExplorer> {
   /// The folder new items go in for [row]: itself, or its parent (the
   /// root for none).
   String _folderOf(IdeExplorerRow? row) => row == null
-      ? _controller.root
+      ? _controller.defaultFolder
       : row.isDirectory
       ? row.path
       : p.dirname(row.path);
@@ -598,15 +734,77 @@ class IdeExplorerState extends State<IdeExplorer> {
   // keybindings.json decide them.
 
   /// Whether a keybinding has [event]: it is left to the workbench, which
-  /// runs it. A navigation key none has is kept, as upstream's list keeps
-  /// it, rather than moving the focus out.
+  /// runs it, or, with none ([IdeExplorer.isBound] null), run here when it
+  /// is one of [_commands]. A navigation key none has is kept, as
+  /// upstream's list keeps it, rather than moving the focus out.
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent || _edit != null) return KeyEventResult.ignored;
-    if (widget.isBound?.call(event) ?? false) return KeyEventResult.ignored;
+    if (widget.isBound case final isBound?) {
+      if (isBound(event)) return KeyEventResult.ignored;
+    } else if (_runKeybinding(event)) {
+      return KeyEventResult.handled;
+    }
     return _listKeys.contains(event.logicalKey)
         ? KeyEventResult.handled
         : KeyEventResult.ignored;
   }
+
+  /// Runs the command of [event]'s keybinding, when it is one of
+  /// [_commands]; whether it did.
+  bool _runKeybinding(KeyEvent event) {
+    final commands = _commands;
+    final resolution = KeybindingService.instance.resolveEvent(
+      event,
+      context: _focusedContextKey,
+      canRun: (item) => commands.containsKey(item.command),
+    );
+    if (resolution is! KeybindingFound) return false;
+    commands[resolution.command]!(resolution.item.entry.args);
+    return true;
+  }
+
+  /// The explorer's commands its keybindings run where no workbench runs
+  /// them, by upstream's ids, given their arguments.
+  Map<String, void Function(Object? args)> get _commands {
+    // `list.focusDown` / `list.focusUp`'s argument: how many rows.
+    int rows(Object? args) => args is num ? args.toInt() : 1;
+    return {
+      'explorer.newFile': (_) => unawaited(startCreate(directory: false)),
+      'explorer.newFolder': (_) => unawaited(startCreate(directory: true)),
+      'renameFile': (_) => renameSelected(),
+      'moveFileToTrash': (_) => unawaited(deleteSelected()),
+      'deleteFile': (_) => unawaited(deleteSelected(permanently: true)),
+      'filesExplorer.copy': (_) => copySelected(),
+      'filesExplorer.cut': (_) => copySelected(cut: true),
+      'filesExplorer.paste': (_) => unawaited(pasteSelected()),
+      'filesExplorer.openFilePreserveFocus': (_) => previewSelected(),
+      'list.focusDown': (args) => focusNext(rows(args)),
+      'list.focusUp': (args) => focusNext(-rows(args)),
+      'list.focusPageDown': (_) => focusPage(1),
+      'list.focusPageUp': (_) => focusPage(-1),
+      'list.focusFirst': (_) => focusFirst(),
+      'list.focusLast': (_) => focusLast(),
+      'list.expand': (_) => expandSelected(),
+      'list.collapse': (_) => collapseSelected(),
+      'list.select': (_) => openSelected(),
+      'list.toggleExpand': (_) => toggleSelected(),
+      'list.expandSelectionDown': (_) => expandSelection(1),
+      'list.expandSelectionUp': (_) => expandSelection(-1),
+      'list.selectAll': (_) => selectAll(),
+      'list.clear': (_) => clearSelection(),
+      'list.collapseAll': (_) => _controller.collapseAll(),
+    };
+  }
+
+  /// The context keys with the focus here.
+  Object? _focusedContextKey(String key) => switch (key) {
+    'filesExplorerFocus' ||
+    'foldersViewVisible' ||
+    'explorerViewletVisible' ||
+    'listFocus' => true,
+    'inputFocus' || 'textInputFocus' => false,
+    _ => contextKey(key),
+  };
 
   static final _listKeys = {
     LogicalKeyboardKey.arrowDown,
@@ -629,15 +827,14 @@ class IdeExplorerState extends State<IdeExplorer> {
     final folder = row != null && row.isDirectory;
     return switch (key) {
       // None selected: the root folder's.
-      'explorerResourceIsRoot' => row == null,
+      'explorerResourceIsRoot' => row == null || row.isRoot,
       'explorerResourceIsFolder' => row == null || folder,
       'explorerResourceReadonly' => false,
       'explorerResourceMoveableToTrash' => widget.trash != null,
       'treeElementCanCollapse' => folder && row.expanded,
       'treeElementCanExpand' => folder && !row.expanded,
       'treeElementHasChild' => folder && row.expanded && _firstChild != null,
-      'treeElementHasParent' =>
-        row != null && p.dirname(row.path) != _controller.root,
+      'treeElementHasParent' => row != null && row.depth > 0,
       'listSupportsMultiselect' => true,
       'listHasSelectionOrFocus' =>
         row != null || _controller.selection.isNotEmpty,
@@ -730,7 +927,7 @@ class IdeExplorerState extends State<IdeExplorer> {
       return;
     }
     final parent = p.dirname(row.path);
-    if (parent != _controller.root) _controller.select(parent, reveal: true);
+    if (row.depth > 0) _controller.select(parent, reveal: true);
   }
 
   /// `list.select`: opens the file, the editor focused, or toggles the
@@ -764,22 +961,48 @@ class IdeExplorerState extends State<IdeExplorer> {
   /// `filesExplorer.copy`, or `filesExplorer.cut`.
   void copySelected({bool cut = false}) {
     final targets = _targets();
-    if (targets.isNotEmpty) _copy(_paths(targets), cut: cut);
+    if (targets.isNotEmpty) _copy(targets, cut: cut);
   }
 
   static List<String> _paths(List<IdeExplorerRow> rows) => [
     for (final row in rows) row.path,
   ];
 
-  /// Copied, the files are on the system's clipboard too, as Finder copies
-  /// them: to paste into the chat, or into another app.
-  void _copy(List<String> paths, {required bool cut}) {
-    _controller.clipboard = (paths: paths, cut: cut);
-    if (!cut) unawaited(WindowControls.writePasteboardFiles(paths));
+  /// Copied, this machine's files are on the system's clipboard too, as
+  /// Finder copies them: to paste into the chat, or into another app.
+  void _copy(List<IdeExplorerRow> rows, {required bool cut}) {
+    final paths = _paths(rows);
+    final written = !cut && widget.local
+        ? WindowControls.writePasteboardFiles(paths)
+              .then((_) {}, onError: (Object _) {})
+        : Future<void>.value();
+    _controller.clipboard = IdeExplorerClipboard(
+      [
+        for (final row in rows)
+          ComposerFile(row.path, directory: row.isDirectory),
+      ],
+      cut: cut,
+      system: written.then(
+        (_) async => _pathsOf(await _systemClipboardFiles()),
+      ),
+    );
   }
 
-  /// Whether there is something cut or copied.
-  bool get canPaste => _controller.clipboard != null;
+  /// What a paste puts in: what was cut or copied here, unless other files
+  /// were copied to the system's clipboard since, which are copied in
+  /// ([external]: this machine's); null for nothing.
+  Future<({List<ComposerFile> files, bool cut, bool external})?>
+  _toPaste() async {
+    final clipboard = _controller.clipboard;
+    final system = await _systemClipboardFiles();
+    if (clipboard != null &&
+        (system.isEmpty ||
+            setEquals(_pathsOf(system), await clipboard.system))) {
+      return (files: clipboard.files, cut: clipboard.cut, external: false);
+    }
+    if (system.isEmpty) return null;
+    return (files: system, cut: false, external: true);
+  }
 
   /// `filesExplorer.paste`: into the selected folder, or the selected
   /// file's.
@@ -797,7 +1020,7 @@ class IdeExplorerState extends State<IdeExplorer> {
   }
 
   void startRename(IdeExplorerRow row) {
-    if (row.path == _controller.root) return;
+    if (_controller.isRoot(row.path)) return;
     setState(
       () => _edit = _ExplorerEdit.rename(row.path, directory: row.isDirectory),
     );
@@ -898,7 +1121,7 @@ class IdeExplorerState extends State<IdeExplorer> {
   }) async {
     final rows = [
       for (final row in targets)
-        if (row.path != _controller.root) row,
+        if (!_controller.isRoot(row.path)) row,
     ];
     if (rows.isEmpty) return;
     final trash = permanently ? null : widget.trash;
@@ -992,47 +1215,51 @@ class IdeExplorerState extends State<IdeExplorer> {
   }
 
   /// Paste: copies (with VS Code's simple incremental names when taken) or
-  /// moves what was cut into [folder].
+  /// moves what was cut into [folder]; files from the system's clipboard
+  /// are copied, onto a remote project's host too.
   Future<void> _paste(String folder) async {
-    final clipboard = _controller.clipboard;
-    if (clipboard == null) return;
+    final toPaste = await _toPaste();
+    if (toPaste == null || !mounted) return;
     final files = _controller.files;
     final ancestor = context.l10n.explorerPasteIntoAncestor;
+    // This machine's files, into a remote project's.
+    final upload = toPaste.external && !widget.local;
     String? last;
     try {
       await _controller.expand(folder);
-      for (final source in clipboard.paths) {
-        if (clipboard.cut) {
-          final target = p.join(folder, p.basename(source));
-          if (target == source) continue;
-          if (p.isWithin(source, folder)) {
-            _report(ancestor);
-            break;
-          }
+      final taken = {
+        for (final entry in _controller.childrenOf(folder) ?? const [])
+          entry.name,
+      };
+      for (final file in toPaste.files) {
+        final source = file.path;
+        final target = p.join(folder, p.basename(source));
+        if (toPaste.cut && target == source) continue;
+        if (!upload && (source == folder || p.isWithin(source, folder))) {
+          _report(ancestor);
+          break;
+        }
+        if (toPaste.cut) {
           await files.rename(source, target);
           _controller.forget(source);
           widget.onMoved?.call(source, target);
           last = target;
         } else {
-          final isDirectory =
-              _controller.rows.any((r) => r.path == source && r.isDirectory) ||
-              (_controller.childrenOf(p.dirname(source)) ?? const []).any(
-                (e) => e.name == p.basename(source) && e.isDirectory,
-              );
-          final taken = {
-            for (final entry in _controller.childrenOf(folder) ?? const [])
-              entry.name,
-          };
           var name = p.basename(source);
           while (taken.contains(name)) {
-            name = ideIncrementFileName(name, isFolder: isDirectory);
+            name = ideIncrementFileName(name, isFolder: file.directory);
           }
-          final target = p.join(folder, name);
-          await files.copy(source, target);
-          last = target;
+          taken.add(name);
+          final copy = p.join(folder, name);
+          if (upload) {
+            await copyLocalTo(files, source, copy);
+          } else {
+            await files.copy(source, copy);
+          }
+          last = copy;
         }
       }
-      if (clipboard.cut) _controller.clipboard = null;
+      if (toPaste.cut) _controller.clipboard = null;
     } catch (error) {
       _report(error);
     }
@@ -1041,34 +1268,28 @@ class IdeExplorerState extends State<IdeExplorer> {
   }
 
   String _relative(String path) =>
-      p.relative(path, from: _controller.root).replaceAll(r'\', '/');
+      p.relative(path, from: _controller.rootOf(path)).replaceAll(r'\', '/');
 
   /// [command]'s keybinding, for the menu: the one that applies with the
   /// focus here.
-  String? _keybinding(String command) => KeybindingService.instance.labelFor(
-    command,
-    context: (key) => switch (key) {
-      'filesExplorerFocus' ||
-      'foldersViewVisible' ||
-      'explorerViewletVisible' ||
-      'listFocus' => true,
-      'inputFocus' || 'textInputFocus' => false,
-      _ => contextKey(key),
-    },
-  );
+  String? _keybinding(String command) =>
+      KeybindingService.instance.labelFor(command, context: _focusedContextKey);
 
   /// `MenuId.ExplorerContext`, for [row] or (null) the empty space below the
   /// rows, which is the root folder's.
-  Future<void> _showMenu(Offset position, IdeExplorerRow? row) {
+  Future<void> _showMenu(Offset position, IdeExplorerRow? row) async {
     // Upstream keeps the selection when the clicked row is in it, and acts
     // on all of it.
     if (row != null && !_controller.isSelected(row.path)) {
       _controller.select(row.path);
     }
-    final path = row?.path ?? _controller.root;
+    final path = row?.path ?? _controller.defaultFolder;
     final isFolder = row == null || row.isDirectory;
-    final isRoot = row == null;
+    final isRoot = row == null || row.isRoot;
+    final workspaceFolder = row != null && row.isRoot;
     final targets = row == null ? const <IdeExplorerRow>[] : _targets(row);
+    final canPaste = isFolder && await _toPaste() != null;
+    if (!mounted) return;
     final multiple = targets.length > 1;
     final mac = ideUsesMacKeys;
     String? keys(List<IdeKeybinding> bindings) => [
@@ -1135,19 +1356,19 @@ class IdeExplorerState extends State<IdeExplorer> {
             IdeMenuAction(
               l10n.commonCut,
               keybinding: _keybinding('filesExplorer.cut'),
-              onSelected: () => _copy(_paths(targets), cut: true),
+              onSelected: () => _copy(targets, cut: true),
             ),
             IdeMenuAction(
               l10n.commonCopy,
               keybinding: _keybinding('filesExplorer.copy'),
-              onSelected: () => _copy(_paths(targets), cut: false),
+              onSelected: () => _copy(targets, cut: false),
             ),
           ],
           if (isFolder)
             IdeMenuAction(
               l10n.commonPaste,
               keybinding: _keybinding('filesExplorer.paste'),
-              enabled: _controller.clipboard != null,
+              enabled: canPaste,
               onSelected: () => unawaited(_paste(path)),
             ),
         ],
@@ -1197,6 +1418,15 @@ class IdeExplorerState extends State<IdeExplorer> {
               ),
             ),
           ),
+        ],
+        [
+          if (widget.onAddFolder case final add? when row == null)
+            IdeMenuAction(l10n.ideAddFolderToWorkspace, onSelected: add),
+          if (widget.onRemoveFolder case final remove? when workspaceFolder)
+            IdeMenuAction(
+              l10n.ideRemoveFolderFromWorkspace,
+              onSelected: () => remove(path),
+            ),
         ],
         [
           if (!isRoot) ...[
@@ -1251,6 +1481,18 @@ class IdeExplorerState extends State<IdeExplorer> {
     final rows = _rowsWithEdit();
     final focused = _focusNode.hasFocus;
     final decorations = widget.git?.decorations;
+    final repositories = widget.repositories;
+    IdeGitDecorations? decorationsOf(String path) {
+      if (repositories.isEmpty) return decorations;
+      for (final repository in repositories) {
+        final root = repository.state?.root;
+        if (root != null && (p.equals(root, path) || p.isWithin(root, path))) {
+          return repository.decorations;
+        }
+      }
+      return null;
+    }
+
     // A selected row drags the whole selection.
     List<ComposerFile>? selectedFiles;
     List<ComposerFile> dragged(IdeExplorerRow row) {
@@ -1301,11 +1543,14 @@ class IdeExplorerState extends State<IdeExplorer> {
                 selected: _controller.isSelected(row.path),
                 focusedItem: row.path == _controller.selected,
                 focused: focused,
-                decoration: decorations == null || row.message != null
-                    ? null
-                    : row.isDirectory
-                    ? decorations.folder(row.path)
-                    : decorations.file(row.path),
+                decoration: switch (decorationsOf(row.path)) {
+                  _ when row.message != null => null,
+                  null => null,
+                  final decorations when row.isDirectory => decorations.folder(
+                    row.path,
+                  ),
+                  final decorations => decorations.file(row.path),
+                },
                 onTap: () {
                   _focusNode.requestFocus();
                   _click(row);
@@ -1470,6 +1715,8 @@ class _ExplorerRowView extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 13,
+                        // A workspace folder's, bold as VS Code's roots.
+                        fontWeight: row.isRoot ? FontWeight.w600 : null,
                         color: color ?? foreground,
                         decoration: decoration?.strikeThrough ?? false
                             ? TextDecoration.lineThrough

@@ -2,7 +2,7 @@
 
 用 SSH 打开另一台机器上的项目，体验和 VS Code 的 Remote-SSH 一样：界面留在本机；文件、Git、搜索、终端、语言服务器和 Claude Code 都在远端主机上运行。本文说明它怎么工作、怎么构建和发布、出了问题怎么查，以及以后改代码时要注意什么。
 
-- 远端要求：Linux x64 / arm64（glibc），能用密钥或 ssh-agent 免密登录
+- 远端要求：Linux x64 / arm64（glibc），或 macOS（Apple silicon / Intel，要在“系统设置 → 通用 → 共享”里打开“远程登录”）；能用密钥、ssh-agent 或密码登录
 - 本机要求：系统自带的 OpenSSH 客户端（`ssh`）
 - 代码：应用侧 `lib/remote/`，服务端和协议 `packages/bao_remote/`，构建工具 `tool/build_remote_server.dart`
 - 测试：`test/remote/`
@@ -40,10 +40,11 @@
 | 打开入口、状态栏、侧栏徽标、退出确认、中英文 | 已完成 |
 | Windows 打包带上服务端 | 已完成：`tool/build_windows.dart` |
 | macOS 打包带上服务端 | 写在 `tool/build_macos.dart` 里，**还没实际跑过** |
+| macOS 远端主机 | 已完成：服务端编成 macOS arm64 / x64 两份（只能在 Mac 上编，见 9.1），探测到 `Darwin` 就推送对应那份；有假 ssh 的测试，**还没在真 Mac 主机上验证** |
 | Windows 客户端打开远程项目 | **有已知问题**：见第 15 节 |
 | 真实主机端到端验证 | **未做**：见第 13 节 |
 
-不在范围内：Codex、macOS/Windows 远端、密码和二次验证登录、在访达中显示、用外部编辑器打开、往远程项目里拖文件。
+不在范围内：Codex、Windows 远端、Windows 客户端的密码登录、在访达中显示、用外部编辑器打开、往远程项目里拖文件。
 
 ---
 
@@ -67,7 +68,8 @@
 
 ### 2.2 远程项目的样子
 
-- **侧栏**：项目名旁边有一个远程图标和主机名，悬停时显示远端路径和“位于 xxx（通过 SSH）”。
+- **侧栏**：项目名旁边有一个远程图标和主机名，悬停时显示远端路径和“位于 xxx（通过 SSH）”。连接失败时图标和主机名变红，悬停显示原因，点击重连。
+- **对话输入框上方**：项目所在主机连接失败时，显示“无法连接到 xxx: 原因”，带“详细信息”（ssh 或服务端的输出、下载地址）和“重试”。如果对话本身已经因为同一原因报错，就只显示对话的那条。
 - **窗口标题**：`项目名 [SSH: 主机]`。
 - **IDE 状态栏最左边**：
 
@@ -82,7 +84,7 @@
 ### 2.3 断线与重连
 
 - 断线后马上重连一次；之后等待时间按 1、2、4、8… 秒递增，最长 1 分钟。
-- **不会自动重试的失败**：认证失败、主机密钥未知或改变、远端系统不支持、本机没有 ssh。这些自动重试也没用，只能修好后点状态栏重连（或在打开流程里点“重试”）。
+- **不会自动重试的失败**：认证失败、主机密钥未知或改变、远端系统不支持、本机没有 ssh。这些自动重试也没用，只能修好后点状态栏、侧栏的红色主机名或输入框上方的“重试”重连（或在打开流程里点“重试”）。
 - **重连后自动恢复的**：文件和 Git 的监听（恢复后会先通知一次“可能变了”，界面会刷新）；语言服务器重启，并把打开的文件（包括未保存的修改）重新同步过去。
 - **重连后不会恢复的**：断线那一刻在远端运行的进程都会结束，因为 sshd 断开会话时服务端会结束它启动的所有进程。
   - Claude Code 的对话会显示“The connection to the remote host was lost.”，下次发消息时会接着原会话继续（resume）。
@@ -118,7 +120,7 @@
 要点：
 
 - **只有一条连接**：每台主机只建一条 `ssh` 连接，这台主机上所有项目、所有功能都复用它。
-- **服务端是纯 Dart 程序**（`packages/bao_remote/bin/baocode_server.dart`），用 `dart compile exe` 交叉编译成 Linux 二进制，不依赖远端装任何东西。
+- **服务端是纯 Dart 程序**（`packages/bao_remote/bin/baocode_server.dart`），用 `dart compile exe` 编译成 Linux 和 macOS 二进制，不依赖远端装任何东西。
 - **项目的身份是 location 字符串**：远程项目的路径存成 `ssh://<主机>/<绝对路径>`，例如 `ssh://dev/home/me/app`、`ssh://me@10.0.0.2:2222/srv/x`。工作区里存的、侧栏显示的、会话归属的都是它。真正调用远端时再拆成“主机 + 远端路径”。
 - **`bao_remote` 包不依赖 Flutter**，因为服务端要能用 `dart compile exe` 编译。本地项目用到的文件、Git、搜索、Claude 存储、终端 shell 集成等代码也放在这个包里，应用和服务端共用同一份实现。
 
@@ -133,9 +135,9 @@
 | `lib/remote/remote_lsp.dart` | 远端的 LSP 管理和 mason 安装 |
 | `lib/remote/remote_claude.dart` | 远端的 Claude Code：启动、会话目录、历史、Haiku、模型代理转发 |
 | `lib/remote/remote_claude_install.dart` | 远端没有 Claude Code 时的自动安装 |
-| `lib/remote/remote_binaries.dart` | 找应用自带的服务端二进制；开发时从源码编译 |
+| `lib/remote/remote_binaries.dart` | 找应用的服务端二进制：目录里的，或按 `servers.json` 下载的；开发时从源码编译 |
 | `lib/remote/open_remote.dart` | “打开远程项目”的快速选择流程 |
-| `lib/remote/remote_status.dart` | 状态栏的 `SSH: 主机`、聊天上方的 Claude 安装进度条 |
+| `lib/remote/remote_status.dart` | 状态栏的 `SSH: 主机`、聊天上方的连接失败提示和 Claude 安装进度条 |
 | `packages/bao_remote/lib/src/client/ssh_launcher.dart` | 调用 `ssh`：探测、上传、启动服务端；失败分类 |
 | `packages/bao_remote/lib/src/client/ssh_config.dart` | 读 `~/.ssh/config` 里的主机 |
 | `packages/bao_remote/lib/src/client/remote_client.dart` | 应用侧的类型化 RPC 调用 |
@@ -144,7 +146,7 @@
 | `packages/bao_remote/lib/src/claude/claude_release.dart` | 从官方地址下载 Claude Code 并校验；远端由 BaoCode 管理的那份 Claude |
 | `packages/bao_remote/lib/src/protocol.dart` | 协议方法名、版本号和数据结构 |
 | `packages/bao_remote/lib/src/rpc/` | JSON-RPC 收发（`rpc_peer.dart`），以及异常的跨端传递（`rpc_error.dart`） |
-| `tool/build_remote_server.dart` | 编译 x64 和 arm64 两个服务端，并生成 `VERSION` |
+| `tool/build_remote_server.dart` | 编译 x64 和 arm64 两个服务端，生成 `VERSION`、两个 `.gz` 和 `servers.json` |
 
 ---
 
@@ -153,9 +155,9 @@
 代码：`SshLauncher.connect`（`ssh_launcher.dart`）、`SshHost._attempt`（`ssh_host.dart`）。
 
 1. **找 ssh**：在本机 PATH 里找 `ssh`，找不到就是 `noSsh` 失败。
-2. **找服务端二进制**：先找应用自带的（见第 9 节）；开发时没有就从源码编译。都没有就报错。
+2. **找服务端二进制**：先找应用目录里的（见第 9 节）；安装包里只有 `servers.json` 时，第一次用到某个平台才从 dl.baocode.dev 下载；开发时没有就从源码编译。都没有就报错。
 3. **探测**：执行 `ssh <参数> <主机> sh -s`，通过 stdin 送一段脚本，返回：
-   - `uname -s` 和 `uname -m`：不是 Linux x64/arm64 就报 `unsupported`；
+   - `uname -s` 和 `uname -m`：换成平台名 `linux-x64`、`linux-arm64`、`darwin-x64`、`darwin-arm64`（`SshLauncher.platform`），都不是就报 `unsupported`；是但应用没有这个平台的构建（比如在 Apple silicon 上本地打包、没编 Intel 版），报 `This build of the app has no server for macOS x64` 这类 `server` 失败，什么都不上传；
    - `~/.baocode-server/<VERSION>/baocode-server` 是否已经存在；
    - 远端有没有 `gzip`。
 4. **上传**（只在远端还没有这个版本时）：经 ssh 的 stdin 发送二进制，有 gzip 时先压缩，先写到临时文件 `.upload-<随机串>`，`chmod 755` 后再改名就位。所以连接中途断开也不会留下半个文件。
@@ -168,7 +170,14 @@ ssh 参数固定为：
 -T -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o ConnectTimeout=20 -e none [-p <端口>] <目的地>
 ```
 
-- `BatchMode=yes`：从不弹密码或主机密钥确认框，这类情况直接失败（`authentication` / `hostKey`）。所以必须先在终端里能 `ssh <主机>` 免密登录，并且主机密钥已经在 `known_hosts` 里。
+- `BatchMode=yes`：只在没有 `prompter` 时使用（Windows 上也是），ssh 从不提问，需要密码就直接失败（`authentication`）。
+- 应用里 `SshLauncher` 带有 `prompter`，此时改成 `BatchMode=no`，并设置 `SSH_ASKPASS`（一个 sh 脚本）和 `SSH_ASKPASS_REQUIRE=force`（OpenSSH 8.4 起支持）。ssh 要密码、密钥口令或验证码时，会运行这个脚本：脚本把提示写进这次 ssh 专用的临时目录（只有当前用户能读），然后等应用写回答案（见 `ssh_askpass.dart`）。应用弹窗问用户（`SshPasswords`、`showSshPasswordDialog`）：
+  - 同一提示在本次运行里只问一次：一次连接里的探测、上传、启动三个 ssh 共用同一个答案，断线重连也不再问；
+  - 勾选“在本机记住”的，等**登录成功后**才存进系统钥匙串（`SecretStore`，macOS 用钥匙串），名字是 `ssh:<主机>:<提示的哈希>`；下次启动直接取用，不再弹窗；
+  - 主机拒绝了（ssh 再问同一个提示，或最后报认证失败），就从内存和钥匙串里删掉，重新问；
+  - 验证码一类的提示（含 code、token、OTP 等字样）每次都问，不提供记住；
+  - 取消就停止重试，报“Signing in was cancelled.”。
+- 主机密钥确认（`yes/no`）不交给用户，脚本直接回答 no，和 `BatchMode=yes` 时一样失败（`hostKey`）。所以主机密钥仍然要先在 `known_hosts` 里。
 - `ServerAliveInterval=15` 加 `ServerAliveCountMax=3`：约 45 秒内发现死连接。
 - `-e none`：二进制数据里不处理转义字符。
 - 其他配置（用户名、端口、跳板机 `ProxyJump`、身份文件……）都来自用户自己的 `~/.ssh/config`。
@@ -218,7 +227,7 @@ ssh 参数固定为：
 
 ### 5.3 打开时就会连接
 
-启动应用、载入工作区时，会去读远程项目的会话列表，所以**只要侧栏里有远程项目，启动时就会连这台主机**。连不上不影响本地项目。另外，只要存在远程项目，工作区就不会清理“已消失会话”的置顶和归档记录，避免远程会话还没列出来时被误删。
+启动应用、载入工作区时，会去读远程项目的会话列表，所以**只要侧栏里有远程项目，启动时就会连这台主机**。连不上不影响本地项目，失败原因显示在侧栏和输入框上方（见 2.2）；之后这台主机一连上（无论从哪里重连），会话列表会自动补上。另外，只要存在远程项目，工作区就不会清理“已消失会话”的置顶和归档记录，避免远程会话还没列出来时被误删。
 
 ---
 
@@ -248,6 +257,8 @@ ssh 参数固定为：
 4. **同一台主机同时只装一次**：几个对话同时启动也只下载一次。
 
 **不碰用户自己的环境**：不改 PATH，不写 `~/.local/bin`、`~/.local/share/claude`，也不改 shell 配置文件。所以用这份 claude 时会设置 `DISABLE_AUTOUPDATER=1`，因为 claude 自带的自动更新会往 `~/.local` 里装东西。
+
+**在远程终端里用 `claude`**（例如登录：`claude` 然后 `/login`）：安装时还会写一个 `~/.baocode-server/data/claude/bin/claude`（sh 脚本，设置 `DISABLE_AUTOUPDATER=1` 后执行 `CURRENT` 指向的那份；之前装的、还没有这个脚本的，开终端时补上）。服务端用的是这份 claude 时（用户自己没装），BaoCode 打开的远程终端会把这个 `bin` 目录加到 PATH 末尾，并设置 `VSCODE_PATH_PREFIX`，让 shell integration 在 login shell 读完 `/etc/profile` 重设 PATH 后再加回来（VS Code 往终端里放 `code` 也是这样）。用户自己装了 claude 就什么都不加，终端里的 `claude` 和对话用的始终是同一份。用户自己 `ssh` 上去的终端里没有它，要用完整路径。
 
 **更新**：每次启动这份 claude 时，服务端在后台检查是否有新版（每天最多一次，用 `.checked` 文件的修改时间记录），有就下载安装，下次启动时生效。出错就静默放弃，第二天再试。
 
@@ -283,6 +294,7 @@ Haiku 起标题和提交信息**不会**触发自动安装，远端没有 claude
 ```
 
 - `VERSION` = 应用版本 + 两个二进制合起来的 sha256 前 12 位。所以同一个应用版本、源码不同的构建，也会是不同的目录。开发时从源码编译的版本叫 `dev-<源码哈希>`。
+- **应用和服务端严格一一对应**：应用只用自己构建时生成的那份服务端（`VERSION` 完全相同），不做跨版本兼容。协议是内部协议，几乎每次提交都会变，`protocol` 版本号不保证跟着改；严格对应能保证主机上不会跑着过期的服务端。代价是每个发出去的构建，它的服务端都必须已经上传（见 9.3）。
 - 旧版本的 `<VERSION>/` 目录目前**不会自动清理**（见第 15 节）。
 - 想彻底清掉：在远端 `rm -rf ~/.baocode-server`。下次连接会重新上传，影子仓库和 BaoCode 装的 claude 也会一起没掉。
 
@@ -320,13 +332,22 @@ Haiku 起标题和提交信息**不会**触发自动安装，远端没有 claude
 ```sh
 dart run tool/build_remote_server.dart              # 输出到 build/remote/
 dart run tool/build_remote_server.dart --out <目录>
+dart run tool/build_remote_server.dart --macos-x64-dart <x64 的 dart>   # 在 Apple silicon 上也编 Intel 版
+dart run tool/build_remote_server.dart --all        # 四份没编全就失败（CI 用）
 ```
 
-会生成 `baocode-server-linux-x64`、`baocode-server-linux-arm64` 和 `VERSION`。用的是 `dart compile exe --target-os linux` 交叉编译，在 macOS 或 Windows 上都能编出 Linux 二进制。版本号通过 `-Dbaocode.version=<pubspec 版本>` 传给服务端。
+会生成 `baocode-server-<平台>`（`linux-x64`、`linux-arm64`、`darwin-x64`、`darwin-arm64`）和 `VERSION`。版本号通过 `-Dbaocode.version=<pubspec 版本>` 传给服务端。
+
+- **Linux**：`dart compile exe --target-os linux` 交叉编译，在 macOS 或 Windows 上都能编。
+- **macOS**：`dart compile exe` 不能交叉编译到 macOS，**只能在 Mac 上编、而且只能编运行它的那个 `dart` 的架构**。所以在 Apple silicon 上默认只编 `darwin-arm64`；要编 `darwin-x64`，下载同版本的 x64 Dart SDK（`https://storage.googleapis.com/dart-archive/channels/stable/release/<版本>/sdk/dartsdk-macos-x64-release.zip`），用 `--macos-x64-dart <sdk>/bin/dart` 指定，它经 Rosetta 运行（Intel Mac 上反过来用 `--macos-arm64-dart`）。在 Linux / Windows 上不编 macOS 版，连 Mac 主机时报没有这个平台的服务端。
+- macOS 版是 `dart compile exe` 自带的 ad hoc 签名（linker-signed），Apple silicon 上能直接运行；经 ssh 的 stdin 写进去的文件没有隔离属性（quarantine），Gatekeeper 不拦，不需要 Developer ID 签名和公证。
+- `VERSION` 的哈希覆盖这次编出来的所有二进制。
+
+另外还会生成每份 gzip 后的 `baocode-server-<平台>.gz`（约 3.1–3.3 MB，原文件约 8 MB），以及 `servers.json`：按平台名写明每个 `.gz` 的下载地址 `https://dl.baocode.dev/releases/remote/<VERSION>/<文件>`、大小和 SHA-256。没编的平台不写进去。旧格式的 `servers.json`（键只有架构 `x64`、`arm64`）按 Linux 读。
 
 ### 9.2 应用在哪里找服务端
 
-按顺序（`bundledServerBinaries`），哪个目录里有合法的 `VERSION` 就用哪个：
+按顺序（`bundledServerBinaries`），哪个目录里有合法的 `VERSION` 就用哪个。目录里有二进制本身就直接用（`DirectoryServerBinaries`）；只有 `servers.json` 就按需下载（`DownloadedServerBinaries`，见 9.3）：
 
 1. 环境变量 `BAOCODE_REMOTE_SERVER_DIR`
 2. macOS：`BaoCode.app/Contents/Resources/remote/`
@@ -335,15 +356,20 @@ dart run tool/build_remote_server.dart --out <目录>
 5. 当前目录下的 `build/remote/`
 6. 可执行文件所在的、名为 `build` 的上级目录下的 `remote/`（debug 构建）
 
-**都没有、但应用是从源码目录运行的**（`flutter run`）：第一次连接时会自动用 `dart compile exe` 编译远端需要的那个架构（`SourceServerBinaries`）。
+**都没有、但应用是从源码目录运行的**（`flutter run`）：第一次连接时会自动用 `dart compile exe` 编译远端需要的那个平台（`SourceServerBinaries`）。macOS 版只有本机是同架构的 Mac 时才能编，否则报错，提示去那种 Mac 上执行 `tool/build_remote_server.dart`。
 - `dart` 的查找顺序：先找 `FLUTTER_ROOT/bin/dart`，再找登录 shell 的 PATH。
 - 编译结果放在 `build/remote/dev/`，按源码哈希命名，改了 `packages/bao_remote` 下的代码会自动换新版本。
 - 编译要几十秒，期间连接进度显示“Installing the BaoCode server”。
 
-### 9.3 打包
+### 9.3 打包与按需下载
 
-- **Windows**：`tool/build_windows.dart` 会执行 `build_remote_server.dart --out <bundle>\remote`，并检查 `remote\VERSION` 是否存在。Inno Setup 脚本（`tool/baocode.iss`）会把整个 bundle 打进安装包。
-- **macOS**：`tool/build_macos.dart` 在 `flutter build macos` 之后、签名之前，编译到 `BaoCode.app/Contents/Resources/remote/`，并把 `Contents/Resources/remote/VERSION` 列为必须存在的文件。这两个 Linux 二进制作为资源文件随 app 一起签名。**这一步还没在真实打包里跑过。**
+安装包**不带服务端二进制**，只带 `VERSION` 和 `servers.json`。四个二进制原本占 30 多 MB，大多数用户不连远程，而每台主机只需要其中一个平台。
+
+- **打包**：`tool/build_macos.dart` 和 `tool/build_windows.dart` 先编译到 `build/remote/`（CI 里由单独的 `remote` 任务在 macOS 机器上把四份都编一次，在那台 Mac 上直接跑一遍两份 macOS 版（`tool/test_remote_server_macos.sh`，Intel 版经 Rosetta），再由 `remote-linux` 任务在 Docker 里的几个 Linux 发行版上各跑一遍 `tool/test_remote_server.sh`，两个打包脚本带 `--remote-built` 直接用它），再只把 `VERSION`、`servers.json` 放进 `BaoCode.app/Contents/Resources/remote/`（Windows 是 `<bundle>\remote\`），`.gz` 放到 `build/installers/remote/<VERSION>/`。
+- **发布**：把 `build/installers/remote/<VERSION>/` 里的 `.gz` 上传到 `https://dl.baocode.dev/releases/remote/<VERSION>/`。**要在安装包发出去之前上传**，否则这个版本连不了远程（CI 会按这个顺序传，见 docs/release.md）。旧版本的目录要一直保留，因为装着旧版的用户还要下载。
+- **下载**：第一次连某个平台的主机时，应用下载对应的 `.gz`，按 `servers.json` 校验大小和 SHA-256，存到数据目录的 `cache/remote-server/<VERSION>/`，之后照旧经 ssh 推送到主机（第 4 节第 4 步）。远端主机不需要能上网。下载完会删掉其他版本的缓存；同时连多台同平台的主机只下载一次。
+- **安全**：`servers.json` 在安装包里，跟着应用一起签名，所以下载到的只能是这个版本编出来的那份；被替换的文件校验不过，连接报 `server` 失败。
+- 下载失败或校验不过，连接失败，报错里带着下载地址；下次连接重试。
 
 ---
 
@@ -351,7 +377,7 @@ dart run tool/build_remote_server.dart --out <目录>
 
 | 变量 | 在哪边 | 作用 |
 | --- | --- | --- |
-| `BAOCODE_REMOTE_SERVER_DIR` | 本机 | 指定服务端二进制所在目录（里面要有 `VERSION`） |
+| `BAOCODE_REMOTE_SERVER_DIR` | 本机 | 指定服务端二进制所在目录（里面要有 `VERSION`，以及二进制或 `servers.json`） |
 | `FLUTTER_ROOT` | 本机 | 开发时从源码编译服务端用哪个 `dart` |
 | `BAOCODE_CLAUDE_PATH` | 远端（登录 shell） | 指定远端要运行的 claude；设置了就不会自动安装 |
 | `XDG_RUNTIME_DIR` | 远端 | 存放带密钥的临时 settings 文件的目录（在内存里） |
@@ -369,11 +395,12 @@ dart run tool/build_remote_server.dart --out <目录>
 | 文件 | 覆盖内容 |
 | --- | --- |
 | `test/remote/rpc_peer_test.dart` | JSON-RPC 收发、异常按类型还原、断线时未完成的请求失败、协议版本不一致 |
-| `test/remote/ssh_launcher_test.dart` | ssh 参数、探测、只上传一次、失败分类、不支持的系统、主机地址解析、`~/.ssh/config` 读取（用假的 ssh 进程） |
+| `test/remote/ssh_launcher_test.dart` | ssh 参数、探测、只上传一次、失败分类、Mac 主机拿到 macOS 版、不支持的系统、主机地址解析、`~/.ssh/config` 读取（用假的 ssh 进程） |
 | `test/remote/remote_server_test.dart` | 服务端各方法（内存中直连） |
 | `test/remote/remote_lsp_test.dart` | 远端 LSP 进程、mason 安装 |
 | `test/remote/remote_project_test.dart` | 应用侧端到端：location、连接状态和重连、文件监听跨重连、Git、终端、LSP 跨重连、Claude 密钥处理、端口转发、会话、打开流程 |
-| `test/remote/remote_claude_install_test.dart` | Claude 自动安装：远端下载、本机下载后上传、并发、校验失败、优先用用户自己的、进度界面；开发时编译服务端 |
+| `test/remote/remote_claude_install_test.dart` | Claude 自动安装：远端下载、本机下载后上传、并发、校验失败、优先用用户自己的、进度界面；开发时编译服务端（macOS 版只在同架构的 Mac 上编） |
+| `test/remote/remote_binaries_test.dart` | 应用找服务端：目录里的二进制、按 `servers.json` 下载并校验和缓存、旧格式的 `servers.json`、macOS 版 |
 
 测试工具（`test/remote/remote_harness.dart`）：
 
@@ -396,10 +423,13 @@ flutter analyze
 
 | 现象 / 报错 | 原因 | 处理 |
 | --- | --- | --- |
+| The BaoCode server for Linux x64（或 macOS arm64 等）could not be downloaded（详情里是 HTTP 404） | 这个构建的服务端没有上传到 dl.baocode.dev。常见于本机打包的应用：每次构建的 `VERSION` 都不同，CI 发布的那份对不上 | 把打包时 `build/installers/remote/<VERSION>/` 里的 `.gz` 上传到 `dl.baocode.dev/releases/remote/<VERSION>/`；只在本机用的话，也可以把它们放进数据目录的 `cache/remote-server/<VERSION>/`。或者改装 CI 发布的版本 |
 | No ssh here | 本机没有 `ssh` | 安装 OpenSSH 客户端；Windows 上在“可选功能”里安装 |
-| 认证失败（authentication） | 需要密码，或密钥没加载 | 先在终端里 `ssh <主机>` 确认能免密登录；把密钥加到 ssh-agent，或在 `~/.ssh/config` 里写 `IdentityFile` |
+| 认证失败（authentication） | 密码不对、取消了登录，或密钥没加载（Windows 上不问密码） | 重连时重新输入密码；用密钥的话，把密钥加到 ssh-agent，或在 `~/.ssh/config` 里写 `IdentityFile` |
 | 主机密钥问题（hostKey） | 主机还不在 `known_hosts` 里，或密钥变了 | 先在终端里 `ssh <主机>` 一次，接受密钥；密钥确实换过的话，用 `ssh-keygen -R <主机>` 删掉旧记录 |
-| 不支持的系统（unsupported） | 远端不是 Linux x64/arm64 | 不支持 |
+| 不支持的系统（unsupported） | 远端不是 Linux 或 macOS 的 x64/arm64 | 不支持 |
+| This build of the app has no server for macOS x64 | 应用是在 Linux / Windows 上、或没给 `--macos-x64-dart` 时打包的，没有这个平台的服务端 | 用 CI 发布的版本，或按 9.1 在 Mac 上补编 |
+| Mac 主机：Connection refused / 连不上 | 没打开“远程登录” | 系统设置 → 通用 → 共享 → 远程登录 |
 | This build of the app has no remote server | 应用里没带服务端，也不是从源码目录运行 | 执行 `dart run tool/build_remote_server.dart`，或设置 `BAOCODE_REMOTE_SERVER_DIR` |
 | The BaoCode server could not be built | 开发时编译服务端失败 | 看详情里 `dart compile` 的输出 |
 | The server could not be installed | 上传失败（家目录不可写、磁盘满） | 看详情里远端 stderr 的最后几行 |
@@ -419,22 +449,24 @@ flutter analyze
 
 自动化测试都是在内存里跑的，下面这些需要人工在真实环境里验证：
 
-1. **准备**：一台 Linux x64 或 arm64 主机，`~/.ssh/config` 里配好别名，终端里 `ssh <别名>` 能免密登录。开发时直接 `flutter run`（会自动编译服务端），或先执行 `dart run tool/build_remote_server.dart`。
+1. **准备**：一台 Linux x64 或 arm64 主机（或打开了“远程登录”的 Mac），`~/.ssh/config` 里配好别名，终端里 `ssh <别名>` 能免密登录。开发时直接 `flutter run`（会自动编译服务端），或先执行 `dart run tool/build_remote_server.dart`。
 2. **连接和引导安装**：通过“打开远程项目”连接，确认远端出现了 `~/.baocode-server/<VERSION>/baocode-server`，状态栏显示 `SSH: <别名>`；第二次连接不会再上传。
 3. **文件、Git、搜索、终端**：打开、编辑、保存文件；新建和删除文件；在远端另开 shell 改文件，界面会刷新；Git 面板的状态、暂存、提交；全文搜索；终端能输入，窗口大小和 shell 集成正常。
 4. **断线和重连**：断开网络或杀掉本机的 ssh 进程：状态栏变成“正在重连”，恢复后自动连上；文件监听恢复，语言服务器重启，未保存的修改还在。
-5. **失败场景**：需要密码的主机、`known_hosts` 里没有的主机：应直接报错，不会一直重试，点状态栏可以重连。
-6. **Claude Code**：
+5. **密码登录**：只开密码登录的主机会弹窗；输错会提示“不正确”再问；勾选记住后，退出应用再连不再弹窗，钥匙串里有 `BaoCode` 服务下 `ssh:<主机>:…` 的条目；在主机上改掉密码后再连，会重新弹窗，旧条目被删掉。可以用 Docker 起一个只允许密码登录的 sshd 来测。
+6. **失败场景**：取消密码弹窗、`known_hosts` 里没有的主机：应直接报错，不会一直重试，点状态栏可以重连。
+7. **Claude Code**：
    - 远端没装 claude 时，会出现安装进度，装完正常对话；远端 `~/.local/bin` 里没有多出文件；
    - 远端屏蔽 `downloads.claude.ai` 后，改成本机下载再上传；
    - 远端已装 claude 时，直接用用户自己的那份；
    - 用第三方模型服务对话时，在远端执行 `ps aux | grep claude`，参数里没有 key；对话结束后，`$XDG_RUNTIME_DIR/baocode-settings-*` 下没有残留文件；
    - 本机模型代理能通过端口转发使用；
    - 会话列表、删除会话、自动标题、Keep/Undo、提交信息都正常。
-7. **语言服务器**：在远程项目里打开 `.dart`、`.ts` 文件，缺的语言服务器会装到远端；诊断、悬停、跳转都正常。
-8. **退出**：远端有对话或终端在运行时退出应用，确认框里有远程的那一句；退出后远端没有残留的 `baocode-server` 和 claude 进程。
-9. **打包**：用 `tool/build_windows.dart` / `tool/build_macos.dart` 打包，确认包里有 `remote/VERSION`，安装后不需要源码目录也能连接。
-10. **Windows 客户端**：打开远程项目，重点检查文件树、标签页、搜索、Git 的路径（见第 15 节）。
+8. **语言服务器**：在远程项目里打开 `.dart`、`.ts` 文件，缺的语言服务器会装到远端；诊断、悬停、跳转都正常。
+9. **退出**：远端有对话或终端在运行时退出应用，确认框里有远程的那一句；退出后远端没有残留的 `baocode-server` 和 claude 进程。
+10. **打包**：用 `tool/build_windows.dart` / `tool/build_macos.dart` 打包，确认包里有 `remote/VERSION`，安装后不需要源码目录也能连接。
+11. **Windows 客户端**：打开远程项目，重点检查文件树、标签页、搜索、Git 的路径（见第 15 节）。
+12. **Mac 主机**：Apple silicon 和 Intel 各连一次，确认推送的是 `darwin-arm64` / `darwin-x64`；终端是 zsh、shell 集成正常；文件监听（FSEvents）在远端另开 shell 改文件时会刷新；没装 Xcode 命令行工具的 Mac 上 Git 面板的表现；远端自动安装的是 `darwin-<arch>` 的 Claude Code。
 
 ---
 
@@ -468,7 +500,7 @@ flutter analyze
 3. **旧版本服务端不会自动清理**：`~/.baocode-server/<旧VERSION>/` 会一直留着，每个约几十 MB。可以在连接成功后删掉其他版本的目录。
 4. **Haiku 不会触发 Claude 自动安装**：远端没有 claude 时，标题和提交信息会失败，等到第一次对话装好后才正常。
 5. **自动安装没有开关**：远端没有 claude 时总是自动装。如果有用户不希望自动下载，需要加一个设置项。
-6. **不支持密码或二次验证登录**：用的是 `BatchMode=yes`。要支持的话，需要做一个让 ssh 弹窗询问的机制（`SSH_ASKPASS`）。
+6. **Windows 客户端不支持密码登录**：`SSH_ASKPASS` 用的是 sh 脚本，Windows 上仍是 `BatchMode=yes`，只能用密钥。
 7. **启动时会连接所有远程项目的主机**（因为要读会话列表）。主机很多或很慢时，可以改成在展开项目时再连接。
 8. **macOS 打包这一步还没实际跑过**，签名和公证也还没做（见 `tool/build_macos.dart` 里的 TODO）。
 9. **断线时远端进程都会结束**：sshd 断开会话时会发 SIGHUP。以后如果想让对话在断线期间继续跑，需要把服务端改成常驻进程（类似 VS Code 的 server 那样），每次连接再重新接上。

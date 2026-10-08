@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
 import '../ide/ide_quick_input.dart';
+import '../ide/ide_spinning.dart';
 import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import 'remote_location.dart';
@@ -96,7 +97,7 @@ class OpenRemoteFlow {
         items: [
           IdeQuickPickItem(
             label: l10n.remoteConnecting(host),
-            icon: const Icon(Codicons.loading),
+            icon: const IdeSpinning(Icon(Codicons.loading)),
           ),
         ],
       ),

@@ -11,7 +11,7 @@ String manifestOf(
   String version, {
   String? minimumVersion,
   Map<String, String>? notes,
-  List<String> platforms = const ['windows-x64', 'macos-universal'],
+  List<String> platforms = const ['windows-x64', 'macos-arm64'],
 }) => jsonEncode({
   'version': version,
   'minimumVersion': ?minimumVersion,

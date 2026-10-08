@@ -12,10 +12,16 @@ import 'remote_server.dart';
 
 /// The terminals of the remote projects: the user's shell there on a
 /// pseudo terminal ([PosixPty]), in the environment a terminal gives, with
-/// VS Code's shell integration unless the app says not to.
+/// VS Code's shell integration unless the app says not to. Where the
+/// Claude Code run is the one the server installed, its `claude` is on the
+/// PATH there, as VS Code puts `code` on its terminals'.
 class ServerPty {
-  ServerPty(this._peer, {void Function(String message)? log})
-    : _log = log ?? ((_) {}) {
+  ServerPty(
+    this._peer, {
+    void Function(String message)? log,
+    Future<String?> Function()? claudeDirectory,
+  }) : _log = log ?? ((_) {}),
+       _claudeDirectory = claudeDirectory ?? (() async => null) {
     final handlers = _peer.handlers;
     handlers[RemoteProtocol.ptyStart] = (params, _) => _start(paramsOf(params));
     handlers[RemoteProtocol.ptyWrite] = (params, _) {
@@ -54,6 +60,7 @@ class ServerPty {
 
   final RpcPeer _peer;
   final void Function(String message) _log;
+  final Future<String?> Function() _claudeDirectory;
   final Map<int, PosixPty> _ptys = {};
   int _nextId = 0;
 
@@ -102,6 +109,15 @@ class ServerPty {
       );
       arguments = applied.arguments;
       environment.addAll(applied.mixin);
+    }
+    if (await _claudeDirectory() case final claude?) {
+      // After the user's own; and again once a login shell's profile has
+      // set PATH anew (/etc/profile does on Debian), by the integration.
+      final path = environment['PATH'];
+      environment['PATH'] = path == null || path.isEmpty
+          ? claude
+          : '$path:$claude';
+      if (nonce.isNotEmpty) environment['VSCODE_PATH_PREFIX'] = '$claude:';
     }
     final pty = await PosixPty.start(
       shell.executable,

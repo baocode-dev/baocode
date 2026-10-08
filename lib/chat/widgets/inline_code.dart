@@ -6,7 +6,13 @@ import '../../theme/app_theme.dart';
 /// Inline code: its text, on `textPreformat.background` painted by the
 /// [InlineCodeText] it is in.
 class InlineCodeSpan extends TextSpan {
-  const InlineCodeSpan({super.text, super.style, super.children});
+  const InlineCodeSpan({
+    super.text,
+    super.style,
+    super.children,
+    super.recognizer,
+    super.mouseCursor,
+  });
 }
 
 /// [span] as [Text.rich] does, its [InlineCodeSpan]s on their background.

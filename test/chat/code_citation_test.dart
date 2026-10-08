@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/widgets/code_citation.dart';
@@ -307,6 +309,101 @@ void main() {}
       await tester.pump(const Duration(seconds: 2));
       expect(find.byIcon(Codicons.copy), findsOneWidget);
     });
+
+    for (final fence in ['dart', '10:49:lib/main.dart']) {
+      testWidgets('code in $fence can be drag-copied after scrolling', (
+        tester,
+      ) async {
+        String? copied;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copied = (call.arguments as Map)['text'] as String;
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        final code = [
+          for (var i = 0; i < 40; i++) '  line_$i = ${'long_value_' * 20};',
+        ].join('\n');
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Shortcuts(
+                shortcuts: const {
+                  SingleActivator(LogicalKeyboardKey.keyC, control: true):
+                      CopySelectionTextIntent.copy,
+                  SingleActivator(LogicalKeyboardKey.keyC, meta: true):
+                      CopySelectionTextIntent.copy,
+                },
+                child: SelectionArea(
+                  child: SizedBox(
+                    width: 350,
+                    child: MarkdownView('```$fence\n$code\n```'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final views = tester.widgetList<SingleChildScrollView>(
+          find.byType(SingleChildScrollView),
+        );
+        final vertical = views
+            .singleWhere((view) => view.scrollDirection == Axis.vertical)
+            .controller!;
+        final horizontal = views
+            .singleWhere((view) => view.scrollDirection == Axis.horizontal)
+            .controller!;
+        vertical.jumpTo(18 * 12);
+        horizontal.jumpTo(100);
+        await tester.pumpAndSettle();
+        final finder = find.byWidgetPredicate(
+          (widget) => widget is RichText && widget.text.toPlainText() == code,
+        );
+        final paragraph = tester.renderObject<RenderParagraph>(finder);
+        final lineStart = code.indexOf('  line_14');
+        final selection = TextSelection(
+          baseOffset: lineStart + 25,
+          extentOffset: lineStart + 40,
+        );
+        final rect = paragraph.getBoxesForSelection(selection).single.toRect();
+        final start = paragraph.localToGlobal(
+          Offset(rect.left + 0.5, rect.center.dy),
+        );
+        final end = paragraph.localToGlobal(
+          Offset(rect.right - 0.5, rect.center.dy),
+        );
+        for (final reverse in [false, true]) {
+          copied = null;
+          final mouse = await tester.startGesture(
+            reverse ? end : start,
+            kind: PointerDeviceKind.mouse,
+          );
+          await tester.pump();
+          await mouse.moveTo(reverse ? start : end);
+          await tester.pump();
+          await mouse.up();
+          await tester.pump();
+          final modifier = reverse
+              ? LogicalKeyboardKey.metaLeft
+              : LogicalKeyboardKey.controlLeft;
+          await tester.sendKeyDownEvent(modifier);
+          await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+          await tester.sendKeyUpEvent(modifier);
+          await tester.pump();
+          expect(copied, code.substring(selection.start, selection.end));
+        }
+      });
+    }
 
     testWidgets('is colored by its language', (tester) async {
       const red = TextStyle(color: Color(0xFFFF0000));

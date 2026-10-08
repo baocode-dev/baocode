@@ -298,8 +298,8 @@ void main() {
     await themes.initialize();
     expect(File(files.settings.path).existsSync(), isFalse);
 
-    await themes.setColorTheme('Monokai');
-    await eventually(() => files.settings['workbench.colorTheme'] == 'Monokai');
+    await themes.setColorTheme('Red');
+    await eventually(() => files.settings['workbench.colorTheme'] == 'Red');
     expect(store.preferences['colorThemeData'], isA<String>());
 
     await files.settings.writeText('{\n  "workbench.colorTheme": "Abyss"\n}');

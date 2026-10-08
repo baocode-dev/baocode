@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -19,10 +20,55 @@ class IdeFileIndex extends ChangeNotifier {
     this.files,
     this.root, {
     Future<IdeFileListing> Function(IdeFileService files, String root)? lister,
-  }) : _lister = lister ?? listProjectFiles;
+    List<String>? roots,
+  }) : _lister = lister ?? listProjectFiles,
+       _roots = roots == null ? null : [...roots];
 
   final IdeFileService files;
   final String root;
+
+  /// A multi-folder workspace's folders, listed in place of [root]: each
+  /// file's relative path then starts with its folder's name, as VS Code
+  /// labels them. Null for a folder's project.
+  List<String>? get roots => _roots;
+  List<String>? _roots;
+  set roots(List<String>? roots) {
+    if (roots == _roots ||
+        (roots != null && _roots != null && listEquals(roots, _roots))) {
+      return;
+    }
+    _roots = roots;
+    if (_loaded) unawaited(refresh());
+  }
+
+  /// [path] as Quick Open shows it: relative to its folder, `/` between.
+  String relativeOf(String path) {
+    final roots = _roots;
+    if (roots == null) {
+      return p.relative(path, from: root).replaceAll(r'\', '/');
+    }
+    for (final folder in roots) {
+      if (p.isWithin(folder, path)) {
+        final relative = p.relative(path, from: folder).replaceAll(r'\', '/');
+        return '${p.basename(folder)}/$relative';
+      }
+    }
+    return path.replaceAll(r'\', '/');
+  }
+
+  /// The files of [root], or of each of [roots].
+  Future<IdeFileListing> _list() async {
+    final roots = _roots;
+    if (roots == null) return _lister(files, root);
+    final listings = await Future.wait([
+      for (final folder in roots) _lister(files, folder),
+    ]);
+    return IdeFileListing(
+      [for (final listing in listings) ...listing.paths]..sort(),
+      truncated: listings.any((listing) => listing.truncated),
+    );
+  }
+
   final Future<IdeFileListing> Function(IdeFileService, String) _lister;
 
   List<String> _paths = const [];
@@ -69,13 +115,10 @@ class IdeFileIndex extends ChangeNotifier {
 
   Future<void> _load() async {
     try {
-      final listing = await _lister(files, root);
+      final listing = await _list();
       if (_disposed) return;
       _paths = listing.paths;
-      _relative = [
-        for (final path in listing.paths)
-          p.relative(path, from: root).replaceAll(r'\', '/'),
-      ];
+      _relative = [for (final path in listing.paths) relativeOf(path)];
       _truncated = listing.truncated;
       _loaded = true;
       _pathSet = null;
@@ -179,9 +222,7 @@ List<IdeQuickPickItem> fileQuickPicks(
 }) {
   final strings = l10n ?? englishLocalizations;
   final query = IdeQuickOpenQuery.parse(text);
-  final root = index.root;
-  String relativeOf(String path) =>
-      p.relative(path, from: root).replaceAll(r'\', '/');
+  String relativeOf(String path) => index.relativeOf(path);
 
   IdeQuickPickItem item(
     String path,

@@ -60,16 +60,52 @@ class ComposerTokenEmbed {
     );
   }
 
+  /// Another conversation, by its session's [id], titled [title].
+  static Embeddable session(String id, String title) => Embeddable(
+    type,
+    jsonEncode({
+      'kind': SuggestionKind.session.name,
+      'label': title,
+      'value': id,
+    }),
+  );
+
   /// Text a token contributes to the sent message and to plain-text copies.
   static String plainText(Object? data) {
     final token = decode(data);
-    return token.kind == SuggestionKind.command
-        ? '/${token.value}'
-        : fileReferenceText(
-            token.value,
-            directory: token.kind == SuggestionKind.folder,
-          );
+    return switch (token.kind) {
+      SuggestionKind.command => '/${token.value}',
+      SuggestionKind.session => sessionReferenceText(token.value, token.label),
+      _ => fileReferenceText(
+        token.value,
+        directory: token.kind == SuggestionKind.folder,
+      ),
+    };
   }
+}
+
+/// Another conversation as a message's text refers to it, by its session's
+/// [id], which Claude Code finds it by, and its [title]:
+/// `[Session 4f1c…: Fix the login]`. See [parseSessionReference].
+String sessionReferenceText(String id, String title) {
+  // Nothing in it ends the reference early.
+  final words = title.replaceAll(RegExp(r'\s*[\]\r\n]+\s*'), ' ').trim();
+  return words.isEmpty ? '[Session $id]' : '[Session $id: $words]';
+}
+
+final _sessionReference = RegExp(
+  r'\[Session ([A-Za-z0-9][A-Za-z0-9_\-]*)(?:: ([^\]\n]*))?\]',
+);
+
+/// The conversation a [sessionReferenceText] at [at] of [text] refers to,
+/// and where it ends; null when there is none there.
+({String id, String title, int end})? parseSessionReference(
+  String text,
+  int at,
+) {
+  final match = _sessionReference.matchAsPrefix(text, at);
+  if (match == null) return null;
+  return (id: match[1]!, title: match[2] ?? '', end: match.end);
 }
 
 /// Inline, atomic reference to lines of a file, copied from the IDE's
@@ -138,16 +174,22 @@ class ComposerImages extends InheritedWidget {
       !identical(images, oldWidget.images);
 }
 
-/// What can become a token besides files: the kernel's `/commands`, for
-/// the composer and the sent messages under it.
+/// What can become a token besides files: the kernel's `/commands`, and the
+/// other conversations to refer to, for the composer and the sent messages
+/// under it.
 class ComposerVocabulary extends InheritedWidget {
   const ComposerVocabulary({
     super.key,
     required this.commands,
+    this.sessions,
     required super.child,
   });
 
   final List<Suggestion> commands;
+
+  /// The conversations `@` offers ([Suggestion.session]s), as they are when
+  /// it is typed; none without it.
+  final List<Suggestion> Function()? sessions;
 
   /// Outside any: no commands.
   static const fallback = ComposerVocabulary(
@@ -165,7 +207,8 @@ class ComposerVocabulary extends InheritedWidget {
 
   @override
   bool updateShouldNotify(ComposerVocabulary oldWidget) =>
-      !identical(commands, oldWidget.commands);
+      !identical(commands, oldWidget.commands) ||
+      (sessions == null) != (oldWidget.sessions == null);
 }
 
 /// A composer document for sent [text], the inverse of
@@ -184,7 +227,8 @@ Delta composerDeltaFromText(
 /// leading `/command` when the text goes [atStart] of the message (where
 /// alone a command counts). An `[Image #N]` becomes a reference again when
 /// image N is among [images], and a `[path:12-30]` when the code it refers
-/// to is in the [codeAppendix] at the end, which goes.
+/// to is in the [codeAppendix] at the end, which goes. A `[Session id: …]`
+/// becomes the conversation's token again (see [parseSessionReference]).
 Delta composerDeltaFromPaste(
   String text,
   ComposerVocabulary vocabulary, {
@@ -222,6 +266,16 @@ Delta composerDeltaFromPaste(
   }
   while (i < text.length) {
     if (text[i] == '[') {
+      if (parseSessionReference(text, i) case (
+        :final id,
+        :final title,
+        :final end,
+      )) {
+        flush();
+        delta.insert(ComposerTokenEmbed.session(id, title).toJson());
+        i = end;
+        continue;
+      }
       if (images.isNotEmpty) {
         if (imageReferencePattern.matchAsPrefix(text, i) case final match?
             when images.contains(int.parse(match[1]!))) {
@@ -370,6 +424,32 @@ class ComposerTokenChip extends StatelessWidget {
                 ],
               ),
               SuggestionKind.file => FileLabel(token.label, fontSize: 12),
+              SuggestionKind.session => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 13,
+                    color: AppColors.textMuted,
+                  ),
+                  const SizedBox(width: 4),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 240),
+                    child: Text(
+                      // Untitled, its id's start.
+                      token.label.isEmpty
+                          ? token.value.substring(
+                              0,
+                              token.value.length.clamp(0, 8),
+                            )
+                          : token.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: AppColors.text, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
             },
           ),
         ),

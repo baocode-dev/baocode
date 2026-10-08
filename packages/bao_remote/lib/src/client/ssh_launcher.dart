@@ -6,6 +6,9 @@ import 'dart:math';
 import '../protocol.dart';
 import '../rpc/rpc_peer.dart';
 import 'remote_client.dart';
+import 'ssh_askpass.dart';
+
+export 'ssh_askpass.dart' show SshPrompt, SshPrompter;
 
 /// A host to reach: an alias of `~/.ssh/config`, or `user@host`, with a
 /// port after a colon (`dev:2222`, `me@10.0.0.2:2222`).
@@ -59,8 +62,9 @@ enum SshFailure {
   /// No `ssh` here.
   noSsh,
 
-  /// The host would not have the key (or agent) offered: no password is
-  /// asked (`BatchMode`).
+  /// The host would not have the key (or agent) offered, nor what was
+  /// answered when asked (see [SshLauncher.prompter]), or that was
+  /// cancelled.
   authentication,
 
   /// The host's key is unknown here, or changed.
@@ -69,7 +73,7 @@ enum SshFailure {
   /// No such host, or it does not answer.
   unreachable,
 
-  /// Not a Linux x64 or arm64 host.
+  /// Not a Linux or macOS host on x64 or arm64.
   unsupported,
 
   /// The server could not be put there, or did not start.
@@ -89,21 +93,23 @@ class SshConnectException implements Exception {
   String toString() => detail == null ? message : '$message\n$detail';
 }
 
-/// The server builds the app carries, one per architecture.
+/// The server builds the app carries, one per platform.
 abstract interface class RemoteServerBinaries {
   /// Names the build: where it goes on the host
   /// (`~/.baocode-server/<version>/`), so that each build is put there once.
   String get version;
 
-  /// The build for [arch] (`x64`, `arm64`); null for none.
-  Future<List<int>?> read(String arch);
+  /// The build for [platform] (`linux-x64`, `darwin-arm64`, …; see
+  /// [SshLauncher.platform]); null for none.
+  Future<List<int>?> read(String platform);
 }
 
 /// Starts processes, as [Process.start] does: replaced under test.
 typedef SshProcessStarter = Future<Process> Function(
   String executable,
-  List<String> arguments,
-);
+  List<String> arguments, {
+  Map<String, String>? environment,
+});
 
 /// A connection to a host's server: [client] over the stdin and stdout of
 /// `ssh`, which ends with it.
@@ -154,7 +160,10 @@ class SshLauncher {
     required this.binaries,
     SshProcessStarter? start,
     this.options = defaultOptions,
-  }) : _start = start ?? Process.start;
+    this.prompter,
+    SshAskpass? askpass,
+  }) : _start = start ?? Process.start,
+       _askpass = askpass ?? SshAskpass();
 
   /// The `ssh` executable.
   final String ssh;
@@ -162,9 +171,19 @@ class SshLauncher {
   final SshProcessStarter _start;
   final List<String> options;
 
+  /// Answers what `ssh` asks while signing in (a password, a key's
+  /// passphrase); without one, or on Windows, nothing is asked and a host
+  /// that wants a password refuses. A host key `ssh` does not know is
+  /// refused all the same.
+  final SshPrompter? prompter;
+  final SshAskpass _askpass;
+
+  /// Whether what `ssh` asks is answered (by a script of `sh`'s).
+  bool get _prompts => prompter != null && !Platform.isWindows;
+
   /// No prompts (a password, an unknown host key fail instead), keepalives
   /// that notice a dead connection, and no escape character on the binary
-  /// stream.
+  /// stream. With a [prompter], `BatchMode` is off for it to be asked.
   static const defaultOptions = [
     '-T',
     '-o',
@@ -188,10 +207,38 @@ class SshLauncher {
   String get serverPath => '$_folder/baocode-server';
 
   List<String> arguments(SshTarget target, String command) => [
-    ...options,
+    for (final option in options)
+      option == 'BatchMode=yes' && _prompts ? 'BatchMode=no' : option,
     ...target.arguments,
     command,
   ];
+
+  /// Starts `ssh` for [target] running [command], what it asks answered
+  /// by [prompter] until [AskpassRun.close].
+  Future<(Process, AskpassRun?)> _startSsh(
+    SshTarget target,
+    String command,
+  ) async {
+    final prompter = this.prompter;
+    final askpass = prompter != null && _prompts
+        ? await _askpass.start(target, prompter)
+        : null;
+    try {
+      final process = await _start(
+        ssh,
+        arguments(target, command),
+        environment: askpass?.environment,
+      );
+      return (process, askpass);
+    } on ProcessException catch (error) {
+      await askpass?.close();
+      throw SshConnectException(
+        SshFailure.noSsh,
+        'ssh could not be started',
+        detail: error.message,
+      );
+    }
+  }
 
   /// What the host is asked first: its system and architecture, whether
   /// this build of the server is there, and whether it can unpack gzip.
@@ -220,6 +267,24 @@ exit 0
     _ => null,
   };
 
+  /// [uname -s] and [uname -m] as the server's builds are named
+  /// (`linux-x64`, `darwin-arm64`); null for a host there is none for.
+  static String? platform(String system, String machine) {
+    final os = switch (system) {
+      'Linux' => 'linux',
+      'Darwin' => 'darwin',
+      _ => null,
+    };
+    final arch = architecture(machine);
+    return os == null || arch == null ? null : '$os-$arch';
+  }
+
+  /// [platform] for people: `Linux x64`, `macOS arm64`.
+  static String describe(String platform) {
+    final parts = platform.split('-');
+    return '${parts.first == 'darwin' ? 'macOS' : 'Linux'} ${parts.last}';
+  }
+
   Future<SshConnection> connect(
     SshTarget target, {
     void Function(String message)? onProgress,
@@ -241,20 +306,21 @@ exit 0
       );
     }
     final (system, machine) = (parts[1], parts[2]);
-    final arch = architecture(machine);
-    if (system != 'Linux' || arch == null) {
+    final platform = SshLauncher.platform(system, machine);
+    if (platform == null) {
       throw SshConnectException(
         SshFailure.unsupported,
-        'Only Linux hosts on x64 or arm64 are supported, not $system $machine',
+        'Only Linux and macOS hosts on x64 or arm64 are supported, not '
+        '$system $machine',
       );
     }
     if (!lines.contains('BAOCODE-PRESENT')) {
       progress('Installing the BaoCode server on ${target.text}');
-      final binary = await binaries.read(arch);
+      final binary = await binaries.read(platform);
       if (binary == null) {
         throw SshConnectException(
           SshFailure.server,
-          'This build of the app has no server for Linux $arch',
+          'This build of the app has no server for ${describe(platform)}',
         );
       }
       final gzip = lines.contains('BAOCODE-GZIP');
@@ -276,16 +342,7 @@ exit 0
   }
 
   Future<SshConnection> _launch(SshTarget target) async {
-    final Process process;
-    try {
-      process = await _start(ssh, arguments(target, serverPath));
-    } on ProcessException catch (error) {
-      throw SshConnectException(
-        SshFailure.noSsh,
-        'ssh could not be started',
-        detail: error.message,
-      );
-    }
+    final (process, askpass) = await _startSsh(target, serverPath);
     final stderr = <String>[];
     process.stderr
         .transform(const Utf8Decoder(allowMalformed: true))
@@ -305,7 +362,17 @@ exit 0
     final connection = SshConnection._(target, process, client, stderr);
     unawaited(process.exitCode.then((_) => peer.close()));
     try {
-      await client.initialize().timeout(const Duration(seconds: 30));
+      // 30 seconds, and as long as the user is asked to sign in.
+      final initialized = client.initialize();
+      const wait = Duration(seconds: 30);
+      while (true) {
+        try {
+          await initialized.timeout(wait);
+          break;
+        } on TimeoutException {
+          if (!(askpass?.busy(wait) ?? false)) rethrow;
+        }
+      }
     } on Object catch (error) {
       process.kill();
       final code = await process.exitCode.timeout(
@@ -316,7 +383,11 @@ exit 0
         code,
         stderr.join('\n'),
         fallback: 'The server on ${target.text} did not start: $error',
+        cancelled: askpass?.cancelled ?? false,
       );
+    } finally {
+      // Signed in, or not to be.
+      await askpass?.close();
     }
     return connection;
   }
@@ -326,16 +397,7 @@ exit 0
     String command, {
     List<int>? stdin,
   }) async {
-    final Process process;
-    try {
-      process = await _start(ssh, arguments(target, command));
-    } on ProcessException catch (error) {
-      throw SshConnectException(
-        SshFailure.noSsh,
-        'ssh could not be started',
-        detail: error.message,
-      );
-    }
+    final (process, askpass) = await _startSsh(target, command);
     final stdout = process.stdout
         .transform(const Utf8Decoder(allowMalformed: true))
         .join();
@@ -345,16 +407,27 @@ exit 0
     process.stdin.done.then<void>((_) {}, onError: (Object _) {});
     if (stdin != null) process.stdin.add(stdin);
     await process.stdin.close().catchError((Object _) {});
-    final code = await process.exitCode.timeout(
-      const Duration(minutes: 5),
-      onTimeout: () {
-        process.kill();
-        return -1;
-      },
-    );
+    final int code;
+    try {
+      code = await process.exitCode.timeout(
+        const Duration(minutes: 10),
+        onTimeout: () {
+          process.kill();
+          return -1;
+        },
+      );
+    } finally {
+      await askpass?.close();
+    }
     final result = (exitCode: code, stdout: await stdout, stderr: await stderr);
     // ssh's own failure: the connection, not the command.
-    if (code == 255) throw _failure(code, result.stderr);
+    if (code == 255) {
+      throw _failure(
+        code,
+        result.stderr,
+        cancelled: askpass?.cancelled ?? false,
+      );
+    }
     return result;
   }
 
@@ -373,10 +446,11 @@ exit 0
   }
 
   /// What `ssh` exiting with [code] and saying [stderr] means.
-  static SshConnectException _failure(
+  SshConnectException _failure(
     int code,
     String stderr, {
     String? fallback,
+    bool cancelled = false,
   }) {
     final detail = _tail(stderr);
     final failure = switch (stderr) {
@@ -399,6 +473,9 @@ exit 0
       _ => code == 255 ? SshFailure.unreachable : SshFailure.server,
     };
     final message = switch (failure) {
+      SshFailure.authentication when cancelled => 'Signing in was cancelled.',
+      SshFailure.authentication when _prompts =>
+        'The host refused to sign in: the key, or the password given.',
       SshFailure.authentication =>
         'The host refused the key: no password is asked here. Set up a key '
             'or ssh-agent for it.',

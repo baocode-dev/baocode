@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:markdown/markdown.dart' as md;
 
 import '../../theme/app_theme.dart';
+import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../workspace/editor_launcher.dart';
+import '../side_panel/file_link.dart';
+import '../side_panel/file_open.dart';
 import 'code_citation.dart';
 import 'inline_code.dart';
 import 'markdown_math.dart';
@@ -52,7 +55,37 @@ class MarkdownView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final nodes = _document.parse(data);
-    return MarkdownBlocks(nodes: nodes, style: style ?? baseStyle);
+    // In a chat whose files open (see FileOpenScope): links to them, and
+    // inline code naming one once it is known to be there.
+    final files = FileOpenScope.maybeOf(context);
+    if (files == null) {
+      return MarkdownBlocks(nodes: nodes, style: style ?? baseStyle);
+    }
+    Widget? icon(FileLink? link) {
+      final path = link == null ? null : files.resolve(link.path);
+      if (path == null) return null;
+      return _isFolder(link!.path, files.existence.known(path))
+          ? FolderIcon(path, size: _fileIconSize)
+          : FileIcon(path, size: _fileIconSize);
+    }
+
+    final options = MarkdownOptions(
+      link: (href) => _linkRecognizer(href) ?? files.linkRecognizer(href),
+      code: files.codeRecognizer,
+      linkIcon: (href) => icon(FileLink.parseHref(href)),
+      codeIcon: (code) => icon(FileLink.parseText(code)),
+    );
+    Widget blocks(BuildContext context) => MarkdownBlocks(
+      nodes: nodes,
+      style: style ?? baseStyle,
+      options: options,
+    );
+    // Code is a link, and a link's icon a file's, once the file is found.
+    if (!data.contains('`') && !data.contains('](')) return blocks(context);
+    return ListenableBuilder(
+      listenable: files.existence,
+      builder: (context, _) => blocks(context),
+    );
   }
 }
 
@@ -66,6 +99,9 @@ class MarkdownOptions {
     this.gap = 8,
     this.headingGap = 12,
     this.link,
+    this.code,
+    this.linkIcon,
+    this.codeIcon,
     this.image,
     this.onToggleTask,
   });
@@ -83,6 +119,15 @@ class MarkdownOptions {
   /// What a tap on a link to `href` does; web and mail links open in the
   /// browser when null, others nothing.
   final GestureRecognizer? Function(String? href)? link;
+
+  /// What a tap on inline code does (it names a file, say); nothing when
+  /// null, or it gives none.
+  final GestureRecognizer? Function(String code)? code;
+
+  /// What is drawn before a link to `href` (or inline code, see [code]):
+  /// the icon of the file or folder it opens, say; nothing when null.
+  final Widget? Function(String? href)? linkIcon;
+  final Widget? Function(String code)? codeIcon;
 
   /// An image (`![alt](src "title")`); its alt text in brackets when null.
   final Widget Function(String src, String alt, String? title)? image;
@@ -503,14 +548,40 @@ InlineSpan _inline(md.Node node, MarkdownOptions options) {
       style: const TextStyle(decoration: TextDecoration.lineThrough),
       children: inner(),
     ),
-    'code' => InlineCodeSpan(
-      text: ' ${_unescape(node.textContent)} ',
-      style: MarkdownView.codeStyle,
-    ),
+    'code' => switch (options.code?.call(_unescape(node.textContent))) {
+      // A file's: in the link's color, its icon first in the background.
+      final recognizer? => InlineCodeSpan(
+        style: MarkdownView.codeStyle.copyWith(color: AppColors.accent),
+        children: [
+          if (options.codeIcon?.call(_unescape(node.textContent))
+              case final icon?)
+            _linkIcon(
+              icon,
+              recognizer,
+              const EdgeInsets.only(left: 4, right: 3),
+            )
+          else
+            const TextSpan(text: ' '),
+          TextSpan(
+            text: '${_unescape(node.textContent)} ',
+            recognizer: recognizer,
+            mouseCursor: SystemMouseCursors.click,
+          ),
+        ],
+      ),
+      null => InlineCodeSpan(
+        text: ' ${_unescape(node.textContent)} ',
+        style: MarkdownView.codeStyle,
+      ),
+    },
     'a' => switch ((options.link ?? _linkRecognizer)(node.attributes['href'])) {
       final recognizer? => TextSpan(
         style: TextStyle(color: AppColors.accent),
-        children: [for (final span in inner()) _linked(span, recognizer)],
+        children: [
+          if (options.linkIcon?.call(node.attributes['href']) case final icon?)
+            _linkIcon(icon, recognizer, const EdgeInsets.only(right: 3)),
+          for (final span in inner()) _linked(span, recognizer),
+        ],
       ),
       null => TextSpan(
         style: TextStyle(color: AppColors.accent),
@@ -550,12 +621,51 @@ GestureRecognizer? _linkRecognizer(String? href) {
   return TapGestureRecognizer()..onTap = () => openExternal(uri.toString());
 }
 
+const _fileIconSize = 14.0;
+
+/// Whether a link to [written] (as the agent wrote it), [known] to be a
+/// file or not (see [FileExistence.known]), goes to a folder: one written
+/// with a slash after it, or a name without an extension that is not a
+/// file found (`lib/ide`, not `LICENSE`).
+bool _isFolder(String written, bool? known) {
+  if (written.endsWith('/') || written.endsWith(r'\')) return true;
+  if (known == true) return false;
+  final name = written.split(RegExp(r'[/\\]')).last;
+  // A leading dot is not an extension's (`.github`).
+  return name.lastIndexOf('.') <= 0;
+}
+
+/// [icon] before a link: a tap on it goes where the link does.
+WidgetSpan _linkIcon(
+  Widget icon,
+  GestureRecognizer recognizer,
+  EdgeInsets padding,
+) {
+  icon = Padding(padding: padding, child: icon);
+  if (recognizer is TapGestureRecognizer) {
+    icon = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: recognizer.onTap,
+        child: icon,
+      ),
+    );
+  }
+  return WidgetSpan(alignment: PlaceholderAlignment.middle, child: icon);
+}
+
 /// [span] with every piece of its text tappable: a tap lands on the
 /// innermost span, which does not inherit its parent's recognizer.
 InlineSpan _linked(InlineSpan span, GestureRecognizer recognizer) =>
     switch (span) {
-      // Code in a link keeps its background (and is not tappable).
-      InlineCodeSpan() => span,
+      // Code in a link keeps its background, and goes where the link does.
+      InlineCodeSpan(:final text, :final style) => InlineCodeSpan(
+        text: text,
+        style: style,
+        recognizer: recognizer,
+        mouseCursor: SystemMouseCursors.click,
+      ),
       // An image in a link (`[![alt](src)](href)`).
       WidgetSpan(:final child, :final alignment)
           when recognizer is TapGestureRecognizer =>

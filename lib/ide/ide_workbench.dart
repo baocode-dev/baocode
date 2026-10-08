@@ -124,9 +124,26 @@ class IdeWorkbench extends StatefulWidget {
     this.viewState,
     this.onViewState,
     this.remote,
+    this.onAddFolder,
+    this.onRemoveFolder,
+    this.recentWorkspaceOf,
   });
 
   final IdeWorkspace workspace;
+
+  /// The multi-folder workspace a recent folder is, for the start page.
+  final IdeRecentWorkspace? Function(String path)? recentWorkspaceOf;
+
+  /// Create Workspace...: the host's command, which asks for a workspace's
+  /// name and folders.
+  static const createWorkspaceCommandId = 'baocode.workspace.create';
+
+  /// Add Folder to Workspace...: of a multi-folder workspace (see
+  /// [IdeWorkspace.isMultiRoot]), the host asking for the folder.
+  final VoidCallback? onAddFolder;
+
+  /// Remove Folder from Workspace, of a workspace folder's explorer row.
+  final ValueChanged<String>? onRemoveFolder;
 
   /// The remote host the project is on, shown first in the status bar;
   /// null for this machine.
@@ -209,6 +226,54 @@ class IdeWorkbench extends StatefulWidget {
 
   @override
   State<IdeWorkbench> createState() => IdeWorkbenchState();
+
+  /// Searches each of [roots] with [search], as one search: the matches of
+  /// all, then one end (cut short if any was).
+  static Stream<Object> searchRoots(
+    List<String> roots,
+    IdeTextQuery query,
+    IdeTextSearch search,
+  ) {
+    if (roots.isEmpty) {
+      return Stream.value(const IdeTextSearchComplete(limitHit: false));
+    }
+    late final StreamController<Object> controller;
+    final subscriptions = <StreamSubscription<Object>>[];
+    var open = roots.length;
+    var limitHit = false;
+    void ended() {
+      if (--open > 0) return;
+      controller
+        ..add(IdeTextSearchComplete(limitHit: limitHit))
+        ..close();
+    }
+
+    controller = StreamController<Object>(
+      onListen: () {
+        for (final root in roots) {
+          subscriptions.add(
+            search(root, query).listen(
+              (event) {
+                if (event is IdeTextSearchComplete) {
+                  limitHit |= event.limitHit;
+                } else {
+                  controller.add(event);
+                }
+              },
+              onError: controller.addError,
+              onDone: ended,
+            ),
+          );
+        }
+      },
+      onCancel: () async {
+        for (final subscription in subscriptions) {
+          await subscription.cancel();
+        }
+      },
+    );
+    return controller.stream;
+  }
 }
 
 /// The side views of the activity bar. The outline is a pane of the
@@ -329,6 +394,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The Search view's inputs and results, while other views show.
   late final IdeSearchSession _search = IdeSearchSession(
     engine: (root, query) => switch (widget.workspace) {
+      // A multi-folder workspace's folders, each searched.
+      final IdeWorkspace workspace when workspace.isMultiRoot =>
+        IdeWorkbench.searchRoots(workspace.roots, query, widget.textSearch),
       // A remote project's files are searched there.
       IdeWorkspace(hasFolder: true, files: final IdeHostFiles files) =>
         files.searchText(root, query),
@@ -697,7 +765,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         final IdeHostFiles files => files.readBytes,
         _ => readFileBytes,
       },
-      // A remote project's host is Linux.
+      // A remote project's host is Linux or macOS: POSIX paths.
       pathContext: _local ? p.context : p.posix,
       initialLine: _previewLines[doc],
       onLeave: (line) {
@@ -720,8 +788,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       files: workspace.files,
       l10n: l10n,
       root: workspace.hasFolder ? workspace.root : null,
-      // A remote project's host is Linux; the clipboard's files are this
-      // machine's, uploaded there.
+      // A remote project's host is Linux or macOS; the clipboard's files
+      // are this machine's, uploaded there.
       context: _local ? p.context : p.posix,
       remote: !_local,
       clipboard: IdeWorkbench.markdownClipboard,
@@ -855,6 +923,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _explorer = IdeExplorerController(
       files: workspace.files,
       root: workspace.root,
+      roots: workspace.roots,
       // Without a folder, no tree to keep current.
       watch: workspace.hasFolder
           ? workspace.watchFolder
@@ -863,6 +932,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _fileIndex = IdeFileIndex(
       workspace.files,
       workspace.root,
+      roots: workspace.isMultiRoot ? workspace.roots : null,
       // Without a folder, the open files alone.
       lister: workspace.hasFolder
           ? null
@@ -893,9 +963,32 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _workspaceChanged();
     _git = workspace.git?..addListener(_gitChanged);
     _gitChanged();
-    // New terminals start in the project; those running stay where they are.
-    _terminals?.root = workspace.root;
+    // New terminals start in the project (a workspace's first folder);
+    // those running stay where they are.
+    _terminals?.root = workspace.roots.firstOrNull ?? workspace.root;
   }
+
+  /// A multi-folder workspace's folders or repository changed: the
+  /// explorer, Quick Open and Source Control follow.
+  void _rootsChanged() {
+    final workspace = widget.workspace;
+    if (!workspace.isMultiRoot) return;
+    _explorer.roots = workspace.roots;
+    _fileIndex.roots = workspace.roots;
+    _terminals?.root = workspace.roots.firstOrNull ?? workspace.root;
+    final git = workspace.git;
+    if (identical(git, _git)) return;
+    _git?.removeListener(_gitChanged);
+    _scmSessions[_git] = _scm;
+    _scm = _scmSessions.remove(git) ?? IdeScmSession(settings: widget.settings);
+    _git = git?..addListener(_gitChanged);
+    _gitChanged();
+    if (mounted) setState(() {});
+  }
+
+  /// Source Control's message and state of each repository of a
+  /// workspace but the one shown ([_scm]'s).
+  final Map<IdeGitRepository?, IdeScmSession> _scmSessions = {};
 
   void _detach(IdeWorkspace workspace) {
     workspace.removeListener(_workspaceChanged);
@@ -907,6 +1000,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _git?.removeListener(_gitChanged);
     _git = null;
     _gitState = null;
+    for (final session in _scmSessions.values) {
+      session.dispose();
+    }
+    _scmSessions.clear();
     _scm.dispose();
     _scm = IdeScmSession(settings: widget.settings);
     _explorer.dispose();
@@ -1072,6 +1169,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Follows the active editor: remembers it for Quick Open and reveals it
   /// in the explorer, as VS Code's `explorer.autoReveal` does.
   void _workspaceChanged() {
+    _rootsChanged();
     _keepViewSoon();
     _symbols?.update(widget.workspace.active);
     _forgetClosedNavigation();
@@ -1382,8 +1480,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
   }
 
-  String _relative(String path) =>
-      p.relative(path, from: widget.workspace.root);
+  String _relative(String path) => widget.workspace.isMultiRoot
+      ? widget.workspace.relativePath(path)
+      : p.relative(path, from: widget.workspace.root);
 
   /// New Text File: an untitled one, its editor focused.
   void _newUntitled() {
@@ -2262,11 +2361,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         () => explorer.copySelected(cut: true),
         enabled: selected,
       ),
-      command(
-        'filesExplorer.paste',
-        () => unawaited(explorer.pasteSelected()),
-        enabled: explorer.canPaste,
-      ),
+      // What the system's clipboard holds is only known once read.
+      command('filesExplorer.paste', () => unawaited(explorer.pasteSelected())),
       command(
         'filesExplorer.openFilePreserveFocus',
         explorer.previewSelected,
@@ -3035,9 +3131,18 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 else
                   IdePane(
                     id: 'folder',
-                    title: widget.project.name,
+                    title: workspace.isMultiRoot
+                        ? context.l10n.ideWorkspaceTitle(widget.project.name)
+                        : widget.project.name,
                     weight: 3,
                     actions: [
+                      if (widget.onAddFolder case final add?
+                          when workspace.isMultiRoot)
+                        IdePaneAction(
+                          icon: Codicons.rootFolder,
+                          tooltip: context.l10n.ideAddFolderToWorkspace,
+                          onPressed: add,
+                        ),
                       IdePaneAction(
                         icon: Codicons.newFile,
                         tooltip: keys.titleWithKeybinding(
@@ -3079,37 +3184,53 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         onPressed: _explorer.collapseAll,
                       ),
                     ],
-                    body: IdeExplorer(
-                      key: _explorerTree,
-                      controller: _explorer,
-                      focusNode: _explorerFocus,
-                      isBound: (event) => _resolveEditorKey(event) != null,
-                      git: workspace.git,
-                      onOpen: (path, focusEditor) =>
-                          unawaited(_open(path, focusEditor: focusEditor)),
-                      onMoved: workspace.moved,
-                      onDeleted: workspace.deleted,
-                      unsavedIn: (path) => workspace
-                          .documentsIn(path)
-                          .where((d) => d.dirty)
-                          .length,
-                      local: _local,
-                      trash: _local && WindowControls.canMoveToTrash
-                          ? WindowControls.moveToTrash
-                          : null,
-                      onError: _report,
-                      onOpenInDefaultApp:
-                          _local && WindowControls.canOpenInDefaultApp
-                          ? (path) => unawaited(_openInDefaultApp(path))
-                          : null,
-                      onFindInFolder: (folder) {
-                        _search.findInFolder(
-                          _relative(folder) == '.' ? '' : _relative(folder),
-                          workspace.root,
-                        );
-                        _showView(IdeSideView.search);
-                      },
-                    ),
+                    body: workspace.isMultiRoot && workspace.roots.isEmpty
+                        ? _EmptyWorkspace(onAddFolder: widget.onAddFolder)
+                        : IdeExplorer(
+                            key: _explorerTree,
+                            controller: _explorer,
+                            focusNode: _explorerFocus,
+                            isBound: (event) =>
+                                _resolveEditorKey(event) != null,
+                            git: workspace.git,
+                            repositories: [
+                              for (final (_, git) in workspace.repositories)
+                                git,
+                            ],
+                            onAddFolder: workspace.isMultiRoot
+                                ? widget.onAddFolder
+                                : null,
+                            onRemoveFolder: workspace.isMultiRoot
+                                ? widget.onRemoveFolder
+                                : null,
+                            onOpen: (path, focusEditor) => unawaited(
+                              _open(path, focusEditor: focusEditor),
+                            ),
+                            onMoved: workspace.moved,
+                            onDeleted: workspace.deleted,
+                            unsavedIn: (path) => workspace
+                                .documentsIn(path)
+                                .where((d) => d.dirty)
+                                .length,
+                            local: _local,
+                            trash: _local && WindowControls.canMoveToTrash
+                                ? WindowControls.moveToTrash
+                                : null,
+                            onError: _report,
+                            onOpenInDefaultApp:
+                                _local && WindowControls.canOpenInDefaultApp
+                                ? (path) => unawaited(_openInDefaultApp(path))
+                                : null,
+                            onFindInFolder: (folder) {
+                              _search.findInFolder(
+                                _relative(folder) == '.'
+                                    ? ''
+                                    : _relative(folder),
+                                workspace.root,
+                              );
+                              _showView(IdeSideView.search);
+                            },
+                          ),
                   ),
                 IdePane(
                   id: 'outline',
@@ -3198,6 +3319,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         for (final id in const [
                           'workbench.action.files.openFolder',
                           'baocode.remote.openFolder',
+                          IdeWorkbench.createWorkspaceCommandId,
                           'workbench.action.files.openFile',
                           'workbench.action.files.newUntitledFile',
                         ])
@@ -3205,6 +3327,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                       ],
                       recent: widget.recentFolders,
                       onOpenRecent: widget.onOpenRecent,
+                      workspaceOf: widget.recentWorkspaceOf,
                       onShowAllRecent: commands
                           .where((c) => c.id == 'workbench.action.openRecent')
                           .firstOrNull
@@ -4379,6 +4502,39 @@ class _NoFolder extends StatelessWidget {
             label: l10n.explorerOpenFolder,
             expand: true,
             onPressed: open,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// The explorer of a workspace with no folders yet: a button to add one.
+class _EmptyWorkspace extends StatelessWidget {
+  const _EmptyWorkspace({this.onAddFolder});
+
+  final VoidCallback? onAddFolder;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      children: [
+        Text(
+          l10n.ideEmptyWorkspace,
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.4,
+            color: themeColors['sideBar.foreground'],
+          ),
+        ),
+        if (onAddFolder case final add?) ...[
+          const SizedBox(height: 12),
+          IdeButton(
+            label: l10n.ideAddFolderToWorkspace,
+            expand: true,
+            onPressed: add,
           ),
         ],
       ],

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BaoCode 更新日志</title>
+<meta name="description" content="BaoCode 每个版本的变化。">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/style.css">
+<link rel="alternate" hreflang="en" href="https://baocode.dev/changelog">
+<link rel="alternate" hreflang="zh" href="https://baocode.dev/zh/changelog">
+</head>
+<body>
+<!-- Made by tool/build_changelog.dart from release-notes/: edit those, not this. -->
+<canvas class="grid" aria-hidden="true"></canvas>
+<svg class="sprite" aria-hidden="true">
+  <!-- Lucide (ISC), https://lucide.dev -->
+  <symbol id="ic-github" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5c.08-1.25-.27-2.48-1-3.5c.28-1.15.28-2.35 0-3.5c0 0-1 0-3 1.5c-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5c-.39.49-.68 1.05-.85 1.65S8.93 17.38 9 18v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></g></symbol>
+</svg>
+<header class="top">
+  <a class="brand" href="/zh/"><img src="/icon.png" alt="">BaoCode</a>
+  <a href="/zh/download">下载</a>
+  <a href="/zh/changelog" aria-current="page">更新日志</a>
+  <a href="https://github.com/baocode-dev/baocode"><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>GitHub</a>
+  <a class="lang" href="/changelog" hreflang="en" lang="en">English</a>
+</header>
+
+<main class="page changelog">
+  <h1>更新日志</h1>
+  <p class="subtitle">BaoCode 每个版本的变化。</p>
+
+  <section class="release" id="v1.0.0">
+    <h2 class="plain"><a href="#v1.0.0">1.0.0</a></h2>
+    <p>BaoCode 的第一个版本：Claude Code 的桌面应用，内置快速的 IDE。支持 macOS（Apple 芯片和 Intel）和 Windows。</p>
+    <p>对话</p>
+    <ul>
+    <li>执行步骤折叠成一行，当前任务和进度固定显示在输入框上方</li>
+    <li>按文件查看 Claude 做的修改，逐个保留或撤销；检查点不会碰你仓库的 .git</li>
+    <li>用 /goal 给 Claude 设定目标，它会一直工作到目标达成</li>
+    <li>富文本输入框：粘贴图片、拖入文件，从编辑器复制的代码会变成对文件和行号的引用</li>
+    <li>可以编辑已发送的消息、搜索历史对话，查看上下文和套餐用量</li>
+    <li>多个智能体并排运行，可以放在标签页里，也可以各开一个窗口</li>
+    <li>可以设置 Claude 写的提交和 Pull Request 里的署名</li>
+    </ul>
+    <p>SSH 远程项目</p>
+    <ul>
+    <li>通过 SSH 打开 Linux 主机上的文件夹，体验和 VS Code 的 Remote-SSH 一样：窗口留在本机，文件、搜索、Git、终端、语言服务器和 Claude Code 都在远端运行</li>
+    <li>从 ~/.ssh/config 里选主机，或者直接输入 user@host</li>
+    <li>远端没有 Claude Code 时会自动安装，本机配置的模型在远端也能用</li>
+    <li>断线自动重连；连不上时会说明原因，可以一键重试</li>
+    </ul>
+    <p>Fast IDE</p>
+    <ul>
+    <li>编辑器、终端，以及带提交图和 Git 追溯（blame）的源代码管理</li>
+    <li>沿用你的 VS Code 主题、快捷键和语言服务器</li>
+    <li>Markdown 文件以预览方式打开，可以像 Typora 一样直接在预览里编辑</li>
+    <li>提交信息由 Claude Code 起草，你修改后提交</li>
+    </ul>
+    <p>模型与扩展</p>
+    <ul>
+    <li>通过 Claude Code 使用其他模型：支持 Anthropic API、OpenAI Chat Completions 和 Responses，API 密钥保存在系统钥匙串里</li>
+    <li>可以为 Claude Code 的各类工作分别选择模型，标题和提交信息也可以单独选</li>
+    <li>插件、MCP 服务器、技能、子代理、规则、命令和钩子集中管理，claude.ai 上的技能也会同步过来</li>
+    </ul>
+    <p>其他</p>
+    <ul>
+    <li>智能体需要你时，有系统通知、提示音和应用图标上的数字提醒；关掉窗口后，智能体仍在菜单栏或托盘里继续运行</li>
+    <li>可以从访达或资源管理器直接用 BaoCode 打开文件夹，窗口也可以置顶</li>
+    <li>支持中文和英文界面</li>
+    <li>在后台自动更新，重启前会先询问</li>
+    </ul>
+  </section>
+</main>
+
+<script src="/site.js"></script>
+</body>
+</html>

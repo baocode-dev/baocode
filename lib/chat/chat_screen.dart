@@ -6,7 +6,7 @@ import 'package:flutter/rendering.dart';
 import '../kernel/kernel_types.dart';
 import '../keybindings/chat_keybindings.dart';
 import '../l10n/l10n.dart';
-import '../remote/remote_status.dart' show ClaudeInstallBanner;
+import '../remote/remote_status.dart' show ClaudeInstallBanner, SshHostBanner;
 import '../theme/app_theme.dart';
 import '../workspace/title_bar_double_click.dart';
 import 'agent_view.dart';
@@ -24,6 +24,8 @@ import 'panels/interaction_panel.dart';
 import 'panels/context_usage_panel.dart';
 import 'panels/goal_panel.dart';
 import 'panels/todo_panel.dart';
+import 'side_panel/file_link.dart';
+import 'side_panel/file_open.dart';
 import 'widgets/agent_step.dart';
 import 'widgets/code_citation.dart';
 import 'widgets/inline_rename_field.dart';
@@ -48,10 +50,13 @@ class ChatScreen extends StatefulWidget {
     this.focused = true,
     this.onOpenChange,
     this.onOpenCode,
+    this.fileLinks,
+    this.onOpenTerminalTask,
     this.colorizeCode,
     this.colorizeCodeBlock,
     this.start,
     this.startHint,
+    this.sessions,
   });
 
   final String title;
@@ -99,6 +104,14 @@ class ChatScreen extends StatefulWidget {
   /// [start] to [end] (from 1) selected.
   final void Function(String path, int start, int end)? onOpenCode;
 
+  /// Where the files the conversation names open: the files read and
+  /// edited, those its links go to and its inline code names, the code it
+  /// cites and the files it changed (in place of [onOpenCode] and
+  /// [onOpenChange]). None: only those two open.
+  final FileLinkTarget? fileLinks;
+
+  final ValueChanged<KernelTask>? onOpenTerminalTask;
+
   /// Colors the code the agent cites.
   final CodeColorizer? colorizeCode;
 
@@ -113,6 +126,10 @@ class ChatScreen extends StatefulWidget {
   /// [start]): the setup checklist, say, which builds [hint] when it has
   /// nothing to show.
   final Widget Function(BuildContext context, Widget hint)? startHint;
+
+  /// The other conversations its messages may refer to, which `@` in the
+  /// composer offers (see [ComposerVocabulary.sessions]).
+  final List<Suggestion> Function()? sessions;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -262,6 +279,7 @@ class _ChatScreenState extends State<ChatScreen>
   @override
   void dispose() {
     _session.removeListener(_checkStarting);
+    _existence?.dispose();
     _keyScope.dispose();
     for (final layer in _layers) {
       layer.dispose();
@@ -395,7 +413,17 @@ class _ChatScreenState extends State<ChatScreen>
     final tasks = _session.tasks ?? const [];
     final changes = _session.fileChanges;
     if (!ActivityStrip.hasContent(tasks, changes)) return null;
-    final open = widget.onOpenChange;
+    final links = widget.fileLinks;
+    final open = links == null
+        ? widget.onOpenChange
+        : (FileChange change, Future<String> Function()? original) => _openFile(
+            FileOpenRequest(
+              change.path,
+              diff: true,
+              change: change,
+              original: original,
+            ),
+          );
     return ActivityStrip(
       tasks: tasks,
       changes: changes,
@@ -408,8 +436,13 @@ class _ChatScreenState extends State<ChatScreen>
           ? null
           : (change) => open(change, _session.originalOf(change)),
       onStopTask: _session.stopTask,
+      canOpenTask: (task) => task.kind == KernelTaskKind.command
+          ? widget.onOpenTerminalTask != null
+          : _session.agentOf(task.toolUseId) != null,
       onOpenTask: (task) {
-        if (_session.agentOf(task.toolUseId) case final agent?) {
+        if (task.kind == KernelTaskKind.command) {
+          widget.onOpenTerminalTask?.call(task);
+        } else if (_session.agentOf(task.toolUseId) case final agent?) {
           _openAgent(agent);
         }
       },
@@ -444,20 +477,66 @@ class _ChatScreenState extends State<ChatScreen>
   List<KernelCommand>? _commandSource;
   List<Suggestion> _commands = const [];
 
+  /// Which files the conversation's inline code names exist, asked once
+  /// each (see [FileOpenScope]).
+  FileExistence? _existence;
+  FileExistence get _files => _existence ??= FileExistence(
+    (path) => widget.fileLinks?.exists?.call(path) ?? Future.value(false),
+  );
+
+  /// Opens [request] where [ChatScreen.fileLinks] says: a file's changes
+  /// with what the session knows of them.
+  void _openFile(FileOpenRequest request) {
+    final links = widget.fileLinks;
+    if (links == null) return;
+    var opened = request;
+    if (request.diff && request.change == null) {
+      for (final change in _session.fileChanges) {
+        if (change.path == request.path) {
+          opened = request.copyWith(
+            change: change,
+            original: _session.originalOf(change),
+          );
+          break;
+        }
+      }
+    }
+    links.open(opened);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final links = widget.fileLinks;
     return ListenableBuilder(
       listenable: _session,
-      builder: (context, child) => CodeCitationScope(
-        root: _session.root,
-        onOpen: widget.onOpenCode,
-        colorize: widget.colorizeCode,
-        colorizeBlock: widget.colorizeCodeBlock,
-        child: ComposerVocabulary(
-          commands: _commandSuggestions(),
-          child: child!,
-        ),
-      ),
+      builder: (context, child) {
+        final root = _session.root;
+        Widget scoped = CodeCitationScope(
+          root: root,
+          onOpen: links == null
+              ? widget.onOpenCode
+              : (path, start, end) => _openFile(
+                  FileOpenRequest(path, range: FileLineRange(start, end)),
+                ),
+          colorize: widget.colorizeCode,
+          colorizeBlock: widget.colorizeCodeBlock,
+          child: ComposerVocabulary(
+            commands: _commandSuggestions(),
+            sessions: widget.sessions,
+            child: child!,
+          ),
+        );
+        if (links != null && root != null) {
+          scoped = FileOpenScope(
+            root: root,
+            paths: links.paths,
+            onOpen: _openFile,
+            existence: _files,
+            child: scoped,
+          );
+        }
+        return scoped;
+      },
       child: _buildBody(),
     );
   }
@@ -562,6 +641,10 @@ class _ChatScreenState extends State<ChatScreen>
                           )
                         : null,
                   ),
+                  // A remote project's host out of reach: said once, by the
+                  // banner above when the agent failed on it.
+                  if (!HealthBanner.shows(_session.health))
+                    SshHostBanner(location: _session.kernelContext.cwd),
                   // Claude Code being put on a remote project's host.
                   ClaudeInstallBanner(location: _session.kernelContext.cwd),
                   _PanelSlot(

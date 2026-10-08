@@ -2,10 +2,12 @@
 library;
 
 import 'dart:convert';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:bao_remote/client.dart';
-import 'package:bao_remote/local.dart' show ClaudeEnvironment, CliLocator;
+import 'package:bao_remote/local.dart'
+    show ClaudeEnvironment, CliLocator, ManagedClaude;
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/remote/remote_binaries.dart';
@@ -179,6 +181,82 @@ void main() {
     expect(hosts['dev'].installingClaude, isNull);
   });
 
+  /// What [command] prints in a terminal on the host, in [shell].
+  Future<String> inTerminal(
+    String command, {
+    String shell = '/bin/sh',
+    bool shellIntegration = false,
+  }) async {
+    final client = await hosts['dev'].ready;
+    final pty = await client.startPty(
+      cwd: root,
+      shell: [shell],
+      shellIntegration: shellIntegration,
+    );
+    final output = StringBuffer();
+    pty.output.listen((data) => output.write(utf8.decode(data)));
+    pty.write(utf8.encode('$command; exit\n'));
+    await pty.exitCode.timeout(const Duration(seconds: 10));
+    return '$output';
+  }
+
+  test('once it is there, the terminals there run it as `claude`, its '
+      'updater off', () async {
+    await converse(
+      await startClaude(ClaudeLaunch(cwd: RemoteLocation.of('dev', root))),
+    );
+    final command = p.join(dataDir.path, 'claude', 'bin', 'claude');
+    final installed = p.join(dataDir.path, 'claude', 'claude-9.9.9');
+    for (final (shell, integration) in [
+      ('/bin/sh', false),
+      ('/bin/bash', true),
+    ]) {
+      File(p.join(marks.path, 'self')).deleteSync();
+      final output = await inTerminal(
+        'command -v claude; echo hi | claude',
+        shell: shell,
+        shellIntegration: integration,
+      );
+      expect(output, contains(command), reason: shell);
+      expect(mark('self'), installed, reason: shell);
+      expect(mark('autoupdater'), '1', reason: shell);
+    }
+  });
+
+  test('the user\'s own: the terminals there are left as they are', () async {
+    await converse(
+      await startClaude(ClaudeLaunch(cwd: RemoteLocation.of('dev', root))),
+    );
+    final own = File(p.join(home.path, 'own-claude'))
+      ..writeAsStringSync(_fakeClaude);
+    Process.runSync('chmod', ['+x', own.path]);
+    CliLocator.candidatesOverride = (_) => [own.path];
+    CliLocator.use({
+      'PATH': '/usr/bin:/bin',
+      'HOME': home.path,
+      'MARKS': marks.path,
+    });
+    final output = await inTerminal('echo "path=\$PATH"');
+    expect(output, contains('path=/usr/bin:/bin'));
+    expect(output, isNot(contains(p.join('claude', 'bin'))));
+  });
+
+  test('a build installed before there was a `claude` is given one', () {
+    final directory = p.join(dataDir.path, 'claude');
+    final managed = ManagedClaude(directory);
+    expect(managed.command(), isNull);
+    File(p.join(directory, 'claude-1.0.0'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('#!/bin/sh\necho "one \$1"\n');
+    Process.runSync('chmod', ['+x', p.join(directory, 'claude-1.0.0')]);
+    File(p.join(directory, 'CURRENT')).writeAsStringSync('1.0.0\n');
+    expect(managed.command(), managed.binDirectory);
+    final run = Process.runSync(p.join(managed.binDirectory, 'claude'), [
+      'arg',
+    ]);
+    expect(run.stdout, 'one arg\n');
+  });
+
   test('the user\'s own is run where there is one', () async {
     final own = File(p.join(home.path, 'own-claude'))
       ..writeAsStringSync(_fakeClaude);
@@ -273,23 +351,52 @@ echo built >> "$MARKS/builds"
       },
     );
 
-    test('built from the checkout\'s sources once per architecture, named '
+    test('built from the checkout\'s sources once per platform, named '
         'by them', () async {
       final binaries = (await find())!;
       expect(binaries.root, checkout.path);
       expect(binaries.version, startsWith('dev-'));
-      final built = utf8.decode((await binaries.read('arm64'))!);
+      final built = utf8.decode((await binaries.read('linux-arm64'))!);
       expect(built, contains('--target-os linux --target-arch arm64'));
       expect(built, contains('-Dbaocode.version=${binaries.version}'));
-      await binaries.read('arm64');
+      await binaries.read('linux-arm64');
       expect((await find())!.version, binaries.version);
-      final again = await (await find())!.read('arm64');
+      final again = await (await find())!.read('linux-arm64');
       expect(utf8.decode(again!), built);
       expect(mark('builds').split('\n'), hasLength(1));
 
       File(p.join(checkout.path, 'packages/bao_remote/bin/baocode_server.dart'))
           .writeAsStringSync('void main() { print(1); }');
       expect((await find())!.version, isNot(binaries.version));
+    });
+
+    test('for macOS, only on a Mac of that architecture', () async {
+      final binaries = (await find())!;
+      final host = switch (Abi.current()) {
+        Abi.macosArm64 => 'arm64',
+        Abi.macosX64 => 'x64',
+        _ => null,
+      };
+      for (final arch in ['x64', 'arm64']) {
+        final read = binaries.read('darwin-$arch');
+        if (arch == host) {
+          expect(
+            utf8.decode((await read)!),
+            contains('--target-os macos --target-arch $arch'),
+          );
+        } else {
+          await expectLater(
+            read,
+            throwsA(
+              isA<SshConnectException>().having(
+                (e) => e.message,
+                'message',
+                contains('macOS $arch'),
+              ),
+            ),
+          );
+        }
+      }
     });
 
     test('none outside a checkout', () async {

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -26,7 +27,10 @@ PlatformUpdates? platformUpdates({required String updatesDirectory}) {
   final UpdateInstaller installer;
   final String platform;
   if (Platform.isMacOS) {
-    platform = 'macos-universal';
+    platform = macUpdatePlatform(
+      arm64: Abi.current() == Abi.macosArm64,
+      translated: _translated,
+    );
     installer = MacUpdateInstaller(
       executable: executable,
       pid: pid,
@@ -51,6 +55,27 @@ PlatformUpdates? platformUpdates({required String updatesDirectory}) {
     ),
     installer: installer,
   );
+}
+
+/// The Mac build an app updates to: the one for the processor. An Intel
+/// build run by Rosetta on Apple silicon (the wrong download) takes the
+/// Apple silicon one, and runs natively from then on. A universal build
+/// (1.0.0's first) takes its processor's too.
+@visibleForTesting
+String macUpdatePlatform({required bool arm64, required bool translated}) =>
+    arm64 || translated ? 'macos-arm64' : 'macos-x64';
+
+/// Whether Rosetta runs this process: an x64 one on Apple silicon.
+bool get _translated {
+  try {
+    final result = Process.runSync('/usr/sbin/sysctl', [
+      '-in',
+      'sysctl.proc_translated',
+    ]);
+    return '${result.stdout}'.trim() == '1';
+  } on ProcessException {
+    return false;
+  }
 }
 
 /// [platformUpdates]'s answer.

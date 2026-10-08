@@ -2684,6 +2684,222 @@ abstract class AppLocalizations {
   /// **'Hide terminal'**
   String get chatTerminalHide;
 
+  /// Command title: shows or hides the agent window's side panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Side Panel'**
+  String get cmdToggleSidePanel;
+
+  /// No description provided for @cmdSidePanelChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Agent Changes'**
+  String get cmdSidePanelChanges;
+
+  /// No description provided for @cmdSidePanelFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Agent Files'**
+  String get cmdSidePanelFiles;
+
+  /// No description provided for @cmdSidePanelTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Agent Terminals'**
+  String get cmdSidePanelTerminal;
+
+  /// No description provided for @cmdSidePanelCloseTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Close Side Panel Tab'**
+  String get cmdSidePanelCloseTab;
+
+  /// No description provided for @sidePanelFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get sidePanelFiles;
+
+  /// No description provided for @sidePanelTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal'**
+  String get sidePanelTerminal;
+
+  /// No description provided for @sidePanelNoTerminals.
+  ///
+  /// In en, this message translates to:
+  /// **'No background commands'**
+  String get sidePanelNoTerminals;
+
+  /// No description provided for @sidePanelTaskCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get sidePanelTaskCompleted;
+
+  /// No description provided for @sidePanelTaskFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get sidePanelTaskFailed;
+
+  /// No description provided for @sidePanelWaitingOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for output'**
+  String get sidePanelWaitingOutput;
+
+  /// No description provided for @sidePanelOutputUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Output unavailable'**
+  String get sidePanelOutputUnavailable;
+
+  /// Tooltip of the title bar button that shows the side panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Show side panel'**
+  String get sidePanelShow;
+
+  /// Tooltip of the button that hides the side panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide side panel'**
+  String get sidePanelHide;
+
+  /// The side panel's tab listing the files the agent changed.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes'**
+  String get sidePanelChanges;
+
+  /// The side panel's Changes tab while the agent changed nothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No changes yet'**
+  String get sidePanelNoChanges;
+
+  /// Under sidePanelNoChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes in the project\'s Git working tree and index show here.'**
+  String get sidePanelNoChangesDetail;
+
+  /// Hover of a file read in the conversation: a click opens it in the side panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in side panel'**
+  String get sidePanelOpenFile;
+
+  /// Hover of a file edit in the conversation: a click shows its changes in the side panel.
+  ///
+  /// In en, this message translates to:
+  /// **'Show changes in side panel'**
+  String get sidePanelOpenDiff;
+
+  /// Button of a side panel preview that opens the file in the IDE.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in Fast Ide'**
+  String get sidePanelOpenInIde;
+
+  /// Tooltip of a side panel tab's close button.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get sidePanelCloseTab;
+
+  /// Shows a markdown file rendered.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get sidePanelPreview;
+
+  /// Shows a markdown file's text.
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get sidePanelSource;
+
+  /// Over a side panel preview asked for a diff it cannot show.
+  ///
+  /// In en, this message translates to:
+  /// **'The file before the agent\'s changes is not known: showing it as it is.'**
+  String get sidePanelNoOriginal;
+
+  /// A side panel diff whose two sides are the same.
+  ///
+  /// In en, this message translates to:
+  /// **'No differences'**
+  String get sidePanelUnchanged;
+
+  /// Over the diff of a deleted file.
+  ///
+  /// In en, this message translates to:
+  /// **'The agent deleted this file.'**
+  String get sidePanelDeleted;
+
+  /// The side panel's terminal page: the group of the project's terminals in its list.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminals'**
+  String get sidePanelTerminals;
+
+  /// Shows a file in the tree of the side panel's files page.
+  ///
+  /// In en, this message translates to:
+  /// **'Reveal in Files'**
+  String get sidePanelRevealInFiles;
+
+  /// Puts the files of a row or tab of the side panel in the chat's composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to Chat'**
+  String get sidePanelAddToChat;
+
+  /// The side panel's terminal page: the group of the agent's background commands in its list.
+  ///
+  /// In en, this message translates to:
+  /// **'Background Tasks'**
+  String get sidePanelBackgroundTasks;
+
+  /// The side panel's files page with no file open.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a file to preview it'**
+  String get sidePanelSelectFile;
+
+  /// The side panel's changes page with no file's changes open.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a changed file to see its changes'**
+  String get sidePanelSelectChange;
+
+  /// The side panel's terminal page with no command's output open.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a background task to see its output'**
+  String get sidePanelSelectTerminal;
+
+  /// The side panel's files page for a conversation without a folder.
+  ///
+  /// In en, this message translates to:
+  /// **'This conversation has no project folder'**
+  String get sidePanelNoFolder;
+
+  /// Shows the list at the left of the side panel's pages.
+  ///
+  /// In en, this message translates to:
+  /// **'Show List'**
+  String get sidePanelShowList;
+
+  /// Hides the list at the left of the side panel's pages.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide List'**
+  String get sidePanelHideList;
+
   /// No description provided for @windowMinimize.
   ///
   /// In en, this message translates to:
@@ -3007,6 +3223,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unarchive'**
   String get sidebarUnarchive;
+
+  /// An agent's menu in the sidebar: copies the id of its session, which Claude Code finds the conversation by.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy session ID'**
+  String get sidebarCopySessionId;
 
   /// No description provided for @sidebarShowMore.
   ///
@@ -3847,6 +4069,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Commands'**
   String get composerCommands;
+
+  /// Title of the menu @ opens in the composer: the other conversations to refer to, under their projects' folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversations'**
+  String get composerConversations;
 
   /// No description provided for @composerPlaceholder.
   ///
@@ -4891,6 +5119,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Who the commits and pull requests an agent writes credit. Applies to agents started after a change; Claude Code only for now.'**
   String get generalSettingsCommitAttributionDescription;
+
+  /// No description provided for @generalSettingsTelemetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Usage Data'**
+  String get generalSettingsTelemetry;
+
+  /// No description provided for @generalSettingsTelemetryDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Once a day BaoCode is used, it sends a random install ID, its version, and your system and processor type, so we can tell how many people use it and come back. Nothing about you, your code, or what you do in BaoCode (telemetry.telemetryLevel).'**
+  String get generalSettingsTelemetryDescription;
 
   /// The commit attribution dropdown, as read out: its setting and the choice in effect.
   ///
@@ -9963,6 +10203,30 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get remoteRetry;
 
+  /// No description provided for @remoteSignInTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to {host}'**
+  String remoteSignInTitle(String host);
+
+  /// No description provided for @remoteSignInRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'That was not accepted. Try again.'**
+  String get remoteSignInRefused;
+
+  /// No description provided for @remoteSignInRemember.
+  ///
+  /// In en, this message translates to:
+  /// **'Remember on this computer (in the system keychain)'**
+  String get remoteSignInRemember;
+
+  /// No description provided for @remoteSignInConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect'**
+  String get remoteSignInConnect;
+
   /// No description provided for @remoteFolderPlaceholder.
   ///
   /// In en, this message translates to:
@@ -10197,11 +10461,197 @@ abstract class AppLocalizations {
   /// **'Show Setup Guide'**
   String get cmdShowSetupGuide;
 
+  /// No description provided for @cmdStarOnGitHub.
+  ///
+  /// In en, this message translates to:
+  /// **'Star BaoCode on GitHub'**
+  String get cmdStarOnGitHub;
+
+  /// No description provided for @starPromptMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Enjoying BaoCode?'**
+  String get starPromptMessage;
+
+  /// No description provided for @starPromptDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode is free and open source. If it helps you, a star on GitHub helps other people find it.'**
+  String get starPromptDetail;
+
+  /// No description provided for @starPromptStar.
+  ///
+  /// In en, this message translates to:
+  /// **'Star on GitHub'**
+  String get starPromptStar;
+
+  /// No description provided for @starPromptLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Maybe Later'**
+  String get starPromptLater;
+
   /// No description provided for @cmdResetFeatureTips.
   ///
   /// In en, this message translates to:
   /// **'Reset Feature Tips'**
   String get cmdResetFeatureTips;
+
+  /// The heading of the multi-folder workspaces in the menu of where a new chat works.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspaces'**
+  String get newChatWorkspaceGroup;
+
+  /// Under a workspace in the menu of where a new chat works: how many folders it has, and their names.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 folder} other{{count} folders}} · {names}'**
+  String newChatWorkspaceDetail(int count, String names);
+
+  /// The menu's choice that makes a workspace of several folders for a new chat to work in.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Workspace…'**
+  String get newChatCreateWorkspace;
+
+  /// No description provided for @newChatCreateWorkspaceDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Work across several folders'**
+  String get newChatCreateWorkspaceDetail;
+
+  /// The title of the dialog that makes a workspace of several folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Workspace'**
+  String get workspaceCreateTitle;
+
+  /// No description provided for @workspaceEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Workspace'**
+  String get workspaceEditTitle;
+
+  /// The label of a workspace's name in its dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get workspaceName;
+
+  /// No description provided for @workspaceNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'My Workspace'**
+  String get workspaceNameHint;
+
+  /// The label of the list of a workspace's folders in its dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Folders'**
+  String get workspaceFolders;
+
+  /// No description provided for @workspaceFoldersDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Agents working in this workspace can read and change the files in these folders.'**
+  String get workspaceFoldersDescription;
+
+  /// No description provided for @workspaceFoldersEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No folders yet. Add projects, or folders from {app}.'**
+  String workspaceFoldersEmpty(String app);
+
+  /// No description provided for @workspaceNoFolders.
+  ///
+  /// In en, this message translates to:
+  /// **'Add at least one folder.'**
+  String get workspaceNoFolders;
+
+  /// Button in the workspace dialog listing the projects to add as its folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Add from Projects'**
+  String get workspaceAddProject;
+
+  /// No description provided for @workspaceAddFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Add from {app}…'**
+  String workspaceAddFolder(String app);
+
+  /// No description provided for @workspaceNoProjects.
+  ///
+  /// In en, this message translates to:
+  /// **'No projects to add'**
+  String get workspaceNoProjects;
+
+  /// No description provided for @workspaceRemoveFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {name}'**
+  String workspaceRemoveFolder(String name);
+
+  /// No description provided for @workspaceCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get workspaceCreate;
+
+  /// The hover of a workspace in the sidebar: its folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace: {folders}'**
+  String workspaceHover(String folders);
+
+  /// No description provided for @sidebarEditWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Workspace…'**
+  String get sidebarEditWorkspace;
+
+  /// Forgets a workspace; its folders and sessions are kept.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Workspace'**
+  String get sidebarDeleteWorkspace;
+
+  /// The title of the explorer's folders when the IDE shows a workspace, as VS Code's.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} (Workspace)'**
+  String ideWorkspaceTitle(String name);
+
+  /// No description provided for @ideAddFolderToWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Folder to Workspace…'**
+  String get ideAddFolderToWorkspace;
+
+  /// No description provided for @ideRemoveFolderFromWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Folder from Workspace'**
+  String get ideRemoveFolderFromWorkspace;
+
+  /// No description provided for @ideEmptyWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'This workspace has no folders yet.'**
+  String get ideEmptyWorkspace;
+
+  /// The heading of Source Control's list of a workspace's Git repositories.
+  ///
+  /// In en, this message translates to:
+  /// **'Repositories'**
+  String get scmRepositories;
+
+  /// No description provided for @cmdCreateWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Workspace...'**
+  String get cmdCreateWorkspace;
 }
 
 class _AppLocalizationsDelegate

@@ -12,7 +12,7 @@
 // theme's colors of dialogs (platform/theme/browser/defaultStyles.ts
 // `defaultDialogStyles`).
 //
-// Deviations: no checkbox or input rows, and no custom icons.
+// Deviations: no custom icons.
 
 import 'dart:math' as math;
 
@@ -24,9 +24,27 @@ import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_button.dart';
 import 'ide_hover.dart';
+import 'ide_input.dart';
 
 /// The dialog's icon (`Severity`, or a question).
 enum IdeDialogType { info, warning, error, question }
+
+/// An input row of a dialog (`IInput`): [obscure] for a password.
+class IdeDialogInput {
+  const IdeDialogInput({
+    this.placeholder,
+    this.value = '',
+    this.obscure = false,
+  });
+
+  final String? placeholder;
+  final String value;
+  final bool obscure;
+}
+
+/// What a dialog was answered with (`IInputResult`): the button chosen,
+/// the inputs' values and whether the checkbox was checked.
+typedef IdeDialogResult = ({int button, List<String> values, bool checked});
 
 /// [showIdeDialog]'s default `cancel`: Cancel, in the display language.
 const ideDialogCancel = '\u0000cancel';
@@ -42,7 +60,29 @@ Future<int?> showIdeDialog(
   required List<String> buttons,
   String? cancel = ideDialogCancel,
   IdeDialogType type = IdeDialogType.warning,
-}) => showGeneralDialog<int>(
+}) => showIdeInputDialog(
+  context,
+  message: message,
+  detail: detail,
+  buttons: buttons,
+  cancel: cancel,
+  type: type,
+).then((result) => result?.button);
+
+/// [showIdeDialog] with [inputs] under the message and a [checkbox] (its
+/// label) under them, [checked] at first: the button chosen and what was
+/// given, or null when dismissed.
+Future<IdeDialogResult?> showIdeInputDialog(
+  BuildContext context, {
+  required String message,
+  String? detail,
+  required List<String> buttons,
+  List<IdeDialogInput> inputs = const [],
+  String? checkbox,
+  bool checked = false,
+  String? cancel = ideDialogCancel,
+  IdeDialogType type = IdeDialogType.warning,
+}) => showGeneralDialog<IdeDialogResult>(
   context: context,
   barrierDismissible: true,
   barrierLabel: context.l10n.commonDismiss,
@@ -58,16 +98,22 @@ Future<int?> showIdeDialog(
     ],
     cancels: cancel != null,
     type: type,
+    inputs: inputs,
+    checkbox: checkbox,
+    checked: checked,
   ),
 );
 
-class _IdeDialog extends StatelessWidget {
+class _IdeDialog extends StatefulWidget {
   const _IdeDialog({
     required this.message,
     required this.detail,
     required this.buttons,
     required this.cancels,
     required this.type,
+    this.inputs = const [],
+    this.checkbox,
+    this.checked = false,
   });
 
   final String message;
@@ -77,9 +123,55 @@ class _IdeDialog extends StatelessWidget {
   /// Whether the last button is the Cancel one.
   final bool cancels;
   final IdeDialogType type;
+  final List<IdeDialogInput> inputs;
+  final String? checkbox;
+  final bool checked;
+
+  @override
+  State<_IdeDialog> createState() => _IdeDialogState();
+}
+
+class _IdeDialogState extends State<_IdeDialog> {
+  late final List<TextEditingController> _inputs = [
+    for (final input in widget.inputs) TextEditingController(text: input.value),
+  ];
+  late bool _checked = widget.checked;
+
+  @override
+  void dispose() {
+    for (final input in _inputs) {
+      input.dispose();
+    }
+    super.dispose();
+  }
+
+  var _closed = false;
+
+  /// Closes with [button] chosen; the Cancel one dismisses. Once: Enter
+  /// in an input is both a shortcut here and the input's submission.
+  void _close(int? button) {
+    if (_closed) return;
+    _closed = true;
+    Navigator.pop(
+      context,
+      button == null || (widget.cancels && button == widget.buttons.length - 1)
+          ? null
+          : (
+              button: button,
+              values: [for (final input in _inputs) input.text],
+              checked: _checked,
+            ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final (message, detail, buttons, type) = (
+      widget.message,
+      widget.detail,
+      widget.buttons,
+      widget.type,
+    );
     final colors = themeColors;
     final (icon, color) = switch (type) {
       IdeDialogType.info => (
@@ -108,10 +200,8 @@ class _IdeDialog extends StatelessWidget {
     );
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): () =>
-            Navigator.pop(context),
-        const SingleActivator(LogicalKeyboardKey.enter): () =>
-            Navigator.pop(context, 0),
+        const SingleActivator(LogicalKeyboardKey.escape): () => _close(null),
+        const SingleActivator(LogicalKeyboardKey.enter): () => _close(0),
       },
       child: Focus(
         autofocus: true,
@@ -143,7 +233,7 @@ class _IdeDialog extends StatelessWidget {
                       child: IdeActionButton(
                         icon: Codicons.close,
                         tooltip: context.l10n.dialogCloseDialog,
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () => _close(null),
                       ),
                     ),
                   ),
@@ -182,6 +272,30 @@ class _IdeDialog extends StatelessWidget {
                                   ),
                                 ),
                               ],
+                              // `.dialog-message-input`
+                              for (final (i, input) in widget.inputs.indexed)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 10),
+                                  child: IdeInputBox(
+                                    controller: _inputs[i],
+                                    placeholder: input.placeholder,
+                                    obscureText: input.obscure,
+                                    autofocus: i == 0,
+                                    semanticsLabel: input.placeholder,
+                                    onSubmitted: (_) => _close(0),
+                                  ),
+                                ),
+                              // `.dialog-checkbox-row`
+                              if (widget.checkbox case final label?)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 10),
+                                  child: _DialogCheckbox(
+                                    label: label,
+                                    checked: _checked,
+                                    onChanged: () =>
+                                        setState(() => _checked = !_checked),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -199,12 +313,7 @@ class _IdeDialog extends StatelessWidget {
                             child: IdeButton(
                               label: label,
                               secondary: index > 0,
-                              onPressed: () => Navigator.pop(
-                                context,
-                                cancels && index == buttons.length - 1
-                                    ? null
-                                    : index,
-                              ),
+                              onPressed: () => _close(index),
                             ),
                           ),
                       ],
@@ -212,6 +321,85 @@ class _IdeDialog extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The dialog's checkbox and its label (`.monaco-checkbox`, 18px).
+class _DialogCheckbox extends StatefulWidget {
+  const _DialogCheckbox({
+    required this.label,
+    required this.checked,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool checked;
+  final VoidCallback onChanged;
+
+  @override
+  State<_DialogCheckbox> createState() => _DialogCheckboxState();
+}
+
+class _DialogCheckboxState extends State<_DialogCheckbox> {
+  var _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = themeColors;
+    return Semantics(
+      checked: widget.checked,
+      label: widget.label,
+      onTap: widget.onChanged,
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        onShowFocusHighlight: (focused) => setState(() => _focused = focused),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) => widget.onChanged(),
+          ),
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onChanged,
+          child: ExcludeSemantics(
+            child: Row(
+              children: [
+                Container(
+                  width: 18,
+                  height: 18,
+                  margin: const EdgeInsets.only(right: 6),
+                  decoration: BoxDecoration(
+                    color: colors['checkbox.background'],
+                    border: Border.all(
+                      color: _focused
+                          ? colors['focusBorder']
+                          : colors['checkbox.border'],
+                    ),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: widget.checked
+                      ? Icon(
+                          Codicons.check,
+                          size: 16,
+                          color: colors['checkbox.foreground'],
+                        )
+                      : null,
+                ),
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colors['editorWidget.foreground'],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

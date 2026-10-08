@@ -30,6 +30,7 @@ class ActivityStrip extends StatefulWidget {
     this.onOpenFile,
     this.onStopTask,
     this.onOpenTask,
+    this.canOpenTask,
     this.detailOf,
   });
 
@@ -42,8 +43,9 @@ class ActivityStrip extends StatefulWidget {
   /// Stops a running task; null when tasks cannot be stopped.
   final ValueChanged<KernelTask>? onStopTask;
 
-  /// Opens a subagent's conversation from its row.
+  /// Opens a subagent's conversation or background command's output.
   final ValueChanged<KernelTask>? onOpenTask;
+  final bool Function(KernelTask)? canOpenTask;
 
   /// What a task did last, e.g. a subagent's last step: after its
   /// description, flipping up to the next as it goes on.
@@ -141,7 +143,9 @@ class _ActivityStripState extends State<ActivityStrip> {
                       task: task,
                       detail: widget.detailOf?.call(task),
                       onOpen: switch (widget.onOpenTask) {
-                        final open? when task.kind == KernelTaskKind.agent =>
+                        final open?
+                            when widget.canOpenTask?.call(task) ??
+                                task.kind == KernelTaskKind.agent =>
                           () => open(task),
                         _ => null,
                       },

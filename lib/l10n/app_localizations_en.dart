@@ -1365,6 +1365,118 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatTerminalHide => 'Hide terminal';
 
   @override
+  String get cmdToggleSidePanel => 'Toggle Side Panel';
+
+  @override
+  String get cmdSidePanelChanges => 'Show Agent Changes';
+
+  @override
+  String get cmdSidePanelFiles => 'Show Agent Files';
+
+  @override
+  String get cmdSidePanelTerminal => 'Show Agent Terminals';
+
+  @override
+  String get cmdSidePanelCloseTab => 'Close Side Panel Tab';
+
+  @override
+  String get sidePanelFiles => 'Files';
+
+  @override
+  String get sidePanelTerminal => 'Terminal';
+
+  @override
+  String get sidePanelNoTerminals => 'No background commands';
+
+  @override
+  String get sidePanelTaskCompleted => 'Completed';
+
+  @override
+  String get sidePanelTaskFailed => 'Failed';
+
+  @override
+  String get sidePanelWaitingOutput => 'Waiting for output';
+
+  @override
+  String get sidePanelOutputUnavailable => 'Output unavailable';
+
+  @override
+  String get sidePanelShow => 'Show side panel';
+
+  @override
+  String get sidePanelHide => 'Hide side panel';
+
+  @override
+  String get sidePanelChanges => 'Changes';
+
+  @override
+  String get sidePanelNoChanges => 'No changes yet';
+
+  @override
+  String get sidePanelNoChangesDetail =>
+      'Changes in the project\'s Git working tree and index show here.';
+
+  @override
+  String get sidePanelOpenFile => 'Open in side panel';
+
+  @override
+  String get sidePanelOpenDiff => 'Show changes in side panel';
+
+  @override
+  String get sidePanelOpenInIde => 'Open in Fast Ide';
+
+  @override
+  String get sidePanelCloseTab => 'Close';
+
+  @override
+  String get sidePanelPreview => 'Preview';
+
+  @override
+  String get sidePanelSource => 'Source';
+
+  @override
+  String get sidePanelNoOriginal =>
+      'The file before the agent\'s changes is not known: showing it as it is.';
+
+  @override
+  String get sidePanelUnchanged => 'No differences';
+
+  @override
+  String get sidePanelDeleted => 'The agent deleted this file.';
+
+  @override
+  String get sidePanelTerminals => 'Terminals';
+
+  @override
+  String get sidePanelRevealInFiles => 'Reveal in Files';
+
+  @override
+  String get sidePanelAddToChat => 'Add to Chat';
+
+  @override
+  String get sidePanelBackgroundTasks => 'Background Tasks';
+
+  @override
+  String get sidePanelSelectFile => 'Select a file to preview it';
+
+  @override
+  String get sidePanelSelectChange =>
+      'Select a changed file to see its changes';
+
+  @override
+  String get sidePanelSelectTerminal =>
+      'Select a background task to see its output';
+
+  @override
+  String get sidePanelNoFolder => 'This conversation has no project folder';
+
+  @override
+  String get sidePanelShowList => 'Show List';
+
+  @override
+  String get sidePanelHideList => 'Hide List';
+
+  @override
   String get windowMinimize => 'Minimize';
 
   @override
@@ -1563,6 +1675,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sidebarUnarchive => 'Unarchive';
+
+  @override
+  String get sidebarCopySessionId => 'Copy session ID';
 
   @override
   String sidebarShowMore(int count) {
@@ -2086,6 +2201,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get composerCommands => 'Commands';
+
+  @override
+  String get composerConversations => 'Conversations';
 
   @override
   String get composerPlaceholder =>
@@ -2743,6 +2861,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get generalSettingsCommitAttributionDescription =>
       'Who the commits and pull requests an agent writes credit. Applies to agents started after a change; Claude Code only for now.';
+
+  @override
+  String get generalSettingsTelemetry => 'Send Usage Data';
+
+  @override
+  String get generalSettingsTelemetryDescription =>
+      'Once a day BaoCode is used, it sends a random install ID, its version, and your system and processor type, so we can tell how many people use it and come back. Nothing about you, your code, or what you do in BaoCode (telemetry.telemetryLevel).';
 
   @override
   String generalSettingsCommitAttributionLabel(String name) {
@@ -6012,6 +6137,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get remoteRetry => 'Retry';
 
   @override
+  String remoteSignInTitle(String host) {
+    return 'Sign in to $host';
+  }
+
+  @override
+  String get remoteSignInRefused => 'That was not accepted. Try again.';
+
+  @override
+  String get remoteSignInRemember =>
+      'Remember on this computer (in the system keychain)';
+
+  @override
+  String get remoteSignInConnect => 'Connect';
+
+  @override
   String remoteFolderPlaceholder(String host) {
     return 'A folder on $host: pick one, or type a path';
   }
@@ -6181,5 +6321,118 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdShowSetupGuide => 'Show Setup Guide';
 
   @override
+  String get cmdStarOnGitHub => 'Star BaoCode on GitHub';
+
+  @override
+  String get starPromptMessage => 'Enjoying BaoCode?';
+
+  @override
+  String get starPromptDetail =>
+      'BaoCode is free and open source. If it helps you, a star on GitHub helps other people find it.';
+
+  @override
+  String get starPromptStar => 'Star on GitHub';
+
+  @override
+  String get starPromptLater => 'Maybe Later';
+
+  @override
   String get cmdResetFeatureTips => 'Reset Feature Tips';
+
+  @override
+  String get newChatWorkspaceGroup => 'Workspaces';
+
+  @override
+  String newChatWorkspaceDetail(int count, String names) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count folders',
+      one: '1 folder',
+    );
+    return '$_temp0 · $names';
+  }
+
+  @override
+  String get newChatCreateWorkspace => 'Create Workspace…';
+
+  @override
+  String get newChatCreateWorkspaceDetail => 'Work across several folders';
+
+  @override
+  String get workspaceCreateTitle => 'Create Workspace';
+
+  @override
+  String get workspaceEditTitle => 'Edit Workspace';
+
+  @override
+  String get workspaceName => 'Name';
+
+  @override
+  String get workspaceNameHint => 'My Workspace';
+
+  @override
+  String get workspaceFolders => 'Folders';
+
+  @override
+  String get workspaceFoldersDescription =>
+      'Agents working in this workspace can read and change the files in these folders.';
+
+  @override
+  String workspaceFoldersEmpty(String app) {
+    return 'No folders yet. Add projects, or folders from $app.';
+  }
+
+  @override
+  String get workspaceNoFolders => 'Add at least one folder.';
+
+  @override
+  String get workspaceAddProject => 'Add from Projects';
+
+  @override
+  String workspaceAddFolder(String app) {
+    return 'Add from $app…';
+  }
+
+  @override
+  String get workspaceNoProjects => 'No projects to add';
+
+  @override
+  String workspaceRemoveFolder(String name) {
+    return 'Remove $name';
+  }
+
+  @override
+  String get workspaceCreate => 'Create';
+
+  @override
+  String workspaceHover(String folders) {
+    return 'Workspace: $folders';
+  }
+
+  @override
+  String get sidebarEditWorkspace => 'Edit Workspace…';
+
+  @override
+  String get sidebarDeleteWorkspace => 'Delete Workspace';
+
+  @override
+  String ideWorkspaceTitle(String name) {
+    return '$name (Workspace)';
+  }
+
+  @override
+  String get ideAddFolderToWorkspace => 'Add Folder to Workspace…';
+
+  @override
+  String get ideRemoveFolderFromWorkspace => 'Remove Folder from Workspace';
+
+  @override
+  String get ideEmptyWorkspace => 'This workspace has no folders yet.';
+
+  @override
+  String get scmRepositories => 'Repositories';
+
+  @override
+  String get cmdCreateWorkspace => 'Create Workspace...';
 }

@@ -85,7 +85,7 @@ void main() {
     }
   });
 
-  testWidgets('the default styler is Dark 2026, from the bundled assets', (
+  testWidgets('the default styler is Monokai, from the bundled assets', (
     tester,
   ) async {
     final styler = await ideDefaultSemanticTokenStyler();

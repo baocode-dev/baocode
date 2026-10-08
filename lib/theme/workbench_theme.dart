@@ -47,10 +47,11 @@ export 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart'
         isDark,
         isHighContrast;
 
-/// `ThemeSettingDefaults`: the default theme of each color scheme.
+/// `ThemeSettingDefaults`: the default theme of each color scheme. Ours are
+/// Monokai and Quiet Light, not upstream's Dark 2026 and Light 2026.
 abstract final class ThemeSettingDefaults {
-  static const colorThemeDark = 'Dark 2026';
-  static const colorThemeLight = 'Light 2026';
+  static const colorThemeDark = 'Monokai';
+  static const colorThemeLight = 'Quiet Light';
   static const colorThemeHcDark = 'Default High Contrast';
   static const colorThemeHcLight = 'Default High Contrast Light';
 }
@@ -62,9 +63,8 @@ String migrateThemeSettingsId(String settingsId) => switch (settingsId) {
   'Default Light Modern' => 'Light Modern',
   'Default Dark+' => 'Dark+',
   'Default Light+' => 'Light+',
-  'Experimental Dark' || 'VS Code Dark' => ThemeSettingDefaults.colorThemeDark,
-  'Experimental Light' ||
-  'VS Code Light' => ThemeSettingDefaults.colorThemeLight,
+  'Experimental Dark' || 'VS Code Dark' => 'Dark 2026',
+  'Experimental Light' || 'VS Code Light' => 'Light 2026',
   _ => settingsId,
 };
 
@@ -207,8 +207,8 @@ class WorkbenchThemeService extends ChangeNotifier
     theme ??= ColorThemeData.createUnloadedThemeForThemeType(
       ColorScheme.dark,
       switch (_setting) {
-        ThemeSettingDefaults.colorThemeLight => colorThemeLightInitialColors,
-        ThemeSettingDefaults.colorThemeDark => colorThemeDarkInitialColors,
+        'Light 2026' => colorThemeLightInitialColors,
+        'Dark 2026' => colorThemeDarkInitialColors,
         _ => null,
       },
     );

@@ -522,6 +522,15 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     );
   }
 
+  /// Background commands, including completed ones for their output tabs.
+  List<KernelTask> get terminalTasks => _cached(
+    #terminalTasks,
+    () => [
+      for (final task in _transcript.tasks)
+        if (task.background && task.kind == KernelTaskKind.command) task,
+    ],
+  );
+
   void stopTask(KernelTask task) {
     if (_kernel case final RunsBackgroundTasks kernel) kernel.stopTask(task.id);
   }
@@ -556,6 +565,17 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       }
     }
     return null;
+  }
+
+  /// The command the tool call [id] ran, in the conversation itself: what a
+  /// background command's task does.
+  String? commandOf(String? id) {
+    final index = id == null ? null : _transcript.indexOf(id);
+    if (index == null) return null;
+    return switch (_transcript.itemAt(index)) {
+      TerminalItem(:final command) when command.isNotEmpty => command,
+      _ => null,
+    };
   }
 
   /// Stops the subagent at [index]; null unless it runs as a task.
@@ -803,15 +823,27 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
         when !message.isEmpty && itemAt(index) is UserMessageItem) {
       stop();
       var turns = 0;
+      String? lastSeen;
       for (var i = index; i < _transcript.length; i++) {
-        if (_transcript.itemAt(i) is UserMessageItem) turns++;
+        if (_transcript.itemAt(i) case UserMessageItem(:final queued)) {
+          turns++;
+          if (!queued) lastSeen = _transcript.idAt(i) ?? lastSeen;
+        }
       }
-      kernel.rewind(
-        itemId: _transcript.idAt(index) ?? '$index',
-        index: index,
-        turns: turns,
+      // Sent once the agent has gone back: turned down, it would follow
+      // all of the conversation.
+      unawaited(
+        kernel
+            .rewind(
+              itemId: _transcript.idAt(index) ?? '$index',
+              index: index,
+              turns: turns,
+              lastSeen: lastSeen,
+            )
+            .then((rewound) {
+              if (rewound && !_disposed) send(message);
+            }),
       );
-      send(message);
     }
   }
 

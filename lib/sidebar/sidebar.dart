@@ -16,6 +16,9 @@ import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
 import '../keybindings/chat_keybindings.dart';
 import '../keybindings/default_keybindings.dart' show openSettingsCommandId;
+import '../remote/remote_location.dart';
+import '../remote/remote_status.dart' show sshErrorText;
+import '../remote/ssh_host.dart' show SshHostState, SshHosts;
 import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
@@ -25,6 +28,7 @@ import '../workspace/editor_launcher.dart';
 import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
+import '../workspace/workspace_dialog.dart';
 import 'sidebar_menu.dart';
 
 enum SidebarGrouping {
@@ -720,6 +724,9 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       onToggle: collapsible ? () => _workspace.toggleCollapsed(group.id) : null,
       onCreate: project == null ? null : () => _create(project),
       menu: project == null ? null : () => _projectItems(project),
+      folders: project == null
+          ? null
+          : _workspace.workspaceOf(project)?.folders,
       dragged: project != null && identical(project, _draggedProject),
       icon: project == null
           ? null
@@ -753,6 +760,11 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       drag: widget.drag,
       showProject: group.project == null,
       projectIcon: switch (_workspace.iconOf(thread.project)) {
+        null when _workspace.workspaceOf(thread.project) != null => Icon(
+          Codicons.folderLibrary,
+          size: 12,
+          color: AppColors.textFaint,
+        ),
         null => null,
         final icon => ProjectIconView(
           icon: icon,
@@ -779,12 +791,21 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   List<SidebarMenuItem> _projectItems(Project project) {
     final l10n = context.l10n;
     final editor = _workspace.preferredEditor;
+    final multi = _workspace.workspaceOf(project);
     return [
       SidebarMenuItem(
         l10n.sidebarNewAgentHere,
         icon: Icons.add_rounded,
         onSelected: () => _create(project),
       ),
+      if (multi != null)
+        SidebarMenuItem(
+          l10n.sidebarEditWorkspace,
+          icon: Icons.edit_outlined,
+          onSelected: () => unawaited(
+            showWorkspaceDialog(context, workspace: _workspace, editing: multi),
+          ),
+        ),
       SidebarMenuItem(
         l10n.sidebarRevealIn(Editor.folder.localizedPlatformLabel(l10n)),
         icon: Editor.folder.icon,
@@ -824,6 +845,12 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
         icon: Icons.visibility_off_outlined,
         onSelected: () => _workspace.hideProject(project),
       ),
+      if (multi != null)
+        SidebarMenuItem(
+          l10n.sidebarDeleteWorkspace,
+          icon: Icons.delete_outline_rounded,
+          onSelected: () => _workspace.deleteWorkspace(multi),
+        ),
     ];
   }
 
@@ -1263,6 +1290,7 @@ class _GroupHeader extends StatelessWidget {
     this.menu,
     this.dragged = false,
     this.icon,
+    this.folders,
   });
 
   final _Group group;
@@ -1283,6 +1311,10 @@ class _GroupHeader extends StatelessWidget {
 
   /// The project's icon, before its name.
   final Widget? icon;
+
+  /// The folders of the project, a multi-folder workspace's; null for a
+  /// folder's.
+  final List<String>? folders;
 
   @override
   Widget build(BuildContext context) {
@@ -1412,40 +1444,117 @@ class _GroupHeader extends StatelessWidget {
       ),
     );
     if (project == null) return label;
-    // A remote project: its host after its name.
-    final host = project.host;
-    final named = host == null
-        ? label
-        : Row(
+    if (folders case final folders?) {
+      // A workspace: how many folders after its name, which they are over
+      // it.
+      final color = AppColors.textFaint;
+      return _RowHover(
+        content: (context) => Text(
+          [
+            context.l10n.workspaceHover(
+              folders.map(RemoteLocation.nameOf).join(', '),
+            ),
+            ...folders,
+          ].join('\n'),
+        ),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          widthFactor: 1,
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Flexible(child: label),
               const SizedBox(width: 6),
-              Icon(Codicons.remote, size: 11, color: AppColors.textFaint),
-              const SizedBox(width: 3),
-              Flexible(
-                child: Text(
-                  host,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: AppColors.textFaint, fontSize: 11),
-                ),
+              Icon(Codicons.folderLibrary, size: 11, color: color),
+              const SizedBox(width: 2),
+              Text(
+                '${folders.length}',
+                style: TextStyle(color: color, fontSize: 11),
               ),
             ],
+          ),
+        ),
+      );
+    }
+    final host = project.host;
+    if (host == null) {
+      // Where the project is: its name says only which. Over the name
+      // alone, not the buttons beside it, which come and go with the
+      // pointer.
+      return _RowHover(
+        content: (context) => Text(project.path),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          widthFactor: 1,
+          child: label,
+        ),
+      );
+    }
+    // A remote project: its host after its name, red while it cannot be
+    // reached (a click tries again).
+    final ssh = SshHosts.instance[host];
+    return ListenableBuilder(
+      listenable: ssh,
+      builder: (context, _) {
+        final failed = ssh.state == SshHostState.failed;
+        final color = failed
+            ? themeColors['errorForeground']
+            : AppColors.textFaint;
+        final (message, _) = failed ? sshErrorText(ssh.error) : (null, null);
+        Widget badge = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              failed ? Codicons.debugDisconnect : Codicons.remote,
+              size: 11,
+              color: color,
+            ),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                host,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: color, fontSize: 11),
+              ),
+            ),
+          ],
+        );
+        if (failed) {
+          badge = MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => ssh.reconnect().ignore(),
+              child: badge,
+            ),
           );
-    // Where the project is: its name says only which. Over the name alone,
-    // not the buttons beside it, which come and go with the pointer.
-    return _RowHover(
-      content: (context) => Text(
-        host == null
-            ? project.path
-            : '${project.root}\n${context.l10n.remoteProjectTooltip(host)}',
-      ),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        widthFactor: 1,
-        child: named,
-      ),
+        }
+        return _RowHover(
+          content: (context) => Text(
+            [
+              project.root,
+              context.l10n.remoteProjectTooltip(host),
+              if (failed) ...[
+                context.l10n.remoteStatusTooltipLost(host),
+                ?message,
+              ],
+            ].join('\n'),
+          ),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            widthFactor: 1,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(child: label),
+                const SizedBox(width: 6),
+                Flexible(child: badge),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1797,6 +1906,14 @@ class _ThreadRow extends StatelessWidget {
       icon: Icons.inventory_2_outlined,
       onSelected: onArchive,
     ),
+    // Claude Code finds the conversation by it (none before the first
+    // message).
+    if (thread.id case final id?)
+      SidebarMenuItem(
+        l10n.sidebarCopySessionId,
+        icon: Icons.content_copy_rounded,
+        onSelected: () => unawaited(Clipboard.setData(ClipboardData(text: id))),
+      ),
     SidebarMenuItem(
       l10n.commonDelete,
       icon: Icons.delete_outline_rounded,
@@ -2358,6 +2475,9 @@ class _HeaderIcon extends StatelessWidget {
                 library: workspace.icons,
                 size: 22,
                 color: AppColors.textMuted,
+                fallback: workspace.workspaceOf(project) != null
+                    ? Codicons.folderLibrary
+                    : Icons.folder_outlined,
               ),
             ),
           ),

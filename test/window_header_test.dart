@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/panels/context_usage_panel.dart';
 import 'package:baocode/ide/ide_layout.dart';
@@ -242,9 +243,14 @@ void main() {
       of: header,
       matching: find.byType(HeaderMenuBar),
     );
+    // The sidebar's, not the side panel's.
     final toggle = find.descendant(
       of: header,
-      matching: find.byType(SidebarIconButton),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is SidebarIconButton &&
+            widget.command == 'workbench.action.toggleSidebarVisibility',
+      ),
     );
     IconData icon() => tester.widget<SidebarIconButton>(toggle).icon;
     expect(
@@ -255,6 +261,82 @@ void main() {
     await tester.tap(toggle);
     await tester.pump();
     expect(icon(), Codicons.layoutSidebarLeftOff);
+  }, variant: _windows);
+
+  testWidgets('where the window has not the room for the sidebar and the '
+      'side panel, the one asked for last stays: the other gives way to the '
+      'window until it widens, to the one asked for until asked again', (
+    tester,
+  ) async {
+    await pumpWindowsApp(tester);
+    final header = find.byType(WindowHeader);
+    final sidebarToggle = find.descendant(
+      of: header,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is SidebarIconButton &&
+            widget.command == 'workbench.action.toggleSidebarVisibility',
+      ),
+    );
+    final panelToggle = find.descendant(
+      of: header,
+      matching: find.byType(SidePanelToggle),
+    );
+    final sash = find.byKey(const ValueKey('side-panel-sash'));
+    Future<void> resize(double width) async {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> tap(Finder toggle) async {
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+    }
+
+    /// Whether the sidebar is docked and the panel shows, as the toggles
+    /// have them and as laid out.
+    (bool, bool) shown() {
+      final sidebar =
+          tester.widget<SidebarIconButton>(sidebarToggle).icon ==
+          Codicons.layoutSidebarLeft;
+      final panel = tester.widget<SidePanelToggle>(panelToggle).shown;
+      expect(sash.evaluate().isNotEmpty, panel);
+      // The conversation at the sidebar's right, or at the window's left.
+      expect(tester.getRect(find.byType(ChatScreen)).left > 100, sidebar);
+      return (sidebar, panel);
+    }
+
+    await tap(panelToggle);
+    expect(shown(), (true, true));
+
+    // The panel asked for last, the sidebar gives way to a narrow window,
+    // and is back as it widens.
+    await resize(800);
+    expect(shown(), (false, true));
+    await resize(1400);
+    expect(shown(), (true, true));
+
+    // Asked for, the sidebar stays and the panel closes, until asked again.
+    await resize(800);
+    await tap(sidebarToggle);
+    expect(shown(), (true, false));
+    await resize(1400);
+    expect(shown(), (true, false));
+
+    // As the panel, asked for again: the sidebar closes.
+    await resize(800);
+    await tap(panelToggle);
+    expect(shown(), (false, true));
+    await resize(1400);
+    expect(shown(), (false, true));
+
+    // The sidebar asked for last, the panel gives way to a narrow window.
+    await tap(sidebarToggle);
+    expect(shown(), (true, true));
+    await resize(800);
+    expect(shown(), (true, false));
+    await resize(1400);
+    expect(shown(), (true, true));
   }, variant: _windows);
 
   testWidgets('over the IDE, the IDE\'s layout toggles as on its own title '
@@ -444,8 +526,12 @@ void main() {
     final button = tester.getRect(
       find.descendant(
         of: find.byType(ChatScreen),
-        matching: find.byType(OpenInEditorButton),
+        matching: find.byType(SidePanelToggle),
       ),
+    );
+    expect(
+      button.left,
+      greaterThan(tester.getRect(find.byType(OpenInEditorButton)).right),
     );
     // Level with the composer's, as the title is with its left.
     expect(button.right, tester.getRect(find.byType(ChatComposer)).right);

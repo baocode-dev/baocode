@@ -43,7 +43,11 @@ class RemoteServer {
   }) : _log = log ?? ((_) {}) {
     _streams = ServerStreams(peer);
     ServerReview(peer, checkpoints: p.join(dataDir, 'checkpoints'));
-    _pty = ServerPty(peer, log: _log);
+    _pty = ServerPty(
+      peer,
+      log: _log,
+      claudeDirectory: () => _claude.commandDirectory(),
+    );
     _tcp = ServerTcp(peer);
     _lsp = ServerLsp(
       peer,
@@ -278,6 +282,18 @@ class RemoteServer {
       }
       // A key goes in a file only the user reads (in memory where there is
       // a place for it), never the command line.
+      final environment = {
+        ...cli.environment,
+        for (final name in (args['cleared'] as List? ?? const []))
+          name as String: '',
+        ...?(args['environment'] as Map?)?.cast<String, String>(),
+        ...ClaudeEnvironment.stateDirectory(cli.environment),
+      };
+      final arguments = ServerClaude.argumentsFor(
+        (args['arguments'] as List).cast<String>(),
+        root: ServerClaude.runsAsRoot,
+        environment: environment,
+      );
       final settings = switch (args['settings']) {
         final Map settings => await ClaudeSettingsFile.write(
           settings.cast<String, Object?>(),
@@ -289,17 +305,11 @@ class RemoteServer {
         process = await Process.start(
           cli.executable,
           [
-            ...(args['arguments'] as List).cast<String>(),
+            ...arguments,
             if (settings != null) ...['--settings', settings],
           ],
           workingDirectory: cwd,
-          environment: {
-            ...cli.environment,
-            for (final name in (args['cleared'] as List? ?? const []))
-              name as String: '',
-            ...?(args['environment'] as Map?)?.cast<String, String>(),
-            ...ClaudeEnvironment.stateDirectory(cli.environment),
-          },
+          environment: environment,
           includeParentEnvironment: false,
         );
       } on Object {

@@ -38,6 +38,10 @@ const showSetupGuideCommandId = 'baocode.tips.showSetupGuide';
 /// and their notifications showing again as at a first launch.
 const resetFeatureTipsCommandId = 'baocode.tips.reset';
 
+/// Star BaoCode on GitHub: the ask StarPrompt makes after the first
+/// conversations, any time.
+const starOnGitHubCommandId = 'baocode.starOnGitHub';
+
 /// A command a keybinding may run, as the Keyboard Shortcuts page lists it.
 @immutable
 class CommandInfo {
@@ -131,6 +135,11 @@ final Map<String, CommandInfo> commandCatalog = {
     const CommandInfo(
       resetFeatureTipsCommandId,
       'Reset Feature Tips',
+      category: 'Help',
+    ),
+    const CommandInfo(
+      starOnGitHubCommandId,
+      'Star BaoCode on GitHub',
       category: 'Help',
     ),
     const CommandInfo(

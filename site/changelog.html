@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BaoCode Changelog</title>
+<meta name="description" content="What changed in each version of BaoCode.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/style.css">
+<link rel="alternate" hreflang="en" href="https://baocode.dev/changelog">
+<link rel="alternate" hreflang="zh" href="https://baocode.dev/zh/changelog">
+</head>
+<body>
+<!-- Made by tool/build_changelog.dart from release-notes/: edit those, not this. -->
+<canvas class="grid" aria-hidden="true"></canvas>
+<svg class="sprite" aria-hidden="true">
+  <!-- Lucide (ISC), https://lucide.dev -->
+  <symbol id="ic-github" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5c.08-1.25-.27-2.48-1-3.5c.28-1.15.28-2.35 0-3.5c0 0-1 0-3 1.5c-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5c-.39.49-.68 1.05-.85 1.65S8.93 17.38 9 18v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></g></symbol>
+</svg>
+<header class="top">
+  <a class="brand" href="/"><img src="/icon.png" alt="">BaoCode</a>
+  <a href="/download">Download</a>
+  <a href="/changelog" aria-current="page">Changelog</a>
+  <a href="https://github.com/baocode-dev/baocode"><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>GitHub</a>
+  <a class="lang" href="/zh/changelog" hreflang="zh" lang="zh-CN">中文</a>
+</header>
+
+<main class="page changelog">
+  <h1>Changelog</h1>
+  <p class="subtitle">What changed in each version of BaoCode.</p>
+
+  <section class="release" id="v1.0.0">
+    <h2 class="plain"><a href="#v1.0.0">1.0.0</a></h2>
+    <p>The first release of BaoCode: a desktop app for Claude Code, with a fast IDE built in. For macOS (Apple silicon and Intel) and Windows.</p>
+    <p>Chat</p>
+    <ul>
+    <li>Steps fold into single lines, and the current task and its progress stay above the input</li>
+    <li>Review what Claude changed, file by file, and keep or undo it; checkpoints never touch your repository’s .git</li>
+    <li>Give Claude a goal with /goal, and it keeps working until the goal is met</li>
+    <li>A rich-text input: paste images, drop in files, and copy code from the editor as a reference to its lines</li>
+    <li>Edit a message you sent, search your conversations, and see your context and plan usage</li>
+    <li>Run several agents side by side, in tabs or in windows of their own</li>
+    <li>Choose how the commits and pull requests Claude writes are credited</li>
+    </ul>
+    <p>SSH remote projects</p>
+    <ul>
+    <li>Open a folder on a Linux host over SSH, as with VS Code’s Remote-SSH: the window stays on your machine, and files, search, Git, terminals, language servers and Claude Code run on the host</li>
+    <li>Pick a host from ~/.ssh/config, or type user@host</li>
+    <li>Claude Code is installed on a host that has none, and your models work there too</li>
+    <li>Reconnects by itself; when a host can’t be reached, you’re told why and can retry</li>
+    </ul>
+    <p>Fast IDE</p>
+    <ul>
+    <li>An editor, a terminal and Source Control with a commit graph and Git blame</li>
+    <li>Your VS Code themes, keybindings and language servers</li>
+    <li>Markdown files open as a preview you can edit in place, Typora’s way</li>
+    <li>Commit messages drafted by Claude Code, for you to edit and commit</li>
+    </ul>
+    <p>Models and extensions</p>
+    <ul>
+    <li>Use other models through Claude Code: Anthropic’s API, OpenAI’s Chat Completions or Responses, with API keys kept in the system keychain</li>
+    <li>Choose the model for each part of Claude Code’s work, and for titles and commit messages</li>
+    <li>Plugins, MCP servers, skills, subagents, rules, commands and hooks in one place, with your skills from claude.ai</li>
+    </ul>
+    <p>Around the app</p>
+    <ul>
+    <li>Notifications, a sound and a count on the app’s icon when an agent needs you; agents keep running in the menu bar or tray when the window is closed</li>
+    <li>Open a folder in BaoCode from Finder or Explorer, and keep a window on top of others</li>
+    <li>In English and Chinese</li>
+    <li>Updates itself in the background, and asks before restarting</li>
+    </ul>
+  </section>
+</main>
+
+<script src="/site.js"></script>
+</body>
+</html>

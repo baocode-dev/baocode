@@ -2,6 +2,7 @@ import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
 import 'package:baocode/kernel/kernel_types.dart';
+import 'package:baocode/kernel/transcript.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/model_providers.dart';
@@ -342,6 +343,37 @@ void main() {
     expect(launches.last.resume, 's1');
     expect(launches.last.model, 'm');
     expect(clis.last.users.single['uuid'], 'u2');
+    kernel.dispose();
+  });
+
+  test('full access in Plan approves on a provider\'s model, with no '
+      'classifier to leave commands to', () async {
+    final (:kernel, launches: _, :clis, environments: _) = start(providers, {
+      'model': '@other/m',
+      'permission': 'bypassPermissions',
+      'mode': 'plan',
+    });
+    final transcript = Transcript();
+    kernel.events.listen(transcript.apply);
+    kernel.send(const KernelTurn(id: 'u1', text: 'go'));
+    await pumpEventQueue();
+    final cli = clis.single;
+    void ask(String id, String tool, Map<String, Object?> input) => cli.push({
+      'type': 'control_request',
+      'request_id': id,
+      'request': {'subtype': 'can_use_tool', 'tool_name': tool, 'input': input},
+    });
+    const command = {'command': r'for f in a b; do grep x "$f"; done'};
+
+    ask('r1', 'Bash', command);
+    await pumpEventQueue();
+    expect(transcript.pendingInteraction, isNull);
+    expect(cli.responses.last['behavior'], 'allow');
+    expect(cli.responses.last['updatedInput'], command);
+    // The plan is still the user's.
+    ask('r2', 'ExitPlanMode', {'plan': '1. Do it'});
+    await pumpEventQueue();
+    expect(transcript.pendingInteraction, isA<PlanReviewRequest>());
     kernel.dispose();
   });
 

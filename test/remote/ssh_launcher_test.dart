@@ -20,9 +20,9 @@ class FakeBinaries implements RemoteServerBinaries {
   final reads = <String>[];
 
   @override
-  Future<List<int>?> read(String arch) async {
-    reads.add(arch);
-    return files[arch];
+  Future<List<int>?> read(String platform) async {
+    reads.add(platform);
+    return files[platform];
   }
 }
 
@@ -64,6 +64,21 @@ case "$dest" in
   unreachable) echo "ssh: Could not resolve hostname unreachable: nodename nor servname provided, or not known" >&2; exit 255 ;;
   locked) echo "me@locked: Permission denied (publickey)." >&2; exit 255 ;;
   changed) echo "Host key verification failed." >&2; exit 255 ;;
+  secret)
+    # Signs in with a password, asked up to three times.
+    denied="me@secret: Permission denied (publickey,password)."
+    [ -n "$SSH_ASKPASS" ] || { echo "$denied" >&2; exit 255; }
+    n=0
+    while :; do
+      n=$((n + 1))
+      [ "$n" -gt 3 ] && { echo "$denied" >&2; exit 255; }
+      pw=$("$SSH_ASKPASS" "me@secret's password: ") || { echo "$denied" >&2; exit 255; }
+      [ "$pw" = hunter2 ] && break
+    done ;;
+  stranger)
+    answer=$("$SSH_ASKPASS" "The authenticity of host 'stranger' can't be established.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? ")
+    [ "$answer" = yes ] || { echo "Host key verification failed." >&2; exit 255; } ;;
 esac
 cd "$HOME" || exit 255
 exec /bin/sh -c "$*"
@@ -75,7 +90,7 @@ exec /bin/sh -c "$*"
   tearDown(() => sandbox.deleteSync(recursive: true));
 
   SshProcessStarter starter({Map<String, String> extra = const {}}) =>
-      (executable, arguments) => Process.start(
+      (executable, arguments, {environment}) => Process.start(
         executable,
         arguments,
         environment: {
@@ -83,6 +98,7 @@ exec /bin/sh -c "$*"
           'PATH': '$fakeBin:/usr/bin:/bin',
           'FAKE_LOG': log.path,
           ...extra,
+          ...?environment,
         },
         includeParentEnvironment: false,
       );
@@ -97,7 +113,7 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
       : const [];
 
   test('probes, installs the server once, starts it and talks to it', () async {
-    final binaries = FakeBinaries('1-abc', {'x64': serverScript()});
+    final binaries = FakeBinaries('1-abc', {'linux-x64': serverScript()});
     final launcher = SshLauncher(
       ssh: fakeSsh,
       binaries: binaries,
@@ -116,7 +132,7 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     );
     expect(installed.existsSync(), isTrue);
     expect(installed.readAsBytesSync(), serverScript());
-    expect(binaries.reads, ['x64']);
+    expect(binaries.reads, ['linux-x64']);
     expect(progress.any((line) => line.contains('Installing')), isTrue);
     expect(commands(), [
       'sh -s',
@@ -136,7 +152,7 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     // Again: already there, so not sent again.
     log.deleteSync();
     final again = await launcher.connect(SshTarget.parse('dev'));
-    expect(binaries.reads, ['x64']);
+    expect(binaries.reads, ['linux-x64']);
     expect(commands(), ['sh -s', '.baocode-server/1-abc/baocode-server']);
     await again.close();
   }, timeout: const Timeout(Duration(minutes: 2)));
@@ -161,8 +177,130 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     expect(await failure('changed'), SshFailure.hostKey);
   });
 
-  test('a host other than Linux on x64 or arm64 is refused', () async {
-    for (final (system, machine) in [('Darwin', 'arm64'), ('Linux', 'i686')]) {
+  test('a password is asked for each ssh, again when refused', () async {
+    final binaries = FakeBinaries('1-abc', {'linux-x64': serverScript()});
+    final asked = <SshPrompt>[];
+    var answers = ['wrong', 'hunter2'];
+    final launcher = SshLauncher(
+      ssh: fakeSsh,
+      binaries: binaries,
+      start: starter(),
+      prompter: (prompt) async {
+        asked.add(prompt);
+        if (answers.isEmpty) return 'hunter2';
+        return answers.removeAt(0);
+      },
+    );
+    expect(
+      launcher.arguments(SshTarget.parse('dev'), 'cmd'),
+      contains('BatchMode=no'),
+    );
+    final connection = await launcher.connect(SshTarget.parse('secret'));
+    expect(connection.hello.home, home.path);
+    // The probe twice (the first refused), the upload, the server.
+    expect(
+      [for (final prompt in asked) prompt.retry],
+      [false, true, false, false],
+    );
+    expect(asked.first.text, "me@secret's password: ");
+    expect(asked.first.target.text, 'secret');
+    await connection.close();
+
+    // Cancelled: said so, nothing more asked.
+    asked.clear();
+    answers = [];
+    final cancelling = SshLauncher(
+      ssh: fakeSsh,
+      binaries: binaries,
+      start: starter(),
+      prompter: (prompt) async {
+        asked.add(prompt);
+        return null;
+      },
+    );
+    await expectLater(
+      cancelling.connect(SshTarget.parse('secret')),
+      throwsA(
+        isA<SshConnectException>()
+            .having((e) => e.failure, 'failure', SshFailure.authentication)
+            .having((e) => e.message, 'message', contains('cancelled')),
+      ),
+    );
+    expect(asked, hasLength(1));
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('a host key it does not know is refused, not asked', () async {
+    final asked = <SshPrompt>[];
+    final launcher = SshLauncher(
+      ssh: fakeSsh,
+      binaries: FakeBinaries('1', const {}),
+      start: starter(),
+      prompter: (prompt) async {
+        asked.add(prompt);
+        return 'yes';
+      },
+    );
+    await expectLater(
+      launcher.connect(SshTarget.parse('stranger')),
+      throwsA(
+        isA<SshConnectException>().having(
+          (e) => e.failure,
+          'failure',
+          SshFailure.hostKey,
+        ),
+      ),
+    );
+    expect(asked, isEmpty);
+  });
+
+  test('a Mac is given the macOS build', () async {
+    final binaries = FakeBinaries('1-abc', {'darwin-arm64': serverScript()});
+    final launcher = SshLauncher(
+      ssh: fakeSsh,
+      binaries: binaries,
+      start: starter(extra: {'FAKE_SYSTEM': 'Darwin', 'FAKE_MACHINE': 'arm64'}),
+    );
+    final connection = await launcher.connect(SshTarget.parse('mac'));
+    expect(connection.hello.home, home.path);
+    expect(binaries.reads, ['darwin-arm64']);
+    await connection.close();
+
+    // An Intel one, with no build for it: said so, nothing sent.
+    log.deleteSync();
+    final intel = SshLauncher(
+      ssh: fakeSsh,
+      binaries: FakeBinaries('2', const {}),
+      start: starter(
+        extra: {'FAKE_SYSTEM': 'Darwin', 'FAKE_MACHINE': 'x86_64'},
+      ),
+    );
+    await expectLater(
+      intel.connect(SshTarget.parse('mac')),
+      throwsA(
+        isA<SshConnectException>()
+            .having((e) => e.failure, 'failure', SshFailure.server)
+            .having((e) => e.message, 'message', contains('macOS x64')),
+      ),
+    );
+    expect(commands(), ['sh -s']);
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('platforms as the builds are named', () {
+    expect(SshLauncher.platform('Linux', 'x86_64'), 'linux-x64');
+    expect(SshLauncher.platform('Linux', 'aarch64'), 'linux-arm64');
+    expect(SshLauncher.platform('Darwin', 'arm64'), 'darwin-arm64');
+    expect(SshLauncher.platform('Darwin', 'x86_64'), 'darwin-x64');
+    expect(SshLauncher.platform('FreeBSD', 'amd64'), isNull);
+    expect(SshLauncher.describe('darwin-arm64'), 'macOS arm64');
+    expect(SshLauncher.describe('linux-x64'), 'Linux x64');
+  });
+
+  test('a host other than Linux or macOS on x64 or arm64 is refused', () async {
+    for (final (system, machine) in [
+      ('FreeBSD', 'amd64'),
+      ('Linux', 'i686'),
+      ('Darwin', 'i386'),
+    ]) {
       final launcher = SshLauncher(
         ssh: fakeSsh,
         binaries: FakeBinaries('1', const {}),

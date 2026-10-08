@@ -4,12 +4,14 @@ import 'package:baocode/theme/workbench_theme.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
 
+import '../flutter_test_config.dart' show testColorTheme;
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('starts in the kept theme and loads it', () async {
     final themes = WorkbenchThemeService.instance;
-    expect(themes.colorThemeId, ThemeSettingDefaults.colorThemeDark);
+    expect(themes.colorThemeId, testColorTheme);
     expect(themes.colors.dark, isTrue);
     expect(themes.colors.get('editor.background'), isNotNull);
     final restored = themes.colorTheme;
@@ -17,7 +19,7 @@ void main() {
 
     await themes.initialize();
     expect(themes.colorTheme.isLoaded, isTrue);
-    expect(themes.colorTheme.settingsId, ThemeSettingDefaults.colorThemeDark);
+    expect(themes.colorTheme.settingsId, testColorTheme);
     expect(
       themes.colors['editor.background'],
       WorkbenchColors(restored)['editor.background'],
@@ -31,23 +33,30 @@ void main() {
   });
 
   test('the initial colors paint until the theme loads', () async {
-    final themes = WorkbenchThemeService()
-      ..restore(setting: ThemeSettingDefaults.colorThemeLight);
-    expect(themes.colorThemeId, ThemeSettingDefaults.colorThemeLight);
+    final themes = WorkbenchThemeService()..restore(setting: 'Light 2026');
+    expect(themes.colorThemeId, 'Light 2026');
     expect(
       themes.colors['editor.background'],
       const Color(0xFFFFFFFF),
       reason: 'COLOR_THEME_LIGHT_INITIAL_COLORS',
     );
     await themes.initialize();
-    expect(themes.colorTheme.settingsId, ThemeSettingDefaults.colorThemeLight);
+    expect(themes.colorTheme.settingsId, 'Light 2026');
     expect(themes.colors.dark, isFalse);
   });
 
   test('a theme gone falls back to the default', () async {
     final themes = WorkbenchThemeService()..restore(setting: 'No Such Theme');
     await themes.initialize();
-    expect(themes.colorTheme.settingsId, ThemeSettingDefaults.colorThemeDark);
+    expect(themes.colorTheme.settingsId, 'Monokai');
+  });
+
+  test('with no theme kept, Monokai is the default', () async {
+    final themes = WorkbenchThemeService()..restore();
+    expect(themes.colorThemeId, 'Monokai');
+    await themes.initialize();
+    expect(themes.colorTheme.settingsId, 'Monokai');
+    expect(themes.colors.dark, isTrue);
   });
 
   test(
@@ -65,19 +74,13 @@ void main() {
         ..restore(setting: 'Visual Studio Light', data: data);
       expect(themes.colorTheme.type, ColorScheme.light);
       await themes.initialize();
-      expect(
-        themes.colorTheme.settingsId,
-        ThemeSettingDefaults.colorThemeLight,
-      );
+      expect(themes.colorTheme.settingsId, 'Quiet Light');
     },
   );
 
   test('old setting ids are migrated', () {
     expect(migrateThemeSettingsId('Default Dark Modern'), 'Dark Modern');
-    expect(
-      migrateThemeSettingsId('VS Code Light'),
-      ThemeSettingDefaults.colorThemeLight,
-    );
+    expect(migrateThemeSettingsId('VS Code Light'), 'Light 2026');
     expect(migrateThemeSettingsId('Monokai'), 'Monokai');
   });
 

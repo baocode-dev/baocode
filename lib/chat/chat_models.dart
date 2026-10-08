@@ -312,6 +312,17 @@ class CodeDiffItem extends ChatItem {
   final String fileName;
   final String directory;
 
+  /// The file's path, as the agent gave it.
+  String get path => directory.isEmpty ? fileName : '$directory/$fileName';
+
+  /// The first line added or removed, numbered as in the file now.
+  int? get firstChangedLine {
+    for (final line in lines) {
+      if (line.type != DiffLineType.context) return line.lineNumber;
+    }
+    return null;
+  }
+
   /// The changed lines, perhaps only the first of them.
   final List<DiffLine> lines;
   final int? _added;

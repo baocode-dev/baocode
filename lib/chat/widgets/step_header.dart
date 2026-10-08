@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/app_theme.dart';
+import '../../theme/codicons.dart';
 import 'hover_builder.dart';
 import 'shimmer_text.dart';
 import 'wheel_latch.dart';
@@ -10,7 +11,8 @@ import 'wheel_latch.dart';
 /// Header of a step the agent took, e.g. "Ran  Check the Flutter version":
 /// what it did, then what on, muted. While it is [running] the whole line
 /// shimmers. With [onToggle] it opens and closes on a tap; a chevron shows
-/// while hovered or open.
+/// while hovered or open. With [onOpen] a tap opens its file instead (an
+/// icon says so while hovered), and the chevron alone opens and closes it.
 class StepHeader extends StatelessWidget {
   const StepHeader({
     super.key,
@@ -20,6 +22,8 @@ class StepHeader extends StatelessWidget {
     this.running = false,
     this.expanded = false,
     this.onToggle,
+    this.onOpen,
+    this.openTooltip,
     this.icon,
     this.trailing,
     this.action,
@@ -34,6 +38,12 @@ class StepHeader extends StatelessWidget {
   final bool running;
   final bool expanded;
   final VoidCallback? onToggle;
+
+  /// Opens the file it is about (in the side panel, say).
+  final VoidCallback? onOpen;
+
+  /// What [onOpen] does, for assistive technologies and the hover.
+  final String? openTooltip;
 
   /// Before the line, e.g. a message's arrows.
   final Widget? icon;
@@ -92,8 +102,11 @@ class StepHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: AppColors.textMuted, fontSize: fontSize),
           );
+    final open = onOpen;
+    // Opening the file, the line's click; the chevron alone toggles.
+    final click = open ?? toggle;
     final header = HoverBuilder(
-      cursor: toggle == null ? MouseCursor.defer : SystemMouseCursors.click,
+      cursor: click == null ? MouseCursor.defer : SystemMouseCursors.click,
       builder: (context, hovered) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
@@ -109,38 +122,74 @@ class StepHeader extends StatelessWidget {
               const SizedBox(width: 6),
               trailing,
             ],
-            if (toggle != null && (hovered || expanded)) ...[
+            if (open != null && hovered) ...[
+              const SizedBox(width: 5),
+              SelectionContainer.disabled(
+                child: Icon(Codicons.goToFile, size: 13, color: AppColors.text),
+              ),
+            ],
+            if (toggle != null && open == null && (hovered || expanded)) ...[
               const SizedBox(width: 2),
               // Comes and goes with the hover: kept out of the selection,
               // which would otherwise re-resolve its edges each time.
-              SelectionContainer.disabled(
-                child: AnimatedRotation(
-                  turns: expanded ? 0.25 : 0,
-                  duration: const Duration(milliseconds: 150),
-                  child: Icon(
-                    Icons.chevron_right_rounded,
-                    size: 16,
-                    color: hovered ? AppColors.text : AppColors.textMuted,
-                  ),
-                ),
-              ),
+              SelectionContainer.disabled(child: _chevron(hovered)),
             ],
           ],
         ),
       ),
     );
-    return Row(
+    Widget clickable = click == null
+        ? header
+        : _ClickListener(onClick: click, child: header);
+    if (open != null) {
+      clickable = Semantics(
+        button: true,
+        label: openTooltip,
+        child: clickable,
+      );
+    }
+    Widget row(bool rowHovered) => Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Flexible(
-          child: toggle == null
-              ? header
-              : _ClickListener(onClick: toggle, child: header),
-        ),
+        Flexible(child: clickable),
+        // Its own target: the line's click opens the file. Shown as the
+        // chevron of a step that only toggles is, kept in place between.
+        if (open != null && toggle != null)
+          SelectionContainer.disabled(
+            child: Opacity(
+              opacity: rowHovered || expanded ? 1 : 0,
+              child: HoverBuilder(
+                cursor: SystemMouseCursors.click,
+                builder: (context, hovered) => GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: toggle,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 2,
+                      vertical: 3,
+                    ),
+                    child: _chevron(hovered),
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (action case final action?) ...[const SizedBox(width: 10), action],
       ],
     );
+    if (open == null || toggle == null) return row(false);
+    return HoverBuilder(builder: (context, hovered) => row(hovered));
   }
+
+  Widget _chevron(bool hovered) => AnimatedRotation(
+    turns: expanded ? 0.25 : 0,
+    duration: const Duration(milliseconds: 150),
+    child: Icon(
+      Icons.chevron_right_rounded,
+      size: 16,
+      color: hovered ? AppColors.text : AppColors.textMuted,
+    ),
+  );
 }
 
 /// Calls [onClick] on a plain click: not a drag, not with Shift (which

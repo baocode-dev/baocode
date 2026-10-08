@@ -5,8 +5,8 @@
 // `COLOR_THEME_DARK_INITIAL_COLORS` and `COLOR_THEME_LIGHT_INITIAL_COLORS`
 // from VS Code 6a598d4a13031703d483d103c1d934a36ad27971
 // src/vs/workbench/services/themes/common/workbenchThemeService.ts: what the
-// workbench paints with before the default theme's file is read, the first
-// time.
+// workbench paints with before Dark 2026's or Light 2026's file is read, the
+// first time.
 
 const Map<String, String> colorThemeDarkInitialColors = {
   'actionBar.toggledBackground': '#383a49',

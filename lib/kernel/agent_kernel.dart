@@ -52,10 +52,19 @@ abstract interface class AgentKernel {
 
 /// Where a kernel works and what it picks up from.
 class KernelContext {
-  const KernelContext({this.cwd, this.resume, this.settings = const {}});
+  const KernelContext({
+    this.cwd,
+    this.resume,
+    this.settings = const {},
+    this.workspace,
+  });
 
   /// The project directory.
   final String? cwd;
+
+  /// The multi-folder workspace [cwd] is the folder of, as it is now (its
+  /// folders may change between launches); none for a folder's project.
+  final KernelWorkspace? Function()? workspace;
 
   /// An earlier session to continue, as its catalog listed it.
   final SessionRecord? resume;
@@ -66,6 +75,17 @@ class KernelContext {
 }
 
 // --- Capabilities -----------------------------------------------------------
+
+/// The folders an agent works in besides its directory, those of a
+/// multi-folder workspace, and what it is told of them.
+class KernelWorkspace {
+  const KernelWorkspace({required this.folders, this.instructions = ''});
+
+  final List<String> folders;
+
+  /// Added to the agent's system prompt.
+  final String instructions;
+}
 
 /// A setting the kernel offers a choice for. What is in effect is what the
 /// kernel reports, not what was last asked for.
@@ -172,8 +192,18 @@ abstract interface class RevertsChanges {
 
 abstract interface class RewindsConversation {
   /// Drops the conversation from the user message [itemId] (item [index],
-  /// with [turns] turns after it) on, to go on from there.
-  void rewind({required String itemId, required int index, required int turns});
+  /// with [turns] turns after it) on, to go on from there. [lastSeen] is
+  /// the latest user message shown, for the agent to tell nothing came
+  /// after it unseen.
+  ///
+  /// Completes with whether it did: turned down, the conversation is left
+  /// as it was.
+  Future<bool> rewind({
+    required String itemId,
+    required int index,
+    required int turns,
+    String? lastSeen,
+  });
 }
 
 abstract interface class RenamesSession {

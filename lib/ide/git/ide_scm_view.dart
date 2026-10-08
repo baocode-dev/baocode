@@ -52,6 +52,7 @@ import '../ide_list.dart';
 import '../ide_menu.dart';
 import '../ide_notifications.dart';
 import '../ide_panes.dart';
+import '../ide_spinning.dart';
 import '../ide_workspace.dart';
 import 'commit_message.dart';
 import 'git_graph_painter.dart';
@@ -266,6 +267,14 @@ class IdeScmViewState extends State<IdeScmView>
     if (oldWidget.session != widget.session) {
       oldWidget.session.message.removeListener(_messageChanged);
       widget.session.message.addListener(_messageChanged);
+      // Another repository of a workspace's: its own rows.
+      _message = _session.message.text;
+      _validation = null;
+      _selected = null;
+      _selection.clear();
+      _anchor = null;
+      _selectedCommit = null;
+      _changes.clear();
     }
   }
 
@@ -316,6 +325,9 @@ class IdeScmViewState extends State<IdeScmView>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           IdeViewTitle(context.l10n.scmTitle),
+          // A workspace's folders' repositories, the one shown picked.
+          if (widget.workspace.repositories.length > 1)
+            _Repositories(workspace: widget.workspace),
           Expanded(
             child: git == null
                 ? _Welcome([context.l10n.scmNoProviders])
@@ -2376,7 +2388,7 @@ class _SplitButtonState extends State<_SplitButton> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (widget.spinning) ...[
-                  _Spinning(Icon(Codicons.sync, size: 16, color: foreground)),
+                  IdeSpinning(Icon(Codicons.sync, size: 16, color: foreground)),
                   const SizedBox(width: 4),
                 ] else if (widget.icon case final icon?) ...[
                   Icon(icon, size: 16, color: foreground),
@@ -2467,57 +2479,6 @@ class _SplitButtonState extends State<_SplitButton> {
       ),
     );
   }
-}
-
-/// A codicon turning as `codicon-modifier-spin` turns one: once in 1.5s, in
-/// 30 steps; still where motion is turned down.
-class _Spinning extends StatefulWidget {
-  const _Spinning(this.child);
-
-  final Widget child;
-
-  @override
-  State<_Spinning> createState() => _SpinningState();
-}
-
-class _SpinningState extends State<_Spinning>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _turns = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1500),
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _turns.stop();
-    } else if (!_turns.isAnimating) {
-      unawaited(_turns.repeat());
-    }
-  }
-
-  @override
-  void dispose() {
-    _turns.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => RotationTransition(
-    turns: _turns.drive(CurveTween(curve: const _Steps(30))),
-    child: widget.child,
-  );
-}
-
-/// CSS `steps(n)`: jumps at the end of each of [steps] intervals.
-class _Steps extends Curve {
-  const _Steps(this.steps);
-
-  final int steps;
-
-  @override
-  double transformInternal(double t) => (t * steps).floor() / steps;
 }
 
 /// A reference badge: 18px high and round, in the reference's color, with
@@ -2820,4 +2781,95 @@ String _subject(IdeGitCommit commit, AppLocalizations l10n) {
   if (commit.id == ideIncomingChangesId) return l10n.scmIncomingChanges;
   if (commit.id == ideOutgoingChangesId) return l10n.scmOutgoingChanges;
   return commit.subject;
+}
+
+/// VS Code's Source Control Repositories view: a workspace's repositories,
+/// each with its branch and how many changes; the one clicked is the one
+/// Source Control shows.
+class _Repositories extends StatelessWidget {
+  const _Repositories({required this.workspace});
+
+  final IdeWorkspace workspace;
+
+  @override
+  Widget build(BuildContext context) {
+    final repositories = workspace.repositories;
+    return ListenableBuilder(
+      listenable: Listenable.merge([for (final (_, git) in repositories) git]),
+      builder: (context, _) {
+        final active = workspace.git;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                child: Text(
+                  context.l10n.scmRepositories,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: IdePaneColors.headerForeground,
+                  ),
+                ),
+              ),
+              for (final (root, git) in repositories)
+                IdeListRow(
+                  key: ValueKey(root),
+                  selected: identical(git, active),
+                  focused: true,
+                  tooltip: root,
+                  onTap: () => workspace.selectRepository(git),
+                  builder: (context, hovered) => Padding(
+                    padding: const EdgeInsets.only(left: 12, right: 8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Codicons.repo,
+                          size: 16,
+                          color: themeColors['icon.foreground'],
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            p.basename(root),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                        if (git.state?.head.branch case final branch?) ...[
+                          const SizedBox(width: 6),
+                          Icon(
+                            Codicons.gitBranch,
+                            size: 12,
+                            color: themeColors['descriptionForeground'],
+                          ),
+                          const SizedBox(width: 2),
+                          Flexible(
+                            child: Text(
+                              branch,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: themeColors['descriptionForeground'],
+                              ),
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        if (git.state?.count case final count? when count > 0)
+                          IdeCountBadge(count),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }

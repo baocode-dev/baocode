@@ -663,7 +663,9 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
         'description': 'Run the tests',
         'run_in_background': true,
       },
-      result: 'Command running in background with ID: $taskId',
+      result:
+          'Command running in background with ID: $taskId. '
+          'Output is being written to: /tmp/$taskId.output.',
       structured: {'stdout': '', 'stderr': '', 'backgroundTaskId': taskId},
     );
     if (bash == null) return;

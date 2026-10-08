@@ -606,6 +606,117 @@
   "@chatTerminalHide": {
     "description": "Tooltip of the chat window's terminal panel close button."
   },
+  "cmdToggleSidePanel": "Toggle Side Panel",
+  "@cmdToggleSidePanel": {
+    "description": "Command title: shows or hides the agent window's side panel."
+  },
+  "cmdSidePanelChanges": "Show Agent Changes",
+  "cmdSidePanelFiles": "Show Agent Files",
+  "cmdSidePanelTerminal": "Show Agent Terminals",
+  "cmdSidePanelCloseTab": "Close Side Panel Tab",
+  "sidePanelFiles": "Files",
+  "sidePanelTerminal": "Terminal",
+  "sidePanelNoTerminals": "No background commands",
+  "sidePanelTaskCompleted": "Completed",
+  "sidePanelTaskFailed": "Failed",
+  "sidePanelWaitingOutput": "Waiting for output",
+  "sidePanelOutputUnavailable": "Output unavailable",
+  "sidePanelShow": "Show side panel",
+  "@sidePanelShow": {
+    "description": "Tooltip of the title bar button that shows the side panel."
+  },
+  "sidePanelHide": "Hide side panel",
+  "@sidePanelHide": {
+    "description": "Tooltip of the button that hides the side panel."
+  },
+  "sidePanelChanges": "Changes",
+  "@sidePanelChanges": {
+    "description": "The side panel's tab listing the files the agent changed."
+  },
+  "sidePanelNoChanges": "No changes yet",
+  "@sidePanelNoChanges": {
+    "description": "The side panel's Changes tab while the agent changed nothing."
+  },
+  "sidePanelNoChangesDetail": "Changes in the project's Git working tree and index show here.",
+  "@sidePanelNoChangesDetail": {
+    "description": "Under sidePanelNoChanges."
+  },
+  "sidePanelOpenFile": "Open in side panel",
+  "@sidePanelOpenFile": {
+    "description": "Hover of a file read in the conversation: a click opens it in the side panel."
+  },
+  "sidePanelOpenDiff": "Show changes in side panel",
+  "@sidePanelOpenDiff": {
+    "description": "Hover of a file edit in the conversation: a click shows its changes in the side panel."
+  },
+  "sidePanelOpenInIde": "Open in Fast Ide",
+  "@sidePanelOpenInIde": {
+    "description": "Button of a side panel preview that opens the file in the IDE."
+  },
+  "sidePanelCloseTab": "Close",
+  "@sidePanelCloseTab": {
+    "description": "Tooltip of a side panel tab's close button."
+  },
+  "sidePanelPreview": "Preview",
+  "@sidePanelPreview": {
+    "description": "Shows a markdown file rendered."
+  },
+  "sidePanelSource": "Source",
+  "@sidePanelSource": {
+    "description": "Shows a markdown file's text."
+  },
+  "sidePanelNoOriginal": "The file before the agent's changes is not known: showing it as it is.",
+  "@sidePanelNoOriginal": {
+    "description": "Over a side panel preview asked for a diff it cannot show."
+  },
+  "sidePanelUnchanged": "No differences",
+  "@sidePanelUnchanged": {
+    "description": "A side panel diff whose two sides are the same."
+  },
+  "sidePanelDeleted": "The agent deleted this file.",
+  "@sidePanelDeleted": {
+    "description": "Over the diff of a deleted file."
+  },
+  "sidePanelTerminals": "Terminals",
+  "@sidePanelTerminals": {
+    "description": "The side panel's terminal page: the group of the project's terminals in its list."
+  },
+  "sidePanelRevealInFiles": "Reveal in Files",
+  "@sidePanelRevealInFiles": {
+    "description": "Shows a file in the tree of the side panel's files page."
+  },
+  "sidePanelAddToChat": "Add to Chat",
+  "@sidePanelAddToChat": {
+    "description": "Puts the files of a row or tab of the side panel in the chat's composer."
+  },
+  "sidePanelBackgroundTasks": "Background Tasks",
+  "@sidePanelBackgroundTasks": {
+    "description": "The side panel's terminal page: the group of the agent's background commands in its list."
+  },
+  "sidePanelSelectFile": "Select a file to preview it",
+  "@sidePanelSelectFile": {
+    "description": "The side panel's files page with no file open."
+  },
+  "sidePanelSelectChange": "Select a changed file to see its changes",
+  "@sidePanelSelectChange": {
+    "description": "The side panel's changes page with no file's changes open."
+  },
+  "sidePanelSelectTerminal": "Select a background task to see its output",
+  "@sidePanelSelectTerminal": {
+    "description": "The side panel's terminal page with no command's output open."
+  },
+  "sidePanelNoFolder": "This conversation has no project folder",
+  "@sidePanelNoFolder": {
+    "description": "The side panel's files page for a conversation without a folder."
+  },
+  "sidePanelShowList": "Show List",
+  "@sidePanelShowList": {
+    "description": "Shows the list at the left of the side panel's pages."
+  },
+  "sidePanelHideList": "Hide List",
+  "@sidePanelHideList": {
+    "description": "Hides the list at the left of the side panel's pages."
+  },
   "windowMinimize": "Minimize",
   "windowMaximize": "Maximize",
   "windowRestore": "Restore",
@@ -782,6 +893,10 @@
   "sidebarUnpin": "Unpin",
   "sidebarArchive": "Archive",
   "sidebarUnarchive": "Unarchive",
+  "sidebarCopySessionId": "Copy session ID",
+  "@sidebarCopySessionId": {
+    "description": "An agent's menu in the sidebar: copies the id of its session, which Claude Code finds the conversation by."
+  },
   "sidebarShowMore": "Show more ({count})",
   "@sidebarShowMore": {
     "placeholders": {
@@ -1184,6 +1299,10 @@
   "composerCommands": "Commands",
   "@composerCommands": {
     "description": "Suggestion menu title."
+  },
+  "composerConversations": "Conversations",
+  "@composerConversations": {
+    "description": "Title of the menu @ opens in the composer: the other conversations to refer to, under their projects' folders."
   },
   "composerPlaceholder": "Plan, search, build anything  ·  drop or paste files  / for commands",
   "composerApprovalTitle": "How should {agent} get approval?",
@@ -1725,6 +1844,8 @@
   "generalSettingsTitle": "General",
   "generalSettingsCommitAttribution": "Commit Attribution",
   "generalSettingsCommitAttributionDescription": "Who the commits and pull requests an agent writes credit. Applies to agents started after a change; Claude Code only for now.",
+  "generalSettingsTelemetry": "Send Usage Data",
+  "generalSettingsTelemetryDescription": "Once a day BaoCode is used, it sends a random install ID, its version, and your system and processor type, so we can tell how many people use it and come back. Nothing about you, your code, or what you do in BaoCode (telemetry.telemetryLevel).",
   "generalSettingsCommitAttributionLabel": "Commit Attribution: {name}",
   "@generalSettingsCommitAttributionLabel": {
     "description": "The commit attribution dropdown, as read out: its setting and the choice in effect.",
@@ -4171,6 +4292,17 @@
     }
   },
   "remoteRetry": "Retry",
+  "remoteSignInTitle": "Sign in to {host}",
+  "@remoteSignInTitle": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteSignInRefused": "That was not accepted. Try again.",
+  "remoteSignInRemember": "Remember on this computer (in the system keychain)",
+  "remoteSignInConnect": "Connect",
   "remoteFolderPlaceholder": "A folder on {host}: pick one, or type a path",
   "@remoteFolderPlaceholder": {
     "placeholders": {
@@ -4383,5 +4515,114 @@
   "tipImportKeybindingsBody": "Bring your keybindings over from VS Code or Cursor.",
   "tipColorThemeBody": "Pick the colors of the chat, the IDE and the terminal.",
   "cmdShowSetupGuide": "Show Setup Guide",
-  "cmdResetFeatureTips": "Reset Feature Tips"
+  "cmdStarOnGitHub": "Star BaoCode on GitHub",
+  "starPromptMessage": "Enjoying BaoCode?",
+  "starPromptDetail": "BaoCode is free and open source. If it helps you, a star on GitHub helps other people find it.",
+  "starPromptStar": "Star on GitHub",
+  "starPromptLater": "Maybe Later",
+  "cmdResetFeatureTips": "Reset Feature Tips",
+  "newChatWorkspaceGroup": "Workspaces",
+  "@newChatWorkspaceGroup": {
+    "description": "The heading of the multi-folder workspaces in the menu of where a new chat works."
+  },
+  "newChatWorkspaceDetail": "{count, plural, =1{1 folder} other{{count} folders}} · {names}",
+  "@newChatWorkspaceDetail": {
+    "description": "Under a workspace in the menu of where a new chat works: how many folders it has, and their names.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "names": {
+        "type": "String",
+        "example": "monad, site"
+      }
+    }
+  },
+  "newChatCreateWorkspace": "Create Workspace…",
+  "@newChatCreateWorkspace": {
+    "description": "The menu's choice that makes a workspace of several folders for a new chat to work in."
+  },
+  "newChatCreateWorkspaceDetail": "Work across several folders",
+  "workspaceCreateTitle": "Create Workspace",
+  "@workspaceCreateTitle": {
+    "description": "The title of the dialog that makes a workspace of several folders."
+  },
+  "workspaceEditTitle": "Edit Workspace",
+  "workspaceName": "Name",
+  "@workspaceName": {
+    "description": "The label of a workspace's name in its dialog."
+  },
+  "workspaceNameHint": "My Workspace",
+  "workspaceFolders": "Folders",
+  "@workspaceFolders": {
+    "description": "The label of the list of a workspace's folders in its dialog."
+  },
+  "workspaceFoldersDescription": "Agents working in this workspace can read and change the files in these folders.",
+  "workspaceFoldersEmpty": "No folders yet. Add projects, or folders from {app}.",
+  "@workspaceFoldersEmpty": {
+    "placeholders": {
+      "app": {
+        "type": "String",
+        "example": "Finder"
+      }
+    }
+  },
+  "workspaceNoFolders": "Add at least one folder.",
+  "workspaceAddProject": "Add from Projects",
+  "@workspaceAddProject": {
+    "description": "Button in the workspace dialog listing the projects to add as its folders."
+  },
+  "workspaceAddFolder": "Add from {app}…",
+  "@workspaceAddFolder": {
+    "placeholders": {
+      "app": {
+        "type": "String",
+        "example": "Finder"
+      }
+    }
+  },
+  "workspaceNoProjects": "No projects to add",
+  "workspaceRemoveFolder": "Remove {name}",
+  "@workspaceRemoveFolder": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "monad"
+      }
+    }
+  },
+  "workspaceCreate": "Create",
+  "workspaceHover": "Workspace: {folders}",
+  "@workspaceHover": {
+    "description": "The hover of a workspace in the sidebar: its folders.",
+    "placeholders": {
+      "folders": {
+        "type": "String",
+        "example": "monad, site"
+      }
+    }
+  },
+  "sidebarEditWorkspace": "Edit Workspace…",
+  "sidebarDeleteWorkspace": "Delete Workspace",
+  "@sidebarDeleteWorkspace": {
+    "description": "Forgets a workspace; its folders and sessions are kept."
+  },
+  "ideWorkspaceTitle": "{name} (Workspace)",
+  "@ideWorkspaceTitle": {
+    "description": "The title of the explorer's folders when the IDE shows a workspace, as VS Code's.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "web"
+      }
+    }
+  },
+  "ideAddFolderToWorkspace": "Add Folder to Workspace…",
+  "ideRemoveFolderFromWorkspace": "Remove Folder from Workspace",
+  "ideEmptyWorkspace": "This workspace has no folders yet.",
+  "scmRepositories": "Repositories",
+  "@scmRepositories": {
+    "description": "The heading of Source Control's list of a workspace's Git repositories."
+  },
+  "cmdCreateWorkspace": "Create Workspace..."
 }
