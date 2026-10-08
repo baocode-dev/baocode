@@ -51,9 +51,19 @@ class ClaudeLaunch {
     this.persist = true,
     this.env,
     this.settingsPath,
+    this.directories = const [],
+    this.instructions,
   });
 
   final String cwd;
+
+  /// Folders it works in besides [cwd] (a multi-folder workspace's): each
+  /// an `--add-dir`, their `CLAUDE.md` read as [cwd]'s is.
+  final List<String> directories;
+
+  /// Told the agent after [appendedSystemPrompt] (what the workspace it
+  /// works in is); none when null.
+  final String? instructions;
 
   /// The session id to continue.
   final String? resume;
@@ -124,6 +134,8 @@ class ClaudeLaunch {
     persist: persist,
     env: env ?? this.env,
     settingsPath: settingsPath ?? this.settingsPath,
+    directories: directories,
+    instructions: instructions,
   );
 
   Map<String, String>? get _attribution => switch (attribution) {
@@ -140,7 +152,18 @@ class ClaudeLaunch {
     'attribution': ?_attribution,
     'useAutoModeDuringPlan': ?autoModeDuringPlan,
     'alwaysThinkingEnabled': ?thinking,
-    if (env case final env? when env.isNotEmpty) 'env': env,
+    if ({
+          ...?env,
+          if (directories.isNotEmpty) ...additionalDirectoriesEnvironment,
+        }
+        case final env when env.isNotEmpty)
+      'env': env,
+  };
+
+  /// Has Claude Code read the `CLAUDE.md` of the folders given with
+  /// `--add-dir`, as it does its working directory's.
+  static const additionalDirectoriesEnvironment = {
+    'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD': '1',
   };
 
   List<String> get arguments => _arguments(withSettings: true);
@@ -169,6 +192,7 @@ class ClaudeLaunch {
     if (effort case final effort?) ...['--effort', effort],
     if (autocompact case final tokens?) ...['--autocompact', '$tokens'],
     if (resume case final id?) ...['--resume', id],
+    for (final directory in directories) ...['--add-dir', directory],
     if (!withSettings)
       ...const <String>[]
     else if (settingsPath case final path?) ...[
@@ -180,7 +204,11 @@ class ClaudeLaunch {
     ],
     if (!persist) '--no-session-persistence',
     '--append-system-prompt',
-    appendedSystemPrompt,
+    switch (instructions) {
+      final instructions? when instructions.isNotEmpty =>
+        '$appendedSystemPrompt\n\n$instructions',
+      _ => appendedSystemPrompt,
+    },
   ];
 
   /// What the chat asks of the agent besides Claude Code's own prompt: how

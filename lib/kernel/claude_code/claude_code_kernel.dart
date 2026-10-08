@@ -232,6 +232,9 @@ class ClaudeCodeKernel
 
   String get _cwd => _context.cwd ?? _context.resume?.cwd ?? '.';
 
+  /// The workspace [_cwd] is the folder of, as it is at this launch.
+  KernelWorkspace? get _workspace => _context.workspace?.call();
+
   /// Starts the process, if not yet, and waits until it is ready.
   Future<void> _ensureStarted() {
     if (_disposed) return Future.error(StateError('disposed'));
@@ -281,6 +284,7 @@ class ClaudeCodeKernel
           );
         }
       }
+      final workspace = _workspace;
       _launchedProvider = _providerKey;
       _launchedWindow = _autocompact;
       final transport = await _start(
@@ -298,6 +302,8 @@ class ClaudeCodeKernel
           autocompact: _autocompact,
           attribution: CommitAttribution.current(),
           env: env,
+          directories: workspace?.folders ?? const [],
+          instructions: workspace?.instructions,
         ),
       );
       if (_disposed) {

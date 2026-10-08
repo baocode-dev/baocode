@@ -34,6 +34,7 @@ import 'ide/ide_notifications.dart';
 import 'ide/git/commit_message.dart';
 import 'ide/ide_quick_input.dart';
 import 'ide/ide_quick_open.dart';
+import 'ide/ide_welcome.dart' show IdeRecentWorkspace;
 import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
 import 'ide/lsp/language_features.dart';
@@ -91,6 +92,7 @@ import 'workspace/title_bar_double_click.dart';
 import 'workspace/window_controls.dart';
 import 'workspace/window_header/window_header.dart';
 import 'workspace/workspace.dart';
+import 'workspace/workspace_dialog.dart';
 
 /// The window: the agents sidebar on the left, the selected agent's chat
 /// on the right, and up to three more beside it, dragged there from the
@@ -394,7 +396,44 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _sidePanelShown = _sidePanel.shown;
     _workspace.addListener(_restoreSidePanel);
     _restoreSidePanel();
+    _workspace.addListener(_syncWorkspaceFolders);
   }
+
+  /// The IDE of a multi-folder workspace shows the folders it has now.
+  void _syncWorkspaceFolders() {
+    for (final MapEntry(key: folder, value: space) in _ideSpaces.entries) {
+      if (_workspace.workspaceAt(folder) case final multi?) {
+        space.roots = multi.folders;
+      }
+    }
+  }
+
+  /// Create Workspace...: asks for its name and folders, then opens it in
+  /// the IDE ([inIde]) or has a new agent work in it.
+  Future<void> _createWorkspace({bool inIde = false}) async {
+    final made = await showWorkspaceDialog(context, workspace: _workspace);
+    if (made == null || !mounted) return;
+    if (inIde) {
+      _openIdeFolder(made.path);
+    } else {
+      unawaited(_workspace.openFolder(made.path));
+    }
+  }
+
+  /// Add Folder to Workspace...: one picked in the file manager.
+  Future<void> _addWorkspaceFolder(String location) async {
+    final path = await WindowControls.pickDirectory();
+    if (path == null || !mounted) return;
+    if (_workspace.workspaceAt(location) case final multi?) {
+      _workspace.addWorkspaceFolder(multi, path);
+    }
+  }
+
+  IdeRecentWorkspace? _recentWorkspace(String path) =>
+      switch (_workspace.workspaceAt(path)) {
+        final multi? => (name: multi.name, folders: multi.folders),
+        null => null,
+      };
 
   /// The side panel as the last run left it, once the workspace has read
   /// that (after this is built).
@@ -476,6 +515,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ..dispose();
     _chatCode?.dispose();
     _workspace.removeListener(_restoreSidePanel);
+    _workspace.removeListener(_syncWorkspaceFolders);
     _sidePanel
       ..removeListener(_sidePanelChanged)
       ..dispose();
@@ -860,13 +900,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       final project = _paletteProject;
       final files = project == null
           ? null
-          : _fileIndexes.putIfAbsent(
+          : (_fileIndexes.putIfAbsent(
               project.path,
               () => IdeFileIndex(
                 ProjectHost.of(project.path).files(project.root),
                 project.root,
               ),
-            );
+            )..roots = _workspace.workspaceOf(project)?.folders);
       await showSearchPalette(
         context,
         agents: [
@@ -1425,6 +1465,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             label: 'Open Remote Project...',
             run: () => _openRemoteProject(inIde: true),
           ),
+          if (_workspace.workspaceDirectories.root != null)
+            IdeCommand(
+              id: IdeWorkbench.createWorkspaceCommandId,
+              category: 'Workspaces',
+              label: 'Create Workspace...',
+              run: () => unawaited(_createWorkspace(inIde: true)),
+            ),
           command('workbench.action.openRecent', _showOpenRecent),
           command(
             'workbench.action.clearRecentlyOpened',
@@ -1893,6 +1940,17 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             colorThemes: WorkbenchThemeService.instance,
             commands: _ideCommandsFor(path),
             recentFolders: _workspace.recentFolders,
+            recentWorkspaceOf: _recentWorkspace,
+            onAddFolder: _workspace.workspaceAt(path) == null
+                ? null
+                : () => unawaited(_addWorkspaceFolder(path)),
+            onRemoveFolder: switch (_workspace.workspaceAt(path)) {
+              final multi? => (folder) => _workspace.removeWorkspaceFolder(
+                multi,
+                folder,
+              ),
+              null => null,
+            },
             onOpenRecent: (folder) =>
                 _openIdeFolder(folder, held: _newWindowHeld),
             settings: widget.settings?.files?.settings,
@@ -2114,8 +2172,22 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   IdeWorkspace _ideSpace(String folder) => _ideSpaces.putIfAbsent(folder, () {
     final host = ProjectHost.of(folder);
     final root = host.pathOf(folder);
+    final multi = _workspace.workspaceAt(folder);
     final space = folder == _noFolder
         ? IdeWorkspace(homeDirectory ?? p.current, hasFolder: false)
+        : multi != null
+        // A workspace's folders, each a root with its own repository; the
+        // language servers its first folder's.
+        ? IdeWorkspace(
+            root,
+            files: host.files(root),
+            languages: switch (multi.folders.firstOrNull) {
+              final first? => widget.languagesFor?.call(first),
+              null => null,
+            },
+            roots: multi.folders,
+            gitOf: (folder) => widget.gitFor?.call(folder),
+          )
         : IdeWorkspace(
             root,
             files: host.files(root),

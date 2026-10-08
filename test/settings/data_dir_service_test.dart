@@ -37,6 +37,7 @@ void main() {
       ('checkpoints/app-1f/HEAD', 'ref: refs/heads/main'),
       ('cache/claude-sessions.json', '{}'),
       ('icons/index.json', '[]'),
+      ('workspaces/w1/web.code-workspace', '{"folders": []}'),
       ('Cookies', 'chromium'),
       ('GPUCache/data_0', 'chromium'),
       ('Local Storage/leveldb/LOG', 'chromium'),
@@ -173,6 +174,9 @@ void main() {
       'state',
       'state/state.json',
       'state/storage.json',
+      'workspaces',
+      'workspaces/w1',
+      'workspaces/w1/web.code-workspace',
     ]);
     expect(
       File(p.join(target, 'User', 'settings.json')).readAsStringSync(),
@@ -183,8 +187,8 @@ void main() {
       Link(p.join(target, 'servers', 'tool-link')).targetSync(),
       p.join(target, 'servers', 'tool', 'bin', 'tool'),
     );
-    expect(progress.first, (0, 11));
-    expect(progress.last, (11, 11));
+    expect(progress.first, (0, 12));
+    expect(progress.last, (12, 12));
     // The old folder is as it was: the web view's files included.
     expect(File(p.join(current, 'Cookies')).existsSync(), isTrue);
     expect(File(p.join(current, 'state', 'state.json')).existsSync(), isTrue);

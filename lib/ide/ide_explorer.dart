@@ -8,7 +8,7 @@ import 'dart:collection' show UnmodifiableSetView;
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show kIsWeb, setEquals;
+import 'package:flutter/foundation.dart' show kIsWeb, listEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -44,6 +44,7 @@ class IdeExplorerRow {
     required this.isDirectory,
     this.expanded = false,
     this.message,
+    this.isRoot = false,
   });
 
   final String path;
@@ -51,6 +52,10 @@ class IdeExplorerRow {
   final int depth;
   final bool isDirectory;
   final bool expanded;
+
+  /// A folder of a multi-folder workspace, at the top of the tree: not
+  /// renamed, moved nor deleted from it, only taken out of the workspace.
+  final bool isRoot;
 
   /// A non-selectable note under a folder instead of an entry: the error
   /// reading it.
@@ -67,6 +72,7 @@ class IdeExplorerController extends ChangeNotifier {
     required this.files,
     required String root,
     Stream<void> Function(String directory)? watch,
+    List<String> roots = const [],
   }) : root = p.normalize(root),
        _watchDirectory =
            watch ??
@@ -75,11 +81,62 @@ class IdeExplorerController extends ChangeNotifier {
              _ => watchDirectory,
            } {
     unawaited(_load(this.root));
+    this.roots = roots;
     _watchExpanded();
   }
 
   final IdeFileService files;
   final String root;
+
+  /// A multi-folder workspace's folders, the tree's top rows in place of
+  /// [root]'s entries (as VS Code lists workspace folders); none for a
+  /// folder's project.
+  List<String> get roots => _roots;
+  List<String> _roots = const [];
+
+  /// Shows [roots] at the top of the tree: those added expanded, as VS
+  /// Code opens them.
+  set roots(List<String> roots) {
+    final normalized = [for (final root in roots) p.normalize(root)];
+    if (listEquals(normalized, _roots)) return;
+    for (final root in normalized) {
+      if (!_roots.contains(root)) {
+        _expanded.add(root);
+        unawaited(_load(root));
+      }
+    }
+    _expanded.removeWhere(
+      (path) => !_inTree(path, normalized) && p.isWithin(root, path),
+    );
+    _roots = normalized;
+    _changed();
+  }
+
+  /// Whether [path] is a row's: under [roots], or [root] for a folder.
+  bool _inTree(String path, List<String> roots) => roots.isEmpty
+      ? p.isWithin(root, path)
+      : roots.any((r) => r == path || p.isWithin(r, path));
+
+  /// Whether [path] is a workspace folder: the top of a tree.
+  bool isRoot(String path) => path == root || _roots.contains(path);
+
+  /// The top of [path]'s tree: its workspace folder, or [root].
+  String rootOf(String path) {
+    for (final root in _roots) {
+      if (root == path || p.isWithin(root, path)) return root;
+    }
+    return root;
+  }
+
+  /// Whether [path] is a folder with a row: one that may hold others
+  /// selected (a workspace folder's, but not [root]).
+  bool isFolderRow(String path) => _roots.isEmpty
+      ? path != root && p.isWithin(root, path)
+      : _inTree(path, _roots);
+
+  /// Where new items go when no row says: [root], or the first workspace
+  /// folder.
+  String get defaultFolder => _roots.firstOrNull ?? root;
 
   /// The root and the expanded folders, watched so the tree shows files
   /// made, moved or deleted outside it (an agent's, a terminal's), as VS
@@ -149,7 +206,24 @@ class IdeExplorerController extends ChangeNotifier {
       }
     }
 
-    add(root, 0);
+    if (_roots.isEmpty) {
+      add(root, 0);
+      return rows;
+    }
+    for (final folder in _roots) {
+      final expanded = _expanded.contains(folder);
+      rows.add(
+        IdeExplorerRow(
+          path: folder,
+          name: p.basename(folder),
+          depth: 0,
+          isDirectory: true,
+          expanded: expanded,
+          isRoot: true,
+        ),
+      );
+      if (expanded) add(folder, 1);
+    }
     return rows;
   }
 
@@ -301,9 +375,12 @@ class IdeExplorerController extends ChangeNotifier {
   /// Expands the folders above [path], then selects and scrolls to it.
   Future<void> reveal(String path) async {
     final target = p.normalize(path);
-    if (target == root || !p.isWithin(root, target)) return;
-    final parts = p.split(p.relative(target, from: root));
-    var directory = root;
+    if (target == root || !_inTree(target, _roots)) return;
+    final top = rootOf(target);
+    if (top == target) return select(target, reveal: true);
+    final parts = p.split(p.relative(target, from: top));
+    var directory = top;
+    if (top != root && _expanded.add(top)) _changed();
     await _load(directory);
     for (final part in parts.take(parts.length - 1)) {
       directory = p.join(directory, part);
@@ -381,9 +458,22 @@ class IdeExplorer extends StatefulWidget {
     this.onFindInFolder,
     this.isBound,
     this.local = true,
+    this.repositories = const [],
+    this.onAddFolder,
+    this.onRemoveFolder,
   });
 
   final IdeExplorerController controller;
+
+  /// A multi-folder workspace's repositories, for the rows' colors and
+  /// letters in place of [git]'s: each path's, that of the folder it is in.
+  final List<IdeGitRepository> repositories;
+
+  /// Add Folder to Workspace...; none for a folder's project.
+  final VoidCallback? onAddFolder;
+
+  /// Remove Folder from Workspace, of a workspace folder's row.
+  final ValueChanged<String>? onRemoveFolder;
 
   /// Whether the files are this machine's: a remote project's are not
   /// shown in the file manager.
@@ -454,6 +544,9 @@ class IdeExplorerState extends State<IdeExplorer> {
     super.initState();
     _controller.addListener(_changed);
     widget.git?.addListener(_changed);
+    for (final repository in widget.repositories) {
+      repository.addListener(_changed);
+    }
     _focusNode.addListener(_focusChanged);
     _revealed = _controller.revealRequest;
     if (_controller.selected != null) _scheduleReveal();
@@ -470,12 +563,23 @@ class IdeExplorerState extends State<IdeExplorer> {
       oldWidget.git?.removeListener(_changed);
       widget.git?.addListener(_changed);
     }
+    if (!listEquals(oldWidget.repositories, widget.repositories)) {
+      for (final repository in oldWidget.repositories) {
+        repository.removeListener(_changed);
+      }
+      for (final repository in widget.repositories) {
+        repository.addListener(_changed);
+      }
+    }
   }
 
   @override
   void dispose() {
     _controller.removeListener(_changed);
     widget.git?.removeListener(_changed);
+    for (final repository in widget.repositories) {
+      repository.removeListener(_changed);
+    }
     _focusNode.removeListener(_focusChanged);
     _ownFocusNode?.dispose();
     _scroll.dispose();
@@ -564,7 +668,7 @@ class IdeExplorerState extends State<IdeExplorer> {
     bool underSelected(String path) {
       for (
         var parent = p.dirname(path);
-        parent != _controller.root && p.isWithin(_controller.root, parent);
+        _controller.isFolderRow(parent);
         parent = p.dirname(parent)
       ) {
         if (selection.contains(parent)) return true;
@@ -584,7 +688,7 @@ class IdeExplorerState extends State<IdeExplorer> {
   /// The folder new items go in for [row]: itself, or its parent (the
   /// root for none).
   String _folderOf(IdeExplorerRow? row) => row == null
-      ? _controller.root
+      ? _controller.defaultFolder
       : row.isDirectory
       ? row.path
       : p.dirname(row.path);
@@ -629,15 +733,14 @@ class IdeExplorerState extends State<IdeExplorer> {
     final folder = row != null && row.isDirectory;
     return switch (key) {
       // None selected: the root folder's.
-      'explorerResourceIsRoot' => row == null,
+      'explorerResourceIsRoot' => row == null || row.isRoot,
       'explorerResourceIsFolder' => row == null || folder,
       'explorerResourceReadonly' => false,
       'explorerResourceMoveableToTrash' => widget.trash != null,
       'treeElementCanCollapse' => folder && row.expanded,
       'treeElementCanExpand' => folder && !row.expanded,
       'treeElementHasChild' => folder && row.expanded && _firstChild != null,
-      'treeElementHasParent' =>
-        row != null && p.dirname(row.path) != _controller.root,
+      'treeElementHasParent' => row != null && row.depth > 0,
       'listSupportsMultiselect' => true,
       'listHasSelectionOrFocus' =>
         row != null || _controller.selection.isNotEmpty,
@@ -730,7 +833,7 @@ class IdeExplorerState extends State<IdeExplorer> {
       return;
     }
     final parent = p.dirname(row.path);
-    if (parent != _controller.root) _controller.select(parent, reveal: true);
+    if (row.depth > 0) _controller.select(parent, reveal: true);
   }
 
   /// `list.select`: opens the file, the editor focused, or toggles the
@@ -797,7 +900,7 @@ class IdeExplorerState extends State<IdeExplorer> {
   }
 
   void startRename(IdeExplorerRow row) {
-    if (row.path == _controller.root) return;
+    if (_controller.isRoot(row.path)) return;
     setState(
       () => _edit = _ExplorerEdit.rename(row.path, directory: row.isDirectory),
     );
@@ -898,7 +1001,7 @@ class IdeExplorerState extends State<IdeExplorer> {
   }) async {
     final rows = [
       for (final row in targets)
-        if (row.path != _controller.root) row,
+        if (!_controller.isRoot(row.path)) row,
     ];
     if (rows.isEmpty) return;
     final trash = permanently ? null : widget.trash;
@@ -1041,7 +1144,7 @@ class IdeExplorerState extends State<IdeExplorer> {
   }
 
   String _relative(String path) =>
-      p.relative(path, from: _controller.root).replaceAll(r'\', '/');
+      p.relative(path, from: _controller.rootOf(path)).replaceAll(r'\', '/');
 
   /// [command]'s keybinding, for the menu: the one that applies with the
   /// focus here.
@@ -1065,9 +1168,10 @@ class IdeExplorerState extends State<IdeExplorer> {
     if (row != null && !_controller.isSelected(row.path)) {
       _controller.select(row.path);
     }
-    final path = row?.path ?? _controller.root;
+    final path = row?.path ?? _controller.defaultFolder;
     final isFolder = row == null || row.isDirectory;
-    final isRoot = row == null;
+    final isRoot = row == null || row.isRoot;
+    final workspaceFolder = row != null && row.isRoot;
     final targets = row == null ? const <IdeExplorerRow>[] : _targets(row);
     final multiple = targets.length > 1;
     final mac = ideUsesMacKeys;
@@ -1199,6 +1303,15 @@ class IdeExplorerState extends State<IdeExplorer> {
           ),
         ],
         [
+          if (widget.onAddFolder case final add? when row == null)
+            IdeMenuAction(l10n.ideAddFolderToWorkspace, onSelected: add),
+          if (widget.onRemoveFolder case final remove? when workspaceFolder)
+            IdeMenuAction(
+              l10n.ideRemoveFolderFromWorkspace,
+              onSelected: () => remove(path),
+            ),
+        ],
+        [
           if (!isRoot) ...[
             if (!multiple)
               IdeMenuAction(
@@ -1251,6 +1364,18 @@ class IdeExplorerState extends State<IdeExplorer> {
     final rows = _rowsWithEdit();
     final focused = _focusNode.hasFocus;
     final decorations = widget.git?.decorations;
+    final repositories = widget.repositories;
+    IdeGitDecorations? decorationsOf(String path) {
+      if (repositories.isEmpty) return decorations;
+      for (final repository in repositories) {
+        final root = repository.state?.root;
+        if (root != null && (p.equals(root, path) || p.isWithin(root, path))) {
+          return repository.decorations;
+        }
+      }
+      return null;
+    }
+
     // A selected row drags the whole selection.
     List<ComposerFile>? selectedFiles;
     List<ComposerFile> dragged(IdeExplorerRow row) {
@@ -1301,11 +1426,14 @@ class IdeExplorerState extends State<IdeExplorer> {
                 selected: _controller.isSelected(row.path),
                 focusedItem: row.path == _controller.selected,
                 focused: focused,
-                decoration: decorations == null || row.message != null
-                    ? null
-                    : row.isDirectory
-                    ? decorations.folder(row.path)
-                    : decorations.file(row.path),
+                decoration: switch (decorationsOf(row.path)) {
+                  _ when row.message != null => null,
+                  null => null,
+                  final decorations when row.isDirectory => decorations.folder(
+                    row.path,
+                  ),
+                  final decorations => decorations.file(row.path),
+                },
                 onTap: () {
                   _focusNode.requestFocus();
                   _click(row);
@@ -1470,6 +1598,8 @@ class _ExplorerRowView extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 13,
+                        // A workspace folder's, bold as VS Code's roots.
+                        fontWeight: row.isRoot ? FontWeight.w600 : null,
                         color: color ?? foreground,
                         decoration: decoration?.strikeThrough ?? false
                             ? TextDecoration.lineThrough

@@ -16,6 +16,7 @@ import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
 import '../keybindings/chat_keybindings.dart';
 import '../keybindings/default_keybindings.dart' show openSettingsCommandId;
+import '../remote/remote_location.dart';
 import '../remote/remote_status.dart' show sshErrorText;
 import '../remote/ssh_host.dart' show SshHostState, SshHosts;
 import '../theme/codicons.dart';
@@ -27,6 +28,7 @@ import '../workspace/editor_launcher.dart';
 import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
+import '../workspace/workspace_dialog.dart';
 import 'sidebar_menu.dart';
 
 enum SidebarGrouping {
@@ -722,6 +724,9 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       onToggle: collapsible ? () => _workspace.toggleCollapsed(group.id) : null,
       onCreate: project == null ? null : () => _create(project),
       menu: project == null ? null : () => _projectItems(project),
+      folders: project == null
+          ? null
+          : _workspace.workspaceOf(project)?.folders,
       dragged: project != null && identical(project, _draggedProject),
       icon: project == null
           ? null
@@ -755,6 +760,11 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       drag: widget.drag,
       showProject: group.project == null,
       projectIcon: switch (_workspace.iconOf(thread.project)) {
+        null when _workspace.workspaceOf(thread.project) != null => Icon(
+          Codicons.folderLibrary,
+          size: 12,
+          color: AppColors.textFaint,
+        ),
         null => null,
         final icon => ProjectIconView(
           icon: icon,
@@ -781,12 +791,21 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   List<SidebarMenuItem> _projectItems(Project project) {
     final l10n = context.l10n;
     final editor = _workspace.preferredEditor;
+    final multi = _workspace.workspaceOf(project);
     return [
       SidebarMenuItem(
         l10n.sidebarNewAgentHere,
         icon: Icons.add_rounded,
         onSelected: () => _create(project),
       ),
+      if (multi != null)
+        SidebarMenuItem(
+          l10n.sidebarEditWorkspace,
+          icon: Icons.edit_outlined,
+          onSelected: () => unawaited(
+            showWorkspaceDialog(context, workspace: _workspace, editing: multi),
+          ),
+        ),
       SidebarMenuItem(
         l10n.sidebarRevealIn(Editor.folder.localizedPlatformLabel(l10n)),
         icon: Editor.folder.icon,
@@ -826,6 +845,12 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
         icon: Icons.visibility_off_outlined,
         onSelected: () => _workspace.hideProject(project),
       ),
+      if (multi != null)
+        SidebarMenuItem(
+          l10n.sidebarDeleteWorkspace,
+          icon: Icons.delete_outline_rounded,
+          onSelected: () => _workspace.deleteWorkspace(multi),
+        ),
     ];
   }
 
@@ -1265,6 +1290,7 @@ class _GroupHeader extends StatelessWidget {
     this.menu,
     this.dragged = false,
     this.icon,
+    this.folders,
   });
 
   final _Group group;
@@ -1285,6 +1311,10 @@ class _GroupHeader extends StatelessWidget {
 
   /// The project's icon, before its name.
   final Widget? icon;
+
+  /// The folders of the project, a multi-folder workspace's; null for a
+  /// folder's.
+  final List<String>? folders;
 
   @override
   Widget build(BuildContext context) {
@@ -1414,6 +1444,38 @@ class _GroupHeader extends StatelessWidget {
       ),
     );
     if (project == null) return label;
+    if (folders case final folders?) {
+      // A workspace: how many folders after its name, which they are over
+      // it.
+      final color = AppColors.textFaint;
+      return _RowHover(
+        content: (context) => Text(
+          [
+            context.l10n.workspaceHover(
+              folders.map(RemoteLocation.nameOf).join(', '),
+            ),
+            ...folders,
+          ].join('\n'),
+        ),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          widthFactor: 1,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: label),
+              const SizedBox(width: 6),
+              Icon(Codicons.folderLibrary, size: 11, color: color),
+              const SizedBox(width: 2),
+              Text(
+                '${folders.length}',
+                style: TextStyle(color: color, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final host = project.host;
     if (host == null) {
       // Where the project is: its name says only which. Over the name
@@ -2413,6 +2475,9 @@ class _HeaderIcon extends StatelessWidget {
                 library: workspace.icons,
                 size: 22,
                 color: AppColors.textMuted,
+                fallback: workspace.workspaceOf(project) != null
+                    ? Codicons.folderLibrary
+                    : Icons.folder_outlined,
               ),
             ),
           ),

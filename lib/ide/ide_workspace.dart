@@ -194,9 +194,11 @@ class IdeWorkspace extends ChangeNotifier {
     this.root, {
     IdeFileService? files,
     this.languages,
-    this.git,
+    this._git,
     this.hasFolder = true,
     Stream<void> Function(String directory)? watch,
+    List<String> roots = const [],
+    this._gitOf,
   }) : files = files ?? IdeFileService(root),
        _watchDirectory =
            watch ??
@@ -205,9 +207,98 @@ class IdeWorkspace extends ChangeNotifier {
              _ => watchDirectory,
            } {
     addListener(_watchOpenFiles);
+    _setRoots(roots);
   }
 
+  /// The project's folder; a multi-folder workspace's own (empty) folder
+  /// when it has [roots].
   final String root;
+
+  /// The folders of a multi-folder workspace, each a root of the explorer
+  /// and a repository of Source Control, as VS Code's workspace folders;
+  /// empty for a folder's project.
+  List<String> get roots => List.unmodifiable(_roots);
+  final List<String> _roots = [];
+
+  /// Whether it shows a multi-folder workspace (even one with no folders
+  /// yet).
+  bool get isMultiRoot => _gitOf != null;
+
+  /// Makes the repository of a workspace folder.
+  final IdeGitRepository? Function(String root)? _gitOf;
+
+  /// Has the workspace hold [roots] from now on: the repositories of those
+  /// gone are let go, those added made.
+  set roots(List<String> roots) {
+    if (listEquals(roots, _roots)) return;
+    _setRoots(roots);
+    notifyListeners();
+  }
+
+  void _setRoots(List<String> roots) {
+    final gitOf = _gitOf;
+    for (final root in _roots) {
+      if (!roots.contains(root)) _repositories.remove(root)?.dispose();
+    }
+    _roots
+      ..clear()
+      ..addAll(roots);
+    if (gitOf == null) return;
+    for (final root in roots) {
+      if (!_repositories.containsKey(root)) _repositories[root] = gitOf(root);
+    }
+    if (!_repositories.values.contains(_activeRepository)) {
+      _activeRepository = null;
+    }
+  }
+
+  /// The workspace folders' repositories, by folder: null for one that is
+  /// none (or not yet known to be one).
+  final Map<String, IdeGitRepository?> _repositories = {};
+
+  /// The repositories of [roots], in their order.
+  List<(String root, IdeGitRepository git)> get repositories => [
+    for (final root in _roots)
+      if (_repositories[root] case final git?) (root, git),
+  ];
+
+  IdeGitRepository? _activeRepository;
+
+  /// The repository Source Control, the status bar and the timeline show:
+  /// the one picked of a workspace's (its first until one is).
+  void selectRepository(IdeGitRepository repository) {
+    if (identical(repository, _activeRepository)) return;
+    _activeRepository = repository;
+    notifyListeners();
+  }
+
+  /// The workspace folder [path] is in; null for none of them.
+  String? rootOf(String path) {
+    for (final root in _roots) {
+      if (p.equals(root, path) || p.isWithin(root, path)) return root;
+    }
+    return null;
+  }
+
+  /// [path] relative to its root, with `/` separators: in a multi-folder
+  /// workspace after the name of its folder (as VS Code labels them),
+  /// itself when in none.
+  String relativePath(String path) {
+    if (!isMultiRoot) {
+      return p.relative(path, from: root).replaceAll(r'\', '/');
+    }
+    final folder = rootOf(path);
+    if (folder == null) return path;
+    final relative = p.relative(path, from: folder).replaceAll(r'\', '/');
+    final name = p.basename(folder);
+    return relative == '.' ? name : '$name/$relative';
+  }
+
+  /// The repository [path] is in: the one of its workspace folder.
+  IdeGitRepository? gitAt(String path) => switch (rootOf(path)) {
+    final root? => _repositories[root],
+    null => isMultiRoot ? null : git,
+  };
 
   /// Whether [root] is a folder the user opened; without one (the IDE's
   /// empty window, [root] then the home folder), there is no explorer
@@ -224,7 +315,10 @@ class IdeWorkspace extends ChangeNotifier {
 
   /// The project's Git repository, for the explorer's decorations, Source
   /// Control and the timeline; null for none. Disposed with the workspace.
-  final IdeGitRepository? git;
+  /// A multi-folder workspace's is the one picked of its [repositories].
+  IdeGitRepository? get git =>
+      isMultiRoot ? _activeRepository ?? repositories.firstOrNull?.$2 : _git;
+  final IdeGitRepository? _git;
 
   LanguageDocumentSync? get _sync => switch (languages) {
     final LanguageDocumentSync sync => sync,
@@ -757,7 +851,7 @@ class IdeWorkspace extends ChangeNotifier {
     if (_activeKey == doc.key) _activeKey = saved.key;
     _startSync(saved);
     if (_syncing.containsKey(saved.model)) _sync?.saveDocument(path, text);
-    git?.scheduleRefresh();
+    gitAt(path)?.scheduleRefresh();
     notifyListeners();
     return saved;
   }
@@ -785,7 +879,7 @@ class IdeWorkspace extends ChangeNotifier {
       doc.deleted = false;
       doc.savedText = text;
       if (_syncing.containsKey(doc.model)) _sync?.saveDocument(doc.path, text);
-      git?.scheduleRefresh();
+      gitAt(doc.path)?.scheduleRefresh();
       notifyListeners();
     });
     _saves = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
@@ -825,7 +919,10 @@ class IdeWorkspace extends ChangeNotifier {
       if (models.add(doc.model)) doc.model.dispose();
     }
     if (_sync case final sync?) unawaited(sync.shutdown());
-    git?.dispose();
+    _git?.dispose();
+    for (final repository in _repositories.values) {
+      repository?.dispose();
+    }
     layout.dispose();
     super.dispose();
   }

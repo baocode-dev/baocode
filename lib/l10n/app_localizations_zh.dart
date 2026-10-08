@@ -5927,4 +5927,94 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdResetFeatureTips => '重置功能推荐';
+
+  @override
+  String get newChatWorkspaceGroup => '工作区';
+
+  @override
+  String newChatWorkspaceDetail(int count, String names) {
+    return '$count 个文件夹 · $names';
+  }
+
+  @override
+  String get newChatCreateWorkspace => '创建工作区…';
+
+  @override
+  String get newChatCreateWorkspaceDetail => '在多个文件夹中工作';
+
+  @override
+  String get workspaceCreateTitle => '创建工作区';
+
+  @override
+  String get workspaceEditTitle => '编辑工作区';
+
+  @override
+  String get workspaceName => '名称';
+
+  @override
+  String get workspaceNameHint => '我的工作区';
+
+  @override
+  String get workspaceFolders => '文件夹';
+
+  @override
+  String get workspaceFoldersDescription => '在此工作区中对话时，智能体可以读写这些文件夹中的文件。';
+
+  @override
+  String workspaceFoldersEmpty(String app) {
+    return '还没有文件夹。从已有项目或$app添加。';
+  }
+
+  @override
+  String get workspaceNoFolders => '请至少添加一个文件夹。';
+
+  @override
+  String get workspaceAddProject => '从已有项目添加';
+
+  @override
+  String workspaceAddFolder(String app) {
+    return '从$app添加…';
+  }
+
+  @override
+  String get workspaceNoProjects => '没有可添加的项目';
+
+  @override
+  String workspaceRemoveFolder(String name) {
+    return '移除 $name';
+  }
+
+  @override
+  String get workspaceCreate => '创建';
+
+  @override
+  String workspaceHover(String folders) {
+    return '工作区：$folders';
+  }
+
+  @override
+  String get sidebarEditWorkspace => '编辑工作区…';
+
+  @override
+  String get sidebarDeleteWorkspace => '删除工作区';
+
+  @override
+  String ideWorkspaceTitle(String name) {
+    return '$name（工作区）';
+  }
+
+  @override
+  String get ideAddFolderToWorkspace => '将文件夹添加到工作区…';
+
+  @override
+  String get ideRemoveFolderFromWorkspace => '从工作区中移除文件夹';
+
+  @override
+  String get ideEmptyWorkspace => '此工作区中还没有文件夹。';
+
+  @override
+  String get scmRepositories => '存储库';
+
+  @override
+  String get cmdCreateWorkspace => '创建工作区...';
 }

@@ -4480,5 +4480,109 @@
   "starPromptDetail": "BaoCode is free and open source. If it helps you, a star on GitHub helps other people find it.",
   "starPromptStar": "Star on GitHub",
   "starPromptLater": "Maybe Later",
-  "cmdResetFeatureTips": "Reset Feature Tips"
+  "cmdResetFeatureTips": "Reset Feature Tips",
+  "newChatWorkspaceGroup": "Workspaces",
+  "@newChatWorkspaceGroup": {
+    "description": "The heading of the multi-folder workspaces in the menu of where a new chat works."
+  },
+  "newChatWorkspaceDetail": "{count, plural, =1{1 folder} other{{count} folders}} · {names}",
+  "@newChatWorkspaceDetail": {
+    "description": "Under a workspace in the menu of where a new chat works: how many folders it has, and their names.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "names": {
+        "type": "String",
+        "example": "monad, site"
+      }
+    }
+  },
+  "newChatCreateWorkspace": "Create Workspace…",
+  "@newChatCreateWorkspace": {
+    "description": "The menu's choice that makes a workspace of several folders for a new chat to work in."
+  },
+  "newChatCreateWorkspaceDetail": "Work across several folders",
+  "workspaceCreateTitle": "Create Workspace",
+  "@workspaceCreateTitle": {
+    "description": "The title of the dialog that makes a workspace of several folders."
+  },
+  "workspaceEditTitle": "Edit Workspace",
+  "workspaceName": "Name",
+  "@workspaceName": {
+    "description": "The label of a workspace's name in its dialog."
+  },
+  "workspaceNameHint": "My Workspace",
+  "workspaceFolders": "Folders",
+  "@workspaceFolders": {
+    "description": "The label of the list of a workspace's folders in its dialog."
+  },
+  "workspaceFoldersDescription": "Agents working in this workspace can read and change the files in these folders.",
+  "workspaceFoldersEmpty": "No folders yet. Add projects, or folders from {app}.",
+  "@workspaceFoldersEmpty": {
+    "placeholders": {
+      "app": {
+        "type": "String",
+        "example": "Finder"
+      }
+    }
+  },
+  "workspaceNoFolders": "Add at least one folder.",
+  "workspaceAddProject": "Add from Projects",
+  "@workspaceAddProject": {
+    "description": "Button in the workspace dialog listing the projects to add as its folders."
+  },
+  "workspaceAddFolder": "Add from {app}…",
+  "@workspaceAddFolder": {
+    "placeholders": {
+      "app": {
+        "type": "String",
+        "example": "Finder"
+      }
+    }
+  },
+  "workspaceNoProjects": "No projects to add",
+  "workspaceRemoveFolder": "Remove {name}",
+  "@workspaceRemoveFolder": {
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "monad"
+      }
+    }
+  },
+  "workspaceCreate": "Create",
+  "workspaceHover": "Workspace: {folders}",
+  "@workspaceHover": {
+    "description": "The hover of a workspace in the sidebar: its folders.",
+    "placeholders": {
+      "folders": {
+        "type": "String",
+        "example": "monad, site"
+      }
+    }
+  },
+  "sidebarEditWorkspace": "Edit Workspace…",
+  "sidebarDeleteWorkspace": "Delete Workspace",
+  "@sidebarDeleteWorkspace": {
+    "description": "Forgets a workspace; its folders and sessions are kept."
+  },
+  "ideWorkspaceTitle": "{name} (Workspace)",
+  "@ideWorkspaceTitle": {
+    "description": "The title of the explorer's folders when the IDE shows a workspace, as VS Code's.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "web"
+      }
+    }
+  },
+  "ideAddFolderToWorkspace": "Add Folder to Workspace…",
+  "ideRemoveFolderFromWorkspace": "Remove Folder from Workspace",
+  "ideEmptyWorkspace": "This workspace has no folders yet.",
+  "scmRepositories": "Repositories",
+  "@scmRepositories": {
+    "description": "The heading of Source Control's list of a workspace's Git repositories."
+  },
+  "cmdCreateWorkspace": "Create Workspace..."
 }

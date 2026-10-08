@@ -25,6 +25,7 @@ import 'agent_title.dart';
 import 'chat_grid.dart';
 import 'editor_launcher.dart';
 import 'preference_store.dart';
+import 'project_workspace.dart';
 
 /// The arrangement of the project and its conversation in the window.
 enum WorkspaceLayout { chat, ide }
@@ -89,7 +90,9 @@ class AgentThread {
   }) : _seenSeq = unread ? -1 : 0,
        _wantsTitle = record == null && _title.isEmpty;
 
-  final Project project;
+  /// Its project: replaced by one of the new name when a workspace is
+  /// renamed.
+  Project project;
 
   /// The kept session it continues, if any.
   final SessionRecord? record;
@@ -212,6 +215,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     IconLibrary? icons,
     this.titler,
     AppLocalizations Function()? l10n,
+    this.workspaceDirectories = const ProjectWorkspaceDirectories(),
   }) : _projects = [...projects],
        icons = icons ?? IconLibrary(),
        l10n = l10n ?? (() => englishLocalizations),
@@ -285,6 +289,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
           _addKept(kernel, project, session);
         }
       }
+    }
+    // Listed though nothing was asked there yet, nor is its folder opened.
+    for (final workspace in _workspaces.values) {
+      _project(workspace.path);
     }
     for (final folder in _folders) {
       if (listed.contains(folder)) continue;
@@ -440,10 +448,16 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     for (final project in _projects) {
       if (project.path == path) return project;
     }
-    final project = Project.at(path);
+    final project = _projectNamed(path);
     _projects.add(project);
     return project;
   }
+
+  /// [path]'s project: its folder's, or a workspace's of that name.
+  Project _projectNamed(String path) => switch (_workspaces[path]) {
+    final workspace? => Project(workspace.name, path),
+    null => Project.at(path),
+  };
 
   void _addKept(
     KernelDescriptor kernel,
@@ -484,6 +498,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
             resume: session,
             // As it was left, or as a new agent starts.
             settings: {..._preferredSettings, ...?_agentSettings[session.id]},
+            workspace: () => _kernelWorkspace(session.cwd),
           ),
           historyCount: 0,
         ),
@@ -670,7 +685,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     for (final thread in _threads) {
       if (thread.project.path == path) return thread.project;
     }
-    return Project.at(path);
+    return _projectNamed(path);
   }
 
   /// Has the IDE show [path], with a chat of its own there.
@@ -1253,6 +1268,124 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     notifyListeners();
   }
 
+  // --- Workspaces -------------------------------------------------------------
+
+  /// Where workspaces' folders are made.
+  final ProjectWorkspaceDirectories workspaceDirectories;
+
+  /// The multi-folder workspaces, by their folder's path, oldest first.
+  final Map<String, ProjectWorkspace> _workspaces = {};
+
+  List<ProjectWorkspace> get workspaces =>
+      List.unmodifiable(_workspaces.values);
+
+  /// The workspace whose folder is [path]; null for a folder's project.
+  ProjectWorkspace? workspaceAt(String path) => _workspaces[path];
+
+  /// [project]'s workspace; null when it is a folder.
+  ProjectWorkspace? workspaceOf(Project project) => _workspaces[project.path];
+
+  KernelWorkspace? _kernelWorkspace(String? cwd) => switch (_workspaces[cwd]) {
+    final workspace? => KernelWorkspace(
+      folders: workspace.folders,
+      instructions: workspace.systemPrompt,
+    ),
+    null => null,
+  };
+
+  /// Makes a workspace of [folders] named [name], listed first: new agents
+  /// in it work across them. Null where workspaces cannot be kept (the
+  /// web).
+  ProjectWorkspace? createWorkspace(String name, List<String> folders) {
+    final root = workspaceDirectories.root;
+    if (root == null) return null;
+    final id = _newWorkspaceId(root);
+    final workspace = ProjectWorkspace(
+      id: id,
+      name: name.trim(),
+      path: p.join(root, id),
+      folders: [
+        ...{...folders},
+      ],
+    );
+    workspaceDirectories.write(workspace);
+    _workspaces[workspace.path] = workspace;
+    _openProject(workspace.path);
+    _save();
+    notifyListeners();
+    return workspace;
+  }
+
+  String _newWorkspaceId(String root) {
+    final now = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    var id = now;
+    for (var n = 2; _workspaces.containsKey(p.join(root, id)); n++) {
+      id = '$now-$n';
+    }
+    return id;
+  }
+
+  /// Renames [workspace], or has it hold [folders] instead: agents started
+  /// from then on (and those that start again) work across those.
+  void updateWorkspace(
+    ProjectWorkspace workspace, {
+    String? name,
+    List<String>? folders,
+  }) {
+    final current = _workspaces[workspace.path];
+    if (current == null) return;
+    final updated = current.copyWith(
+      name: name?.trim(),
+      folders: folders == null
+          ? null
+          : [
+              ...{...folders},
+            ],
+    );
+    if (updated == current) return;
+    workspaceDirectories.write(updated);
+    _workspaces[updated.path] = updated;
+    if (updated.name != current.name) {
+      final renamed = Project(updated.name, updated.path);
+      final index = _projects.indexWhere((p) => p.path == updated.path);
+      if (index >= 0) _projects[index] = renamed;
+      for (final thread in _threads) {
+        if (thread.project.path == updated.path) thread.project = renamed;
+      }
+    }
+    _save();
+    notifyListeners();
+  }
+
+  /// Adds [folder] to [workspace], if not in it.
+  void addWorkspaceFolder(ProjectWorkspace workspace, String folder) {
+    final current = _workspaces[workspace.path] ?? workspace;
+    if (current.folders.contains(folder)) return;
+    updateWorkspace(current, folders: [...current.folders, folder]);
+  }
+
+  /// Takes [folder] out of [workspace]; nothing of it is deleted.
+  void removeWorkspaceFolder(ProjectWorkspace workspace, String folder) {
+    final current = _workspaces[workspace.path] ?? workspace;
+    updateWorkspace(
+      current,
+      folders: [
+        for (final kept in current.folders)
+          if (kept != folder) kept,
+      ],
+    );
+  }
+
+  /// Forgets [workspace] and takes it off the sidebar. Its folders, and
+  /// the sessions kept in it, stay as they are.
+  void deleteWorkspace(ProjectWorkspace workspace) {
+    if (_workspaces.remove(workspace.path) == null) return;
+    _folders.remove(workspace.path);
+    _hiddenProjects[workspace.path] = DateTime.now();
+    _save();
+    notifyListeners();
+  }
+
   // --- Project icons --------------------------------------------------------
 
   /// The pictures uploaded as icons, shared by the projects.
@@ -1588,6 +1721,14 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         }
       }
     }
+    if (kept['workspaces'] case final List<Object?> workspaces) {
+      final root = workspaceDirectories.root;
+      for (final json in workspaces) {
+        if (ProjectWorkspace.fromJson(json, root: root) case final workspace?) {
+          _workspaces[workspace.path] = workspace;
+        }
+      }
+    }
     if (kept['projectIcons'] case final Map<Object?, Object?> icons) {
       for (final MapEntry(:key, :value) in icons.entries) {
         if ((key, ProjectIcon.fromJson(value)) case (
@@ -1688,6 +1829,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
               folder: {'tabs': ids, 'shown': ?_keptTab(_ideChatShown[folder])},
         },
       },
+      'workspaces': [
+        for (final workspace in _workspaces.values) workspace.toJson(),
+      ],
       'projectIcons': {
         for (final MapEntry(:key, :value) in _projectIcons.entries)
           key: value.toJson(),
@@ -2059,7 +2203,11 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       open: () => ChatSession(
         kernel: kernel,
         kernels: kernels,
-        kernelContext: KernelContext(cwd: cwd, settings: settings),
+        kernelContext: KernelContext(
+          cwd: cwd,
+          settings: settings,
+          workspace: () => _kernelWorkspace(cwd),
+        ),
         historyCount: 0,
       ),
     );

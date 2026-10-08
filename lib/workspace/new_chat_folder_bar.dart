@@ -1,7 +1,8 @@
 // Over a new chat's input: where it is to work. A menu of the projects
-// (none, the Desktop, first; those on SSH hosts under their own heading,
-// with Open Remote Project…) and a button to pick a folder in the system's
-// file manager.
+// (none, the Desktop, first; multi-folder workspaces under their own
+// heading, with Create Workspace…; those on SSH hosts under theirs, with
+// Open Remote Project…) and a button to pick a folder in the system's file
+// manager.
 
 import 'package:flutter/material.dart';
 
@@ -11,6 +12,7 @@ import '../icons/project_icon_view.dart';
 import '../kernel/kernel_types.dart';
 import '../l10n/l10n.dart';
 import '../platform/app_platform.dart';
+import '../remote/remote_location.dart';
 import '../platform/desktop_dir.dart'
     if (dart.library.io) '../platform/desktop_dir_io.dart';
 import '../theme/app_theme.dart';
@@ -18,6 +20,7 @@ import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'window_controls.dart';
 import 'workspace.dart';
+import 'workspace_dialog.dart';
 
 class NewChatFolderBar extends StatelessWidget {
   const NewChatFolderBar({
@@ -39,6 +42,9 @@ class NewChatFolderBar extends StatelessWidget {
   /// The menu's row for Open Remote Project….
   static const _openRemoteId = 'baocode.remote.openFolder';
 
+  /// The menu's row for Create Workspace….
+  static const _createWorkspaceId = 'baocode.workspace.create';
+
   /// The projects the menu lists of this machine, and of SSH hosts, the
   /// most recent first: the rest are reached by picking their folder.
   static const _listed = 8;
@@ -59,6 +65,23 @@ class NewChatFolderBar extends StatelessWidget {
     if (path != null) workspace.moveNew(thread, path);
   }
 
+  /// Asks for a new workspace (the folder the agent was to work in, in it
+  /// to begin with), and has the agent work there.
+  Future<void> _createWorkspace(BuildContext context, String? desktop) async {
+    final current = thread.project;
+    final made = await showWorkspaceDialog(
+      context,
+      workspace: workspace,
+      folders: [
+        if (current.host == null &&
+            current.path != desktop &&
+            workspace.workspaceOf(current) == null)
+          current.path,
+      ],
+    );
+    if (made != null) _moveTo(made.path);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -73,15 +96,31 @@ class NewChatFolderBar extends StatelessWidget {
             l10n.newChatNoFolderDetail,
           );
     final remoteGroup = KernelOptionGroup('remote', l10n.newChatRemoteGroup);
+    final workspaceGroup = KernelOptionGroup(
+      'workspaces',
+      l10n.newChatWorkspaceGroup,
+    );
     KernelOption option(Project project) => KernelOption(
       project.path,
       project.name,
-      project.host == null ? Codicons.folder : Codicons.remote,
-      switch (project.host) {
-        final host? => '$host:${project.root}',
-        null => project.path,
+      workspace.workspaceOf(project) != null
+          ? Codicons.folderLibrary
+          : project.host == null
+          ? Codicons.folder
+          : Codicons.remote,
+      switch ((project.host, workspace.workspaceOf(project))) {
+        (_, final multi?) => l10n.newChatWorkspaceDetail(
+          multi.folders.length,
+          multi.folders.map(RemoteLocation.nameOf).join(', '),
+        ),
+        (final host?, _) => '$host:${project.root}',
+        (null, _) => project.path,
       },
-      group: project.host == null ? null : remoteGroup,
+      group: workspace.workspaceOf(project) != null
+          ? workspaceGroup
+          : project.host == null
+          ? null
+          : remoteGroup,
       iconBuilder: switch (workspace.iconOf(project)) {
         null => null,
         // Takes the room of a glyph of [size]; a picture spills over it a
@@ -105,21 +144,41 @@ class NewChatFolderBar extends StatelessWidget {
       for (final project in workspace.sidebarProjects)
         if (project.path != desktop) project,
     ];
+    bool isWorkspace(Project project) => workspace.workspaceOf(project) != null;
     final local = [
-      ...projects.where((project) => project.host == null).take(_listed),
+      ...projects
+          .where((project) => project.host == null && !isWorkspace(project))
+          .take(_listed),
     ];
+    final workspaces = [...projects.where(isWorkspace).take(_listed)];
     final remote = [
       ...projects.where((project) => project.host != null).take(_listed),
     ];
     if (current.path != desktop &&
         !workspace.isHidden(current) &&
         !local.contains(current) &&
+        !workspaces.contains(current) &&
         !remote.contains(current)) {
-      (current.host == null ? local : remote).add(current);
+      (isWorkspace(current)
+              ? workspaces
+              : current.host == null
+              ? local
+              : remote)
+          .add(current);
     }
+    final canCreate = workspace.workspaceDirectories.root != null;
     final options = [
       ?noFolder,
       for (final project in local) option(project),
+      for (final project in workspaces) option(project),
+      if (canCreate)
+        KernelOption(
+          NewChatFolderBar._createWorkspaceId,
+          l10n.newChatCreateWorkspace,
+          Codicons.add,
+          l10n.newChatCreateWorkspaceDetail,
+          group: workspaceGroup,
+        ),
       for (final project in remote) option(project),
       if (openRemote != null)
         KernelOption(
@@ -142,9 +201,14 @@ class NewChatFolderBar extends StatelessWidget {
             selected: selected,
             title: l10n.newChatWorkingFolder,
             menuWidth: 290,
-            onSelected: (option) => option.id == NewChatFolderBar._openRemoteId
-                ? openRemote?.call(_moveTo)
-                : _moveTo(option.id),
+            onSelected: (option) => switch (option.id) {
+              NewChatFolderBar._openRemoteId => openRemote?.call(_moveTo),
+              NewChatFolderBar._createWorkspaceId => _createWorkspace(
+                context,
+                desktop,
+              ),
+              final path => _moveTo(path),
+            },
           ),
         ),
         if (WindowControls.canPickDirectory) ...[

@@ -6306,4 +6306,101 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdResetFeatureTips => 'Reset Feature Tips';
+
+  @override
+  String get newChatWorkspaceGroup => 'Workspaces';
+
+  @override
+  String newChatWorkspaceDetail(int count, String names) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count folders',
+      one: '1 folder',
+    );
+    return '$_temp0 · $names';
+  }
+
+  @override
+  String get newChatCreateWorkspace => 'Create Workspace…';
+
+  @override
+  String get newChatCreateWorkspaceDetail => 'Work across several folders';
+
+  @override
+  String get workspaceCreateTitle => 'Create Workspace';
+
+  @override
+  String get workspaceEditTitle => 'Edit Workspace';
+
+  @override
+  String get workspaceName => 'Name';
+
+  @override
+  String get workspaceNameHint => 'My Workspace';
+
+  @override
+  String get workspaceFolders => 'Folders';
+
+  @override
+  String get workspaceFoldersDescription =>
+      'Agents working in this workspace can read and change the files in these folders.';
+
+  @override
+  String workspaceFoldersEmpty(String app) {
+    return 'No folders yet. Add projects, or folders from $app.';
+  }
+
+  @override
+  String get workspaceNoFolders => 'Add at least one folder.';
+
+  @override
+  String get workspaceAddProject => 'Add from Projects';
+
+  @override
+  String workspaceAddFolder(String app) {
+    return 'Add from $app…';
+  }
+
+  @override
+  String get workspaceNoProjects => 'No projects to add';
+
+  @override
+  String workspaceRemoveFolder(String name) {
+    return 'Remove $name';
+  }
+
+  @override
+  String get workspaceCreate => 'Create';
+
+  @override
+  String workspaceHover(String folders) {
+    return 'Workspace: $folders';
+  }
+
+  @override
+  String get sidebarEditWorkspace => 'Edit Workspace…';
+
+  @override
+  String get sidebarDeleteWorkspace => 'Delete Workspace';
+
+  @override
+  String ideWorkspaceTitle(String name) {
+    return '$name (Workspace)';
+  }
+
+  @override
+  String get ideAddFolderToWorkspace => 'Add Folder to Workspace…';
+
+  @override
+  String get ideRemoveFolderFromWorkspace => 'Remove Folder from Workspace';
+
+  @override
+  String get ideEmptyWorkspace => 'This workspace has no folders yet.';
+
+  @override
+  String get scmRepositories => 'Repositories';
+
+  @override
+  String get cmdCreateWorkspace => 'Create Workspace...';
 }

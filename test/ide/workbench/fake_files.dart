@@ -184,6 +184,11 @@ Future<IdeWorkspace> pumpWorkbench(
   UserSettings? settings,
   Map<String, Object?>? viewState,
   ValueChanged<Map<String, Object?>>? onViewState,
+  List<String>? roots,
+  IdeGitRepository? Function(String root)? gitOf,
+  VoidCallback? onAddFolder,
+  ValueChanged<String>? onRemoveFolder,
+  Project? project,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -194,6 +199,9 @@ Future<IdeWorkspace> pumpWorkbench(
     }),
     languages: languages,
     git: git,
+    // A multi-folder workspace's: its folders (in the project).
+    roots: [for (final root in roots ?? const <String>[]) inRoot(root)],
+    gitOf: roots == null ? null : (root) => gitOf?.call(root),
   );
   addTearDown(() {
     workspace.dispose();
@@ -208,7 +216,9 @@ Future<IdeWorkspace> pumpWorkbench(
       home: IdeWorkbench(
         nativeEditorEnabled: nativeEditor,
         workspace: workspace,
-        project: Project.at(testRoot),
+        project: project ?? Project.at(testRoot),
+        onAddFolder: onAddFolder,
+        onRemoveFolder: onRemoveFolder,
         visible: true,
         chat: chat,
         onBack: onBack ?? () {},

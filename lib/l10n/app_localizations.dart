@@ -10436,6 +10436,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reset Feature Tips'**
   String get cmdResetFeatureTips;
+
+  /// The heading of the multi-folder workspaces in the menu of where a new chat works.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspaces'**
+  String get newChatWorkspaceGroup;
+
+  /// Under a workspace in the menu of where a new chat works: how many folders it has, and their names.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 folder} other{{count} folders}} · {names}'**
+  String newChatWorkspaceDetail(int count, String names);
+
+  /// The menu's choice that makes a workspace of several folders for a new chat to work in.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Workspace…'**
+  String get newChatCreateWorkspace;
+
+  /// No description provided for @newChatCreateWorkspaceDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Work across several folders'**
+  String get newChatCreateWorkspaceDetail;
+
+  /// The title of the dialog that makes a workspace of several folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Workspace'**
+  String get workspaceCreateTitle;
+
+  /// No description provided for @workspaceEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Workspace'**
+  String get workspaceEditTitle;
+
+  /// The label of a workspace's name in its dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get workspaceName;
+
+  /// No description provided for @workspaceNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'My Workspace'**
+  String get workspaceNameHint;
+
+  /// The label of the list of a workspace's folders in its dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Folders'**
+  String get workspaceFolders;
+
+  /// No description provided for @workspaceFoldersDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Agents working in this workspace can read and change the files in these folders.'**
+  String get workspaceFoldersDescription;
+
+  /// No description provided for @workspaceFoldersEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No folders yet. Add projects, or folders from {app}.'**
+  String workspaceFoldersEmpty(String app);
+
+  /// No description provided for @workspaceNoFolders.
+  ///
+  /// In en, this message translates to:
+  /// **'Add at least one folder.'**
+  String get workspaceNoFolders;
+
+  /// Button in the workspace dialog listing the projects to add as its folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Add from Projects'**
+  String get workspaceAddProject;
+
+  /// No description provided for @workspaceAddFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Add from {app}…'**
+  String workspaceAddFolder(String app);
+
+  /// No description provided for @workspaceNoProjects.
+  ///
+  /// In en, this message translates to:
+  /// **'No projects to add'**
+  String get workspaceNoProjects;
+
+  /// No description provided for @workspaceRemoveFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {name}'**
+  String workspaceRemoveFolder(String name);
+
+  /// No description provided for @workspaceCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get workspaceCreate;
+
+  /// The hover of a workspace in the sidebar: its folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace: {folders}'**
+  String workspaceHover(String folders);
+
+  /// No description provided for @sidebarEditWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Workspace…'**
+  String get sidebarEditWorkspace;
+
+  /// Forgets a workspace; its folders and sessions are kept.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Workspace'**
+  String get sidebarDeleteWorkspace;
+
+  /// The title of the explorer's folders when the IDE shows a workspace, as VS Code's.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} (Workspace)'**
+  String ideWorkspaceTitle(String name);
+
+  /// No description provided for @ideAddFolderToWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Folder to Workspace…'**
+  String get ideAddFolderToWorkspace;
+
+  /// No description provided for @ideRemoveFolderFromWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Folder from Workspace'**
+  String get ideRemoveFolderFromWorkspace;
+
+  /// No description provided for @ideEmptyWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'This workspace has no folders yet.'**
+  String get ideEmptyWorkspace;
+
+  /// The heading of Source Control's list of a workspace's Git repositories.
+  ///
+  /// In en, this message translates to:
+  /// **'Repositories'**
+  String get scmRepositories;
+
+  /// No description provided for @cmdCreateWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Workspace...'**
+  String get cmdCreateWorkspace;
 }
 
 class _AppLocalizationsDelegate
