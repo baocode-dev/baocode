@@ -49,6 +49,7 @@ class FilePreview extends StatefulWidget {
     this.actions = const [],
     this.edit,
     this.onEdit,
+    this.highlights,
   });
 
   final FileOpenRequest request;
@@ -60,6 +61,10 @@ class FilePreview extends StatefulWidget {
   /// Takes the edit made once the file is read, to keep past the preview;
   /// the preview's own, gone with it, when null.
   final ValueChanged<SidePanelFileEdit>? onEdit;
+
+  /// Where the editor's highlighting is kept past the preview, for its tab
+  /// shown again to be colored at once; the editor's own when null.
+  final IdeCodeHighlights? highlights;
 
   /// Reads it, on the project's host.
   final IdeFileService files;
@@ -515,6 +520,7 @@ class _FilePreviewState extends State<FilePreview> {
         key: _editor,
         controller: edit.controller,
         path: _request.path,
+        highlights: widget.highlights,
         decorations: [
           if (marked)
             EditorDecoration(

@@ -195,6 +195,7 @@ class CodeCitationCard extends StatelessWidget {
 
 /// A fenced code block as a [CodeCitationCard] is, its language (the
 /// first word of the fence's info string) for a title and no line numbers.
+/// Plain text (no language, or `text`) has no title, so does not fold.
 class MarkdownCodeBlock extends StatelessWidget {
   const MarkdownCodeBlock({
     super.key,
@@ -328,34 +329,74 @@ class _CodeCardState extends State<_CodeCard> {
     });
   }
 
+  /// Plain text: a fence that names no language, nor a file.
+  bool get _plain =>
+      widget.citation == null &&
+      widget.onPreview == null &&
+      switch (widget.language?.toLowerCase()) {
+        null || 'text' || 'txt' || 'plaintext' => true,
+        _ => false,
+      };
+
   @override
   Widget build(BuildContext context) {
     final colors = themeColors;
     final line = colors['chat.requestBorder'];
+    final background = colors['textCodeBlock.background'];
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Container(
         decoration: BoxDecoration(
-          color: colors['textCodeBlock.background'],
+          color: background,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: line),
         ),
         clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _title(context),
-            if (_expanded) ...[
-              Divider(height: 1, thickness: 1, color: line),
-              _body(),
-            ],
-          ],
-        ),
+        child: _plain
+            // No title to fold it by: the text, the copy button over its
+            // corner.
+            ? Stack(
+                children: [
+                  _body(),
+                  Positioned(
+                    top: 5,
+                    right: 6,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: background,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: _copyButton(context),
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _title(context),
+                  if (_expanded) ...[
+                    Divider(height: 1, thickness: 1, color: line),
+                    _body(),
+                  ],
+                ],
+              ),
       ),
     );
   }
+
+  Widget _copyButton(BuildContext context) => SelectionContainer.disabled(
+    child: Visibility.maintain(
+      visible: _hovered || _copied,
+      child: CodeBlockIconButton(
+        icon: _copied ? Codicons.check : Codicons.copy,
+        tooltip: context.l10n.commonCopy,
+        onTap: _copy,
+      ),
+    ),
+  );
 
   /// The chevron and the empty space fold it; the file opens it there.
   Widget _title(BuildContext context) {
@@ -408,14 +449,7 @@ class _CodeCardState extends State<_CodeCard> {
                     tooltip: l10n.sidePanelPreview,
                     onTap: onPreview,
                   ),
-                Visibility.maintain(
-                  visible: _hovered || _copied,
-                  child: CodeBlockIconButton(
-                    icon: _copied ? Codicons.check : Codicons.copy,
-                    tooltip: l10n.commonCopy,
-                    onTap: _copy,
-                  ),
-                ),
+                _copyButton(context),
               ],
             ),
           ),

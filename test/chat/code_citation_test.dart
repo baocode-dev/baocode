@@ -284,6 +284,18 @@ void main() {}
       expect(shown, isNot(contains('1')));
     });
 
+    for (final fence in ['', 'text']) {
+      testWidgets('of plain text ("$fence") has no title to fold it', (
+        tester,
+      ) async {
+        await pumpMarkdown(tester, '```$fence\nsame: 45 bytes\n```');
+        expect(find.byType(MarkdownCodeBlock), findsOneWidget);
+        expect(texts(tester), contains('same: 45 bytes'));
+        expect(find.byIcon(Codicons.chevronDown), findsNothing);
+        expect(find.byIcon(Codicons.copy), findsOneWidget);
+      });
+    }
+
     testWidgets('copies its code', (tester) async {
       String? copied;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(

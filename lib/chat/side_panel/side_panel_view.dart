@@ -1006,6 +1006,7 @@ class AgentSidePanelView extends StatelessWidget {
     reveal: tab.reveal,
     edit: tab.edit,
     onEdit: (edit) => panel.keepEdit(tab, edit),
+    highlights: panel.highlights,
     files: files,
     root: _rootOf(tab.path),
     readBytes: readBytes,
