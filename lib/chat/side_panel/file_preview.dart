@@ -790,11 +790,7 @@ class _LineRow extends StatelessWidget {
   final List<TextSpan>? colors;
   final bool marked;
 
-  static const _style = TextStyle(
-    fontFamily: AppFonts.mono,
-    fontSize: 12,
-    height: 1.5,
-  );
+  static TextStyle get _style => AppFonts.codeStyle(12).copyWith(height: 1.5);
 
   @override
   Widget build(BuildContext context) {

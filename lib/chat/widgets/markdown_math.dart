@@ -82,11 +82,7 @@ class MathView extends StatelessWidget {
       textStyle: _style,
       onErrorFallback: (_) => Text(
         display ? tex : '\$$tex\$',
-        style: TextStyle(
-          color: AppColors.inlineCode,
-          fontFamily: AppFonts.mono,
-          fontSize: 12.5,
-        ),
+        style: AppFonts.codeStyle(12.5).copyWith(color: AppColors.inlineCode),
       ),
     );
     if (!display) return math;

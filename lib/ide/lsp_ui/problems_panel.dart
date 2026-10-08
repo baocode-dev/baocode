@@ -1071,10 +1071,7 @@ class _ReferenceRowState extends State<_ReferenceRow> {
     return _Entry(
       leading: const SizedBox(width: 0),
       selected: widget.selected,
-      text: TextSpan(
-        children: spans,
-        style: const TextStyle(fontFamily: AppFonts.mono, fontSize: 12),
-      ),
+      text: TextSpan(children: spans, style: AppFonts.codeStyle(12)),
     );
   }
 }

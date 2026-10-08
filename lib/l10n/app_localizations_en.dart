@@ -6152,6 +6152,55 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get appearanceSettingsCodeFont => 'Code Font';
+
+  @override
+  String get appearanceSettingsCodeFontDescription =>
+      'The font code is drawn in: in the editor, the terminal, the chat and the previews. Family names in order, separated by commas, or a preset.';
+
+  @override
+  String get appearanceSettingsCodeFontDefault => 'Default';
+
+  @override
+  String get appearanceSettingsCodeFontField => 'Font families';
+
+  @override
+  String appearanceSettingsCodeFontLabel(String font) {
+    return 'Code font: $font';
+  }
+
+  @override
+  String get appearanceSettingsCodeSize => 'Code Size';
+
+  @override
+  String get appearanceSettingsCodeSizeDescription =>
+      'The size of code in the editor, the terminal, the chat and the previews.';
+
+  @override
+  String appearanceSettingsCodeSizeLabel(String size) {
+    return 'Code size: $size';
+  }
+
+  @override
+  String get appearanceSettingsLigatures => 'Font Ligatures';
+
+  @override
+  String get appearanceSettingsLigaturesDescription =>
+      'Draws sequences such as => and != as one glyph where the font has one. The terminal does not.';
+
+  @override
+  String get appearanceSettingsUiScale => 'Interface Text Size';
+
+  @override
+  String get appearanceSettingsUiScaleDescription =>
+      'The size of the window\'s text. Code keeps its own size.';
+
+  @override
+  String appearanceSettingsUiScaleLabel(String percent) {
+    return 'Interface text size: $percent%';
+  }
+
+  @override
   String get generalSettingsContextMenuFinder => 'Finder Context Menu';
 
   @override

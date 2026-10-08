@@ -325,6 +325,7 @@ class _LineCounts extends StatelessWidget {
     TextStyle style(String color) => TextStyle(
       color: themeColors[color],
       fontFamily: AppFonts.mono,
+      fontFamilyFallback: AppFonts.monoFallbacks,
       fontSize: 11,
     );
     return Padding(

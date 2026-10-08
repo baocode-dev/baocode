@@ -5775,6 +5775,53 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get appearanceSettingsCodeFont => '代码字体';
+
+  @override
+  String get appearanceSettingsCodeFontDescription =>
+      '代码使用的字体：编辑器、终端、对话和预览中的代码。按顺序输入字体名，用逗号分隔，或从预设中选择。';
+
+  @override
+  String get appearanceSettingsCodeFontDefault => '默认';
+
+  @override
+  String get appearanceSettingsCodeFontField => '字体名';
+
+  @override
+  String appearanceSettingsCodeFontLabel(String font) {
+    return '代码字体：$font';
+  }
+
+  @override
+  String get appearanceSettingsCodeSize => '代码字号';
+
+  @override
+  String get appearanceSettingsCodeSizeDescription => '编辑器、终端、对话和预览中代码的字号。';
+
+  @override
+  String appearanceSettingsCodeSizeLabel(String size) {
+    return '代码字号：$size';
+  }
+
+  @override
+  String get appearanceSettingsLigatures => '字体连字';
+
+  @override
+  String get appearanceSettingsLigaturesDescription =>
+      '字体有对应字形时，把 => 、!= 等组合画成一个字形。终端不使用连字。';
+
+  @override
+  String get appearanceSettingsUiScale => '界面文字大小';
+
+  @override
+  String get appearanceSettingsUiScaleDescription => '缩放窗口的文字，代码的字号不变。';
+
+  @override
+  String appearanceSettingsUiScaleLabel(String percent) {
+    return '界面文字大小：$percent%';
+  }
+
+  @override
   String get generalSettingsContextMenuFinder => '访达右键菜单';
 
   @override

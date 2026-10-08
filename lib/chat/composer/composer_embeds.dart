@@ -604,6 +604,7 @@ class ComposerCodeChip extends StatelessWidget {
                 style: TextStyle(
                   color: AppColors.text,
                   fontFamily: AppFonts.mono,
+                  fontFamilyFallback: AppFonts.monoFallbacks,
                   fontSize: 11.5,
                   height: 1.4,
                 ),

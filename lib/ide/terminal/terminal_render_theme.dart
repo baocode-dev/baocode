@@ -16,6 +16,7 @@ import 'dart:ui' show Color;
 
 import '../../platform/app_platform.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/code_font.dart';
 import 'terminal_colors.dart';
 
 import 'package:bao_xterm/common/color.dart';
@@ -413,14 +414,13 @@ ITheme vscodeTerminalTheme([TerminalColorTheme? theme]) =>
     (theme ?? terminalColorTheme.value).toXtermTheme();
 
 /// The terminal font, as VS Code's `getFont` resolves it without a
-/// `terminal.integrated.fontFamily`: the editor's family (this app's editor
-/// draws in [AppFonts.mono]), then `monospace` and, on macOS,
-/// AppleBraille. On Windows, where Menlo is missing, the app's fallbacks
-/// ([AppFonts.windowsFallbacks], ending in `monospace`) follow it as the
-/// theme puts them.
+/// `terminal.integrated.fontFamily`: the editor's families (this app's
+/// editor draws in [CodeFont.families]), then `monospace` and, on macOS,
+/// AppleBraille. On Windows the app's fallbacks ([AppFonts.windowsFallbacks],
+/// ending in `monospace`) follow them as the theme puts them.
 String vscodeTerminalFontFamily() {
   final families = [
-    AppFonts.mono,
+    ...CodeFont.families.value,
     if (AppPlatform.isWindows) ...AppFonts.windowsFallbacks else 'monospace',
     if (AppPlatform.isMacOS) 'AppleBraille',
   ];
@@ -428,8 +428,8 @@ String vscodeTerminalFontFamily() {
 }
 
 /// The options VS Code's terminal creates xterm.js with that the renderer
-/// reads, at their defaults: the editor's font at 13px (this app's editor
-/// size), `terminal.integrated.lineHeight` 1, `letterSpacing` 0, a block
+/// reads, at their defaults: the editor's font at the editor's size (see
+/// [CodeFont.sized]),`terminal.integrated.lineHeight` 1, `letterSpacing` 0, a block
 /// cursor that does not blink and an outline when unfocused, bold in bright
 /// colors, a minimum contrast ratio of 4.5, overlapping glyphs rescaled,
 /// 1000 lines of scrollback, no smooth scrolling and Modern UI's 10px
@@ -449,7 +449,7 @@ ITerminalOptions vscodeTerminalOptions({
   fontFamily: vscodeTerminalFontFamily(),
   fontWeight: 'normal',
   fontWeightBold: 'bold',
-  fontSize: 13,
+  fontSize: CodeFont.sized(13),
   letterSpacing: 0,
   lineHeight: 1,
   minimumContrastRatio: terminalMinimumContrastRatio,

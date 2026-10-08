@@ -4322,6 +4322,40 @@
       }
     }
   },
+  "appearanceSettingsCodeFont": "Code Font",
+  "appearanceSettingsCodeFontDescription": "The font code is drawn in: in the editor, the terminal, the chat and the previews. Family names in order, separated by commas, or a preset.",
+  "appearanceSettingsCodeFontDefault": "Default",
+  "appearanceSettingsCodeFontField": "Font families",
+  "appearanceSettingsCodeFontLabel": "Code font: {font}",
+  "@appearanceSettingsCodeFontLabel": {
+    "placeholders": {
+      "font": {
+        "type": "String"
+      }
+    }
+  },
+  "appearanceSettingsCodeSize": "Code Size",
+  "appearanceSettingsCodeSizeDescription": "The size of code in the editor, the terminal, the chat and the previews.",
+  "appearanceSettingsCodeSizeLabel": "Code size: {size}",
+  "@appearanceSettingsCodeSizeLabel": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "appearanceSettingsLigatures": "Font Ligatures",
+  "appearanceSettingsLigaturesDescription": "Draws sequences such as => and != as one glyph where the font has one. The terminal does not.",
+  "appearanceSettingsUiScale": "Interface Text Size",
+  "appearanceSettingsUiScaleDescription": "The size of the window's text. Code keeps its own size.",
+  "appearanceSettingsUiScaleLabel": "Interface text size: {percent}%",
+  "@appearanceSettingsUiScaleLabel": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
   "generalSettingsContextMenuFinder": "Finder Context Menu",
   "generalSettingsContextMenuExplorer": "Explorer Context Menu",
   "generalSettingsContextMenuDescription": "Adds \"Open with BaoCode\" (a new agent) and \"Open with Fast Ide\" (a new IDE window) to the context menu of files, folders and a folder's background.",

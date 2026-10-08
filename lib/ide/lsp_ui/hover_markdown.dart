@@ -38,11 +38,8 @@ typedef IdeCodeColorizer = Future<List<List<TextSpan>>?> Function(
 
 /// The editor's font for code in hovers (`applyFontInfo`), and the size
 /// the hover's text takes from it (`contentHoverWidget.ts`).
-const ideHoverCodeStyle = TextStyle(
-  fontFamily: AppFonts.mono,
-  fontSize: 13,
-  height: 1.45,
-);
+TextStyle get ideHoverCodeStyle =>
+    AppFonts.codeStyle(13).copyWith(height: 1.45);
 
 /// [markdown] as a hover shows it. Each block carries the hover's side
 /// [padding], so rules can span the whole hover as VS Code's do.
@@ -52,7 +49,7 @@ class IdeHoverMarkdown extends StatelessWidget {
     super.key,
     this.colorize,
     this.language,
-    this.codeStyle = ideHoverCodeStyle,
+    this.codeStyle,
     this.padding = 8,
     this.foreground = 'editorHoverWidget.foreground',
   });
@@ -63,8 +60,9 @@ class IdeHoverMarkdown extends StatelessWidget {
   /// The editor's language, for code fences that name none.
   final String? language;
 
-  /// The editor's font; the text takes its size and line height.
-  final TextStyle codeStyle;
+  /// The editor's font ([ideHoverCodeStyle] when null); the text takes its
+  /// size and line height from it.
+  final TextStyle? codeStyle;
 
   /// `.hover-contents`' side padding, which rules reach across.
   final double padding;
@@ -79,6 +77,7 @@ class IdeHoverMarkdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final codeStyle = this.codeStyle ?? ideHoverCodeStyle;
     final color = themeColors[foreground];
     final text = TextStyle(
       color: color,

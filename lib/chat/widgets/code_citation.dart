@@ -523,12 +523,8 @@ class _CodeCardState extends State<_CodeCard> {
   Widget _body() {
     final lines = widget.code.split('\n');
     final citation = widget.citation;
-    final style = TextStyle(
-      color: themeColors['editor.foreground'],
-      fontFamily: AppFonts.mono,
-      fontSize: 12,
-      height: 1.5,
-    );
+    final style = AppFonts.codeStyle(12)
+        .copyWith(color: themeColors['editor.foreground'], height: 1.5);
     final numbers = switch (citation) {
       final citation? => SelectionContainer.disabled(
         child: Padding(

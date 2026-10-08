@@ -1883,12 +1883,9 @@ class IdeEditorState extends State<IdeEditor> {
         : (event) => _resolveKey(event).command,
   );
 
-  TextStyle _editorStyle(WorkbenchColors colors) => TextStyle(
-    color: colors['editor.foreground'],
-    fontFamily: AppFonts.mono,
-    fontSize: 13,
-    height: 1.45,
-  );
+  TextStyle _editorStyle(WorkbenchColors colors) =>
+      AppFonts.codeStyle(13)
+          .copyWith(color: colors['editor.foreground'], height: 1.45);
 
   /// The active document's editor; in a diff, the modified side, with
   /// what the diff gives it ([side]).
@@ -2053,10 +2050,8 @@ class IdeEditorState extends State<IdeEditor> {
                         enableSuggestions: false,
                         cursorColor: colors['editorCursor.foreground'],
                         onChanged: _changed,
-                        style: TextStyle(
+                        style: AppFonts.codeStyle(13).copyWith(
                           color: colors['editor.foreground'],
-                          fontFamily: AppFonts.mono,
-                          fontSize: 13,
                           height: 1.45,
                         ),
                         decoration: InputDecoration(

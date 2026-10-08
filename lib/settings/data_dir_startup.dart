@@ -263,7 +263,10 @@ class _DataDirectoryRecoveryState extends State<DataDirectoryRecovery> {
                 if (problem.problem != DataDirectoryProblem.invalidPointer)
                   SelectableText(
                     problem.path,
-                    style: text(size: 12).copyWith(fontFamily: AppFonts.mono),
+                    style: text(size: 12).copyWith(
+                      fontFamily: AppFonts.mono,
+                      fontFamilyFallback: AppFonts.monoFallbacks,
+                    ),
                   ),
                 SelectableText(error, style: text()),
                 const SizedBox(height: 6),

@@ -188,6 +188,7 @@ class _ServerRow extends StatelessWidget {
                       style: TextStyle(
                         color: AppColors.textMuted,
                         fontFamily: AppFonts.mono,
+                        fontFamilyFallback: AppFonts.monoFallbacks,
                         fontSize: 11,
                       ),
                     ),

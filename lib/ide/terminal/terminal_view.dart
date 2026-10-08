@@ -40,6 +40,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
+import '../../theme/code_font.dart';
 import '../ide_commands.dart';
 import '../ide_dialog.dart';
 import '../ide_find_widget.dart';
@@ -574,9 +575,7 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
           final options = terminal.optionsService.rawOptions;
           final layout = decorationLayout(
             fontSize: options.fontSize,
-            defaultFontSize: defaultTargetPlatform == TargetPlatform.macOS
-                ? 12
-                : 14,
+            defaultFontSize: CodeFont.sized(13),
             lineHeight: options.lineHeight,
           );
           final top = terminal.buffer.ydisp;

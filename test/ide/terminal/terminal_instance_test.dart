@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/terminal/pty.dart';
 import 'package:baocode/ide/terminal/terminal_instance.dart';
 import 'package:baocode/ide/terminal/terminal_keyboard.dart';
+import 'package:baocode/theme/code_font.dart';
 
 import 'fake_pty.dart';
 import 'fake_terminal.dart';
@@ -288,5 +289,17 @@ void main() {
       terminal.terminal.buffer.lines.get(0)!.translateToString(true),
       r'$ ',
     );
+  });
+
+  test('the code font moves the terminal\'s family and size as it changes', () {
+    addTearDown(() {
+      CodeFont.families.value = CodeFont.defaultFamilies;
+      CodeFont.size.value = CodeFont.defaultSize;
+    });
+    final (:terminal, started: _, exits: _) = _start();
+    CodeFont.size.value = 16;
+    expect(terminal.xterm.options.fontSize, 16);
+    CodeFont.families.value = ['Iosevka', 'Menlo'];
+    expect(terminal.xterm.options.fontFamily, startsWith('Iosevka, Menlo, '));
   });
 }

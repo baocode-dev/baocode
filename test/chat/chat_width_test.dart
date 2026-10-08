@@ -6,6 +6,7 @@ import 'package:baocode/chat/chat_width.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/ide/ide_color_theme_picker.dart';
 import 'package:baocode/settings/pages/appearance_page.dart';
+import 'package:baocode/settings/pages/settings_widgets.dart';
 import 'package:baocode/settings/user_settings.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -62,13 +63,12 @@ void main() {
     tester.view.physicalSize = const Size(900, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final data = await Directory.systemTemp.createTemp('baocode-chat-width');
+    final data = (await tester.runAsync(
+      () => Directory.systemTemp.createTemp('baocode-chat-width'),
+    ))!;
     final settings = UserSettings(p.join(data.path, 'settings.json'));
     await tester.runAsync(settings.load);
-    addTearDown(() async {
-      settings.dispose();
-      await data.delete(recursive: true);
-    });
+    addTearDown(settings.dispose);
     final themes = _Themes();
     await tester.pumpWidget(
       MaterialApp(
@@ -81,24 +81,48 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Default'), findsOneWidget);
-    final slider = find.byType(Slider);
-    await tester.tapAt(tester.getCenter(slider) + const Offset(200, 0));
+    // The code font's dropdown shows Default too: the width's slider's only.
+    expect(
+      find.descendant(
+        of: find.byType(SettingsSlider),
+        matching: find.text('Default'),
+      ),
+      findsOneWidget,
+    );
+    // The width's slider: the page's first; the code size's and the text
+    // size's come after it.
+    final slider = find.descendant(
+      of: find.byType(SettingsSlider).first,
+      matching: find.byType(Slider),
+    );
+    await tester.tapAt(tester.getTopRight(slider) + const Offset(-4, 10));
     await tester.pump();
     expect(ChatWidth.current.value, double.infinity);
     expect(find.text('Full width'), findsOneWidget);
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
+    await settle(tester, () => settings[ChatWidth.settingKey] == 'full');
     expect(settings[ChatWidth.settingKey], 'full');
     await tester.tapAt(tester.getTopLeft(slider) + const Offset(4, 10));
     await tester.pump();
     expect(ChatWidth.current.value, ChatWidth.fallback);
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    await settle(
+      tester,
+      () => !settings.values.containsKey(ChatWidth.settingKey),
     );
     expect(settings.values.containsKey(ChatWidth.settingKey), isFalse);
+    // Removed outside the test's fake clock, where its file IO can finish.
+    await tester.runAsync(() => data.delete(recursive: true));
   });
+}
+
+/// Lets settings.json's reads and writes finish: each is real IO, run in
+/// the real clock, and the next starts once the fake clock pumps.
+Future<void> settle(WidgetTester tester, bool Function() done) async {
+  for (var i = 0; i < 250 && !done(); i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump();
+  }
 }
 
 class _Themes extends ChangeNotifier implements IdeColorThemeController {

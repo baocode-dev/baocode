@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../ide/terminal/terminal_colors.dart';
 import '../platform/app_platform.dart';
+import 'code_font.dart';
 import 'workbench_theme.dart' hide ColorScheme;
 
 /// The app's colors, from the workbench's color theme: each is a VS Code
@@ -182,15 +183,33 @@ abstract final class AppMetrics {
 }
 
 abstract final class AppFonts {
-  /// The font code, paths and commands are drawn in, as macOS has it.
-  static const mono = 'Menlo';
+  /// The font code, paths and commands are drawn in: the first of
+  /// [CodeFont.families], which the user may change.
+  static String get mono => CodeFont.families.value.first;
+
+  /// What code falls back on, in order: the families after [mono], then on
+  /// Windows [windowsFallbacks]. A family not installed is passed over.
+  static List<String> get monoFallbacks => [
+    ...CodeFont.families.value.skip(1),
+    if (AppPlatform.isWindows) ...windowsFallbacks,
+  ];
+
+  /// A style for code drawn at [size], as the code's size is moved (see
+  /// [CodeFont.sized]), in [mono] with [monoFallbacks], and with ligatures
+  /// as [CodeFont.features] says. The caller adds the color and the height.
+  static TextStyle codeStyle(double size) => TextStyle(
+    fontFamily: mono,
+    fontFamilyFallback: monoFallbacks,
+    fontFeatures: CodeFont.features,
+    fontSize: CodeFont.sized(size),
+  );
 
   /// What Windows falls back on. Set once, for all text, by the theme there
   /// (see [buildAppTheme]): a family the text names comes first, so this
   /// catches only what that family has not got.
   ///
-  /// The monospaced families come first for [mono], which is Menlo, and which
-  /// Windows has not got: code would otherwise be drawn in the proportional
+  /// The monospaced families come first for [mono], which Windows has not
+  /// got by default: code would otherwise be drawn in the proportional
   /// default.
   ///
   /// [Microsoft YaHei UI] is after them, for Chinese, which nothing above it

@@ -298,9 +298,5 @@ class StepBody extends StatelessWidget {
 }
 
 /// Monospaced text as steps show it: commands, output, matches.
-TextStyle get stepMono => TextStyle(
-  fontFamily: AppFonts.mono,
-  fontSize: 12,
-  height: 1.5,
-  color: AppColors.textMuted,
-);
+TextStyle get stepMono =>
+    AppFonts.codeStyle(12).copyWith(height: 1.5, color: AppColors.textMuted);

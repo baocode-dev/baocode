@@ -396,8 +396,10 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
                                   model.id,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: _text(context)
-                                      .copyWith(fontFamily: AppFonts.mono),
+                                  style: _text(context).copyWith(
+                                    fontFamily: AppFonts.mono,
+                                    fontFamilyFallback: AppFonts.monoFallbacks,
+                                  ),
                                 ),
                               ),
                               if (detail.isNotEmpty) ...[
@@ -703,7 +705,10 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
                     )
                   : SelectableText(
                       _id.text,
-                      style: _text(context).copyWith(fontFamily: AppFonts.mono),
+                      style: _text(context).copyWith(
+                        fontFamily: AppFonts.mono,
+                        fontFamilyFallback: AppFonts.monoFallbacks,
+                      ),
                     ),
             ),
             _field(

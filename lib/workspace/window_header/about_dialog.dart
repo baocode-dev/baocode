@@ -73,6 +73,7 @@ class _AboutBaoCodeDialog extends StatelessWidget {
                     color: AppColors.textFaint,
                     fontSize: 12,
                     fontFamily: AppFonts.mono,
+                    fontFamilyFallback: AppFonts.monoFallbacks,
                   ),
                 ),
               ],

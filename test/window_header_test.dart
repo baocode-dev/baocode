@@ -481,7 +481,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildAppTheme(),
-        home: const Scaffold(
+        home: Scaffold(
           body: Text('x', style: TextStyle(fontFamily: AppFonts.mono)),
         ),
       ),

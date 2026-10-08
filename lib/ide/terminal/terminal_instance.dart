@@ -30,6 +30,7 @@ import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
 import '../../settings/user_settings.dart';
+import '../../theme/code_font.dart';
 import 'pty.dart';
 import 'shell_integration/shell_integration.dart';
 import 'shell_integration/shell_integration_injection.dart';
@@ -121,6 +122,8 @@ class TerminalInstance extends ChangeNotifier {
       ),
     );
     terminalColorTheme.addListener(_updateTheme);
+    CodeFont.families.addListener(_updateFont);
+    CodeFont.size.addListener(_updateFont);
     source = TerminalCoreSource(terminal, decorationService: decorations);
     clipboard = TerminalClipboard(
       selection: selection,
@@ -228,6 +231,13 @@ class TerminalInstance extends ChangeNotifier {
   /// sequences set), clears the contrast cache and redraws.
   void _updateTheme() {
     xterm.options.theme = vscodeTerminalTheme(terminalColorTheme.value);
+  }
+
+  /// The code font's family and size (Settings → Appearance) as the
+  /// terminal's options: xterm.js remeasures its cells and the PTY follows.
+  void _updateFont() {
+    xterm.options.fontFamily = vscodeTerminalFontFamily();
+    xterm.options.fontSize = CodeFont.sized(13);
   }
 
   /// The find widget's theme listener, with `_updateFindColors`' new colors.
@@ -456,6 +466,8 @@ class TerminalInstance extends ChangeNotifier {
     if (_disposed) return;
     _disposed = true;
     terminalColorTheme.removeListener(_updateTheme);
+    CodeFont.families.removeListener(_updateFont);
+    CodeFont.size.removeListener(_updateFont);
     if (!_exited) _pty?.kill();
     unawaited(_printing?.cancel());
     unawaited(_output.close());

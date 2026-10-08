@@ -28,7 +28,11 @@ class EditStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const count = TextStyle(fontFamily: AppFonts.mono, fontSize: 11.5);
+    final count = TextStyle(
+      fontFamily: AppFonts.mono,
+      fontFamilyFallback: AppFonts.monoFallbacks,
+      fontSize: 11.5,
+    );
     final files = FileOpenScope.maybeOf(context);
     final path = files?.resolve(item.path);
     final first = item.firstChangedLine;
@@ -237,11 +241,7 @@ class _DiffLineRow extends StatelessWidget {
       ),
       DiffLineType.context => (' ', AppColors.textFaint, Colors.transparent),
     };
-    const mono = TextStyle(
-      fontFamily: AppFonts.mono,
-      fontSize: 12,
-      height: 1.5,
-    );
+    final mono = AppFonts.codeStyle(12).copyWith(height: 1.5);
 
     return ColoredBox(
       color: background,

@@ -51,6 +51,7 @@ import 'telemetry/telemetry_platform.dart';
 import 'telemetry/telemetry_service.dart';
 import 'telemetry/telemetry_store.dart';
 import 'theme/app_theme.dart';
+import 'theme/code_font.dart';
 import 'theme/workbench_theme.dart';
 import 'update/update_controller.dart';
 import 'update/update_platform.dart';
@@ -115,6 +116,9 @@ Future<void> main(List<String> arguments) async {
       files.settings,
       () => files.settings[ChatWidth.settingKey],
     );
+    // Settings → Appearance: the code's font, size and ligatures, and the
+    // window's text size.
+    CodeFont.follow(files.settings, (key) => files.settings[key]);
   }
   await prepareClaudeOnboarding();
   final locale = AppLocale(storage: files?.argv);
@@ -452,7 +456,15 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
       builder: (context) => AppLocaleScope(
         notifier: _locale,
         child: ListenableBuilder(
-          listenable: _locale,
+          // The code's font, size and ligatures are read as the app is
+          // built, so a change rebuilds it; the text scale is a MediaQuery
+          // instead (see the builder in _app).
+          listenable: Listenable.merge([
+            _locale,
+            CodeFont.families,
+            CodeFont.size,
+            CodeFont.ligatures,
+          ]),
           builder: (context, _) => _windows.started
               ? ListenableBuilder(
                   listenable: _windows,
@@ -485,6 +497,21 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
     title: 'BaoCode',
     debugShowCheckedModeBanner: false,
     theme: buildAppTheme(),
+    builder: (context, child) => ValueListenableBuilder<int>(
+      valueListenable: CodeFont.uiScale,
+      builder: (context, percent, scaled) {
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: TextScaler.linear(
+              media.textScaler.scale(1) * percent / 100,
+            ),
+          ),
+          child: scaled!,
+        );
+      },
+      child: child,
+    ),
     locale: _locale.locale,
     supportedLocales: AppLocale.supportedLocales,
     localizationsDelegates: const [

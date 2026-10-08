@@ -10233,6 +10233,84 @@ abstract class AppLocalizations {
   /// **'Conversation width: {width}'**
   String appearanceSettingsChatWidthLabel(String width);
 
+  /// No description provided for @appearanceSettingsCodeFont.
+  ///
+  /// In en, this message translates to:
+  /// **'Code Font'**
+  String get appearanceSettingsCodeFont;
+
+  /// No description provided for @appearanceSettingsCodeFontDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The font code is drawn in: in the editor, the terminal, the chat and the previews. Family names in order, separated by commas, or a preset.'**
+  String get appearanceSettingsCodeFontDescription;
+
+  /// No description provided for @appearanceSettingsCodeFontDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get appearanceSettingsCodeFontDefault;
+
+  /// No description provided for @appearanceSettingsCodeFontField.
+  ///
+  /// In en, this message translates to:
+  /// **'Font families'**
+  String get appearanceSettingsCodeFontField;
+
+  /// No description provided for @appearanceSettingsCodeFontLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Code font: {font}'**
+  String appearanceSettingsCodeFontLabel(String font);
+
+  /// No description provided for @appearanceSettingsCodeSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Code Size'**
+  String get appearanceSettingsCodeSize;
+
+  /// No description provided for @appearanceSettingsCodeSizeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The size of code in the editor, the terminal, the chat and the previews.'**
+  String get appearanceSettingsCodeSizeDescription;
+
+  /// No description provided for @appearanceSettingsCodeSizeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Code size: {size}'**
+  String appearanceSettingsCodeSizeLabel(String size);
+
+  /// No description provided for @appearanceSettingsLigatures.
+  ///
+  /// In en, this message translates to:
+  /// **'Font Ligatures'**
+  String get appearanceSettingsLigatures;
+
+  /// No description provided for @appearanceSettingsLigaturesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Draws sequences such as => and != as one glyph where the font has one. The terminal does not.'**
+  String get appearanceSettingsLigaturesDescription;
+
+  /// No description provided for @appearanceSettingsUiScale.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface Text Size'**
+  String get appearanceSettingsUiScale;
+
+  /// No description provided for @appearanceSettingsUiScaleDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The size of the window\'s text. Code keeps its own size.'**
+  String get appearanceSettingsUiScaleDescription;
+
+  /// No description provided for @appearanceSettingsUiScaleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface text size: {percent}%'**
+  String appearanceSettingsUiScaleLabel(String percent);
+
   /// No description provided for @generalSettingsContextMenuFinder.
   ///
   /// In en, this message translates to:

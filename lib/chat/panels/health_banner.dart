@@ -94,6 +94,7 @@ class _HealthBannerState extends State<HealthBanner> {
                   style: TextStyle(
                     color: AppColors.textMuted,
                     fontFamily: AppFonts.mono,
+                    fontFamilyFallback: AppFonts.monoFallbacks,
                     fontSize: 11.5,
                     height: 1.45,
                   ),

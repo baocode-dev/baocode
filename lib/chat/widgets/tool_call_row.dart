@@ -138,7 +138,11 @@ class ToolCallRow extends StatelessWidget {
       children: [
         Text(
           path!,
-          style: const TextStyle(fontFamily: AppFonts.mono, fontSize: 12),
+          style: TextStyle(
+            fontFamily: AppFonts.mono,
+            fontFamilyFallback: AppFonts.monoFallbacks,
+            fontSize: 12,
+          ),
         ),
         if (lines != null)
           Text(
@@ -162,9 +166,7 @@ class _Results extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final result in results) _result(result),
-      ],
+      children: [for (final result in results) _result(result)],
     );
   }
 

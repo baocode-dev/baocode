@@ -26,12 +26,8 @@ import 'suggest_session.dart';
 // renameWidget.ts, messageController.css, hover.css).
 
 /// The editor's font for code in the widgets, in [color].
-TextStyle _mono(Color color) => TextStyle(
-  fontFamily: AppFonts.mono,
-  fontSize: 12.5,
-  color: color,
-  height: 1.4,
-);
+TextStyle _mono(Color color) =>
+    AppFonts.codeStyle(12.5).copyWith(color: color, height: 1.4);
 
 /// Text drawn at CSS `opacity`.
 Color _faded(Color color, double opacity) =>
@@ -647,9 +643,7 @@ class _SuggestRow extends StatelessWidget {
     final focusOutline = selected
         ? colors.get('editorSuggestWidget.focusOutline')
         : null;
-    final base = TextStyle(
-      fontFamily: AppFonts.mono,
-      fontSize: 12.5,
+    final base = AppFonts.codeStyle(12.5).copyWith(
       color: foreground,
       decoration: completion.deprecated ? TextDecoration.lineThrough : null,
     );

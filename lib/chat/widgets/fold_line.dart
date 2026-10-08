@@ -148,7 +148,11 @@ class WorkFoldLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final faint = TextStyle(color: AppColors.textFaint);
-    const count = TextStyle(fontFamily: AppFonts.mono, fontSize: 11.5);
+    final count = TextStyle(
+      fontFamily: AppFonts.mono,
+      fontFamilyFallback: AppFonts.monoFallbacks,
+      fontSize: 11.5,
+    );
     final header = StepHeader(
       verb: text(worked, edits, l10n: l10n),
       expanded: expanded,

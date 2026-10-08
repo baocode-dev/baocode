@@ -261,12 +261,8 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
       showMinimap: false,
       decorations: widget.decorations,
       onViewChanged: _viewChanged,
-      style: TextStyle(
-        color: colors['editor.foreground'],
-        fontFamily: AppFonts.mono,
-        fontSize: 13,
-        height: 1.45,
-      ),
+      style: AppFonts.codeStyle(13)
+          .copyWith(color: colors['editor.foreground'], height: 1.45),
     );
   }
 }

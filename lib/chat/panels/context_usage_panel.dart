@@ -257,6 +257,7 @@ class _Legend extends StatelessWidget {
           style: TextStyle(
             color: AppColors.text,
             fontFamily: AppFonts.mono,
+            fontFamilyFallback: AppFonts.monoFallbacks,
             fontSize: 11,
           ),
         ),
@@ -286,6 +287,7 @@ class _Stat extends StatelessWidget {
           style: TextStyle(
             color: AppColors.text,
             fontFamily: AppFonts.mono,
+            fontFamilyFallback: AppFonts.monoFallbacks,
             fontSize: 11.5,
           ),
         ),
@@ -344,6 +346,7 @@ class _LimitMeter extends StatelessWidget {
             style: TextStyle(
               color: fraction >= 0.9 ? color : AppColors.text,
               fontFamily: AppFonts.mono,
+              fontFamilyFallback: AppFonts.monoFallbacks,
               fontSize: 11,
             ),
           ),

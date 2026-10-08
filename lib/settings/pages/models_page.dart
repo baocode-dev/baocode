@@ -1019,6 +1019,7 @@ class _ModelRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: SettingsText.description.copyWith(
                       fontFamily: AppFonts.mono,
+                      fontFamilyFallback: AppFonts.monoFallbacks,
                       fontSize: 11.5,
                     ),
                   ),

@@ -281,6 +281,9 @@ class _TaskRow extends StatelessWidget {
                       fontFamily: task.kind == KernelTaskKind.command
                           ? AppFonts.mono
                           : null,
+                      fontFamilyFallback: task.kind == KernelTaskKind.command
+                          ? AppFonts.monoFallbacks
+                          : null,
                       fontSize: 11.5,
                     ),
                   ),
@@ -410,6 +413,7 @@ class _FilesHeader extends StatelessWidget {
                 style: TextStyle(
                   color: themeColors['chat.linesAddedForeground'],
                   fontFamily: AppFonts.mono,
+                  fontFamilyFallback: AppFonts.monoFallbacks,
                   fontSize: 11.5,
                 ),
               ),
@@ -419,6 +423,7 @@ class _FilesHeader extends StatelessWidget {
                 style: TextStyle(
                   color: themeColors['chat.linesRemovedForeground'],
                   fontFamily: AppFonts.mono,
+                  fontFamilyFallback: AppFonts.monoFallbacks,
                   fontSize: 11.5,
                 ),
               ),

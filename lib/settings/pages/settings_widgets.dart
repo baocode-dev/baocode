@@ -29,6 +29,7 @@ abstract final class SettingsText {
     fontSize: 12,
     height: 1.5,
     fontFamily: AppFonts.mono,
+    fontFamilyFallback: AppFonts.monoFallbacks,
   );
 }
 
@@ -363,42 +364,147 @@ class SettingsSlider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = AppColors.accent;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(label, style: SettingsText.description),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 180,
-          child: SliderTheme(
-            data: SliderThemeData(
-              trackHeight: 3,
-              activeTrackColor: accent,
-              inactiveTrackColor: AppColors.textFaint.withValues(alpha: 0.35),
-              activeTickMarkColor: Colors.white.withValues(alpha: 0.7),
-              inactiveTickMarkColor: AppColors.textMuted,
-              thumbColor: Colors.white,
-              overlayColor: accent.withValues(alpha: 0.12),
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-              tickMarkShape: const RoundSliderTickMarkShape(
-                tickMarkRadius: 1.5,
+    // One semantics node per slider: several in a card otherwise fail the
+    // engine's semantics check.
+    return MergeSemantics(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: SettingsText.description),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 180,
+            child: SliderTheme(
+              data: SliderThemeData(
+                trackHeight: 3,
+                activeTrackColor: accent,
+                inactiveTrackColor: AppColors.textFaint.withValues(alpha: 0.35),
+                activeTickMarkColor: Colors.white.withValues(alpha: 0.7),
+                inactiveTickMarkColor: AppColors.textMuted,
+                thumbColor: Colors.white,
+                overlayColor: accent.withValues(alpha: 0.12),
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                tickMarkShape: const RoundSliderTickMarkShape(
+                  tickMarkRadius: 1.5,
+                ),
+                showValueIndicator: ShowValueIndicator.never,
               ),
-              showValueIndicator: ShowValueIndicator.never,
+              child: Slider(
+                value: step.toDouble(),
+                max: (count - 1).toDouble(),
+                divisions: count - 1,
+                semanticFormatterCallback: (_) => semanticLabel,
+                onChanged: (value) {
+                  final picked = value.round();
+                  if (picked != step) onChanged(picked);
+                },
+              ),
             ),
-            child: Slider(
-              value: step.toDouble(),
-              max: (count - 1).toDouble(),
-              divisions: count - 1,
-              semanticFormatterCallback: (_) => semanticLabel,
-              onChanged: (value) {
-                final picked = value.round();
-                if (picked != step) onChanged(picked);
-              },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A line of text, as a row's control: [value] as it is kept, and what is
+/// typed goes to [onSubmitted] once it is entered or the field loses focus,
+/// when that changed it. [hint] shows where it is empty.
+class SettingsTextField extends StatefulWidget {
+  const SettingsTextField({
+    super.key,
+    required this.value,
+    required this.semanticLabel,
+    required this.onSubmitted,
+    this.hint,
+    this.width = 220,
+  });
+
+  final String value;
+  final String semanticLabel;
+  final ValueChanged<String> onSubmitted;
+  final String? hint;
+  final double width;
+
+  @override
+  State<SettingsTextField> createState() => _SettingsTextFieldState();
+}
+
+class _SettingsTextFieldState extends State<SettingsTextField> {
+  late final _controller = TextEditingController(text: widget.value);
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_focusChanged);
+  }
+
+  @override
+  void didUpdateWidget(SettingsTextField old) {
+    super.didUpdateWidget(old);
+    // Shows the kept value when it changes elsewhere, never over a typing.
+    if (!_focus.hasFocus && _controller.text != widget.value) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _focus.removeListener(_focusChanged);
+    _focus.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _focusChanged() {
+    if (!_focus.hasFocus) _submit(_controller.text);
+  }
+
+  void _submit(String text) {
+    final typed = text.trim();
+    if (typed == widget.value) return;
+    widget.onSubmitted(typed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(5),
+      borderSide: BorderSide(color: AppColors.borderStrong),
+    );
+    final mono = TextStyle(
+      fontFamily: AppFonts.mono,
+      fontFamilyFallback: AppFonts.monoFallbacks,
+      fontSize: 12,
+    );
+    return Semantics(
+      textField: true,
+      label: widget.semanticLabel,
+      child: SizedBox(
+        width: widget.width,
+        child: TextField(
+          controller: _controller,
+          focusNode: _focus,
+          onSubmitted: _submit,
+          style: mono.copyWith(color: AppColors.text),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: widget.hint,
+            hintStyle: mono.copyWith(color: AppColors.textFaint),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 6,
+            ),
+            border: border,
+            enabledBorder: border,
+            focusedBorder: border.copyWith(
+              borderSide: BorderSide(color: AppColors.accent),
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 }
