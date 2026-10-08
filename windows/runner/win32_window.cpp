@@ -665,10 +665,16 @@ std::optional<LRESULT> Win32Window::NonClientSize(WPARAM wparam,
     return 0;
   }
   if (::IsZoomed(window_handle_)) {
+    // The monitor of the rectangle proposed, not of the window: the window
+    // is still where it was. Restored from minimized, that is off every
+    // screen (-32000, -32000), nearest the primary — whose work area, on
+    // a second screen of another size, left the window not filling its own
+    // and its content where the window was not, taking no input until it
+    // was dragged. Moved to another screen maximized (Win+Shift+arrow), it
+    // was the screen it left.
     MONITORINFO monitor = {};
     monitor.cbSize = sizeof(monitor);
-    if (::GetMonitorInfoW(::MonitorFromWindow(window_handle_,
-                                             MONITOR_DEFAULTTONEAREST),
+    if (::GetMonitorInfoW(::MonitorFromRect(client, MONITOR_DEFAULTTONEAREST),
                           &monitor)) {
       *client = monitor.rcWork;
     }

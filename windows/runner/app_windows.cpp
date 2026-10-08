@@ -633,10 +633,16 @@ flutter::EncodableValue AppWindows::FrameOf(HWND window) const {
   const bool zoomed = ::IsZoomed(window) != 0;
   const bool iconic = ::IsIconic(window) != 0;
   RECT bounds = {};
+  // The screen it is on; minimized, the one it goes back to (its own rect
+  // is then off every screen, nearest the primary).
+  HMONITOR monitor = ::MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
   if (zoomed || iconic) {
     // Its normal place, which the placement keeps in the work area's
     // coordinates: to the screen's.
     bounds = placement.rcNormalPosition;
+    if (iconic) {
+      monitor = ::MonitorFromRect(&bounds, MONITOR_DEFAULTTONEAREST);
+    }
     MONITORINFO info = {};
     info.cbSize = sizeof(info);
     if (::GetMonitorInfoW(::MonitorFromRect(&bounds, MONITOR_DEFAULTTONEAREST),
@@ -661,8 +667,7 @@ flutter::EncodableValue AppWindows::FrameOf(HWND window) const {
       {flutter::EncodableValue("maximized"), flutter::EncodableValue(maximized)},
       {flutter::EncodableValue("fullscreen"), flutter::EncodableValue(false)},
       {flutter::EncodableValue("screen"),
-       flutter::EncodableValue(MonitorName(
-           ::MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST)))},
+       flutter::EncodableValue(MonitorName(monitor))},
   });
 }
 
