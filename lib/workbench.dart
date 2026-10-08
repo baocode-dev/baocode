@@ -2544,7 +2544,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   Widget _withSidePanel(Widget child) => AgentSidePanelArea(
     panel: _sidePanel,
-    hidden: _sidePanelHidden,
+    // Customize, in place of the conversations, isn't one of theirs.
+    hidden: _sidePanelHidden || _customizing,
     // Just under the conversation's title bar, whose right has the
     // window's buttons on macOS; at the top under Windows' header, already
     // a bar of its own (the title row's right is empty, the rail beside
@@ -2553,9 +2554,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     // Not in a narrow window, where the conversation has no room to spare
     // (the title bar's toggle shows the panel).
     rail: switch (_agentThread ?? _workspace.current) {
-      final thread? when !_narrow && !thread.untouched => _sidePanelRail(
-        thread,
-      ),
+      final thread? when !_narrow && !_customizing && !thread.untouched =>
+        _sidePanelRail(thread),
       _ => null,
     },
     builder: (context) => switch (_agentThread ?? _workspace.current) {

@@ -6,6 +6,7 @@ import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 
 import 'package:baocode/chat/chat_screen.dart';
+import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/customize/customization_store.dart';
 import 'package:baocode/customize/customizations.dart';
 import 'package:baocode/customize/customize_view.dart';
@@ -151,6 +152,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(CustomizeView), findsNothing);
     expect(workspace.selected.title, 'Rate limit per API key');
+  }, variant: _mac);
+
+  testWidgets('Customize has no side panel rail, the agent\'s', (tester) async {
+    await _pumpApp(tester, _MemoryStore());
+    await tester.pumpAndSettle();
+    expect(find.byType(SidePanelRail), findsOneWidget);
+    final customize = _inSidebar(find.text('Customize'));
+    await tester.tap(customize);
+    await tester.pumpAndSettle();
+    expect(find.byType(CustomizeView), findsOneWidget);
+    expect(find.byType(SidePanelRail), findsNothing);
+    await tester.tap(customize);
+    await tester.pumpAndSettle();
+    expect(find.byType(SidePanelRail), findsOneWidget);
+
+    // Its panel, open, is hidden while Customize shows.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyG);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.pumpAndSettle();
+    expect(find.byType(AgentSidePanelView), findsOneWidget);
+    await tester.tap(customize);
+    await tester.pumpAndSettle();
+    expect(find.byType(AgentSidePanelView), findsNothing);
   }, variant: _mac);
 
   testWidgets('a skill is edited and saved with ⌘S; a new one made', (
