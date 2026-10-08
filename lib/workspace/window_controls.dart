@@ -7,6 +7,7 @@ import '../chat/chat_models.dart';
 import '../chat/composer/composer_files.dart';
 import '../chat/composer/file_drop.dart';
 import '../platform/app_platform.dart';
+import '../theme/app_theme.dart';
 
 /// One of the window's own buttons, over a header the app draws itself: the
 /// system hit-tests and acts on those pixels, so the header only paints them
@@ -196,6 +197,7 @@ abstract final class WindowControls {
     _menuCommands.remove(viewId);
     _hovered.remove(viewId)?.dispose();
     _maximized.remove(viewId)?.dispose();
+    _captionHeights.remove(viewId);
     _channels.remove(viewId);
   }
 
@@ -222,6 +224,7 @@ abstract final class WindowControls {
     required Rect close,
   }) async {
     if (!drawsHeader) return;
+    _captionHeights[viewId ?? activeViewId] = height;
     try {
       await _of(viewId).invokeMethod<void>('setHitTestAreas', {
         'height': height,
@@ -236,6 +239,15 @@ abstract final class WindowControls {
       // A host without the channel (e.g. tests).
     }
   }
+
+  /// How high the strip at the top of [viewId]'s window is that the app
+  /// draws the caption in, as last told to the window: the IDE's header,
+  /// or the chat's title bars (see WindowCaption). None where the system
+  /// draws it.
+  static double captionHeightOf(int viewId) =>
+      drawsHeader ? _captionHeights[viewId] ?? AppMetrics.headerHeight : 0;
+
+  static final Map<int, double> _captionHeights = {};
 
   static Map<String, double> _encoded(Rect rect) => {
     'left': rect.left,

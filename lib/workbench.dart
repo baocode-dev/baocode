@@ -2364,20 +2364,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     space.addListener(follow);
   }
 
+  /// Windows' header over the IDE (see window_header/).
   Widget _buildHeader() {
-    final ide = _showsIde;
-    final project = ide
-        ? switch (_ideFolder) {
-            _noFolder => null,
-            final folder => _workspace.projectAt(folder),
-          }
-        : (_agentThread ?? _workspace.current)?.project;
     final windows = _multi ? _windows : null;
-    final agent = _agentThread;
     return WindowHeader(
       workspace: _workspace,
-      project: project,
-      ide: ide,
       hasFolder: _ideFolder != _noFolder,
       onBack: _ideWindow ? windows!.showChat : null,
       backLabel: _ideWindow ? context.l10n.cmdShowChatWindow : null,
@@ -2389,32 +2380,17 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           : _windowCommands()[WindowCommandIds.closeWindow],
       sidebarShown: _narrow ? _drawerOpen : _sidebarDocked,
       onToggleSidebar: _toggle,
-      ideLayout: ide ? _ideSpace(_ideFolder).layout : null,
+      ideLayout: _ideSpace(_ideFolder).layout,
       pinned: _pinned,
       onTogglePin: _setPinned,
-      terminalShown: _terminals?.shown ?? false,
-      onToggleTerminal: ide || _terminals?.root == null
-          ? null
-          : _toggleTerminal,
-      sidePanelShown: _sidePanel.shown && !_sidePanelHidden,
-      onToggleSidePanel: ide || (agent ?? _workspace.current) == null
-          ? null
-          : _toggleSidePanel,
-      onOpenFolder: _openFolder,
       onOpenSettings: () => unawaited(openSettings()),
       onToggleContextPanel: () {
-        if (agent ?? _workspace.current case final thread?) {
+        if (_workspace.current case final thread?) {
           ChatScreen.toggleContextPanel(_chatKey(thread));
         }
       },
-      onCommand: agent == null
-          ? (command) => _chatCommands()[command]?.call()
-          : null,
       onFileCommand: _runMenuCommand,
       compact: _narrow,
-      title: _titleInHeader
-          ? (agent ?? _workspace.current)?.localizedTitle(context.l10n)
-          : null,
     );
   }
 

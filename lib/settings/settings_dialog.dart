@@ -211,8 +211,11 @@ class SettingsDialogState extends State<SettingsDialog> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    // On Windows the window's own header stays above it.
-    final top = WindowControls.drawsHeader ? AppMetrics.headerHeight : 0.0;
+    // On Windows the window's caption stays above it: the IDE's header, or
+    // the chat's title bars with the window's buttons.
+    final top = WindowControls.captionHeightOf(
+      View.maybeOf(context)?.viewId ?? 0,
+    );
     return CallbackShortcuts(
       bindings: {const SingleActivator(LogicalKeyboardKey.escape): _close},
       child: FocusScope(
