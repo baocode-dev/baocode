@@ -111,6 +111,10 @@ void main() {
     expect(settings.values.containsKey(ChatWidth.settingKey), isFalse);
     // Removed outside the test's fake clock, where its file IO can finish.
     await tester.runAsync(() => data.delete(recursive: true));
+    // The settings page's code preview highlights on timers: leave it, and
+    // let them finish, before the test ends.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 20));
   });
 }
 

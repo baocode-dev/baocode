@@ -73,6 +73,7 @@ class IdeCodeEditor extends StatefulWidget {
     required this.path,
     this.focusNode,
     this.readOnly = false,
+    this.bare = false,
     this.decorations = const [],
     this.highlights,
   });
@@ -83,6 +84,10 @@ class IdeCodeEditor extends StatefulWidget {
   final String path;
   final FocusNode? focusNode;
   final bool readOnly;
+
+  /// Only the text: no line numbers, margins, folds or indent guides, and no
+  /// scrolling past its last line. For a sample to be looked at.
+  final bool bare;
 
   /// Painted over the text (lines marked, say).
   final List<EditorDecoration> decorations;
@@ -253,6 +258,11 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
       controller: widget.controller,
       focusNode: widget.focusNode,
       readOnly: widget.readOnly,
+      lineNumbers: !widget.bare,
+      glyphMargin: !widget.bare,
+      folding: !widget.bare,
+      indentGuides: !widget.bare,
+      scrollBeyondLastLine: !widget.bare,
       backgroundColor: colors['editor.background'],
       selectionColor: colors['editor.selectionBackground'],
       caretColor: colors['editorCursor.foreground'],

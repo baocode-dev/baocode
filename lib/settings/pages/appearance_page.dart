@@ -1,11 +1,14 @@
 import 'dart:async';
 
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 import 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart' hide ColorScheme;
 
 import '../../chat/chat_keys.dart';
 import '../../chat/chat_width.dart';
+import '../../ide/ide_code_editor.dart';
 import '../../ide/ide_color_theme_picker.dart';
 import '../../ide/ide_quick_input.dart' show ideLocaleCompare;
 import '../../ide/ide_menu.dart';
@@ -249,9 +252,6 @@ class AppearanceSettingsPage extends StatelessWidget {
                       onSubmitted: (text) =>
                           _selectFamilies(CodeFont.parseFamilies(text)),
                     ),
-                    // Not const: it must redraw as the font, size or
-                    // ligatures change.
-                    _CodeFontPreview(),
                   ],
                   trailing: SettingsDropdown(
                     current: _familyName(context, families),
@@ -279,6 +279,12 @@ class AppearanceSettingsPage extends StatelessWidget {
                       ],
                     ]),
                   ),
+                ),
+                // Not const: it must redraw as the font, size or ligatures
+                // change.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  child: _CodeFontPreview(),
                 ),
                 SettingsRow(
                   label: l10n.appearanceSettingsCodeSize,
@@ -322,11 +328,17 @@ class AppearanceSettingsPage extends StatelessWidget {
   }
 }
 
-/// A sample of TypeScript in the code font, as it is set: its size, its
-/// family, and the symbols the ligatures join (`=>`, `!==`, `>=`, `??`).
-class _CodeFontPreview extends StatelessWidget {
+/// A sample of TypeScript in the IDE's editor, highlighted, read-only: it is
+/// drawn in the code font as it is set (family, size, ligatures), so the
+/// choice can be seen before it is used.
+class _CodeFontPreview extends StatefulWidget {
   const _CodeFontPreview();
 
+  @override
+  State<_CodeFontPreview> createState() => _CodeFontPreviewState();
+}
+
+class _CodeFontPreviewState extends State<_CodeFontPreview> {
   static const _sample = '''
 type Point = { x: number; y: number };
 const add = (a: Point, b: Point): Point =>
@@ -335,22 +347,36 @@ if (add(p, q).x >= 0 && p !== q) {
   return items ?? [];
 }''';
 
+  // The document is handed in, so it is disposed here, not by the controller.
+  final _document = EditorDocumentModel(_sample);
+  late final _text = EditorSurfaceController(document: _document);
+
+  @override
+  void dispose() {
+    _text.dispose();
+    _document.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 360,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.code,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Text(
-          _sample,
-          style: AppFonts.codeStyle(13)
-              .copyWith(color: AppColors.text, height: 1.45),
+    // As tall as the sample at the code's size, so there is nothing to scroll.
+    final lines = '\n'.allMatches(_sample).length + 1;
+    return SizedBox(
+      height: lines * CodeFont.sized(13) * 1.45 + 16,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: IdeCodeEditor(
+            controller: _text,
+            path: 'preview.ts',
+            readOnly: true,
+            bare: true,
+          ),
         ),
       ),
     );

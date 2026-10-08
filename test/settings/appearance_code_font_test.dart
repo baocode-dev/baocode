@@ -1,3 +1,4 @@
+import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:baocode/ide/ide_color_theme_picker.dart';
 import 'package:baocode/settings/pages/appearance_page.dart';
 import 'package:baocode/settings/pages/settings_dropdown.dart';
@@ -58,6 +59,7 @@ void main() {
     expect(CodeFont.families.value, CodeFont.defaultFamilies);
     expect(settings.written.containsKey(CodeFont.familySettingKey), isTrue);
     expect(settings.written[CodeFont.familySettingKey], isNull);
+    await leave(tester);
   });
 
   testWidgets('ligatures are switched in settings.json; on is removed from '
@@ -73,7 +75,29 @@ void main() {
     expect(CodeFont.ligatures.value, isTrue);
     expect(settings.written.containsKey(CodeFont.ligaturesSettingKey), isTrue);
     expect(settings.written[CodeFont.ligaturesSettingKey], isNull);
+    await leave(tester);
   });
+
+  testWidgets(
+    'the preview is the sample alone: no gutter, guides or scrolling',
+    (tester) async {
+      await pumpPage(tester);
+      final surface = tester.widget<EditorSurface>(find.byType(EditorSurface));
+      expect(surface.lineNumbers, isFalse);
+      expect(surface.glyphMargin, isFalse);
+      expect(surface.folding, isFalse);
+      expect(surface.indentGuides, isFalse);
+      expect(surface.scrollBeyondLastLine, isFalse);
+      await leave(tester);
+    },
+  );
+}
+
+/// Leaves the page, then lets the editor's highlighting finish: its
+/// tokenizer's timers outlive the page otherwise.
+Future<void> leave(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox());
+  await tester.pump(const Duration(milliseconds: 20));
 }
 
 /// settings.json as the page writes it: the value each key was last given,
