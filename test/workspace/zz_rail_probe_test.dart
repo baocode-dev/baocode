@@ -9,6 +9,7 @@ import 'package:baocode/workspace/chat_terminal.dart';
 import 'package:baocode/workspace/workspace.dart';
 
 import '../ide/terminal/fake_pty.dart';
+import '../workspace_test.dart' show claude;
 import '../ide/terminal/fake_terminal.dart';
 
 void main() {
@@ -18,9 +19,10 @@ void main() {
     addTearDown(tester.view.reset);
     const window = MethodChannel('baocode/window');
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(window, (call) async => null);
-    final workspace = Workspace.mock();
+    final workspace = Workspace(kernels: [claude]);
     final ptys = <FakePty>[];
     await tester.pumpWidget(BaoCodeApp(workspace: workspace, terminalBackend: fakeTerminalBackend(ptys)));
+    await tester.runAsync(workspace.load);
     await tester.pump();
     final existing = workspace.threads.firstWhere((t) => t.record != null);
     workspace.select(existing);
