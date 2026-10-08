@@ -40,7 +40,23 @@ abstract final class CodeFont {
   static const maxSize = 32.0;
 
   /// The slider's sizes, smallest first.
-  static const sizeSteps = <double>[10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24];
+  static const sizeSteps = <double>[
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+  ];
 
   /// The window's text scales, as percentages; 100 is the system's.
   static const uiScaleSteps = <int>[90, 100, 110, 125, 150];
