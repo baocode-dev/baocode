@@ -36,6 +36,7 @@ import 'notifications/attention_host.dart';
 import 'notifications/attention_settings.dart';
 import 'platform/app_platform.dart';
 import 'platform/data_dir.dart';
+import 'platform/error_log.dart';
 import 'platform/open_requests.dart';
 import 'remote/project_host.dart';
 import 'remote/remote_claude.dart';
@@ -81,6 +82,8 @@ Future<void> main(List<String> arguments) async {
       WidgetsFlutterBinding.ensureInitialized();
       DataDirectory.current = await recoverDataDirectory(resolution);
     }
+    // What goes wrong unseen from here on, kept for the user to send.
+    ErrorLog(DataDirectory.current.logsDir).install();
   }
   unawaited(reapClaudeProcesses());
   unawaited(reapLspProcesses());

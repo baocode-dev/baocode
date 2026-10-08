@@ -33,6 +33,7 @@ enum DataDirectorySource {
 /// <path>/checkpoints/             snapshots of the projects agents change
 /// <path>/workspaces/              the folders of multi-folder workspaces
 /// <path>/cache/                   what can be made again, to start faster
+/// <path>/logs/errors.log          the errors the app did not handle
 /// ```
 ///
 /// Other programs keep files there too (the web views' `Cookies`,
@@ -104,6 +105,10 @@ class DataDirectory {
   /// (see lib/update/update_io.dart).
   String get updatesDir => p.join(path, 'updates');
 
+  /// The errors the app did not handle, for a user to send (see
+  /// error_log.dart).
+  String get logsDir => p.join(path, 'logs');
+
   /// The app's own entries, all others' left alone: what moving the folder
   /// copies and removing old data deletes.
   static const items = [
@@ -117,6 +122,7 @@ class DataDirectory {
     'cache',
     'icons',
     'workspaces',
+    'logs',
   ];
 
   /// Entries that show a folder holds the app's data.

@@ -38,6 +38,7 @@ void main() {
       ('cache/claude-sessions.json', '{}'),
       ('icons/index.json', '[]'),
       ('workspaces/w1/web.code-workspace', '{"folders": []}'),
+      ('logs/errors.log', '--- BaoCode 1.0.1 ---\n'),
       ('Cookies', 'chromium'),
       ('GPUCache/data_0', 'chromium'),
       ('Local Storage/leveldb/LOG', 'chromium'),
@@ -165,6 +166,8 @@ void main() {
       'language-packs',
       'language-packs/toy',
       'language-packs/toy/manifest.json',
+      'logs',
+      'logs/errors.log',
       'notes.txt',
       'servers',
       'servers/tool',
@@ -187,8 +190,8 @@ void main() {
       Link(p.join(target, 'servers', 'tool-link')).targetSync(),
       p.join(target, 'servers', 'tool', 'bin', 'tool'),
     );
-    expect(progress.first, (0, 12));
-    expect(progress.last, (12, 12));
+    expect(progress.first, (0, 13));
+    expect(progress.last, (13, 13));
     // The old folder is as it was: the web view's files included.
     expect(File(p.join(current, 'Cookies')).existsSync(), isTrue);
     expect(File(p.join(current, 'state', 'state.json')).existsSync(), isTrue);
@@ -250,7 +253,7 @@ void main() {
       File(p.join(target, 'icons', 'index.json')).readAsStringSync(),
       '[{"id": "a"}]',
     );
-    expect(progress.last, (12, 12));
+    expect(progress.last, (13, 13));
     expect(jsonDecode(pointer().readAsStringSync())['dataDir'], target);
   });
 
