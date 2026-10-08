@@ -168,9 +168,21 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
                     children: [
                       _sash(),
                       Expanded(
-                        child: ColoredBox(
-                          color: AppColors.background,
-                          child: widget.builder(context),
+                        // A click anywhere in it puts the focus there (on
+                        // what takes it, else on the panel), for its keys.
+                        child: Listener(
+                          onPointerDown: (_) {
+                            if (!_panel.focusNode.hasFocus) {
+                              _panel.focusNode.requestFocus();
+                            }
+                          },
+                          child: Focus(
+                            focusNode: _panel.focusNode,
+                            child: ColoredBox(
+                              color: AppColors.background,
+                              child: widget.builder(context),
+                            ),
+                          ),
                         ),
                       ),
                     ],

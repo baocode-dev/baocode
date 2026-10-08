@@ -404,7 +404,7 @@ class IdeExplorerController extends ChangeNotifier {
 
   /// What was cut or copied, to paste into a folder (the explorer's own
   /// clipboard, as VS Code keeps one).
-  ({List<String> paths, bool cut})? clipboard;
+  IdeExplorerClipboard? clipboard;
 
   /// Forgets [path] and what was under it (after a move or delete), so
   /// folders re-read and the expansion does not point at nothing.
@@ -430,10 +430,38 @@ class IdeExplorerController extends ChangeNotifier {
   }
 }
 
+/// What was cut or copied in an explorer, and what the system's clipboard
+/// held once it was: files copied there since (in Finder, in Explorer, in
+/// another tree) are what a paste puts in instead.
+class IdeExplorerClipboard {
+  IdeExplorerClipboard(this.files, {required this.cut, required this.system});
+
+  final List<ComposerFile> files;
+  final bool cut;
+
+  /// The paths on the system's clipboard once [files] were cut or copied.
+  final Future<Set<String>> system;
+}
+
+/// The files and folders on the system's clipboard; none when it cannot be
+/// read.
+Future<List<ComposerFile>> _systemClipboardFiles() async {
+  try {
+    return await WindowControls.readPasteboardFiles();
+  } on PlatformException {
+    return const [];
+  }
+}
+
+Set<String> _pathsOf(List<ComposerFile> files) => {
+  for (final file in files) p.normalize(file.path),
+};
+
 /// The file tree, as VS Code's explorer: chevrons, file icons, indent
 /// guides, Git's colors and letters, selection that follows the active
 /// editor, keyboard navigation while focused, and the context menu's file
-/// operations (new, rename and delete in place, cut, copy and paste).
+/// operations (new, rename and delete in place, cut, copy and paste, with
+/// the system's clipboard too).
 ///
 /// Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 /// src/vs/workbench/contrib/files/browser (fileActions.ts,
@@ -441,7 +469,11 @@ class IdeExplorerController extends ChangeNotifier {
 /// extension's decorations (extensions/git/src/decorationProvider.ts).
 ///
 /// Deviations: items drag only onto the chat's composer (not to move
-/// them), and deleting cannot be undone from the editor.
+/// them), and deleting cannot be undone from the editor. Copied, local
+/// items are on the system's clipboard too, and files copied there (in
+/// Finder, in Explorer) paste in as copies, onto a remote project's host
+/// too. Where no workbench runs its keybindings (the chat's side panel), it
+/// runs those of its own commands itself.
 class IdeExplorer extends StatefulWidget {
   const IdeExplorer({
     super.key,
@@ -702,15 +734,77 @@ class IdeExplorerState extends State<IdeExplorer> {
   // keybindings.json decide them.
 
   /// Whether a keybinding has [event]: it is left to the workbench, which
-  /// runs it. A navigation key none has is kept, as upstream's list keeps
-  /// it, rather than moving the focus out.
+  /// runs it, or, with none ([IdeExplorer.isBound] null), run here when it
+  /// is one of [_commands]. A navigation key none has is kept, as
+  /// upstream's list keeps it, rather than moving the focus out.
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent || _edit != null) return KeyEventResult.ignored;
-    if (widget.isBound?.call(event) ?? false) return KeyEventResult.ignored;
+    if (widget.isBound case final isBound?) {
+      if (isBound(event)) return KeyEventResult.ignored;
+    } else if (_runKeybinding(event)) {
+      return KeyEventResult.handled;
+    }
     return _listKeys.contains(event.logicalKey)
         ? KeyEventResult.handled
         : KeyEventResult.ignored;
   }
+
+  /// Runs the command of [event]'s keybinding, when it is one of
+  /// [_commands]; whether it did.
+  bool _runKeybinding(KeyEvent event) {
+    final commands = _commands;
+    final resolution = KeybindingService.instance.resolveEvent(
+      event,
+      context: _focusedContextKey,
+      canRun: (item) => commands.containsKey(item.command),
+    );
+    if (resolution is! KeybindingFound) return false;
+    commands[resolution.command]!(resolution.item.entry.args);
+    return true;
+  }
+
+  /// The explorer's commands its keybindings run where no workbench runs
+  /// them, by upstream's ids, given their arguments.
+  Map<String, void Function(Object? args)> get _commands {
+    // `list.focusDown` / `list.focusUp`'s argument: how many rows.
+    int rows(Object? args) => args is num ? args.toInt() : 1;
+    return {
+      'explorer.newFile': (_) => unawaited(startCreate(directory: false)),
+      'explorer.newFolder': (_) => unawaited(startCreate(directory: true)),
+      'renameFile': (_) => renameSelected(),
+      'moveFileToTrash': (_) => unawaited(deleteSelected()),
+      'deleteFile': (_) => unawaited(deleteSelected(permanently: true)),
+      'filesExplorer.copy': (_) => copySelected(),
+      'filesExplorer.cut': (_) => copySelected(cut: true),
+      'filesExplorer.paste': (_) => unawaited(pasteSelected()),
+      'filesExplorer.openFilePreserveFocus': (_) => previewSelected(),
+      'list.focusDown': (args) => focusNext(rows(args)),
+      'list.focusUp': (args) => focusNext(-rows(args)),
+      'list.focusPageDown': (_) => focusPage(1),
+      'list.focusPageUp': (_) => focusPage(-1),
+      'list.focusFirst': (_) => focusFirst(),
+      'list.focusLast': (_) => focusLast(),
+      'list.expand': (_) => expandSelected(),
+      'list.collapse': (_) => collapseSelected(),
+      'list.select': (_) => openSelected(),
+      'list.toggleExpand': (_) => toggleSelected(),
+      'list.expandSelectionDown': (_) => expandSelection(1),
+      'list.expandSelectionUp': (_) => expandSelection(-1),
+      'list.selectAll': (_) => selectAll(),
+      'list.clear': (_) => clearSelection(),
+      'list.collapseAll': (_) => _controller.collapseAll(),
+    };
+  }
+
+  /// The context keys with the focus here.
+  Object? _focusedContextKey(String key) => switch (key) {
+    'filesExplorerFocus' ||
+    'foldersViewVisible' ||
+    'explorerViewletVisible' ||
+    'listFocus' => true,
+    'inputFocus' || 'textInputFocus' => false,
+    _ => contextKey(key),
+  };
 
   static final _listKeys = {
     LogicalKeyboardKey.arrowDown,
@@ -867,22 +961,48 @@ class IdeExplorerState extends State<IdeExplorer> {
   /// `filesExplorer.copy`, or `filesExplorer.cut`.
   void copySelected({bool cut = false}) {
     final targets = _targets();
-    if (targets.isNotEmpty) _copy(_paths(targets), cut: cut);
+    if (targets.isNotEmpty) _copy(targets, cut: cut);
   }
 
   static List<String> _paths(List<IdeExplorerRow> rows) => [
     for (final row in rows) row.path,
   ];
 
-  /// Copied, the files are on the system's clipboard too, as Finder copies
-  /// them: to paste into the chat, or into another app.
-  void _copy(List<String> paths, {required bool cut}) {
-    _controller.clipboard = (paths: paths, cut: cut);
-    if (!cut) unawaited(WindowControls.writePasteboardFiles(paths));
+  /// Copied, this machine's files are on the system's clipboard too, as
+  /// Finder copies them: to paste into the chat, or into another app.
+  void _copy(List<IdeExplorerRow> rows, {required bool cut}) {
+    final paths = _paths(rows);
+    final written = !cut && widget.local
+        ? WindowControls.writePasteboardFiles(paths)
+              .then((_) {}, onError: (Object _) {})
+        : Future<void>.value();
+    _controller.clipboard = IdeExplorerClipboard(
+      [
+        for (final row in rows)
+          ComposerFile(row.path, directory: row.isDirectory),
+      ],
+      cut: cut,
+      system: written.then(
+        (_) async => _pathsOf(await _systemClipboardFiles()),
+      ),
+    );
   }
 
-  /// Whether there is something cut or copied.
-  bool get canPaste => _controller.clipboard != null;
+  /// What a paste puts in: what was cut or copied here, unless other files
+  /// were copied to the system's clipboard since, which are copied in
+  /// ([external]: this machine's); null for nothing.
+  Future<({List<ComposerFile> files, bool cut, bool external})?>
+  _toPaste() async {
+    final clipboard = _controller.clipboard;
+    final system = await _systemClipboardFiles();
+    if (clipboard != null &&
+        (system.isEmpty ||
+            setEquals(_pathsOf(system), await clipboard.system))) {
+      return (files: clipboard.files, cut: clipboard.cut, external: false);
+    }
+    if (system.isEmpty) return null;
+    return (files: system, cut: false, external: true);
+  }
 
   /// `filesExplorer.paste`: into the selected folder, or the selected
   /// file's.
@@ -1095,47 +1215,51 @@ class IdeExplorerState extends State<IdeExplorer> {
   }
 
   /// Paste: copies (with VS Code's simple incremental names when taken) or
-  /// moves what was cut into [folder].
+  /// moves what was cut into [folder]; files from the system's clipboard
+  /// are copied, onto a remote project's host too.
   Future<void> _paste(String folder) async {
-    final clipboard = _controller.clipboard;
-    if (clipboard == null) return;
+    final toPaste = await _toPaste();
+    if (toPaste == null || !mounted) return;
     final files = _controller.files;
     final ancestor = context.l10n.explorerPasteIntoAncestor;
+    // This machine's files, into a remote project's.
+    final upload = toPaste.external && !widget.local;
     String? last;
     try {
       await _controller.expand(folder);
-      for (final source in clipboard.paths) {
-        if (clipboard.cut) {
-          final target = p.join(folder, p.basename(source));
-          if (target == source) continue;
-          if (p.isWithin(source, folder)) {
-            _report(ancestor);
-            break;
-          }
+      final taken = {
+        for (final entry in _controller.childrenOf(folder) ?? const [])
+          entry.name,
+      };
+      for (final file in toPaste.files) {
+        final source = file.path;
+        final target = p.join(folder, p.basename(source));
+        if (toPaste.cut && target == source) continue;
+        if (!upload && (source == folder || p.isWithin(source, folder))) {
+          _report(ancestor);
+          break;
+        }
+        if (toPaste.cut) {
           await files.rename(source, target);
           _controller.forget(source);
           widget.onMoved?.call(source, target);
           last = target;
         } else {
-          final isDirectory =
-              _controller.rows.any((r) => r.path == source && r.isDirectory) ||
-              (_controller.childrenOf(p.dirname(source)) ?? const []).any(
-                (e) => e.name == p.basename(source) && e.isDirectory,
-              );
-          final taken = {
-            for (final entry in _controller.childrenOf(folder) ?? const [])
-              entry.name,
-          };
           var name = p.basename(source);
           while (taken.contains(name)) {
-            name = ideIncrementFileName(name, isFolder: isDirectory);
+            name = ideIncrementFileName(name, isFolder: file.directory);
           }
-          final target = p.join(folder, name);
-          await files.copy(source, target);
-          last = target;
+          taken.add(name);
+          final copy = p.join(folder, name);
+          if (upload) {
+            await copyLocalTo(files, source, copy);
+          } else {
+            await files.copy(source, copy);
+          }
+          last = copy;
         }
       }
-      if (clipboard.cut) _controller.clipboard = null;
+      if (toPaste.cut) _controller.clipboard = null;
     } catch (error) {
       _report(error);
     }
@@ -1148,21 +1272,12 @@ class IdeExplorerState extends State<IdeExplorer> {
 
   /// [command]'s keybinding, for the menu: the one that applies with the
   /// focus here.
-  String? _keybinding(String command) => KeybindingService.instance.labelFor(
-    command,
-    context: (key) => switch (key) {
-      'filesExplorerFocus' ||
-      'foldersViewVisible' ||
-      'explorerViewletVisible' ||
-      'listFocus' => true,
-      'inputFocus' || 'textInputFocus' => false,
-      _ => contextKey(key),
-    },
-  );
+  String? _keybinding(String command) =>
+      KeybindingService.instance.labelFor(command, context: _focusedContextKey);
 
   /// `MenuId.ExplorerContext`, for [row] or (null) the empty space below the
   /// rows, which is the root folder's.
-  Future<void> _showMenu(Offset position, IdeExplorerRow? row) {
+  Future<void> _showMenu(Offset position, IdeExplorerRow? row) async {
     // Upstream keeps the selection when the clicked row is in it, and acts
     // on all of it.
     if (row != null && !_controller.isSelected(row.path)) {
@@ -1173,6 +1288,8 @@ class IdeExplorerState extends State<IdeExplorer> {
     final isRoot = row == null || row.isRoot;
     final workspaceFolder = row != null && row.isRoot;
     final targets = row == null ? const <IdeExplorerRow>[] : _targets(row);
+    final canPaste = isFolder && await _toPaste() != null;
+    if (!mounted) return;
     final multiple = targets.length > 1;
     final mac = ideUsesMacKeys;
     String? keys(List<IdeKeybinding> bindings) => [
@@ -1239,19 +1356,19 @@ class IdeExplorerState extends State<IdeExplorer> {
             IdeMenuAction(
               l10n.commonCut,
               keybinding: _keybinding('filesExplorer.cut'),
-              onSelected: () => _copy(_paths(targets), cut: true),
+              onSelected: () => _copy(targets, cut: true),
             ),
             IdeMenuAction(
               l10n.commonCopy,
               keybinding: _keybinding('filesExplorer.copy'),
-              onSelected: () => _copy(_paths(targets), cut: false),
+              onSelected: () => _copy(targets, cut: false),
             ),
           ],
           if (isFolder)
             IdeMenuAction(
               l10n.commonPaste,
               keybinding: _keybinding('filesExplorer.paste'),
-              enabled: _controller.clipboard != null,
+              enabled: canPaste,
               onSelected: () => unawaited(_paste(path)),
             ),
         ],

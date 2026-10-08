@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
 import '../../ide/file_service.dart';
@@ -120,6 +120,10 @@ class AgentSidePanel extends ChangeNotifier {
   bool _changesAsTree = true;
 
   final Expando<SidePanelTabs> _tabs = Expando();
+
+  /// Has the focus while it is anywhere in the panel: its keys (Close Tab)
+  /// hold there.
+  final FocusNode focusNode = FocusNode(debugLabel: 'side panel');
 
   /// The tabs open for [conversation] (its session).
   SidePanelTabs tabsOf(Object conversation) =>
@@ -315,6 +319,21 @@ class AgentSidePanel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Closes the tab in front of [conversation]'s page shown, as Close
+  /// Editor; hides the panel where the page has none.
+  void closeCurrent(Object conversation) {
+    final tabs = tabsOf(conversation);
+    switch (tabs.section) {
+      case SidePanelSection.files || SidePanelSection.changes:
+        if (tabs.current case final tab?) return close(conversation, tab);
+      case SidePanelSection.terminal:
+        if (tabs.terminal case final id?) {
+          return closeTerminal(conversation, id);
+        }
+    }
+    hide();
+  }
+
   Map<String, Object?> toJson() => {
     'shown': _shown,
     'width': _width,
@@ -325,6 +344,7 @@ class AgentSidePanel extends ChangeNotifier {
 
   @override
   void dispose() {
+    focusNode.dispose();
     for (final explorer in _explorers.values) {
       explorer.dispose();
     }

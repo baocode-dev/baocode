@@ -34,7 +34,9 @@
 //   (`baocode.chat.*Suggestion*`), not the editor's suggest widget's; the chat
 //   history's are the list's (`list.focusDown`, …), which scroll it.
 // - BaoCode's own: the agents and the panes they show in, a prompt's options
-//   (`baocode.chat.*`).
+//   (`baocode.chat.*`), the side panel's pages and tabs: ⌘W/Ctrl+W closes
+//   its tab in front while the focus is in it, as Close Editor (elsewhere
+//   Close Pane).
 
 import 'default_keybindings.dart' show CommandInfo;
 
@@ -68,6 +70,10 @@ abstract final class ChatCommandIds {
   static const sidePanelChanges = 'baocode.chat.sidePanel.changes';
   static const sidePanelFiles = 'baocode.chat.sidePanel.files';
   static const sidePanelTerminal = 'baocode.chat.sidePanel.terminal';
+
+  /// Closes the side panel's tab in front, on its page shown; hides the
+  /// panel where the page has none.
+  static const sidePanelCloseTab = 'baocode.chat.sidePanel.closeTab';
 
   /// The IDE's chat's: closes the tab shown.
   static const closeTab = 'baocode.chat.closeTab';
@@ -157,6 +163,10 @@ abstract final class ChatContextKeys {
 
   /// The focus is on a prompt's options (a question, an approval, a plan).
   static const inInteraction = 'inChatInteraction';
+
+  /// The focus is in the chat window's side panel (as upstream's
+  /// `auxiliaryBarFocus` is in the secondary side bar).
+  static const sidePanelFocus = 'sidePanelFocus';
 }
 
 /// The chat's commands, for the catalog.
@@ -179,6 +189,7 @@ final List<CommandInfo> chatExtraCommands = [
     (ChatCommandIds.sidePanelChanges, 'Show Agent Changes'),
     (ChatCommandIds.sidePanelFiles, 'Show Agent Files'),
     (ChatCommandIds.sidePanelTerminal, 'Show Agent Terminals'),
+    (ChatCommandIds.sidePanelCloseTab, 'Close Side Panel Tab'),
     (ChatCommandIds.closeTab, 'Close Chat'),
     (ChatCommandIds.focusInput, 'Focus Chat Input'),
     (ChatCommandIds.focusList, 'Focus Chat List'),
@@ -213,6 +224,7 @@ final List<CommandInfo> chatExtraCommands = [
 // The `when` clauses: the window's keys hold in the chat layout only; a
 // chat's in any chat, the IDE's too.
 const _window = 'chatMode';
+const _sidePanel = '$_window && ${ChatContextKeys.sidePanelFocus}';
 const _input = ChatContextKeys.inChatInput;
 const _suggest =
     '${ChatContextKeys.suggestWidgetVisible} && ${ChatContextKeys.inChatInput}';
@@ -271,6 +283,19 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     mac: 'cmd+w',
     command: ChatCommandIds.closePane,
     when: _window,
+  ),
+  // From the side panel, as Close Editor: its tab in front, not the pane.
+  const KeybindingEntry(
+    win: 'ctrl+f4',
+    linux: 'ctrl+f4',
+    command: ChatCommandIds.sidePanelCloseTab,
+    when: _sidePanel,
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+w',
+    mac: 'cmd+w',
+    command: ChatCommandIds.sidePanelCloseTab,
+    when: _sidePanel,
   ),
   // As the editors' Open Next / Previous Editor.
   const KeybindingEntry(
@@ -584,4 +609,5 @@ const Set<String> chatContextKeys = {
   ChatContextKeys.hasToolConfirmation,
   ChatContextKeys.subagentVisible,
   ChatContextKeys.inInteraction,
+  ChatContextKeys.sidePanelFocus,
 };

@@ -2708,6 +2708,12 @@ abstract class AppLocalizations {
   /// **'Show Agent Terminals'**
   String get cmdSidePanelTerminal;
 
+  /// No description provided for @cmdSidePanelCloseTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Close Side Panel Tab'**
+  String get cmdSidePanelCloseTab;
+
   /// No description provided for @sidePanelFiles.
   ///
   /// In en, this message translates to:

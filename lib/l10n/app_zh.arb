@@ -435,6 +435,7 @@
   "cmdSidePanelChanges": "显示智能体变更",
   "cmdSidePanelFiles": "显示智能体文件",
   "cmdSidePanelTerminal": "显示智能体终端",
+  "cmdSidePanelCloseTab": "关闭侧边面板标签页",
   "sidePanelFiles": "文件",
   "sidePanelTerminal": "终端",
   "sidePanelNoTerminals": "没有后台命令",

@@ -1425,6 +1425,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       'inputFocus' || 'textInputFocus' =>
         focus?.context?.findAncestorStateOfType<EditableTextState>() != null,
       'terminalFocus' || 'terminalFocusInAny' => _terminals?.focused ?? false,
+      ChatContextKeys.sidePanelFocus => _sidePanel.focusNode.hasFocus,
       'terminalProcessSupported' => _terminals != null,
       'terminalIsOpen' || 'terminalHasBeenCreated' =>
         _terminals?.current?.instances.isNotEmpty ?? false,
@@ -2474,9 +2475,19 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   Map<String, VoidCallback> _sidePanelCommands() => {
     ChatCommandIds.toggleSidePanel: _toggleSidePanel,
+    if (_sidePanel.focusNode.hasFocus)
+      ChatCommandIds.sidePanelCloseTab: _closeSidePanelTab,
     for (final section in SidePanelSection.values)
       section.command: () => _showSidePanelSection(section),
   };
+
+  /// Close Tab, from the side panel; the focus stays there, for the next.
+  void _closeSidePanelTab() {
+    final thread = _agentThread ?? _workspace.current;
+    if (thread == null) return;
+    _sidePanel.closeCurrent(thread.session);
+    if (_sidePanel.shown) _sidePanel.focusNode.requestFocus();
+  }
 
   Widget _withSidePanel(Widget child) => AgentSidePanelArea(
     panel: _sidePanel,

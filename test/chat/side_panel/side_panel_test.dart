@@ -1201,6 +1201,83 @@ void main() {
     expect(find.byType(AgentSidePanelView), findsNothing);
   });
 
+  testWidgets(
+    '⌘W (Ctrl+W elsewhere) closes the side panel\'s tab in '
+    'front while the focus is in it, then the panel',
+    (tester) async {
+      await pumpLoaded(tester);
+      final meta = defaultTargetPlatform == TargetPlatform.macOS;
+      Future<void> closeKey() async {
+        await press(
+          tester,
+          LogicalKeyboardKey.keyW,
+          meta: meta,
+          control: !meta,
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await tester.tap(find.byType(SidePanelToggle));
+      await tester.pumpAndSettle();
+      final view = tester.widget<AgentSidePanelView>(
+        find.byType(AgentSidePanelView),
+      );
+      final (panel, session) = (view.panel, view.session);
+      panel
+        ..open(session, const FileOpenRequest('/p/a.dart'))
+        ..open(session, const FileOpenRequest('/p/b.dart'));
+      await tester.pumpAndSettle();
+      List<String> open() => [
+        for (final tab in panel.tabsOf(session).files) p.basename(tab.path),
+      ];
+
+      // The focus elsewhere, the key is not the panel's.
+      expect(panel.focusNode.hasFocus, isFalse);
+      await closeKey();
+      expect(open(), ['a.dart', 'b.dart']);
+
+      // A click in the panel puts the focus there: its tab in front closes,
+      // then the next, then the panel.
+      await tester.tap(
+        find.descendant(
+          of: find.byType(TabStripScroll),
+          matching: find.text('b.dart'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(panel.focusNode.hasFocus, isTrue);
+      await closeKey();
+      expect(open(), ['a.dart']);
+      await closeKey();
+      expect(open(), isEmpty);
+      expect(find.byType(AgentSidePanelView), findsOneWidget);
+      await closeKey();
+      expect(find.byType(AgentSidePanelView), findsNothing);
+    },
+    variant: TargetPlatformVariant(const {
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
+
+  test('closing the tab in front on the terminal page closes its terminal\'s '
+      'or command\'s tab', () {
+    final panel = AgentSidePanel();
+    addTearDown(panel.dispose);
+    final chat = Object();
+    panel
+      ..openTerminal(chat, 'one')
+      ..openTerminal(chat, 'two')
+      ..closeCurrent(chat);
+    expect(panel.tabsOf(chat).terminals, ['one']);
+    expect(panel.tabsOf(chat).terminal, 'one');
+    panel.closeCurrent(chat);
+    expect(panel.tabsOf(chat).terminals, isEmpty);
+    expect(panel.shown, isTrue);
+    panel.closeCurrent(chat);
+    expect(panel.shown, isFalse);
+  });
+
   testWidgets('Toggle Side Panel\'s keys, as upstream\'s secondary side '
       'bar\'s: Ctrl+Alt+B, ⌥⌘B on macOS', (tester) async {
     await pumpLoaded(tester);

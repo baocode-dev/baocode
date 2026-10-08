@@ -613,6 +613,7 @@
   "cmdSidePanelChanges": "Show Agent Changes",
   "cmdSidePanelFiles": "Show Agent Files",
   "cmdSidePanelTerminal": "Show Agent Terminals",
+  "cmdSidePanelCloseTab": "Close Side Panel Tab",
   "sidePanelFiles": "Files",
   "sidePanelTerminal": "Terminal",
   "sidePanelNoTerminals": "No background commands",

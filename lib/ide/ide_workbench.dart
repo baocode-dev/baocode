@@ -2361,11 +2361,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         () => explorer.copySelected(cut: true),
         enabled: selected,
       ),
-      command(
-        'filesExplorer.paste',
-        () => unawaited(explorer.pasteSelected()),
-        enabled: explorer.canPaste,
-      ),
+      // What the system's clipboard holds is only known once read.
+      command('filesExplorer.paste', () => unawaited(explorer.pasteSelected())),
       command(
         'filesExplorer.openFilePreserveFocus',
         explorer.previewSelected,

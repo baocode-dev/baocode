@@ -85,6 +85,12 @@ String localizedFileError(AppLocalizations l10n, Object error) =>
 /// there is no such file.
 Future<Uint8List> readFileBytes(String path) => platform.readFileBytes(path);
 
+/// Copies [from], a file or folder of this machine's (pasted from the
+/// system's clipboard), to [to] through [files]: onto a remote project's
+/// host, which is Linux or macOS. Links to folders are left out.
+Future<void> copyLocalTo(IdeFileService files, String from, String to) =>
+    platform.copyLocalTo(files, from, to);
+
 /// Changes to the entries of [directory] (not of its subfolders): files
 /// written, made, moved or deleted there, by anything. Empty where it
 /// cannot be watched.

@@ -2,7 +2,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/chat/side_panel/file_open.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
+import 'package:baocode/theme/material_file_icons.dart';
 
 Future<void> pumpMarkdown(WidgetTester tester, String data) =>
     tester.pumpWidget(MaterialApp(home: Scaffold(body: MarkdownView(data))));
@@ -51,6 +53,83 @@ void main() {
           if (span.recognizer != null) span.text,
       };
       expect(linked, {'mail'});
+    });
+
+    testWidgets('a link to a file, and code naming one, have its icon and '
+        'no underline; the icon opens it too', (tester) async {
+      final existence = FileExistence((path) async => path == '/p/lib/b.dart');
+      addTearDown(existence.dispose);
+      final opened = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FileOpenScope(
+              root: '/p',
+              onOpen: (request) => opened.add(request.path),
+              existence: existence,
+              child: const MarkdownView(
+                'See [a.dart](lib/a.dart#L3), `lib/b.dart`, `lib/c.dart` '
+                'and [the site](https://baocode.dev).',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        [
+          for (final icon in tester.widgetList<FileIcon>(find.byType(FileIcon)))
+            icon.path,
+        ],
+        ['/p/lib/a.dart', '/p/lib/b.dart'],
+      );
+      for (final span in leaves(tester)) {
+        expect(span.style?.decoration, isNot(TextDecoration.underline));
+      }
+      await tester.tap(find.byType(FileIcon).first);
+      await tester.tap(find.byType(FileIcon).last);
+      expect(opened, ['/p/lib/a.dart', '/p/lib/b.dart']);
+    });
+
+    testWidgets('a link to a folder has a folder\'s icon; a file without an '
+        'extension, once found, a file\'s', (tester) async {
+      final existence = FileExistence(
+        (path) async => const {'/p/LICENSE', '/p/.gitignore'}.contains(path),
+      );
+      addTearDown(existence.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FileOpenScope(
+              root: '/p',
+              onOpen: (_) {},
+              existence: existence,
+              child: const MarkdownView(
+                '[lib/ide](lib/ide), [side_panel/](lib/chat/side_panel/), '
+                '[.github](.github), [LICENSE](LICENSE), '
+                '[.gitignore](.gitignore)',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        [
+          for (final icon in tester.widgetList<FolderIcon>(
+            find.byType(FolderIcon),
+          ))
+            icon.path,
+        ],
+        ['/p/lib/ide', '/p/lib/chat/side_panel', '/p/.github'],
+      );
+      expect(
+        [
+          for (final icon in tester.widgetList<FileIcon>(find.byType(FileIcon)))
+            icon.path,
+        ],
+        ['/p/LICENSE', '/p/.gitignore'],
+      );
     });
   });
 

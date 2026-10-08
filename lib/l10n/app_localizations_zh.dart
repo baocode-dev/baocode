@@ -1340,6 +1340,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdSidePanelTerminal => '显示智能体终端';
 
   @override
+  String get cmdSidePanelCloseTab => '关闭侧边面板标签页';
+
+  @override
   String get sidePanelFiles => '文件';
 
   @override
