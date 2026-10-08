@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../ide/terminal/terminal_colors.dart';
 import '../platform/app_platform.dart';
 import 'workbench_theme.dart' hide ColorScheme;
 
@@ -140,10 +141,14 @@ abstract final class AppColors {
   static Color get caution => _colors['editorWarning.foreground'];
 
   // Shell commands, in the terminal's colors: the program run, quoted
-  // strings, options.
-  static Color get syntaxCommand => _colors['terminal.ansiYellow'];
-  static Color get syntaxString => _colors['terminal.ansiMagenta'];
-  static Color get syntaxOption => _colors['terminal.ansiCyan'];
+  // strings, options. As the terminal resolves them ([terminalColorTheme]):
+  // the registry has no `terminal.ansi*` defaults, so a theme that sets none
+  // (Dark 2026, Dark Modern…) would leave them transparent.
+  static Color get syntaxCommand => _ansi(3); // yellow
+  static Color get syntaxString => _ansi(5); // magenta
+  static Color get syntaxOption => _ansi(6); // cyan
+
+  static Color _ansi(int index) => terminalColorTheme.value.ansi[index];
 }
 
 /// Window chrome shared by the sidebar and the chat, so their edges line up.

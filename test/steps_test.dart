@@ -512,11 +512,13 @@ void main() {
       );
       Color? colorOf(String text) =>
           spans.firstWhere((span) => span.text!.trim() == text).style?.color;
-      expect(colorOf('cd'), AppColors.syntaxCommand);
-      expect(colorOf('grep'), AppColors.syntaxCommand);
-      expect(colorOf('head'), AppColors.syntaxCommand);
-      expect(colorOf('"metadata"'), AppColors.syntaxString);
-      expect(colorOf('-rn'), AppColors.syntaxOption);
+      // The terminal's: Dark 2026 sets no `terminal.ansi*`, which the
+      // registry has no default for either, and must not draw them clear.
+      expect(colorOf('cd'), TerminalColors.ansi[3]);
+      expect(colorOf('grep'), TerminalColors.ansi[3]);
+      expect(colorOf('head'), TerminalColors.ansi[3]);
+      expect(colorOf('"metadata"'), TerminalColors.ansi[5]);
+      expect(colorOf('-rn'), TerminalColors.ansi[6]);
       expect(
         spans.map((span) => span.text).join(),
         'cd /tmp && grep -rn "metadata" .gitignore | head -5',

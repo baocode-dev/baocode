@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/chat/composer/composer.dart';
-import 'package:baocode/chat/panels/context_usage_panel.dart';
 import 'package:baocode/ide/ide_layout.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/lsp_ui/problems_panel.dart';
