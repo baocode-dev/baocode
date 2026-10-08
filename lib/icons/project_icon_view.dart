@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../ide/terminal/terminal_colors.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'emoji_sheet.dart';
 import 'icon_library.dart';
@@ -58,7 +59,7 @@ class ProjectIconView extends StatelessWidget {
           CodiconIcon(icon: final glyph, color: final id) => Icon(
             glyph,
             size: size * glyphScale,
-            color: id == null ? color : themeColors.get(id) ?? color,
+            color: id == null ? color : codiconColor(id) ?? color,
           ),
           LibraryIcon(:final id) => switch (library[id]) {
             final image? => IconImageView(image, size: size * imageScale),
@@ -69,6 +70,14 @@ class ProjectIconView extends StatelessWidget {
     );
   }
 }
+
+/// The color [id] names for a codicon: the theme's, and a terminal ANSI
+/// color as the terminal resolves it ([terminalColorTheme]), which the
+/// registry has no default for in a theme that sets none (Dark 2026…).
+Color? codiconColor(String id) => switch (ansiColorIdentifiers.indexOf(id)) {
+  -1 => themeColors.get(id),
+  final index => terminalColorTheme.value.ansi[index],
+};
 
 /// [emoji], or [otherwise] while the [EmojiSheet] is not there (or has no
 /// picture of it).

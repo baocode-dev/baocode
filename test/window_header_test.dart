@@ -203,6 +203,21 @@ void main() {
       ]),
     );
 
+    // The side panel reaches the top too, its own content under the
+    // window's buttons.
+    await tester.tap(panelToggle);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(find.byKey(const ValueKey('side-panel-sash'))).top,
+      0,
+    );
+    expect(
+      tester.getRect(find.byType(AgentSidePanelView)).top,
+      AppMetrics.titleBarHeight,
+    );
+    await tester.tap(panelToggle);
+    await tester.pumpAndSettle();
+
     // Hidden, its toggle is the chat's, first in its title bar.
     await tester.tap(collapse);
     await tester.pumpAndSettle();

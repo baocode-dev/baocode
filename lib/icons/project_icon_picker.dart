@@ -830,7 +830,9 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
       children: [
         for (final color in ProjectIconPicker.colors)
           _ColorDot(
-            color: color == null ? AppColors.text : themeColors[color],
+            color: color == null
+                ? AppColors.text
+                : codiconColor(color) ?? Colors.transparent,
             label: color ?? l10n.iconPickerDefaultColor,
             selected: color == _color,
             onTap: () => setState(() {

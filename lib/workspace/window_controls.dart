@@ -57,11 +57,12 @@ abstract final class WindowControls {
   /// browser tab.
   static bool get isDesktop => AppPlatform.isMacOS || AppPlatform.isWindows;
 
-  /// Whether the window is the app's own to draw: Windows, where the header
-  /// carries the menus, the session's tools and the window buttons (see
-  /// workspace/window_header/). Elsewhere the system draws the caption —
-  /// macOS with its traffic lights over a title bar Flutter paints under
-  /// them.
+  /// Whether the window is the app's own to draw: Windows, where the chat's
+  /// title bars reach the top with the window buttons over their right (see
+  /// workspace/window_caption.dart), and the IDE has a header with the
+  /// menus (see workspace/window_header/). Elsewhere the system draws the
+  /// caption — macOS with its traffic lights over a title bar Flutter
+  /// paints under them.
   static bool get drawsHeader => AppPlatform.isWindows;
 
   /// Whether the window can be kept on top.

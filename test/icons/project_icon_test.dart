@@ -11,6 +11,7 @@ import 'package:baocode/icons/icon_storage.dart';
 import 'package:baocode/icons/project_icon.dart';
 import 'package:baocode/icons/project_icon_picker.dart';
 import 'package:baocode/icons/project_icon_view.dart';
+import 'package:baocode/ide/terminal/terminal_colors.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/kernel/claude_code/mock_claude_code_transport.dart';
@@ -392,6 +393,14 @@ void main() {
         find.descendant(of: headerIcon, matching: find.byType(Icon)),
       );
       expect(shown.color, themeColors['charts.red']);
+    });
+
+    test('a terminal color is the terminal\'s where the theme sets none', () {
+      // Dark 2026 sets no `terminal.ansi*`, and the registry has no default.
+      expect(themeColors.get('terminal.ansiCyan'), isNull);
+      expect(codiconColor('terminal.ansiCyan'), TerminalColors.ansi[6]);
+      expect(codiconColor('terminal.ansiMagenta'), TerminalColors.ansi[5]);
+      expect(codiconColor('charts.red'), themeColors['charts.red']);
     });
 
     testWidgets('the last 16 picked are kept, the last first; random and '

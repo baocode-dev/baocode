@@ -161,13 +161,13 @@ abstract final class AppMetrics {
   static const contentInset = 8.0;
 
   /// Room the native macOS traffic lights take at the left of the title
-  /// bar (none on the web, and none on Windows, whose title bar is the
-  /// system's own, above the content).
+  /// bar (none on the web, and none on Windows, whose window buttons are
+  /// at the right; see WindowCaption).
   static double get trafficLightsWidth => AppPlatform.isMacOS ? 78 : 0;
 
-  /// The header the Windows app draws itself, over everything: the menu
-  /// bar, the session's tools and the window buttons (see
-  /// workspace/window_header/). macOS keeps the 30 above.
+  /// The header the Windows app draws itself over the IDE: the menu bar,
+  /// the IDE's toggles and the window buttons (see
+  /// workspace/window_header/). The chat keeps the 30 above, as on macOS.
   static const headerHeight = 32.0;
 
   /// One of the header's window buttons: the width Windows gives them.
