@@ -259,6 +259,7 @@ extension _WorkbenchKeys on IdeWorkbenchState {
             ? widget.workspace.documents
             : _editorsByRecentlyUsed(),
         root: widget.workspace.root,
+        paths: widget.workspace.paths,
         onOpen: (doc, {required inBackground}) =>
             _openFromPicker(doc, inBackground: inBackground),
         l10n: context.l10n,

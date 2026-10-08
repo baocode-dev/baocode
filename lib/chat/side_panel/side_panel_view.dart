@@ -420,7 +420,13 @@ class AgentSidePanelView extends StatelessWidget {
     final active = tabs.active;
     final explorer = root == null
         ? null
-        : panel.explorerOf(root, files, watch: watchDirectory, roots: roots);
+        : panel.explorerOf(
+            root,
+            files,
+            watch: watchDirectory,
+            roots: roots,
+            paths: _paths,
+          );
     final local = files is! IdeHostFiles;
     return _Page(
       key: const ValueKey(('page', SidePanelSection.files)),
@@ -490,9 +496,8 @@ class AgentSidePanelView extends StatelessWidget {
   }
 
   /// The project's Git changes (see [GitChangeList]), as a tree or a
-  /// list as the IDE's Source Control view shows them, and the changes
-  /// opened from it or from the conversation; or, while there are none,
-  /// what goes here.
+  /// list as the IDE's Source Control view shows them, under the commit
+  /// box, and the changes opened from it or from the conversation.
   Widget _changesPage(BuildContext context, SidePanelTabs tabs) {
     final l10n = context.l10n;
     final git = _git;
@@ -500,10 +505,13 @@ class AgentSidePanelView extends StatelessWidget {
     final active = tabs.activeDiff;
     final local = files is! IdeHostFiles;
     final total = _gits.fold(0, (sum, git) => sum + (git.state?.count ?? 0));
-    final loaded = _gits.every((git) => git.state != null);
-    if (loaded && _gits.isNotEmpty && total == 0 && tabs.diffs.isEmpty) {
-      return const _NoChanges();
-    }
+    // No change anywhere: the list keeps the commit box, whose button then
+    // publishes or syncs, as the Source Control view does; this says so
+    // where a change would show.
+    final none =
+        _gits.isNotEmpty &&
+        _gits.every((git) => git.state != null) &&
+        total == 0;
     final Widget list;
     if (git == null || (git.loaded && state == null)) {
       list = _NoRepository(
@@ -559,7 +567,9 @@ class AgentSidePanelView extends StatelessWidget {
           ),
           Expanded(
             child: state.count == 0
-                ? _EmptySection(l10n.sidePanelNoChanges)
+                ? (none
+                      ? const SizedBox.shrink()
+                      : _EmptySection(l10n.sidePanelNoChanges))
                 : GitChangeList(
                     git: git,
                     state: state,
@@ -587,9 +597,11 @@ class AgentSidePanelView extends StatelessWidget {
       panel: panel,
       list: list,
       tabs: _fileTabs(context, tabs, tabs.diffs, active),
-      body: active == null
-          ? _EmptySection(l10n.sidePanelSelectChange)
-          : _preview(context, active),
+      body: active != null
+          ? _preview(context, active)
+          : none
+          ? const _NoChanges()
+          : _EmptySection(l10n.sidePanelSelectChange),
     );
   }
 
@@ -602,6 +614,7 @@ class AgentSidePanelView extends StatelessWidget {
       files,
       watch: watchDirectory,
       roots: roots,
+      paths: _paths,
     );
     panel.showSection(session, SidePanelSection.files);
     unawaited(explorer.reveal(path));
@@ -1038,9 +1051,36 @@ extension SidePanelSectionUi on SidePanelSection {
 
 /// The window's quick entries, just below the conversation title bar.
 class SidePanelRail extends StatelessWidget {
-  const SidePanelRail({super.key, required this.onSelect});
+  const SidePanelRail({
+    super.key,
+    required this.onSelect,
+    this.session,
+    this.gits = const [],
+  });
 
   final ValueChanged<SidePanelSection> onSelect;
+
+  /// The conversation focused: its background commands running are
+  /// counted on the terminal's button.
+  final ChatSession? session;
+
+  /// The repositories whose changes are counted on the changes' button, as
+  /// the pages' bar counts them.
+  final List<IdeGitRepository> gits;
+
+  /// What [section]'s button counts: none for the files.
+  int _count(SidePanelSection section) => switch (section) {
+    SidePanelSection.changes => gits.fold(
+      0,
+      (sum, git) => sum + (git.state?.count ?? 0),
+    ),
+    SidePanelSection.terminal =>
+      session?.terminalTasks
+              .where((task) => task.status == CommandStatus.running)
+              .length ??
+          0,
+    SidePanelSection.files || SidePanelSection.plan => 0,
+  };
 
   static const _button = 26.0;
   static const _padding = 4.0;
@@ -1050,29 +1090,47 @@ class SidePanelRail extends StatelessWidget {
   static const width = _button + 2 * _padding + 2;
 
   @override
-  Widget build(BuildContext context) => Container(
-    key: const ValueKey('side-panel-rail'),
-    width: width,
-    padding: const EdgeInsets.all(_padding),
-    decoration: BoxDecoration(
-      color: AppColors.surface,
-      border: Border.all(color: AppColors.border),
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final (i, section) in alwaysShownSections.indexed) ...[
-          if (i > 0) const SizedBox(height: _gap),
-          SidebarIconButton(
-            icon: section.icon,
-            tooltip: section.label(context),
-            command: section.command,
-            size: _button,
-            onTap: () => onSelect(section),
-          ),
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([?session, ...gits]),
+    builder: (context, _) => Container(
+      key: const ValueKey('side-panel-rail'),
+      width: width,
+      padding: const EdgeInsets.all(_padding),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final (i, section) in alwaysShownSections.indexed) ...[
+            if (i > 0) const SizedBox(height: _gap),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                SidebarIconButton(
+                  icon: section.icon,
+                  tooltip: section.label(context),
+                  command: section.command,
+                  size: _button,
+                  onTap: () => onSelect(section),
+                ),
+                // At its top right corner, over the rail's edge, as an
+                // activity bar's badge; the button's hover stays its own.
+                if (_count(section) case final count when count > 0)
+                  Positioned(
+                    top: -5,
+                    right: -7,
+                    child: IgnorePointer(
+                      child: _Badge(count, key: ValueKey(('rail', section))),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
-      ],
+      ),
     ),
   );
 }
@@ -1325,7 +1383,7 @@ class _SectionTab extends StatelessWidget {
 
 /// A page's count in its tab, as the panel title's badge.
 class _Badge extends StatelessWidget {
-  const _Badge(this.count);
+  const _Badge(this.count, {super.key});
 
   final int count;
 

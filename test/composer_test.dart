@@ -787,6 +787,27 @@ void main() {
     });
   });
 
+  testWidgets('double-clicking text in the composer selects a word', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await typeText(tester, 'hello world');
+    final editor = find.byType(QuillEditor);
+    final position = tester.getTopLeft(editor) + const Offset(95, 12);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.down(position);
+    await mouse.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    await mouse.down(position);
+    await mouse.up();
+    await tester.pump();
+    final controller = composerController(tester);
+    expect(
+      controller.selection.textInside(controller.document.toPlainText()),
+      'world',
+    );
+  });
+
   testWidgets('a mouse drag selection follows every move, unthrottled', (
     tester,
   ) async {
@@ -1257,6 +1278,36 @@ void main() {
       expect(session.isStreaming, isTrue);
       session.stop();
       await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('double-clicking in the message editor selects a word', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await reveal(tester, '第 2 轮');
+      await tester.tap(bubble('第 2 轮'));
+      await tester.pump();
+      final editor = editorInHistory();
+      final controller = editController(tester);
+      controller.replaceText(
+        0,
+        controller.document.length - 1,
+        'hello world',
+        const TextSelection.collapsed(offset: 0),
+      );
+      await tester.pump();
+      final position = tester.getTopLeft(editor) + const Offset(95, 12);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.down(position);
+      await mouse.up();
+      await tester.pump(const Duration(milliseconds: 100));
+      await mouse.down(position);
+      await mouse.up();
+      await tester.pump();
+      expect(
+        controller.selection.textInside(controller.document.toPlainText()),
+        'world',
+      );
     });
 
     testWidgets('dragging across a message selects instead of editing', (

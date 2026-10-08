@@ -3,6 +3,7 @@ import 'package:path/path.dart' as p;
 import '../ide/file_service.dart';
 import '../ide/git/git_repository.dart';
 import '../ide/git/git_service.dart';
+import '../ide/git/repository_scan.dart';
 import '../ide/lsp/catalog/standard_lsp.dart';
 import '../ide/lsp/language_features.dart';
 import '../ide/terminal/terminal_instance.dart';
@@ -36,6 +37,9 @@ abstract interface class ProjectHost {
   /// The Git repository of the project at [root].
   IdeGitRepository git(String root);
 
+  /// The repositories [scan] finds in [root]'s subfolders, by path there.
+  Future<List<String>> repositoriesIn(String root, IdeRepositoryScan scan);
+
   /// The language servers of the project at [root].
   LanguageFeatures languages(String root);
 
@@ -61,6 +65,15 @@ class LocalHost implements ProjectHost {
 
   @override
   IdeGitRepository git(String root) => IdeGitRepository(IdeGitService(root));
+
+  @override
+  Future<List<String>> repositoriesIn(String root, IdeRepositoryScan scan) =>
+      scanRepositories(
+        root,
+        scan,
+        list: files(root).list,
+        isRepositoryTop: (folder) => IdeGitService(folder).isRepositoryTop(),
+      );
 
   @override
   LanguageFeatures languages(String root) => standardLspManager(root);

@@ -13,6 +13,7 @@ import 'package:bao_editor/monaco/flutter/language_assets.dart';
 import 'chat/chat_width.dart';
 import 'customize/customization_store.dart';
 import 'ide/git/git_repository.dart';
+import 'ide/git/repository_scan.dart';
 import 'ide/lsp/language_features.dart';
 import 'ide/lsp/lsp_process.dart';
 import 'ide/lsp/packs/language_packs.dart';
@@ -215,6 +216,10 @@ Future<void> main(List<String> arguments) async {
       final host = ProjectHost.of(folder);
       return host.git(host.pathOf(folder));
     },
+    repositoriesIn: (folder, scan) {
+      final host = ProjectHost.of(folder);
+      return host.repositoriesIn(host.pathOf(folder), scan);
+    },
     // The default profile and the user's profiles are settings.json's.
     terminalBackend: TerminalBackend(settings: files?.settings),
     // What Claude Code keeps: its sessions to search, its skills, agents,
@@ -291,6 +296,7 @@ class BaoCodeApp extends StatefulWidget {
     this.workspace,
     this.languagesFor,
     this.gitFor,
+    this.repositoriesIn,
     this.terminalBackend,
     this.appLocale,
     this.settings,
@@ -323,6 +329,11 @@ class BaoCodeApp extends StatefulWidget {
 
   /// The Git repository of a project the IDE opens; none when null.
   final IdeGitRepository Function(String root)? gitFor;
+
+  /// The repositories in a folder's subfolders, by path on its host; none
+  /// looked for when null.
+  final Future<List<String>> Function(String folder, IdeRepositoryScan scan)?
+  repositoriesIn;
 
   /// What the IDE's terminals run on; none when null.
   final TerminalBackend? terminalBackend;
@@ -481,6 +492,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
       window: window,
       languagesFor: widget.languagesFor,
       gitFor: widget.gitFor,
+      repositoriesIn: widget.repositoriesIn,
       terminalBackend: widget.terminalBackend,
       settings: _settings,
       conversations: widget.conversations ?? const NoConversationSearch(),

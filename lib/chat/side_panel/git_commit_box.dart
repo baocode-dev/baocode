@@ -20,8 +20,10 @@ import '../../theme/codicons.dart';
 /// commit message, which the sparkle writes from the changes (Generate
 /// Commit Message, again to cancel it), and Commit, with its variants in a
 /// menu. Nothing staged, Commit offers to commit every change (the smart
-/// commit, `git.enableSmartCommit`), as the IDE's does; the message and
-/// those choices are [scm]'s, kept for the repository while the panel is.
+/// commit, `git.enableSmartCommit`), as the IDE's does; nothing to commit,
+/// it gives way to Publish Branch or Sync Changes where there is that to
+/// do. The message and those choices are [scm]'s, kept for the repository
+/// while the panel is.
 ///
 /// Adapted from the IDE's Source Control view (ide_scm_view.dart), itself
 /// after VS Code 6a598d4a13031703d483d103c1d934a36ad27971's Git extension
@@ -48,6 +50,7 @@ class GitCommitBox extends StatefulWidget {
 
 class _GitCommitBoxState extends State<GitCommitBox> {
   final _focus = FocusNode(debugLabel: 'side panel commit message');
+  final _publishKey = GlobalKey(debugLabel: 'side-panel-publish');
   IdeInputValidation? _validation;
 
   /// Accepts the message: commits (`scm.acceptInput`'s ⌘Enter, Ctrl+Enter).
@@ -130,18 +133,11 @@ class _GitCommitBoxState extends State<GitCommitBox> {
           Row(
             children: [
               Expanded(
-                child: IdeHover(
-                  message: '${l10n.scmCommitChanges} ($key)',
-                  child: IdeButton(
-                    key: const ValueKey('side-panel-commit-button'),
-                    icon: Codicons.check,
-                    label: l10n.scmCommit,
-                    expand: true,
-                    onPressed: busy || !_hasChangesToCommit
-                        ? null
-                        : () => unawaited(_commit()),
-                  ),
-                ),
+                child: _hasChangesToCommit
+                    ? _commitButton(key, enabled: !busy)
+                    : _publishButton() ??
+                          _syncButton() ??
+                          _commitButton(key, enabled: false),
               ),
               const SizedBox(width: 2),
               Builder(
@@ -158,6 +154,144 @@ class _GitCommitBoxState extends State<GitCommitBox> {
         ],
       ),
     );
+  }
+
+  Widget _commitButton(String key, {required bool enabled}) {
+    final l10n = context.l10n;
+    return IdeHover(
+      message: '${l10n.scmCommitChanges} ($key)',
+      child: IdeButton(
+        key: const ValueKey('side-panel-commit-button'),
+        icon: Codicons.check,
+        label: l10n.scmCommit,
+        expand: true,
+        onPressed: enabled ? () => unawaited(_commit()) : null,
+      ),
+    );
+  }
+
+  /// Nothing to commit, on a branch without an upstream: Publish Branch
+  /// (`getPublishBranchActionButton`).
+  Widget? _publishButton() {
+    final l10n = context.l10n;
+    final head = widget.state.head;
+    final branch = head.branch;
+    if (branch == null || head.upstream != null) return null;
+    final syncing = _git.syncing;
+    return IdeHover(
+      message: syncing
+          ? l10n.scmPublishingBranchNamed(branch)
+          : l10n.scmPublishBranchNamed(branch),
+      child: IdeButton(
+        key: _publishKey,
+        icon: Codicons.cloudUpload,
+        spinning: syncing,
+        label: l10n.scmPublishBranch,
+        expand: true,
+        onPressed: _git.busy ? null : () => unawaited(_publish(branch)),
+      ),
+    );
+  }
+
+  /// Nothing to commit, on a branch ahead of its upstream or behind it:
+  /// Sync Changes, with how far (`getSyncChangesActionButton`).
+  Widget? _syncButton() {
+    final l10n = context.l10n;
+    final head = widget.state.head;
+    final syncing = _git.syncing;
+    if (head.upstream == null ||
+        (!syncing && head.ahead == 0 && head.behind == 0)) {
+      return null;
+    }
+    return IdeHover(
+      message: syncing ? l10n.scmSynchronizingChanges : _syncTooltip(head),
+      child: IdeButton(
+        key: const ValueKey('side-panel-sync'),
+        icon: Codicons.sync,
+        spinning: syncing,
+        label: l10n.scmSyncChanges,
+        counts: [
+          if (head.behind > 0) (head.behind, Codicons.arrowDown),
+          if (head.ahead > 0) (head.ahead, Codicons.arrowUp),
+        ],
+        expand: true,
+        onPressed: _git.busy ? null : () => unawaited(_sync(head)),
+      ),
+    );
+  }
+
+  /// `Repository.syncTooltip`.
+  String _syncTooltip(IdeGitHead head) {
+    final l10n = context.l10n;
+    final upstream = head.upstream;
+    if (head.branch == null ||
+        head.unborn ||
+        upstream == null ||
+        (head.ahead == 0 && head.behind == 0)) {
+      return l10n.scmSynchronizeChanges;
+    }
+    if (head.ahead == 0) return l10n.scmPullCommits(head.behind, upstream);
+    if (head.behind == 0) return l10n.scmPushCommits(head.ahead, upstream);
+    return l10n.scmPullPushCommits(head.behind, head.ahead, upstream);
+  }
+
+  /// `git.sync`: confirms (`git.confirmSync`), then pulls and pushes.
+  Future<void> _sync(IdeGitHead head) async {
+    final git = _git;
+    final upstream = head.upstream;
+    if (upstream == null) return;
+    final l10n = context.l10n;
+    if (_scm.confirmSync) {
+      final pick = await showIdeDialog(
+        context,
+        message: l10n.scmConfirmSync(upstream),
+        buttons: [l10n.commonOk, l10n.scmDontShowAgain],
+      );
+      if (pick == 1) {
+        _scm.confirmSync = false;
+      } else if (pick != 0) {
+        return;
+      }
+    }
+    try {
+      await git.sync();
+    } catch (error) {
+      await _say('$error', IdeDialogType.error);
+    }
+  }
+
+  /// `git.publish`: to the only remote, or to the one picked.
+  Future<void> _publish(String branch) async {
+    final git = _git;
+    final l10n = context.l10n;
+    try {
+      final remotes = await git.remotes();
+      if (!mounted) return;
+      if (remotes.isEmpty) {
+        await _say(l10n.scmNoRemotes, IdeDialogType.warning);
+        return;
+      }
+      var remote = remotes.first;
+      if (remotes.length > 1) {
+        String? picked;
+        final box = _publishKey.currentContext?.findRenderObject();
+        await showIdeMenu(
+          context,
+          anchor: box is RenderBox
+              ? box.localToGlobal(Offset.zero) & box.size
+              : null,
+          entries: [
+            for (final name in remotes)
+              IdeMenuAction(name, onSelected: () => picked = name),
+          ],
+        );
+        if (picked == null) return;
+        remote = picked!;
+      }
+      await git.publish(remote);
+    } catch (error) {
+      await _say('$error', IdeDialogType.error);
+    }
   }
 
   /// Whether Commit has something to commit: staged changes, or others the

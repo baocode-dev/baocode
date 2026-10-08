@@ -7,6 +7,7 @@ import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 
 import 'file_service.dart';
 import 'git/git_repository.dart';
+import 'git/repository_scan.dart';
 import 'ide_layout.dart';
 import 'lsp/language_features.dart';
 import 'lsp/lsp_protocol.dart';
@@ -199,7 +200,13 @@ class IdeWorkspace extends ChangeNotifier {
     Stream<void> Function(String directory)? watch,
     List<String> roots = const [],
     this._gitOf,
-  }) : files = files ?? IdeFileService(root),
+    IdeRepositoryDetection? repositoryDetection,
+    p.Context? paths,
+  }) : _detection = repositoryDetection,
+       paths = paths == null
+           ? p.context
+           : p.Context(style: paths.style, current: root),
+       files = files ?? IdeFileService(root),
        _watchDirectory =
            watch ??
            switch (files) {
@@ -208,11 +215,16 @@ class IdeWorkspace extends ChangeNotifier {
            } {
     addListener(_watchOpenFiles);
     _setRoots(roots);
+    if (_gitOf == null && _git != null && hasFolder) _detectIn(root);
   }
 
   /// The project's folder; a multi-folder workspace's own (empty) folder
   /// when it has [roots].
   final String root;
+
+  /// Path syntax of the project's host, with relative paths based at [root]
+  /// when supplied; this machine's context otherwise.
+  final p.Context paths;
 
   /// The folders of a multi-folder workspace, each a root of the explorer
   /// and a repository of Source Control, as VS Code's workspace folders;
@@ -238,7 +250,12 @@ class IdeWorkspace extends ChangeNotifier {
   void _setRoots(List<String> roots) {
     final gitOf = _gitOf;
     for (final root in _roots) {
-      if (!roots.contains(root)) _repositories.remove(root)?.dispose();
+      if (roots.contains(root)) continue;
+      _repositories.remove(root)?.dispose();
+      for (final (_, git)
+          in _found.remove(root) ?? const <(String, IdeGitRepository)>[]) {
+        git.dispose();
+      }
     }
     _roots
       ..clear()
@@ -246,8 +263,9 @@ class IdeWorkspace extends ChangeNotifier {
     if (gitOf == null) return;
     for (final root in roots) {
       if (!_repositories.containsKey(root)) _repositories[root] = gitOf(root);
+      _detectIn(root);
     }
-    if (!_repositories.values.contains(_activeRepository)) {
+    if (!repositories.any((r) => identical(r.$2, _activeRepository))) {
       _activeRepository = null;
     }
   }
@@ -256,10 +274,68 @@ class IdeWorkspace extends ChangeNotifier {
   /// none (or not yet known to be one).
   final Map<String, IdeGitRepository?> _repositories = {};
 
-  /// The repositories of [roots], in their order.
+  /// Finds the repositories in the folders' subfolders; null for none.
+  final IdeRepositoryDetection? _detection;
+
+  /// The repositories found in each folder's subfolders (the project's
+  /// own folder's, for one folder), by path; empty while being looked for.
+  final Map<String, List<(String path, IdeGitRepository git)>> _found = {};
+
+  /// Looks for the repositories in [folder]'s subfolders, once.
+  void _detectIn(String folder) {
+    final detection = _detection;
+    if (detection == null || _found.containsKey(folder)) return;
+    _found[folder] = const [];
+    unawaited(() async {
+      final List<String> foundPaths;
+      try {
+        foundPaths = await detection.find(folder);
+      } catch (_) {
+        return;
+      }
+      // Gone meanwhile; or a workspace folder itself, with its own.
+      if (_disposed || !_found.containsKey(folder)) return;
+      final found = [
+        for (final path in foundPaths)
+          if (!_roots.any((root) => paths.equals(root, path)))
+            (path, detection.open(path)),
+      ];
+      if (found.isEmpty) return;
+      _found[folder] = found;
+      // The folder's own shows until known not to be a repository.
+      if (_folderGit(folder) case final git? when !git.loaded) {
+        void loaded() {
+          if (!git.loaded) return;
+          git.removeListener(loaded);
+          if (!_disposed) notifyListeners();
+        }
+
+        git.addListener(loaded);
+      }
+      notifyListeners();
+    }());
+  }
+
+  /// The repository of a workspace folder (the project's folder, for
+  /// one).
+  IdeGitRepository? _folderGit(String folder) =>
+      isMultiRoot ? _repositories[folder] : _git;
+
+  /// The repositories of [roots], in their order, each followed by those
+  /// found in its subfolders (`git.autoRepositoryDetection`); a project of
+  /// one folder's, its own and those found in its subfolders, when there
+  /// are any (none otherwise: [git] is its one). A folder that is not a
+  /// repository is left out when ones were found in it.
   List<(String root, IdeGitRepository git)> get repositories => [
-    for (final root in _roots)
-      if (_repositories[root] case final git?) (root, git),
+    for (final folder in isMultiRoot ? _roots : [root])
+      if (isMultiRoot || (_found[folder]?.isNotEmpty ?? false)) ...[
+        if (_folderGit(folder) case final git?
+            when (_found[folder]?.isEmpty ?? true) ||
+                !git.loaded ||
+                git.isRepository)
+          (folder, git),
+        ...?_found[folder],
+      ],
   ];
 
   IdeGitRepository? _activeRepository;
@@ -275,7 +351,7 @@ class IdeWorkspace extends ChangeNotifier {
   /// The workspace folder [path] is in; null for none of them.
   String? rootOf(String path) {
     for (final root in _roots) {
-      if (p.equals(root, path) || p.isWithin(root, path)) return root;
+      if (paths.equals(root, path) || paths.isWithin(root, path)) return root;
     }
     return null;
   }
@@ -285,20 +361,35 @@ class IdeWorkspace extends ChangeNotifier {
   /// itself when in none.
   String relativePath(String path) {
     if (!isMultiRoot) {
-      return p.relative(path, from: root).replaceAll(r'\', '/');
+      return paths.relative(path, from: root).replaceAll(r'\', '/');
     }
     final folder = rootOf(path);
     if (folder == null) return path;
-    final relative = p.relative(path, from: folder).replaceAll(r'\', '/');
-    final name = p.basename(folder);
+    final relative = paths.relative(path, from: folder).replaceAll(r'\', '/');
+    final name = paths.basename(folder);
     return relative == '.' ? name : '$name/$relative';
   }
 
-  /// The repository [path] is in: the one of its workspace folder.
-  IdeGitRepository? gitAt(String path) => switch (rootOf(path)) {
-    final root? => _repositories[root],
-    null => isMultiRoot ? null : git,
-  };
+  /// The repository [path] is in: the deepest of those found in its
+  /// workspace folder's subfolders, else the folder's own.
+  IdeGitRepository? gitAt(String path) {
+    final folder = isMultiRoot ? rootOf(path) : root;
+    (String, IdeGitRepository)? deepest;
+    for (final found
+        in _found[folder] ?? const <(String, IdeGitRepository)>[]) {
+      if (!paths.equals(found.$1, path) && !paths.isWithin(found.$1, path)) {
+        continue;
+      }
+      if (deepest == null || found.$1.length > deepest.$1.length) {
+        deepest = found;
+      }
+    }
+    if (deepest != null) return deepest.$2;
+    return switch (rootOf(path)) {
+      final root? => _repositories[root],
+      null => isMultiRoot ? null : _git,
+    };
+  }
 
   /// Whether [root] is a folder the user opened; without one (the IDE's
   /// empty window, [root] then the home folder), there is no explorer
@@ -315,9 +406,12 @@ class IdeWorkspace extends ChangeNotifier {
 
   /// The project's Git repository, for the explorer's decorations, Source
   /// Control and the timeline; null for none. Disposed with the workspace.
-  /// A multi-folder workspace's is the one picked of its [repositories].
+  /// A multi-folder workspace's is the one picked of its [repositories], as
+  /// is a folder's with repositories in its subfolders.
   IdeGitRepository? get git =>
-      isMultiRoot ? _activeRepository ?? repositories.firstOrNull?.$2 : _git;
+      isMultiRoot || (_found[root]?.isNotEmpty ?? false)
+      ? _activeRepository ?? repositories.firstOrNull?.$2
+      : _git;
   final IdeGitRepository? _git;
 
   LanguageDocumentSync? get _sync => switch (languages) {
@@ -369,7 +463,7 @@ class IdeWorkspace extends ChangeNotifier {
   /// ([IdeDocument.openError]).
   Future<void> open(String path) async {
     if (_disposed) return;
-    path = p.normalize(p.absolute(path));
+    path = paths.normalize(paths.absolute(path));
     _dropReveal(path);
     final request = ++_selection;
     if (_documents.any((d) => d.key == path)) {
@@ -399,7 +493,7 @@ class IdeWorkspace extends ChangeNotifier {
   /// [range] in once it shows it ([takeReveal]): e.g. code the agent cited.
   Future<void> openAt(String path, LspRange range) async {
     if (_disposed) return;
-    path = p.normalize(p.absolute(path));
+    path = paths.normalize(paths.absolute(path));
     _reveal = (path, range);
     await open(path);
     // Already the active one, opening it changed nothing to be told of.
@@ -430,7 +524,7 @@ class IdeWorkspace extends ChangeNotifier {
     final request = _selection;
     for (final path in paths) {
       if (_disposed) return;
-      final normal = p.normalize(p.absolute(path));
+      final normal = this.paths.normalize(this.paths.absolute(path));
       if (_documents.any((d) => d.key == normal)) continue;
       final IdeDocument doc;
       if (ideIsImagePath(normal)) {
@@ -477,7 +571,7 @@ class IdeWorkspace extends ChangeNotifier {
     Future<String> Function()? modified,
   }) async {
     if (_disposed) return;
-    path = p.normalize(p.absolute(path));
+    path = paths.normalize(paths.absolute(path));
     _dropReveal(path);
     final request = ++_selection;
     final key = '$path\u0000$label';
@@ -530,7 +624,7 @@ class IdeWorkspace extends ChangeNotifier {
     required Future<String> Function() read,
   }) async {
     if (_disposed) return;
-    path = p.normalize(p.absolute(path));
+    path = paths.normalize(paths.absolute(path));
     _dropReveal(path);
     final request = ++_selection;
     final key = '$path\u0000$label';
@@ -603,7 +697,7 @@ class IdeWorkspace extends ChangeNotifier {
   /// VS Code reloads an editor whose file changed on disk. Documents with
   /// unsaved changes keep them; those whose file is gone are [deleted].
   Future<void> reload(Iterable<String> paths) async {
-    final wanted = {for (final path in paths) p.normalize(path)};
+    final wanted = {for (final path in paths) this.paths.normalize(path)};
     var changed = false;
     for (final doc in _documents.toList()) {
       if (!wanted.contains(doc.path) || !doc.isFile) continue;
@@ -638,7 +732,7 @@ class IdeWorkspace extends ChangeNotifier {
     if (_disposed) return;
     final directories = {
       for (final doc in _documents)
-        if (doc.isFile) p.dirname(doc.path),
+        if (doc.isFile) paths.dirname(doc.path),
     };
     for (final directory in _watches.keys.toList()) {
       if (!directories.contains(directory)) {
@@ -663,7 +757,7 @@ class IdeWorkspace extends ChangeNotifier {
     unawaited(
       reload([
         for (final doc in _documents)
-          if (directories.contains(p.dirname(doc.path))) doc.path,
+          if (directories.contains(paths.dirname(doc.path))) doc.path,
       ]),
     );
   }
@@ -672,14 +766,14 @@ class IdeWorkspace extends ChangeNotifier {
   /// documents in it take their new paths, and stay open.
   void moved(String from, String to) {
     if (_disposed) return;
-    from = p.normalize(from);
-    to = p.normalize(to);
+    from = paths.normalize(from);
+    to = paths.normalize(to);
     final moved = <IdeDocument>[];
     for (final (index, doc) in _documents.indexed.toList()) {
-      if (doc.path != from && !p.isWithin(from, doc.path)) continue;
+      if (doc.path != from && !paths.isWithin(from, doc.path)) continue;
       final path = doc.path == from
           ? to
-          : p.join(to, p.relative(doc.path, from: from));
+          : paths.join(to, paths.relative(doc.path, from: from));
       _stopSync(doc, force: true);
       final next = IdeDocument._moved(path, doc);
       _documents[index] = next;
@@ -695,10 +789,10 @@ class IdeWorkspace extends ChangeNotifier {
   /// The documents in [path] (a file or folder), for asking before it is
   /// deleted with unsaved changes.
   List<IdeDocument> documentsIn(String path) {
-    path = p.normalize(path);
+    path = paths.normalize(path);
     return [
       for (final doc in _documents)
-        if (doc.path == path || p.isWithin(path, doc.path)) doc,
+        if (doc.path == path || paths.isWithin(path, doc.path)) doc,
     ];
   }
 
@@ -830,7 +924,7 @@ class IdeWorkspace extends ChangeNotifier {
   /// Writes [doc]'s text to [path] (made if it is not there), and has its
   /// tab be that file's, in place of any other of it.
   Future<IdeDocument?> saveTo(IdeDocument doc, String path) async {
-    path = p.normalize(p.absolute(path));
+    path = paths.normalize(paths.absolute(path));
     final text = doc.text;
     try {
       await files.create(path);
@@ -922,6 +1016,11 @@ class IdeWorkspace extends ChangeNotifier {
     _git?.dispose();
     for (final repository in _repositories.values) {
       repository?.dispose();
+    }
+    for (final found in _found.values) {
+      for (final (_, git) in found) {
+        git.dispose();
+      }
     }
     layout.dispose();
     super.dispose();

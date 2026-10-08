@@ -73,7 +73,9 @@ class IdeExplorerController extends ChangeNotifier {
     required String root,
     Stream<void> Function(String directory)? watch,
     List<String> roots = const [],
-  }) : root = p.normalize(root),
+    p.Context? paths,
+  }) : paths = paths ?? p.context,
+       root = (paths ?? p.context).normalize(root),
        _watchDirectory =
            watch ??
            switch (files) {
@@ -87,6 +89,7 @@ class IdeExplorerController extends ChangeNotifier {
 
   final IdeFileService files;
   final String root;
+  final p.Context paths;
 
   /// A multi-folder workspace's folders, the tree's top rows in place of
   /// [root]'s entries (as VS Code lists workspace folders); none for a
@@ -97,7 +100,7 @@ class IdeExplorerController extends ChangeNotifier {
   /// Shows [roots] at the top of the tree: those added expanded, as VS
   /// Code opens them.
   set roots(List<String> roots) {
-    final normalized = [for (final root in roots) p.normalize(root)];
+    final normalized = [for (final root in roots) paths.normalize(root)];
     if (listEquals(normalized, _roots)) return;
     for (final root in normalized) {
       if (!_roots.contains(root)) {
@@ -106,7 +109,7 @@ class IdeExplorerController extends ChangeNotifier {
       }
     }
     _expanded.removeWhere(
-      (path) => !_inTree(path, normalized) && p.isWithin(root, path),
+      (path) => !_inTree(path, normalized) && paths.isWithin(root, path),
     );
     _roots = normalized;
     _changed();
@@ -114,11 +117,11 @@ class IdeExplorerController extends ChangeNotifier {
 
   /// Whether [path] is a row's: under [roots], or [root] for a folder.
   bool _inTree(String path, List<String> roots) => roots.isEmpty
-      ? p.isWithin(root, path)
-      : roots.any((r) => r == path || p.isWithin(r, path));
+      ? paths.isWithin(root, path)
+      : roots.any((r) => r == path || paths.isWithin(r, path));
 
   /// Whether [path] is in the tree: under [root], or a workspace folder.
-  bool shows(String path) => _inTree(p.normalize(path), _roots);
+  bool shows(String path) => _inTree(paths.normalize(path), _roots);
 
   /// Whether [path] is a workspace folder: the top of a tree.
   bool isRoot(String path) => path == root || _roots.contains(path);
@@ -126,7 +129,7 @@ class IdeExplorerController extends ChangeNotifier {
   /// The top of [path]'s tree: its workspace folder, or [root].
   String rootOf(String path) {
     for (final root in _roots) {
-      if (root == path || p.isWithin(root, path)) return root;
+      if (root == path || paths.isWithin(root, path)) return root;
     }
     return root;
   }
@@ -134,7 +137,7 @@ class IdeExplorerController extends ChangeNotifier {
   /// Whether [path] is a folder with a row: one that may hold others
   /// selected (a workspace folder's, but not [root]).
   bool isFolderRow(String path) => _roots.isEmpty
-      ? path != root && p.isWithin(root, path)
+      ? path != root && paths.isWithin(root, path)
       : _inTree(path, _roots);
 
   /// Where new items go when no row says: [root], or the first workspace
@@ -184,7 +187,7 @@ class IdeExplorerController extends ChangeNotifier {
       if (_errors[directory] case final error?) {
         rows.add(
           IdeExplorerRow(
-            path: '$directory${p.separator}',
+            path: '$directory${paths.separator}',
             name: '',
             depth: depth,
             isDirectory: false,
@@ -194,7 +197,7 @@ class IdeExplorerController extends ChangeNotifier {
         return;
       }
       for (final entry in _children[directory] ?? const <IdeFile>[]) {
-        final path = p.join(directory, entry.name);
+        final path = paths.join(directory, entry.name);
         final expanded = entry.isDirectory && _expanded.contains(path);
         rows.add(
           IdeExplorerRow(
@@ -218,7 +221,7 @@ class IdeExplorerController extends ChangeNotifier {
       rows.add(
         IdeExplorerRow(
           path: folder,
-          name: p.basename(folder),
+          name: paths.basename(folder),
           depth: 0,
           isDirectory: true,
           expanded: expanded,
@@ -296,7 +299,7 @@ class IdeExplorerController extends ChangeNotifier {
 
   void collapse(String directory) {
     if (!_expanded.remove(directory)) return;
-    _selection.removeWhere((path) => p.isWithin(directory, path));
+    _selection.removeWhere((path) => paths.isWithin(directory, path));
     _changed();
   }
 
@@ -377,16 +380,16 @@ class IdeExplorerController extends ChangeNotifier {
 
   /// Expands the folders above [path], then selects and scrolls to it.
   Future<void> reveal(String path) async {
-    final target = p.normalize(path);
+    final target = paths.normalize(path);
     if (target == root || !_inTree(target, _roots)) return;
     final top = rootOf(target);
     if (top == target) return select(target, reveal: true);
-    final parts = p.split(p.relative(target, from: top));
+    final parts = paths.split(paths.relative(target, from: top));
     var directory = top;
     if (top != root && _expanded.add(top)) _changed();
     await _load(directory);
     for (final part in parts.take(parts.length - 1)) {
-      directory = p.join(directory, part);
+      directory = paths.join(directory, part);
       if (_expanded.add(directory)) _changed();
       await _load(directory);
       if (_disposed) return;
@@ -412,7 +415,7 @@ class IdeExplorerController extends ChangeNotifier {
   /// Forgets [path] and what was under it (after a move or delete), so
   /// folders re-read and the expansion does not point at nothing.
   void forget(String path) {
-    bool under(String other) => other == path || p.isWithin(path, other);
+    bool under(String other) => other == path || paths.isWithin(path, other);
     _expanded.removeWhere(under);
     _children.removeWhere((directory, _) => under(directory));
     if (_selected case final selected? when under(selected)) _selected = null;
@@ -556,8 +559,11 @@ class IdeExplorer extends StatefulWidget {
 class _ExplorerEdit {
   const _ExplorerEdit.create(this.parent, {required this.directory})
     : renaming = null;
-  _ExplorerEdit.rename(String this.renaming, {required this.directory})
-    : parent = p.dirname(renaming);
+  _ExplorerEdit.rename(
+    String this.renaming, {
+    required this.parent,
+    required this.directory,
+  });
 
   final String parent;
   final bool directory;
@@ -702,9 +708,9 @@ class IdeExplorerState extends State<IdeExplorer> {
     if (selection.length < 2 || !selection.contains(row.path)) return [row];
     bool underSelected(String path) {
       for (
-        var parent = p.dirname(path);
+        var parent = _controller.paths.dirname(path);
         _controller.isFolderRow(parent);
-        parent = p.dirname(parent)
+        parent = _controller.paths.dirname(parent)
       ) {
         if (selection.contains(parent)) return true;
       }
@@ -726,7 +732,7 @@ class IdeExplorerState extends State<IdeExplorer> {
       ? _controller.defaultFolder
       : row.isDirectory
       ? row.path
-      : p.dirname(row.path);
+      : _controller.paths.dirname(row.path);
 
   // --- Commands ------------------------------------------------------------
   // What the explorer's keybindings run, under upstream's ids: the file
@@ -929,7 +935,7 @@ class IdeExplorerState extends State<IdeExplorer> {
       _controller.collapse(row.path);
       return;
     }
-    final parent = p.dirname(row.path);
+    final parent = _controller.paths.dirname(row.path);
     if (row.depth > 0) _controller.select(parent, reveal: true);
   }
 
@@ -1025,7 +1031,11 @@ class IdeExplorerState extends State<IdeExplorer> {
   void startRename(IdeExplorerRow row) {
     if (_controller.isRoot(row.path)) return;
     setState(
-      () => _edit = _ExplorerEdit.rename(row.path, directory: row.isDirectory),
+      () => _edit = _ExplorerEdit.rename(
+        row.path,
+        parent: _controller.paths.dirname(row.path),
+        directory: row.isDirectory,
+      ),
     );
   }
 
@@ -1045,7 +1055,9 @@ class IdeExplorerState extends State<IdeExplorer> {
       return IdeInputValidation(l10n.explorerNameStartsWithSlash);
     }
     final names = name.split(RegExp(r'[\\/]')).where((n) => n.isNotEmpty);
-    final original = edit.renaming == null ? null : p.basename(edit.renaming!);
+    final original = edit.renaming == null
+        ? null
+        : _controller.paths.basename(edit.renaming!);
     if (name != original) {
       final siblings = _controller.childrenOf(edit.parent) ?? const [];
       final first = names.first;
@@ -1053,7 +1065,7 @@ class IdeExplorerState extends State<IdeExplorer> {
         (entry) =>
             entry.name == first &&
             (names.length == 1 || !entry.isDirectory) &&
-            p.join(edit.parent, entry.name) != edit.renaming,
+            _controller.paths.join(edit.parent, entry.name) != edit.renaming,
       );
       if (exists) {
         return IdeInputValidation(l10n.explorerNameExists(name));
@@ -1073,7 +1085,9 @@ class IdeExplorerState extends State<IdeExplorer> {
 
   Future<void> _commitEdit(_ExplorerEdit edit, String name) async {
     if (!identical(_edit, edit)) return;
-    final original = edit.renaming == null ? null : p.basename(edit.renaming!);
+    final original = edit.renaming == null
+        ? null
+        : _controller.paths.basename(edit.renaming!);
     final invalid = _validate(edit, name);
     if (name.trim().isEmpty ||
         name == original ||
@@ -1086,7 +1100,7 @@ class IdeExplorerState extends State<IdeExplorer> {
     final files = _controller.files;
     try {
       if (edit.renaming case final from?) {
-        final to = p.join(edit.parent, name);
+        final to = _controller.paths.join(edit.parent, name);
         await files.rename(from, to);
         _controller.forget(from);
         widget.onMoved?.call(from, to);
@@ -1097,14 +1111,14 @@ class IdeExplorerState extends State<IdeExplorer> {
         final parts = name.split(RegExp(r'[\\/]')).where((n) => n.isNotEmpty);
         var folder = edit.parent;
         for (final part in parts.take(parts.length - 1)) {
-          folder = p.join(folder, part);
+          folder = _controller.paths.join(folder, part);
           try {
             await files.create(folder, directory: true);
           } on IdeFileExistsException {
             // Already there.
           }
         }
-        final path = p.join(folder, parts.last);
+        final path = _controller.paths.join(folder, parts.last);
         await files.create(path, directory: edit.directory);
         await _controller.refresh();
         await _controller.reveal(path);
@@ -1236,9 +1250,13 @@ class IdeExplorerState extends State<IdeExplorer> {
       };
       for (final file in toPaste.files) {
         final source = file.path;
-        final target = p.join(folder, p.basename(source));
+        final sourceName = toPaste.external
+            ? p.basename(source)
+            : _controller.paths.basename(source);
+        final target = _controller.paths.join(folder, sourceName);
         if (toPaste.cut && target == source) continue;
-        if (!upload && (source == folder || p.isWithin(source, folder))) {
+        if (!upload &&
+            (source == folder || _controller.paths.isWithin(source, folder))) {
           _report(ancestor);
           break;
         }
@@ -1248,12 +1266,12 @@ class IdeExplorerState extends State<IdeExplorer> {
           widget.onMoved?.call(source, target);
           last = target;
         } else {
-          var name = p.basename(source);
+          var name = sourceName;
           while (taken.contains(name)) {
             name = ideIncrementFileName(name, isFolder: file.directory);
           }
           taken.add(name);
-          final copy = p.join(folder, name);
+          final copy = _controller.paths.join(folder, name);
           if (upload) {
             await copyLocalTo(files, source, copy);
           } else {
@@ -1270,8 +1288,9 @@ class IdeExplorerState extends State<IdeExplorer> {
     if (last != null) await _controller.reveal(last);
   }
 
-  String _relative(String path) =>
-      p.relative(path, from: _controller.rootOf(path)).replaceAll(r'\', '/');
+  String _relative(String path) => _controller.paths
+      .relative(path, from: _controller.rootOf(path))
+      .replaceAll(r'\', '/');
 
   /// [command]'s keybinding, for the menu: the one that applies with the
   /// focus here.
@@ -1464,7 +1483,7 @@ class IdeExplorerState extends State<IdeExplorer> {
       return [for (final row in rows) (row, row.path == renaming)];
     }
     IdeExplorerRow input(int depth) => IdeExplorerRow(
-      path: p.join(edit.parent, '\x00new'),
+      path: _controller.paths.join(edit.parent, '\x00new'),
       name: '',
       depth: depth,
       isDirectory: edit.directory,
@@ -1487,13 +1506,18 @@ class IdeExplorerState extends State<IdeExplorer> {
     final repositories = widget.repositories;
     IdeGitDecorations? decorationsOf(String path) {
       if (repositories.isEmpty) return decorations;
+      // The deepest: a repository in another's subfolder decorates its own.
+      IdeGitRepository? deepest;
       for (final repository in repositories) {
         final root = repository.state?.root;
-        if (root != null && (p.equals(root, path) || p.isWithin(root, path))) {
-          return repository.decorations;
+        if (root != null &&
+            (_controller.paths.equals(root, path) ||
+                _controller.paths.isWithin(root, path)) &&
+            root.length > (deepest?.state?.root.length ?? -1)) {
+          deepest = repository;
         }
       }
-      return null;
+      return deepest?.decorations;
     }
 
     // A selected row drags the whole selection.
@@ -1536,6 +1560,7 @@ class IdeExplorerState extends State<IdeExplorer> {
                   key: ValueKey(('edit', row.path)),
                   row: row,
                   edit: edit,
+                  paths: _controller.paths,
                   validate: (name) => _validate(edit, name),
                   onSubmit: (name) => unawaited(_commitEdit(edit, name)),
                   onCancel: _cancelEdit,
@@ -1766,6 +1791,7 @@ class _ExplorerEditRow extends StatefulWidget {
     super.key,
     required this.row,
     required this.edit,
+    required this.paths,
     required this.validate,
     required this.onSubmit,
     required this.onCancel,
@@ -1773,6 +1799,7 @@ class _ExplorerEditRow extends StatefulWidget {
 
   final IdeExplorerRow row;
   final _ExplorerEdit edit;
+  final p.Context paths;
   final IdeInputValidation? Function(String name) validate;
   final ValueChanged<String> onSubmit;
   final VoidCallback onCancel;
@@ -1792,7 +1819,7 @@ class _ExplorerEditRowState extends State<_ExplorerEditRow> {
     super.initState();
     final name = widget.edit.renaming == null
         ? ''
-        : p.basename(widget.edit.renaming!);
+        : widget.paths.basename(widget.edit.renaming!);
     // A rename selects the name without its extension.
     final dot = name.lastIndexOf('.');
     final end = widget.edit.directory || dot <= 0 ? name.length : dot;
@@ -1840,7 +1867,7 @@ class _ExplorerEditRowState extends State<_ExplorerEditRow> {
         children: [
           const SizedBox(width: 18),
           if (row.isDirectory)
-            FolderIcon(p.join(widget.edit.parent, name), size: 16)
+            FolderIcon(widget.paths.join(widget.edit.parent, name), size: 16)
           else
             FileIcon(name.isEmpty ? 'file' : name, size: 16),
           const SizedBox(width: 5),

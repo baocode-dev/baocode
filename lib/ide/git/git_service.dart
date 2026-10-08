@@ -82,6 +82,27 @@ class IdeGitService {
     return _repositoryRoot = p.normalize(top);
   }
 
+  /// Whether [root] is a working tree's top level, not a folder in one
+  /// (nor a bare repository): what finds the repositories of a folder's
+  /// subfolders. Asked by the path's prefix in the tree, which is empty
+  /// at its top, where the top level would be spelled with links resolved.
+  Future<bool> isRepositoryTop() async {
+    try {
+      final output = await _git([
+        'rev-parse',
+        '--is-inside-work-tree',
+        '--show-prefix',
+      ], cwd: root);
+      if (output.exitCode != 0) return false;
+      final lines = output.stdout.split('\n');
+      return lines.first.trim() == 'true' &&
+          (lines.length < 2 || lines[1].trim().isEmpty);
+    } catch (_) {
+      // Git missing, or the folder gone.
+      return false;
+    }
+  }
+
   Future<String> _requireRoot() async {
     final top = await repositoryRoot();
     if (top == null) throw const IdeGitException('Not a Git repository.');

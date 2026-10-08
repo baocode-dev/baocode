@@ -106,6 +106,38 @@ Future<void> _drag(
   await tester.pump();
 }
 
+Future<void> _showRequest(WidgetTester tester) async {
+  tester
+      .widget<SuperListView>(find.byType(SuperListView))
+      .controller!
+      .jumpTo(0);
+  await tester.pumpAndSettle();
+}
+
+Offset _requestAt(WidgetTester tester, int offset) {
+  final paragraph = tester.renderObject<RenderParagraph>(
+    find.descendant(
+      of: find.byType(SuperListView),
+      matching: _paragraph(_request),
+    ),
+  );
+  final rect = paragraph
+      .getBoxesForSelection(
+        TextSelection(baseOffset: offset, extentOffset: offset + 1),
+      )
+      .single
+      .toRect();
+  final position = paragraph.localToGlobal(rect.center);
+  expect(
+    tester
+        .hitTestOnBinding(position)
+        .path
+        .any((entry) => entry.target == paragraph),
+    isTrue,
+  );
+  return position;
+}
+
 void main() {
   String? copied;
   setUp(() {
@@ -174,6 +206,136 @@ void main() {
     await tester.pump();
     await _copy(tester);
     expect(copied, 'selection');
+  });
+
+  testWidgets('double-clicking a sent request selects its word', (
+    tester,
+  ) async {
+    await _pump(tester, _answer);
+    await _showRequest(tester);
+    final position = _requestAt(tester, 10);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.down(position);
+    await mouse.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    await mouse.down(position);
+    await mouse.up();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(find.byType(UserMessageViewer), findsNothing);
+    await _copy(tester);
+    expect(copied, 'request');
+  });
+
+  testWidgets(
+    'a mouse click still opens the sent request after the double-click window',
+    (tester) async {
+      await _pump(tester, _answer);
+      await _showRequest(tester);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      final position = _requestAt(tester, 10);
+      await mouse.down(position);
+      await mouse.up();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(UserMessageViewer), findsNothing);
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.byType(UserMessageViewer), findsOneWidget);
+    },
+  );
+
+  testWidgets('touching a sent request still opens it immediately', (
+    tester,
+  ) async {
+    await _pump(tester, _answer);
+    await _showRequest(tester);
+    await tester.tapAt(_requestAt(tester, 10));
+    await tester.pump();
+    expect(find.byType(UserMessageViewer), findsOneWidget);
+  });
+
+  testWidgets('a canceled second press does not open the sent request', (
+    tester,
+  ) async {
+    await _pump(tester, _answer);
+    await _showRequest(tester);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    final position = _requestAt(tester, 10);
+    await mouse.down(position);
+    await mouse.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    await mouse.down(position);
+    await mouse.cancel();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.byType(UserMessageViewer), findsNothing);
+  });
+
+  testWidgets('double-click and drag extends the sent request by word', (
+    tester,
+  ) async {
+    await _pump(tester, _answer);
+    await _showRequest(tester);
+    final start = _requestAt(tester, 10);
+    final end = _requestAt(tester, 24);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.down(start);
+    await mouse.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    await mouse.down(start);
+    await mouse.moveTo(end);
+    await tester.pump();
+    await mouse.up();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.byType(UserMessageViewer), findsNothing);
+    await _copy(tester);
+    expect(copied, 'request starts here');
+  });
+
+  testWidgets('a third click keeps the sent request selectable', (
+    tester,
+  ) async {
+    await _pump(tester, _answer);
+    await _showRequest(tester);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    final position = _requestAt(tester, 10);
+    for (var i = 0; i < 3; i++) {
+      await mouse.down(position);
+      await mouse.up();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.byType(UserMessageViewer), findsNothing);
+    await _copy(tester);
+    expect(copied, 'Visible request starts here.\n');
+  });
+
+  testWidgets('Shift-click, drag and disposal cancel pending message editing', (
+    tester,
+  ) async {
+    await _pump(tester, _answer);
+    await _showRequest(tester);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    final start = _requestAt(tester, 10);
+    await mouse.down(start);
+    await mouse.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await mouse.down(_requestAt(tester, 24));
+    await mouse.up();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.byType(UserMessageViewer), findsNothing);
+
+    await mouse.down(start);
+    await mouse.moveTo(_requestAt(tester, 24));
+    await mouse.up();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.byType(UserMessageViewer), findsNothing);
+
+    await mouse.down(start);
+    await mouse.up();
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('selection across a collapsed request includes its hidden text', (

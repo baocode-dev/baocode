@@ -21,11 +21,14 @@ class IdeFileIndex extends ChangeNotifier {
     this.root, {
     Future<IdeFileListing> Function(IdeFileService files, String root)? lister,
     List<String>? roots,
-  }) : _lister = lister ?? listProjectFiles,
+    p.Context? pathContext,
+  }) : pathContext = pathContext ?? p.context,
+       _lister = lister ?? listProjectFiles,
        _roots = roots == null ? null : [...roots];
 
   final IdeFileService files;
   final String root;
+  final p.Context pathContext;
 
   /// A multi-folder workspace's folders, listed in place of [root]: each
   /// file's relative path then starts with its folder's name, as VS Code
@@ -45,12 +48,14 @@ class IdeFileIndex extends ChangeNotifier {
   String relativeOf(String path) {
     final roots = _roots;
     if (roots == null) {
-      return p.relative(path, from: root).replaceAll(r'\', '/');
+      return pathContext.relative(path, from: root).replaceAll(r'\', '/');
     }
     for (final folder in roots) {
-      if (p.isWithin(folder, path)) {
-        final relative = p.relative(path, from: folder).replaceAll(r'\', '/');
-        return '${p.basename(folder)}/$relative';
+      if (pathContext.isWithin(folder, path)) {
+        final relative = pathContext
+            .relative(path, from: folder)
+            .replaceAll(r'\', '/');
+        return '${pathContext.basename(folder)}/$relative';
       }
     }
     return path.replaceAll(r'\', '/');
@@ -360,13 +365,15 @@ List<IdeQuickPickItem> editorQuickPicks(
   required String root,
   required void Function(IdeDocument doc, {required bool inBackground}) onOpen,
   AppLocalizations? l10n,
+  p.Context? paths,
 }) {
+  final pathContext = paths ?? p.context;
   final strings = l10n ?? englishLocalizations;
   final query = IdeQuickOpenQuery._normalize(filter);
   final scored =
       <({IdeDocument doc, int score, List<int> label, List<int> folder})>[];
   for (final doc in editors) {
-    final folder = _folderOf(doc.path, root);
+    final folder = _folderOf(doc.path, root, pathContext);
     if (query.isEmpty) {
       scored.add((doc: doc, score: 0, label: const [], folder: const []));
       continue;
@@ -399,7 +406,7 @@ List<IdeQuickPickItem> editorQuickPicks(
       IdeQuickPickItem(
         label: entry.doc.title,
         labelMatches: entry.label,
-        description: _folderOf(entry.doc.path, root),
+        description: _folderOf(entry.doc.path, root, pathContext),
         descriptionMatches: entry.folder,
         icon: FileIcon(entry.doc.path, size: 16),
         onAccept: () => onOpen(entry.doc, inBackground: false),
@@ -409,8 +416,10 @@ List<IdeQuickPickItem> editorQuickPicks(
 }
 
 /// [path]'s folder relative to [root], `/`-separated; null at the root.
-String? _folderOf(String path, String root) {
-  final folder = p.relative(p.dirname(path), from: root).replaceAll(r'\', '/');
+String? _folderOf(String path, String root, p.Context paths) {
+  final folder = paths
+      .relative(paths.dirname(path), from: root)
+      .replaceAll(r'\', '/');
   return folder == '.' ? null : folder;
 }
 

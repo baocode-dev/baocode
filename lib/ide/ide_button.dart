@@ -12,7 +12,9 @@
 
 import 'package:flutter/material.dart';
 
+import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import 'ide_spinning.dart';
 
 /// The color theme's `button.*` colors.
 abstract final class IdeButtonColors {
@@ -45,6 +47,8 @@ class IdeButton extends StatefulWidget {
     required this.label,
     required this.onPressed,
     this.icon,
+    this.spinning = false,
+    this.counts = const [],
     this.secondary = false,
     this.expand = false,
     this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -55,6 +59,12 @@ class IdeButton extends StatefulWidget {
 
   /// A 16px codicon before [label], as `$(icon) label` gives.
   final IconData? icon;
+
+  /// `$(sync~spin)` in [icon]'s place.
+  final bool spinning;
+
+  /// After [label], each count and its icon (` 2$(arrow-up)`).
+  final List<(int, IconData)> counts;
   final bool secondary;
 
   /// Less in a bar lower than a button, e.g. a title bar.
@@ -77,18 +87,35 @@ class _IdeButtonState extends State<IdeButton> {
     final foreground = secondary
         ? IdeButtonColors.secondaryForeground
         : IdeButtonColors.foreground;
+    final style = TextStyle(fontSize: 12, height: 16 / 12, color: foreground);
+    // With counts, one line: they keep their room, the label gives way.
+    final counted = widget.counts.isNotEmpty;
     Widget label = Text(
       widget.label,
       textAlign: TextAlign.center,
-      style: TextStyle(fontSize: 12, height: 16 / 12, color: foreground),
+      maxLines: counted ? 1 : null,
+      overflow: counted ? TextOverflow.ellipsis : null,
+      style: style,
     );
-    if (widget.icon case final icon?) {
+    final icon = widget.spinning
+        ? IdeSpinning(Icon(Codicons.sync, size: 16, color: foreground))
+        : widget.icon == null
+        ? null
+        : Icon(widget.icon, size: 16, color: foreground);
+    if (icon != null || counted) {
       label = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: foreground),
-          const SizedBox(width: 4),
+          if (icon != null) ...[icon, const SizedBox(width: 4)],
           Flexible(child: label),
+          for (final (count, icon) in widget.counts) ...[
+            Text(' $count', style: style),
+            // `.monaco-text-button .codicon { margin: 0 0.2em }`.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2.4),
+              child: Icon(icon, size: 16, color: foreground),
+            ),
+          ],
         ],
       );
     }

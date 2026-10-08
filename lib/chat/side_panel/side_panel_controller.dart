@@ -173,8 +173,9 @@ class AgentSidePanel extends ChangeNotifier {
     IdeFileService files, {
     Stream<void> Function(String directory)? watch,
     List<String> roots = const [],
+    p.Context? paths,
   }) {
-    final key = p.normalize(root);
+    final key = root;
     final explorer = _explorers[key];
     if (explorer != null && identical(explorer.files, files)) return explorer;
     explorer?.dispose();
@@ -183,13 +184,14 @@ class AgentSidePanel extends ChangeNotifier {
       root: root,
       watch: watch,
       roots: roots,
+      paths: paths ?? p.context,
     );
   }
 
   /// Has the tree of the workspace in [root] show [roots], its folders
   /// now.
   void setRoots(String root, List<String> roots) =>
-      _explorers[p.normalize(root)]?.roots = roots;
+      _explorers[root]?.roots = roots;
 
   /// The repository picked on the changes page of each multi-folder
   /// workspace (by its folder): its folder's path.

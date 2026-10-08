@@ -262,7 +262,7 @@ class IdeEditorState extends State<IdeEditor> {
       return;
     }
     _blame.update(
-      repository: widget.workspace.git,
+      repository: widget.workspace.gitAt(doc.path),
       path: doc.path,
       model: doc.model,
       selections: controller.selections,

@@ -449,6 +449,54 @@ void main() {
     expect(tabs.section, SidePanelSection.plan);
   });
 
+  testWidgets('the rail counts what the pages\' bar counts: the changes, the '
+      'commands running', (tester) async {
+    final fake = FakeGit('/p')
+      ..status =
+          '## main...origin/main\x00'
+          ' M lib/main.dart\x00'
+          '?? notes.md\x00';
+    final git = fake.repository();
+    addTearDown(git.dispose);
+    final session = ChatSession(historyCount: 0);
+    addTearDown(session.dispose);
+    await tester.pumpWidget(
+      _app(
+        Align(
+          alignment: Alignment.topLeft,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: SidePanelRail(
+              onSelect: (_) {},
+              session: session,
+              gits: [git],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final rail = find.byKey(const ValueKey('side-panel-rail'));
+    expect(find.descendant(of: rail, matching: find.text('2')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey(('rail', SidePanelSection.changes))),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey(('rail', SidePanelSection.terminal))),
+      findsNothing,
+    );
+
+    // Committed, the count goes.
+    fake.status = '## main...origin/main\x00';
+    await git.refresh(force: true);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey(('rail', SidePanelSection.changes))),
+      findsNothing,
+    );
+  });
+
   testWidgets('two levels keep the selected file when switching sections', (
     tester,
   ) async {
@@ -751,9 +799,10 @@ void main() {
       'smart commit); Never leaves them, and Commit with nothing to take', (
     tester,
   ) async {
+    // In step with its upstream: nothing to commit, nothing to sync either.
     final fake = FakeGit('/p')
       ..status =
-          '## main\x00'
+          '## main...origin/main\x00'
           ' M lib/main.dart\x00'
           '?? notes.md\x00';
     final git = fake.repository();
@@ -791,6 +840,103 @@ void main() {
     await tester.pumpAndSettle();
     expect(fake.callsTo('commit'), hasLength(1));
     expect(tester.widget<IdeButton>(commit).onPressed, isNull);
+  });
+
+  testWidgets('a commit leaving no change keeps the commit box, whose '
+      'button then syncs the commits, as the Source Control view\'s does', (
+    tester,
+  ) async {
+    final fake = FakeGit('/p')
+      ..status =
+          '## main...origin/main\x00'
+          'M  lib/main.dart\x00';
+    fake.onCommand = (arguments) {
+      switch (arguments.first) {
+        case 'commit':
+          fake.status = '## main...origin/main [ahead 1, behind 2]\x00';
+        case 'push':
+          fake.status = '## main...origin/main\x00';
+      }
+    };
+    final git = fake.repository();
+    addTearDown(git.dispose);
+    final (:panel, :session, files: _) = await _pumpChat(tester, git: git);
+    panel.showSection(session, SidePanelSection.changes);
+    await tester.pumpAndSettle();
+    expect(find.text('No changes yet'), findsNothing);
+    panel.scmOf(git).message.text = 'Work';
+    await tester.tap(find.byKey(const ValueKey('side-panel-commit-button')));
+    await tester.pumpAndSettle();
+    expect(fake.callsTo('commit'), hasLength(1));
+
+    // Nothing to commit: the box stays, Sync Changes in Commit's place.
+    expect(find.byKey(const ValueKey('side-panel-commit')), findsOneWidget);
+    expect(find.text('No changes yet'), findsOneWidget);
+    final sync = find.byKey(const ValueKey('side-panel-sync'));
+    expect(sync, findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('side-panel-commit-button')),
+      findsNothing,
+    );
+    expect(find.text(' 2'), findsOneWidget);
+    expect(find.text(' 1'), findsOneWidget);
+    expect(
+      find.byTooltip('Pull 2 and push 1 commits between origin/main'),
+      findsOneWidget,
+    );
+
+    await tester.tap(sync);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(fake.callsTo('pull'), isEmpty);
+
+    await tester.tap(sync);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(fake.callsTo('pull').single, ['pull', '--tags', 'origin', 'main']);
+    expect(fake.callsTo('push').single, ['push', 'origin', 'main:main']);
+    // In sync: Commit, with nothing to commit; the box still there.
+    expect(sync, findsNothing);
+    final commit = find.byKey(const ValueKey('side-panel-commit-button'));
+    expect(tester.widget<IdeButton>(commit).onPressed, isNull);
+  });
+
+  testWidgets('with nothing to commit on a branch without an upstream, the '
+      'changes page publishes it, to the remote picked; without remotes, '
+      'says so', (tester) async {
+    final fake = FakeGit('/p')
+      ..remotes = 'origin\nupstream\n'
+      ..status = '## feature/x\x00';
+    final git = fake.repository();
+    addTearDown(git.dispose);
+    final (:panel, :session, files: _) = await _pumpChat(tester, git: git);
+    panel.showSection(session, SidePanelSection.changes);
+    await tester.pumpAndSettle();
+    expect(find.text('No changes yet'), findsOneWidget);
+    expect(find.byTooltip('Publish Branch "feature/x"'), findsOneWidget);
+    final publish = find.text('Publish Branch');
+    await tester.tap(publish);
+    await tester.pumpAndSettle();
+    expect(fake.callsTo('push'), isEmpty);
+    await tester.tap(find.text('upstream'));
+    await tester.pumpAndSettle();
+    expect(fake.callsTo('push').single, [
+      'push',
+      '-u',
+      'upstream',
+      'feature/x',
+    ]);
+
+    fake.remotes = '';
+    await tester.tap(publish);
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Your repository has no remotes configured to publish to.'),
+      findsOneWidget,
+    );
+    expect(fake.callsTo('push'), hasLength(1));
   });
 
   testWidgets('dragging the panel\'s edge past where it goes over the '

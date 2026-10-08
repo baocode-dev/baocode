@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../ide/file_service.dart';
 import '../ide/git/git_repository.dart';
+import '../ide/git/repository_scan.dart';
 import '../ide/lsp/language_features.dart';
 import '../ide/terminal/terminal_instance.dart';
 import 'project_host.dart';
@@ -87,6 +88,17 @@ class SshHost extends ChangeNotifier implements ProjectHost {
   @override
   IdeGitRepository git(String root) =>
       IdeGitRepository(remoteGitService(this, root));
+
+  @override
+  Future<List<String>> repositoriesIn(String root, IdeRepositoryScan scan) =>
+      scanRepositories(
+        root,
+        scan,
+        list: files(root).list,
+        isRepositoryTop: (folder) =>
+            remoteGitService(this, folder).isRepositoryTop(),
+        paths: paths,
+      );
 
   @override
   LanguageFeatures languages(String root) => RemoteLspManager(this, root);

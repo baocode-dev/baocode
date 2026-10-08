@@ -25,6 +25,7 @@ import 'customize/customization_store.dart';
 import 'customize/customizations.dart';
 import 'customize/customize_view.dart';
 import 'ide/git/git_repository.dart';
+import 'ide/git/repository_scan.dart';
 import 'ide/file_service.dart' show IdeFileService, IdeHostFiles, readFileBytes;
 import 'ide/ide_chat_title.dart';
 import 'ide/ide_color_theme_picker.dart';
@@ -115,6 +116,7 @@ class Workbench extends StatefulWidget {
     this.ideEditorBuilder,
     this.languagesFor,
     this.gitFor,
+    this.repositoriesIn,
     this.terminalBackend,
     this.settings,
     this.conversations = const NoConversationSearch(),
@@ -149,6 +151,12 @@ class Workbench extends StatefulWidget {
   /// The Git repository of the project at a root, when the IDE opens it;
   /// none when null.
   final IdeGitRepository Function(String root)? gitFor;
+
+  /// The repositories in a folder's subfolders, by path on its host,
+  /// for the IDE's Source Control (`git.autoRepositoryDetection`); none
+  /// looked for when null.
+  final Future<List<String>> Function(String folder, IdeRepositoryScan scan)?
+  repositoriesIn;
 
   /// What the IDE's terminals run on (with settings.json's profiles); none
   /// when null.
@@ -981,6 +989,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
               () => IdeFileIndex(
                 ProjectHost.of(project.path).files(project.root),
                 project.root,
+                pathContext: ProjectHost.of(project.path).paths,
               ),
             )..roots = _workspace.workspaceOf(project)?.folders);
       await showSearchPalette(
@@ -2273,12 +2282,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             },
             roots: multi.folders,
             gitOf: (folder) => widget.gitFor?.call(folder),
+            repositoryDetection: _repositoryDetection(host),
+            paths: host.name == null ? null : host.paths,
           )
         : IdeWorkspace(
             root,
             files: host.files(root),
             languages: widget.languagesFor?.call(folder),
             git: widget.gitFor?.call(folder),
+            repositoryDetection: _repositoryDetection(host),
+            paths: host.name == null ? null : host.paths,
           );
     // The parts as the last run left them, before anything shows them.
     if (_workspace.ideView(folder) case final kept?) {
@@ -2289,6 +2302,23 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (_ideWindow) _trackEdited(space);
     return space..askSavePath = (doc) => _askSavePath(space, doc);
   });
+
+  /// Finds the repositories of an IDE's folders' subfolders on [host], as
+  /// settings.json's `git.autoRepositoryDetection` says when it opens.
+  IdeRepositoryDetection? _repositoryDetection(ProjectHost host) {
+    final gitFor = widget.gitFor;
+    final repositoriesIn = widget.repositoriesIn;
+    if (gitFor == null || repositoriesIn == null) return null;
+    return IdeRepositoryDetection(
+      find: (folder) => repositoriesIn(
+        RemoteLocation.of(host.name, folder),
+        IdeRepositoryScan.parse(
+          widget.settings?.files?.settings.values ?? const {},
+        ),
+      ),
+      open: (path) => gitFor(RemoteLocation.of(host.name, path)),
+    );
+  }
 
   // --- Unsaved files -----------------------------------------------------------
 
@@ -2508,15 +2538,30 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     railTop: _titleInHeader ? 12 : AppMetrics.titleBarHeight + 12,
     // Not in a narrow window, where the conversation has no room to spare
     // (the title bar's toggle shows the panel).
-    rail: _narrow || (_agentThread ?? _workspace.current) == null
-        ? null
-        : SidePanelRail(onSelect: _showSidePanelSection),
+    rail: switch (_agentThread ?? _workspace.current) {
+      final thread? when !_narrow => _sidePanelRail(thread),
+      _ => null,
+    },
     builder: (context) => switch (_agentThread ?? _workspace.current) {
       final thread? => _buildSidePanel(thread),
       null => const SizedBox.shrink(),
     },
     child: child,
   );
+
+  /// The side panel's quick entries for [thread]'s conversation, counting
+  /// what its pages' bar counts: the changes of its repositories, its
+  /// background commands running.
+  Widget _sidePanelRail(AgentThread thread) {
+    final multi = _workspace.workspaceAt(thread.project.path);
+    return SidePanelRail(
+      onSelect: _showSidePanelSection,
+      session: thread.session,
+      gits: multi == null
+          ? [?_sidePanelGit(thread)]
+          : [for (final (_, git) in _sidePanelRepositories(multi)) git],
+    );
+  }
 
   Widget _buildSidePanel(AgentThread thread) {
     final (:files, :paths) = _projectFiles(thread);

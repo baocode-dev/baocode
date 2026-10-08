@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -115,11 +116,25 @@ TextSpan _messageSpan(
 class _UserMessageBubbleState extends State<UserMessageBubble> {
   final _selection = _MessageSelectionDelegate();
   Offset? _pressedAt;
+  Offset? _lastMouseDown;
+  Timer? _clickWindow;
+  Timer? _pendingEdit;
+  bool _repeatedClick = false;
 
   @override
   void dispose() {
+    _cancelClicks();
     _selection.dispose();
     super.dispose();
+  }
+
+  void _cancelClicks() {
+    _clickWindow?.cancel();
+    _clickWindow = null;
+    _pendingEdit?.cancel();
+    _pendingEdit = null;
+    _lastMouseDown = null;
+    _repeatedClick = false;
   }
 
   /// The press went to an image (which opens its preview instead). It
@@ -132,10 +147,25 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
         event.buttons == kPrimaryMouseButton;
     final onImage = _pressOnImage;
     _pressOnImage = false;
-    _pressedAt =
-        primary && !onImage && !HardwareKeyboard.instance.isShiftPressed
-        ? event.position
-        : null;
+    final repeated =
+        event.kind == PointerDeviceKind.mouse &&
+        _clickWindow?.isActive == true &&
+        _lastMouseDown != null &&
+        (event.position - _lastMouseDown!).distance <= kDoubleTapSlop;
+    _cancelClicks();
+    if (!primary || onImage || HardwareKeyboard.instance.isShiftPressed) {
+      _pressedAt = null;
+      return;
+    }
+    _pressedAt = event.position;
+    if (event.kind == PointerDeviceKind.mouse) {
+      _repeatedClick = repeated;
+      _lastMouseDown = event.position;
+      _clickWindow = Timer(kDoubleTapTimeout, () {
+        _clickWindow = null;
+        _lastMouseDown = null;
+      });
+    }
   }
 
   void _handleUp(PointerUpEvent event) {
@@ -143,8 +173,19 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
     _pressedAt = null;
     if (pressedAt == null) return;
     // A click, not the end of a drag selection.
-    if ((event.position - pressedAt).distance <= kTouchSlop) {
+    if ((event.position - pressedAt).distance > kTouchSlop) {
+      _cancelClicks();
+      return;
+    }
+    if (event.kind != PointerDeviceKind.mouse) {
       widget.onEdit?.call();
+    } else if (!_repeatedClick && widget.onEdit != null) {
+      // Keep the original text in place while SelectionArea decides whether
+      // this is the first press of a double/triple click.
+      _pendingEdit = Timer(kDoubleTapTimeout, () {
+        _pendingEdit = null;
+        if (mounted) widget.onEdit?.call();
+      });
     }
   }
 
@@ -195,7 +236,10 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
     return Listener(
       onPointerDown: _handleDown,
       onPointerUp: _handleUp,
-      onPointerCancel: (_) => _pressedAt = null,
+      onPointerCancel: (_) {
+        _pressedAt = null;
+        _cancelClicks();
+      },
       child: ImagePressScope(
         onPress: () => _pressOnImage = true,
         child: Container(

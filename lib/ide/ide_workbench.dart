@@ -924,6 +924,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       files: workspace.files,
       root: workspace.root,
       roots: workspace.roots,
+      paths: workspace.paths,
       // Without a folder, no tree to keep current.
       watch: workspace.hasFolder
           ? workspace.watchFolder
@@ -933,6 +934,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       workspace.files,
       workspace.root,
       roots: workspace.isMultiRoot ? workspace.roots : null,
+      pathContext: workspace.paths,
       // Without a folder, the open files alone.
       lister: workspace.hasFolder
           ? null
@@ -968,14 +970,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _terminals?.root = workspace.roots.firstOrNull ?? workspace.root;
   }
 
-  /// A multi-folder workspace's folders or repository changed: the
+  /// A multi-folder workspace's folders, or the repository shown (of a
+  /// workspace's, or of those in a folder's subfolders) changed: the
   /// explorer, Quick Open and Source Control follow.
   void _rootsChanged() {
     final workspace = widget.workspace;
-    if (!workspace.isMultiRoot) return;
-    _explorer.roots = workspace.roots;
-    _fileIndex.roots = workspace.roots;
-    _terminals?.root = workspace.roots.firstOrNull ?? workspace.root;
+    if (workspace.isMultiRoot) {
+      _explorer.roots = workspace.roots;
+      _fileIndex.roots = workspace.roots;
+      _terminals?.root = workspace.roots.firstOrNull ?? workspace.root;
+    }
     final git = workspace.git;
     if (identical(git, _git)) return;
     _git?.removeListener(_gitChanged);
@@ -1482,7 +1486,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   String _relative(String path) => widget.workspace.isMultiRoot
       ? widget.workspace.relativePath(path)
-      : p.relative(path, from: widget.workspace.root);
+      : widget.workspace.paths.relative(path, from: widget.workspace.root);
 
   /// New Text File: an untitled one, its editor focused.
   void _newUntitled() {
@@ -3267,7 +3271,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   ],
                   body: IdeTimelineView(
                     controller: _timeline,
-                    git: workspace.git,
+                    // The file's repository: one in a subfolder, if so.
+                    git: switch (timelinePath) {
+                      final path? => workspace.gitAt(path),
+                      null => workspace.git,
+                    },
                     activePath: activePath,
                   ),
                 ),

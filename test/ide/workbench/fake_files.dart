@@ -5,6 +5,7 @@ import 'package:baocode/ide/extensions/ide_extensions.dart';
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/git/commit_message.dart';
 import 'package:baocode/ide/git/git_repository.dart';
+import 'package:baocode/ide/git/repository_scan.dart';
 import 'package:baocode/ide/ide_color_theme_picker.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/ide_workspace.dart';
@@ -186,6 +187,7 @@ Future<IdeWorkspace> pumpWorkbench(
   ValueChanged<Map<String, Object?>>? onViewState,
   List<String>? roots,
   IdeGitRepository? Function(String root)? gitOf,
+  IdeRepositoryDetection? repositoryDetection,
   VoidCallback? onAddFolder,
   ValueChanged<String>? onRemoveFolder,
   Project? project,
@@ -202,6 +204,7 @@ Future<IdeWorkspace> pumpWorkbench(
     // A multi-folder workspace's: its folders (in the project).
     roots: [for (final root in roots ?? const <String>[]) inRoot(root)],
     gitOf: roots == null ? null : (root) => gitOf?.call(root),
+    repositoryDetection: repositoryDetection,
   );
   addTearDown(() {
     workspace.dispose();

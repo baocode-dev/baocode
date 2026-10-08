@@ -49,6 +49,9 @@ Map<String, String> launchEnvironment({
     // The background work: the model picked, unless one is set for it.
     ClaudeModelVariables.haiku: roles.haiku ?? model,
     ClaudeModelVariables.subagent: ?roles.subagent,
+    // Unknown Anthropic-compatible models can still accept output_config.effort.
+    if (!provider.protocol.proxied)
+      ClaudeModelVariables.alwaysEnableEffort: '1',
     if (provider.disableNonessentialTraffic)
       ClaudeModelVariables.nonessentialTraffic: '1',
     // The proxy is on this machine: never through the user's HTTP proxy.
@@ -87,6 +90,7 @@ abstract final class ClaudeModelVariables {
   static const sonnet = 'ANTHROPIC_DEFAULT_SONNET_MODEL';
   static const haiku = 'ANTHROPIC_DEFAULT_HAIKU_MODEL';
   static const subagent = 'CLAUDE_CODE_SUBAGENT_MODEL';
+  static const alwaysEnableEffort = 'CLAUDE_CODE_ALWAYS_ENABLE_EFFORT';
   static const nonessentialTraffic = 'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC';
 
   /// The window of a model not Claude's: the CLI takes 200K for one it

@@ -445,6 +445,7 @@ void main() {
         'ANTHROPIC_DEFAULT_SONNET_MODEL': 'big',
         'ANTHROPIC_DEFAULT_HAIKU_MODEL': 'small',
         'CLAUDE_CODE_SUBAGENT_MODEL': 'sub',
+        'CLAUDE_CODE_ALWAYS_ENABLE_EFFORT': '1',
         'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC': '1',
         'API_TIMEOUT_MS': '600000',
       });
@@ -477,6 +478,7 @@ void main() {
       expect(env['ANTHROPIC_BASE_URL'], 'http://127.0.0.1:5000/p/gw');
       expect(env['ANTHROPIC_AUTH_TOKEN'], 'tok');
       expect(env['ANTHROPIC_API_KEY'], '');
+      expect(env.containsKey('CLAUDE_CODE_ALWAYS_ENABLE_EFFORT'), isFalse);
       expect(env.values, isNot(contains('sk-never-given')));
       expect(env['NO_PROXY'], 'corp.example,127.0.0.1,localhost');
       expect(env['ANTHROPIC_DEFAULT_HAIKU_MODEL'], 'mini');
