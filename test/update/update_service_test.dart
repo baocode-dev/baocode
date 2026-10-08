@@ -232,7 +232,17 @@ void main() {
       await service.download();
       expect(service.pending, isTrue);
       service.skip(service.release!);
-      expect(service.pending, isFalse);
+      expect(service.pending, isTrue, reason: 'skipped: not offered, shown');
+
+      // Skipped before it was found: not downloaded, the button there all
+      // the same.
+      final skipped = serviceOf(
+        FakeBackend(manifestOf('1.2.0')),
+        store: MemoryUpdateStore()..skippedVersion = '1.2.0',
+      );
+      await skipped.check();
+      expect(skipped.status, UpdateStatus.available);
+      expect(skipped.pending, isTrue);
 
       final mandatory = serviceOf(
         FakeBackend(manifestOf('1.2.0', minimumVersion: '1.1.0')),

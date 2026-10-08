@@ -42,7 +42,8 @@ void main() {
   testWidgets('Update shows beside the gear while an update waits', (
     tester,
   ) async {
-    final service = serviceOf(FakeBackend(manifestOf('1.2.0')));
+    final backend = FakeBackend(manifestOf('1.2.0'));
+    final service = serviceOf(backend);
     var updates = 0;
     await show(tester, service, () => updates++);
     expect(update(), findsNothing);
@@ -57,8 +58,16 @@ void main() {
     await tester.tap(update());
     expect(updates, 1);
 
-    // Skipped: it goes.
+    // Skipped: not offered again, but still there to install.
     service.skip(service.release!);
+    await tester.pump();
+    expect(update(), findsOneWidget);
+
+    // Up to date: it goes.
+    await tester.runAsync(() async {
+      backend.manifest = manifestOf('1.0.0+1');
+      await service.check(manual: true);
+    });
     await tester.pump();
     expect(update(), findsNothing);
     service.dispose();
