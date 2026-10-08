@@ -4,7 +4,10 @@ import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
 import '../../ide/file_service.dart';
+import '../../ide/git/git_repository.dart';
+import '../../ide/git/ide_scm_view.dart' show IdeScmSession;
 import '../../ide/ide_explorer.dart';
+import '../../settings/user_settings.dart';
 import 'file_open.dart';
 
 /// A file the side panel shows: its text or its changes, as [request]
@@ -58,7 +61,7 @@ class SidePanelTabs {
 /// width, its lists' width and how changes are listed are the window's,
 /// kept between runs ([toJson]); the tabs open are each conversation's own.
 class AgentSidePanel extends ChangeNotifier {
-  AgentSidePanel({Map<String, Object?>? state, this.onSave}) {
+  AgentSidePanel({Map<String, Object?>? state, this.onSave, this.settings}) {
     _read(state);
   }
 
@@ -87,6 +90,18 @@ class AgentSidePanel extends ChangeNotifier {
 
   /// Told when what [toJson] gives changed, to keep it.
   final VoidCallback? onSave;
+
+  /// settings.json, where the commit's choices (the smart commit's Always
+  /// and Never) are kept, as the IDE keeps them; none under test.
+  final UserSettings? settings;
+
+  /// Each repository's commit message, and its commit being written, kept
+  /// while the panel is (as the IDE's Source Control view keeps its own).
+  final Map<IdeGitRepository, IdeScmSession> _scm = {};
+
+  /// The commit message and choices of [git].
+  IdeScmSession scmOf(IdeGitRepository git) =>
+      _scm[git] ??= IdeScmSession(settings: settings);
 
   static const defaultWidth = 640.0;
   static const minWidth = 280.0;
@@ -365,6 +380,9 @@ class AgentSidePanel extends ChangeNotifier {
   @override
   void dispose() {
     focusNode.dispose();
+    for (final scm in _scm.values) {
+      scm.dispose();
+    }
     for (final explorer in _explorers.values) {
       explorer.dispose();
     }

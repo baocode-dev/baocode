@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
@@ -43,6 +44,23 @@ void main() {
     await themes.initialize();
     expect(themes.colorTheme.settingsId, 'Light 2026');
     expect(themes.colors.dark, isFalse);
+  });
+
+  test('links are in the theme\'s color: its link color, else its focus '
+      'border\'s', () async {
+    final kept = WorkbenchThemeService.instance;
+    addTearDown(() => WorkbenchThemeService.instance = kept);
+    Future<Color> accent(String setting) async {
+      final themes = WorkbenchThemeService()..restore(setting: setting);
+      await themes.initialize();
+      WorkbenchThemeService.instance = themes;
+      return AppColors.accent;
+    }
+
+    expect(await accent('Quiet Light'), const Color(0xFF9769DC));
+    expect(await accent('Monokai'), const Color(0xFF99947C));
+    final dark = await accent('Dark 2026');
+    expect(dark, WorkbenchThemeService.instance.colors['textLink.foreground']);
   });
 
   test('a theme gone falls back to the default', () async {

@@ -16,7 +16,9 @@ import 'package:baocode/chat/widgets/fold_line.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
 import 'package:baocode/chat/widgets/tool_call_row.dart';
 import 'package:baocode/ide/file_service.dart';
+import 'package:baocode/ide/git/commit_message.dart';
 import 'package:baocode/ide/git/git_repository.dart';
+import 'package:baocode/ide/ide_button.dart';
 import 'package:baocode/ide/ide_explorer.dart';
 import 'package:baocode/ide/ide_list.dart';
 import 'package:baocode/ide/terminal/terminal_service.dart';
@@ -96,6 +98,7 @@ Future<({AgentSidePanel panel, ChatSession session, _Files files})> _pumpChat(
   Map<String, String>? texts,
   TerminalService? terminals,
   IdeGitRepository? git,
+  IdeCommitMessageModel? commitMessage,
 }) async {
   _bigWindow(tester);
   final session = ChatSession(
@@ -118,6 +121,7 @@ Future<({AgentSidePanel panel, ChatSession session, _Files files})> _pumpChat(
           watchDirectory: (_) => const Stream.empty(),
           terminals: terminals,
           git: git,
+          commitMessage: commitMessage,
         ),
         child: ChatScreen(
           session: session,
@@ -616,6 +620,108 @@ void main() {
     await tester.tap(find.text('Stage Changes'));
     await tester.pumpAndSettle();
     expect(fake.callsTo('add').single, contains('lib/main.dart'));
+  });
+
+  testWidgets('the changes page commits as the Source Control view does: a '
+      'message wanted, written by the sparkle from the staged changes, then '
+      'the staged changes committed', (tester) async {
+    final fake = FakeGit('/p')
+      ..status =
+          '## main\x00'
+          'M  lib/staged.dart\x00'
+          ' M lib/main.dart\x00'
+      ..diff = 'diff --git a/lib/staged.dart b/lib/staged.dart\n+staged\n'
+      ..log = '';
+    final git = fake.repository();
+    addTearDown(git.dispose);
+    final prompts = <IdeCommitMessagePrompt>[];
+    final (:panel, :session, files: _) = await _pumpChat(
+      tester,
+      git: git,
+      commitMessage: (prompt, {cancel}) async {
+        prompts.add(prompt);
+        return 'Stage the staged file';
+      },
+    );
+    panel.showSection(session, SidePanelSection.changes);
+    await tester.pumpAndSettle();
+    final box = find.byKey(const ValueKey('side-panel-commit'));
+    expect(box, findsOneWidget);
+    final commit = find.byKey(const ValueKey('side-panel-commit-button'));
+
+    // No message: said so, nothing committed.
+    await tester.tap(commit);
+    await tester.pumpAndSettle();
+    expect(find.text('Please provide a commit message'), findsOneWidget);
+    expect(fake.callsTo('commit'), isEmpty);
+
+    // The sparkle: the staged changes' diff to the model, its message in.
+    await tester.tap(find.byKey(const ValueKey('side-panel-generate-commit')));
+    await tester.pumpAndSettle();
+    expect(prompts.single.user, contains('+staged'));
+    expect(
+      fake.callsTo('diff').single,
+      contains('--cached'),
+      reason: 'the staged changes, as there are some',
+    );
+    expect(panel.scmOf(git).message.text, 'Stage the staged file');
+    expect(find.text('Please provide a commit message'), findsNothing);
+
+    await tester.tap(commit);
+    await tester.pumpAndSettle();
+    expect(fake.callsTo('commit').single, [
+      'commit',
+      '--quiet',
+      '-m',
+      'Stage the staged file',
+    ]);
+    expect(panel.scmOf(git).message.text, isEmpty);
+  });
+
+  testWidgets('nothing staged, Commit offers to commit every change (the '
+      'smart commit); Never leaves them, and Commit with nothing to take', (
+    tester,
+  ) async {
+    final fake = FakeGit('/p')
+      ..status =
+          '## main\x00'
+          ' M lib/main.dart\x00'
+          '?? notes.md\x00';
+    final git = fake.repository();
+    addTearDown(git.dispose);
+    final (:panel, :session, files: _) = await _pumpChat(tester, git: git);
+    panel.showSection(session, SidePanelSection.changes);
+    await tester.pumpAndSettle();
+    // No model, no sparkle.
+    expect(
+      find.byKey(const ValueKey('side-panel-generate-commit')),
+      findsNothing,
+    );
+    final commit = find.byKey(const ValueKey('side-panel-commit-button'));
+    panel.scmOf(git).message.text = 'Work';
+    await tester.tap(commit);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no staged changes'), findsOneWidget);
+    await tester.tap(find.text('Yes'));
+    await tester.pumpAndSettle();
+    // The untracked file staged, then everything committed.
+    expect(fake.callsTo('add').single, contains('notes.md'));
+    expect(fake.callsTo('commit').single, [
+      'commit',
+      '--quiet',
+      '--all',
+      '-m',
+      'Work',
+    ]);
+
+    // Never: not asked again, and Commit has nothing to take.
+    panel.scmOf(git).message.text = 'More';
+    await tester.tap(commit);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Never'));
+    await tester.pumpAndSettle();
+    expect(fake.callsTo('commit'), hasLength(1));
+    expect(tester.widget<IdeButton>(commit).onPressed, isNull);
   });
 
   testWidgets('dragging the panel\'s edge past where it goes over the '

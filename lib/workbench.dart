@@ -360,6 +360,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   late final AgentSidePanel _sidePanel = AgentSidePanel(
     state: _workspace.sidePanelView,
     onSave: () => _workspace.keepSidePanelView(_sidePanel.toJson()),
+    settings: widget.settings?.files?.settings,
   )..addListener(_sidePanelChanged);
   bool _sidePanelShown = false;
 
@@ -2533,6 +2534,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       terminals: _terminals?.sidePanelTerminals(thread.project.path),
       terminalSkipShell: chatTerminalSkipShell,
       onOpenTerminalLink: _openTerminalLink,
+      // Claude Haiku where the project is, as the IDE's Source Control.
+      commitMessage: (prompt, {cancel}) =>
+          ideClaudeCommitMessage(prompt, cancel: cancel, location: location),
       workspaceName: multi?.name,
       roots: multi?.folders ?? const [],
       repositories: multi == null ? const [] : _sidePanelRepositories(multi),

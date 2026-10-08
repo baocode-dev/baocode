@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../../ide/file_service.dart';
 import '../../ide/git/git_model.dart';
+import '../../ide/git/commit_message.dart';
 import '../../ide/git/git_repository.dart';
 import '../../ide/ide_button.dart';
 import '../../ide/ide_dialog.dart';
@@ -44,6 +45,7 @@ import 'file_link.dart';
 import 'file_open.dart';
 import 'file_preview.dart';
 import 'git_changes.dart';
+import 'git_commit_box.dart';
 import 'side_panel_controller.dart';
 import 'terminal_preview.dart';
 
@@ -295,6 +297,7 @@ class AgentSidePanelView extends StatelessWidget {
     this.terminals,
     this.terminalSkipShell = const [],
     this.onOpenTerminalLink,
+    this.commitMessage,
     this.workspaceName,
     this.roots = const [],
     this.repositories = const [],
@@ -364,6 +367,10 @@ class AgentSidePanelView extends StatelessWidget {
   /// The project's repository, whose changes the changes page lists; none
   /// where Git is not at hand.
   final IdeGitRepository? git;
+
+  /// Writes commit messages on the changes page (its sparkle); none
+  /// offered when null.
+  final IdeCommitMessageModel? commitMessage;
 
   /// The project's terminals on the terminal page; none where terminals
   /// cannot run.
@@ -520,6 +527,14 @@ class AgentSidePanelView extends StatelessWidget {
                 }
               },
             ),
+          // As the Source Control view's input, over the list.
+          GitCommitBox(
+            key: ObjectKey(git),
+            git: git,
+            state: state,
+            scm: panel.scmOf(git),
+            commitMessage: commitMessage,
+          ),
           _ListHeader(
             title: l10n.sidePanelChanges,
             count: state.count,

@@ -86,8 +86,16 @@ abstract final class AppColors {
   /// `disabledForeground`.
   static Color get textFaint => _colors['disabledForeground'];
 
-  /// `textLink.foreground`.
-  static Color get accent => _colors['textLink.foreground'];
+  /// The theme's own `textLink.foreground`, else its `focusBorder`: links
+  /// in the theme's color, not the registry's blue, in a theme that sets
+  /// none (Monokai, Quiet Light). The registry's link color in neither.
+  static Color get accent {
+    final colors = _colors;
+    for (final id in const ['textLink.foreground', 'focusBorder']) {
+      if (colors.theme.defines(id)) return colors[id];
+    }
+    return colors['textLink.foreground'];
+  }
 
   /// Claude's terracotta: its spark while it thinks. Not the theme's.
   static const claude = Color(0xFFD97857);
