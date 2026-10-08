@@ -823,6 +823,34 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets('a double-click that moves a pixel or two still selects all', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await typeText(tester, 'hello world');
+    final editor = find.byType(QuillEditor);
+    final position = tester.getTopLeft(editor) + const Offset(95, 12);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    // Past where Quill's drag recognizer takes the press from its tap.
+    Future<void> click() async {
+      await mouse.down(position);
+      await tester.pump(const Duration(milliseconds: 40));
+      await mouse.moveBy(const Offset(2, 1));
+      await tester.pump(const Duration(milliseconds: 40));
+      await mouse.up();
+    }
+
+    await click();
+    await tester.pump(const Duration(milliseconds: 120));
+    await click();
+    await tester.pump(const Duration(milliseconds: 500));
+    final controller = composerController(tester);
+    expect(
+      controller.selection.textInside(controller.document.toPlainText()),
+      'hello world',
+    );
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
   testWidgets('a mouse drag selection follows every move, unthrottled', (
     tester,
   ) async {

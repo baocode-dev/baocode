@@ -1271,8 +1271,7 @@ class ChatComposerState extends State<ChatComposer>
             onPointerUp: _handleSelectPointerUp,
             onPointerCancel: (_) {
               _selectDragFrom = null;
-              _selectAllOnUp = false;
-              _clickWindow?.cancel();
+              _clickDownAt = null;
             },
             child: Listener(
               onPointerDown: _handleMenuPointerDown,
@@ -1369,13 +1368,8 @@ class ChatComposerState extends State<ChatComposer>
   }
 
   void _handleSelectPointerUp(PointerUpEvent event) {
-    final from = _selectDragFrom;
-    final dragged =
-        from == null ||
-        _selectDragging ||
-        (event.position - from).distance > kPrecisePointerHitSlop;
     _selectDragFrom = null;
-    _handleClickUp(event, dragged: dragged);
+    _handleClickUp(event);
   }
 
   void _handleSelectPointerMove(PointerMoveEvent event) {
@@ -1403,51 +1397,59 @@ class ChatComposerState extends State<ChatComposer>
   // --- Double-click -------------------------------------------------------
   //
   // A double-click with nothing selected selects everything; with text
-  // selected it selects a word, as Quill does. What was selected is taken
-  // from the pointer events themselves, which come once for every press and
-  // in order, when the double-click's first press comes down.
+  // selected it selects a word, as Quill does. Told apart here rather than
+  // by Quill: a real click often moves the pointer a pixel or two, past
+  // where Quill's drag recognizer takes the press from its tap, and then it
+  // sees no double-click at all.
+
+  /// How far a press may move and still be a click.
+  static const _clickSlop = 6.0;
+
+  /// Where the current plain press came down; null for other presses.
+  Offset? _clickDownAt;
 
   /// Open from a click's up while a press near it is that click's double.
   Timer? _clickWindow;
   Offset? _clickUpAt;
 
-  /// Whether text was selected when the last click came down.
+  /// Whether text was selected when the last first click came down.
   bool _clickOnSelection = false;
 
-  /// This press is a double-click's second, with nothing selected before
-  /// its first.
-  bool _selectAllOnUp = false;
+  /// Whether the current press is a double-click's second.
   bool _secondClick = false;
 
   void _handleClickDown(PointerDownEvent event, {required bool plainPress}) {
     final upAt = _clickUpAt;
+    _clickDownAt = plainPress ? event.position : null;
     _secondClick =
         plainPress &&
         _clickWindow?.isActive == true &&
         upAt != null &&
         (event.position - upAt).distance <= kDoubleTapSlop;
     _clickWindow?.cancel();
-    _selectAllOnUp = _secondClick && !_clickOnSelection;
+    _clickWindow = null;
+    // The first click puts any selection away, so ask before it.
     if (!_secondClick) _clickOnSelection = !_controller.selection.isCollapsed;
   }
 
-  void _handleClickUp(PointerUpEvent event, {required bool dragged}) {
-    if (dragged) {
-      _selectAllOnUp = false;
+  void _handleClickUp(PointerUpEvent event) {
+    final downAt = _clickDownAt;
+    _clickDownAt = null;
+    if (downAt == null || (event.position - downAt).distance > _clickSlop) {
       return;
     }
-    if (_selectAllOnUp) {
-      _selectAllOnUp = false;
-      // After Quill's handling of the up, which comes after this and is
-      // where (at the latest) it selects the word.
+    // As Quill's, a third click is a click again (no window after a second).
+    if (_secondClick) {
+      if (_clickOnSelection) return;
+      // After Quill's handling of the up, which comes after this: whatever
+      // it made of the press (a word, a caret, a drag of a pixel).
       scheduleMicrotask(() {
-        if (mounted && !_controller.selection.isCollapsed) {
+        if (mounted) {
           _editorKey.currentState?.selectAll(SelectionChangedCause.tap);
         }
       });
+      return;
     }
-    // As Quill's: a third click is a click again, not a second double.
-    if (_secondClick) return;
     _clickUpAt = event.position;
     _clickWindow = Timer(kDoubleTapTimeout, () => _clickWindow = null);
   }
