@@ -505,16 +505,14 @@ void main() {
     expect(find.byType(Sidebar), findsNothing);
     await gesture.up();
     await tester.pumpAndSettle();
-    // The panes beside the side panel's rail.
-    const rail = AgentSidePanelArea.railWidth;
     final needed = 2 * ChatGridView.minPane.width + ChatGridView.gap;
     expect(grown, [
-      {'width': needed + rail - 700, 'height': 0.0},
+      {'width': needed - 700, 'height': 0.0},
     ]);
     expect(paneTitles(tester), unorderedEquals([first, second]));
 
-    // The window grew as asked: the panes have all but the rail's.
-    tester.view.physicalSize = Size(needed + rail, 900);
+    // The window grew as asked: the panes have it all.
+    tester.view.physicalSize = Size(needed, 900);
     await tester.pumpAndSettle();
     expect(gridRect(tester).width, needed);
     expect(tester.getRect(pane(first)).width, ChatGridView.minPane.width);
@@ -523,10 +521,15 @@ void main() {
   testWidgets('the title and the buttons keep to the conversation\'s column, '
       'alone or side by side', (tester) async {
     await pumpApp(tester);
-    void expectInColumn(String title, Finder rightmost) {
+
+    /// The title at the column's left; the buttons at its right, or, in
+    /// a pane whose column keeps clear of the side panel's rail, at the
+    /// edge ([gutter] in), the rail under them.
+    void expectInColumn(String title, Finder rightmost, {double? gutter}) {
       final composer = tester.getRect(
         find.descendant(of: pane(title), matching: find.byType(ChatComposer)),
       );
+      final edge = tester.getRect(pane(title)).right;
       final text = find.descendant(
         of: find.descendant(
           of: pane(title),
@@ -539,8 +542,15 @@ void main() {
         tester
             .getTopRight(find.descendant(of: pane(title), matching: rightmost))
             .dx,
-        composer.right,
+        gutter == null ? composer.right : edge - gutter,
       );
+      if (gutter != null) {
+        expect(composer.right, edge - AgentSidePanelArea.railInset);
+        expect(
+          tester.getRect(find.byKey(const ValueKey('side-panel-rail'))).left,
+          greaterThan(composer.right),
+        );
+      }
     }
 
     // A wide window: the column in the middle, well in from the sides.
@@ -550,8 +560,9 @@ void main() {
 
     await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
     expectInColumn(first, find.bySemanticsLabel('Close pane'));
-    // The window's tools at the right pane's end, after its close.
-    expectInColumn(second, find.byType(SidePanelToggle));
+    // The window's tools at the right pane's end, after its close, at the
+    // edge; its column clear of the rail, under its title bar.
+    expectInColumn(second, find.byType(SidePanelToggle), gutter: 16);
   });
 
   testWidgets('dragging the sidebar\'s border or a line lays the chats out '

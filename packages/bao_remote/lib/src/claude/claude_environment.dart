@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 import '../platform/app_paths.dart';
@@ -52,38 +53,88 @@ abstract final class ClaudeEnvironment {
   static void use(Map<String, String>? environment) =>
       _environment = environment == null ? null : Future.value(environment);
 
+  /// The shell asked instead of the user's `SHELL`, under test.
+  @visibleForTesting
+  static String? shellOverride;
+
   /// The login shell's environment; the app's own if that fails, and the
   /// app's own on Windows, which has no login shell to ask.
+  ///
+  /// Asked as a terminal window does, interactive too: what the user's rc
+  /// file (`~/.zshrc`) puts on the PATH, nvm's Node or `~/.local/bin`, is
+  /// where the `claude` they run is, and a login shell alone does not read
+  /// it. Not interactive if that fails, e.g. an rc file that will not run
+  /// without a terminal.
   static Future<Map<String, String>> _login() async {
     final fallback = Map<String, String>.of(Platform.environment);
     if (Platform.isWindows) return fallback;
     final shell =
+        shellOverride ??
         Platform.environment['SHELL'] ??
         (Platform.isMacOS ? '/bin/zsh' : '/bin/sh');
+    final environment =
+        await _ask(shell, ['-i', '-l']) ?? await _ask(shell, ['-l']);
+    return environment == null ? fallback : {...fallback, ...environment};
+  }
+
+  /// The environment [shell] started with [flags] has, or null if it
+  /// fails to say.
+  ///
+  /// In a session of its own, as VS Code asks: an interactive shell takes
+  /// the terminal it finds for its jobs, and the app's, when it runs in
+  /// one, is not its to take. Between two markers, as an rc file may print
+  /// before or after.
+  static Future<Map<String, String>?> _ask(
+    String shell,
+    List<String> flags,
+  ) async {
+    const marker = '__BAOCODE_ENV__';
+    Process? process;
     try {
-      const marker = '__BAOCODE_ENV__';
-      final result = await Process.run(shell, [
-        '-l',
+      process = await Process.start(shell, [
+        ...flags,
         '-c',
-        'echo $marker; env',
-      ], stdoutEncoding: utf8).timeout(const Duration(seconds: 8));
-      final output = result.stdout as String;
-      final start = output.indexOf(marker);
-      if (result.exitCode != 0 || start < 0) return fallback;
+        'echo $marker; env; echo $marker',
+      ], mode: ProcessStartMode.detachedWithStdio);
+      // Nothing to read: an rc file that asks something is told so at once.
+      unawaited(process.stdin.close().catchError((_) {}));
+      unawaited(process.stderr.drain<void>().catchError((_) {}));
+      final printed = await _between(
+        process.stdout,
+        marker,
+      ).timeout(const Duration(seconds: 8));
+      if (printed == null) return null;
       final environment = <String, String>{};
-      for (final line in const LineSplitter().convert(
-        output.substring(start + marker.length),
-      )) {
+      for (final line in const LineSplitter().convert(printed)) {
         final equals = line.indexOf('=');
         if (equals > 0) {
           environment[line.substring(0, equals)] = line.substring(equals + 1);
         }
       }
-      return environment.containsKey('PATH')
-          ? {...fallback, ...environment}
-          : fallback;
+      return environment.containsKey('PATH') ? environment : null;
     } on Object {
-      return fallback;
+      process?.kill(ProcessSignal.sigkill);
+      return null;
     }
+  }
+
+  /// What [output] prints between the first two [marker]s, read up to the
+  /// second rather than to its end: what an rc file starts in the
+  /// background may hold it open.
+  static Future<String?> _between(
+    Stream<List<int>> output,
+    String marker,
+  ) async {
+    var printed = '';
+    await for (final chunk in output.transform(
+      const Utf8Decoder(allowMalformed: true),
+    )) {
+      printed += chunk;
+      final start = printed.indexOf(marker);
+      if (start < 0) continue;
+      final end = printed.indexOf(marker, start + marker.length);
+      if (end >= 0) return printed.substring(start + marker.length, end);
+    }
+    return null;
   }
 }

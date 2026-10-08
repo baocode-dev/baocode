@@ -1098,6 +1098,7 @@ class ClaudeCodeKernel
         _exited(
           message['code'] as int? ?? 0,
           message['stderr'] as String? ?? '',
+          executable: message['executable'] as String?,
         );
       case 'control_request':
         _controlRequest(message);
@@ -1533,7 +1534,7 @@ class ClaudeCodeKernel
     }
   }
 
-  void _exited(int code, String stderr) {
+  void _exited(int code, String stderr, {String? executable}) {
     final wasReady = _health.status == KernelHealthStatus.ready;
     _teardown();
     if (_turn != null) {
@@ -1559,19 +1560,32 @@ class ClaudeCodeKernel
       _setHealth(KernelHealth.idle);
     } else {
       final lines = stderr.trim().split('\n');
+      final printed = lines
+          .skip(lines.length > 12 ? lines.length - 12 : 0)
+          .join('\n');
       _setHealth(
         KernelHealth(
           KernelHealthStatus.failed,
           message: _failureMessage(stderr),
-          detail: lines
-              .skip(lines.length > 12 ? lines.length - 12 : 0)
-              .join('\n'),
+          // Which one, when it is too old: another, newer, may be the
+          // terminal's.
+          detail: _tooOld(stderr) && executable != null
+              ? '$printed\n\nThe one run: $executable'
+              : printed,
         ),
       );
     }
   }
 
+  /// Whether the CLI refused an option BaoCode starts it with: one from
+  /// before the option was.
+  static bool _tooOld(String stderr) => stderr.contains("unknown option '--");
+
   static String _failureMessage(String stderr) {
+    if (_tooOld(stderr)) {
+      return 'Claude Code is older than BaoCode needs. Update it '
+          '(`claude update`) and try again.';
+    }
     final lower = stderr.toLowerCase();
     if (lower.contains('login') ||
         lower.contains('api key') ||

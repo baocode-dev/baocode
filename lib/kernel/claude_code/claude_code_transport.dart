@@ -29,10 +29,16 @@ abstract interface class ClaudeCodeTransport {
 abstract final class ClaudeExit {
   static const type = 'transport_exit';
 
-  static Map<String, Object?> message(int code, String stderr) => {
+  /// [executable] is the CLI run, where the transport knows it.
+  static Map<String, Object?> message(
+    int code,
+    String stderr, {
+    String? executable,
+  }) => {
     'type': type,
     'code': code,
     'stderr': stderr,
+    'executable': ?executable,
   };
 }
 

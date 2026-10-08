@@ -18,7 +18,6 @@ import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 import 'package:baocode/workspace/editor_launcher.dart';
-import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/workspace/open_in_editor_button.dart';
 import 'package:baocode/workspace/pin_window_button.dart';
 import 'package:baocode/workspace/preference_store.dart';
@@ -641,8 +640,7 @@ void main() {
     final workspace = await pumpApp(tester, width: 700);
     expect(find.byType(Sidebar), findsNothing);
     final chatWidth = tester.getSize(find.byType(ChatScreen)).width;
-    // All the window's but the side panel's rail.
-    expect(chatWidth, 700 - AgentSidePanelArea.railWidth);
+    expect(chatWidth, 700);
 
     await tester.tap(find.bySemanticsLabel('Show sidebar'));
     await tester.pumpAndSettle();

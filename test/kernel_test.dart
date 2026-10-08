@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:bao_remote/claude.dart' show ClaudeNotInstalled;
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/widgets/tool_call_row.dart';
 import 'package:baocode/chat/chat_session.dart';
@@ -1660,6 +1661,34 @@ void main() {
       kernel.dispose();
     });
 
+    test('one too old for an option it is started with says to update it, '
+        'and which one ran', () async {
+      final cli = _SilentCli();
+      final kernel = ClaudeCodeKernel(
+        MockKernels.claudeCode,
+        const KernelContext(cwd: '/p'),
+        start: (_) async => cli,
+      );
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      cli.push(
+        ClaudeExit.message(
+          1,
+          "error: unknown option '--prompt-suggestions'",
+          executable: '/Users/u/.nvm/versions/node/v22/bin/claude',
+        ),
+      );
+      await pumpEventQueue();
+      expect(kernel.health.status, KernelHealthStatus.failed);
+      expect(kernel.health.message, contains('older than BaoCode needs'));
+      expect(kernel.health.detail, contains('--prompt-suggestions'));
+      expect(
+        kernel.health.detail,
+        contains('/Users/u/.nvm/versions/node/v22/bin/claude'),
+      );
+      kernel.dispose();
+    });
+
     test(
       'a crash fails the turn and says why; retrying starts again',
       () async {
@@ -2877,6 +2906,204 @@ void main() {
         ),
       );
     });
+
+    // What npm leaves at bin/claude.exe when its postinstall did not run.
+    const placeholder =
+        'echo "Error: claude native binary not installed." >&2\nexit 1\n';
+
+    group('on the PATH', () {
+      late Directory root;
+      setUp(() async {
+        root = await Directory.systemTemp.createTemp('baocode-locator-');
+        for (final dir in ['first', 'second']) {
+          Directory('${root.path}/$dir').createSync();
+        }
+      });
+      tearDown(() => root.delete(recursive: true));
+
+      void use() => CliLocator.use({
+        'PATH': '${root.path}/first:${root.path}/second',
+        'HOME': root.path,
+      });
+
+      test(
+        'an install that did not finish is passed over for the next',
+        () async {
+          File('${root.path}/first/claude').writeAsStringSync(placeholder);
+          File('${root.path}/second/claude').writeAsStringSync('#!/bin/sh\n');
+          use();
+
+          final cli = await CliLocator.locate();
+          expect(cli.executable, '${root.path}/second/claude');
+        },
+        skip: Platform.isWindows,
+      );
+
+      test('looked for again once the one found is gone', () async {
+        File('${root.path}/first/claude').writeAsStringSync('#!/bin/sh\n');
+        File('${root.path}/second/claude').writeAsStringSync('#!/bin/sh\n');
+        use();
+        expect(
+          (await CliLocator.locate()).executable,
+          '${root.path}/first/claude',
+        );
+
+        File('${root.path}/first/claude').deleteSync();
+        expect(
+          (await CliLocator.locate()).executable,
+          '${root.path}/second/claude',
+        );
+      }, skip: Platform.isWindows);
+
+      test('looked for again once forgotten, as after it failed to '
+          'start', () async {
+        File('${root.path}/second/claude').writeAsStringSync('#!/bin/sh\n');
+        use();
+        expect(
+          (await CliLocator.locate()).executable,
+          '${root.path}/second/claude',
+        );
+
+        File('${root.path}/first/claude').writeAsStringSync('#!/bin/sh\n');
+        expect(
+          (await CliLocator.locate()).executable,
+          '${root.path}/second/claude',
+        );
+        CliLocator.forget();
+        expect(
+          (await CliLocator.locate()).executable,
+          '${root.path}/first/claude',
+        );
+      }, skip: Platform.isWindows);
+    });
+
+    test(
+      'none that runs: not installed, naming the ones that do not',
+      () async {
+        final root = await Directory.systemTemp.createTemp('baocode-locator-');
+        addTearDown(() => root.delete(recursive: true));
+        addTearDown(() => CliLocator.candidatesOverride = null);
+        final broken = File('${root.path}/claude')
+          ..writeAsStringSync(placeholder);
+        CliLocator.candidatesOverride = (_) => [broken.path];
+        CliLocator.use({'PATH': '/nowhere', 'HOME': root.path});
+
+        await expectLater(
+          CliLocator.locate(),
+          throwsA(
+            isA<ClaudeNotInstalled>().having(
+              (error) => error.detail,
+              'detail',
+              contains(broken.path),
+            ),
+          ),
+        );
+      },
+    );
+
+    test('a program is told from a script left in its place', () async {
+      final root = await Directory.systemTemp.createTemp('baocode-locator-');
+      addTearDown(() => root.delete(recursive: true));
+      File file(String name, List<int> bytes) =>
+          File('${root.path}/$name')..writeAsBytesSync(bytes);
+      // A PE image: MZ, and at 0x40, as offset 0x3C says, PE\0\0.
+      final pe = Uint8List(0x48)
+        ..setAll(0, 'MZ'.codeUnits)
+        ..[0x3C] = 0x40
+        ..setAll(0x40, [0x50, 0x45, 0, 0, 0x64, 0x86]);
+      final dosOnly = Uint8List.fromList(pe)..[0x41] = 0;
+
+      expect(
+        CliLocator.runnable(file('pe.exe', pe).path, windows: true),
+        isTrue,
+      );
+      expect(
+        CliLocator.runnable(file('dos.exe', dosOnly).path, windows: true),
+        isFalse,
+      );
+      expect(
+        CliLocator.runnable(
+          file('claude.exe', utf8.encode(placeholder)).path,
+          windows: true,
+        ),
+        isFalse,
+      );
+      expect(
+        CliLocator.runnable(file('claude.cmd', const []).path, windows: true),
+        isTrue,
+      );
+
+      for (final (name, bytes) in [
+        ('script', utf8.encode('#!/bin/sh\n')),
+        ('elf', [0x7F, 0x45, 0x4C, 0x46, 2]),
+        ('macho', [0xCF, 0xFA, 0xED, 0xFE, 7]),
+        ('universal', [0xCA, 0xFE, 0xBA, 0xBE, 0]),
+      ]) {
+        expect(
+          CliLocator.runnable(file(name, bytes).path, windows: false),
+          isTrue,
+          reason: name,
+        );
+      }
+      expect(
+        CliLocator.runnable(
+          file('placeholder', utf8.encode(placeholder)).path,
+          windows: false,
+        ),
+        isFalse,
+      );
+      expect(
+        CliLocator.runnable(file('empty', const []).path, windows: false),
+        isFalse,
+      );
+    });
+  });
+
+  group('the shell environment', () {
+    late Directory root;
+    setUp(() async {
+      root = await Directory.systemTemp.createTemp('baocode-shell-');
+      ClaudeEnvironment.use(null);
+    });
+    tearDown(() async {
+      ClaudeEnvironment.shellOverride = null;
+      ClaudeEnvironment.use(null);
+      await root.delete(recursive: true);
+    });
+
+    /// A shell that says how it was asked (ASKED: its first flag), running
+    /// the command it is given after [rc].
+    void shell(String rc) {
+      final file = File('${root.path}/shell')
+        ..writeAsStringSync('''
+#!/bin/sh
+ASKED="\$1"; export ASKED
+eval "command=\\\${\$#}"
+$rc
+exec /bin/sh -c "\$command"
+''');
+      Process.runSync('chmod', ['+x', file.path]);
+      ClaudeEnvironment.shellOverride = file.path;
+    }
+
+    test('is asked as a terminal window is, interactive', () async {
+      shell('echo "rc says hi"');
+      expect((await ClaudeEnvironment.of())['ASKED'], '-i');
+    }, skip: Platform.isWindows);
+
+    test('is asked as a login shell alone when interactive fails', () async {
+      shell('[ "\$ASKED" = -i ] && exit 1');
+      expect((await ClaudeEnvironment.of())['ASKED'], '-l');
+    }, skip: Platform.isWindows);
+
+    test('is read up to its end, not up to what an rc file left running '
+        'with its output', () async {
+      shell('sleep 10 &');
+      final asked = await ClaudeEnvironment.of().timeout(
+        const Duration(seconds: 5),
+      );
+      expect(asked['ASKED'], '-i');
+    }, skip: Platform.isWindows);
   });
 
   group('Claude Code storage', () {

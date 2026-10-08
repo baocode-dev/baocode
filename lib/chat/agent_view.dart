@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../keybindings/chat_keybindings.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
+import 'chat_column.dart';
 import 'chat_keys.dart';
 import 'widgets/hover_builder.dart';
 import '../ide/ide_back_button.dart';
@@ -89,59 +92,59 @@ class SubagentHeader extends StatelessWidget {
     return Semantics(
       container: true,
       header: true,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxContentWidth + 48),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 6, 24, 4),
-            child: Row(
-              children: [
-                IdeBackButton.icon(
-                  label: context.l10n.chatBack,
-                  // Esc, unless rebound (see ChatCommandIds.closeSubagent).
-                  hover: ChatKeys.titleWithKey(
-                    context.l10n.chatBack,
-                    ChatCommandIds.closeSubagent,
-                    const {ChatContextKeys.subagentVisible: true},
-                  ),
-                  focusNode: backFocusNode,
-                  onTap: () => onBack(trail.length - 1),
+      // Its back and trail clear of what floats at the right (see
+      // ChatColumnInset), as the history's text is.
+      child: ChatColumn(
+        maxWidth: maxContentWidth + 48,
+        right: math.max(0, ChatColumnInset.of(context) - 24),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 6, 24, 4),
+          child: Row(
+            children: [
+              IdeBackButton.icon(
+                label: context.l10n.chatBack,
+                // Esc, unless rebound (see ChatCommandIds.closeSubagent).
+                hover: ChatKeys.titleWithKey(
+                  context.l10n.chatBack,
+                  ChatCommandIds.closeSubagent,
+                  const {ChatContextKeys.subagentVisible: true},
                 ),
-                const SizedBox(width: 4),
-                _Crumb(
-                  label: context.l10n.chatConversation,
-                  onTap: () => onBack(0),
-                ),
-                for (final (i, label) in trail.indexed) ...[
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 2),
-                    child: Icon(
-                      Icons.chevron_right_rounded,
-                      size: 15,
-                      color: AppColors.textFaint,
-                    ),
+                focusNode: backFocusNode,
+                onTap: () => onBack(trail.length - 1),
+              ),
+              const SizedBox(width: 4),
+              _Crumb(
+                label: context.l10n.chatConversation,
+                onTap: () => onBack(0),
+              ),
+              for (final (i, label) in trail.indexed) ...[
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 2),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 15,
+                    color: AppColors.textFaint,
                   ),
-                  if (i == trail.length - 1)
-                    Flexible(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w500,
-                        ),
+                ),
+                if (i == trail.length - 1)
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
                       ),
-                    )
-                  else
-                    Flexible(
-                      child: _Crumb(label: label, onTap: () => onBack(i + 1)),
                     ),
-                ],
+                  )
+                else
+                  Flexible(
+                    child: _Crumb(label: label, onTap: () => onBack(i + 1)),
+                  ),
               ],
-            ),
+            ],
           ),
         ),
       ),

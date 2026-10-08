@@ -1260,6 +1260,30 @@ void main() {
     }),
   );
 
+  testWidgets(
+    'hidden, the panel leaves its rail over the conversation\'s '
+    'top right: the conversation, its title bar and scrollbar, reach the '
+    'edge; its column keeps clear of the rail',
+    (tester) async {
+      await pumpLoaded(tester);
+      await tester.pumpAndSettle();
+      final chat = tester.getRect(find.byType(ChatScreen));
+      final rail = tester.getRect(find.byType(SidePanelRail));
+      final composer = tester.getRect(find.byType(ChatComposer));
+      expect(chat.right, 1400);
+      expect(rail.right, 1400 - AgentSidePanelArea.railRight);
+      expect(composer.right, lessThan(rail.left));
+      // Room enough: the column in the middle, as without the rail.
+      expect(composer.center.dx, closeTo(chat.center.dx, 0.5));
+      // Under the conversation's title bar.
+      expect(rail.top - chat.top, AppMetrics.titleBarHeight + 12);
+    },
+    variant: TargetPlatformVariant(const {
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
+
   test('closing the tab in front on the terminal page closes its terminal\'s '
       'or command\'s tab', () {
     final panel = AgentSidePanel();

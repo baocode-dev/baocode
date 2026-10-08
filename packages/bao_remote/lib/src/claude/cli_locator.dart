@@ -38,13 +38,25 @@ abstract final class CliLocator {
   static List<String> Function(Map<String, String> environment)?
   candidatesOverride;
 
-  static Future<ClaudeCli> locate() => _located ??= _locate().then(
-    (cli) => cli,
-    onError: (Object error) {
-      _located = null; // Look again next time: it may be installed now.
-      throw error;
-    },
-  );
+  static Future<ClaudeCli> locate() async {
+    if (_located case final located?) {
+      final cli = await located;
+      if (File(cli.executable).existsSync()) return cli;
+      // Gone since, removed or uninstalled: looked for again.
+      if (identical(_located, located)) _located = null;
+    }
+    return _located ??= _locate().then(
+      (cli) => cli,
+      onError: (Object error) {
+        _located = null; // Look again next time: it may be installed now.
+        throw error;
+      },
+    );
+  }
+
+  /// Looks again next time, the one found having failed to start: what
+  /// the user changed since to mend it is then seen on a retry.
+  static void forget() => _located = null;
 
   static Future<ClaudeCli> _locate() async {
     final environment = await ClaudeEnvironment.of();
@@ -60,17 +72,76 @@ abstract final class CliLocator {
       }
       return ClaudeCli(override, environment);
     }
+    final broken = <String>[];
     for (final candidate in (candidatesOverride ?? _candidates)(environment)) {
-      if (File(candidate).existsSync()) {
-        return ClaudeCli(candidate, environment);
-      }
+      if (!File(candidate).existsSync()) continue;
+      if (runnable(candidate)) return ClaudeCli(candidate, environment);
+      broken.add(candidate);
     }
     throw ClaudeNotInstalled(
       'Claude Code is not installed',
-      detail:
-          'Install it with `npm install -g @anthropic-ai/claude-code`, '
-          'then try again; or set $overrideVariable to the build to run.',
+      detail: [
+        if (broken.isNotEmpty)
+          'Not a program this machine can run, an install that did not '
+              'finish:\n${broken.join('\n')}\n',
+        'Install it with `npm install -g @anthropic-ai/claude-code`, '
+            'then try again; or set $overrideVariable to the build to run.',
+      ].join('\n'),
     );
+  }
+
+  /// Whether [path] is a program this machine can run, by its first bytes:
+  /// on Windows a PE image (or an npm `.cmd` shim), elsewhere Mach-O, ELF
+  /// or a `#!` script.
+  ///
+  /// The npm package's `bin/claude.exe` is a shell script until its
+  /// postinstall puts the native build there: one that never ran leaves
+  /// it, which Windows refuses to start (error 216, "%1 is not compatible
+  /// with the version of Windows") and passes over for the next. One that
+  /// cannot be read is given the benefit of the doubt. [windows] asks as
+  /// Windows would, elsewhere too.
+  @visibleForTesting
+  static bool runnable(String path, {bool? windows}) {
+    windows ??= Platform.isWindows;
+    if (windows &&
+        const {'.cmd', '.bat'}.contains(p.extension(path).toLowerCase())) {
+      return true;
+    }
+    try {
+      final file = File(path).openSync();
+      try {
+        final head = file.readSync(64);
+        if (!windows) return _posixProgram(head);
+        // MZ, and at the offset it gives, PE\0\0.
+        if (head.length < 64 || head[0] != 0x4D || head[1] != 0x5A) {
+          return false;
+        }
+        file.setPositionSync(
+          head[0x3C] | head[0x3D] << 8 | head[0x3E] << 16 | head[0x3F] << 24,
+        );
+        final signature = file.readSync(4);
+        return signature.length == 4 &&
+            signature[0] == 0x50 &&
+            signature[1] == 0x45 &&
+            signature[2] == 0 &&
+            signature[3] == 0;
+      } finally {
+        file.closeSync();
+      }
+    } on FileSystemException {
+      return true;
+    }
+  }
+
+  static bool _posixProgram(List<int> head) {
+    if (head.length < 4) return false;
+    if (head[0] == 0x23 && head[1] == 0x21) return true; // #!
+    if (head[0] == 0x7F && head[1] == 0x45 && head[2] == 0x4C) return true;
+    final magic = head[0] << 24 | head[1] << 16 | head[2] << 8 | head[3];
+    return const {
+      0xFEEDFACE, 0xFEEDFACF, 0xCEFAEDFE, 0xCFFAEDFE, // Mach-O
+      0xCAFEBABE, 0xBEBAFECA, // universal
+    }.contains(magic);
   }
 
   /// Where the CLI usually is: on the PATH first, then where npm and the
@@ -92,8 +163,8 @@ abstract final class CliLocator {
         // The native build behind each shim on the PATH, and the npm one
         // where it is not on the PATH itself.
         for (final dir in path.split(';'))
-          if (dir.isNotEmpty) _besideShim(p.join(dir, 'claude.cmd')),
-        _besideShim(p.join(npm, 'claude.cmd')),
+          if (dir.isNotEmpty) ?_besideShim(p.join(dir, 'claude.cmd')),
+        ?_besideShim(p.join(npm, 'claude.cmd')),
         // A native build standing on its own.
         for (final dir in path.split(';'))
           if (dir.isNotEmpty) p.join(dir, 'claude.exe'),
@@ -120,8 +191,11 @@ abstract final class CliLocator {
 
   /// The native build the npm shim at [shim] forwards to, or the shim itself
   /// when it is not where npm puts it (`bin/` of its package): the shim then
-  /// stands, and only the shell can run it.
-  static String _besideShim(String shim) {
+  /// stands, and only the shell can run it. Null with no shim there: a
+  /// package left behind without one is not an install, and `cmd.exe`,
+  /// which looks for the shim, passes over it too.
+  static String? _besideShim(String shim) {
+    if (!File(shim).existsSync()) return null;
     final exe = _nativePackageExe(
       p.join(p.dirname(shim), 'node_modules', '@anthropic-ai', 'claude-code'),
     );

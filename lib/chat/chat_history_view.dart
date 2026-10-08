@@ -14,6 +14,7 @@ import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import 'chat_column.dart';
 import 'chat_feed.dart';
 import 'chat_keys.dart';
 import 'chat_models.dart';
@@ -956,18 +957,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                         _gutter,
                         0,
                       ),
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: widget.maxContentWidth,
-                          ),
-                          child: UserMessageBubble(
-                            key: ValueKey(('sticky', index)),
-                            text: item.text,
-                            images: item.images,
-                            onEdit: () => _startEditing(index),
-                          ),
+                      child: ChatColumn(
+                        maxWidth: widget.maxContentWidth,
+                        right: _columnRight,
+                        child: UserMessageBubble(
+                          key: ValueKey(('sticky', index)),
+                          text: item.text,
+                          images: item.images,
+                          onEdit: () => _startEditing(index),
                         ),
                       ),
                     ),
@@ -1005,10 +1002,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                 alignment: Alignment.topCenter,
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: _gutter),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: widget.maxContentWidth,
-                    ),
+                  child: ChatColumn(
+                    maxWidth: widget.maxContentWidth,
+                    right: _columnRight,
                     // Opening, as much of it as its placeholder has room
                     // for: it does not cover what is below it yet.
                     child: AnimatedBuilder(
@@ -1300,19 +1296,27 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// The side margin for the width the history has; see [chatGutter].
   double _gutter = 24;
 
-  /// The history as built for [_gutter], until this builds again: a new
-  /// width with the same margin (a pane being resized) only lays it out
-  /// anew, rather than build (and parse) every message shown each frame.
+  /// How far the column keeps clear of the right margin's inner edge, for
+  /// what floats at the right of the chat (see [ChatColumnInset]).
+  double _columnRight = 0;
+
+  /// The history as built for [_gutter] and [_columnRight], until this
+  /// builds again: a new width with the same margin (a pane being resized)
+  /// only lays it out anew, rather than build (and parse) every message
+  /// shown each frame.
   Widget? _built;
 
   @override
   Widget build(BuildContext context) {
     _built = null;
+    final inset = ChatColumnInset.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final gutter = chatGutter(constraints.maxWidth);
-        if (_built == null || gutter != _gutter) {
+        final right = math.max(0.0, inset - gutter);
+        if (_built == null || gutter != _gutter || right != _columnRight) {
           _gutter = gutter;
+          _columnRight = right;
           _built = _buildHistory(context);
         }
         return _built!;
@@ -1409,26 +1413,22 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                   24,
                                 ),
                                 itemBuilder: (context, index) {
-                                  return Align(
-                                    alignment: Alignment.topCenter,
-                                    child: ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        maxWidth: widget.maxContentWidth,
+                                  return ChatColumn(
+                                    maxWidth: widget.maxContentWidth,
+                                    right: _columnRight,
+                                    child: Padding(
+                                      // All but the user's messages a
+                                      // little narrower than those.
+                                      padding: EdgeInsets.only(
+                                        top: _isHidden(index)
+                                            ? 0
+                                            : _gapBefore(index),
+                                        left: _insetOf(index),
+                                        right: _insetOf(index),
                                       ),
-                                      child: Padding(
-                                        // All but the user's messages a
-                                        // little narrower than those.
-                                        padding: EdgeInsets.only(
-                                          top: _isHidden(index)
-                                              ? 0
-                                              : _gapBefore(index),
-                                          left: _insetOf(index),
-                                          right: _insetOf(index),
-                                        ),
-                                        child: _HeightMotion(
-                                          motion: _motions[index] ?? 0,
-                                          child: _buildItem(index),
-                                        ),
+                                      child: _HeightMotion(
+                                        motion: _motions[index] ?? 0,
+                                        child: _buildItem(index),
                                       ),
                                     ),
                                   );

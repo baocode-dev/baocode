@@ -14,7 +14,7 @@ import 'cli_locator.dart';
 
 /// Claude Code as a child process, over its stdin and stdout.
 class ProcessTransport implements ClaudeCodeTransport {
-  ProcessTransport._(this._process) {
+  ProcessTransport._(this._process, {this.executable}) {
     _live.add(this);
     unawaited(registry.add(_process.pid));
     _process.stdout
@@ -123,12 +123,16 @@ class ProcessTransport implements ClaudeCodeTransport {
           process.exitCode.then((_) => ClaudeSettingsFile.delete(settingsFile)),
         );
       }
-      return ProcessTransport._(process);
+      return ProcessTransport._(process, executable: cli.executable);
     } on ProcessException catch (error) {
       if (settingsFile != null) await ClaudeSettingsFile.delete(settingsFile);
+      // Found again on a retry: the user may have mended it, or removed it
+      // for another.
+      CliLocator.forget();
+      // Which file: Windows' own words for it leave `%1` in its place.
       throw ClaudeUnavailable(
         'Claude Code could not start',
-        detail: error.message,
+        detail: '${cli.executable}\n${error.message}',
       );
     }
   }
@@ -142,6 +146,10 @@ class ProcessTransport implements ClaudeCodeTransport {
   }
 
   final Process _process;
+
+  /// The CLI run, to name in a report of its failing.
+  final String? executable;
+
   final StreamController<Map<String, Object?>> _messages =
       StreamController.broadcast();
 
@@ -190,7 +198,9 @@ class ProcessTransport implements ClaudeCodeTransport {
     final code = _exitCode;
     if (code == null || !_stdoutClosed || _messages.isClosed) return;
     _messages
-      ..add(ClaudeExit.message(code, _stderr.join('\n')))
+      ..add(
+        ClaudeExit.message(code, _stderr.join('\n'), executable: executable),
+      )
       ..close();
   }
 

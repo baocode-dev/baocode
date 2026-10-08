@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import 'chat/chat_column.dart';
 import 'chat/chat_keys.dart';
 import 'chat/chat_models.dart' show FileChange, FileChangeKind;
 import 'chat/chat_screen.dart';
@@ -2501,6 +2502,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   Widget _withSidePanel(Widget child) => AgentSidePanelArea(
     panel: _sidePanel,
     hidden: _sidePanelHidden,
+    // Under the conversation's title bar; at the top where the window's
+    // header (Windows) has its title.
+    railTop: _titleInHeader ? 12 : AppMetrics.titleBarHeight + 12,
     rail: (_agentThread ?? _workspace.current) == null
         ? null
         : SidePanelRail(onSelect: _showSidePanelSection),
@@ -2777,7 +2781,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ],
     ];
     // The layout's context keys, for the chat's keybindings (see ChatKeys).
-    return ChatKeyScope(
+    final chat = ChatKeyScope(
       lookup: embedded ? _ideChatKeyContext : _chatKeyContext,
       child: ChatScreen(
         key: _chatKey(thread),
@@ -2827,6 +2831,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         sessions: () => _mentionable(thread),
       ),
     );
+    // The side panel's rail is over the top right pane alone.
+    return place.topRight ? chat : ChatColumnInset(right: 0, child: chat);
   }
 
   /// The conversations [thread]'s messages may refer to, under their

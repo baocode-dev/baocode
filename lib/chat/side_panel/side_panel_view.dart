@@ -37,6 +37,7 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_session.dart';
 import '../widgets/code_citation.dart' show CodeColorizer;
 import '../widgets/hover_builder.dart';
+import '../chat_column.dart';
 import '../composer/composer_files.dart';
 import '../composer/file_drag.dart';
 import 'file_link.dart';
@@ -57,13 +58,22 @@ class AgentSidePanelArea extends StatefulWidget {
     required this.panel,
     required this.builder,
     this.rail,
+    this.railTop = AppMetrics.titleBarHeight + 12,
     this.hidden = false,
     required this.child,
   });
 
   final AgentSidePanel panel;
   final WidgetBuilder builder;
+
+  /// While the panel is hidden, over the conversations' top right, clear of
+  /// their scrollbar: their column keeps clear of it ([railInset]), not
+  /// their title bar nor their scrollbar, which reach the edge.
   final Widget? rail;
+
+  /// How far down [rail] is: under the conversation's title bar, where it
+  /// has one.
+  final double railTop;
 
   /// Whether it gave way to the window's sidebar, though shown: the rail
   /// is there instead, to ask for it again.
@@ -76,10 +86,13 @@ class AgentSidePanelArea extends StatefulWidget {
   /// The strip at its left edge that takes the drag.
   static const sashWidth = 5.0;
 
-  /// What the rail keeps at the conversations' right while the panel is
-  /// hidden, as VS Code's activity bar keeps its own: they are this much
-  /// narrower, not under it.
-  static const railWidth = 48.0;
+  /// How far in from the right [rail] is: clear of the history's
+  /// scrollbar.
+  static const railRight = 16.0;
+
+  /// How far in from the right the conversations' column keeps while [rail]
+  /// shows: clear of it, by a gap.
+  static const railInset = railRight + SidePanelRail.width + 8;
 
   @override
   State<AgentSidePanelArea> createState() => _AgentSidePanelAreaState();
@@ -125,16 +138,19 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
               bottom: 0,
               right: shown && !overlay
                   ? width + AgentSidePanelArea.sashWidth
-                  : !shown && widget.rail != null
-                  ? AgentSidePanelArea.railWidth
                   : 0,
-              child: widget.child,
+              child: ChatColumnInset(
+                right: !shown && widget.rail != null
+                    ? AgentSidePanelArea.railInset
+                    : 0,
+                child: widget.child,
+              ),
             ),
             if (!shown && widget.rail != null)
               Positioned(
                 key: const ValueKey('rail'),
-                right: 10,
-                top: AppMetrics.titleBarHeight + 12,
+                right: AgentSidePanelArea.railRight,
+                top: widget.railTop,
                 child: widget.rail!,
               ),
             if (shown) ...[
@@ -923,26 +939,36 @@ class SidePanelRail extends StatelessWidget {
 
   final ValueChanged<SidePanelSection> onSelect;
 
+  static const _button = 30.0;
+  static const _padding = 6.0;
+  static const _gap = 6.0;
+
+  /// Across, its border too.
+  static const width = _button + 2 * _padding + 2;
+
   @override
   Widget build(BuildContext context) => Container(
     key: const ValueKey('side-panel-rail'),
-    padding: const EdgeInsets.all(4),
+    width: width,
+    padding: const EdgeInsets.all(_padding),
     decoration: BoxDecoration(
       color: AppColors.surface,
       border: Border.all(color: AppColors.border),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
     ),
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final section in SidePanelSection.values)
+        for (final (i, section) in SidePanelSection.values.indexed) ...[
+          if (i > 0) const SizedBox(height: _gap),
           SidebarIconButton(
             icon: section.icon,
             tooltip: section.label(context),
             command: section.command,
-            size: 28,
+            size: _button,
             onTap: () => onSelect(section),
           ),
+        ],
       ],
     ),
   );
