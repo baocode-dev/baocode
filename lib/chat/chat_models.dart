@@ -255,6 +255,84 @@ enum NoticeKind {
   command,
 }
 
+/// Where a round of planning stands.
+enum PlanStatus {
+  /// Being written.
+  drafting,
+
+  /// Put to the user, who has not answered yet.
+  awaiting,
+  approved,
+
+  /// The user wants it changed: another round follows.
+  sentBack,
+}
+
+/// A round of planning, as one card: the plan the agent wrote in its file
+/// (written once or many times) and what became of it. A plan sent back and
+/// written again is a new round, and a new card.
+class PlanItem extends ChatItem {
+  const PlanItem({
+    required this.path,
+    required this.round,
+    this.title,
+    this.text,
+    this.status = PlanStatus.drafting,
+    this.writes = 0,
+    this.feedback,
+  });
+
+  /// The plan's file.
+  final String path;
+
+  /// Which round of the conversation's planning it is, from 1.
+  final int round;
+
+  /// The plan's first heading, when it has one.
+  final String? title;
+
+  /// The plan as written last (markdown), when known: a session resumed
+  /// may only have the edits made to it.
+  final String? text;
+  final PlanStatus status;
+
+  /// How many times the agent wrote its file this round.
+  final int writes;
+
+  /// What the user said should change, when they sent it back.
+  final String? feedback;
+
+  /// Its name: [title], else its file's.
+  String get name => title ?? path.split(RegExp(r'[/\\]')).last;
+
+  PlanItem copyWith({
+    String? title,
+    String? text,
+    PlanStatus? status,
+    int? writes,
+    String? feedback,
+  }) => PlanItem(
+    path: path,
+    round: round,
+    title: title ?? this.title,
+    text: text ?? this.text,
+    status: status ?? this.status,
+    writes: writes ?? this.writes,
+    feedback: feedback ?? this.feedback,
+  );
+
+  /// The first `# heading` of [markdown], if any.
+  static String? titleOf(String? markdown) {
+    if (markdown == null) return null;
+    for (final line in markdown.split('\n')) {
+      if (RegExp(r'^#{1,2}\s+(.+?)\s*#*\s*$').firstMatch(line) case final m?) {
+        return m.group(1);
+      }
+    }
+    return null;
+  }
+}
+
 /// A line from the runtime, not the agent: shown apart from its messages.
 class NoticeItem extends ChatItem {
   const NoticeItem(this.kind, this.text);

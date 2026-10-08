@@ -616,6 +616,14 @@
   "cmdSidePanelCloseTab": "Close Side Panel Tab",
   "sidePanelFiles": "Files",
   "sidePanelTerminal": "Terminal",
+  "sidePanelPlan": "Plan",
+  "@sidePanelPlan": {
+    "description": "The side panel's plan page: the plan the agent wrote in plan mode, shown while there is one."
+  },
+  "sidePanelOpenInFiles": "Open in Files",
+  "@sidePanelOpenInFiles": {
+    "description": "On the plan's tab: opens its file in a tab of the side panel's files page."
+  },
   "sidePanelNoTerminals": "No background commands",
   "sidePanelTaskCompleted": "Completed",
   "sidePanelTaskFailed": "Failed",
@@ -1254,6 +1262,23 @@
       }
     }
   },
+  "planCardLabel": "Plan",
+  "@planCardLabel": {
+    "description": "Over a round of planning's card in the conversation."
+  },
+  "planCardRound": "v{round}",
+  "@planCardRound": {
+    "description": "Which round of planning a plan's card is, e.g. v2 for the plan written again after it was sent back.",
+    "placeholders": {
+      "round": {
+        "type": "int"
+      }
+    }
+  },
+  "planDrafting": "Drafting",
+  "planAwaiting": "Awaiting approval",
+  "planApproved": "Approved",
+  "planSentBack": "Sent back",
   "turnFiles": "{count, plural, =1{1 file} other{{count} files}}",
   "@turnFiles": {
     "description": "How many files a folded turn edited.",
@@ -1486,6 +1511,11 @@
   },
   "interactionKeepPlanningOption": "No, keep planning",
   "interactionWhatShouldChange": "What should change?",
+  "interactionSayWhatToChange": "Or say what should change in the message box",
+  "@interactionSayWhatToChange": {
+    "description": "Under 'No, keep planning' when the plan shows in the side panel: a message sent now goes to the agent as what to change."
+  },
+  "interactionViewPlan": "View plan",
   "interactionStepOf": "{step} / {total}",
   "@interactionStepOf": {
     "placeholders": {
@@ -4233,6 +4263,18 @@
   "@appearanceSettingsColorThemeLabel": {
     "placeholders": {
       "theme": {
+        "type": "String"
+      }
+    }
+  },
+  "appearanceSettingsChatWidth": "Conversation Width",
+  "appearanceSettingsChatWidthDescription": "How wide the conversation and the message box grow in a wide window.",
+  "appearanceSettingsChatWidthDefault": "Default",
+  "appearanceSettingsChatWidthFull": "Full width",
+  "appearanceSettingsChatWidthLabel": "Conversation width: {width}",
+  "@appearanceSettingsChatWidthLabel": {
+    "placeholders": {
+      "width": {
         "type": "String"
       }
     }

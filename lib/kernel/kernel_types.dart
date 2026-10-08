@@ -462,12 +462,17 @@ class PlanReviewRequest extends InteractionRequest {
     required super.id,
     required super.title,
     required this.plan,
+    this.planPath,
     this.approvals,
     this.approveLabel = 'Yes, start building',
   });
 
   /// Markdown.
   final String plan;
+
+  /// The file the agent wrote [plan] in, when known: the plan shows there,
+  /// beside the chat, rather than in the request.
+  final String? planPath;
 
   /// The approvals it is carried out with, when the kernel picks them
   /// (one of its permission options).

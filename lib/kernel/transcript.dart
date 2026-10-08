@@ -64,6 +64,10 @@ class Transcript {
   /// Changes at or below this sequence were reverted.
   int revertedSeq = -1;
 
+  /// The plan the agent last wrote, and the sequence it was reported at
+  /// (higher with each writing).
+  ({String path, int seq})? plan;
+
   ContextUsage? usage;
   UsageStats? stats;
   List<KernelTask> tasks = const [];
@@ -127,6 +131,8 @@ class Transcript {
         if (_pending.remove(requestId) == null) return false;
       case FileEdited(:final change, :final turnId):
         edits.add((seq: event.seq, change: change, turnId: turnId));
+      case PlanWritten(:final path):
+        plan = (path: path, seq: event.seq);
       case ChangesReverted():
         revertedSeq = event.seq;
       case Rewound(:final index, :final itemId):

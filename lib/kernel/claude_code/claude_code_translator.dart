@@ -79,6 +79,126 @@ class ClaudeTranslator {
   KernelGoal? get goal => _goal;
   KernelGoal? _goal;
 
+  /// The plan file the agent last wrote, in plan mode (see [isPlanPath]).
+  String? get planPath => _planPath;
+  String? _planPath;
+
+  /// Whether [path] is a plan file: one in a `plans` folder, where Claude
+  /// Code keeps them (`~/.claude/plans/`, or the `plansDirectory` set).
+  static bool isPlanPath(String path) =>
+      path.split(RegExp(r'[/\\]')).contains('plans');
+
+  /// The round of planning under way: the id its card is at. Over once
+  /// the plan put to the user is answered.
+  String? _planRound;
+  int _planRounds = 0;
+
+  /// Each round's card, by its id.
+  final Map<String, PlanItem> _plans = {};
+
+  /// The card each call that wrote the plan or put it to the user is on.
+  final Map<String, String> _planCalls = {};
+
+  /// Whether a call of [name] with [input] is one of a round of planning:
+  /// it writes the plan, or puts the plan written to the user.
+  bool _isPlanCall(String name, Map<String, Object?> input) => switch (name) {
+    'Edit' ||
+    'MultiEdit' ||
+    'Write' => isPlanPath(_string(input['file_path']) ?? ''),
+    'ExitPlanMode' => _planPath != null,
+    _ => false,
+  };
+
+  /// [id], a call of [name] that writes the plan or puts it to the user,
+  /// on the card of the round under way (a new round's if none is).
+  void _planCall(String id, String name, Map<String, Object?> input) {
+    final proposes = name == 'ExitPlanMode';
+    final known = _planCalls[id];
+    final card = known ?? _planRound ?? id;
+    var plan =
+        _plans[card] ??
+        PlanItem(
+          path: _string(input['file_path']) ?? _planPath!,
+          round: ++_planRounds,
+        );
+    // An edit changes the text once; written whole, it is the text.
+    var text = _string(input[proposes ? 'plan' : 'content']);
+    if (known == null) {
+      _planCalls[id] = card;
+      _planRound = card;
+      if (!proposes) plan = plan.copyWith(writes: plan.writes + 1);
+      if (name == 'Edit' || name == 'MultiEdit') {
+        text = _planEdited(_planText, input);
+      }
+      // Its own row (its streamed start's) gives way to the card.
+      if (card != id) emit(ItemRemoved(nextSeq(), id));
+    }
+    if (text != null) _planText = text;
+    plan = plan.copyWith(
+      title: PlanItem.titleOf(text),
+      text: text,
+      status: proposes && plan.status == PlanStatus.drafting
+          ? PlanStatus.awaiting
+          : null,
+    );
+    _plans[card] = plan;
+    _put(card, plan);
+  }
+
+  /// The plan's text as last written, across rounds; null until written
+  /// whole.
+  String? _planText;
+
+  /// [text] with the edit (or a MultiEdit's edits) of [input] made to it;
+  /// null when [text] is unknown, or an edit's text is not in it.
+  static String? _planEdited(String? text, Map<String, Object?> input) {
+    final edits = switch (input['edits']) {
+      final List<Object?> edits => [for (final edit in edits) _map(edit)],
+      _ => [input],
+    };
+    var edited = text;
+    for (final edit in edits) {
+      final old = _string(edit['old_string']);
+      final replacement = _string(edit['new_string']) ?? '';
+      if (edited == null || old == null || !edited.contains(old)) return null;
+      edited = edit['replace_all'] == true
+          ? edited.replaceAll(old, replacement)
+          : edited.replaceFirst(old, replacement);
+    }
+    return edited;
+  }
+
+  /// What a call of a round of planning on [card] returned: the plan
+  /// written, or the user's answer to it.
+  void _planResult(String card, _Tool tool, _Outcome outcome, String text) {
+    final plan = _plans[card]!;
+    if (tool.name == 'ExitPlanMode') {
+      _plans[card] = outcome == _Outcome.done
+          ? plan.copyWith(status: PlanStatus.approved)
+          : plan.copyWith(
+              status: PlanStatus.sentBack,
+              feedback: _planFeedback(text),
+            );
+      if (_planRound == card) _planRound = null;
+      _put(card, _plans[card]!);
+      return;
+    }
+    if (outcome != _Outcome.done) return;
+    final path = _string(tool.input['file_path'])!;
+    _planPath = path;
+    if (!replaying) emit(PlanWritten(nextSeq(), path));
+  }
+
+  /// What the user said should change in a plan sent back, as the kernel
+  /// tells the CLI (see `ClaudeCodeKernel.answer`).
+  static String? _planFeedback(String text) {
+    const said = 'keep planning: ';
+    final at = text.indexOf(said);
+    if (at < 0) return null;
+    final feedback = text.substring(at + said.length).trim();
+    return feedback.isEmpty ? null : feedback;
+  }
+
   void translate(Map<String, Object?> message) {
     final parent = message['parent_tool_use_id'] as String?;
     switch (message['type']) {
@@ -487,6 +607,9 @@ class ClaudeTranslator {
     // The streamed start has no input yet; the whole message fills it in.
     final tool = _Tool(name, input, known?.parent ?? parent, known?.startedAt);
     _tools[id] = tool;
+    if (tool.parent == null && _isPlanCall(name, input)) {
+      return _planCall(id, name, input);
+    }
     switch (name) {
       case 'Agent' || 'Task':
         final agent = _agents[id] ??= _Agent(
@@ -542,6 +665,7 @@ class ClaudeTranslator {
           }
           _reportTodos();
         }
+      // Not written to a file (see [_planCall]): the plan is said.
       case 'ExitPlanMode':
         if (_string(input['plan']) case final plan?) {
           _put(id, AssistantTextItem(plan), parent: tool.parent);
@@ -757,6 +881,9 @@ class ClaudeTranslator {
         : error
         ? _Outcome.failed
         : _Outcome.done;
+    if (_planCalls[id] case final card?) {
+      return _planResult(card, tool, outcome, text);
+    }
     switch (tool.name) {
       case 'Agent' || 'Task':
         final agent = _agents[id];
@@ -1093,6 +1220,8 @@ class ClaudeTranslator {
         final tool = id == null ? null : _tools[id];
         if (id == null || tool == null) return;
         _denied.add(id);
+        // A round of planning's card says what became of it.
+        if (_planCalls.containsKey(id)) return;
         _put(id, _toolItem(tool, _Outcome.denied), parent: tool.parent);
       case 'thinking_tokens':
         final estimate = message['estimated_tokens'] as int?;

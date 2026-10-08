@@ -57,10 +57,13 @@ void main() {
       return AppColors.accent;
     }
 
-    expect(await accent('Quiet Light'), const Color(0xFF9769DC));
+    // Neither sets a link color: their focus borders'.
     expect(await accent('Monokai'), const Color(0xFF99947C));
-    final dark = await accent('Dark 2026');
-    expect(dark, WorkbenchThemeService.instance.colors['textLink.foreground']);
+    expect(await accent('Quiet Light'), const Color(0xFF9769DC));
+    expect(
+      await accent('Dark 2026'),
+      WorkbenchThemeService.instance.colors['textLink.foreground'],
+    );
   });
 
   test('a theme gone falls back to the default', () async {

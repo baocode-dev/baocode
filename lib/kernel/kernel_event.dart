@@ -106,6 +106,14 @@ final class FileEdited extends KernelEvent {
   final String? turnId;
 }
 
+/// The agent wrote its plan, the file at [path]: not a change to review,
+/// a document to show.
+final class PlanWritten extends KernelEvent {
+  const PlanWritten(super.seq, this.path);
+
+  final String path;
+}
+
 /// The files changed so far are back as they were.
 final class ChangesReverted extends KernelEvent {
   const ChangesReverted(super.seq);

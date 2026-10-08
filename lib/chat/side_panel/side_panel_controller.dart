@@ -27,12 +27,29 @@ class SidePanelTab {
 
 /// The side panel's pages, each a list at the left and the tabs it opened
 /// at the right: the project's files, the agent's changes, its background
-/// commands.
-enum SidePanelSection { files, changes, terminal }
+/// commands; and the plan the agent wrote, alone, while there is one.
+enum SidePanelSection { files, changes, terminal, plan }
+
+/// The pages there whether or not there is anything on them: not the
+/// plan's, there only once the agent wrote one.
+const alwaysShownSections = [
+  SidePanelSection.files,
+  SidePanelSection.changes,
+  SidePanelSection.terminal,
+];
 
 /// Each conversation keeps its page, and the tabs open on each.
 class SidePanelTabs {
   SidePanelSection section = SidePanelSection.changes;
+
+  /// The plan the agent wrote, on the plan page: none until it writes one.
+  SidePanelTab? plan;
+
+  /// The page that shows: [section], but the changes page for the plan's
+  /// without a plan.
+  SidePanelSection get shown => section == SidePanelSection.plan && plan == null
+      ? SidePanelSection.changes
+      : section;
 
   /// The files previewed, on the files page.
   final List<SidePanelTab> files = [];
@@ -52,6 +69,7 @@ class SidePanelTabs {
     SidePanelSection.files => active,
     SidePanelSection.changes => activeDiff,
     SidePanelSection.terminal => null,
+    SidePanelSection.plan => plan,
   };
 }
 
@@ -281,10 +299,11 @@ class AgentSidePanel extends ChangeNotifier {
   void save() => onSave?.call();
 
   /// Shows [request] for [conversation], in front: a file on the files
-  /// page, a file's changes on the changes page; in the tab of the same
-  /// file if there is one.
+  /// page, a file's changes on the changes page, the plan on its own; in
+  /// the tab of the same file if there is one.
   void open(Object conversation, FileOpenRequest request) {
     final tabs = tabsOf(conversation);
+    if (request.plan) return _openPlan(tabs, request);
     final list = request.diff ? tabs.diffs : tabs.files;
     var tab = list.where((tab) => tab.path == request.path).firstOrNull;
     if (tab == null) {
@@ -308,6 +327,24 @@ class AgentSidePanel extends ChangeNotifier {
         ..section = SidePanelSection.files;
       _reveal(request.path);
     }
+    _showAsked();
+  }
+
+  /// The plan page, [request]'s plan on it: read anew where it showed.
+  void _openPlan(SidePanelTabs tabs, FileOpenRequest request) {
+    if (tabs.plan case final tab? when tab.path == request.path) {
+      tab
+        ..request = request
+        ..reveal += 1;
+    } else {
+      tabs.plan = SidePanelTab(request);
+    }
+    tabs.section = SidePanelSection.plan;
+    _showAsked();
+  }
+
+  /// Shown, as a page or tab asked for in it.
+  void _showAsked() {
     _asks += 1;
     if (!_shown) {
       _shown = true;
@@ -342,8 +379,16 @@ class AgentSidePanel extends ChangeNotifier {
   }
 
   /// Closes [tab]; selects the one after it, else before it, else none.
+  /// The plan's, its page with it, back to the changes page.
   void close(Object conversation, SidePanelTab tab) {
     final tabs = tabsOf(conversation);
+    if (identical(tabs.plan, tab)) {
+      tabs.plan = null;
+      if (tabs.section == SidePanelSection.plan) {
+        tabs.section = SidePanelSection.changes;
+      }
+      return notifyListeners();
+    }
     final list = tab.diff ? tabs.diffs : tabs.files;
     final index = list.indexOf(tab);
     if (index < 0) return;
@@ -359,7 +404,9 @@ class AgentSidePanel extends ChangeNotifier {
   void closeCurrent(Object conversation) {
     final tabs = tabsOf(conversation);
     switch (tabs.section) {
-      case SidePanelSection.files || SidePanelSection.changes:
+      case SidePanelSection.files ||
+          SidePanelSection.changes ||
+          SidePanelSection.plan:
         if (tabs.current case final tab?) return close(conversation, tab);
       case SidePanelSection.terminal:
         if (tabs.terminal case final id?) {

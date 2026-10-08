@@ -134,6 +134,10 @@ class _FilePreviewState extends State<FilePreview> {
         old.modified != _request.modified ||
         oldWidget.files != widget.files) {
       _start();
+    } else if (oldWidget.reveal != widget.reveal && !_image) {
+      // Asked for again (the agent wrote it again, say): read anew, what
+      // shows kept until then.
+      unawaited(_read(++_load));
     }
   }
 
@@ -186,7 +190,10 @@ class _FilePreviewState extends State<FilePreview> {
     }
     setState(() {
       _loaded = loaded;
-      if (_isMarkdown && text != null) _markdown = EditorDocumentModel(text);
+      if (_isMarkdown && text != null) {
+        _markdown?.dispose();
+        _markdown = EditorDocumentModel(text);
+      }
     });
     unawaited(_colorize(load, loaded, original, text));
   }

@@ -186,6 +186,8 @@ List<String> shown(Transcript transcript) => [
         'diff: $fileName +${lines.length}',
       AgentItem(:final description) => 'agent: $description',
       NoticeItem(:final kind, :final text) => 'notice ${kind.name}: $text',
+      PlanItem(:final round, :final status, :final writes) =>
+        'plan v$round ${status.name} ×$writes',
       LiveStatusItem(:final label) => 'status: $label',
     },
 ].where((line) => line.isNotEmpty).toList();
@@ -495,6 +497,161 @@ void main() {
       expect(transcript.edits, hasLength(3));
     });
 
+    test('each round of planning is one card; a plan sent back gives way '
+        'to the next', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      );
+      final paths = <String, Object?>{};
+      void use(String id, String name, Map<String, Object?> input) {
+        paths[id] = input['file_path'];
+        translator.translate({
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'message': {
+            'id': 'msg-$id',
+            'role': 'assistant',
+            'content': [
+              {'type': 'tool_use', 'id': id, 'name': name, 'input': input},
+            ],
+          },
+        });
+      }
+
+      void result(String id, {String content = 'ok', bool error = false}) =>
+          translator.translate({
+            'type': 'user',
+            'parent_tool_use_id': null,
+            'message': {
+              'role': 'user',
+              'content': [
+                {
+                  'type': 'tool_result',
+                  'tool_use_id': id,
+                  'content': content,
+                  'is_error': error,
+                },
+              ],
+            },
+            'tool_use_result': {
+              'filePath': paths[id],
+              'structuredPatch': [
+                {
+                  'oldStart': 1,
+                  'oldLines': 0,
+                  'newStart': 1,
+                  'newLines': 1,
+                  'lines': ['+x'],
+                },
+              ],
+            },
+          });
+      void streamedStart(String id, String name) {
+        for (final event in [
+          {
+            'type': 'message_start',
+            'message': {'id': 'msg-$id'},
+          },
+          {
+            'type': 'content_block_start',
+            'index': 0,
+            'content_block': {'type': 'tool_use', 'id': id, 'name': name},
+          },
+        ]) {
+          translator.translate({
+            'type': 'stream_event',
+            'parent_tool_use_id': null,
+            'event': event,
+          });
+        }
+      }
+
+      PlanItem card(int i) => transcript.itemAt(i) as PlanItem;
+      const plan = '/Users/me/.claude/plans/quiet-river.md';
+      use('t1', 'Write', {
+        'file_path': plan,
+        'content': '# Grow the input\n\n1. Do it',
+      });
+      result('t1');
+      expect(shown(transcript), ['plan v1 drafting ×1']);
+      expect(card(0).title, 'Grow the input');
+      expect(transcript.plan?.path, plan);
+
+      // Written again (its row streamed first): the same card.
+      streamedStart('t2', 'Edit');
+      use('t2', 'Edit', {
+        'file_path': plan,
+        'old_string': 'Do it',
+        'new_string': 'Do it well',
+      });
+      result('t2');
+      // Its text, the edit made to it.
+      expect(card(0).text, '# Grow the input\n\n1. Do it well');
+      use('t3', 'Write', {'file_path': '/p/lib/a.dart', 'content': 'x'});
+      result('t3');
+      use('t4', 'ExitPlanMode', {'plan': '# Grow the input\n\n1. Do it'});
+      expect(shown(transcript), ['plan v1 awaiting ×2', 'diff: a.dart +1']);
+      result(
+        't4',
+        error: true,
+        content: 'The user wants to keep planning: Keep it to five lines',
+      );
+      expect(card(0).status, PlanStatus.sentBack);
+      expect(card(0).feedback, 'Keep it to five lines');
+
+      // Written after it was sent back: a new round, a new card.
+      use('t5', 'Edit', {
+        'file_path': plan,
+        'old_string': 'a',
+        'new_string': 'b',
+      });
+      result('t5');
+      use('t6', 'ExitPlanMode', {'plan': '# Five lines\n\n1. Do it'});
+      result('t6');
+      expect(shown(transcript), [
+        'plan v1 sentBack ×2',
+        'diff: a.dart +1',
+        'plan v2 approved ×1',
+      ]);
+      expect(card(2).title, 'Five lines');
+      expect(card(2).text, '# Five lines\n\n1. Do it');
+      // Not a change to keep or undo.
+      expect(transcript.edits.map((edit) => edit.change.path), [
+        '/p/lib/a.dart',
+      ]);
+      expect(translator.planPath, plan);
+
+      // Put again unchanged after it was sent back: a round of its own.
+      use('t7', 'ExitPlanMode', {'plan': '# Five lines'});
+      expect(shown(transcript).last, 'plan v3 awaiting ×0');
+    });
+
+    test('a plan said, not written, is said in the conversation', () {
+      final transcript = Transcript();
+      var seq = 0;
+      ClaudeTranslator(emit: transcript.apply, nextSeq: () => ++seq).translate({
+        'type': 'assistant',
+        'parent_tool_use_id': null,
+        'message': {
+          'id': 'msg-1',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': 't1',
+              'name': 'ExitPlanMode',
+              'input': {'plan': '1. Do it'},
+            },
+          ],
+        },
+      });
+      expect((transcript.itemAt(0) as AssistantTextItem).text, '1. Do it');
+      expect(transcript.plan, isNull);
+    });
+
     test('replaying the kept session shows what streaming showed', () async {
       List<String> run(Iterable<Map<String, Object?>> messages, bool replay) {
         final transcript = Transcript();
@@ -727,6 +884,11 @@ void main() {
         (transcript.pendingInteraction as PlanReviewRequest).plan,
         '1. Do it',
       );
+      // Not written to a file: it shows in the request.
+      expect(
+        (transcript.pendingInteraction as PlanReviewRequest).planPath,
+        isNull,
+      );
       kernel.answer(
         'r2',
         const PlanAnswer(PlanDecision.keepPlanning, feedback: 'Smaller steps'),
@@ -734,11 +896,46 @@ void main() {
       expect(cli.responses.last['behavior'], 'deny');
       expect(cli.responses.last['message'], contains('Smaller steps'));
 
-      // Carried out with the approvals picked.
+      // Carried out with the approvals picked; written to its file, which
+      // shows it.
       kernel.mode.select('plan');
       kernel.permission.select('acceptEdits');
+      const planFile = '/home/me/.claude/plans/small-steps.md';
+      cli
+        ..push({
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'message': {
+            'id': 'msg-plan',
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': 'w1',
+                'name': 'Write',
+                'input': {'file_path': planFile, 'content': '1. Small'},
+              },
+            ],
+          },
+        })
+        ..push({
+          'type': 'user',
+          'parent_tool_use_id': null,
+          'message': {
+            'role': 'user',
+            'content': [
+              {'type': 'tool_result', 'tool_use_id': 'w1', 'content': 'ok'},
+            ],
+          },
+          'tool_use_result': {'type': 'create', 'filePath': planFile},
+        });
       ask('r3', 'ExitPlanMode', {'plan': '1. Do it in small steps'});
       await pumpEventQueue();
+      expect(
+        (transcript.pendingInteraction as PlanReviewRequest).planPath,
+        planFile,
+      );
+      expect(transcript.plan?.path, planFile);
       expect(
         (transcript.pendingInteraction as PlanReviewRequest).approveLabel,
         'Yes, start · Accept edits',

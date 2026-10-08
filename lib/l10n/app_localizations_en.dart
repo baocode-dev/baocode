@@ -1386,6 +1386,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidePanelTerminal => 'Terminal';
 
   @override
+  String get sidePanelPlan => 'Plan';
+
+  @override
+  String get sidePanelOpenInFiles => 'Open in Files';
+
+  @override
   String get sidePanelNoTerminals => 'No background commands';
 
   @override
@@ -2147,6 +2153,26 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get planCardLabel => 'Plan';
+
+  @override
+  String planCardRound(int round) {
+    return 'v$round';
+  }
+
+  @override
+  String get planDrafting => 'Drafting';
+
+  @override
+  String get planAwaiting => 'Awaiting approval';
+
+  @override
+  String get planApproved => 'Approved';
+
+  @override
+  String get planSentBack => 'Sent back';
+
+  @override
   String turnFiles(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2429,6 +2455,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get interactionWhatShouldChange => 'What should change?';
+
+  @override
+  String get interactionSayWhatToChange =>
+      'Or say what should change in the message box';
+
+  @override
+  String get interactionViewPlan => 'View plan';
 
   @override
   String interactionStepOf(int step, int total) {
@@ -6059,6 +6092,24 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String appearanceSettingsColorThemeLabel(String theme) {
     return 'Color theme: $theme';
+  }
+
+  @override
+  String get appearanceSettingsChatWidth => 'Conversation Width';
+
+  @override
+  String get appearanceSettingsChatWidthDescription =>
+      'How wide the conversation and the message box grow in a wide window.';
+
+  @override
+  String get appearanceSettingsChatWidthDefault => 'Default';
+
+  @override
+  String get appearanceSettingsChatWidthFull => 'Full width';
+
+  @override
+  String appearanceSettingsChatWidthLabel(String width) {
+    return 'Conversation width: $width';
   }
 
   @override

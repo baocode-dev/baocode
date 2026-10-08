@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import '../side_panel/file_link.dart';
 import '../side_panel/file_open.dart';
 import 'code_citation.dart';
+import 'hover_builder.dart';
 import 'step_header.dart';
 
-/// A file edit as a step: "Edited main.dart +12 -3", opening to its diff;
-/// where the chat's files open (see [FileOpenScope]), a click shows the
-/// file's changes there, and its chevron the diff here.
+/// A file edit as a step: "Edited main.dart +12 -3", a click opening it
+/// to its diff, under the file's icon and name; where the chat's files
+/// open (see [FileOpenScope]), a click on those shows its changes there.
 class EditStep extends StatelessWidget {
   const EditStep({
     super.key,
@@ -38,16 +40,6 @@ class EditStep extends StatelessWidget {
           object: item.fileName,
           expanded: expanded,
           onToggle: onToggle,
-          onOpen: path == null
-              ? null
-              : () => files!.onOpen(
-                  FileOpenRequest(
-                    path,
-                    diff: true,
-                    range: first == null ? null : FileLineRange(first),
-                  ),
-                ),
-          openTooltip: path == null ? null : context.l10n.sidePanelOpenDiff,
           trailing: Text.rich(
             TextSpan(
               // A count of none is left out.
@@ -77,9 +69,73 @@ class EditStep extends StatelessWidget {
           StepBody(
             maxHeight: CodeCitationCard.maxCodeHeight,
             padding: const EdgeInsets.symmetric(vertical: 6),
+            header: _FileHeader(
+              item: item,
+              onOpen: path == null
+                  ? null
+                  : () => files!.onOpen(
+                      FileOpenRequest(
+                        path,
+                        diff: true,
+                        range: first == null ? null : FileLineRange(first),
+                      ),
+                    ),
+            ),
             child: _Diff(item),
           ),
       ],
+    );
+  }
+}
+
+/// The edited file's icon and name over its diff: a click shows its
+/// changes where the chat's files open, when they do.
+class _FileHeader extends StatelessWidget {
+  const _FileHeader({required this.item, this.onOpen});
+
+  final CodeDiffItem item;
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final onOpen = this.onOpen;
+    Widget row(bool hovered) {
+      final hover = AppColors.hover;
+      return Container(
+        // Faintly lit while hovered, as a code card's title.
+        color: hovered ? hover.withValues(alpha: hover.a * 0.6) : null,
+        padding: const EdgeInsets.fromLTRB(12, 5, 12, 5),
+        child: Row(
+          children: [
+            FileIcon(item.fileName, size: 15),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                item.fileName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: AppColors.text, fontSize: 12.5),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (onOpen == null) return SelectionContainer.disabled(child: row(false));
+    return SelectionContainer.disabled(
+      child: Semantics(
+        button: true,
+        label: context.l10n.sidePanelOpenDiff,
+        child: HoverBuilder(
+          cursor: SystemMouseCursors.click,
+          builder: (context, hovered) => GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onOpen,
+            child: row(hovered),
+          ),
+        ),
+      ),
     );
   }
 }

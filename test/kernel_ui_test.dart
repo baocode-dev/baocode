@@ -13,6 +13,7 @@ import 'package:baocode/chat/panels/activity_strip.dart';
 import 'package:baocode/chat/panels/interaction_panel.dart';
 import 'package:baocode/chat/panels/context_usage_panel.dart';
 import 'package:baocode/chat/panels/mcp_servers_panel.dart';
+import 'package:baocode/chat/side_panel/file_open.dart';
 import 'package:baocode/chat/widgets/image_thumbnails.dart';
 import 'package:baocode/chat/widgets/activity_row.dart';
 import 'package:baocode/chat/widgets/thinking_spark.dart';
@@ -28,6 +29,7 @@ import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:baocode/chat/agent_view.dart';
+import 'package:baocode/chat/widgets/plan_card.dart';
 import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 
@@ -278,6 +280,169 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     expect(find.textContaining('Running ·'), findsNothing);
     expect(find.byType(ActivityStrip), findsNothing);
+  });
+
+  testWidgets('a plan in its file shows beside the chat; what should change '
+      'is said in the composer', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final cli = FakeCli();
+    late final KernelDescriptor descriptor;
+    descriptor = KernelDescriptor(
+      id: 'claude-code',
+      label: 'Claude Code',
+      icon: Icons.auto_awesome_rounded,
+      description: '',
+      create: (context) =>
+          ClaudeCodeKernel(descriptor, context, start: (_) async => cli),
+    );
+    final session = ChatSession(
+      kernel: descriptor,
+      kernels: [descriptor],
+      historyCount: 0,
+      kernelContext: const KernelContext(cwd: '/p'),
+      openReview: (root, {session}) async => null,
+    );
+    addTearDown(session.dispose);
+    final opened = <FileOpenRequest>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        localizationsDelegates: const [FlutterQuillLocalizations.delegate],
+        home: ChatScreen(
+          session: session,
+          fileLinks: FileLinkTarget(open: opened.add),
+        ),
+      ),
+    );
+    await tester.pump();
+    session.send(const ComposerMessage(text: 'plan the input box'));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    const plan = '/home/me/.claude/plans/tall-input.md';
+    void write(String id) {
+      cli
+        ..push(
+          assistant(null, id, {
+            'name': 'Write',
+            'input': {
+              'file_path': plan,
+              'content': '# Grow the input\n\nLet it grow with its text.',
+            },
+          }),
+        )
+        ..push(result(null, id, 'ok', {'type': 'create', 'filePath': plan}));
+    }
+
+    // Shown as it is written, and read anew as it is written again.
+    write('w1');
+    await tester.pump();
+    expect(opened.map((request) => request.path), [plan]);
+    write('w2');
+    await tester.pump();
+    expect(opened.map((request) => request.path), [plan, plan]);
+    expect(opened.every((request) => request.plan && !request.diff), isTrue);
+    // Not a change to keep or undo.
+    expect(find.byType(ActivityStrip), findsNothing);
+    // One card for the round, however often it is written.
+    final card = find.byType(PlanCard);
+    expect(card, findsOneWidget);
+    expect(
+      find.descendant(of: card, matching: find.text('Grow the input')),
+      findsOneWidget,
+    );
+    // Its text under its title, the heading not said twice.
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.textContaining(
+          'Let it grow with its text.',
+          findRichText: true,
+        ),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(card);
+    expect(opened, hasLength(3));
+
+    cli
+      ..push(
+        assistant(null, 'e1', {
+          'name': 'ExitPlanMode',
+          'input': {'plan': '# Grow the input'},
+        }),
+      )
+      ..push({
+        'type': 'control_request',
+        'request_id': 'r1',
+        'request': {
+          'subtype': 'can_use_tool',
+          'tool_name': 'ExitPlanMode',
+          'input': {'plan': '# Grow the input'},
+        },
+      });
+    await tester.pump();
+    final panel = find.byType(InteractionPanel);
+    expect(panel, findsOneWidget);
+    expect(opened, hasLength(4));
+    expect(tester.widget<PlanCard>(card).item.status, PlanStatus.awaiting);
+    // Its name and the way to it, not the plan itself.
+    expect(
+      find.descendant(of: panel, matching: find.text('tall-input.md')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: panel, matching: find.textContaining('Grow')),
+      findsNothing,
+    );
+    expect(
+      find.text('Or say what should change in the message box'),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.descendant(of: panel, matching: find.text('View plan')),
+    );
+    expect(opened, hasLength(5));
+
+    // A message now sends the plan back, with what should change.
+    session.send(const ComposerMessage(text: 'Keep it to five lines'));
+    await tester.pump();
+    expect(cli.responses.last['behavior'], 'deny');
+    expect(cli.responses.last['message'], contains('Keep it to five lines'));
+    expect(find.byType(InteractionPanel), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is UserMessageBubble &&
+            widget.text == 'Keep it to five lines',
+      ),
+      findsNothing,
+    );
+    // Sent back, the card folds to a line saying so.
+    cli.push({
+      'type': 'user',
+      'parent_tool_use_id': null,
+      'message': {
+        'role': 'user',
+        'content': [
+          {
+            'type': 'tool_result',
+            'tool_use_id': 'e1',
+            'content': cli.responses.last['message'],
+            'is_error': true,
+          },
+        ],
+      },
+    });
+    await tester.pump();
+    expect(
+      find.textContaining(
+        'Plan v1 · Sent back：Keep it to five lines',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('after a turn, Tab takes the prompt Claude suggests', (

@@ -15,6 +15,7 @@ import 'chat_history_view.dart';
 import 'chat_keys.dart';
 import 'chat_models.dart';
 import 'chat_session.dart';
+import 'chat_width.dart';
 import 'composer/composer.dart';
 import 'composer/composer_embeds.dart';
 import 'composer/composer_mock_data.dart';
@@ -147,7 +148,10 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen>
     with TickerProviderStateMixin, ChatKeyTarget {
-  static const _maxContentWidth = 720.0;
+  /// As wide as the setting lets the column grow (see [ChatWidth]).
+  double get _maxContentWidth => ChatWidth.current.value;
+
+  void _widthChanged() => setState(() {});
 
   late final ChatSession _session = widget.session ?? ChatSession();
   final GlobalKey<ChatComposerState> _composerKey = GlobalKey();
@@ -262,7 +266,11 @@ class _ChatScreenState extends State<ChatScreen>
     super.initState();
     _session.attach();
     _session.addListener(_checkStarting);
+    _planShown = _session.plan?.seq;
+    _planReviewShown = _session.pendingInteraction;
+    _session.addListener(_followPlan);
     _restoreAgents();
+    ChatWidth.current.addListener(_widthChanged);
     if (widget.autofocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _composerKey.currentState?.focus();
@@ -279,6 +287,8 @@ class _ChatScreenState extends State<ChatScreen>
   @override
   void dispose() {
     _session.removeListener(_checkStarting);
+    _session.removeListener(_followPlan);
+    ChatWidth.current.removeListener(_widthChanged);
     _existence?.dispose();
     _keyScope.dispose();
     for (final layer in _layers) {
@@ -297,6 +307,25 @@ class _ChatScreenState extends State<ChatScreen>
   void _answer(InteractionAnswer answer) {
     _session.answer(answer);
     _composerKey.currentState?.focus();
+  }
+
+  /// The sequence of the plan writing last shown, and the plan to approve.
+  int? _planShown;
+  InteractionRequest? _planReviewShown;
+
+  /// Shows the plan beside the chat as the agent writes it, and again as
+  /// it asks to go ahead with it: the file read anew each time.
+  void _followPlan() {
+    if (_session.plan case final plan? when plan.seq != _planShown) {
+      _planShown = plan.seq;
+      _openFile(FileOpenRequest(plan.path, plan: true));
+    }
+    final request = _session.pendingInteraction;
+    if (request == _planReviewShown) return;
+    _planReviewShown = request;
+    if (request case PlanReviewRequest(:final planPath?)) {
+      _openFile(FileOpenRequest(planPath, plan: true));
+    }
   }
 
   // --- Keys ------------------------------------------------------------------
@@ -380,7 +409,7 @@ class _ChatScreenState extends State<ChatScreen>
     final bar = SizedBox(
       height: AppMetrics.titleBarHeight,
       child: CustomMultiChildLayout(
-        delegate: _TitleBarLayout(inset: inset),
+        delegate: _TitleBarLayout(inset: inset, maxWidth: _maxContentWidth),
         children: [
           if (widget.leading case final leading?)
             LayoutId(id: _TitleBarSlot.leading, child: leading),
@@ -533,6 +562,7 @@ class _ChatScreenState extends State<ChatScreen>
             onOpen: _openFile,
             existence: _files,
             roots: links.roots?.call() ?? const [],
+            seen: _session.filesSeen,
             child: scoped,
           );
         }
@@ -655,6 +685,14 @@ class _ChatScreenState extends State<ChatScreen>
                         request: request,
                         onAnswer: _answer,
                         kernel: _session.kernel.id,
+                        onOpenPlan: switch (request) {
+                          PlanReviewRequest(:final planPath?)
+                              when widget.fileLinks != null =>
+                            () => _openFile(
+                              FileOpenRequest(planPath, plan: true),
+                            ),
+                          _ => null,
+                        },
                       ),
                       null => null,
                     },
@@ -775,9 +813,12 @@ double _columnWidth(double width, double maxWidth) =>
 /// lights; the title and the buttons after it across the conversation's
 /// column, clear of the leading.
 class _TitleBarLayout extends MultiChildLayoutDelegate {
-  _TitleBarLayout({required this.inset});
+  _TitleBarLayout({required this.inset, required this.maxWidth});
 
   final double inset;
+
+  /// The conversation's column's at most.
+  final double maxWidth;
 
   /// Between the leading and the title.
   static const _gap = 6.0;
@@ -799,10 +840,7 @@ class _TitleBarLayout extends MultiChildLayoutDelegate {
       );
       start += leading.width + _gap;
     }
-    final column =
-        (size.width -
-            _columnWidth(size.width, _ChatScreenState._maxContentWidth)) /
-        2;
+    final column = (size.width - _columnWidth(size.width, maxWidth)) / 2;
     final left = math.max(start, column);
     final width = math.max(
       0.0,
@@ -817,7 +855,7 @@ class _TitleBarLayout extends MultiChildLayoutDelegate {
 
   @override
   bool shouldRelayout(_TitleBarLayout oldDelegate) =>
-      oldDelegate.inset != inset;
+      oldDelegate.inset != inset || oldDelegate.maxWidth != maxWidth;
 }
 
 /// [child] 16 in from either side and no wider than [maxWidth], in the

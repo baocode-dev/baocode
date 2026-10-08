@@ -977,6 +977,7 @@ class ClaudeCodeKernel
           id: requestId,
           title: 'Ready to code?',
           plan: plan ?? '(The plan could not be read.)',
+          planPath: _translator.planPath,
           approvals: approvals,
           approveLabel: switch (approvals) {
             final approvals? => 'Yes, start · ${approvals.label}',

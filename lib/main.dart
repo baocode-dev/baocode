@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 
 import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
+import 'chat/chat_width.dart';
 import 'customize/customization_store.dart';
 import 'ide/git/git_repository.dart';
 import 'ide/lsp/language_features.dart';
@@ -101,6 +102,11 @@ Future<void> main(List<String> arguments) async {
         CommitAttribution.parse(files.settings[CommitAttribution.settingKey]);
     // Settings → Models: the upstreams, kept in settings.json.
     ModelProviders.current = ModelProviders.settings(files.settings);
+    // Settings → Appearance: how wide the conversation grows.
+    ChatWidth.follow(
+      files.settings,
+      () => files.settings[ChatWidth.settingKey],
+    );
   }
   final locale = AppLocale(storage: files?.argv);
   final workspace = Workspace(

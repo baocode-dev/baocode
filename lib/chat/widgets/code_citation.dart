@@ -11,6 +11,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
+import '../side_panel/file_link.dart' show FileLineRange, FileLink;
 import '../side_panel/file_open.dart' show FileOpenScope;
 import 'hover_builder.dart';
 import 'wheel_latch.dart';
@@ -407,8 +408,10 @@ class _CodeCardState extends State<_CodeCard> {
   Widget _file(BuildContext context, CodeCitation citation) {
     final scope = CodeCitationScope.maybeOf(context);
     final open = scope?.onOpen;
-    // As the chat's file links are found, in a workspace's folders too.
-    final path = switch ((FileOpenScope.maybeOf(context), scope?.root)) {
+    final files = FileOpenScope.maybeOf(context);
+    // As the chat's file links are found, in a workspace's folders and the
+    // files the agent read too.
+    final path = switch ((files, scope?.root)) {
       (final files?, _) => files.resolve(citation.path),
       (null, final root?) => citation.pathIn(root),
       _ => null,
@@ -438,7 +441,15 @@ class _CodeCardState extends State<_CodeCard> {
       file = MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
-          onTap: () => open(path, citation.start, citation.end),
+          // Where it is of the places it may be, as a link's.
+          onTap: () => files != null
+              ? files.openLink(
+                  FileLink(
+                    citation.path,
+                    FileLineRange(citation.start, citation.end),
+                  ),
+                )
+              : open(path, citation.start, citation.end),
           child: file,
         ),
       );

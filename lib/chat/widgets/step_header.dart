@@ -142,11 +142,7 @@ class StepHeader extends StatelessWidget {
         ? header
         : _ClickListener(onClick: click, child: header);
     if (open != null) {
-      clickable = Semantics(
-        button: true,
-        label: openTooltip,
-        child: clickable,
-      );
+      clickable = Semantics(button: true, label: openTooltip, child: clickable);
     }
     Widget row(bool rowHovered) => Row(
       mainAxisSize: MainAxisSize.min,
@@ -242,6 +238,7 @@ class StepBody extends StatelessWidget {
     this.padding = const EdgeInsets.fromLTRB(12, 10, 12, 10),
     this.followEnd = false,
     this.overlay,
+    this.header,
   });
 
   final Widget child;
@@ -254,8 +251,38 @@ class StepBody extends StatelessWidget {
   /// Over its top right corner, e.g. a menu button.
   final Widget? overlay;
 
+  /// Above [child], a line under it, staying while [child] scrolls.
+  final Widget? header;
+
   @override
   Widget build(BuildContext context) {
+    Widget body = Stack(
+      children: [
+        ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: SingleChildScrollView(
+            reverse: followEnd,
+            padding: padding,
+            child: WheelLatch(
+              child: SizedBox(width: double.infinity, child: child),
+            ),
+          ),
+        ),
+        if (overlay case final overlay?)
+          Positioned(top: 6, right: 6, child: overlay),
+      ],
+    );
+    if (header case final header?) {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          header,
+          Divider(height: 1, thickness: 1, color: AppColors.border),
+          body,
+        ],
+      );
+    }
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(top: 2, bottom: 6),
@@ -265,22 +292,7 @@ class StepBody extends StatelessWidget {
         border: Border.all(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxHeight),
-            child: SingleChildScrollView(
-              reverse: followEnd,
-              padding: padding,
-              child: WheelLatch(
-                child: SizedBox(width: double.infinity, child: child),
-              ),
-            ),
-          ),
-          if (overlay case final overlay?)
-            Positioned(top: 6, right: 6, child: overlay),
-        ],
-      ),
+      child: body,
     );
   }
 }

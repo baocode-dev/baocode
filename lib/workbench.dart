@@ -1055,8 +1055,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ),
       ?action(ChatCommandIds.openIde, Codicons.code),
       ?action(ChatCommandIds.toggleSidePanel, Codicons.layoutSidebarRight),
-      for (final section in SidePanelSection.values)
-        ?action(section.command, section.icon),
+      for (final section in alwaysShownSections)
+        ?action(section.command!, section.icon),
       ?action(toggleTerminalCommand, Codicons.terminal),
       ?action(newTerminalCommand, Codicons.add),
       if (WindowControls.canPickDirectory)
@@ -2488,8 +2488,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     ChatCommandIds.toggleSidePanel: _toggleSidePanel,
     if (_sidePanel.focusNode.hasFocus)
       ChatCommandIds.sidePanelCloseTab: _closeSidePanelTab,
-    for (final section in SidePanelSection.values)
-      section.command: () => _showSidePanelSection(section),
+    for (final section in alwaysShownSections)
+      section.command!: () => _showSidePanelSection(section),
   };
 
   /// Close Tab, from the side panel; the focus stays there, for the next.

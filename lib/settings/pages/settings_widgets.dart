@@ -342,6 +342,67 @@ class SettingsSwitchRow extends StatelessWidget {
   );
 }
 
+/// One of [count] steps, as a row's control: a slider that stops at each,
+/// [label] (the step's name) beside it.
+class SettingsSlider extends StatelessWidget {
+  const SettingsSlider({
+    super.key,
+    required this.step,
+    required this.count,
+    required this.label,
+    required this.semanticLabel,
+    required this.onChanged,
+  });
+
+  final int step;
+  final int count;
+  final String label;
+  final String semanticLabel;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = AppColors.accent;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: SettingsText.description),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 180,
+          child: SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 3,
+              activeTrackColor: accent,
+              inactiveTrackColor: AppColors.textFaint.withValues(alpha: 0.35),
+              activeTickMarkColor: Colors.white.withValues(alpha: 0.7),
+              inactiveTickMarkColor: AppColors.textMuted,
+              thumbColor: Colors.white,
+              overlayColor: accent.withValues(alpha: 0.12),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              tickMarkShape: const RoundSliderTickMarkShape(
+                tickMarkRadius: 1.5,
+              ),
+              showValueIndicator: ShowValueIndicator.never,
+            ),
+            child: Slider(
+              value: step.toDouble(),
+              max: (count - 1).toDouble(),
+              divisions: count - 1,
+              semanticFormatterCallback: (_) => semanticLabel,
+              onChanged: (value) {
+                final picked = value.round();
+                if (picked != step) onChanged(picked);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Buttons side by side, as a row's control.
 class SettingsButtons extends StatelessWidget {
   const SettingsButtons({super.key, required this.children});

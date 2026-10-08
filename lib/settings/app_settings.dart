@@ -99,7 +99,11 @@ class AppSettings {
         return GeneralSettingsPage(settings: files?.settings, tips: tips);
       case SettingsSection.appearance:
         final themes = WorkbenchThemeService.instance;
-        return AppearanceSettingsPage(themes: themes, changes: themes);
+        return AppearanceSettingsPage(
+          themes: themes,
+          changes: themes,
+          settings: files?.settings,
+        );
       case SettingsSection.models:
         return ModelsSettingsPage(providers: ModelProviders.current);
       case SettingsSection.notifications:

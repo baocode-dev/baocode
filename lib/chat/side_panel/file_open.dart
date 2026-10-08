@@ -20,10 +20,15 @@ class FileOpenRequest {
     this.change,
     this.original,
     this.modified,
+    this.plan = false,
   });
 
   /// Absolute, on the project's host.
   final String path;
+
+  /// The agent's plan, written in plan mode: shown on a page of its own
+  /// where there is one (the side panel's), else as any file.
+  final bool plan;
   final FileLineRange? range;
 
   /// Its changes rather than its text, where they are known.
@@ -50,12 +55,13 @@ class FileOpenRequest {
     change: change ?? this.change,
     original: original ?? this.original,
     modified: modified,
+    plan: plan,
   );
 
   @override
   String toString() =>
       'FileOpenRequest($path${range == null ? '' : ', $range'}'
-      '${diff ? ', diff' : ''})';
+      '${diff ? ', diff' : ''}${plan ? ', plan' : ''})';
 }
 
 /// Where a chat's files open (the agent window's side panel, the IDE's
@@ -172,6 +178,7 @@ class FileOpenScope extends InheritedWidget {
     required this.existence,
     this.paths,
     this.roots = const [],
+    this.seen = const [],
     required super.child,
   });
 
@@ -184,6 +191,12 @@ class FileOpenScope extends InheritedWidget {
   /// directory, only holds its settings): a relative path is looked for in
   /// each, in order.
   final List<String> roots;
+
+  /// The files the agent read or changed (absolute, wherever they are):
+  /// the one a path names when that is not where the path says, as an
+  /// agent that read `/Users/me/a/lib/b.dart` from `/Users/me/Desktop` may
+  /// name it `a/lib/b.dart`.
+  final List<String> seen;
 
   static FileOpenScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<FileOpenScope>();
@@ -200,7 +213,8 @@ class FileOpenScope extends InheritedWidget {
     return candidates.first;
   }
 
-  /// Where [path] may be: in each of [roots], then in [root].
+  /// Where [path] may be: in each of [roots], then in [root], then the
+  /// file of those [seen] it names.
   List<String> _candidates(String path) {
     final found = <String>{};
     for (final folder in [...roots, root]) {
@@ -208,7 +222,33 @@ class FileOpenScope extends InheritedWidget {
         found.add(full);
       }
     }
+    if (_seen(path) case final file?) found.add(file);
     return [...found];
+  }
+
+  /// The file of [seen] that [path] names: that one (absolute, or relative
+  /// to [root]), or the one it ends with (as whole names, `b.dart` not
+  /// `ab.dart`); the last read of those.
+  String? _seen(String path) {
+    final context = paths ?? p.context;
+    if (path.isEmpty || path.startsWith('~')) return null;
+    final normalized = context.normalize(path);
+    final full = context.normalize(context.join(root, path));
+    for (final file in seen.reversed) {
+      if (context.equals(file, full)) return file;
+    }
+    final parts = context.split(normalized);
+    if (context.isAbsolute(normalized) || parts.contains('..')) return null;
+    for (final file in seen.reversed) {
+      final names = context.split(context.normalize(file));
+      if (names.length <= parts.length) continue;
+      var same = true;
+      for (var i = 1; i <= parts.length && same; i++) {
+        same = names[names.length - i] == parts[parts.length - i];
+      }
+      if (same) return file;
+    }
+    return null;
   }
 
   /// Opens [link] if it is in [root]; false if it is not. In a workspace,
@@ -261,5 +301,6 @@ class FileOpenScope extends InheritedWidget {
       onOpen != oldWidget.onOpen ||
       existence != oldWidget.existence ||
       paths != oldWidget.paths ||
-      !listEquals(roots, oldWidget.roots);
+      !listEquals(roots, oldWidget.roots) ||
+      !listEquals(seen, oldWidget.seen);
 }

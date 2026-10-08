@@ -1349,6 +1349,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidePanelTerminal => '终端';
 
   @override
+  String get sidePanelPlan => '计划';
+
+  @override
+  String get sidePanelOpenInFiles => '在文件中打开';
+
+  @override
   String get sidePanelNoTerminals => '没有后台命令';
 
   @override
@@ -2081,6 +2087,26 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get planCardLabel => '计划';
+
+  @override
+  String planCardRound(int round) {
+    return 'v$round';
+  }
+
+  @override
+  String get planDrafting => '起草中';
+
+  @override
+  String get planAwaiting => '待审批';
+
+  @override
+  String get planApproved => '已批准';
+
+  @override
+  String get planSentBack => '已退回';
+
+  @override
   String turnFiles(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2351,6 +2377,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get interactionWhatShouldChange => '需要改什么？';
+
+  @override
+  String get interactionSayWhatToChange => '或在下方输入框说明要改什么';
+
+  @override
+  String get interactionViewPlan => '查看计划';
 
   @override
   String interactionStepOf(int step, int total) {
@@ -5685,6 +5717,23 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String appearanceSettingsColorThemeLabel(String theme) {
     return '颜色主题：$theme';
+  }
+
+  @override
+  String get appearanceSettingsChatWidth => '对话宽度';
+
+  @override
+  String get appearanceSettingsChatWidthDescription => '窗口很宽时，对话和输入框最多能有多宽。';
+
+  @override
+  String get appearanceSettingsChatWidthDefault => '默认';
+
+  @override
+  String get appearanceSettingsChatWidthFull => '全宽';
+
+  @override
+  String appearanceSettingsChatWidthLabel(String width) {
+    return '对话宽度：$width';
   }
 
   @override

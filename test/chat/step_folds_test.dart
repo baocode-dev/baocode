@@ -81,6 +81,37 @@ void main() {
       expect(_folds([_prompt(), _read, _answer]), isEmpty);
     });
 
+    test('a plan\'s card stands out of it: what came after the last folds', () {
+      const sentBack = PlanItem(
+        path: '/p/plans/a.md',
+        round: 1,
+        status: PlanStatus.sentBack,
+      );
+      const approved = PlanItem(
+        path: '/p/plans/a.md',
+        round: 2,
+        status: PlanStatus.approved,
+      );
+      expect(
+        _folds([
+          _prompt(),
+          _read,
+          _grep,
+          sentBack,
+          _read,
+          approved,
+          _edit,
+          _read,
+          _answer,
+        ]),
+        ['steps 1-3', 'work 6-8'],
+      );
+      // Too little after it to fold.
+      expect(_folds([_prompt(), _read, _grep, approved, _edit, _answer]), [
+        'steps 1-3',
+      ]);
+    });
+
     test('not without an answer: an error ends it', () {
       const error = NoticeItem(NoticeKind.error, 'Overloaded');
       expect(_folds([_prompt(), _edit, _words, error]), isEmpty);

@@ -27,6 +27,7 @@ class InteractionPanel extends StatefulWidget {
     required this.request,
     required this.onAnswer,
     this.kernel,
+    this.onOpenPlan,
   });
 
   final InteractionRequest request;
@@ -34,6 +35,10 @@ class InteractionPanel extends StatefulWidget {
 
   /// The id of the kernel asking: what it names, in the display language.
   final String? kernel;
+
+  /// Shows a plan to approve that is in a file ([PlanReviewRequest.planPath])
+  /// beside the chat.
+  final VoidCallback? onOpenPlan;
 
   @override
   State<InteractionPanel> createState() => _InteractionPanelState();
@@ -96,7 +101,12 @@ class _InteractionPanelState extends State<InteractionPanel>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _steps = _stepsFor(widget.request, context.l10n, widget.kernel);
+    _steps = _stepsFor(
+      widget.request,
+      context.l10n,
+      widget.kernel,
+      widget.onOpenPlan,
+    );
   }
 
   @override
@@ -115,6 +125,7 @@ class _InteractionPanelState extends State<InteractionPanel>
     InteractionRequest request,
     AppLocalizations l10n,
     String? kernel,
+    VoidCallback? onOpenPlan,
   ) => switch (request) {
     QuestionRequest(:final questions) => [
       for (final question in questions)
@@ -148,30 +159,45 @@ class _InteractionPanelState extends State<InteractionPanel>
         ],
       ),
     ],
-    PlanReviewRequest(:final plan, :final approvals, :final approveLabel) => [
-      _Step(
-        prompt: '',
-        detail: _PlanPreview(plan),
-        rows: [
-          _Row(switch ((kernel, approvals)) {
-            (final kernel?, final approvals?) => l10n.interactionStartWith(
-              localizedKernelOption(
-                l10n,
-                kernel,
-                KernelChoiceKind.permission,
-                approvals,
-              ).label,
-            ),
-            (_, null) => l10n.interactionStartBuilding,
-            _ => approveLabel,
-          }),
-          _Row(
-            l10n.interactionKeepPlanningOption,
-            textHint: l10n.interactionWhatShouldChange,
-          ),
-        ],
-      ),
-    ],
+    PlanReviewRequest(
+      :final plan,
+      :final planPath,
+      :final approvals,
+      :final approveLabel,
+    ) =>
+      [
+        _Step(
+          prompt: '',
+          // The plan in a file shows beside the chat; what should change
+          // is said in the composer.
+          detail: planPath == null
+              ? _PlanPreview(plan)
+              : _PlanFile(path: planPath, onOpen: onOpenPlan),
+          rows: [
+            _Row(switch ((kernel, approvals)) {
+              (final kernel?, final approvals?) => l10n.interactionStartWith(
+                localizedKernelOption(
+                  l10n,
+                  kernel,
+                  KernelChoiceKind.permission,
+                  approvals,
+                ).label,
+              ),
+              (_, null) => l10n.interactionStartBuilding,
+              _ => approveLabel,
+            }),
+            planPath == null
+                ? _Row(
+                    l10n.interactionKeepPlanningOption,
+                    textHint: l10n.interactionWhatShouldChange,
+                  )
+                : _Row(
+                    l10n.interactionKeepPlanningOption,
+                    description: l10n.interactionSayWhatToChange,
+                  ),
+          ],
+        ),
+      ],
   };
 
   InteractionAnswer _answer({required bool dismissed}) {
@@ -878,6 +904,40 @@ class _PlanPreview extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       color: AppColors.background,
       child: MarkdownView(plan),
+    );
+  }
+}
+
+/// A plan kept in a file: its name, and the way to it beside the chat.
+class _PlanFile extends StatelessWidget {
+  const _PlanFile({required this.path, this.onOpen});
+
+  final String path;
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(Icons.description_outlined, size: 14, color: AppColors.textMuted),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            path.split(RegExp(r'[/\\]')).last,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontFamily: AppFonts.mono,
+              fontSize: 12,
+            ),
+          ),
+        ),
+        if (onOpen case final onOpen?) ...[
+          const SizedBox(width: 8),
+          PanelButton(label: context.l10n.interactionViewPlan, onTap: onOpen),
+        ],
+      ],
     );
   }
 }

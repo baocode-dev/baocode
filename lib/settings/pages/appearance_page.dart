@@ -4,24 +4,59 @@ import 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart';
 import 'package:flutter/material.dart' hide ColorScheme;
 
 import '../../chat/chat_keys.dart';
+import '../../chat/chat_width.dart';
 import '../../ide/ide_color_theme_picker.dart';
 import '../../ide/ide_quick_input.dart' show ideLocaleCompare;
 import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/workbench_theme.dart' show ThemeSettingDefaults;
+import '../user_settings.dart';
 import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
 
 /// Settings → Appearance: the color theme (`workbench.colorTheme`, as
 /// Preferences: Color Theme picks it), the chat's, the IDE's and the
-/// terminal's alike. A choice is applied and kept at once.
+/// terminal's alike, and how wide the conversation grows
+/// (`chat.maxWidth`, see [ChatWidth]). A choice is applied and kept at once.
 class AppearanceSettingsPage extends StatelessWidget {
-  const AppearanceSettingsPage({super.key, required this.themes, this.changes});
+  const AppearanceSettingsPage({
+    super.key,
+    required this.themes,
+    this.changes,
+    this.settings,
+  });
 
   final IdeColorThemeController themes;
 
   /// Tells when [themes]' theme changes (the theme service itself).
   final Listenable? changes;
+
+  /// settings.json; none under test, where the width is not kept.
+  final UserSettings? settings;
+
+  static String widthName(BuildContext context, double width) {
+    final l10n = context.l10n;
+    if (width.isInfinite) return l10n.appearanceSettingsChatWidthFull;
+    if (width == ChatWidth.fallback) {
+      return l10n.appearanceSettingsChatWidthDefault;
+    }
+    return '${width.round()}';
+  }
+
+  void _selectWidth(double width) {
+    ChatWidth.current.value = width;
+    final settings = this.settings;
+    if (settings == null) return;
+    unawaited(
+      settings
+          .update(ChatWidth.settingKey, ChatWidth.setting(width))
+          .catchError((Object error) {
+            // A settings file that does not parse is left as it is; its
+            // error is shown.
+            debugPrint('${ChatWidth.settingKey} not kept: $error');
+          }),
+    );
+  }
 
   /// The themes in the menu: light, dark, then high contrast, as the
   /// picker lists them, each group the defaults first, then by label.
@@ -52,8 +87,10 @@ class AppearanceSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     return ListenableBuilder(
-      listenable: changes ?? Listenable.merge(const []),
+      listenable: Listenable.merge([changes, ChatWidth.current]),
       builder: (context, _) {
+        final widthStep = ChatWidth.stepOf(ChatWidth.current.value);
+        final widthShown = widthName(context, ChatWidth.steps[widthStep]);
         final groups = _groups();
         final currentId = themes.colorThemeId;
         final current = groups
@@ -91,6 +128,19 @@ class AppearanceSettingsPage extends StatelessWidget {
                             ),
                         ],
                     ]),
+                  ),
+                ),
+                SettingsRow(
+                  label: l10n.appearanceSettingsChatWidth,
+                  description: l10n.appearanceSettingsChatWidthDescription,
+                  trailing: SettingsSlider(
+                    step: widthStep,
+                    count: ChatWidth.steps.length,
+                    label: widthShown,
+                    semanticLabel: l10n.appearanceSettingsChatWidthLabel(
+                      widthShown,
+                    ),
+                    onChanged: (step) => _selectWidth(ChatWidth.steps[step]),
                   ),
                 ),
               ],

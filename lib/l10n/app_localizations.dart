@@ -2726,6 +2726,18 @@ abstract class AppLocalizations {
   /// **'Terminal'**
   String get sidePanelTerminal;
 
+  /// The side panel's plan page: the plan the agent wrote in plan mode, shown while there is one.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan'**
+  String get sidePanelPlan;
+
+  /// On the plan's tab: opens its file in a tab of the side panel's files page.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in Files'**
+  String get sidePanelOpenInFiles;
+
   /// No description provided for @sidePanelNoTerminals.
   ///
   /// In en, this message translates to:
@@ -3980,6 +3992,42 @@ abstract class AppLocalizations {
   /// **'Worked for {duration}'**
   String turnWorked(String duration);
 
+  /// Over a round of planning's card in the conversation.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan'**
+  String get planCardLabel;
+
+  /// Which round of planning a plan's card is, e.g. v2 for the plan written again after it was sent back.
+  ///
+  /// In en, this message translates to:
+  /// **'v{round}'**
+  String planCardRound(int round);
+
+  /// No description provided for @planDrafting.
+  ///
+  /// In en, this message translates to:
+  /// **'Drafting'**
+  String get planDrafting;
+
+  /// No description provided for @planAwaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting approval'**
+  String get planAwaiting;
+
+  /// No description provided for @planApproved.
+  ///
+  /// In en, this message translates to:
+  /// **'Approved'**
+  String get planApproved;
+
+  /// No description provided for @planSentBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent back'**
+  String get planSentBack;
+
   /// How many files a folded turn edited.
   ///
   /// In en, this message translates to:
@@ -4441,6 +4489,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'What should change?'**
   String get interactionWhatShouldChange;
+
+  /// Under 'No, keep planning' when the plan shows in the side panel: a message sent now goes to the agent as what to change.
+  ///
+  /// In en, this message translates to:
+  /// **'Or say what should change in the message box'**
+  String get interactionSayWhatToChange;
+
+  /// No description provided for @interactionViewPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'View plan'**
+  String get interactionViewPlan;
 
   /// No description provided for @interactionStepOf.
   ///
@@ -10082,6 +10142,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Color theme: {theme}'**
   String appearanceSettingsColorThemeLabel(String theme);
+
+  /// No description provided for @appearanceSettingsChatWidth.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation Width'**
+  String get appearanceSettingsChatWidth;
+
+  /// No description provided for @appearanceSettingsChatWidthDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'How wide the conversation and the message box grow in a wide window.'**
+  String get appearanceSettingsChatWidthDescription;
+
+  /// No description provided for @appearanceSettingsChatWidthDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get appearanceSettingsChatWidthDefault;
+
+  /// No description provided for @appearanceSettingsChatWidthFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Full width'**
+  String get appearanceSettingsChatWidthFull;
+
+  /// No description provided for @appearanceSettingsChatWidthLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation width: {width}'**
+  String appearanceSettingsChatWidthLabel(String width);
 
   /// No description provided for @generalSettingsContextMenuFinder.
   ///

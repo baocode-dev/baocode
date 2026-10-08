@@ -29,6 +29,7 @@ import 'package:baocode/chat/panels/activity_strip.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/codicons.dart';
+import 'package:baocode/theme/material_file_icons.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -378,6 +379,74 @@ void main() {
     panel.close(chat, tabs.diffs.single);
     expect(tabs.activeDiff, isNull);
     expect(tabs.active, isNotNull);
+  });
+
+  test('the plan opens on a page of its own, there while it is', () {
+    final panel = AgentSidePanel();
+    addTearDown(panel.dispose);
+    final chat = Object();
+    final tabs = panel.tabsOf(chat);
+    // None yet: the page asked for shows the changes.
+    panel.showSection(chat, SidePanelSection.plan);
+    expect(tabs.shown, SidePanelSection.changes);
+
+    const plan = '/home/me/.claude/plans/tall.md';
+    panel.open(chat, const FileOpenRequest(plan, plan: true));
+    expect(panel.shown, isTrue);
+    expect(tabs.section, SidePanelSection.plan);
+    expect(tabs.current?.path, plan);
+    expect(tabs.files, isEmpty);
+    // Written again: the same tab, read anew.
+    final tab = tabs.plan!;
+    panel.open(chat, const FileOpenRequest(plan, plan: true));
+    expect(tabs.plan, same(tab));
+    expect(tab.reveal, 1);
+
+    panel.closeCurrent(chat);
+    expect(tabs.plan, isNull);
+    expect(tabs.section, SidePanelSection.changes);
+    expect(panel.shown, isTrue);
+  });
+
+  testWidgets('the plan\'s page has no list; its tab\'s menu opens it on the '
+      'files page', (tester) async {
+    const plan = '/home/me/.claude/plans/tall.md';
+    final (:panel, :session, files: _) = await _pumpChat(
+      tester,
+      texts: {'/p/lib/main.dart': _main, plan: '# Grow the input\n\n1. Do it'},
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Plan'), findsNothing);
+
+    panel.open(session, const FileOpenRequest(plan, plan: true));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey(SidePanelSection.plan)), findsOneWidget);
+    expect(find.byKey(const ValueKey('side-panel-list')), findsNothing);
+    expect(find.byKey(const ValueKey('side-panel-list-toggle')), findsNothing);
+    expect(find.byType(FilePreview), findsOneWidget);
+    expect(find.text('Grow the input', findRichText: true), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(TabStripScroll),
+        matching: find.text('tall.md'),
+      ),
+      buttons: kSecondaryButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open in Files'));
+    await tester.pumpAndSettle();
+    final tabs = panel.tabsOf(session);
+    expect(tabs.section, SidePanelSection.files);
+    expect(tabs.active?.path, plan);
+    expect(tabs.active?.request.plan, isFalse);
+    // The plan's page stays, to go back to.
+    expect(tabs.plan?.path, plan);
+    expect(find.byKey(const ValueKey('side-panel-list')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey(SidePanelSection.plan)));
+    await tester.pumpAndSettle();
+    expect(tabs.section, SidePanelSection.plan);
   });
 
   testWidgets('two levels keep the selected file when switching sections', (
@@ -1066,12 +1135,19 @@ void main() {
     );
   });
 
-  testWidgets('an edit shows the file\'s changes in the side panel; its '
-      'chevron still opens the diff in place', (tester) async {
+  testWidgets('an edit opens to its diff in place; the file\'s name over it '
+      'shows its changes in the side panel', (tester) async {
     final (:panel, :session, files: _) = await _pumpChat(tester);
     final edit = find.byType(EditStep).last;
     await tester.tap(
       find.descendant(of: edit, matching: find.byType(RichText)).first,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<EditStep>(edit).expanded, isTrue);
+    expect(_active(panel, session), isNull);
+
+    await tester.tap(
+      find.descendant(of: edit, matching: find.byType(FileIcon)),
     );
     await tester.pumpAndSettle();
 
@@ -1083,7 +1159,7 @@ void main() {
     // The text before the agent's edit is not known here: the file.
     expect(find.textContaining('not known'), findsOneWidget);
     expect(find.text('main line 1'), findsOneWidget);
-    expect(tester.widget<EditStep>(edit).expanded, isFalse);
+    expect(tester.widget<EditStep>(edit).expanded, isTrue);
   });
 
   testWidgets('a search\'s match opens its file at its line', (tester) async {

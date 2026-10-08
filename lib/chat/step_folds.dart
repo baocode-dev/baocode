@@ -33,7 +33,8 @@ typedef StepRow = ({StepFold? work, StepFold? steps, bool item});
 /// How a history folds: each run of at least two quick steps into one line
 /// ("Read 3 files, ran 2 commands"), and each finished turn's work into
 /// one line before its answer ("Worked for 4m 32s"). Edits, subagents and
-/// the agent's words stand apart: they break a run.
+/// the agent's words stand apart: they break a run. A plan's card is never
+/// folded.
 class StepFolds {
   StepFolds._(this._steps, this._work, this._liveEnd);
 
@@ -93,7 +94,16 @@ class StepFolds {
           break;
         }
       }
-      final start = prompt + 1;
+      // A plan's card stands out of it: the work folded is what came
+      // after the last (carrying it out, once approved); the planning
+      // before stays as it is.
+      var start = prompt + 1;
+      for (var i = answer - 1; i > prompt; i--) {
+        if (items[i] is PlanItem) {
+          start = i + 1;
+          break;
+        }
+      }
       final shown = items
           .sublist(start, answer)
           .where((item) => item is! ThinkingItem)

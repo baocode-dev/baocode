@@ -464,6 +464,10 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   InteractionRequest? get pendingInteraction => _transcript.pendingInteraction;
 
+  /// The plan the agent last wrote this run, and the sequence it was
+  /// reported at: higher each time it writes it again.
+  ({String path, int seq})? get plan => _transcript.plan;
+
   /// Sequence of the last turn to end, to tell whether it was seen.
   int get lastTurnEndSeq => _transcript.lastTurnEndSeq;
 
@@ -656,6 +660,19 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     });
   }
 
+  /// The files the agent read or changed, absolute: where a file it names
+  /// by a path gone wrong (relative to some other folder) may be.
+  List<String> get filesSeen => _cached(
+    #filesSeen,
+    () => {
+      for (var i = 0; i < _transcript.length; i++)
+        if (_transcript.itemAt(i) case ToolCallItem(:final path?)
+            when path.isNotEmpty)
+          _absolute(path),
+      for (final edit in _transcript.edits) _absolute(edit.change.path),
+    }.toList(),
+  );
+
   /// [path] absolute, on the project's host (a remote project's paths are
   /// its host's).
   String _absolute(String path) {
@@ -761,8 +778,16 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   // --- Commands ---------------------------------------------------------------
 
   /// Sends [message]; [now], taken up at once, the turn running stopped
-  /// for it (rather than queued behind it).
+  /// for it (rather than queued behind it). With a plan shown beside the
+  /// chat waiting on the user, it says what should change in it instead.
   void send(ComposerMessage message, {bool now = false}) {
+    if (pendingInteraction case PlanReviewRequest(planPath: _?)
+        when message.text.trim().isNotEmpty) {
+      answer(
+        PlanAnswer(PlanDecision.keepPlanning, feedback: message.text.trim()),
+      );
+      return;
+    }
     if (message.isEmpty || !canSend) return;
     final turn = KernelTurn(
       id: newTurnId(),

@@ -398,10 +398,11 @@ class AgentSidePanelView extends StatelessWidget {
             changes: _gits.fold(0, (sum, git) => sum + (git.state?.count ?? 0)),
           ),
           Expanded(
-            child: switch (tabs.section) {
+            child: switch (tabs.shown) {
               SidePanelSection.files => _filesPage(context, tabs),
               SidePanelSection.changes => _changesPage(context, tabs),
               SidePanelSection.terminal => _terminalPage(context, tabs),
+              SidePanelSection.plan => _planPage(context, tabs.plan!),
             },
           ),
         ],
@@ -738,6 +739,89 @@ class AgentSidePanelView extends StatelessWidget {
     );
   }
 
+  /// The plan the agent wrote, on its own: no list, its tab over it.
+  Widget _planPage(BuildContext context, SidePanelTab plan) => Column(
+    key: const ValueKey(('page', SidePanelSection.plan)),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _TabStrip(
+        key: ValueKey(('plan', session)),
+        selected: plan,
+        entries: [
+          (
+            id: plan,
+            child: FileDraggable(
+              files: [ComposerFile(plan.path)],
+              child: _Tab(
+                active: true,
+                icon: const _TabIcon(Codicons.checklist),
+                label: _paths.basename(plan.path),
+                tooltip: plan.path,
+                onTap: () {},
+                onClose: () => panel.close(session, plan),
+                menu: () => _planMenu(context, plan),
+              ),
+            ),
+          ),
+        ],
+      ),
+      Expanded(child: _preview(context, plan)),
+    ],
+  );
+
+  /// The plan's tab's menu: closing it, opening its file on the files
+  /// page, the file for the chat, copying its path, then where else it
+  /// opens.
+  List<IdeMenuEntry> _planMenu(BuildContext context, SidePanelTab plan) {
+    final l10n = context.l10n;
+    final path = plan.path;
+    final local = files is! IdeHostFiles;
+    return ideMenuGroups([
+      [
+        IdeMenuAction(
+          l10n.tabClose,
+          onSelected: () => panel.close(session, plan),
+        ),
+      ],
+      [
+        IdeMenuAction(
+          l10n.sidePanelOpenInFiles,
+          onSelected: () => panel.open(session, FileOpenRequest(path)),
+        ),
+        IdeMenuAction(
+          l10n.sidePanelAddToChat,
+          onSelected: () => session.draft.insertFiles([ComposerFile(path)]),
+        ),
+        if (local)
+          IdeMenuAction(
+            l10n.commonCopy,
+            onSelected: () =>
+                unawaited(WindowControls.writePasteboardFiles([path])),
+          ),
+      ],
+      [
+        IdeMenuAction(
+          l10n.tabCopyPath,
+          onSelected: () =>
+              unawaited(Clipboard.setData(ClipboardData(text: path))),
+        ),
+      ],
+      [
+        if (local && WindowControls.canRevealInFileManager)
+          IdeMenuAction(
+            l10n.revealInFileManager,
+            onSelected: () =>
+                unawaited(WindowControls.revealInFileManager(path)),
+          ),
+        if (onOpenInIde case final open?)
+          IdeMenuAction(
+            l10n.sidePanelOpenInIde,
+            onSelected: () => open(FileOpenRequest(path)),
+          ),
+      ],
+    ]);
+  }
+
   /// A tab's Close, Close Others, Close to the Right and Close All, for
   /// the tab [id] at [index] of [count]; [close] closes those it picks of
   /// all the tabs.
@@ -933,18 +1017,22 @@ extension SidePanelSectionUi on SidePanelSection {
     SidePanelSection.files => Codicons.files,
     SidePanelSection.changes => Codicons.sourceControl,
     SidePanelSection.terminal => Codicons.terminal,
+    SidePanelSection.plan => Codicons.checklist,
   };
 
-  String get command => switch (this) {
+  /// The command that shows it; none for the plan's, there only at times.
+  String? get command => switch (this) {
     SidePanelSection.files => ChatCommandIds.sidePanelFiles,
     SidePanelSection.changes => ChatCommandIds.sidePanelChanges,
     SidePanelSection.terminal => ChatCommandIds.sidePanelTerminal,
+    SidePanelSection.plan => null,
   };
 
   String label(BuildContext context) => switch (this) {
     SidePanelSection.files => context.l10n.sidePanelFiles,
     SidePanelSection.changes => context.l10n.sidePanelChanges,
     SidePanelSection.terminal => context.l10n.sidePanelTerminal,
+    SidePanelSection.plan => context.l10n.sidePanelPlan,
   };
 }
 
@@ -974,7 +1062,7 @@ class SidePanelRail extends StatelessWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final (i, section) in SidePanelSection.values.indexed) ...[
+        for (final (i, section) in alwaysShownSections.indexed) ...[
           if (i > 0) const SizedBox(height: _gap),
           SidebarIconButton(
             icon: section.icon,
@@ -1012,10 +1100,18 @@ class _SectionBar extends StatelessWidget {
   /// The list's toggle and the close button, at the right.
   static const _actionsWidth = 2 * 22.0 + 2;
 
-  /// What the tabs take with their names (see [_SectionTab]), with
-  /// [counts] by page: more than that, they show only their icons.
+  /// The pages there: the plan's once there is one.
+  List<SidePanelSection> get _sections => [
+    ...alwaysShownSections,
+    if (tabs.plan != null) SidePanelSection.plan,
+  ];
+
+  /// What the tabs of [sections] take with their names (see
+  /// [_SectionTab]), with [counts] by page: more than that, they show only
+  /// their icons.
   static double _fullWidth(
     BuildContext context,
+    List<SidePanelSection> sections,
     Map<SidePanelSection, int> counts,
   ) {
     final inherited = DefaultTextStyle.of(context).style;
@@ -1033,7 +1129,7 @@ class _SectionBar extends StatelessWidget {
     }
 
     var width = 0.0;
-    for (final section in SidePanelSection.values) {
+    for (final section in sections) {
       width +=
           2 * 2 +
           2 * 8 +
@@ -1066,9 +1162,11 @@ class _SectionBar extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final sections = _sections;
+          final shown = tabs.shown;
           final compact =
               constraints.maxWidth <
-              _fullWidth(context, {
+              _fullWidth(context, sections, {
                     SidePanelSection.changes: changes,
                     SidePanelSection.terminal: running,
                   }) +
@@ -1076,32 +1174,35 @@ class _SectionBar extends StatelessWidget {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final section in SidePanelSection.values)
+              for (final section in sections)
                 _SectionTab(
                   section: section,
-                  selected: tabs.section == section,
+                  selected: shown == section,
                   compact: compact,
                   count: switch (section) {
-                    SidePanelSection.files => 0,
+                    SidePanelSection.files || SidePanelSection.plan => 0,
                     SidePanelSection.changes => changes,
                     SidePanelSection.terminal => running,
                   },
                   onTap: () => panel.showSection(session, section),
                 ),
               const Spacer(),
-              Center(
-                child: IdeActionButton(
-                  key: const ValueKey('side-panel-list-toggle'),
-                  icon: panel.listShown
-                      ? Codicons.layoutSidebarLeft
-                      : Codicons.layoutSidebarLeftOff,
-                  tooltip: panel.listShown
-                      ? l10n.sidePanelHideList
-                      : l10n.sidePanelShowList,
-                  onPressed: panel.toggleList,
+              // The plan's page has no list to show or hide.
+              if (shown != SidePanelSection.plan) ...[
+                Center(
+                  child: IdeActionButton(
+                    key: const ValueKey('side-panel-list-toggle'),
+                    icon: panel.listShown
+                        ? Codicons.layoutSidebarLeft
+                        : Codicons.layoutSidebarLeftOff,
+                    tooltip: panel.listShown
+                        ? l10n.sidePanelHideList
+                        : l10n.sidePanelShowList,
+                    onPressed: panel.toggleList,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 2),
+                const SizedBox(width: 2),
+              ],
               Center(
                 child: IdeActionButton(
                   icon: Codicons.close,
@@ -1146,10 +1247,13 @@ class _SectionTab extends StatelessWidget {
     final colors = themeColors;
     final label = section.label(context);
     return IdeHover(
-      message: KeybindingService.instance.titleWithKeybinding(
-        label,
-        section.command,
-      ),
+      message: switch (section.command) {
+        final command? => KeybindingService.instance.titleWithKeybinding(
+          label,
+          command,
+        ),
+        null => label,
+      },
       child: Semantics(
         selected: selected,
         button: true,

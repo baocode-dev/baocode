@@ -7,6 +7,7 @@ import 'agent_step.dart';
 import 'assistant_text.dart';
 import 'command_step.dart';
 import 'notice_row.dart';
+import 'plan_card.dart';
 import 'step_header.dart';
 import 'edit_step.dart';
 import 'terminal_output.dart';
@@ -108,6 +109,7 @@ class ChatItemView extends StatelessWidget {
         onMoveToBackground: onMoveToBackground,
       ),
       final NoticeItem notice => NoticeRow(item: notice),
+      final PlanItem plan => PlanCard(item: plan),
       TerminalItem(
         :final command,
         :final description,
@@ -192,6 +194,7 @@ String chatItemPlainText(
       ].join('\n'),
     final AgentItem agent => AgentStep.plainText(agent, l10n: strings),
     NoticeItem(:final text) => text,
+    final PlanItem plan => PlanCard.plainText(plan, l10n: strings),
     TerminalItem(
       :final command,
       :final description,
