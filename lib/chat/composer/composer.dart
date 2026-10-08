@@ -1473,11 +1473,11 @@ class ChatComposerState extends State<ChatComposer>
         editorKey: _editorKey,
         // A suggested prompt, then the key that takes it as the keybindings
         // label it (`Tab`); alone when it has none.
-        placeholder: switch ((_suggestion, _suggestionKey)) {
+        placeholder: _quillPlaceholder(switch ((_suggestion, _suggestionKey)) {
           (final suggestion?, final key?) => '$suggestion    $key',
           (final suggestion?, null) => suggestion,
           (null, _) => context.l10n.composerPlaceholder,
-        },
+        }),
         minHeight: _minEditorHeight,
         maxHeight: _maxEditorHeight(context),
         textCapitalization: TextCapitalization.none,
@@ -1496,6 +1496,14 @@ class ChatComposerState extends State<ChatComposer>
       ),
     );
   }
+
+  /// [text] as Quill's placeholder takes it. Quill reads the placeholder as
+  /// JSON it splices the text into, escaping only its quotes: a backslash
+  /// (a Windows path in a suggested prompt) or a control character (a line
+  /// break) failed its build, and the input was a grey box until the app
+  /// restarted. On one line, its backslashes escaped.
+  static String _quillPlaceholder(String text) =>
+      text.replaceAll(RegExp(r'[\x00-\x1f]+'), ' ').replaceAll(r'\', r'\\');
 
   /// Quill's paragraph style does not inherit the ambient text theme, so
   /// derive it explicitly to match the rest of the UI.

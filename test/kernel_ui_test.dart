@@ -480,6 +480,41 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
   });
 
+  testWidgets('a suggested prompt with a Windows path, quotes and a line '
+      'break shows in the placeholder, the input still there', (tester) async {
+    // Quill reads its placeholder as JSON it splices the text into: a
+    // backslash or a line break once broke the editor's build, and the
+    // input turned into a grey box until the app restarted.
+    const suggestion =
+        r'Run release\win-unpacked\BaoCode.exe'
+        '\n'
+        r'then open "C:\Users"';
+    final (:session, :cli) = await pumpScripted(tester);
+    cli
+      ..push({'type': 'result', 'subtype': 'success', 'is_error': false})
+      ..push({'type': 'prompt_suggestion', 'suggestion': suggestion});
+    await tester.pump();
+    await tester.pump();
+    expect(session.promptSuggestion, suggestion);
+    expect(
+      find.descendant(
+        of: find.byType(ChatComposer),
+        matching: find.text(
+          r'Run release\win-unpacked\BaoCode.exe then open "C:\Users"    Tab',
+          findRichText: true,
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    // Taken, it is the text as suggested.
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    expect(editor.controller.document.toPlainText().trim(), suggestion);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
   testWidgets('the MCP panel shows each server, and fixes what it can', (
     tester,
   ) async {
