@@ -1042,9 +1042,9 @@ class SidePanelRail extends StatelessWidget {
 
   final ValueChanged<SidePanelSection> onSelect;
 
-  static const _button = 30.0;
-  static const _padding = 6.0;
-  static const _gap = 6.0;
+  static const _button = 26.0;
+  static const _padding = 4.0;
+  static const _gap = 4.0;
 
   /// Across, its border too.
   static const width = _button + 2 * _padding + 2;
