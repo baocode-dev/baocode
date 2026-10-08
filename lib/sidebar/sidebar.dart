@@ -1844,6 +1844,14 @@ class _ThreadRow extends StatelessWidget {
       icon: Icons.inventory_2_outlined,
       onSelected: onArchive,
     ),
+    // Claude Code finds the conversation by it (none before the first
+    // message).
+    if (thread.id case final id?)
+      SidebarMenuItem(
+        l10n.sidebarCopySessionId,
+        icon: Icons.content_copy_rounded,
+        onSelected: () => unawaited(Clipboard.setData(ClipboardData(text: id))),
+      ),
     SidebarMenuItem(
       l10n.commonDelete,
       icon: Icons.delete_outline_rounded,

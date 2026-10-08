@@ -105,9 +105,8 @@ void main() {
     expect(width(false), width(true) - 2 * UserMessageBubble.radius);
   });
 
-  testWidgets('@ opens no menu: files come in dragged, pasted or picked', (
-    tester,
-  ) async {
+  testWidgets('@ opens no menu without conversations to refer to: files '
+      'come in dragged, pasted or picked', (tester) async {
     await pumpScreen(tester);
     await typeText(tester, 'look at @hist');
     await settleAnimations(tester);

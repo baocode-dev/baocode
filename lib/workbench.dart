@@ -14,6 +14,7 @@ import 'chat/chat_models.dart' show FileChange, FileChangeKind;
 import 'chat/chat_screen.dart';
 import 'chat/chat_session.dart' show ChatSession;
 import 'chat/composer/composer_files.dart' show ComposerFile;
+import 'chat/composer/composer_mock_data.dart' show Suggestion;
 import 'chat/composer/file_drop.dart';
 import 'chat/panels/interaction_panel.dart';
 import 'chat/side_panel/file_open.dart';
@@ -2612,8 +2613,24 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           ),
           _ => null,
         },
+        sessions: () => _mentionable(thread),
       ),
     );
+  }
+
+  /// The conversations [thread]'s messages may refer to, under their
+  /// projects (see [Workspace.mentionable]).
+  List<Suggestion> _mentionable(AgentThread thread) {
+    final l10n = context.l10n;
+    return [
+      for (final (:project, :threads) in _workspace.mentionable(thread))
+        for (final other in threads)
+          Suggestion.session(
+            title: other.localizedTitle(l10n),
+            id: other.id!,
+            project: project.name,
+          ),
+    ];
   }
 
   /// Opens a file [thread]'s agent changed in the IDE: a diff of its text

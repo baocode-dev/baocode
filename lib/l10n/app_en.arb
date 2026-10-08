@@ -853,6 +853,10 @@
   "sidebarUnpin": "Unpin",
   "sidebarArchive": "Archive",
   "sidebarUnarchive": "Unarchive",
+  "sidebarCopySessionId": "Copy session ID",
+  "@sidebarCopySessionId": {
+    "description": "An agent's menu in the sidebar: copies the id of its session, which Claude Code finds the conversation by."
+  },
   "sidebarShowMore": "Show more ({count})",
   "@sidebarShowMore": {
     "placeholders": {
@@ -1255,6 +1259,10 @@
   "composerCommands": "Commands",
   "@composerCommands": {
     "description": "Suggestion menu title."
+  },
+  "composerConversations": "Conversations",
+  "@composerConversations": {
+    "description": "Title of the menu @ opens in the composer: the other conversations to refer to, under their projects' folders."
   },
   "composerPlaceholder": "Plan, search, build anything  ·  drop or paste files  / for commands",
   "composerApprovalTitle": "How should {agent} get approval?",

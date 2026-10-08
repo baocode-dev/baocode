@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-enum SuggestionKind { file, folder, command }
+/// What a suggestion puts in: a file or folder, a /command, or another
+/// conversation (see [Suggestion.session]).
+enum SuggestionKind { file, folder, command, session }
 
 class Suggestion {
   const Suggestion({
@@ -8,7 +10,21 @@ class Suggestion {
     required this.label,
     this.detail = '',
     this.icon,
+    this.group,
+    this.id = '',
   });
+
+  /// A conversation titled [title] to refer to, by its session's [id],
+  /// listed under its project's folder, [project].
+  const Suggestion.session({
+    required String title,
+    required this.id,
+    required String project,
+  }) : kind = SuggestionKind.session,
+       label = title,
+       detail = '',
+       icon = null,
+       group = project;
 
   final SuggestionKind kind;
 
@@ -19,10 +35,17 @@ class Suggestion {
   final String detail;
   final IconData? icon;
 
+  /// The heading it is listed under (a conversation's project), if any.
+  final String? group;
+
+  /// A conversation's session id.
+  final String id;
+
   /// Value serialized into the sent message.
   String get value => switch (kind) {
     SuggestionKind.file ||
     SuggestionKind.folder => detail.isEmpty ? label : '$detail/$label',
+    SuggestionKind.session => id,
     _ => label,
   };
 }

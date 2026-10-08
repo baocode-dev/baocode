@@ -3164,6 +3164,12 @@ abstract class AppLocalizations {
   /// **'Unarchive'**
   String get sidebarUnarchive;
 
+  /// An agent's menu in the sidebar: copies the id of its session, which Claude Code finds the conversation by.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy session ID'**
+  String get sidebarCopySessionId;
+
   /// No description provided for @sidebarShowMore.
   ///
   /// In en, this message translates to:
@@ -4003,6 +4009,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Commands'**
   String get composerCommands;
+
+  /// Title of the menu @ opens in the composer: the other conversations to refer to, under their projects' folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversations'**
+  String get composerConversations;
 
   /// No description provided for @composerPlaceholder.
   ///

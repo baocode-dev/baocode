@@ -368,6 +368,44 @@ void main() {
     expect(row(), findsNothing);
   });
 
+  testWidgets('an agent\'s menu copies its session id, once it has one', (
+    tester,
+  ) async {
+    final workspace = await pumpKept(
+      tester,
+      KeptCatalog([kept('a1', '/tmp/a', 1), kept('a2', '/tmp/a', 2)]),
+    );
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied.add((call.arguments as Map)['text'] as String);
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await pickFromMenu(tester, 'Chat a2', 'Copy session ID');
+    expect(copied, ['a2']);
+
+    // A new agent has no session until its first message.
+    workspace.create(project: workspace.projects.single);
+    workspace.rename(workspace.selected, 'Fresh');
+    await tester.pump();
+    expect(workspace.selected.id, isNull);
+    await tester.tap(inSidebar(find.text('Fresh')), buttons: kSecondaryButton);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Rename'), findsOneWidget);
+    expect(find.text('Copy session ID'), findsNothing);
+  });
+
   testWidgets('the archived agents of a project taken off the sidebar are '
       'listed', (tester) async {
     final records = [

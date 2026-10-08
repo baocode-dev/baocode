@@ -56,6 +56,7 @@ class ChatScreen extends StatefulWidget {
     this.colorizeCodeBlock,
     this.start,
     this.startHint,
+    this.sessions,
   });
 
   final String title;
@@ -125,6 +126,10 @@ class ChatScreen extends StatefulWidget {
   /// [start]): the setup checklist, say, which builds [hint] when it has
   /// nothing to show.
   final Widget Function(BuildContext context, Widget hint)? startHint;
+
+  /// The other conversations its messages may refer to, which `@` in the
+  /// composer offers (see [ComposerVocabulary.sessions]).
+  final List<Suggestion> Function()? sessions;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -517,6 +522,7 @@ class _ChatScreenState extends State<ChatScreen>
           colorizeBlock: widget.colorizeCodeBlock,
           child: ComposerVocabulary(
             commands: _commandSuggestions(),
+            sessions: widget.sessions,
             child: child!,
           ),
         );

@@ -40,16 +40,21 @@ import 'file_drop.dart';
 import 'suggestion_menu.dart';
 import '../../ide/ide_hover.dart';
 
-/// An open /command query: the slash starts the message, and [query] is
-/// the text between it and the caret.
+/// An open query: a /command's, the slash starting the message, or a
+/// conversation's (an @ starting a word); [query] is the text between it
+/// and the caret.
 class _Trigger {
-  const _Trigger(this.query);
+  const _Trigger(this.kind, this.start, this.query);
 
-  /// Where the slash is.
-  int get start => 0;
+  /// [SuggestionKind.command] or [SuggestionKind.session].
+  final SuggestionKind kind;
+
+  /// Where the slash or the @ is.
+  final int start;
   final String query;
 
-  bool sameAnchor(_Trigger? other) => other != null;
+  bool sameAnchor(_Trigger? other) =>
+      other != null && other.kind == kind && other.start == start;
 }
 
 /// The chat input, built on flutter_quill.
@@ -146,6 +151,12 @@ class ChatComposerState extends State<ChatComposer>
   _Trigger? _trigger;
   _Trigger? _dismissedTrigger;
   List<SuggestionMatch> _matches = const [];
+
+  /// The conversations the open @ offers, as they were when it was typed.
+  List<Suggestion> _sessions = const [];
+
+  /// What the menu lists: kept as it closes, for it to fade out as it was.
+  SuggestionKind _menuKind = SuggestionKind.command;
   int _highlighted = 0;
   double _menuX = 0;
 
@@ -597,18 +608,28 @@ class ChatComposerState extends State<ChatComposer>
     if (trigger == null || !trigger.sameAnchor(_dismissedTrigger)) {
       _dismissedTrigger = null;
     }
-    final visible = trigger != null && _dismissedTrigger == null;
+    var visible = trigger != null && _dismissedTrigger == null;
+    // An @ with no other conversation to refer to stays text.
+    if (visible && trigger.kind == SuggestionKind.session) {
+      if (!trigger.sameAnchor(_trigger)) {
+        _sessions = ComposerVocabulary.read(context).sessions?.call() ?? [];
+      }
+      visible = _sessions.isNotEmpty;
+    }
 
     if (visible) {
       final queryChanged =
-          !trigger.sameAnchor(_trigger) || trigger.query != _trigger!.query;
+          !trigger!.sameAnchor(_trigger) || trigger.query != _trigger!.query;
       if (queryChanged) {
-        _matches = rankSuggestions(
-          ComposerVocabulary.read(context).commands,
-          trigger.query,
-        );
+        _matches = trigger.kind == SuggestionKind.session
+            ? rankGroupedSuggestions(_sessions, trigger.query)
+            : rankSuggestions(
+                ComposerVocabulary.read(context).commands,
+                trigger.query,
+              );
         _highlighted = 0;
       }
+      _menuKind = trigger.kind;
       _highlighted = _highlighted.clamp(0, math.max(0, _matches.length - 1));
       _menuX = _caretX(trigger.start);
     }
@@ -644,10 +665,26 @@ class ChatComposerState extends State<ChatComposer>
     // Only at the end of a query: a caret moved into existing text (e.g.
     // `/re|view`) is not typing one.
     if (caret < plain.length && !isBoundary(plain[caret])) return null;
-    if (!plain.startsWith('/')) return null;
-    final query = plain.substring(1, caret);
-    if (query.split('').any(isBoundary)) return null;
-    return _Trigger(query);
+    if (plain.startsWith('/')) {
+      final query = plain.substring(1, caret);
+      if (!query.split('').any(isBoundary)) {
+        return _Trigger(SuggestionKind.command, 0, query);
+      }
+    }
+    // An @ starting the word the caret ends: a conversation to refer to.
+    if (ComposerVocabulary.read(context).sessions == null) return null;
+    for (var i = caret - 1; i >= 0; i--) {
+      final char = plain[i];
+      if (isBoundary(char)) return null;
+      if (char == '@' && (i == 0 || isBoundary(plain[i - 1]))) {
+        return _Trigger(
+          SuggestionKind.session,
+          i,
+          plain.substring(i + 1, caret),
+        );
+      }
+    }
+    return null;
   }
 
   /// Horizontal caret position of [offset] relative to the composer box.
@@ -1051,7 +1088,8 @@ class ChatComposerState extends State<ChatComposer>
         final raw = data[ComposerTokenEmbed.type];
         text.write(ComposerTokenEmbed.plainText(raw));
         final token = ComposerTokenEmbed.decode(raw);
-        if (token.kind != SuggestionKind.command &&
+        if ((token.kind == SuggestionKind.file ||
+                token.kind == SuggestionKind.folder) &&
             !mentions.contains(token.value)) {
           mentions.add(token.value);
         }
@@ -1186,7 +1224,9 @@ class ChatComposerState extends State<ChatComposer>
 
   Widget _buildMenu(BuildContext context) {
     return SuggestionMenu(
-      title: context.l10n.composerCommands,
+      title: _menuKind == SuggestionKind.session
+          ? context.l10n.composerConversations
+          : context.l10n.composerCommands,
       matches: _matches,
       highlighted: _highlighted,
       onHighlight: (index) => setState(() => _highlighted = index),

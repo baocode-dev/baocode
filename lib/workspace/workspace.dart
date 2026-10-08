@@ -1136,6 +1136,32 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     ];
   }
 
+  /// The conversations [from]'s message may refer to (see the composer's
+  /// `@`): those the sidebar lists, not archived, with a session to find
+  /// them by, but [from] itself; under their projects, in the sidebar's
+  /// order of both.
+  List<({Project project, List<AgentThread> threads})> mentionable(
+    AgentThread? from,
+  ) {
+    final threads = [
+      for (final thread in _threads)
+        if (!identical(thread, from) &&
+            !thread.archived &&
+            thread.id != null &&
+            listsInSidebar(thread))
+          thread,
+    ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return [
+      for (final project in sidebarProjects)
+        if (inProjectOrder(project, [
+              for (final thread in threads)
+                if (thread.project == project) thread,
+            ])
+            case final listed when listed.isNotEmpty)
+          (project: project, threads: listed),
+    ];
+  }
+
   /// Lists [project]'s agents in the order of [ordered] from now on.
   void reorder(Project project, List<AgentThread> ordered) {
     final ids = [for (final thread in ordered) ?thread.id];

@@ -1645,6 +1645,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarUnarchive => 'Unarchive';
 
   @override
+  String get sidebarCopySessionId => 'Copy session ID';
+
+  @override
   String sidebarShowMore(int count) {
     return 'Show more ($count)';
   }
@@ -2166,6 +2169,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get composerCommands => 'Commands';
+
+  @override
+  String get composerConversations => 'Conversations';
 
   @override
   String get composerPlaceholder =>

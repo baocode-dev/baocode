@@ -1591,6 +1591,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarUnarchive => '取消归档';
 
   @override
+  String get sidebarCopySessionId => '复制会话 ID';
+
+  @override
   String sidebarShowMore(int count) {
     return '显示更多（$count）';
   }
@@ -2101,6 +2104,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get composerCommands => '命令';
+
+  @override
+  String get composerConversations => '对话';
 
   @override
   String get composerPlaceholder => '规划、搜索、构建任何内容  ·  拖入或粘贴文件  / 命令';
