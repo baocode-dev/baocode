@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -40,13 +39,6 @@ UpdateRelease _release() {
     platform: 'macos-arm64',
     asset: manifest.assetFor('macos-arm64')!,
   );
-}
-
-String _decodePowerShell(String encoded) {
-  final bytes = base64.decode(encoded);
-  return String.fromCharCodes([
-    for (var i = 0; i < bytes.length; i += 2) bytes[i] | bytes[i + 1] << 8,
-  ]);
 }
 
 void main() {
@@ -95,55 +87,54 @@ void main() {
         windowsPerMachineInstall(r'C:\Program Files Extra\b.exe', environment),
         isFalse,
       );
-      expect(windowsInstallerArguments(perMachine: true), [
-        '/SILENT',
-        '/SUPPRESSMSGBOXES',
-        '/NORESTART',
-        '/CLOSEAPPLICATIONS',
-        '/RELAUNCH',
-        '/ALLUSERS',
-      ]);
-      expect(windowsInstallerArguments(perMachine: false).last, '/CURRENTUSER');
     });
 
-    test('waits for the app to quit, then starts Setup', () {
-      final script = windowsUpdateScript(
-        pid: 4242,
-        installer:
-            r"C:\Users\o'neil\AppData\Roaming\baocode\updates\1.2.0\setup.exe",
-        arguments: windowsInstallerArguments(perMachine: false),
+    test("Setup's command line: this install, once the app is gone", () {
+      expect(
+        windowsInstallerArguments(
+          perMachine: true,
+          directory: r'C:\Program Files\BaoCode',
+          pid: 4242,
+          log: r'C:\Users\me\AppData\Roaming\baocode\updates\install.log',
+        ),
+        [
+          '/SILENT',
+          '/SUPPRESSMSGBOXES',
+          '/NORESTART',
+          '/CLOSEAPPLICATIONS',
+          '/RELAUNCH',
+          '/ALLUSERS',
+          r'/DIR=C:\Program Files\BaoCode',
+          '/WAITPID=4242',
+          r'/LOG=C:\Users\me\AppData\Roaming\baocode\updates\install.log',
+        ],
       );
       expect(
-        script,
-        "\$ErrorActionPreference = 'SilentlyContinue'\n"
-        'Wait-Process -Id 4242 -Timeout 120\n'
-        r"Start-Process -FilePath 'C:\Users\o''neil\AppData\Roaming\baocode\updates\1.2.0\setup.exe' "
-        "-ArgumentList @('/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "
-        "'/CLOSEAPPLICATIONS', '/RELAUNCH', '/CURRENTUSER')",
+        windowsInstallerArguments(
+          perMachine: false,
+          directory: 'x',
+          pid: 1,
+          log: 'y',
+        ),
+        contains('/CURRENTUSER'),
       );
-      final arguments = windowsPowerShellArguments(script);
-      expect(arguments.take(7), [
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-WindowStyle',
-        'Hidden',
-        '-EncodedCommand',
-      ]);
-      expect(_decodePowerShell(arguments.last), script);
-      expect(_decodePowerShell(encodePowerShellCommand('更新 ok')), '更新 ok');
     });
+
+    WindowsUpdateInstaller installerIn(
+      Directory app,
+      _FakeProcesses processes,
+    ) => WindowsUpdateInstaller(
+      executable: p.join(app.path, 'baocode.exe'),
+      pid: 4242,
+      environment: environment,
+      updatesDirectory: p.join(temp.path, 'updates'),
+      processes: processes,
+    );
 
     test('updates only an app its installer installed', () async {
       final app = Directory(p.join(temp.path, 'BaoCode'))..createSync();
-      final processes = _FakeProcesses((_, _) => _result(0));
-      final installer = WindowsUpdateInstaller(
-        executable: p.join(app.path, 'baocode.exe'),
-        pid: 4242,
-        environment: environment,
-        processes: processes,
-      );
+      final processes = _FakeProcesses((_, _) => _result(1));
+      final installer = installerIn(app, processes);
       await expectLater(
         installer.prepare('setup.exe', _release()),
         throwsA(isA<ManualUpdateRequired>()),
@@ -154,11 +145,37 @@ void main() {
       expect(processes.started, isEmpty, reason: 'not before the app quits');
       await update.launch();
       final started = processes.started.single;
-      expect(started.first, 'powershell.exe');
-      final script = _decodePowerShell(started.last);
-      expect(script, contains('Wait-Process -Id 4242'));
-      expect(script, contains("-FilePath 'setup.exe'"));
-      expect(script, contains("'/CURRENTUSER'"));
+      // Setup itself, no shell in between.
+      expect(started.first, 'setup.exe');
+      expect(started, contains('/DIR=${app.path}'));
+      expect(started, contains('/WAITPID=4242'));
+      expect(
+        started,
+        contains('/LOG=${p.join(temp.path, 'updates', 'install.log')}'),
+      );
+      // Registered nowhere, and not under Program Files: per user.
+      expect(started, contains('/CURRENTUSER'));
+    });
+
+    test('takes the install mode from where Setup registered it', () async {
+      // Per machine, in a folder of its own outside Program Files.
+      final app = Directory(p.join(temp.path, 'BaoCode'))..createSync();
+      File(p.join(app.path, 'unins000.exe')).createSync();
+      bool Function(String hive) registered = (hive) => hive == 'HKLM';
+      final processes = _FakeProcesses((executable, arguments) {
+        expect(executable, 'reg.exe');
+        expect(arguments.last, '/reg:64');
+        final key = arguments[1];
+        expect(key, endsWith(windowsUninstallKey));
+        return _result(registered(key.split(r'\').first) ? 0 : 1);
+      });
+      final installer = installerIn(app, processes);
+      expect(await installer.installedPerMachine(), isTrue);
+      registered = (hive) => hive == 'HKCU';
+      expect(await installer.installedPerMachine(), isFalse);
+      // Both: where it is decides.
+      registered = (_) => true;
+      expect(await installer.installedPerMachine(), isFalse);
     });
   });
 

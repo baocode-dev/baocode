@@ -479,5 +479,71 @@ void main() {
       await press(tester, LogicalKeyboardKey.enter, control: true);
       expect(picked(answers), ['Gamma']);
     });
+
+    group('with more than one question', () {
+      const twoQuestions = QuestionRequest(
+        id: 'q2',
+        title: 'Questions',
+        questions: [
+          Question(
+            prompt: 'First?',
+            options: [QuestionOption('Alpha'), QuestionOption('Beta')],
+          ),
+          Question(
+            prompt: 'Second?',
+            options: [QuestionOption('Gamma'), QuestionOption('Delta')],
+          ),
+        ],
+      );
+
+      Future<List<InteractionAnswer>> pumpTwo(WidgetTester tester) async {
+        final answers = <InteractionAnswer>[];
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildAppTheme(),
+            home: Scaffold(
+              body: InteractionPanel(
+                request: twoQuestions,
+                onAnswer: answers.add,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        return answers;
+      }
+
+      testWidgets('← goes back, keeps the pick, and Enter goes on again', (
+        tester,
+      ) async {
+        final answers = await pumpTwo(tester);
+        await press(tester, LogicalKeyboardKey.arrowDown);
+        await press(tester, LogicalKeyboardKey.enter);
+        expect(find.text('Second?'), findsOneWidget);
+
+        await press(tester, LogicalKeyboardKey.arrowLeft);
+        expect(find.text('First?'), findsOneWidget);
+        // Up highlights Alpha; Enter goes on with Beta, the kept pick, not
+        // with the highlighted one.
+        await press(tester, LogicalKeyboardKey.arrowUp);
+        await press(tester, LogicalKeyboardKey.enter);
+        expect(find.text('Second?'), findsOneWidget);
+
+        await press(tester, LogicalKeyboardKey.digit2, character: '2');
+        final answer = answers.single as QuestionAnswer;
+        expect(answer.skipped, isFalse);
+        expect(answer.picks, [
+          ['Beta'],
+          ['Delta'],
+        ]);
+      });
+
+      testWidgets('← on the first question does nothing', (tester) async {
+        final answers = await pumpTwo(tester);
+        await press(tester, LogicalKeyboardKey.arrowLeft);
+        expect(find.text('First?'), findsOneWidget);
+        expect(answers, isEmpty);
+      });
+    });
   });
 }

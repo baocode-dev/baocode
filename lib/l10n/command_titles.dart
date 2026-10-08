@@ -146,6 +146,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     ChatCommandIds.interactionFocusNext => l10n.cmdChatInteractionFocusNext,
     ChatCommandIds.interactionFocusPrevious =>
       l10n.cmdChatInteractionFocusPrevious,
+    ChatCommandIds.interactionBack => l10n.cmdChatInteractionBack,
     ChatCommandIds.interactionToggle => l10n.cmdChatInteractionToggle,
     ChatCommandIds.interactionAccept => l10n.cmdChatInteractionAccept,
     ChatCommandIds.interactionDismiss => l10n.cmdChatInteractionDismiss,

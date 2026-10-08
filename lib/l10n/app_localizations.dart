@@ -272,6 +272,12 @@ abstract class AppLocalizations {
   /// **'{keybinding} to continue'**
   String interactionHintContinue(String keybinding);
 
+  /// Key hint under a prompt's options, when it has more than one question.
+  ///
+  /// In en, this message translates to:
+  /// **'{keybinding} to go back'**
+  String interactionHintBack(String keybinding);
+
   /// Key hint under a prompt's options.
   ///
   /// In en, this message translates to:
@@ -493,6 +499,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Focus Previous Option'**
   String get cmdChatInteractionFocusPrevious;
+
+  /// No description provided for @cmdChatInteractionBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to Previous Question'**
+  String get cmdChatInteractionBack;
 
   /// No description provided for @cmdChatInteractionToggle.
   ///
@@ -4537,6 +4549,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Next'**
   String get interactionNext;
+
+  /// No description provided for @interactionBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get interactionBack;
 
   /// No description provided for @interactionMoreLines.
   ///

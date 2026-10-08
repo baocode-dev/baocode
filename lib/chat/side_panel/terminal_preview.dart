@@ -9,6 +9,7 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../widgets/hover_scrollbar.dart';
+import '../widgets/shell_highlight.dart';
 import '../widgets/terminal_output.dart';
 import '../chat_models.dart' show CommandStatus;
 
@@ -225,7 +226,7 @@ class _TerminalPreviewState extends State<TerminalPreview> {
                                 text: r'$ ',
                                 style: TextStyle(color: AppColors.textFaint),
                               ),
-                              TextSpan(text: command),
+                              ...highlightShell(command),
                             ],
                           ),
                           style: mono.copyWith(color: AppColors.text),

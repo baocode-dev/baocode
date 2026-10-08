@@ -308,6 +308,44 @@ void main() {
     expect(find.textContaining('Output unavailable:'), findsNothing);
   });
 
+  testWidgets('a background command is colored as in the chat', (
+    tester,
+  ) async {
+    final task = KernelTask(
+      id: 'grep',
+      description: 'Search',
+      kind: KernelTaskKind.command,
+      status: CommandStatus.succeeded,
+      startedAt: DateTime.now(),
+      summary: 'done',
+    );
+    await tester.pumpWidget(
+      _app(
+        TerminalPreview(
+          task: task,
+          command: 'grep -rn "x" .',
+          files: _Files({}),
+          onStop: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final line = tester
+        .widgetList<RichText>(find.byType(RichText))
+        .map((text) => text.text)
+        .firstWhere((span) => span.toPlainText() == r'$ grep -rn "x" .');
+    final colors = <String, Color?>{};
+    line.visitChildren((span) {
+      if (span case TextSpan(:final text?, :final style)) {
+        colors[text.trim()] = style?.color;
+      }
+      return true;
+    });
+    expect(colors['grep'], AppColors.syntaxCommand);
+    expect(colors['-rn'], AppColors.syntaxOption);
+    expect(colors['"x"'], AppColors.syntaxString);
+  });
+
   testWidgets('lines selected in a diff copy one to a line, and paste '
       'into the composer as a reference to them', (tester) async {
     addTearDown(CopiedCode.clear);

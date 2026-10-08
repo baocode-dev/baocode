@@ -109,6 +109,7 @@ abstract final class ChatCommandIds {
   static const interactionFocusNext = 'baocode.chat.interaction.focusNext';
   static const interactionFocusPrevious =
       'baocode.chat.interaction.focusPrevious';
+  static const interactionBack = 'baocode.chat.interaction.back';
   static const interactionToggle = 'baocode.chat.interaction.toggle';
   static const interactionAccept = 'baocode.chat.interaction.accept';
   static const interactionDismiss = 'baocode.chat.interaction.dismiss';
@@ -214,6 +215,7 @@ final List<CommandInfo> chatExtraCommands = [
     (ChatCommandIds.hideSuggestWidget, 'Hide Suggestions'),
     (ChatCommandIds.interactionFocusNext, 'Focus Next Option'),
     (ChatCommandIds.interactionFocusPrevious, 'Focus Previous Option'),
+    (ChatCommandIds.interactionBack, 'Back to Previous Question'),
     (ChatCommandIds.interactionToggle, 'Toggle Option'),
     (ChatCommandIds.interactionAccept, 'Continue'),
     (ChatCommandIds.interactionDismiss, 'Dismiss'),
@@ -575,6 +577,11 @@ final List<KeybindingEntry> chatExtraKeybindings = [
   const KeybindingEntry(
     key: 'up',
     command: ChatCommandIds.interactionFocusPrevious,
+    when: _interaction,
+  ),
+  const KeybindingEntry(
+    key: 'left',
+    command: ChatCommandIds.interactionBack,
     when: _interaction,
   ),
   const KeybindingEntry(

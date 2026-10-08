@@ -103,6 +103,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String interactionHintBack(String keybinding) {
+    return '$keybinding 上一步';
+  }
+
+  @override
   String interactionHintSkip(String keybinding) {
     return '$keybinding 跳过';
   }
@@ -218,6 +223,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdChatInteractionFocusPrevious => '聚焦上一个选项';
+
+  @override
+  String get cmdChatInteractionBack => '返回上一题';
 
   @override
   String get cmdChatInteractionToggle => '切换选项';
@@ -2403,6 +2411,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get interactionNext => '下一步';
+
+  @override
+  String get interactionBack => '上一步';
 
   @override
   String interactionMoreLines(int count) {

@@ -273,6 +273,18 @@ class _InteractionPanelState extends State<InteractionPanel>
     widget.onAnswer(_answer(dismissed: false));
   }
 
+  /// Left and the back button: the question before, its picks kept, its
+  /// first one highlighted. The first question has none to go back to.
+  void _back() {
+    if (_step == 0) return;
+    setState(() {
+      _step--;
+      final picks = _picks[_step];
+      _highlighted = picks.isEmpty ? 0 : picks.first;
+    });
+    _focusNode.requestFocus();
+  }
+
   void _dismiss() => widget.onAnswer(_answer(dismissed: true));
 
   void _moveHighlight(int step) {
@@ -301,6 +313,7 @@ class _InteractionPanelState extends State<InteractionPanel>
   Map<String, VoidCallback> get chatCommands => {
     ChatCommandIds.interactionFocusNext: () => _moveHighlight(1),
     ChatCommandIds.interactionFocusPrevious: () => _moveHighlight(-1),
+    ChatCommandIds.interactionBack: _back,
     ChatCommandIds.interactionToggle: () => _pick(_highlighted),
     ChatCommandIds.interactionAccept: _continue,
     ChatCommandIds.interactionDismiss: _dismiss,
@@ -344,10 +357,14 @@ class _InteractionPanelState extends State<InteractionPanel>
   static const _toolKeys = {ChatContextKeys.hasToolConfirmation: true};
 
   /// The keys under the options, as the keybindings have them now: the
-  /// digits (not a keybinding), then those that go on and dismiss, each
-  /// gone when unbound.
+  /// digits (not a keybinding), then going back (with more than one
+  /// question), then those that go on and dismiss, each gone when unbound.
   String _keysHint(AppLocalizations l10n) => [
     l10n.interactionHintChoose,
+    if (_steps.length > 1)
+      if (ChatKeys.keyLabel(ChatCommandIds.interactionBack, _optionsKeys)
+          case final keys?)
+        l10n.interactionHintBack(keys),
     if (ChatKeys.keyLabel(ChatCommandIds.interactionAccept, _optionsKeys)
         case final keys?)
       l10n.interactionHintContinue(keys),
@@ -523,6 +540,20 @@ class _InteractionPanelState extends State<InteractionPanel>
                       ),
                     ),
                     const SizedBox(width: 8),
+                    // Shown on every question, disabled on the first, so the
+                    // row does not shift as one moves between them.
+                    if (total > 1) ...[
+                      PanelButton(
+                        label: context.l10n.interactionBack,
+                        tooltip: ChatKeys.titleWithKey(
+                          context.l10n.interactionBack,
+                          ChatCommandIds.interactionBack,
+                          _optionsKeys,
+                        ),
+                        onTap: _step == 0 ? null : _back,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
                     PanelButton(
                       label: dismiss,
                       tooltip: _dismissTooltip(dismiss),

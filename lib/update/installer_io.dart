@@ -1,7 +1,5 @@
-import 'dart:convert';
 import 'dart:ffi' show Abi;
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -42,6 +40,7 @@ PlatformUpdates? platformUpdates({required String updatesDirectory}) {
       executable: executable,
       pid: pid,
       environment: environment,
+      updatesDirectory: updatesDirectory,
     );
   } else {
     return null;
@@ -115,19 +114,20 @@ class IoUpdateProcesses implements UpdateProcesses {
 
 // --- Windows -----------------------------------------------------------------
 
-/// Runs the new version's Inno Setup installer (tool/baocode.iss) once the
-/// app has quit: silently, over the install there is (per machine or per
-/// user, as this one is), and it opens the app again (`/RELAUNCH`). A
-/// per-machine install asks for elevation (UAC), as Setup does.
+/// Runs the new version's Inno Setup installer (tool/baocode.iss) as the
+/// app quits: silently, over this install (its folder, and per machine or
+/// per user as it is), and it opens the app again (`/RELAUNCH`).
 ///
-/// PowerShell waits for the app to quit and starts Setup the way Explorer
-/// would (Start-Process), so Windows asks for elevation where Setup needs
-/// it.
+/// Setup is started while the app is still in front, so the elevation a
+/// per-machine install asks for (UAC) comes up in front too, not flashing
+/// on the taskbar behind no window; it waits for the app to be gone
+/// (`/WAITPID`) before it installs. What it did is in [log].
 class WindowsUpdateInstaller implements UpdateInstaller {
   WindowsUpdateInstaller({
     required this.executable,
     required this.pid,
     required this.environment,
+    required this.updatesDirectory,
     this.processes = const IoUpdateProcesses(),
   });
 
@@ -135,10 +135,36 @@ class WindowsUpdateInstaller implements UpdateInstaller {
   final String executable;
   final int pid;
   final Map<String, String> environment;
+
+  /// Where Setup's log goes.
+  final String updatesDirectory;
   final UpdateProcesses processes;
 
-  /// Installed under Program Files: per machine.
-  bool get perMachine => windowsPerMachineInstall(executable, environment);
+  /// Setup's log of the last update.
+  String get log => p.join(updatesDirectory, 'install.log');
+
+  /// Whether Setup installed the app per machine: its uninstall entry is
+  /// in HKLM, not HKCU. With both there (two installs), or neither, whether
+  /// it is under Program Files.
+  Future<bool> installedPerMachine() async {
+    Future<bool> registered(String hive) async {
+      try {
+        final result = await processes.run('reg.exe', [
+          'query',
+          '$hive\\$windowsUninstallKey',
+          '/reg:64',
+        ]);
+        return result.exitCode == 0;
+      } on ProcessException {
+        return false;
+      }
+    }
+
+    final machine = await registered('HKLM');
+    final user = await registered('HKCU');
+    if (machine != user) return machine;
+    return windowsPerMachineInstall(executable, environment);
+  }
 
   @override
   Future<PreparedUpdate> prepare(String file, UpdateRelease release) async {
@@ -150,19 +176,21 @@ class WindowsUpdateInstaller implements UpdateInstaller {
         'BaoCode was not installed by its installer',
       );
     }
-    final script = windowsUpdateScript(
+    final arguments = windowsInstallerArguments(
+      perMachine: await installedPerMachine(),
+      directory: p.dirname(executable),
       pid: pid,
-      installer: file,
-      arguments: windowsInstallerArguments(perMachine: perMachine),
+      log: log,
     );
-    return _LaunchedUpdate(
-      () => processes.startDetached(
-        'powershell.exe',
-        windowsPowerShellArguments(script),
-      ),
-    );
+    return _LaunchedUpdate(() => processes.startDetached(file, arguments));
   }
 }
+
+/// The key Setup registers the app's uninstaller under, in HKLM or HKCU:
+/// tool/baocode.iss's AppId, which never changes.
+const windowsUninstallKey =
+    r'Software\Microsoft\Windows\CurrentVersion\Uninstall\'
+    '{6fdd732b-95c6-4c37-af6f-ff574358deb5}_is1';
 
 /// Whether [executable] is under one of the Program Files folders, where
 /// a per-machine install puts it.
@@ -180,60 +208,28 @@ bool windowsPerMachineInstall(
   return false;
 }
 
-/// Setup's command line for an update: no questions, the running app
-/// closed, the install mode the one there is, the app opened after
-/// (`/RELAUNCH`, see tool/baocode.iss).
-List<String> windowsInstallerArguments({required bool perMachine}) => [
+/// Setup's command line for an update: no questions, the install mode the
+/// one there is, into [directory] (the app's folder, whatever Setup
+/// remembers), once process [pid] (the app) is gone (`/WAITPID`), what
+/// still holds the app's files closed, the app opened after (`/RELAUNCH`),
+/// written to [log]. `/WAITPID` and `/RELAUNCH` are tool/baocode.iss's
+/// own.
+List<String> windowsInstallerArguments({
+  required bool perMachine,
+  required String directory,
+  required int pid,
+  required String log,
+}) => [
   '/SILENT',
   '/SUPPRESSMSGBOXES',
   '/NORESTART',
   '/CLOSEAPPLICATIONS',
   '/RELAUNCH',
   perMachine ? '/ALLUSERS' : '/CURRENTUSER',
+  '/DIR=$directory',
+  '/WAITPID=$pid',
+  '/LOG=$log',
 ];
-
-/// Waits (two minutes at most) for the app, process [pid], to quit, then
-/// starts [installer] with [arguments].
-String windowsUpdateScript({
-  required int pid,
-  required String installer,
-  required List<String> arguments,
-}) {
-  final list = [for (final argument in arguments) _psQuote(argument)];
-  return [
-    r"$ErrorActionPreference = 'SilentlyContinue'",
-    'Wait-Process -Id $pid -Timeout 120',
-    'Start-Process -FilePath ${_psQuote(installer)} '
-        '-ArgumentList @(${list.join(', ')})',
-  ].join('\n');
-}
-
-/// powershell.exe's arguments to run [script]: encoded, so no quoting of
-/// it can go wrong; hidden.
-List<String> windowsPowerShellArguments(String script) => [
-  '-NoProfile',
-  '-NonInteractive',
-  '-ExecutionPolicy',
-  'Bypass',
-  '-WindowStyle',
-  'Hidden',
-  '-EncodedCommand',
-  encodePowerShellCommand(script),
-];
-
-/// `-EncodedCommand`'s form: UTF-16LE, base64.
-String encodePowerShellCommand(String script) {
-  final bytes = BytesBuilder(copy: false);
-  for (final unit in script.codeUnits) {
-    bytes
-      ..addByte(unit & 0xff)
-      ..addByte(unit >> 8);
-  }
-  return base64.encode(bytes.takeBytes());
-}
-
-/// [text] as a single-quoted PowerShell string.
-String _psQuote(String text) => "'${text.replaceAll("'", "''")}'";
 
 // --- macOS -------------------------------------------------------------------
 

@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <windowsx.h>
 
+#include <initializer_list>
 #include <optional>
 #include <utility>
 
@@ -81,6 +82,38 @@ std::optional<WPARAM> CommandForButton(HWND window, LRESULT part) {
       return SC_CLOSE;
     default:
       return std::nullopt;
+  }
+}
+
+// Tells the engine behind |view| of the Alt and Windows keys let go while
+// another window had the keyboard. The engine brings Shift and Control in
+// line with every pointer event, but these only with the next key: the Alt
+// of an Alt+Tab, released in the window switched to, would stay pressed for
+// Flutter — in every window, they share the one engine — and each click in
+// the editor would add a cursor (an Alt+click) and select nothing. The
+// release is told as the key's own would be, as the engine does for a
+// Control it forges (see its KeyboardManager); one of a key it does not hold
+// is let go of there.
+void ReleaseModifiersLetGoElsewhere(HWND view) {
+  for (const int key : {VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN}) {
+    if (::GetAsyncKeyState(key) & 0x8000) {
+      continue;
+    }
+    // 0xE0 in the high byte for the extended keys (the right Alt, the
+    // Windows keys), which is how the engine tells the sides apart.
+    const UINT scancode =
+        ::MapVirtualKeyW(static_cast<UINT>(key), MAPVK_VK_TO_VSC_EX);
+    if ((scancode & 0xFF) == 0) {
+      continue;
+    }
+    const bool extended = (scancode & 0xFF00) == 0xE000;
+    const LPARAM lparam = static_cast<LPARAM>(
+        1 /* repeat count */ | ((scancode & 0xFF) << 16) |
+        (extended ? 1u << 24 : 0u) | (1u << 30) /* was down */ |
+        (1u << 31) /* going up */);
+    const WPARAM virtual_key = static_cast<WPARAM>(
+        key == VK_LMENU || key == VK_RMENU ? VK_MENU : key);
+    ::SendMessageW(view, WM_KEYUP, virtual_key, lparam);
   }
 }
 
@@ -342,8 +375,13 @@ ViewWindow::MessageHandler(HWND hwnd, UINT const message,
       break;
 
     case WM_ACTIVATE:
-      if (LOWORD(wparam) != WA_INACTIVE && observer_ != nullptr) {
-        observer_->WindowActivated(view_id_);
+      if (LOWORD(wparam) != WA_INACTIVE) {
+        if (view_ != nullptr) {
+          ReleaseModifiersLetGoElsewhere(view_);
+        }
+        if (observer_ != nullptr) {
+          observer_->WindowActivated(view_id_);
+        }
       }
       break;
 

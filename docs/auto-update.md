@@ -124,7 +124,7 @@ main.dart onExitRequested
 | --- | --- | --- |
 | `UpdateBackend` | `IoUpdateBackend` | `fetchManifest`、`download`、`cleanUp` |
 | `UpdateInstaller` / `PreparedUpdate` | `WindowsUpdateInstaller`、`MacUpdateInstaller` | `prepare`（准备）、`launch`（启动） |
-| `UpdateProcesses` | `IoUpdateProcesses` | 运行和启动外部程序（ditto、codesign、powershell…） |
+| `UpdateProcesses` | `IoUpdateProcesses` | 运行和启动外部程序（ditto、codesign、reg、Setup…） |
 | `UpdateStore` | `GlobalUpdateStore` | 跳过的版本、上次检查时间 |
 
 ### 3.3 状态（`UpdateStatus`）
@@ -187,27 +187,21 @@ main.dart onExitRequested
 准备阶段（`WindowsUpdateInstaller.prepare`）：
 
 - `baocode.exe` 旁边没有 `unins000.exe` → 抛 `ManualUpdateRequired`（不是用安装包装的，比如直接从 build 目录运行）。
-- 判断原来的安装方式：exe 在 `%ProgramFiles%`、`%ProgramW6432%` 或 `%ProgramFiles(x86)%` 下面就是按机器安装（`/ALLUSERS`），否则是按用户安装（`/CURRENTUSER`）。
+- 判断原来的安装方式：用 `reg.exe query <hive>\…\Uninstall\{6fdd732b-…}_is1 /reg:64` 看 Setup 把卸载项登记在 HKLM（按机器，`/ALLUSERS`）还是 HKCU（按用户，`/CURRENTUSER`）。两边都有（装了两份）或都没有时，退回看 exe 是否在 `%ProgramFiles%`、`%ProgramW6432%` 或 `%ProgramFiles(x86)%` 下面。
 
-启动阶段：以分离进程的方式运行
+启动阶段：在应用退出**之前**，以分离进程的方式直接运行 Setup，中间没有 PowerShell：
 
 ```
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand <base64>
+<setup.exe> /SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RELAUNCH /ALLUSERS 或 /CURRENTUSER /DIR=<exe 所在目录> /WAITPID=<应用 pid> /LOG=updates\install.log
 ```
 
-解码后的脚本：
-
-```powershell
-$ErrorActionPreference = 'SilentlyContinue'
-Wait-Process -Id <应用 pid> -Timeout 120
-Start-Process -FilePath '<setup.exe>' -ArgumentList @('/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/RELAUNCH', '/ALLUSERS 或 /CURRENTUSER')
-```
-
-- 用 `-EncodedCommand`（UTF-16LE + base64），路径里有空格、引号也不会出错。
-- 用 `Start-Process` 启动 Setup，按机器安装时 Windows 会正常弹出 UAC。
-- 120 秒内应用没退出也会继续启动 Setup；`CloseApplications=force` 会把它关掉。
-- `/SILENT` 会显示进度窗口但不提问；Inno Setup 会沿用上次的安装目录和勾选的选项（桌面图标、PATH、右键菜单）。
+- Setup 由还在前台的应用启动，按机器安装时 UAC 弹窗会出现在前面，而不是在任务栏上闪（应用已经退出、没有前台窗口时就会这样，用户看不到）。
+- `/WAITPID` 是 `tool/baocode.iss` 自己的参数：`InitializeSetup` 里用 `OpenProcess` + `WaitForSingleObject` 最多等 120 秒，应用退出后再安装；还没退出就继续，`CloseApplications=force` 会把它关掉。
+- `/DIR` 指定装回当前 exe 所在的目录，不管 Setup 记录的上次目录是什么，保证覆盖的正是正在运行的这一份。
+- `/LOG` 写到 `updates\install.log`；`SetupLogging=yes` 让没带 `/LOG` 的安装（包括 1.0.0 通过 PowerShell 启动的更新）也会在 `%TEMP%\Setup Log <日期> #<n>.txt` 留下日志。
+- `/SILENT` 会显示进度窗口但不提问；Inno Setup 会沿用上次勾选的选项（桌面图标、PATH、右键菜单）。
 - `tool/baocode.iss` 的 `[Run]` 里有一条 `Check: RelaunchRequested`：只有静默安装并且带了 `/RELAUNCH` 时，才以原用户身份重新打开应用。
+- 1.0.0 的应用仍用旧方式（隐藏的 PowerShell 等应用退出后 `Start-Process`，不带 `/WAITPID`、`/DIR`、`/LOG`）启动新版 Setup，新版 Setup 要继续兼容这种命令行。
 
 ### 4.5 macOS 安装
 
@@ -443,7 +437,7 @@ flutter test test/update
 | `update_signature_test.dart` | 签名往返；改版本号、换密钥、篡改签名都会验签失败；内置公钥格式正确 |
 | `update_io_test.dart` | 本地 HttpServer：下载、复用已下载的文件、SHA-256 / 签名 / 大小不对时拒绝、断点续传、服务器不支持 Range、只保留最新版本、清理旧版本 |
 | `update_service_test.dart` | 三种模式、30 秒和 6 小时的定时、模式切换、只提示一次、跳过、强制更新、下载去重、arm / disarm / 启动失败 |
-| `installer_test.dart` | Windows 的参数、脚本、PowerShell 编码、安装方式判断、没有 `unins000` 时的处理；macOS 的解压、bundle id、签名和 Team 检查、无法替换时转下载页、脚本内容（以及 `bash -n` 语法检查） |
+| `installer_test.dart` | Windows 的 Setup 参数、按注册表判断安装方式、没有 `unins000` 时的处理；macOS 的解压、bundle id、签名和 Team 检查、无法替换时转下载页、脚本内容（以及 `bash -n` 语法检查） |
 | `update_controller_test.dart` | 通知的按钮、强制更新只有一个按钮、跳过、重启、下载页、校验失败 |
 | `updates_page_test.dart` | 设置页显示、检查、重启、错误显示、`update.mode` 的读写 |
 

@@ -104,6 +104,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String interactionHintBack(String keybinding) {
+    return '$keybinding to go back';
+  }
+
+  @override
   String interactionHintSkip(String keybinding) {
     return '$keybinding to skip';
   }
@@ -219,6 +224,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdChatInteractionFocusPrevious => 'Focus Previous Option';
+
+  @override
+  String get cmdChatInteractionBack => 'Back to Previous Question';
 
   @override
   String get cmdChatInteractionToggle => 'Toggle Option';
@@ -2482,6 +2490,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get interactionNext => 'Next';
+
+  @override
+  String get interactionBack => 'Back';
 
   @override
   String interactionMoreLines(int count) {
