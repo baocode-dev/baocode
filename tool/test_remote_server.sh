@@ -61,17 +61,26 @@ for arch in x64 arm64; do
   fi
   for image in "${images[@]}"; do
     printf '%-8s %-22s ' "$arch" "$image"
+    # Created first: Docker may pull the image again here (a tag pulled for
+    # the other platform since may have replaced it), which must not eat
+    # into the moment below.
+    container=$(
+      docker create -i --platform "$platform" \
+        -v "$binary:/usr/local/bin/baocode-server:ro" \
+        "$image" baocode-server --data /tmp/baocode-server 2> /dev/null
+    )
     # The app's first requests, then a moment for the answers before stdin
     # ends (which ends the server, as a closed connection does).
-    if ! output=$(
+    status=0
+    output=$(
       {
         echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
         echo '{"jsonrpc":"2.0","id":2,"method":"fs/list","params":{"root":"/etc","path":"/etc"}}'
         sleep 3
-      } | docker run --rm -i --platform "$platform" \
-        -v "$binary:/usr/local/bin/baocode-server:ro" \
-        "$image" baocode-server --data /tmp/baocode-server 2>&1
-    ); then
+      } | docker start -ai "$container" 2>&1
+    ) || status=$?
+    docker rm "$container" > /dev/null
+    if [ "$status" != 0 ]; then
       echo "FAIL: the server exited with an error"
       echo "$output" | sed 's/^/    /'
       failed=1
