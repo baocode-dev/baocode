@@ -58,7 +58,8 @@ Future<void> main(List<String> arguments) async {
   _step('Checking the bundle');
   _checkBundle(bundle, _required);
 
-  // The server remote projects run on their host (Linux x64 and arm64):
+  // The server remote projects run on their host (Linux and macOS, x64 and
+  // arm64; macOS ones only when built on a Mac):
   // which build, and where it is downloaded from, beside the executable
   // (the installer takes the bundle whole); not the builds themselves,
   // which the app downloads.

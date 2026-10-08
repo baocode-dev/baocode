@@ -72,8 +72,8 @@ const _required = [
   // Finder's context menu (macos/FinderExtension), which Settings → General
   // turns on.
   'Contents/PlugIns/FinderExtension.appex',
-  // The server remote projects run on their host (Linux x64 and arm64;
-  // tool/build_remote_server.dart): which build, and where it is
+  // The server remote projects run on their host (Linux and macOS, x64 and
+  // arm64; tool/build_remote_server.dart): which build, and where it is
   // downloaded from.
   'Contents/Resources/remote/VERSION',
   'Contents/Resources/remote/servers.json',

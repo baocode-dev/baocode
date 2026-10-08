@@ -697,7 +697,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         final IdeHostFiles files => files.readBytes,
         _ => readFileBytes,
       },
-      // A remote project's host is Linux.
+      // A remote project's host is Linux or macOS: POSIX paths.
       pathContext: _local ? p.context : p.posix,
       initialLine: _previewLines[doc],
       onLeave: (line) {
@@ -720,8 +720,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       files: workspace.files,
       l10n: l10n,
       root: workspace.hasFolder ? workspace.root : null,
-      // A remote project's host is Linux; the clipboard's files are this
-      // machine's, uploaded there.
+      // A remote project's host is Linux or macOS; the clipboard's files
+      // are this machine's, uploaded there.
       context: _local ? p.context : p.posix,
       remote: !_local,
       clipboard: IdeWorkbench.markdownClipboard,

@@ -20,9 +20,9 @@ class FakeBinaries implements RemoteServerBinaries {
   final reads = <String>[];
 
   @override
-  Future<List<int>?> read(String arch) async {
-    reads.add(arch);
-    return files[arch];
+  Future<List<int>?> read(String platform) async {
+    reads.add(platform);
+    return files[platform];
   }
 }
 
@@ -113,7 +113,7 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
       : const [];
 
   test('probes, installs the server once, starts it and talks to it', () async {
-    final binaries = FakeBinaries('1-abc', {'x64': serverScript()});
+    final binaries = FakeBinaries('1-abc', {'linux-x64': serverScript()});
     final launcher = SshLauncher(
       ssh: fakeSsh,
       binaries: binaries,
@@ -132,7 +132,7 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     );
     expect(installed.existsSync(), isTrue);
     expect(installed.readAsBytesSync(), serverScript());
-    expect(binaries.reads, ['x64']);
+    expect(binaries.reads, ['linux-x64']);
     expect(progress.any((line) => line.contains('Installing')), isTrue);
     expect(commands(), [
       'sh -s',
@@ -152,7 +152,7 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     // Again: already there, so not sent again.
     log.deleteSync();
     final again = await launcher.connect(SshTarget.parse('dev'));
-    expect(binaries.reads, ['x64']);
+    expect(binaries.reads, ['linux-x64']);
     expect(commands(), ['sh -s', '.baocode-server/1-abc/baocode-server']);
     await again.close();
   }, timeout: const Timeout(Duration(minutes: 2)));
@@ -178,7 +178,7 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
   });
 
   test('a password is asked for each ssh, again when refused', () async {
-    final binaries = FakeBinaries('1-abc', {'x64': serverScript()});
+    final binaries = FakeBinaries('1-abc', {'linux-x64': serverScript()});
     final asked = <SshPrompt>[];
     var answers = ['wrong', 'hunter2'];
     final launcher = SshLauncher(
@@ -253,8 +253,54 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     expect(asked, isEmpty);
   });
 
-  test('a host other than Linux on x64 or arm64 is refused', () async {
-    for (final (system, machine) in [('Darwin', 'arm64'), ('Linux', 'i686')]) {
+  test('a Mac is given the macOS build', () async {
+    final binaries = FakeBinaries('1-abc', {'darwin-arm64': serverScript()});
+    final launcher = SshLauncher(
+      ssh: fakeSsh,
+      binaries: binaries,
+      start: starter(extra: {'FAKE_SYSTEM': 'Darwin', 'FAKE_MACHINE': 'arm64'}),
+    );
+    final connection = await launcher.connect(SshTarget.parse('mac'));
+    expect(connection.hello.home, home.path);
+    expect(binaries.reads, ['darwin-arm64']);
+    await connection.close();
+
+    // An Intel one, with no build for it: said so, nothing sent.
+    log.deleteSync();
+    final intel = SshLauncher(
+      ssh: fakeSsh,
+      binaries: FakeBinaries('2', const {}),
+      start: starter(
+        extra: {'FAKE_SYSTEM': 'Darwin', 'FAKE_MACHINE': 'x86_64'},
+      ),
+    );
+    await expectLater(
+      intel.connect(SshTarget.parse('mac')),
+      throwsA(
+        isA<SshConnectException>()
+            .having((e) => e.failure, 'failure', SshFailure.server)
+            .having((e) => e.message, 'message', contains('macOS x64')),
+      ),
+    );
+    expect(commands(), ['sh -s']);
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('platforms as the builds are named', () {
+    expect(SshLauncher.platform('Linux', 'x86_64'), 'linux-x64');
+    expect(SshLauncher.platform('Linux', 'aarch64'), 'linux-arm64');
+    expect(SshLauncher.platform('Darwin', 'arm64'), 'darwin-arm64');
+    expect(SshLauncher.platform('Darwin', 'x86_64'), 'darwin-x64');
+    expect(SshLauncher.platform('FreeBSD', 'amd64'), isNull);
+    expect(SshLauncher.describe('darwin-arm64'), 'macOS arm64');
+    expect(SshLauncher.describe('linux-x64'), 'Linux x64');
+  });
+
+  test('a host other than Linux or macOS on x64 or arm64 is refused', () async {
+    for (final (system, machine) in [
+      ('FreeBSD', 'amd64'),
+      ('Linux', 'i686'),
+      ('Darwin', 'i386'),
+    ]) {
       final launcher = SshLauncher(
         ssh: fakeSsh,
         binaries: FakeBinaries('1', const {}),

@@ -33,7 +33,7 @@ abstract final class RemoteLocation {
       host == null ? path : '$scheme$host${p.posix.normalize(path)}';
 
   /// How paths are spelled where [location] is: POSIX on a remote host
-  /// (only Linux ones are supported), this machine's own otherwise.
+  /// (Linux or macOS), this machine's own otherwise.
   static p.Context pathsOf(String location) =>
       isRemote(location) ? p.posix : p.context;
 

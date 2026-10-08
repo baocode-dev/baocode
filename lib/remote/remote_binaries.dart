@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -10,7 +11,8 @@ import 'package:path/path.dart' as p;
 import '../platform/data_dir.dart';
 
 /// The server builds in [directory] (tool/build_remote_server.dart writes
-/// them): `baocode-server-linux-<arch>`, and `VERSION`, which names them.
+/// them): `baocode-server-<platform>` (`linux-x64`, `darwin-arm64`, …), and
+/// `VERSION`, which names them.
 class DirectoryServerBinaries implements RemoteServerBinaries {
   DirectoryServerBinaries(this.directory, this.version);
 
@@ -18,8 +20,8 @@ class DirectoryServerBinaries implements RemoteServerBinaries {
   static DirectoryServerBinaries? at(String directory) {
     final version = readVersion(directory);
     if (version == null) return null;
-    final built = architectures.any(
-      (arch) => File(p.join(directory, fileName(arch))).existsSync(),
+    final built = platforms.any(
+      (platform) => File(p.join(directory, fileName(platform))).existsSync(),
     );
     return built ? DirectoryServerBinaries(directory, version) : null;
   }
@@ -41,14 +43,19 @@ class DirectoryServerBinaries implements RemoteServerBinaries {
   @override
   final String version;
 
-  static String fileName(String arch) => 'baocode-server-linux-$arch';
+  static String fileName(String platform) => 'baocode-server-$platform';
 
   /// Those there are builds for.
-  static const architectures = ['x64', 'arm64'];
+  static const platforms = [
+    'linux-x64',
+    'linux-arm64',
+    'darwin-x64',
+    'darwin-arm64',
+  ];
 
   @override
-  Future<List<int>?> read(String arch) async {
-    final file = File(p.join(directory, fileName(arch)));
+  Future<List<int>?> read(String platform) async {
+    final file = File(p.join(directory, fileName(platform)));
     return file.existsSync() ? file.readAsBytes() : null;
   }
 }
@@ -110,7 +117,8 @@ class DownloadedServerBinaries implements RemoteServerBinaries {
               'size': final int size,
               'sha256': final String sha256,
             })
-              key: ServerDownload(
+              // An architecture alone: Linux, as the first builds were.
+              key.contains('-') ? key : 'linux-$key': ServerDownload(
                 url: Uri.parse(url),
                 size: size,
                 sha256: sha256.toLowerCase(),
@@ -130,7 +138,7 @@ class DownloadedServerBinaries implements RemoteServerBinaries {
   @override
   final String version;
 
-  /// By architecture (`x64`, `arm64`).
+  /// By platform (`linux-x64`, `darwin-arm64`, …).
   final Map<String, ServerDownload> downloads;
 
   /// Where the downloads are kept, a folder per [version].
@@ -146,22 +154,20 @@ class DownloadedServerBinaries implements RemoteServerBinaries {
   final Map<String, Future<List<int>>> _fetching = {};
 
   @override
-  Future<List<int>?> read(String arch) async {
-    final download = downloads[arch];
+  Future<List<int>?> read(String platform) async {
+    final download = downloads[platform];
     if (download == null) return null;
-    final fetching = _fetching[arch] ??= _fetch(arch, download).whenComplete(
-      () {
-        // Not returned: whenComplete would wait for it, itself.
-        _fetching.remove(arch);
-      },
-    );
+    final fetching = _fetching[platform] ??= _fetch(platform, download)
+        .whenComplete(() {
+          // Not returned: whenComplete would wait for it, itself.
+          _fetching.remove(platform);
+        });
     return gzip.decode(await fetching);
   }
 
-  Future<List<int>> _fetch(String arch, ServerDownload download) async {
-    final file = File(
-      p.join(cacheDir, version, 'baocode-server-linux-$arch.gz'),
-    );
+  Future<List<int>> _fetch(String platform, ServerDownload download) async {
+    final file = File(p.join(cacheDir, version, 'baocode-server-$platform.gz'));
+    final name = SshLauncher.describe(platform);
     if (await file.exists()) {
       final kept = await file.readAsBytes();
       if (download.matches(kept)) return kept;
@@ -172,14 +178,14 @@ class DownloadedServerBinaries implements RemoteServerBinaries {
     } on Object catch (error) {
       throw SshConnectException(
         SshFailure.server,
-        'The BaoCode server for Linux $arch could not be downloaded',
+        'The BaoCode server for $name could not be downloaded',
         detail: '${download.url}: $error',
       );
     }
     if (!download.matches(bytes)) {
       throw SshConnectException(
         SshFailure.server,
-        'The BaoCode server downloaded for Linux $arch is not the one this '
+        'The BaoCode server downloaded for $name is not the one this '
         'app was built with',
         detail: '${download.url}',
       );
@@ -339,11 +345,28 @@ class SourceServerBinaries implements RemoteServerBinaries {
   final Map<String, Future<List<int>?>> _built = {};
 
   @override
-  Future<List<int>?> read(String arch) => _built[arch] ??= _build(arch);
+  Future<List<int>?> read(String platform) =>
+      _built[platform] ??= _build(platform);
 
-  Future<List<int>?> _build(String arch) async {
+  /// Linux builds are cross-compiled; a macOS one only on a Mac of its
+  /// architecture, as `dart compile exe` builds for macOS.
+  Future<List<int>?> _build(String platform) async {
+    final [os, arch] = platform.split('-');
+    final name = SshLauncher.describe(platform);
+    final host = switch (Abi.current()) {
+      Abi.macosArm64 => 'darwin-arm64',
+      Abi.macosX64 => 'darwin-x64',
+      _ => null,
+    };
+    if (os == 'darwin' && platform != host) {
+      throw SshConnectException(
+        SshFailure.server,
+        'The BaoCode server for $name can only be built on a Mac of that '
+        'architecture: run tool/build_remote_server.dart there',
+      );
+    }
     final out = File(
-      p.join(root, 'build', 'remote', 'dev', '$version-linux-$arch'),
+      p.join(root, 'build', 'remote', 'dev', '$version-$platform'),
     );
     if (!out.existsSync()) {
       out.parent.createSync(recursive: true);
@@ -353,7 +376,7 @@ class SourceServerBinaries implements RemoteServerBinaries {
           'compile',
           'exe',
           '--target-os',
-          'linux',
+          os == 'darwin' ? 'macos' : os,
           '--target-arch',
           arch,
           '-Dbaocode.version=$version',
@@ -365,10 +388,10 @@ class SourceServerBinaries implements RemoteServerBinaries {
         environment: _environment,
       );
       if (result.exitCode != 0) {
-        _built.remove(arch);
+        _built.remove(platform);
         throw SshConnectException(
           SshFailure.server,
-          'The BaoCode server could not be built for Linux $arch',
+          'The BaoCode server could not be built for $name',
           detail: '${result.stdout}\n${result.stderr}'.trim(),
         );
       }

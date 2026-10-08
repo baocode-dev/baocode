@@ -73,7 +73,7 @@ enum SshFailure {
   /// No such host, or it does not answer.
   unreachable,
 
-  /// Not a Linux x64 or arm64 host.
+  /// Not a Linux or macOS host on x64 or arm64.
   unsupported,
 
   /// The server could not be put there, or did not start.
@@ -93,14 +93,15 @@ class SshConnectException implements Exception {
   String toString() => detail == null ? message : '$message\n$detail';
 }
 
-/// The server builds the app carries, one per architecture.
+/// The server builds the app carries, one per platform.
 abstract interface class RemoteServerBinaries {
   /// Names the build: where it goes on the host
   /// (`~/.baocode-server/<version>/`), so that each build is put there once.
   String get version;
 
-  /// The build for [arch] (`x64`, `arm64`); null for none.
-  Future<List<int>?> read(String arch);
+  /// The build for [platform] (`linux-x64`, `darwin-arm64`, …; see
+  /// [SshLauncher.platform]); null for none.
+  Future<List<int>?> read(String platform);
 }
 
 /// Starts processes, as [Process.start] does: replaced under test.
@@ -266,6 +267,24 @@ exit 0
     _ => null,
   };
 
+  /// [uname -s] and [uname -m] as the server's builds are named
+  /// (`linux-x64`, `darwin-arm64`); null for a host there is none for.
+  static String? platform(String system, String machine) {
+    final os = switch (system) {
+      'Linux' => 'linux',
+      'Darwin' => 'darwin',
+      _ => null,
+    };
+    final arch = architecture(machine);
+    return os == null || arch == null ? null : '$os-$arch';
+  }
+
+  /// [platform] for people: `Linux x64`, `macOS arm64`.
+  static String describe(String platform) {
+    final parts = platform.split('-');
+    return '${parts.first == 'darwin' ? 'macOS' : 'Linux'} ${parts.last}';
+  }
+
   Future<SshConnection> connect(
     SshTarget target, {
     void Function(String message)? onProgress,
@@ -287,20 +306,21 @@ exit 0
       );
     }
     final (system, machine) = (parts[1], parts[2]);
-    final arch = architecture(machine);
-    if (system != 'Linux' || arch == null) {
+    final platform = SshLauncher.platform(system, machine);
+    if (platform == null) {
       throw SshConnectException(
         SshFailure.unsupported,
-        'Only Linux hosts on x64 or arm64 are supported, not $system $machine',
+        'Only Linux and macOS hosts on x64 or arm64 are supported, not '
+        '$system $machine',
       );
     }
     if (!lines.contains('BAOCODE-PRESENT')) {
       progress('Installing the BaoCode server on ${target.text}');
-      final binary = await binaries.read(arch);
+      final binary = await binaries.read(platform);
       if (binary == null) {
         throw SshConnectException(
           SshFailure.server,
-          'This build of the app has no server for Linux $arch',
+          'This build of the app has no server for ${describe(platform)}',
         );
       }
       final gzip = lines.contains('BAOCODE-GZIP');

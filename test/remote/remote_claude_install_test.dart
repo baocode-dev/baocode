@@ -2,6 +2,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:bao_remote/client.dart';
@@ -350,23 +351,52 @@ echo built >> "$MARKS/builds"
       },
     );
 
-    test('built from the checkout\'s sources once per architecture, named '
+    test('built from the checkout\'s sources once per platform, named '
         'by them', () async {
       final binaries = (await find())!;
       expect(binaries.root, checkout.path);
       expect(binaries.version, startsWith('dev-'));
-      final built = utf8.decode((await binaries.read('arm64'))!);
+      final built = utf8.decode((await binaries.read('linux-arm64'))!);
       expect(built, contains('--target-os linux --target-arch arm64'));
       expect(built, contains('-Dbaocode.version=${binaries.version}'));
-      await binaries.read('arm64');
+      await binaries.read('linux-arm64');
       expect((await find())!.version, binaries.version);
-      final again = await (await find())!.read('arm64');
+      final again = await (await find())!.read('linux-arm64');
       expect(utf8.decode(again!), built);
       expect(mark('builds').split('\n'), hasLength(1));
 
       File(p.join(checkout.path, 'packages/bao_remote/bin/baocode_server.dart'))
           .writeAsStringSync('void main() { print(1); }');
       expect((await find())!.version, isNot(binaries.version));
+    });
+
+    test('for macOS, only on a Mac of that architecture', () async {
+      final binaries = (await find())!;
+      final host = switch (Abi.current()) {
+        Abi.macosArm64 => 'arm64',
+        Abi.macosX64 => 'x64',
+        _ => null,
+      };
+      for (final arch in ['x64', 'arm64']) {
+        final read = binaries.read('darwin-$arch');
+        if (arch == host) {
+          expect(
+            utf8.decode((await read)!),
+            contains('--target-os macos --target-arch $arch'),
+          );
+        } else {
+          await expectLater(
+            read,
+            throwsA(
+              isA<SshConnectException>().having(
+                (e) => e.message,
+                'message',
+                contains('macOS $arch'),
+              ),
+            ),
+          );
+        }
+      }
     });
 
     test('none outside a checkout', () async {

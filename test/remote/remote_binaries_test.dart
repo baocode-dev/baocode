@@ -49,8 +49,13 @@ void main() {
   final build = utf8.encode('the x64 server');
 
   /// What tool/build_remote_server.dart leaves in an installer: VERSION
-  /// and servers.json, the x64 build served gzipped ([gz] in its place).
-  void installer({String version = '1.0.0.1-abc', List<int>? gz}) {
+  /// and servers.json, the Linux x64 build served gzipped ([gz] in its
+  /// place), named [key] there.
+  void installer({
+    String version = '1.0.0.1-abc',
+    List<int>? gz,
+    String key = 'linux-x64',
+  }) {
     final bytes = gzip.encode(build);
     served['/remote/$version/baocode-server-linux-x64.gz'] = gz ?? bytes;
     File(p.join(remote, 'VERSION')).writeAsStringSync('$version\n');
@@ -58,7 +63,7 @@ void main() {
       jsonEncode({
         'version': version,
         'files': {
-          'x64': {
+          key: {
             'url':
                 'http://127.0.0.1:${server.port}/remote/$version/'
                 'baocode-server-linux-x64.gz',
@@ -82,7 +87,7 @@ void main() {
     File(p.join(remote, 'baocode-server-linux-x64')).writeAsStringSync('raw');
     final binaries = found();
     expect(binaries, isA<DirectoryServerBinaries>());
-    expect(utf8.decode((await binaries!.read('x64'))!), 'raw');
+    expect(utf8.decode((await binaries!.read('linux-x64'))!), 'raw');
     expect(requested, isEmpty);
   });
 
@@ -95,7 +100,7 @@ void main() {
       expect(binaries, isA<DownloadedServerBinaries>());
       expect(binaries!.version, '1.0.0.1-abc');
 
-      expect(await binaries.read('x64'), build);
+      expect(await binaries.read('linux-x64'), build);
       expect(requested, hasLength(1));
       expect(
         File(p.join(cache, '1.0.0.1-abc', 'baocode-server-linux-x64.gz'))
@@ -106,8 +111,8 @@ void main() {
       expect(Directory(p.join(cache, '0.9.0.1-old')).existsSync(), isFalse);
 
       // The next host's, and the next run's: from what was kept.
-      expect(await binaries.read('x64'), build);
-      expect(await found()!.read('x64'), build);
+      expect(await binaries.read('linux-x64'), build);
+      expect(await found()!.read('linux-x64'), build);
       expect(requested, hasLength(1));
     },
   );
@@ -122,7 +127,7 @@ void main() {
     File(p.join(checkout.path, 'VERSION')).writeAsStringSync('1.0.0.1-abc\n');
     final binaries = found();
     expect(binaries, isA<DirectoryServerBinaries>());
-    expect(utf8.decode((await binaries!.read('x64'))!), 'built');
+    expect(utf8.decode((await binaries!.read('linux-x64'))!), 'built');
     expect(requested, isEmpty);
 
     // Another build's: downloaded.
@@ -134,8 +139,8 @@ void main() {
     installer();
     final binaries = found()!;
     final both = await Future.wait([
-      binaries.read('x64'),
-      binaries.read('x64'),
+      binaries.read('linux-x64'),
+      binaries.read('linux-x64'),
     ]);
     expect(both, [build, build]);
     expect(requested, hasLength(1));
@@ -144,7 +149,7 @@ void main() {
   test('refuses a download that is not the build named', () async {
     installer(gz: gzip.encode(utf8.encode('something else')));
     await expectLater(
-      found()!.read('x64'),
+      found()!.read('linux-x64'),
       throwsA(
         isA<SshConnectException>().having(
           (error) => error.failure,
@@ -163,16 +168,37 @@ void main() {
       '/remote/1.0.0.1-abc/baocode-server-linux-x64.gz',
     )!;
     await expectLater(
-      binaries.read('x64'),
+      binaries.read('linux-x64'),
       throwsA(isA<SshConnectException>()),
     );
     served['/remote/1.0.0.1-abc/baocode-server-linux-x64.gz'] = saved;
-    expect(await binaries.read('x64'), build);
+    expect(await binaries.read('linux-x64'), build);
   });
 
-  test('none for an architecture servers.json does not name', () async {
+  test('none for a platform servers.json does not name', () async {
     installer();
-    expect(await found()!.read('arm64'), isNull);
+    expect(await found()!.read('linux-arm64'), isNull);
+    expect(await found()!.read('darwin-arm64'), isNull);
+  });
+
+  test(
+    'a servers.json naming architectures alone names Linux builds',
+    () async {
+      installer(key: 'x64');
+      final binaries = found()!;
+      expect(await binaries.read('linux-x64'), build);
+      expect(await binaries.read('darwin-x64'), isNull);
+    },
+  );
+
+  test('the macOS builds in the folder', () async {
+    installer();
+    File(p.join(remote, 'baocode-server-darwin-arm64'))
+        .writeAsStringSync('mac');
+    final binaries = found()!;
+    expect(binaries, isA<DirectoryServerBinaries>());
+    expect(utf8.decode((await binaries.read('darwin-arm64'))!), 'mac');
+    expect(await binaries.read('linux-x64'), isNull);
   });
 
   test('not a servers.json of another build', () {
