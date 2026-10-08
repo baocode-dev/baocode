@@ -125,6 +125,22 @@ class ComposerCodeEmbed {
   static String plainText(Object? data) => decode(data).reference;
 }
 
+/// Inline, atomic reference to text too long to paste as it is: the
+/// message's text says `[Pasted text #1 +120 lines]`, and the text goes
+/// after it (see [PastedText], [codeAppendix]).
+class ComposerPastedTextEmbed {
+  static const type = 'composer-pasted';
+
+  static Embeddable of(PastedText pasted) =>
+      Embeddable(type, jsonEncode(pasted.toJson()));
+
+  static PastedText decode(Object? data) =>
+      PastedText.fromJson(jsonDecode(data as String) as Map<String, Object?>);
+
+  /// Text it contributes to the sent message and to plain-text copies.
+  static String plainText(Object? data) => decode(data).reference;
+}
+
 /// Where what is dragged over the composer would go, released: the tags it
 /// would put in, faint. Never sent; only there while the drag is.
 class ComposerGhostEmbed {
@@ -226,8 +242,9 @@ Delta composerDeltaFromText(
 /// [parseFileReference]; `@override`, handles stay text), and so does a
 /// leading `/command` when the text goes [atStart] of the message (where
 /// alone a command counts). An `[Image #N]` becomes a reference again when
-/// image N is among [images], and a `[path:12-30]` when the code it refers
-/// to is in the [codeAppendix] at the end, which goes. A `[Session id: …]`
+/// image N is among [images], and a `[path:12-30]` (or a `[Pasted text #1]`)
+/// when what it refers to is in the [codeAppendix] at the end, which goes.
+/// A `[Session id: …]`
 /// becomes the conversation's token again (see [parseSessionReference]).
 Delta composerDeltaFromPaste(
   String text,
@@ -290,7 +307,10 @@ Delta composerDeltaFromPaste(
         final reference = close < 0 ? null : code[text.substring(i, close + 1)];
         if (reference != null) {
           flush();
-          delta.insert(ComposerCodeEmbed.of(reference).toJson());
+          delta.insert(switch (reference) {
+            CodeReference() => ComposerCodeEmbed.of(reference).toJson(),
+            PastedText() => ComposerPastedTextEmbed.of(reference).toJson(),
+          });
           i = close + 1;
           continue;
         }
@@ -534,9 +554,6 @@ class ComposerCodeChip extends StatelessWidget {
     child: ComposerCodeChip(data: data, textStyle: textStyle),
   );
 
-  /// Lines shown on hover, at most.
-  static const _previewLines = 14;
-
   @override
   Widget build(BuildContext context) {
     final reference = ComposerCodeEmbed.decode(data);
@@ -579,39 +596,173 @@ class ComposerCodeChip extends StatelessWidget {
         ),
       ),
     );
-    final code = reference.code.split('\n');
-    final shown = code.length > _previewLines
-        ? [...code.take(_previewLines), '…']
-        : code;
     return _SelectableToken(
       text: reference.reference,
       child: HoverTooltip(
-        content: (context) => ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                reference.label,
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                shown.join('\n'),
-                softWrap: false,
-                overflow: TextOverflow.fade,
-                style: TextStyle(
-                  color: AppColors.text,
-                  fontFamily: AppFonts.mono,
-                  fontFamilyFallback: AppFonts.monoFallbacks,
-                  fontSize: 11.5,
-                  height: 1.4,
-                ),
-              ),
-            ],
+        content: (context) =>
+            _TextPreview(label: reference.label, text: reference.code),
+        child: tag,
+      ),
+    );
+  }
+}
+
+/// A tag's hover for the text it stands for: [label] over its first lines.
+class _TextPreview extends StatelessWidget {
+  const _TextPreview({required this.label, required this.text});
+
+  final String label;
+  final String text;
+
+  /// Lines shown, at most…
+  static const _lines = 14;
+
+  /// …and characters of each: a long paste may be one line of megabytes.
+  static const _lineLength = 200;
+
+  /// The first [_lines] of [text], without splitting all of it.
+  static String _shown(String text) {
+    final lines = <String>[];
+    var start = 0;
+    while (lines.length < _lines) {
+      final end = text.indexOf('\n', start);
+      final line = text.substring(start, end < 0 ? text.length : end);
+      lines.add(
+        line.length > _lineLength ? line.substring(0, _lineLength) : line,
+      );
+      if (end < 0) return lines.join('\n');
+      start = end + 1;
+    }
+    return start < text.length ? '${lines.join('\n')}\n…' : lines.join('\n');
+  }
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 480),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _shown(text),
+          softWrap: false,
+          overflow: TextOverflow.fade,
+          style: TextStyle(
+            color: AppColors.text,
+            fontFamily: AppFonts.mono,
+            fontFamilyFallback: AppFonts.monoFallbacks,
+            fontSize: 11.5,
+            height: 1.4,
           ),
         ),
+      ],
+    ),
+  );
+}
+
+class ComposerPastedTextEmbedBuilder extends EmbedBuilder {
+  const ComposerPastedTextEmbedBuilder();
+
+  @override
+  String get key => ComposerPastedTextEmbed.type;
+
+  @override
+  bool get expanded => false;
+
+  // As a token's (see [ComposerTokenEmbedBuilder]).
+  @override
+  WidgetSpan buildWidgetSpan(Widget widget) => WidgetSpan(
+    alignment: PlaceholderAlignment.baseline,
+    baseline: TextBaseline.alphabetic,
+    child: widget,
+  );
+
+  @override
+  String toPlainText(Embed node) =>
+      ComposerPastedTextEmbed.plainText(node.value.data);
+
+  @override
+  Widget build(BuildContext context, EmbedContext embedContext) =>
+      ComposerPastedTextChip(
+        data: embedContext.node.value.data,
+        textStyle: embedContext.textStyle,
+      );
+}
+
+/// The inline tag for a long paste ([ComposerPastedTextEmbed] data),
+/// centered on text of [textStyle]: its number and its count of lines, its
+/// first lines on hover. In the composer and in sent messages alike.
+///
+/// Inside a selectable area it copies as its message text
+/// (`[Pasted text #1 +120 lines]`).
+class ComposerPastedTextChip extends StatelessWidget {
+  const ComposerPastedTextChip({
+    super.key,
+    required this.data,
+    required this.textStyle,
+  });
+
+  final Object? data;
+  final TextStyle textStyle;
+
+  /// [ComposerPastedTextChip] as a span for rich text of [textStyle].
+  static InlineSpan span(Object? data, TextStyle textStyle) => WidgetSpan(
+    alignment: PlaceholderAlignment.baseline,
+    baseline: TextBaseline.alphabetic,
+    child: ComposerPastedTextChip(data: data, textStyle: textStyle),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final pasted = ComposerPastedTextEmbed.decode(data);
+    final l10n = context.l10n;
+    final name = l10n.pastedTextChip(pasted.number);
+    final lines = pasted.extraLines;
+    final tag = _CenteredOnText(
+      textStyle: textStyle,
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(
+          height: 1.25,
+          leadingDistribution: TextLeadingDistribution.even,
+        ),
+        child: SelectionContainer.disabled(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 1),
+            padding: const EdgeInsets.fromLTRB(4, 1, 5, 1),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: themeColors['chat.requestBorder']),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.notes_rounded, size: 13, color: AppColors.textMuted),
+                const SizedBox(width: 4),
+                Text(
+                  name,
+                  style: TextStyle(color: AppColors.text, fontSize: 12),
+                ),
+                if (lines > 0)
+                  Text(
+                    ' ${l10n.pastedTextLines(lines)}',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return _SelectableToken(
+      text: pasted.reference,
+      child: HoverTooltip(
+        content: (context) => _TextPreview(label: name, text: pasted.text),
         child: tag,
       ),
     );

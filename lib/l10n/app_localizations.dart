@@ -3950,6 +3950,18 @@ abstract class AppLocalizations {
   /// **'[Image {number}]'**
   String imageReferenceRemoved(int number);
 
+  /// A long paste's reference in a message's text, as a small tag: the paste's number in the message.
+  ///
+  /// In en, this message translates to:
+  /// **'Pasted text #{number}'**
+  String pastedTextChip(int number);
+
+  /// After a long paste's tag: how many lines it has past its first.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{+1 line} other{+{count} lines}}'**
+  String pastedTextLines(int count);
+
   /// Context menu item of an enlarged image: copies the image to the clipboard.
   ///
   /// In en, this message translates to:

@@ -2022,6 +2022,21 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String pastedTextChip(int number) {
+    return '粘贴的文本 #$number';
+  }
+
+  @override
+  String pastedTextLines(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '+$count 行',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get imageCopy => '复制图片';
 
   @override

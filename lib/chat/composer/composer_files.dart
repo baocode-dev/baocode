@@ -111,11 +111,23 @@ final _trailing = RegExp(r'[.:]$');
   return (path: path, directory: directory, end: end);
 }
 
+/// What a message carries after its text (see [codeAppendix]), its text
+/// referring to it by [reference]: lines of a file, or a long paste.
+sealed class AppendedText {
+  const AppendedText();
+
+  /// How the message's text refers to it, in brackets.
+  String get reference;
+
+  /// What goes after the message's text.
+  String get content;
+}
+
 /// Lines of a file, copied from the IDE's editor and pasted into the
 /// composer: the message refers to them as `[lib/main.dart:12-30]`, and
 /// carries them after its text (see [codeAppendix]).
 @immutable
-class CodeReference {
+class CodeReference extends AppendedText {
   const CodeReference({
     required this.path,
     required this.start,
@@ -135,7 +147,11 @@ class CodeReference {
   String get label => start == end ? '$path:$start' : '$path:$start-$end';
 
   /// How the message's text refers to it: `[lib/main.dart:12-30]`.
+  @override
   String get reference => '[$label]';
+
+  @override
+  String get content => code;
 
   Map<String, Object> toJson() => {
     'path': path,
@@ -166,6 +182,60 @@ class CodeReference {
   int get hashCode => Object.hash(path, start, end, code);
 }
 
+/// Text too long to paste into the composer as it is (laying it out there
+/// would hang the window, see [isLong]): the message refers to it as
+/// `[Pasted text #1 +120 lines]`, as Claude Code's own input does, and
+/// carries it after its text (see [codeAppendix]).
+@immutable
+class PastedText extends AppendedText {
+  const PastedText({required this.number, required this.text});
+
+  /// Of the pastes in the message, from 1.
+  final int number;
+  final String text;
+
+  /// Pasted as a tag past this many characters…
+  static const maxLength = 1000;
+
+  /// …or line breaks.
+  static const maxLineBreaks = 20;
+
+  /// Whether pasting [text] puts it in as a tag rather than as text.
+  static bool isLong(String text) =>
+      text.length > maxLength || '\n'.allMatches(text).length > maxLineBreaks;
+
+  /// Its line breaks, the last one aside: the lines past the first.
+  int get extraLines {
+    final trimmed = text.endsWith('\n')
+        ? text.substring(0, text.length - 1)
+        : text;
+    return '\n'.allMatches(trimmed).length;
+  }
+
+  /// `[Pasted text #1 +120 lines]`, or `[Pasted text #1]` for one line.
+  @override
+  String get reference => switch (extraLines) {
+    0 => '[Pasted text #$number]',
+    1 => '[Pasted text #$number +1 line]',
+    final lines => '[Pasted text #$number +$lines lines]',
+  };
+
+  @override
+  String get content => text;
+
+  Map<String, Object> toJson() => {'number': number, 'text': text};
+
+  static PastedText fromJson(Map<String, Object?> json) =>
+      PastedText(number: json['number'] as int, text: json['text'] as String);
+
+  @override
+  bool operator ==(Object other) =>
+      other is PastedText && other.number == number && other.text == text;
+
+  @override
+  int get hashCode => Object.hash(number, text);
+}
+
 /// What the IDE's editor copied last, with where it is from: pasted into the
 /// composer while the clipboard still holds it, it goes in as a reference
 /// to those lines rather than as their text.
@@ -193,14 +263,14 @@ abstract final class CopiedCode {
   static void clear() => _last = null;
 }
 
-/// The code a message refers to, as it is sent after the message's text:
-/// after an empty line, each reference in brackets on a line of its own,
-/// then its lines between fences of backticks.
-String codeAppendix(Iterable<CodeReference> references) {
+/// The code (and long pastes) a message refers to, as it is sent after the
+/// message's text: after an empty line, each reference in brackets on a
+/// line of its own, then its lines between fences of backticks.
+String codeAppendix(Iterable<AppendedText> references) {
   final buffer = StringBuffer();
   for (final reference in references) {
-    final fence = _fenceFor(reference.code);
-    var code = reference.code.replaceAll('\r\n', '\n');
+    final fence = _fenceFor(reference.content);
+    var code = reference.content.replaceAll('\r\n', '\n');
     if (code.endsWith('\n')) code = code.substring(0, code.length - 1);
     buffer
       ..write('\n\n')
@@ -228,10 +298,10 @@ String _fenceFor(String code) {
 /// [text] without the [codeAppendix] at its end, and the references in it
 /// by their [CodeReference.reference]. Only blocks whose reference the text
 /// before them makes are taken: anything else is the message's own.
-({String body, Map<String, CodeReference> references}) splitCodeAppendix(
+({String body, Map<String, AppendedText> references}) splitCodeAppendix(
   String text,
 ) {
-  final found = <CodeReference>[];
+  final found = <AppendedText>[];
   var body = text;
   while (true) {
     final block = _lastBlock(body);
@@ -245,10 +315,11 @@ String _fenceFor(String code) {
 }
 
 final _referenceLine = RegExp(r'^\[(.+):(\d+)(?:-(\d+))?\]$');
+final _pastedLine = RegExp(r'^\[Pasted text #(\d+)(?: \+\d+ lines?)?\]$');
 
 /// The last block of a [codeAppendix] at the end of [text], and the text
 /// before it; null when it does not end in one.
-({String body, CodeReference reference})? _lastBlock(String text) {
+({String body, AppendedText reference})? _lastBlock(String text) {
   final lines = text.split('\n');
   final fence = lines.last;
   if (fence.length < 3 || fence.replaceAll('`', '').isNotEmpty) return null;
@@ -256,16 +327,23 @@ final _referenceLine = RegExp(r'^\[(.+):(\d+)(?:-(\d+))?\]$');
   final open = lines.lastIndexOf(fence, lines.length - 2);
   // An empty line, the reference, the opening fence.
   if (open < 3 || lines[open - 2].isNotEmpty) return null;
-  final match = _referenceLine.firstMatch(lines[open - 1]);
-  if (match == null) return null;
-  final start = int.parse(match[2]!);
-  return (
-    body: lines.sublist(0, open - 2).join('\n'),
-    reference: CodeReference(
+  final header = lines[open - 1];
+  final content = lines.sublist(open + 1, lines.length - 1).join('\n');
+  final AppendedText reference;
+  if (_pastedLine.firstMatch(header) case final match?) {
+    reference = PastedText(number: int.parse(match[1]!), text: content);
+    // Its count of lines is the text's own.
+    if (reference.reference != header) return null;
+  } else if (_referenceLine.firstMatch(header) case final match?) {
+    final start = int.parse(match[2]!);
+    reference = CodeReference(
       path: match[1]!,
       start: start,
       end: match[3] == null ? start : int.parse(match[3]!),
-      code: lines.sublist(open + 1, lines.length - 1).join('\n'),
-    ),
-  );
+      code: content,
+    );
+  } else {
+    return null;
+  }
+  return (body: lines.sublist(0, open - 2).join('\n'), reference: reference);
 }

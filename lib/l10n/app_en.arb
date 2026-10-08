@@ -1199,6 +1199,24 @@
       }
     }
   },
+  "pastedTextChip": "Pasted text #{number}",
+  "@pastedTextChip": {
+    "description": "A long paste's reference in a message's text, as a small tag: the paste's number in the message.",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "pastedTextLines": "{count, plural, =1{+1 line} other{+{count} lines}}",
+  "@pastedTextLines": {
+    "description": "After a long paste's tag: how many lines it has past its first.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "imageCopy": "Copy Image",
   "@imageCopy": {
     "description": "Context menu item of an enlarged image: copies the image to the clipboard."

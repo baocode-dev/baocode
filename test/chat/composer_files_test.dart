@@ -63,6 +63,8 @@ String _content(WidgetTester tester) => [
         '<${ComposerImageEmbed.decode(data)}>',
       {ComposerCodeEmbed.type: final data} =>
         '{${ComposerCodeEmbed.plainText(data)}}',
+      {ComposerPastedTextEmbed.type: final data} =>
+        '{${ComposerPastedTextEmbed.plainText(data)}}',
       {ComposerGhostEmbed.type: final String data} => '{ghost $data}',
       final Map<dynamic, dynamic> data =>
         '{${ComposerTokenEmbed.plainText(data[ComposerTokenEmbed.type])}}',
@@ -214,6 +216,34 @@ void main() {
       const text = 'what does this do?\n\n[x.dart:1]\n```\nfoo()\n```';
       expect(splitCodeAppendix(text).body, text);
       expect(splitCodeAppendix(text).references, isEmpty);
+    });
+
+    test('long pastes read back too, by their number and lines', () {
+      const log = PastedText(number: 1, text: 'one\ntwo\nthree');
+      const word = PastedText(number: 2, text: 'just one line');
+      expect(log.reference, '[Pasted text #1 +2 lines]');
+      expect(word.reference, '[Pasted text #2]');
+      final text =
+          'see ${log.reference}, ${main.reference} and ${word.reference}'
+          '${codeAppendix([log, main, word])}';
+      final split = splitCodeAppendix(text);
+      expect(
+        split.body,
+        'see [Pasted text #1 +2 lines], [lib/main.dart:3-4] and '
+        '[Pasted text #2]',
+      );
+      expect(split.references, {
+        log.reference: log,
+        main.reference: main,
+        word.reference: word,
+      });
+    });
+
+    test('a pasted block whose lines do not match stays its own', () {
+      const text =
+          'x [Pasted text #1 +5 lines]\n\n'
+          '[Pasted text #1 +5 lines]\n```\na\nb\n```';
+      expect(splitCodeAppendix(text).body, text);
     });
   });
 
@@ -402,6 +432,65 @@ void main() {
     expect(find.textContaining('```', findRichText: true), findsNothing);
     session.stop();
     await tester.pump(const Duration(seconds: 5));
+  }, variant: _macOS);
+
+  testWidgets('a long paste goes in as a tag, and after the message', (
+    tester,
+  ) async {
+    final session = await _pump(tester);
+    final long = [for (var i = 1; i <= 30; i++) 'line $i'].join('\r\n');
+    _clipboardText(tester, long);
+    _type(tester, 'read');
+    await tester.pump();
+    await _paste(tester);
+    expect(_content(tester), 'read {[Pasted text #1 +29 lines]}');
+    await _paste(tester);
+    expect(
+      _content(tester),
+      'read {[Pasted text #1 +29 lines]} {[Pasted text #2 +29 lines]}',
+    );
+    expect(find.byType(ComposerPastedTextChip), findsNWidgets(2));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    final sent = [for (var i = 0; i < session.itemCount; i++) session.itemAt(i)]
+        .whereType<UserMessageItem>()
+        .last
+        .text;
+    final lines = long.replaceAll('\r\n', '\n');
+    expect(
+      sent,
+      'read [Pasted text #1 +29 lines] [Pasted text #2 +29 lines]\n'
+      '\n'
+      '[Pasted text #1 +29 lines]\n'
+      '```\n'
+      '$lines\n'
+      '```\n'
+      '\n'
+      '[Pasted text #2 +29 lines]\n'
+      '```\n'
+      '$lines\n'
+      '```',
+    );
+    // The message shows its tags, not the text after it.
+    final bubble = find.byType(UserMessageBubble);
+    expect(
+      find.descendant(
+        of: bubble,
+        matching: find.byType(ComposerPastedTextChip),
+      ),
+      findsNWidgets(2),
+    );
+    expect(find.textContaining('line 30', findRichText: true), findsNothing);
+    session.stop();
+    await tester.pump(const Duration(seconds: 5));
+  }, variant: _macOS);
+
+  testWidgets('a short paste goes in as text', (tester) async {
+    await _pump(tester);
+    _clipboardText(tester, 'line 1\nline 2');
+    await _paste(tester);
+    expect(_content(tester), 'line 1\nline 2');
   }, variant: _macOS);
 
   testWidgets('text copied elsewhere since pastes as text', (tester) async {

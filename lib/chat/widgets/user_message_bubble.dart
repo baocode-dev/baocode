@@ -102,6 +102,8 @@ TextSpan _messageSpan(
             data,
             _messageStyle,
           ),
+          {ComposerPastedTextEmbed.type: final data} =>
+            ComposerPastedTextChip.span(data, _messageStyle),
           final Map<dynamic, dynamic> data => ComposerTokenChip.span(
             data[ComposerTokenEmbed.type],
             _messageStyle,

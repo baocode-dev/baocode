@@ -70,7 +70,8 @@ class _Trigger {
 /// Files come in as tags of their paths (images as images, where the
 /// conversation takes them): dragged onto it from other apps or from the
 /// IDE, pasted after a copy, or picked (Add Context…). Code copied from the
-/// IDE's editor pastes as a tag of its lines (see [CopiedCode]).
+/// IDE's editor pastes as a tag of its lines (see [CopiedCode]), and text
+/// too long to lay out as a tag of it (see [PastedText]).
 class ChatComposer extends StatefulWidget {
   const ChatComposer({
     super.key,
@@ -259,10 +260,19 @@ class ChatComposerState extends State<ChatComposer>
       }
     }
     if (text == null || !mounted) return false;
+    final plain = text.replaceAll('\r\n', '\n');
+    if (PastedText.isLong(plain)) {
+      _insertTags([
+        ComposerPastedTextEmbed.of(
+          PastedText(number: _nextPastedNumber(), text: plain),
+        ),
+      ]);
+      return true;
+    }
     final selection = _controller.selection;
     final start = selection.start;
     final content = composerDeltaFromPaste(
-      text.replaceAll('\r\n', '\n'),
+      plain,
       ComposerVocabulary.read(context),
       atStart: start == 0,
       images: _pool.keys.toSet(),
@@ -285,6 +295,20 @@ class ChatComposerState extends State<ChatComposer>
         ChangeSource.local,
       );
     return true;
+  }
+
+  /// The number for a long paste: one past the highest the text has.
+  int _nextPastedNumber() {
+    var highest = 0;
+    for (final op in _controller.document.toDelta().toList()) {
+      if (op.data case {ComposerPastedTextEmbed.type: final data}) {
+        highest = math.max(
+          highest,
+          ComposerPastedTextEmbed.decode(data).number,
+        );
+      }
+    }
+    return highest + 1;
   }
 
   @override
@@ -1074,7 +1098,7 @@ class ChatComposerState extends State<ChatComposer>
   ComposerMessage _buildMessage() {
     final text = StringBuffer();
     final mentions = <String>[];
-    final code = <String, CodeReference>{};
+    final code = <String, AppendedText>{};
     for (final op in _controller.document.toDelta().toList()) {
       final data = op.data;
       if (data is String) {
@@ -1085,6 +1109,10 @@ class ChatComposerState extends State<ChatComposer>
         final reference = ComposerCodeEmbed.decode(raw);
         text.write(reference.reference);
         code.putIfAbsent(reference.reference, () => reference);
+      } else if (data case {ComposerPastedTextEmbed.type: final raw}) {
+        final pasted = ComposerPastedTextEmbed.decode(raw);
+        text.write(pasted.reference);
+        code.putIfAbsent(pasted.reference, () => pasted);
       } else if (data is Map && data.containsKey(ComposerTokenEmbed.type)) {
         final raw = data[ComposerTokenEmbed.type];
         text.write(ComposerTokenEmbed.plainText(raw));
@@ -1486,6 +1514,7 @@ class ChatComposerState extends State<ChatComposer>
           ComposerTokenEmbedBuilder(),
           ComposerImageEmbedBuilder(),
           ComposerCodeEmbedBuilder(),
+          ComposerPastedTextEmbedBuilder(),
           ComposerGhostEmbedBuilder(),
         ],
         // ignore: experimental_member_use
