@@ -50,6 +50,42 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   });
 
+  testWidgets('the line endings item changes the end of line sequence', (
+    tester,
+  ) async {
+    final workspace = await pumpWorkbench(
+      tester,
+      {'a.txt': 'one\ntwo\r\nthree\n'},
+      open: ['a.txt'],
+      nativeEditor: true,
+    );
+    await settleAssets(tester);
+    final controller = tester
+        .widget<EditorSurface>(find.byType(EditorSurface))
+        .controller;
+    // Line 3, column 2.
+    controller.select(10, 10);
+    await tester.pump();
+    expect(find.text('Mixed'), findsOneWidget);
+    expect(find.byTooltip('Select End of Line Sequence'), findsOneWidget);
+
+    await tester.tap(find.text('Mixed'));
+    await tester.pump();
+    expect(find.text('Select End of Line Sequence'), findsWidgets);
+    expect(find.text('LF'), findsOneWidget);
+    await tester.tap(find.text('CRLF'));
+    await tester.pump();
+    await tester.pump();
+    expect(workspace.active!.text, 'one\r\ntwo\r\nthree\r\n');
+    expect(find.text('CRLF'), findsOneWidget);
+    // Still line 3, column 2; one undo step.
+    expect(controller.selections, [const TextSelection.collapsed(offset: 11)]);
+    expect(workspace.active!.model.undo(), isTrue);
+    expect(workspace.active!.text, 'one\ntwo\r\nthree\n');
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 50));
+  });
+
   testWidgets('find matches are painted as surface decorations', (
     tester,
   ) async {

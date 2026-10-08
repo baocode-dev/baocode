@@ -60,9 +60,7 @@ List<FileDiffRow> fileDiff(String original, String modified) {
       context(change.modified.startLineNumber);
       o = change.original.startLineNumber;
       for (var i = o; i < change.original.endLineNumberExclusive; i++) {
-        rows.add(
-          FileDiffRow(DiffLineType.removed, before[i - 1], original: i),
-        );
+        rows.add(FileDiffRow(DiffLineType.removed, before[i - 1], original: i));
       }
       for (
         var i = change.modified.startLineNumber;

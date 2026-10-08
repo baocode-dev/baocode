@@ -39,6 +39,7 @@ import 'git/git_blame.dart';
 import 'ide_commands.dart';
 import 'ide_find_widget.dart';
 import 'ide_menu.dart';
+import 'ide_status_bar.dart' show ideEolEdits;
 import 'ide_workspace.dart';
 import 'lsp/language_features.dart';
 import 'lsp/lsp_protocol.dart';
@@ -1504,6 +1505,24 @@ class IdeEditorState extends State<IdeEditor> {
         ? value.selection
         : TextSelection.collapsed(offset: value.text.length);
     _controller.value = value.replaced(selection, text);
+  }
+
+  /// Ends every line of the active document with [eol] (`\n` or `\r\n`) as
+  /// one undo step, the cursors kept where they were (VS Code's `pushEOL`).
+  void setEndOfLine(String eol) {
+    final doc = widget.active;
+    if (doc.readOnly) return;
+    final edits = ideEolEdits(doc.model.snapshot, eol);
+    if (edits.isEmpty) return;
+    if (_nativeControllers[doc] case final controller?
+        when widget.nativeEditorEnabled) {
+      controller.applyEdits(edits);
+      return;
+    }
+    doc.model.closeUndoGroup();
+    final changed = doc.model.applyOffsetEdits(edits);
+    doc.model.closeUndoGroup();
+    if (changed) widget.workspace.notifyDocumentChanged(doc);
   }
 
   void _toggleFindOption(void Function() toggle) {

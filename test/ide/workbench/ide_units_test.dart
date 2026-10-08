@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -225,10 +226,32 @@ void main() {
     expect(ideEolLabel(DocumentSnapshot('a\r\nb\r\n')), 'CRLF');
     expect(ideEolLabel(DocumentSnapshot('a\r\nb\n')), 'Mixed');
     expect(ideEolLabel(DocumentSnapshot('no newline')), 'LF');
+    String withEol(String text, String eol) {
+      final edits = ideEolEdits(DocumentSnapshot(text), eol);
+      for (final edit in edits.reversed) {
+        text = text.replaceRange(edit.start, edit.end, edit.text);
+      }
+      return text;
+    }
+
+    expect(withEol('a\nb\r\nc\rd', '\r\n'), 'a\r\nb\r\nc\r\nd');
+    expect(withEol('a\nb\r\nc\rd\n', '\n'), 'a\nb\nc\nd\n');
+    expect(ideEolEdits(DocumentSnapshot('a\nb\n'), '\n'), isEmpty);
     expect(IdeFindWidget.matchesLabel(0, -1), 'No results');
     expect(IdeFindWidget.matchesLabel(17, 2), '3 of 17');
     expect(IdeFindWidget.matchesLabel(17, -1), '? of 17');
     expect(IdeFindWidget.matchesLabel(999, 0), '1 of 999+');
+  });
+
+  test('language names: TextMate languages Monaco has none for', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final loaded = Completer<void>();
+    IdeLanguageNames.ensureLoaded(loaded.complete);
+    await loaded.future;
+    expect(IdeLanguageNames.forPath('/p/a.dart'), 'Dart');
+    // VS Code names Vue by its id: its extension gives no alias.
+    expect(IdeLanguageNames.forPath('/p/App.vue'), 'vue');
+    expect(IdeLanguageNames.forPath('/p/a.unknown'), 'Plain Text');
   });
 
   test('git HEAD parsing', () {

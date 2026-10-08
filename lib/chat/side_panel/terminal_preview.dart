@@ -8,6 +8,7 @@ import '../../kernel/kernel_types.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
+import '../widgets/hover_scrollbar.dart';
 import '../widgets/terminal_output.dart';
 import '../chat_models.dart' show CommandStatus;
 
@@ -206,7 +207,7 @@ class _TerminalPreviewState extends State<TerminalPreview> {
           ),
         Expanded(
           child: SelectionArea(
-            child: Scrollbar(
+            child: HoverScrollbar(
               controller: _scroll,
               child: SingleChildScrollView(
                 controller: _scroll,

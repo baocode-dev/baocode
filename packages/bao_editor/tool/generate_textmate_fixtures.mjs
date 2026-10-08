@@ -163,10 +163,16 @@ try {
 
   // The asset generator minifies JSON grammars as VS Code's build does; vscode-textmate
   // must read the bundled file exactly as the repository's (same values, same key order).
+  // An installed extension's files are in its repository.
   const grammarPrefix = /^grammars\/([^/]+)\/(.*)$/;
+  const installedBases = new Map((manifest.installedExtensions ?? []).map(installed => [
+    installed.extension,
+    `https://raw.githubusercontent.com/${installed.repository}/${installed.revision}/${installed.folder}`,
+  ]));
   for (const grammar of manifest.grammars) {
     const [, extension, path] = grammarPrefix.exec(grammar.path);
-    const original = (await download(`extensions/${extension}/${path}`)).toString('utf8');
+    const base = installedBases.get(extension) ?? `extensions/${extension}`;
+    const original = (await download(`${base}/${path}`)).toString('utf8');
     const bundled = await readAsset(grammar.path);
     const same = posix.extname(path) === '.json'
       ? JSON.stringify(vsctm.parseRawGrammar(original, path)) === JSON.stringify(vsctm.parseRawGrammar(bundled, path))

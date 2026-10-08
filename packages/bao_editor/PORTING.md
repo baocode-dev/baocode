@@ -392,6 +392,17 @@ Catalog and installer:
   holds VS Code's MIT license and the ThirdPartyNotices entries of the
   copied components; each extension's `cgmanifest.json` is copied next to
   its files.
+- Deviation (2026-10-08): `installedExtensions` adds marketplace extensions
+  for languages VS Code has no grammar for, as if installed: Vue - Official
+  (vuejs/language-tools, pinned commit, MIT, its license at the end of
+  `LICENSE.txt`). They come after the built-in ones, as `extensionCmp`
+  sorts installed extensions. Only their listed languages (`vue`) are
+  taken, not Vue's configurations for `html`, `markdown` and `jade`, and
+  their injections only into those languages' grammars: Vue's would also
+  reach `text.html.derivative` (VS Code's HTML grammar), `text.pug` and
+  Markdown, which then no longer match the colorize results. `manifest.json`
+  records where they come from (`installedExtensions`), for the fixture
+  generator's raw-grammar check; `extra/App.vue` is their parity sample.
 - `manifest.json` order is VS Code's registration order: `plaintext` first
   (`modesRegistry.ts`, no `extension` key), then the extensions by folder
   name as `extensionCmp` (`extensionDescriptionRegistry.ts`) sorts them,

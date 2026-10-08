@@ -994,6 +994,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdGotoLine => 'Go to Line/Column…';
 
   @override
+  String get cmdChangeEol => 'Change End of Line Sequence';
+
+  @override
   String get cmdFind => 'Find';
 
   @override
@@ -4446,10 +4449,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get wbEncoding => 'Encoding';
 
   @override
-  String get wbEndOfLine => 'End of Line Sequence';
+  String get wbEolMixed => 'Mixed';
 
   @override
-  String get wbEolMixed => 'Mixed';
+  String get wbSelectEol => 'Select End of Line Sequence';
+
+  @override
+  String get wbEditorReadOnly => 'The active code editor is read-only.';
 
   @override
   String get wbLanguageMode => 'Language Mode';

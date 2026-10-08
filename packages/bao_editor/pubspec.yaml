@@ -127,6 +127,8 @@ flutter:
     - assets/textmate/grammars/typescript-basics/syntaxes/
     - assets/textmate/grammars/vb/
     - assets/textmate/grammars/vb/syntaxes/
+    - assets/textmate/grammars/vue/languages/
+    - assets/textmate/grammars/vue/syntaxes/
     - assets/textmate/grammars/xml/
     - assets/textmate/grammars/xml/syntaxes/
     - assets/textmate/grammars/yaml/

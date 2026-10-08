@@ -2,16 +2,20 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:bao_editor/monaco/flutter/editor_decorations.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show SelectedContent;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:path/path.dart' as p;
 
 import '../../ide/file_service.dart';
+import '../../ide/ide_code_editor.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_image_preview.dart';
 import '../../ide/markdown/markdown_preview.dart';
 import '../../l10n/l10n.dart';
+import '../../platform/app_platform.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
@@ -20,14 +24,17 @@ import '../../workspace/editor_launcher.dart' show openExternal;
 import '../chat_models.dart' show DiffLineType;
 import '../composer/composer_files.dart' show CopiedCode;
 import '../widgets/code_citation.dart' show CodeColorizer;
+import '../widgets/hover_scrollbar.dart';
+import 'file_edit.dart';
 import 'file_link.dart';
 import 'file_open.dart';
 import 'line_diff.dart';
 
-/// A file in the side panel, read only: its text with the lines asked for
-/// marked and scrolled to, its changes against the text before the agent
-/// changed it, a markdown file rendered (or its text), an image. A bar
-/// over it names it, with [actions] (Open in Fast Ide) at its end.
+/// A file in the side panel: its text in the IDE's editor, to edit and
+/// save (Cmd+S, Ctrl+S), the lines asked for marked and scrolled to; its
+/// changes against the text before the agent changed it, read only; a
+/// markdown file rendered (or its text); an image. A bar over it names it,
+/// with [actions] (Open in Fast Ide) at its end.
 class FilePreview extends StatefulWidget {
   const FilePreview({
     super.key,
@@ -40,9 +47,19 @@ class FilePreview extends StatefulWidget {
     this.reveal = 0,
     this.onOpenFile,
     this.actions = const [],
+    this.edit,
+    this.onEdit,
   });
 
   final FileOpenRequest request;
+
+  /// The file's text as edited already (its tab's), to go on with: read
+  /// anew in it where it is not changed.
+  final SidePanelFileEdit? edit;
+
+  /// Takes the edit made once the file is read, to keep past the preview;
+  /// the preview's own, gone with it, when null.
+  final ValueChanged<SidePanelFileEdit>? onEdit;
 
   /// Reads it, on the project's host.
   final IdeFileService files;
@@ -111,17 +128,47 @@ class _FilePreviewState extends State<FilePreview> {
 
   /// A markdown file's text rather than it rendered.
   bool _source = false;
+
+  /// A markdown file's text, rendered: its edit's, as it is edited.
   EditorDocumentModel? _markdown;
   int _load = 0;
+
+  /// The file's text in the editor, once read; none for changes.
+  SidePanelFileEdit? _edit;
+
+  /// The text the lines asked for were marked in: unmarked once edited.
+  Object? _markedIn;
+  final _editor = GlobalKey<IdeCodeEditorState>();
 
   FileOpenRequest get _request => widget.request;
   bool get _image => !_request.diff && ideIsImagePath(_request.path);
   bool get _isMarkdown => !_request.diff && isMarkdownPath(_request.path);
 
+  /// The file's own text shows, to edit: not its changes, nor the index's.
+  bool get _editable => !_request.diff && _request.modified == null;
+
   @override
   void initState() {
     super.initState();
+    if (widget.edit case final edit? when _editable) _attach(edit);
     _start();
+  }
+
+  void _attach(SidePanelFileEdit edit) {
+    _edit = edit..addListener(_editChanged);
+  }
+
+  /// Lets go of the edit; disposes it unless its tab keeps it.
+  void _detach() {
+    final edit = _edit;
+    _edit = null;
+    if (edit == null) return;
+    edit.removeListener(_editChanged);
+    if (widget.onEdit == null && !identical(edit, widget.edit)) edit.dispose();
+  }
+
+  void _editChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -133,6 +180,9 @@ class _FilePreviewState extends State<FilePreview> {
         old.original != _request.original ||
         old.modified != _request.modified ||
         oldWidget.files != widget.files) {
+      _dropMarkdown();
+      _detach();
+      if (widget.edit case final edit? when _editable) _attach(edit);
       _start();
     } else if (oldWidget.reveal != widget.reveal && !_image) {
       // Asked for again (the agent wrote it again, say): read anew, what
@@ -143,17 +193,30 @@ class _FilePreviewState extends State<FilePreview> {
 
   @override
   void dispose() {
-    _markdown?.dispose();
+    _dropMarkdown();
+    _detach();
     super.dispose();
+  }
+
+  /// The rendered markdown's own text let go of; not its edit's.
+  void _dropMarkdown() {
+    if (!identical(_markdown, _edit?.controller.document)) {
+      _markdown?.dispose();
+    }
+    _markdown = null;
   }
 
   void _start() {
     final load = ++_load;
     _loaded = null;
     _colors = const [];
-    _markdown?.dispose();
-    _markdown = null;
+    _dropMarkdown();
     if (_image) return;
+    // Its tab's edit shows as it is while the file is read anew.
+    if (_edit case final edit?) {
+      _loaded = const _Text([]);
+      if (_isMarkdown) _markdown = edit.controller.document;
+    }
     unawaited(_read(load));
   }
 
@@ -190,12 +253,53 @@ class _FilePreviewState extends State<FilePreview> {
     }
     setState(() {
       _loaded = loaded;
+      if (_editable && text != null) _edited(text);
       if (_isMarkdown && text != null) {
-        _markdown?.dispose();
-        _markdown = EditorDocumentModel(text);
+        _dropMarkdown();
+        _markdown = _edit?.controller.document ?? EditorDocumentModel(text);
       }
     });
+    if (_edit != null) return _reveal();
     unawaited(_colorize(load, loaded, original, text));
+  }
+
+  /// The file's [text], read: in its edit, made now unless there is one.
+  void _edited(String text) {
+    if (_edit case final edit?) return edit.reload(text);
+    final edit = SidePanelFileEdit(
+      path: _request.path,
+      files: widget.files,
+      text: text,
+    );
+    _attach(edit);
+    widget.onEdit?.call(edit);
+  }
+
+  /// The lines asked for, from their first's start to their last's end,
+  /// in the edit's text; none when none were.
+  (int, int)? get _range {
+    final range = _request.range;
+    final snapshot = _edit?.controller.document.snapshot;
+    if (range == null || snapshot == null) return null;
+    final count = snapshot.lineStarts.length;
+    final first = (range.start - 1).clamp(0, count - 1);
+    final last = (range.end - 1).clamp(first, count - 1);
+    return (snapshot.lineStarts[first], snapshot.contentEnds[last]);
+  }
+
+  /// Marks the lines asked for and scrolls to them, the caret at their
+  /// start.
+  void _reveal() {
+    final edit = _edit;
+    final range = _range;
+    if (edit == null || range == null) return;
+    final (start, end) = range;
+    _markedIn = edit.controller.document.snapshot;
+    edit.controller.select(start, start);
+    // Once built, the first time.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _editor.currentState?.revealRange(start, end),
+    );
   }
 
   Future<void> _colorize(
@@ -306,6 +410,7 @@ class _FilePreviewState extends State<FilePreview> {
   Widget? _notice(BuildContext context) {
     final l10n = context.l10n;
     final text = switch (_loaded) {
+      _ when _edit?.error != null => localizedFileError(l10n, _edit!.error!),
       _Text(noOriginal: true) => l10n.sidePanelNoOriginal,
       _Diff(deleted: true) => l10n.sidePanelDeleted,
       _Diff(:final rows)
@@ -373,6 +478,7 @@ class _FilePreviewState extends State<FilePreview> {
             onOpenExternal: (uri) => unawaited(openExternal(uri.toString())),
           );
         }
+        if (_edit case final edit?) return _editing(edit);
         final range = _request.range;
         return _Lines(
           key: ValueKey(('text', _request.path)),
@@ -391,6 +497,35 @@ class _FilePreviewState extends State<FilePreview> {
           ),
         );
     }
+  }
+
+  /// The file's text in the IDE's editor, the lines asked for marked until
+  /// it is edited; saved with the IDE's keys.
+  Widget _editing(SidePanelFileEdit edit) {
+    final save = AppPlatform.isMacOS
+        ? const SingleActivator(LogicalKeyboardKey.keyS, meta: true)
+        : const SingleActivator(LogicalKeyboardKey.keyS, control: true);
+    final range = _range;
+    final marked =
+        range != null &&
+        identical(_markedIn, edit.controller.document.snapshot);
+    return CallbackShortcuts(
+      bindings: {save: () => unawaited(edit.save())},
+      child: IdeCodeEditor(
+        key: _editor,
+        controller: edit.controller,
+        path: _request.path,
+        decorations: [
+          if (marked)
+            EditorDecoration(
+              start: range.$1,
+              end: range.$2,
+              isWholeLine: true,
+              backgroundColor: themeColors['editor.rangeHighlightBackground'],
+            ),
+        ],
+      ),
+    );
   }
 
   /// Lines [start] to [end] copied, as [text]: pasted into the chat's
@@ -514,21 +649,25 @@ class _LinesState extends State<_Lines> {
       builder: (context, constraints) {
         // Room for the line numbers and the markers besides the text.
         final width = math.max(constraints.maxWidth, widget.width + 120);
+        // Both scrollbars at the edges of the view, not of the lines as
+        // wide as the longest.
         return SelectionArea(
           child: SelectionContainer(
             delegate: _selection,
-            child: Scrollbar(
-              controller: _sideways,
+            child: HoverScrollbar(
+              controller: _scroll,
               notificationPredicate: (notification) =>
-                  notification.metrics.axis == Axis.horizontal,
-              child: SingleChildScrollView(
+                  notification.metrics.axis == Axis.vertical,
+              child: HoverScrollbar(
                 controller: _sideways,
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  width: width,
-                  height: constraints.maxHeight,
-                  child: Scrollbar(
-                    controller: _scroll,
+                notificationPredicate: (notification) =>
+                    notification.metrics.axis == Axis.horizontal,
+                child: SingleChildScrollView(
+                  controller: _sideways,
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: width,
+                    height: constraints.maxHeight,
                     child: ListView.builder(
                       controller: _scroll,
                       padding: const EdgeInsets.symmetric(vertical: 6),

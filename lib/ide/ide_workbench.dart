@@ -2090,6 +2090,35 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _showQuickModel(IdeQuickInputModel model) =>
       _openQuickInput(() => _quickModel = model);
 
+  /// VS Code's Change End of Line Sequence (`ChangeEOLAction`): LF or CRLF
+  /// for every line of the active document, the current one active.
+  void _changeEndOfLine() {
+    final active = widget.workspace.active;
+    if (active == null || active.isMedia || active.openError != null) return;
+    final l10n = context.l10n;
+    if (active.readOnly) {
+      _showQuickModel(
+        IdeQuickPick(items: [IdeQuickPickItem(label: l10n.wbEditorReadOnly)]),
+      );
+      return;
+    }
+    const lf = IdeQuickPickItem(label: 'LF');
+    const crlf = IdeQuickPickItem(label: 'CRLF');
+    _showQuickModel(
+      IdeQuickPick(
+        items: const [lf, crlf],
+        placeholder: l10n.wbSelectEol,
+        activeItems: [ideEolLabel(active.model.snapshot) == 'CRLF' ? crlf : lf],
+        onDidAccept: (item) {
+          if (item == null) return;
+          if (!identical(widget.workspace.active, active)) return;
+          _editor?.setEndOfLine(identical(item, crlf) ? '\r\n' : '\n');
+          _focusEditor();
+        },
+      ),
+    );
+  }
+
   void _openQuickInput(VoidCallback open) {
     final replaced = _quickModel;
     if (_quickInput == null && replaced == null) {
@@ -2556,6 +2585,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         id: 'workbench.action.gotoLine',
         label: 'Go to Line/Column…',
         run: () => _showQuickInput(':'),
+      ),
+      IdeCommand(
+        id: 'workbench.action.editor.changeEOL',
+        label: 'Change End of Line Sequence',
+        enabled: active != null && !active.isMedia && active.openError == null,
+        run: _changeEndOfLine,
       ),
       IdeCommand(
         id: 'actions.find',
@@ -4024,7 +4059,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         ),
         IdeStatusBarItem(
           _eolLabel == 'Mixed' ? l10n.wbEolMixed : _eolLabel,
-          tooltip: l10n.wbEndOfLine,
+          tooltip: keys.titleWithKeybinding(
+            l10n.wbSelectEol,
+            'workbench.action.editor.changeEOL',
+          ),
+          onTap: _changeEndOfLine,
         ),
         IdeStatusBarItem(
           IdeLanguageNames.forPath(active.path),

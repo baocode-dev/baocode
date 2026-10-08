@@ -76,6 +76,10 @@ const _loaderLosses = {
     'onEnterRules[8].indent: VS Code indentOutdent, loader none',
     'onEnterRules[9].indent: VS Code indentOutdent, loader none',
   ],
+  'grammars/vue/languages/vue-language-configuration.json': [
+    'onEnterRules[0].indent: VS Code indentOutdent, loader none',
+    'onEnterRules[1].indent: VS Code indent, loader none',
+  ],
   'grammars/xml/xsl.language-configuration.json': [
     'comments.lineComment: VS Code "", loader none',
   ],
@@ -94,7 +98,7 @@ void main() {
       final grammar = parseRawGrammar(read(path), path);
       expect(grammar.scopeName, isNotEmpty, reason: path);
     }
-    expect(paths, hasLength(84));
+    expect(paths, hasLength(89));
   });
 
   final configurations = {
@@ -108,7 +112,7 @@ void main() {
       expect(errors, isEmpty, reason: path);
       expect(json.getNodeType(value), 'object', reason: path);
     }
-    expect(configurations, hasLength(56));
+    expect(configurations, hasLength(57));
   });
 
   test('the editor configuration loader takes every language '

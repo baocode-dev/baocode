@@ -1,13 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart'
+    show EditorOffsetEdit;
 import 'package:bao_editor/monaco/flutter/language_assets.dart';
+import 'package:bao_editor/textmate/textmate_manifest.dart';
 
 import 'ide_editor.dart';
 import 'ide_hover.dart';
@@ -233,21 +237,49 @@ String ideEolLabel(DocumentSnapshot snapshot, {int sample = 1000}) {
   return 'LF';
 }
 
+/// The edits that end every line of [snapshot] with [eol] (`\n` or
+/// `\r\n`), as VS Code's Change End of Line Sequence does; a lone CR, which
+/// VS Code's model never keeps, becomes [eol] too.
+List<EditorOffsetEdit> ideEolEdits(DocumentSnapshot snapshot, String eol) => [
+  for (var i = 0; i < snapshot.newlineLengths.length; i++)
+    if (snapshot.newlineLengths[i] > 0 &&
+        snapshot.text.substring(
+              snapshot.contentEnds[i],
+              snapshot.contentEnds[i] + snapshot.newlineLengths[i],
+            ) !=
+            eol)
+      EditorOffsetEdit(
+        snapshot.contentEnds[i],
+        snapshot.contentEnds[i] + snapshot.newlineLengths[i],
+        eol,
+      ),
+];
+
 /// Language names from Monaco's pinned registrations (their first alias),
-/// falling back to [languageNameForFile] until they load or when none match.
+/// then the TextMate languages (those only a TextMate grammar highlights,
+/// e.g. Vue), falling back to [languageNameForFile] until they load or when
+/// none match.
 class IdeLanguageNames {
   IdeLanguageNames._();
 
   static List<MonacoLanguageRegistration>? _registrations;
+  static List<TextMateLanguageRegistration> _textMateLanguages = const [];
   static Future<void>? _loading;
 
   /// Loads the registrations once; [onLoaded] runs when they first arrive.
   static void ensureLoaded(VoidCallback onLoaded) {
     if (_registrations != null) return;
-    _loading ??= const MonacoLanguageAssets()
-        .registrations()
-        .then<void>((value) => _registrations = value)
-        .catchError((Object _) {});
+    _loading ??= Future.wait([
+      const MonacoLanguageAssets()
+          .registrations()
+          .then<void>((value) => _registrations = value)
+          .catchError((Object _) {}),
+      TextMateManifest.load(
+            (path) => rootBundle.loadString('$textMateAssetRoot/$path'),
+          )
+          .then<void>((value) => _textMateLanguages = value.languages)
+          .catchError((Object _) {}),
+    ]);
     unawaited(_loading!.then((_) => onLoaded()));
   }
 
@@ -270,7 +302,37 @@ class IdeLanguageNames {
         }
       }
     }
-    if (best == null) return languageNameForFile(path);
+    if (best == null) {
+      return _textMateNameForPath(lower) ?? languageNameForFile(path);
+    }
     return best.aliases.isNotEmpty ? best.aliases.first : best.id;
+  }
+
+  /// The TextMate language a file's lowercased base name [lower] selects
+  /// by name or extension, named as VS Code's registry names it: its first
+  /// alias, else its id.
+  static String? _textMateNameForPath(String lower) {
+    String? id;
+    var bestLength = 0;
+    for (final language in _textMateLanguages) {
+      if (language.filenames.any((name) => name.toLowerCase() == lower)) {
+        id = language.id;
+        break;
+      }
+      for (final extension in language.extensions) {
+        if (extension.length > bestLength &&
+            lower.endsWith(extension.toLowerCase())) {
+          id = language.id;
+          bestLength = extension.length;
+        }
+      }
+    }
+    if (id == null) return null;
+    for (final language in _textMateLanguages) {
+      if (language.id == id && language.aliases.isNotEmpty) {
+        return language.aliases.first;
+      }
+    }
+    return id;
   }
 }

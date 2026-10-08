@@ -24,6 +24,7 @@ class IdeCodeEditor extends StatefulWidget {
     required this.path,
     this.focusNode,
     this.readOnly = false,
+    this.decorations = const [],
   });
 
   final EditorSurfaceController controller;
@@ -33,11 +34,14 @@ class IdeCodeEditor extends StatefulWidget {
   final FocusNode? focusNode;
   final bool readOnly;
 
+  /// Painted over the text (lines marked, say).
+  final List<EditorDecoration> decorations;
+
   @override
-  State<IdeCodeEditor> createState() => _IdeCodeEditorState();
+  State<IdeCodeEditor> createState() => IdeCodeEditorState();
 }
 
-class _IdeCodeEditorState extends State<IdeCodeEditor> {
+class IdeCodeEditorState extends State<IdeCodeEditor> {
   final GlobalKey _surfaceKey = GlobalKey();
   final WorkbenchThemeService _themes = WorkbenchThemeService.instance;
   late final TextMateSyntax _textMate = TextMateSyntax(themes: _themes);
@@ -124,6 +128,18 @@ class _IdeCodeEditorState extends State<IdeCodeEditor> {
     }
   }
 
+  /// Scrolls the text from [start] to [end] into view, centered where it
+  /// was out of it; once laid out.
+  void revealRange(int start, int end) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final view = _surfaceKey.currentState;
+      if (mounted && view is EditorSurfaceView) {
+        (view as EditorSurfaceView).revealRange(start, end);
+      }
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
   void _highlighted() {
     if (mounted) setState(() {});
   }
@@ -152,6 +168,7 @@ class _IdeCodeEditorState extends State<IdeCodeEditor> {
       theme: EditorViewTheme.fromColors(colors.get),
       styledLines: _highlight?.styledLines,
       showMinimap: false,
+      decorations: widget.decorations,
       onViewChanged: _viewChanged,
       style: TextStyle(
         color: colors['editor.foreground'],

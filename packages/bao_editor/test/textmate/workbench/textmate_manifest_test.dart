@@ -80,7 +80,8 @@ void main() {
       expect(plaintext.extensions, ['.txt']);
       expect(plaintext.aliases, ['Plain Text', 'text']);
       expect(plaintext.mimetypes, ['text/plain']);
-      // Built-in extensions by folder name, then package.json order.
+      // Built-in extensions by folder name, then package.json order; the
+      // installed ones after them.
       expect(manifest.languages.skip(1).take(6).map((l) => l.id), [
         'bat',
         'clojure',
@@ -90,8 +91,10 @@ void main() {
         'ignore',
       ]);
       final extensions = [
-        for (final language in manifest.languages.skip(1)) language.extension!,
+        for (final language in manifest.languages.skip(1))
+          if (language.extension != 'vue') language.extension!,
       ];
+      expect(manifest.languages.last.extension, 'vue');
       for (var i = 1; i < extensions.length; i++) {
         expect(
           extensions[i - 1].compareTo(extensions[i]),
@@ -128,6 +131,19 @@ void main() {
       expect(manifest.maxTokenizationLineLengthOf('javascript'), 2500);
       expect(manifest.maxTokenizationLineLengthOf('csharp'), 2500);
       expect(manifest.maxTokenizationLineLengthOf('typescript'), isNull);
+
+      // Vue's extension: its own language only, not its configurations
+      // for html, markdown and jade.
+      final vue = manifest.languageById('vue')!;
+      expect(vue.extensions, ['.vue']);
+      expect(
+        vue.configuration,
+        'grammars/vue/languages/vue-language-configuration.json',
+      );
+      expect(
+        manifest.languages.where((l) => l.extension == 'vue').map((l) => l.id),
+        ['vue'],
+      );
     });
 
     test('grammars', () {
@@ -147,6 +163,13 @@ void main() {
         manifest.grammarForScope('text.html.derivative')!.language,
         'html',
       );
+      // Vue's injections reach Vue files alone, not VS Code's HTML,
+      // Markdown or Pug.
+      expect(manifest.grammarForLanguage('vue')!.scopeName, 'text.html.vue');
+      expect(manifest.grammarForScope('vue.directives')!.injectTo, [
+        'text.html.vue',
+      ]);
+      expect(manifest.grammarForScope('markdown.vue.codeblock'), isNull);
       for (final grammar in manifest.grammars) {
         final raw = parseRawGrammar(
           File('$textMateAssetDirectory/${grammar.path}').readAsStringSync(),

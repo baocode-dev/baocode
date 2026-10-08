@@ -316,6 +316,7 @@ class ChatComposerState extends State<ChatComposer>
   void dispose() {
     widget.draft?.removeListener(_handleDraftChanged);
     FloatingRegistry.closePopover(_menuOwner);
+    _clickWindow?.cancel();
     _controller.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
@@ -522,30 +523,6 @@ class ChatComposerState extends State<ChatComposer>
   }
 
   // --- Editor state --------------------------------------------------------
-
-  /// Whether text was selected when the last press came down.
-  bool _pressedOnSelection = false;
-
-  /// A double-click with nothing selected selects everything, not a word.
-  bool _handleEditorTapDown(
-    TapDownDetails details,
-    TextPosition Function(Offset offset) _,
-  ) {
-    // A double-click's first press collapses the selection, so its second
-    // asks the press before.
-    final hadSelection = _pressedOnSelection;
-    _pressedOnSelection = !_controller.selection.isCollapsed;
-    if (!hadSelection && !_pressedOnSelection) {
-      // Quill handles the press after this; only a double-click's second
-      // press selects (a word) on the way down.
-      scheduleMicrotask(() {
-        if (mounted && !_controller.selection.isCollapsed) {
-          _editorKey.currentState?.selectAll(SelectionChangedCause.tap);
-        }
-      });
-    }
-    return false;
-  }
 
   bool get _isComposing {
     final state = _editorKey.currentState;
@@ -1291,8 +1268,12 @@ class ChatComposerState extends State<ChatComposer>
           child: Listener(
             onPointerDown: _handleSelectPointerDown,
             onPointerMove: _handleSelectPointerMove,
-            onPointerUp: (_) => _selectDragFrom = null,
-            onPointerCancel: (_) => _selectDragFrom = null,
+            onPointerUp: _handleSelectPointerUp,
+            onPointerCancel: (_) {
+              _selectDragFrom = null;
+              _selectAllOnUp = false;
+              _clickWindow?.cancel();
+            },
             child: Listener(
               onPointerDown: _handleMenuPointerDown,
               onPointerUp: _handleMenuPointerUp,
@@ -1384,6 +1365,17 @@ class ChatComposerState extends State<ChatComposer>
         !HardwareKeyboard.instance.isShiftPressed;
     _selectDragFrom = plainPress ? event.position : null;
     _selectDragging = false;
+    _handleClickDown(event, plainPress: plainPress);
+  }
+
+  void _handleSelectPointerUp(PointerUpEvent event) {
+    final from = _selectDragFrom;
+    final dragged =
+        from == null ||
+        _selectDragging ||
+        (event.position - from).distance > kPrecisePointerHitSlop;
+    _selectDragFrom = null;
+    _handleClickUp(event, dragged: dragged);
   }
 
   void _handleSelectPointerMove(PointerMoveEvent event) {
@@ -1406,6 +1398,58 @@ class ChatComposerState extends State<ChatComposer>
       }
       editor.extendSelection(to, cause: SelectionChangedCause.drag);
     });
+  }
+
+  // --- Double-click -------------------------------------------------------
+  //
+  // A double-click with nothing selected selects everything; with text
+  // selected it selects a word, as Quill does. What was selected is taken
+  // from the pointer events themselves, which come once for every press and
+  // in order, when the double-click's first press comes down.
+
+  /// Open from a click's up while a press near it is that click's double.
+  Timer? _clickWindow;
+  Offset? _clickUpAt;
+
+  /// Whether text was selected when the last click came down.
+  bool _clickOnSelection = false;
+
+  /// This press is a double-click's second, with nothing selected before
+  /// its first.
+  bool _selectAllOnUp = false;
+  bool _secondClick = false;
+
+  void _handleClickDown(PointerDownEvent event, {required bool plainPress}) {
+    final upAt = _clickUpAt;
+    _secondClick =
+        plainPress &&
+        _clickWindow?.isActive == true &&
+        upAt != null &&
+        (event.position - upAt).distance <= kDoubleTapSlop;
+    _clickWindow?.cancel();
+    _selectAllOnUp = _secondClick && !_clickOnSelection;
+    if (!_secondClick) _clickOnSelection = !_controller.selection.isCollapsed;
+  }
+
+  void _handleClickUp(PointerUpEvent event, {required bool dragged}) {
+    if (dragged) {
+      _selectAllOnUp = false;
+      return;
+    }
+    if (_selectAllOnUp) {
+      _selectAllOnUp = false;
+      // After Quill's handling of the up, which comes after this and is
+      // where (at the latest) it selects the word.
+      scheduleMicrotask(() {
+        if (mounted && !_controller.selection.isCollapsed) {
+          _editorKey.currentState?.selectAll(SelectionChangedCause.tap);
+        }
+      });
+    }
+    // As Quill's: a third click is a click again, not a second double.
+    if (_secondClick) return;
+    _clickUpAt = event.position;
+    _clickWindow = Timer(kDoubleTapTimeout, () => _clickWindow = null);
   }
 
   /// Grows with content up to 10 lines, or a third of the window on short
@@ -1444,7 +1488,6 @@ class ChatComposerState extends State<ChatComposer>
         ],
         // ignore: experimental_member_use
         onKeyPressed: _handleKey,
-        onTapDown: _handleEditorTapDown,
         onTapOutside: (event, focusNode) {},
         showCursor: false,
         customStyles: _editorStyles(context),

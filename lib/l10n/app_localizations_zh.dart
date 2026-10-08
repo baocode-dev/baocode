@@ -963,6 +963,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdGotoLine => '转到行/列…';
 
   @override
+  String get cmdChangeEol => '更改行尾序列';
+
+  @override
   String get cmdFind => '查找';
 
   @override
@@ -4151,10 +4154,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wbEncoding => '编码';
 
   @override
-  String get wbEndOfLine => '行尾序列';
+  String get wbEolMixed => '混合';
 
   @override
-  String get wbEolMixed => '混合';
+  String get wbSelectEol => '选择行尾序列';
+
+  @override
+  String get wbEditorReadOnly => '活动代码编辑器为只读模式。';
 
   @override
   String get wbLanguageMode => '语言模式';

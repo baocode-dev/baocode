@@ -60,7 +60,7 @@ class AgentSidePanelArea extends StatefulWidget {
     required this.panel,
     required this.builder,
     this.rail,
-    this.railTop = AppMetrics.titleBarHeight + 12,
+    this.railTop = AppMetrics.titleBarHeight + 4,
     this.hidden = false,
     required this.child,
   });
@@ -770,8 +770,9 @@ class AgentSidePanelView extends StatelessWidget {
                 icon: const _TabIcon(Codicons.checklist),
                 label: _paths.basename(plan.path),
                 tooltip: plan.path,
+                dirty: plan.dirty,
                 onTap: () {},
-                onClose: () => panel.close(session, plan),
+                onClose: () => unawaited(_close(context, [plan])),
                 menu: () => _planMenu(context, plan),
               ),
             ),
@@ -793,7 +794,7 @@ class AgentSidePanelView extends StatelessWidget {
       [
         IdeMenuAction(
           l10n.tabClose,
-          onSelected: () => panel.close(session, plan),
+          onSelected: () => unawaited(_close(context, [plan])),
         ),
       ],
       [
@@ -834,6 +835,11 @@ class AgentSidePanelView extends StatelessWidget {
       ],
     ]);
   }
+
+  /// Closes [tabs], asking first whether to save those with unsaved
+  /// changes.
+  Future<void> _close(BuildContext context, List<SidePanelTab> tabs) =>
+      closeSidePanelTabs(context, panel, session, tabs);
 
   /// A tab's Close, Close Others, Close to the Right and Close All, for
   /// the tab [id] at [index] of [count]; [close] closes those it picks of
@@ -903,8 +909,9 @@ class AgentSidePanelView extends StatelessWidget {
                 description: descriptions[i],
                 tooltip: tab.path,
                 status: tab.diff ? statuses[tab.path] : null,
+                dirty: tab.dirty,
                 onTap: () => panel.activate(session, tab),
-                onClose: () => panel.close(session, tab),
+                onClose: () => unawaited(_close(context, [tab])),
                 menu: () => _fileTabMenu(context, list, tab),
               ),
             ),
@@ -937,11 +944,7 @@ class AgentSidePanelView extends StatelessWidget {
         id: tab,
         index: list.indexOf(tab),
         count: list.length,
-        close: (which) {
-          for (final other in which([...list])) {
-            panel.close(session, other);
-          }
-        },
+        close: (which) => unawaited(_close(context, which([...list]))),
       ),
       [
         IdeMenuAction(
@@ -1001,6 +1004,8 @@ class AgentSidePanelView extends StatelessWidget {
     key: ValueKey((session, tab.path, tab.diff)),
     request: tab.request,
     reveal: tab.reveal,
+    edit: tab.edit,
+    onEdit: (edit) => panel.keepEdit(tab, edit),
     files: files,
     root: _rootOf(tab.path),
     readBytes: readBytes,
@@ -1023,6 +1028,37 @@ class AgentSidePanelView extends StatelessWidget {
         ),
     ],
   );
+}
+
+/// Closes [tabs] of [conversation] in [panel], asking first, as the IDE's
+/// editor does, whether to save the changes of each not saved: none from
+/// one canceled on.
+Future<void> closeSidePanelTabs(
+  BuildContext context,
+  AgentSidePanel panel,
+  Object conversation,
+  List<SidePanelTab> tabs,
+) async {
+  for (final tab in tabs) {
+    if (tab.dirty) {
+      if (!context.mounted) return;
+      final l10n = context.l10n;
+      final choice = await showIdeDialog(
+        context,
+        message: l10n.wbConfirmSave(p.basename(tab.path)),
+        detail: l10n.explorerChangesLost,
+        buttons: [l10n.commonSave, l10n.commonDontSave],
+      );
+      if (choice == 0) {
+        await tab.edit?.save();
+        // Not saved (changed on disk meanwhile, say): kept open.
+        if (tab.dirty) return;
+      } else if (choice != 1) {
+        return;
+      }
+    }
+    panel.close(conversation, tab);
+  }
 }
 
 extension SidePanelSectionUi on SidePanelSection {
@@ -1678,6 +1714,7 @@ class _Tab extends StatelessWidget {
     this.description,
     this.tooltip,
     this.status,
+    this.dirty = false,
     this.onClose,
     this.menu,
   });
@@ -1689,6 +1726,10 @@ class _Tab extends StatelessWidget {
   final VoidCallback onTap;
   final String? tooltip;
   final IdeGitStatus? status;
+
+  /// Its file has unsaved changes: a dot where its Close is, as an
+  /// editor's tab, the Close there while hovered.
+  final bool dirty;
   final VoidCallback? onClose;
   final List<IdeMenuEntry> Function()? menu;
 
@@ -1795,7 +1836,7 @@ class _Tab extends StatelessWidget {
                   const SizedBox(width: 2),
                   SizedBox.square(
                     dimension: 20,
-                    child: active || hover
+                    child: hover || active && !dirty
                         ? IdeActionButton(
                             icon: Codicons.close,
                             size: 20,
@@ -1803,6 +1844,12 @@ class _Tab extends StatelessWidget {
                             color: foreground,
                             tooltip: context.l10n.sidePanelCloseTab,
                             onPressed: close,
+                          )
+                        : dirty
+                        ? Icon(
+                            Codicons.circleFilled,
+                            size: 10,
+                            color: foreground,
                           )
                         : null,
                   ),

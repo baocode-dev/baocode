@@ -19,6 +19,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'workbench.action.showCommands' => l10n.cmdShowAllCommands,
     'workbench.action.quickOpen' => l10n.cmdQuickOpen,
     'workbench.action.gotoLine' => l10n.cmdGotoLine,
+    'workbench.action.editor.changeEOL' => l10n.cmdChangeEol,
     'actions.find' => l10n.cmdFind,
     'editor.action.startFindReplaceAction' => l10n.cmdReplace,
     'workbench.action.files.save' => l10n.cmdSave,

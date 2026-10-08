@@ -812,7 +812,15 @@ void main() {
       // With text selected, a double-click selects a word as usual.
       await doubleClick();
       expect(selected(), 'world');
+      // A click puts the selection away; the next double-click selects all.
+      await mouse.down(position);
+      await mouse.up();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(selected(), isEmpty);
+      await doubleClick();
+      expect(selected(), 'hello world');
     },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets('a mouse drag selection follows every move, unthrottled', (

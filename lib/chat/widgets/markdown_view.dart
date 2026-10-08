@@ -9,6 +9,7 @@ import '../../workspace/editor_launcher.dart';
 import '../side_panel/file_link.dart';
 import '../side_panel/file_open.dart';
 import 'code_citation.dart';
+import 'hover_scrollbar.dart';
 import 'inline_code.dart';
 import 'markdown_math.dart';
 import 'mermaid_code_block.dart';
@@ -425,7 +426,6 @@ class _Table extends StatefulWidget {
 
 class _TableState extends State<_Table> {
   final _scroll = ScrollController();
-  bool _hovered = false;
 
   @override
   void dispose() {
@@ -501,18 +501,12 @@ class _TableState extends State<_Table> {
         ),
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
         clipBehavior: Clip.antiAlias,
-        child: MouseRegion(
-          onEnter: (_) => setState(() => _hovered = true),
-          onExit: (_) => setState(() => _hovered = false),
-          child: Scrollbar(
+        child: HoverScrollbar(
+          controller: _scroll,
+          child: SingleChildScrollView(
             controller: _scroll,
-            thumbVisibility: _hovered,
-            interactive: true,
-            child: SingleChildScrollView(
-              controller: _scroll,
-              scrollDirection: Axis.horizontal,
-              child: table,
-            ),
+            scrollDirection: Axis.horizontal,
+            child: table,
           ),
         ),
       ),

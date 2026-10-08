@@ -23,6 +23,13 @@
 // textMateTokenizationFeatureImpl.ts `_handleGrammarsExtPoint`). `LanguagesRegistry`
 // (languagesRegistry.ts) registers ModesRegistry's languages first: `plaintext`
 // (src/vs/editor/common/languages/modesRegistry.ts) leads the manifest's languages.
+//
+// Then `installedExtensions`: marketplace extensions with the grammar of a language VS
+// Code has none for, each from its repository at a pinned revision. `extensionCmp` sorts
+// installed extensions after the built-in ones, so they come last. Only the languages
+// they list are taken (Vue's extension also contributes configurations for `html`,
+// `markdown` and `jade`, which would replace VS Code's), with their grammars and the
+// injections into those (see Grammars).
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, posix } from 'node:path';
 
@@ -41,6 +48,24 @@ const themeExtensions = [
 // Light+. Their light_vs.json and light_plus.json are still copied, as Light
 // Modern includes them.
 const excludedThemes = ['Visual Studio Light', 'Light+'];
+
+const installedExtensions = [
+  {
+    extension: 'vue',
+    name: 'Vue - Official',
+    repository: 'vuejs/language-tools',
+    revision: '85f665e9397b028c48d3ddd6ecd9a46e3fadeb94',
+    folder: 'extensions/vscode',
+    languages: ['vue'],
+  },
+];
+// Where each extension's files are: VS Code's `extensions/<name>`, or an installed
+// extension's folder in its repository.
+const extensionBases = new Map(installedExtensions.map(installed => [
+  installed.extension,
+  `https://raw.githubusercontent.com/${installed.repository}/${installed.revision}/${installed.folder}`,
+]));
+const extensionBase = extension => extensionBases.get(extension) ?? `extensions/${extension}`;
 
 async function download(path) {
   for (let attempt = 1; ; attempt++) {
@@ -115,8 +140,8 @@ async function copy(kind, extension, relativePath, transform) {
   if (normalized.startsWith('..')) throw new Error(`${extension}: ${relativePath} leaves the extension`);
   const assetPath = `${kind}/${extension}/${normalized}`;
   if (!files.has(assetPath)) {
-    const bytes = await download(`extensions/${extension}/${normalized}`);
-    if (!bytes) throw new Error(`Missing extensions/${extension}/${normalized}`);
+    const bytes = await download(`${extensionBase(extension)}/${normalized}`);
+    if (!bytes) throw new Error(`Missing ${extensionBase(extension)}/${normalized}`);
     files.set(assetPath, transform ? transform(bytes) : bytes);
   }
   return assetPath;
@@ -137,12 +162,13 @@ function minifyGrammar(bytes) {
 }
 
 async function readExtension(extension) {
-  const packageBytes = await download(`extensions/${extension}/package.json`);
+  const base = extensionBase(extension);
+  const packageBytes = await download(`${base}/package.json`);
   if (!packageBytes) return null;
-  const nlsBytes = await download(`extensions/${extension}/package.nls.json`);
+  const nlsBytes = await download(`${base}/package.nls.json`);
   const nls = nlsBytes ? parseJsonc(nlsBytes.toString('utf8')) : {};
   const manifest = localizeManifest(parseJsonc(packageBytes.toString('utf8')), nls);
-  const cgBytes = await download(`extensions/${extension}/cgmanifest.json`);
+  const cgBytes = await download(`${base}/cgmanifest.json`);
   return { extension, manifest, cgBytes, cgmanifest: cgBytes ? parseJsonc(cgBytes.toString('utf8')) : undefined, copied: false };
 }
 
@@ -169,6 +195,11 @@ for (const folder of folders) {
   const data = await readExtension(folder);
   if (data) extensions.push(data); // folders without package.json (`types`) are not extensions
 }
+for (const installed of installedExtensions) {
+  const data = await readExtension(installed.extension);
+  if (!data) throw new Error(`${installed.repository} has no ${installed.folder}/package.json at ${installed.revision}`);
+  extensions.push({ ...data, installed });
+}
 
 // --- Languages: `isValidLanguageExtensionPoint` (languageService.ts) ---
 const isStringArray = value => value === undefined || (Array.isArray(value) && value.every(item => typeof item === 'string'));
@@ -189,6 +220,7 @@ for (const data of extensions) {
   if (contributed === undefined) continue;
   if (!Array.isArray(contributed)) throw new Error(`${data.extension}: contributes.languages is not an array`);
   for (const language of contributed) {
+    if (data.installed && !data.installed.languages.includes(language?.id)) continue;
     if (!isValidLanguage(language)) {
       skipped.push(`${data.extension}: invalid language ${JSON.stringify(language)}`);
       continue;
@@ -207,9 +239,23 @@ for (const data of extensions) {
 const registered = new Set(languages.map(language => language.id));
 
 // --- Grammars, all fields of each `contributes.grammars` entry ---
+// An installed extension's injections are kept only into its own languages' grammars:
+// Vue's would also inject into `text.html.derivative` (VS Code's HTML), `text.pug` and
+// Markdown, and the built-in languages tokenize as VS Code's alone.
 const grammars = [];
 for (const data of extensions) {
-  for (const grammar of data.manifest.contributes?.grammars ?? []) {
+  const ownScopes = new Set((data.manifest.contributes?.grammars ?? [])
+    .filter(grammar => data.installed?.languages.includes(grammar.language))
+    .map(grammar => grammar.scopeName));
+  for (let grammar of data.manifest.contributes?.grammars ?? []) {
+    if (data.installed) {
+      if (grammar.language && !data.installed.languages.includes(grammar.language)) continue;
+      if (grammar.injectTo) {
+        const injectTo = grammar.injectTo.filter(scope => ownScopes.has(scope));
+        if (!injectTo.length) continue;
+        grammar = { ...grammar, injectTo };
+      }
+    }
     if (typeof grammar.path !== 'string') throw new Error(`${data.extension}: grammar without a path`);
     const transform = posix.extname(grammar.path) === '.json' ? minifyGrammar : undefined;
     const path = await copy('grammars', data.extension, grammar.path, transform);
@@ -295,9 +341,22 @@ for (const data of extensions) {
     for (const text of texts) if (!noticeTexts.includes(text)) noticeTexts.push(text);
   }
 }
+// Installed extensions: their repository's license, as their VSIX ships it.
+const installedNotices = [];
+for (const installed of installedExtensions) {
+  const text = await downloadText(`https://raw.githubusercontent.com/${installed.repository}/${installed.revision}/LICENSE`);
+  installedNotices.push(
+    '='.repeat(79), '',
+    `grammars/${installed.extension}/... are the files of ${installed.folder}/... of`,
+    `${installed.name} (https://github.com/${installed.repository}) at revision`,
+    `${installed.revision}. JSON grammars are minified as above:`,
+    '', text.trim(), '',
+  );
+}
 const license = [
-  `The files in this directory were downloaded from Visual Studio Code`,
-  `(https://github.com/microsoft/vscode) at revision ${revision}`,
+  `Except for the installed extensions at the end, the files in this directory`,
+  `were downloaded from Visual Studio Code (https://github.com/microsoft/vscode)`,
+  `at revision ${revision}`,
   `by tool/generate_textmate_assets.mjs. The directory layout mirrors each`,
   `extension's: grammars/<extension>/... and themes/<extension>/... are the files of`,
   `extensions/<extension>/..., with each extension's cgmanifest.json (its component`,
@@ -318,11 +377,13 @@ const license = [
   'it does not list, the license text in cgmanifest.json):',
   '',
   ...noticeTexts.flatMap(notice => ['-'.repeat(57), '', notice.trim(), '']),
+  ...installedNotices,
 ].join('\n');
 
 const manifest = {
   revision,
   attribution: 'Copyright (c) Microsoft Corporation and others. See LICENSE.txt in this directory.',
+  installedExtensions: installedExtensions.map(installed => pick(installed, ['extension', 'repository', 'revision', 'folder'])),
   grammars,
   languages,
   configurationDefaults,

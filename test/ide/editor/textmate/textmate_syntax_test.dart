@@ -154,6 +154,8 @@ void main() {
     expect(await syntax.languageIdForPath('/w/run.sh'), 'shellscript');
     expect(await syntax.languageIdForPath('/w/Dockerfile'), 'dockerfile');
     expect(await syntax.languageIdForPath('/w/tsconfig.json'), 'jsonc');
+    // An installed extension's grammar (Vue - Official).
+    expect(await syntax.languageIdForPath('/w/App.vue'), 'vue');
     expect(
       await syntax.languageIdForPath('/w/run', firstLine: '#!/bin/bash'),
       'shellscript',

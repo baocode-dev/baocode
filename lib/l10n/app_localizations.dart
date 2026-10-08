@@ -1970,6 +1970,12 @@ abstract class AppLocalizations {
   /// **'Go to Line/Column…'**
   String get cmdGotoLine;
 
+  /// No description provided for @cmdChangeEol.
+  ///
+  /// In en, this message translates to:
+  /// **'Change End of Line Sequence'**
+  String get cmdChangeEol;
+
   /// No description provided for @cmdFind.
   ///
   /// In en, this message translates to:
@@ -7419,17 +7425,23 @@ abstract class AppLocalizations {
   /// **'Encoding'**
   String get wbEncoding;
 
-  /// No description provided for @wbEndOfLine.
-  ///
-  /// In en, this message translates to:
-  /// **'End of Line Sequence'**
-  String get wbEndOfLine;
-
   /// No description provided for @wbEolMixed.
   ///
   /// In en, this message translates to:
   /// **'Mixed'**
   String get wbEolMixed;
+
+  /// No description provided for @wbSelectEol.
+  ///
+  /// In en, this message translates to:
+  /// **'Select End of Line Sequence'**
+  String get wbSelectEol;
+
+  /// No description provided for @wbEditorReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'The active code editor is read-only.'**
+  String get wbEditorReadOnly;
 
   /// No description provided for @wbLanguageMode.
   ///
