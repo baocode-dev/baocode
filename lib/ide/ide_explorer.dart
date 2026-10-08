@@ -117,6 +117,9 @@ class IdeExplorerController extends ChangeNotifier {
       ? p.isWithin(root, path)
       : roots.any((r) => r == path || p.isWithin(r, path));
 
+  /// Whether [path] is in the tree: under [root], or a workspace folder.
+  bool shows(String path) => _inTree(p.normalize(path), _roots);
+
   /// Whether [path] is a workspace folder: the top of a tree.
   bool isRoot(String path) => path == root || _roots.contains(path);
 

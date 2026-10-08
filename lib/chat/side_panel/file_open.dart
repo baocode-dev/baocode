@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
@@ -60,9 +61,18 @@ class FileOpenRequest {
 /// Where a chat's files open (the agent window's side panel, the IDE's
 /// editor), and how it learns which exist.
 class FileLinkTarget {
-  const FileLinkTarget({required this.open, this.exists, this.paths});
+  const FileLinkTarget({
+    required this.open,
+    this.exists,
+    this.paths,
+    this.roots,
+  });
 
   final ValueChanged<FileOpenRequest> open;
+
+  /// A multi-folder workspace's folders as they are now: its files are
+  /// theirs (see [FileOpenScope.roots]).
+  final List<String> Function()? roots;
 
   /// Whether the file at an absolute path is there; inline code naming a
   /// file is a link only once it is known to be. None: never a link.
@@ -153,7 +163,7 @@ class FileExistence extends ChangeNotifier {
 }
 
 /// What the file links under it open: those in [root] (on the project's
-/// host, spelled as [paths]), through [onOpen].
+/// host, spelled as [paths]), or a workspace's [roots], through [onOpen].
 class FileOpenScope extends InheritedWidget {
   const FileOpenScope({
     super.key,
@@ -161,6 +171,7 @@ class FileOpenScope extends InheritedWidget {
     required this.onOpen,
     required this.existence,
     this.paths,
+    this.roots = const [],
     required super.child,
   });
 
@@ -169,18 +180,60 @@ class FileOpenScope extends InheritedWidget {
   final FileExistence existence;
   final p.Context? paths;
 
+  /// A multi-folder workspace's folders, its files' ([root], the agent's
+  /// directory, only holds its settings): a relative path is looked for in
+  /// each, in order.
+  final List<String> roots;
+
   static FileOpenScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<FileOpenScope>();
 
   /// [path] (absolute, or relative to [root]) in [root]; null outside it.
-  String? resolve(String path) =>
-      FileLink.resolvePath(path, root, paths: paths);
+  /// In a workspace, the first of its folders' found to have it; until
+  /// one is, the first's.
+  String? resolve(String path) {
+    final candidates = _candidates(path);
+    if (candidates.length < 2) return candidates.firstOrNull;
+    for (final candidate in candidates) {
+      if (existence.known(candidate) == true) return candidate;
+    }
+    return candidates.first;
+  }
 
-  /// Opens [link] if it is in [root]; false if it is not.
+  /// Where [path] may be: in each of [roots], then in [root].
+  List<String> _candidates(String path) {
+    final found = <String>{};
+    for (final folder in [...roots, root]) {
+      if (FileLink.resolvePath(path, folder, paths: paths) case final full?) {
+        found.add(full);
+      }
+    }
+    return [...found];
+  }
+
+  /// Opens [link] if it is in [root]; false if it is not. In a workspace,
+  /// once it is found in one of its folders, if that is not known yet.
   bool openLink(FileLink link, {bool diff = false}) {
     final path = resolve(link.path);
     if (path == null) return false;
-    onOpen(FileOpenRequest(path, range: link.range, diff: diff));
+    void open(String path) =>
+        onOpen(FileOpenRequest(path, range: link.range, diff: diff));
+    final check = existence.check;
+    final candidates = _candidates(link.path);
+    if (candidates.length < 2 ||
+        check == null ||
+        existence.known(path) == true) {
+      open(path);
+      return true;
+    }
+    unawaited(() async {
+      for (final candidate in candidates) {
+        final found = await check(candidate)
+            .then((found) => found, onError: (_) => false);
+        if (found) return open(candidate);
+      }
+      open(path);
+    }());
     return true;
   }
 
@@ -207,5 +260,6 @@ class FileOpenScope extends InheritedWidget {
       root != oldWidget.root ||
       onOpen != oldWidget.onOpen ||
       existence != oldWidget.existence ||
-      paths != oldWidget.paths;
+      paths != oldWidget.paths ||
+      !listEquals(roots, oldWidget.roots);
 }

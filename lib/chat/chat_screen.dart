@@ -532,6 +532,7 @@ class _ChatScreenState extends State<ChatScreen>
             paths: links.paths,
             onOpen: _openFile,
             existence: _files,
+            roots: links.roots?.call() ?? const [],
             child: scoped,
           );
         }

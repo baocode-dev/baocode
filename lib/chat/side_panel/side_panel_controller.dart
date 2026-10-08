@@ -133,11 +133,13 @@ class AgentSidePanel extends ChangeNotifier {
   /// the panel is, so it stays expanded as it was.
   final Map<String, IdeExplorerController> _explorers = {};
 
-  /// The tree of the project in [root], read with [files].
+  /// The tree of the project in [root], read with [files]; a multi-folder
+  /// workspace's [roots] at its top (see [setRoots] as they change).
   IdeExplorerController explorerOf(
     String root,
     IdeFileService files, {
     Stream<void> Function(String directory)? watch,
+    List<String> roots = const [],
   }) {
     final key = p.normalize(root);
     final explorer = _explorers[key];
@@ -147,7 +149,27 @@ class AgentSidePanel extends ChangeNotifier {
       files: files,
       root: root,
       watch: watch,
+      roots: roots,
     );
+  }
+
+  /// Has the tree of the workspace in [root] show [roots], its folders
+  /// now.
+  void setRoots(String root, List<String> roots) =>
+      _explorers[p.normalize(root)]?.roots = roots;
+
+  /// The repository picked on the changes page of each multi-folder
+  /// workspace (by its folder): its folder's path.
+  final Map<String, String> _repositories = {};
+
+  /// The folder whose repository's changes show for the workspace in
+  /// [root]; none picked yet when null (its first's show).
+  String? repositoryOf(String root) => _repositories[p.normalize(root)];
+
+  void selectRepository(String root, String folder) {
+    if (_repositories[p.normalize(root)] == folder) return;
+    _repositories[p.normalize(root)] = folder;
+    notifyListeners();
   }
 
   /// Goes up each time it is asked for: shown, or a page or a tab opened in
@@ -284,9 +306,7 @@ class AgentSidePanel extends ChangeNotifier {
   /// the editor.
   void _reveal(String path) {
     for (final explorer in _explorers.values) {
-      if (p.isWithin(explorer.root, p.normalize(path))) {
-        unawaited(explorer.reveal(path));
-      }
+      if (explorer.shows(path)) unawaited(explorer.reveal(path));
     }
   }
 

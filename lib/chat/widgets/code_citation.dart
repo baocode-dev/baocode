@@ -11,6 +11,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
+import '../side_panel/file_open.dart' show FileOpenScope;
 import 'hover_builder.dart';
 import 'wheel_latch.dart';
 
@@ -406,9 +407,11 @@ class _CodeCardState extends State<_CodeCard> {
   Widget _file(BuildContext context, CodeCitation citation) {
     final scope = CodeCitationScope.maybeOf(context);
     final open = scope?.onOpen;
-    final path = switch (scope?.root) {
-      final root? => citation.pathIn(root),
-      null => null,
+    // As the chat's file links are found, in a workspace's folders too.
+    final path = switch ((FileOpenScope.maybeOf(context), scope?.root)) {
+      (final files?, _) => files.resolve(citation.path),
+      (null, final root?) => citation.pathIn(root),
+      _ => null,
     };
     final opens = open != null && path != null;
     Widget file = Row(

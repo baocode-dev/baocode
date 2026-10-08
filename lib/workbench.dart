@@ -88,6 +88,7 @@ import 'workspace/editor_launcher.dart' show openExternal;
 import 'workspace/new_chat_folder_bar.dart';
 import 'workspace/open_in_editor_button.dart';
 import 'workspace/pin_window_button.dart';
+import 'workspace/project_workspace.dart' show ProjectWorkspace;
 import 'workspace/title_bar_double_click.dart';
 import 'workspace/window_controls.dart';
 import 'workspace/window_header/window_header.dart';
@@ -332,7 +333,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       rootOf: () => (_agentThread ?? _workspace.current)?.project.path,
       // A remote project's on its host.
       backendFor: (location) => ProjectHost.of(location).terminals(backend),
-      pathOf: RemoteLocation.pathOf,
+      // A workspace's in its first folder (its own is only its settings).
+      pathOf: (location) => switch (_workspace.workspaceAt(location)) {
+        final multi? => multi.folders.firstOrNull ?? location,
+        null => RemoteLocation.pathOf(location),
+      },
     )..onLastClosed = _focusCurrentChat,
     _ => null,
   }?..addListener(_terminalsChanged);
@@ -461,12 +466,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _workspace.addListener(_syncWorkspaceFolders);
   }
 
-  /// The IDE of a multi-folder workspace shows the folders it has now.
+  /// The IDE and side panel of a multi-folder workspace show the folders
+  /// it has now.
   void _syncWorkspaceFolders() {
     for (final MapEntry(key: folder, value: space) in _ideSpaces.entries) {
       if (_workspace.workspaceAt(folder) case final multi?) {
         space.roots = multi.folders;
       }
+    }
+    for (final multi in _workspace.workspaces) {
+      _sidePanel.setRoots(multi.path, multi.folders);
     }
   }
 
@@ -2504,6 +2513,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   Widget _buildSidePanel(AgentThread thread) {
     final (:files, :paths) = _projectFiles(thread);
+    final location = thread.project.path;
+    final multi = _workspace.workspaceAt(location);
     return AgentSidePanelView(
       panel: _sidePanel,
       session: thread.session,
@@ -2516,7 +2527,30 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       terminals: _terminals?.sidePanelTerminals(thread.project.path),
       terminalSkipShell: chatTerminalSkipShell,
       onOpenTerminalLink: _openTerminalLink,
+      workspaceName: multi?.name,
+      roots: multi?.folders ?? const [],
+      repositories: multi == null ? const [] : _sidePanelRepositories(multi),
+      onAddFolder: multi == null
+          ? null
+          : () => unawaited(_addWorkspaceFolder(location)),
+      onRemoveFolder: multi == null
+          ? null
+          : (folder) => _workspace.removeWorkspaceFolder(multi, folder),
     );
+  }
+
+  /// The repositories of [multi]'s folders the side panel lists: its
+  /// IDE's, once open, else the panel's own.
+  List<(String, IdeGitRepository)> _sidePanelRepositories(
+    ProjectWorkspace multi,
+  ) {
+    if (_ideSpaces[multi.path] case final space?) return space.repositories;
+    final gitFor = widget.gitFor;
+    if (gitFor == null) return const [];
+    return [
+      for (final folder in multi.folders)
+        (folder, _sidePanelGits[folder] ??= gitFor(folder)),
+    ];
   }
 
   /// The files of [thread]'s project, on its host, and how it spells
@@ -2561,6 +2595,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         paths: paths,
       ),
       paths: paths,
+      roots: () =>
+          _workspace.workspaceAt(thread.project.path)?.folders ?? const [],
     );
   }
 

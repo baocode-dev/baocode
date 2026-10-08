@@ -279,10 +279,58 @@ class AgentSidePanelView extends StatelessWidget {
     this.terminals,
     this.terminalSkipShell = const [],
     this.onOpenTerminalLink,
+    this.workspaceName,
+    this.roots = const [],
+    this.repositories = const [],
+    this.onAddFolder,
+    this.onRemoveFolder,
   });
 
   final AgentSidePanel panel;
   final ChatSession session;
+
+  /// The name of the multi-folder workspace the conversation is in; null
+  /// for a folder's.
+  final String? workspaceName;
+
+  /// The workspace's folders, the roots of the files page's tree as of
+  /// the IDE's explorer.
+  final List<String> roots;
+
+  /// The repositories of the workspace's folders, by folder: the changes
+  /// page lists them to pick from, [git] then ignored.
+  final List<(String root, IdeGitRepository git)> repositories;
+
+  /// Add Folder to Workspace..., and Remove Folder from Workspace, as the
+  /// IDE's explorer has them.
+  final VoidCallback? onAddFolder;
+  final ValueChanged<String>? onRemoveFolder;
+
+  bool get _isWorkspace => workspaceName != null;
+
+  /// The repository whose changes show: the one picked of a workspace's
+  /// (its first until one is), else [git].
+  IdeGitRepository? get _git {
+    if (!_isWorkspace) return git;
+    final picked = switch (session.root) {
+      final root? => panel.repositoryOf(root),
+      null => null,
+    };
+    return repositories.where((r) => r.$1 == picked).firstOrNull?.$2 ??
+        repositories.firstOrNull?.$2;
+  }
+
+  /// Every repository the changes page counts.
+  List<IdeGitRepository> get _gits =>
+      _isWorkspace ? [for (final (_, git) in repositories) git] : [?git];
+
+  /// The workspace folder [path] is in, else the project's folder.
+  String? _rootOf(String path) {
+    for (final root in roots) {
+      if (root == path || _paths.isWithin(root, path)) return root;
+    }
+    return session.root;
+  }
 
   /// The project's, on its host.
   final IdeFileService files;
@@ -314,7 +362,7 @@ class AgentSidePanelView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([panel, session, ?git, ?terminals]),
+    listenable: Listenable.merge([panel, session, ..._gits, ?terminals]),
     builder: (context, _) {
       final tabs = panel.tabsOf(session);
       return Column(
@@ -324,7 +372,7 @@ class AgentSidePanelView extends StatelessWidget {
             panel: panel,
             session: session,
             tabs: tabs,
-            changes: git?.state?.count ?? 0,
+            changes: _gits.fold(0, (sum, git) => sum + (git.state?.count ?? 0)),
           ),
           Expanded(
             child: switch (tabs.section) {
@@ -348,7 +396,7 @@ class AgentSidePanelView extends StatelessWidget {
     final active = tabs.active;
     final explorer = root == null
         ? null
-        : panel.explorerOf(root, files, watch: watchDirectory);
+        : panel.explorerOf(root, files, watch: watchDirectory, roots: roots);
     final local = files is! IdeHostFiles;
     return _Page(
       key: const ValueKey(('page', SidePanelSection.files)),
@@ -359,8 +407,17 @@ class AgentSidePanelView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _ListHeader(
-                  title: _paths.basename(explorer.root),
+                  title: switch (workspaceName) {
+                    final name? => l10n.ideWorkspaceTitle(name),
+                    null => _paths.basename(explorer.root),
+                  },
                   actions: [
+                    if (onAddFolder case final add? when _isWorkspace)
+                      IdeActionButton(
+                        icon: Codicons.rootFolder,
+                        tooltip: l10n.ideAddFolderToWorkspace,
+                        onPressed: add,
+                      ),
                     IdeActionButton(
                       icon: Codicons.refresh,
                       tooltip: l10n.cmdRefreshExplorer,
@@ -374,26 +431,30 @@ class AgentSidePanelView extends StatelessWidget {
                   ],
                 ),
                 Expanded(
-                  child: IdeExplorer(
-                    key: ObjectKey(explorer),
-                    controller: explorer,
-                    local: local,
-                    trash: local && WindowControls.canMoveToTrash
-                        ? WindowControls.moveToTrash
-                        : null,
-                    onOpen: (path, _) =>
-                        panel.open(session, FileOpenRequest(path)),
-                    // A paste, rename or delete that failed.
-                    onError: (error) => unawaited(
-                      showIdeDialog(
-                        context,
-                        type: IdeDialogType.error,
-                        message: localizedFileError(l10n, error),
-                        buttons: const [],
-                        cancel: l10n.commonOk,
-                      ),
-                    ),
-                  ),
+                  child: _isWorkspace && roots.isEmpty
+                      ? _EmptyWorkspace(onAddFolder: onAddFolder)
+                      : IdeExplorer(
+                          key: ObjectKey(explorer),
+                          controller: explorer,
+                          local: local,
+                          onAddFolder: _isWorkspace ? onAddFolder : null,
+                          onRemoveFolder: _isWorkspace ? onRemoveFolder : null,
+                          trash: local && WindowControls.canMoveToTrash
+                              ? WindowControls.moveToTrash
+                              : null,
+                          onOpen: (path, _) =>
+                              panel.open(session, FileOpenRequest(path)),
+                          // A paste, rename or delete that failed.
+                          onError: (error) => unawaited(
+                            showIdeDialog(
+                              context,
+                              type: IdeDialogType.error,
+                              message: localizedFileError(l10n, error),
+                              buttons: const [],
+                              cancel: l10n.commonOk,
+                            ),
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -410,17 +471,20 @@ class AgentSidePanelView extends StatelessWidget {
   /// what goes here.
   Widget _changesPage(BuildContext context, SidePanelTabs tabs) {
     final l10n = context.l10n;
-    final git = this.git;
+    final git = _git;
     final state = git?.state;
     final active = tabs.activeDiff;
     final local = files is! IdeHostFiles;
-    if (state != null && state.count == 0 && tabs.diffs.isEmpty) {
+    final total = _gits.fold(0, (sum, git) => sum + (git.state?.count ?? 0));
+    final loaded = _gits.every((git) => git.state != null);
+    if (loaded && _gits.isNotEmpty && total == 0 && tabs.diffs.isEmpty) {
       return const _NoChanges();
     }
     final Widget list;
     if (git == null || (git.loaded && state == null)) {
       list = _NoRepository(
-        onInitialize: git == null || session.root == null
+        // A workspace's folders are each their own.
+        onInitialize: git == null || session.root == null || _isWorkspace
             ? null
             : () => unawaited(git.initialize()),
       );
@@ -430,6 +494,16 @@ class AgentSidePanelView extends StatelessWidget {
       list = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (repositories.length > 1)
+            _RepositoryList(
+              repositories: repositories,
+              selected: git,
+              onSelect: (folder) {
+                if (session.root case final root?) {
+                  panel.selectRepository(root, folder);
+                }
+              },
+            ),
           _ListHeader(
             title: l10n.sidePanelChanges,
             count: state.count,
@@ -491,7 +565,12 @@ class AgentSidePanelView extends StatelessWidget {
   void _revealInFiles(String path) {
     final root = session.root;
     if (root == null) return;
-    final explorer = panel.explorerOf(root, files, watch: watchDirectory);
+    final explorer = panel.explorerOf(
+      root,
+      files,
+      watch: watchDirectory,
+      roots: roots,
+    );
     panel.showSection(session, SidePanelSection.files);
     unawaited(explorer.reveal(path));
   }
@@ -675,8 +754,9 @@ class AgentSidePanelView extends StatelessWidget {
       for (final tab in list) tab.path,
     ], root ?? _paths.rootPrefix(list.first.path));
     final statuses = {
-      for (final resource in git?.state?.resources ?? const <IdeGitResource>[])
-        resource.path: resource.status,
+      for (final git in _gits)
+        for (final resource in git.state?.resources ?? const <IdeGitResource>[])
+          resource.path: resource.status,
     };
     return _TabStrip(
       key: ValueKey((tabs.section, session)),
@@ -720,8 +800,8 @@ class AgentSidePanelView extends StatelessWidget {
     SidePanelTab tab,
   ) {
     final l10n = context.l10n;
-    final root = session.root;
     final path = tab.path;
+    final root = _rootOf(path);
     final local = files is! IdeHostFiles;
     return ideMenuGroups([
       _closeItems(
@@ -794,12 +874,12 @@ class AgentSidePanelView extends StatelessWidget {
     request: tab.request,
     reveal: tab.reveal,
     files: files,
-    root: session.root,
+    root: _rootOf(tab.path),
     readBytes: readBytes,
     paths: paths,
     colorize: colorize,
     onOpenFile: (request) {
-      final root = session.root;
+      final root = _rootOf(request.path);
       if (root == null) return;
       final path = FileLink.resolvePath(request.path, root, paths: paths);
       if (path != null) {
@@ -1537,6 +1617,117 @@ class _Tab extends StatelessWidget {
       child: tooltip == null ? tab : IdeHover(message: tooltip!, child: tab),
     );
   }
+}
+
+/// The files page of a workspace with no folders yet: a button to add
+/// one.
+class _EmptyWorkspace extends StatelessWidget {
+  const _EmptyWorkspace({this.onAddFolder});
+
+  final VoidCallback? onAddFolder;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            l10n.ideEmptyWorkspace,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.5,
+              color: AppColors.textMuted,
+            ),
+          ),
+          if (onAddFolder case final add?) ...[
+            const SizedBox(height: 12),
+            IdeButton(
+              label: l10n.ideAddFolderToWorkspace,
+              expand: true,
+              onPressed: add,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A workspace's repositories over its changes, as the IDE's Source Control
+/// Repositories: each with its branch and how many changes; the one picked
+/// is the one whose changes show.
+class _RepositoryList extends StatelessWidget {
+  const _RepositoryList({
+    required this.repositories,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final List<(String root, IdeGitRepository git)> repositories;
+  final IdeGitRepository? selected;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    decoration: BoxDecoration(
+      border: Border(bottom: BorderSide(color: _TabStrip.borderColor)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (root, git) in repositories)
+          IdeListRow(
+            key: ValueKey(('repository', root)),
+            selected: identical(git, selected),
+            focused: true,
+            tooltip: root,
+            onTap: () => onSelect(root),
+            builder: (context, hovered) => Padding(
+              padding: const EdgeInsets.only(left: 12, right: 8),
+              child: Row(
+                children: [
+                  Icon(
+                    Codicons.repo,
+                    size: 14,
+                    color: themeColors['icon.foreground'],
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      p.basename(root),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                  ),
+                  if (git.state?.head.branch case final branch?) ...[
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        branch,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  if (git.state?.count case final count? when count > 0)
+                    _Badge(count),
+                ],
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
 }
 
 class _EmptySection extends StatelessWidget {
