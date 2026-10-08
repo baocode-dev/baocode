@@ -10,6 +10,7 @@ import '../../ide/ide_color_theme_picker.dart';
 import '../../ide/ide_quick_input.dart' show ideLocaleCompare;
 import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/code_font.dart';
 import '../../theme/workbench_theme.dart' show ThemeSettingDefaults;
 import '../user_settings.dart';
@@ -176,10 +177,7 @@ class AppearanceSettingsPage extends StatelessWidget {
         final families = CodeFont.families.value;
         final sizeStep = _nearest(CodeFont.sizeSteps, CodeFont.size.value);
         final sizeShown = '${CodeFont.size.value.round()}';
-        final uiScaleStep = _nearest(
-          CodeFont.uiScaleSteps,
-          CodeFont.uiScale.value,
-        );
+        final uiScaleStep = CodeFont.uiScale.value - CodeFont.minUiScale;
         final uiScaleShown = '${CodeFont.uiScale.value}';
         final groups = _groups();
         final currentId = themes.colorThemeId;
@@ -251,6 +249,9 @@ class AppearanceSettingsPage extends StatelessWidget {
                       onSubmitted: (text) =>
                           _selectFamilies(CodeFont.parseFamilies(text)),
                     ),
+                    // Not const: it must redraw as the font, size or
+                    // ligatures change.
+                    _CodeFontPreview(),
                   ],
                   trailing: SettingsDropdown(
                     current: _familyName(context, families),
@@ -303,13 +304,13 @@ class AppearanceSettingsPage extends StatelessWidget {
                   description: l10n.appearanceSettingsUiScaleDescription,
                   trailing: SettingsSlider(
                     step: uiScaleStep,
-                    count: CodeFont.uiScaleSteps.length,
+                    count: CodeFont.maxUiScale - CodeFont.minUiScale + 1,
                     label: '$uiScaleShown%',
                     semanticLabel: l10n.appearanceSettingsUiScaleLabel(
                       uiScaleShown,
                     ),
                     onChanged: (step) =>
-                        _selectUiScale(CodeFont.uiScaleSteps[step]),
+                        _selectUiScale(CodeFont.minUiScale + step),
                   ),
                 ),
               ],
@@ -317,6 +318,41 @@ class AppearanceSettingsPage extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// A sample of TypeScript in the code font, as it is set: its size, its
+/// family, and the symbols the ligatures join (`=>`, `!==`, `>=`, `??`).
+class _CodeFontPreview extends StatelessWidget {
+  const _CodeFontPreview();
+
+  static const _sample = '''
+type Point = { x: number; y: number };
+const add = (a: Point, b: Point): Point =>
+  ({ x: a.x + b.x, y: a.y + b.y });
+if (add(p, q).x >= 0 && p !== q) {
+  return items ?? [];
+}''';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 360,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.code,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Text(
+          _sample,
+          style: AppFonts.codeStyle(13)
+              .copyWith(color: AppColors.text, height: 1.45),
+        ),
+      ),
     );
   }
 }

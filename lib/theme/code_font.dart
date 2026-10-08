@@ -58,8 +58,10 @@ abstract final class CodeFont {
     24,
   ];
 
-  /// The window's text scales, as percentages; 100 is the system's.
-  static const uiScaleSteps = <int>[90, 100, 110, 125, 150];
+  /// The window's text scales, as percentages, every one from the smallest
+  /// to the largest the slider offers; 100 is the system's.
+  static const minUiScale = 90;
+  static const maxUiScale = 150;
   static const defaultUiScale = 100;
 
   /// The families code is drawn in, the first one used.
@@ -115,10 +117,13 @@ abstract final class CodeFont {
   /// [on] as settings.json keeps it; null (not written) for on.
   static bool? ligaturesSetting(bool on) => on ? null : false;
 
-  /// [value] as settings.json has it: one of [uiScaleSteps], else the
-  /// default.
+  /// [value] as settings.json has it: a percentage from [minUiScale] to
+  /// [maxUiScale], else the default.
   static int parseUiScale(Object? value) => switch (value) {
-    final num percent when uiScaleSteps.contains(percent.round()) =>
+    final num percent
+        when percent.isFinite &&
+            percent.round() >= minUiScale &&
+            percent.round() <= maxUiScale =>
       percent.round(),
     _ => defaultUiScale,
   };

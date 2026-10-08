@@ -80,16 +80,16 @@ void main() {
     expect(features, ['liga', 'calt']);
   });
 
-  test(
-    'the window\'s text scale: one of its steps; the default is unwritten',
-    () {
-      expect(CodeFont.parseUiScale(null), CodeFont.defaultUiScale);
-      expect(CodeFont.parseUiScale(111), CodeFont.defaultUiScale);
-      expect(CodeFont.parseUiScale(125), 125);
-      expect(CodeFont.uiScaleSetting(CodeFont.defaultUiScale), isNull);
-      expect(CodeFont.uiScaleSetting(125), 125);
-    },
-  );
+  test('the window\'s text scale: a percentage from 90 to 150; the default is '
+      'unwritten', () {
+    expect(CodeFont.parseUiScale(null), CodeFont.defaultUiScale);
+    expect(CodeFont.parseUiScale(89), CodeFont.defaultUiScale);
+    expect(CodeFont.parseUiScale(151), CodeFont.defaultUiScale);
+    expect(CodeFont.parseUiScale(111), 111);
+    expect(CodeFont.parseUiScale(125), 125);
+    expect(CodeFont.uiScaleSetting(CodeFont.defaultUiScale), isNull);
+    expect(CodeFont.uiScaleSetting(125), 125);
+  });
 
   test('follow sets the notifiers now, and again as settings.json changes', () {
     final settings = ValueNotifier<int>(0);
