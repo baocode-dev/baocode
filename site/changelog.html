@@ -29,6 +29,54 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.0.2">
+    <h2 class="plain"><a href="#v1.0.2">1.0.2</a></h2>
+    <p>Update didn’t install?</p>
+    <ul>
+    <li>If after Restart to Update the app closed and opened again on the old version (1.0.0 and the first 1.0.1 build may do this), please download 1.0.2 from <a href="https://baocode.dev/download">https://baocode.dev/download</a> and install it over your current version; your settings and conversations are kept.</li>
+    </ul>
+    <p>New</p>
+    <ul>
+    <li>Settings → Appearance: choose the code font, its size and ligatures, and the interface text size, with a preview as you go; the terminal uses the font and size too</li>
+    <li>A very long text pasted into the input goes in as a tag (such as “Pasted text #1 +120 lines”) instead of freezing the window; hover it to preview, and the whole text is sent with the message</li>
+    </ul>
+    <p>New in 1.0.1</p>
+    <ul>
+    <li>A side panel beside the chat: browse the project’s files, review, stage and commit Git changes (with a commit message Claude can draft), and open terminals and the commands an agent runs in the background</li>
+    <li>See the files Claude changed in the side panel, and edit and save them there</li>
+    <li>Workspaces: put several folders together and let an agent work across them all; Git repositories nested in them are found too</li>
+    <li>Refer to other conversations with @ in the input, and copy a session’s ID from an agent’s menu in the sidebar</li>
+    <li>SSH remote projects on macOS hosts</li>
+    <li>Mermaid diagrams in chat and Markdown files drawn as diagrams, offline, and zoomable</li>
+    <li>The agent’s plan shown as a card, and a setting for the width of the chat</li>
+    <li>Copy, cut and paste files in the explorer</li>
+    <li>A background command’s output in the side panel is shown in a real terminal, with the terminal’s font, colors, selection, find and links</li>
+    </ul>
+    <p>Improved in 1.0.1</p>
+    <ul>
+    <li>Claude Code’s first-run onboarding is skipped for you, and you’re told when Claude Code can’t be found</li>
+    <li>A file opened again is colored at once, without waiting to be highlighted anew</li>
+    <li>In a narrow window, the sidebar and the side panel give way to whichever was opened last</li>
+    <li>Windows: a new install is for the current user by default, so neither installing nor updating needs administrator rights; installing for all users is still a choice</li>
+    <li>More reliable updates: on Windows, the administrator prompt an update asks for comes up in front; an update that didn’t install is told at the next launch, with the download page and the install log</li>
+    <li>A version you skipped still shows the Update button in the sidebar; it just isn’t offered in a notification</li>
+    <li>Errors, the Windows window log and hang reports are kept in the data folder’s logs folder, to find out what went wrong</li>
+    <li>The interaction panel shows the shortcut to go back</li>
+    </ul>
+    <p>Fixed in 1.0.1</p>
+    <ul>
+    <li>With themes such as Dark 2026 and Dark Modern, the program, strings and options of a command in the chat were invisible</li>
+    <li>With light themes, commands and their output in the chat were too faint; they now keep the terminal’s contrast</li>
+    <li>A project icon in cyan or magenta showed no color with some themes</li>
+    <li>Moving the data directory names the files another program holds open, instead of only reporting that copying failed</li>
+    <li>A suggested prompt with a backslash (a Windows path) or a line break turned the input into a grey error box</li>
+    <li>Windows: after a display slept, or a window was resized while hidden, the window’s content froze</li>
+    <li>Windows: a maximized window on a second screen, restored from minimized, didn’t fill the screen or take input</li>
+    <li>The side panel’s rail showed while Customize was open</li>
+    <li>Windows: About showed the wrong version, and not the app’s icon</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.0.1">
     <h2 class="plain"><a href="#v1.0.1">1.0.1</a></h2>
     <p>To 1.0.0 users</p>
