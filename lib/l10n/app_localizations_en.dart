@@ -6599,4 +6599,216 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdCreateWorkspace => 'Create Workspace...';
+
+  @override
+  String extRuntimeDownloading(int percent) {
+    return 'Downloading extension runtime $percent%';
+  }
+
+  @override
+  String get extRuntimeDownloadingStarting => 'Downloading extension runtime…';
+
+  @override
+  String extRuntimeDownloadingTooltip(String received, String total) {
+    return 'Downloading the extension runtime (once; it is kept for offline use): $received of $total';
+  }
+
+  @override
+  String get extRuntimeInstalling => 'Installing extension runtime…';
+
+  @override
+  String get extRuntimeInstallingTooltip => 'Unpacking the extension runtime';
+
+  @override
+  String get extRuntimeFailed => 'Extension runtime unavailable';
+
+  @override
+  String extRuntimeFailedTooltip(String error) {
+    return 'Could not get the extension runtime: $error';
+  }
+
+  @override
+  String get extRuntimeClickToRetry => 'Click to try again';
+
+  @override
+  String windowUrlConfirm(String extension) {
+    return 'Allow \'$extension\' extension to open this URI?';
+  }
+
+  @override
+  String get windowUrlRemember => 'Do not ask me again for this extension';
+
+  @override
+  String get windowUrlOpen => 'Open';
+
+  @override
+  String get windowUrlInstallDetail => 'This extension wants to open a URI:';
+
+  @override
+  String get windowUrlOpenUri => 'Open URI';
+
+  @override
+  String get extensionSettingsSection => 'Extension Settings';
+
+  @override
+  String get extensionSettingsDescription =>
+      'Settings that extensions contribute, and VS Code\'s own settings that extensions read.';
+
+  @override
+  String get extensionSettingsSearch => 'Search settings';
+
+  @override
+  String get extensionSettingsUser => 'User';
+
+  @override
+  String get extensionSettingsWorkspace => 'Workspace';
+
+  @override
+  String get extensionSettingsShow => 'Show settings from';
+
+  @override
+  String get extensionSettingsSourceExtensions => 'Extensions';
+
+  @override
+  String get extensionSettingsSourceCore => 'VS Code';
+
+  @override
+  String get extensionSettingsSourceAll => 'All';
+
+  @override
+  String extensionSettingsResults(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count settings found',
+      one: '1 setting found',
+      zero: 'No settings found',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get extensionSettingsUnavailable =>
+      'Extension settings are not available yet.';
+
+  @override
+  String get extensionSettingsEmpty =>
+      'No installed extension contributes settings.';
+
+  @override
+  String get extensionSettingsOther => 'Other';
+
+  @override
+  String get extensionSettingsEditInJson => 'Edit in settings.json';
+
+  @override
+  String get extensionSettingsReset => 'Reset Setting';
+
+  @override
+  String get extensionSettingsCopyId => 'Copy Setting ID';
+
+  @override
+  String get extensionSettingsCopyJson => 'Copy Setting as JSON';
+
+  @override
+  String get extensionSettingsMoreActions => 'More Actions...';
+
+  @override
+  String get extensionSettingsModified => 'Modified';
+
+  @override
+  String extensionSettingsAlsoModifiedIn(String target) {
+    return 'Also modified in: $target';
+  }
+
+  @override
+  String get extensionSettingsAddItem => 'Add Item';
+
+  @override
+  String get extensionSettingsAddPattern => 'Add Pattern';
+
+  @override
+  String get extensionSettingsRemoveItem => 'Remove Item';
+
+  @override
+  String get extensionSettingsEditItem => 'Edit Item';
+
+  @override
+  String get extensionSettingsOk => 'OK';
+
+  @override
+  String get extensionSettingsCancel => 'Cancel';
+
+  @override
+  String extensionSettingsLanguage(String language) {
+    return 'Settings for $language: values are written to \"[$language]\".';
+  }
+
+  @override
+  String get extensionSettingsDeprecated => 'Deprecated';
+
+  @override
+  String get extensionSettingsValidationNumber => 'Value must be a number.';
+
+  @override
+  String get extensionSettingsValidationInteger => 'Value must be an integer.';
+
+  @override
+  String extensionSettingsValidationMin(String value) {
+    return 'Value must be greater than or equal to $value.';
+  }
+
+  @override
+  String extensionSettingsValidationMax(String value) {
+    return 'Value must be less than or equal to $value.';
+  }
+
+  @override
+  String extensionSettingsValidationExclusiveMin(String value) {
+    return 'Value must be strictly greater than $value.';
+  }
+
+  @override
+  String extensionSettingsValidationExclusiveMax(String value) {
+    return 'Value must be strictly less than $value.';
+  }
+
+  @override
+  String extensionSettingsValidationMultipleOf(String value) {
+    return 'Value must be a multiple of $value.';
+  }
+
+  @override
+  String extensionSettingsValidationMaxLength(String value) {
+    return 'Value must be $value or fewer characters long.';
+  }
+
+  @override
+  String extensionSettingsValidationMinLength(String value) {
+    return 'Value must be $value or more characters long.';
+  }
+
+  @override
+  String extensionSettingsValidationPattern(String pattern) {
+    return 'Value must match regex `$pattern`.';
+  }
+
+  @override
+  String extensionSettingsValidationEnum(String values) {
+    return 'Value is not accepted. Valid values: $values.';
+  }
+
+  @override
+  String get extensionSettingsValidationUniqueItems =>
+      'Array has duplicate items';
+
+  @override
+  String extensionSettingsValidationMinItems(String value) {
+    return 'Array must have at least $value items';
+  }
+
+  @override
+  String extensionSettingsValidationMaxItems(String value) {
+    return 'Array must have at most $value items';
+  }
 }

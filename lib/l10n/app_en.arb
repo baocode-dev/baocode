@@ -4770,5 +4770,106 @@
   "@scmRepositories": {
     "description": "The heading of Source Control's list of a workspace's Git repositories."
   },
-  "cmdCreateWorkspace": "Create Workspace..."
+  "cmdCreateWorkspace": "Create Workspace...",
+  "extRuntimeDownloading": "Downloading extension runtime {percent}%",
+  "@extRuntimeDownloading": {
+    "description": "Status bar: the extension runtime (Node.js and the VS Code extension host) is being downloaded the first time it is needed.",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "extRuntimeDownloadingStarting": "Downloading extension runtime…",
+  "extRuntimeDownloadingTooltip": "Downloading the extension runtime (once; it is kept for offline use): {received} of {total}",
+  "@extRuntimeDownloadingTooltip": {
+    "placeholders": {
+      "received": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "extRuntimeInstalling": "Installing extension runtime…",
+  "extRuntimeInstallingTooltip": "Unpacking the extension runtime",
+  "extRuntimeFailed": "Extension runtime unavailable",
+  "extRuntimeFailedTooltip": "Could not get the extension runtime: {error}",
+  "@extRuntimeFailedTooltip": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "extRuntimeClickToRetry": "Click to try again",
+  "windowUrlConfirm": "Allow '{extension}' extension to open this URI?",
+  "@windowUrlConfirm": {
+    "placeholders": {
+      "extension": {
+        "type": "String"
+      }
+    }
+  },
+  "windowUrlRemember": "Do not ask me again for this extension",
+  "windowUrlOpen": "Open",
+  "windowUrlInstallDetail": "This extension wants to open a URI:",
+  "windowUrlOpenUri": "Open URI",
+  "extensionSettingsSection": "Extension Settings",
+  "extensionSettingsDescription": "Settings that extensions contribute, and VS Code's own settings that extensions read.",
+  "extensionSettingsSearch": "Search settings",
+  "extensionSettingsUser": "User",
+  "extensionSettingsWorkspace": "Workspace",
+  "extensionSettingsShow": "Show settings from",
+  "extensionSettingsSourceExtensions": "Extensions",
+  "extensionSettingsSourceCore": "VS Code",
+  "extensionSettingsSourceAll": "All",
+  "extensionSettingsResults": "{count, plural, =0{No settings found} =1{1 setting found} other{{count} settings found}}",
+  "@extensionSettingsResults": {"placeholders": {"count": {"type": "int"}}},
+  "extensionSettingsUnavailable": "Extension settings are not available yet.",
+  "extensionSettingsEmpty": "No installed extension contributes settings.",
+  "extensionSettingsOther": "Other",
+  "extensionSettingsEditInJson": "Edit in settings.json",
+  "extensionSettingsReset": "Reset Setting",
+  "extensionSettingsCopyId": "Copy Setting ID",
+  "extensionSettingsCopyJson": "Copy Setting as JSON",
+  "extensionSettingsMoreActions": "More Actions...",
+  "extensionSettingsModified": "Modified",
+  "extensionSettingsAlsoModifiedIn": "Also modified in: {target}",
+  "@extensionSettingsAlsoModifiedIn": {"placeholders": {"target": {"type": "String"}}},
+  "extensionSettingsAddItem": "Add Item",
+  "extensionSettingsAddPattern": "Add Pattern",
+  "extensionSettingsRemoveItem": "Remove Item",
+  "extensionSettingsEditItem": "Edit Item",
+  "extensionSettingsOk": "OK",
+  "extensionSettingsCancel": "Cancel",
+  "extensionSettingsLanguage": "Settings for {language}: values are written to \"[{language}]\".",
+  "@extensionSettingsLanguage": {"placeholders": {"language": {"type": "String"}}},
+  "extensionSettingsDeprecated": "Deprecated",
+  "extensionSettingsValidationNumber": "Value must be a number.",
+  "extensionSettingsValidationInteger": "Value must be an integer.",
+  "extensionSettingsValidationMin": "Value must be greater than or equal to {value}.",
+  "@extensionSettingsValidationMin": {"placeholders": {"value": {"type": "String"}}},
+  "extensionSettingsValidationMax": "Value must be less than or equal to {value}.",
+  "@extensionSettingsValidationMax": {"placeholders": {"value": {"type": "String"}}},
+  "extensionSettingsValidationExclusiveMin": "Value must be strictly greater than {value}.",
+  "@extensionSettingsValidationExclusiveMin": {"placeholders": {"value": {"type": "String"}}},
+  "extensionSettingsValidationExclusiveMax": "Value must be strictly less than {value}.",
+  "@extensionSettingsValidationExclusiveMax": {"placeholders": {"value": {"type": "String"}}},
+  "extensionSettingsValidationMultipleOf": "Value must be a multiple of {value}.",
+  "@extensionSettingsValidationMultipleOf": {"placeholders": {"value": {"type": "String"}}},
+  "extensionSettingsValidationMaxLength": "Value must be {value} or fewer characters long.",
+  "@extensionSettingsValidationMaxLength": {"placeholders": {"value": {"type": "String"}}},
+  "extensionSettingsValidationMinLength": "Value must be {value} or more characters long.",
+  "@extensionSettingsValidationMinLength": {"placeholders": {"value": {"type": "String"}}},
+  "extensionSettingsValidationPattern": "Value must match regex `{pattern}`.",
+  "@extensionSettingsValidationPattern": {"placeholders": {"pattern": {"type": "String"}}},
+  "extensionSettingsValidationEnum": "Value is not accepted. Valid values: {values}.",
+  "@extensionSettingsValidationEnum": {"placeholders": {"values": {"type": "String"}}},
+  "extensionSettingsValidationUniqueItems": "Array has duplicate items",
+  "extensionSettingsValidationMinItems": "Array must have at least {value} items",
+  "@extensionSettingsValidationMinItems": {"placeholders": {"value": {"type": "String"}}},
+  "extensionSettingsValidationMaxItems": "Array must have at most {value} items",
+  "@extensionSettingsValidationMaxItems": {"placeholders": {"value": {"type": "String"}}}
 }

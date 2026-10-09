@@ -98,13 +98,17 @@ final class ExtensionHostService extends ChangeNotifier {
         extensionDevelopmentLocations: developmentLocations,
       ),
       actorsFor: (rpc) {
-        context = MainThreadContext(rpc: rpc, services: {
-          ...services,
-          ExtensionHostService: this,
-          ConfigurationService: configuration,
-        });
+        context = MainThreadContext(
+          rpc: rpc,
+          services: {
+            ...services,
+            ExtensionHostService: this,
+            ConfigurationService: configuration,
+          },
+        );
         return {
-          for (final MapEntry(:key, :value) in unsupportedMainThreadActors.entries)
+          for (final MapEntry(:key, :value)
+              in unsupportedMainThreadActors.entries)
             key: value(),
           for (final MapEntry(:key, :value) in customers.entries)
             key: value(context),
@@ -160,7 +164,8 @@ final class ExtensionHostService extends ChangeNotifier {
   static String _randomId() {
     final r = Random.secure();
     return [
-      for (var i = 0; i < 16; i++) r.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      for (var i = 0; i < 16; i++)
+        r.nextInt(256).toRadixString(16).padLeft(2, '0'),
     ].join();
   }
 }

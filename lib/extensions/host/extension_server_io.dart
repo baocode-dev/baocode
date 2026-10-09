@@ -39,6 +39,22 @@ final class ExtensionServerLaunch {
   final Map<String, String> environment;
 }
 
+/// The environment the server runs in: the app's, without what would
+/// point it elsewhere (`npm_config_arch` picks a ripgrep the runtime does
+/// not ship; the `VSCODE_*`/`ELECTRON_*` of a VS Code terminal the app
+/// may have been started from), plus [extra].
+Map<String, String> serverEnvironment(
+  Map<String, String> parent,
+  Map<String, String> extra,
+) => {
+  for (final MapEntry(:key, :value) in parent.entries)
+    if (key.toLowerCase() != 'npm_config_arch' &&
+        !key.startsWith('VSCODE_') &&
+        !key.startsWith('ELECTRON_'))
+      key: value,
+  ...extra,
+};
+
 /// The server's `IRemoteAgentEnvironment`, with `file:` URIs.
 typedef ServerEnvironment = Map<String, Object?>;
 
@@ -46,8 +62,12 @@ typedef ServerEnvironment = Map<String, Object?>;
 /// connection: one per app for this machine; extension hosts are started
 /// through it, one per workspace.
 final class ExtensionServer {
-  ExtensionServer._(this.address, this.management, this._connection,
-      this._process);
+  ExtensionServer._(
+    this.address,
+    this.management,
+    this._connection,
+    this._process,
+  );
 
   /// The connection details extension hosts are started with.
   final ServerAddress address;
@@ -101,7 +121,8 @@ final class ExtensionServer {
         '--telemetry-level',
         'off',
       ],
-      environment: launch.environment,
+      environment: serverEnvironment(Platform.environment, launch.environment),
+      includeParentEnvironment: false,
     );
     unawaited(registry.add(process.pid));
     final port = Completer<int>();
@@ -192,15 +213,16 @@ final class ExtensionServer {
     String language = 'en',
     List<VsUri> developmentLocations = const [],
   }) async {
-    final scanned = await management
-        .getChannel('remoteExtensionsScanner')
-        .call('scanExtensions', [
-          language,
-          null,
-          <Object?>[],
-          [for (final uri in developmentLocations) toServer(uri).toJson()],
-          null,
-        ]);
+    final scanned = await management.getChannel('remoteExtensionsScanner').call(
+      'scanExtensions',
+      [
+        language,
+        null,
+        <Object?>[],
+        [for (final uri in developmentLocations) toServer(uri).toJson()],
+        null,
+      ],
+    );
     return [
       for (final e in fromServer(scanned) as List)
         (e as Map).cast<String, Object?>(),

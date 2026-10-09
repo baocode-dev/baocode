@@ -140,7 +140,8 @@ final class ExtensionHostManager extends ChangeNotifier {
       _setState(ExtensionHostState.restarting);
       unawaited(_restartWithEvents());
     } else {
-      _error = 'The extension host terminated unexpectedly 3 times within '
+      _error =
+          'The extension host terminated unexpectedly 3 times within '
           'the last 5 minutes.';
       _setState(ExtensionHostState.failed);
     }

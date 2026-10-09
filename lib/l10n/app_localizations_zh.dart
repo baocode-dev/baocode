@@ -6205,4 +6205,211 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdCreateWorkspace => '创建工作区...';
+
+  @override
+  String extRuntimeDownloading(int percent) {
+    return '正在下载扩展运行时 $percent%';
+  }
+
+  @override
+  String get extRuntimeDownloadingStarting => '正在下载扩展运行时…';
+
+  @override
+  String extRuntimeDownloadingTooltip(String received, String total) {
+    return '正在下载扩展运行时（只需一次，之后离线也能用）：$received / $total';
+  }
+
+  @override
+  String get extRuntimeInstalling => '正在安装扩展运行时…';
+
+  @override
+  String get extRuntimeInstallingTooltip => '正在解压扩展运行时';
+
+  @override
+  String get extRuntimeFailed => '扩展运行时不可用';
+
+  @override
+  String extRuntimeFailedTooltip(String error) {
+    return '无法获取扩展运行时：$error';
+  }
+
+  @override
+  String get extRuntimeClickToRetry => '点击重试';
+
+  @override
+  String windowUrlConfirm(String extension) {
+    return '允许扩展“$extension”打开此 URI？';
+  }
+
+  @override
+  String get windowUrlRemember => '不再为此扩展询问';
+
+  @override
+  String get windowUrlOpen => '打开';
+
+  @override
+  String get windowUrlInstallDetail => '此扩展想要打开一个 URI：';
+
+  @override
+  String get windowUrlOpenUri => '打开 URI';
+
+  @override
+  String get extensionSettingsSection => '扩展设置';
+
+  @override
+  String get extensionSettingsDescription => '扩展提供的设置，以及扩展读取的 VS Code 自身设置。';
+
+  @override
+  String get extensionSettingsSearch => '搜索设置';
+
+  @override
+  String get extensionSettingsUser => '用户';
+
+  @override
+  String get extensionSettingsWorkspace => '工作区';
+
+  @override
+  String get extensionSettingsShow => '显示设置来源';
+
+  @override
+  String get extensionSettingsSourceExtensions => '扩展';
+
+  @override
+  String get extensionSettingsSourceCore => 'VS Code';
+
+  @override
+  String get extensionSettingsSourceAll => '全部';
+
+  @override
+  String extensionSettingsResults(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '找到 $count 个设置',
+      zero: '未找到设置',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get extensionSettingsUnavailable => '扩展设置暂不可用。';
+
+  @override
+  String get extensionSettingsEmpty => '已安装的扩展都没有提供设置。';
+
+  @override
+  String get extensionSettingsOther => '其他';
+
+  @override
+  String get extensionSettingsEditInJson => '在 settings.json 中编辑';
+
+  @override
+  String get extensionSettingsReset => '重置此设置';
+
+  @override
+  String get extensionSettingsCopyId => '复制设置 ID';
+
+  @override
+  String get extensionSettingsCopyJson => '将设置复制为 JSON';
+
+  @override
+  String get extensionSettingsMoreActions => '更多操作...';
+
+  @override
+  String get extensionSettingsModified => '已修改';
+
+  @override
+  String extensionSettingsAlsoModifiedIn(String target) {
+    return '同时修改于：$target';
+  }
+
+  @override
+  String get extensionSettingsAddItem => '添加项';
+
+  @override
+  String get extensionSettingsAddPattern => '添加模式';
+
+  @override
+  String get extensionSettingsRemoveItem => '删除项';
+
+  @override
+  String get extensionSettingsEditItem => '编辑项';
+
+  @override
+  String get extensionSettingsOk => '确定';
+
+  @override
+  String get extensionSettingsCancel => '取消';
+
+  @override
+  String extensionSettingsLanguage(String language) {
+    return '$language 的设置：值写入 \"[$language]\"。';
+  }
+
+  @override
+  String get extensionSettingsDeprecated => '已弃用';
+
+  @override
+  String get extensionSettingsValidationNumber => '值必须是数字。';
+
+  @override
+  String get extensionSettingsValidationInteger => '值必须是整数。';
+
+  @override
+  String extensionSettingsValidationMin(String value) {
+    return '值必须大于或等于 $value。';
+  }
+
+  @override
+  String extensionSettingsValidationMax(String value) {
+    return '值必须小于或等于 $value。';
+  }
+
+  @override
+  String extensionSettingsValidationExclusiveMin(String value) {
+    return '值必须严格大于 $value。';
+  }
+
+  @override
+  String extensionSettingsValidationExclusiveMax(String value) {
+    return '值必须严格小于 $value。';
+  }
+
+  @override
+  String extensionSettingsValidationMultipleOf(String value) {
+    return '值必须是 $value 的倍数。';
+  }
+
+  @override
+  String extensionSettingsValidationMaxLength(String value) {
+    return '值的长度不能超过 $value 个字符。';
+  }
+
+  @override
+  String extensionSettingsValidationMinLength(String value) {
+    return '值的长度至少为 $value 个字符。';
+  }
+
+  @override
+  String extensionSettingsValidationPattern(String pattern) {
+    return '值必须匹配正则表达式 `$pattern`。';
+  }
+
+  @override
+  String extensionSettingsValidationEnum(String values) {
+    return '值无效。有效值：$values。';
+  }
+
+  @override
+  String get extensionSettingsValidationUniqueItems => '数组中有重复项';
+
+  @override
+  String extensionSettingsValidationMinItems(String value) {
+    return '数组至少需要 $value 项';
+  }
+
+  @override
+  String extensionSettingsValidationMaxItems(String value) {
+    return '数组最多只能有 $value 项';
+  }
 }

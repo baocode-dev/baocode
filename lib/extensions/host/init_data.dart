@@ -64,7 +64,9 @@ final class ExtHostWorkspace {
     final uri = VsUri.file(path);
     return ExtHostWorkspace(
       id: folderWorkspaceId(path),
-      name: name ?? uri.path.split('/').where((s) => s.isNotEmpty).lastOrNull ??
+      name:
+          name ??
+          uri.path.split('/').where((s) => s.isNotEmpty).lastOrNull ??
           path,
       folders: [ExtHostWorkspaceFolder(uri, name ?? _basename(uri), 0)],
     );
@@ -140,9 +142,7 @@ Map<String, Object?> buildExtHostInitData({
   String firstSessionDate = '',
   bool autoStart = true,
 }) {
-  final ids = [
-    for (final e in extensions) _identifierValue(e['identifier']),
-  ];
+  final ids = [for (final e in extensions) _identifierValue(e['identifier'])];
   return {
     'commit': product.commit,
     'version': product.version,
@@ -173,7 +173,8 @@ Map<String, Object?> buildExtHostInitData({
       'allExtensions': extensions,
       'activationEvents': createActivationEventsMap(extensions),
       'myExtensions': [
-        for (final id in myExtensions ?? ids) {'value': id, '_lower': id.toLowerCase()},
+        for (final id in myExtensions ?? ids)
+          {'value': id, '_lower': id.toLowerCase()},
       ],
     },
     'telemetryInfo': {

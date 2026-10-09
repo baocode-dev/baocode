@@ -34,6 +34,9 @@ enum DataDirectorySource {
 /// <path>/workspaces/              the folders of multi-folder workspaces
 /// <path>/cache/                   what can be made again, to start faster
 /// <path>/logs/errors.log          the errors the app did not handle
+/// <path>/exthost/<version>/       the VS Code extension runtime
+/// <path>/extensions/              installed VS Code extensions
+/// <path>/exthost-data/            the extension server's data and storage
 /// ```
 ///
 /// Other programs keep files there too (the web views' `Cookies`,
@@ -109,6 +112,18 @@ class DataDirectory {
   /// error_log.dart).
   String get logsDir => p.join(path, 'logs');
 
+  /// The VS Code extension runtime, a folder per version, downloaded when
+  /// first needed (see lib/extensions/runtime/).
+  String get exthostDir => p.join(path, 'exthost');
+
+  /// Installed VS Code extensions, as VS Code lays them out
+  /// (`publisher.name-version/`, `extensions.json`).
+  String get extensionsDir => p.join(path, 'extensions');
+
+  /// The extension server's own data: its logs, and the extensions' global
+  /// and workspace storage.
+  String get exthostDataDir => p.join(path, 'exthost-data');
+
   /// The app's own entries, all others' left alone: what moving the folder
   /// copies and removing old data deletes.
   static const items = [
@@ -123,6 +138,9 @@ class DataDirectory {
     'icons',
     'workspaces',
     'logs',
+    'exthost',
+    'extensions',
+    'exthost-data',
   ];
 
   /// Entries that show a folder holds the app's data.

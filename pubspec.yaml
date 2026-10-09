@@ -101,6 +101,9 @@ flutter:
     - assets/sounds/
     # Emojibase's emoji, for project icons (tool/generate_emoji.mjs).
     - assets/emoji/
+    # Where the extension runtime is downloaded from, per platform
+    # (tool/build_exthost_runtime.dart; lib/extensions/runtime/).
+    - assets/exthost/
     # VS Code TextMate grammars and color themes (tool/generate_textmate_assets.mjs).
 
   # VS Code's icon font (tool/generate_codicons.mjs; lib/theme/codicons.dart).

@@ -36,7 +36,9 @@ void main() {
     expect(
       extensionKindOf(
         {'publisher': 'A', 'name': 'B', 'main': 'x.js'},
-        userConfigured: {'a.b': ['ui']},
+        userConfigured: {
+          'a.b': ['ui'],
+        },
       ),
       [ExtensionKind.ui],
     );

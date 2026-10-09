@@ -18,8 +18,12 @@ Object? fromServer(Object? value) {
         value['authority'] == serverAuthority) {
       return <String, Object?>{
         for (final e in value.entries)
-          if (!const {'external', 'fsPath', '_sep', 'authority'}
-              .contains(e.key))
+          if (!const {
+            'external',
+            'fsPath',
+            '_sep',
+            'authority',
+          }.contains(e.key))
             e.key as String: e.value,
         'scheme': 'file',
       };

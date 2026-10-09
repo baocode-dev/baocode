@@ -49,11 +49,6 @@ final class MainThreadConfiguration extends MainThreadConfigurationUnsupported {
     String key,
     Map<String, Object?>? overrides,
     bool? scopeToLanguage,
-  ) => $updateConfigurationOption(
-    target,
-    key,
-    null,
-    overrides,
-    scopeToLanguage,
-  );
+  ) =>
+      $updateConfigurationOption(target, key, null, overrides, scopeToLanguage);
 }

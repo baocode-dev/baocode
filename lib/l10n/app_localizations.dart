@@ -10898,6 +10898,336 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Create Workspace...'**
   String get cmdCreateWorkspace;
+
+  /// Status bar: the extension runtime (Node.js and the VS Code extension host) is being downloaded the first time it is needed.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading extension runtime {percent}%'**
+  String extRuntimeDownloading(int percent);
+
+  /// No description provided for @extRuntimeDownloadingStarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading extension runtime…'**
+  String get extRuntimeDownloadingStarting;
+
+  /// No description provided for @extRuntimeDownloadingTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading the extension runtime (once; it is kept for offline use): {received} of {total}'**
+  String extRuntimeDownloadingTooltip(String received, String total);
+
+  /// No description provided for @extRuntimeInstalling.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing extension runtime…'**
+  String get extRuntimeInstalling;
+
+  /// No description provided for @extRuntimeInstallingTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Unpacking the extension runtime'**
+  String get extRuntimeInstallingTooltip;
+
+  /// No description provided for @extRuntimeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension runtime unavailable'**
+  String get extRuntimeFailed;
+
+  /// No description provided for @extRuntimeFailedTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not get the extension runtime: {error}'**
+  String extRuntimeFailedTooltip(String error);
+
+  /// No description provided for @extRuntimeClickToRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to try again'**
+  String get extRuntimeClickToRetry;
+
+  /// No description provided for @windowUrlConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow \'{extension}\' extension to open this URI?'**
+  String windowUrlConfirm(String extension);
+
+  /// No description provided for @windowUrlRemember.
+  ///
+  /// In en, this message translates to:
+  /// **'Do not ask me again for this extension'**
+  String get windowUrlRemember;
+
+  /// No description provided for @windowUrlOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get windowUrlOpen;
+
+  /// No description provided for @windowUrlInstallDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'This extension wants to open a URI:'**
+  String get windowUrlInstallDetail;
+
+  /// No description provided for @windowUrlOpenUri.
+  ///
+  /// In en, this message translates to:
+  /// **'Open URI'**
+  String get windowUrlOpenUri;
+
+  /// No description provided for @extensionSettingsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension Settings'**
+  String get extensionSettingsSection;
+
+  /// No description provided for @extensionSettingsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings that extensions contribute, and VS Code\'s own settings that extensions read.'**
+  String get extensionSettingsDescription;
+
+  /// No description provided for @extensionSettingsSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search settings'**
+  String get extensionSettingsSearch;
+
+  /// No description provided for @extensionSettingsUser.
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get extensionSettingsUser;
+
+  /// No description provided for @extensionSettingsWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace'**
+  String get extensionSettingsWorkspace;
+
+  /// No description provided for @extensionSettingsShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show settings from'**
+  String get extensionSettingsShow;
+
+  /// No description provided for @extensionSettingsSourceExtensions.
+  ///
+  /// In en, this message translates to:
+  /// **'Extensions'**
+  String get extensionSettingsSourceExtensions;
+
+  /// No description provided for @extensionSettingsSourceCore.
+  ///
+  /// In en, this message translates to:
+  /// **'VS Code'**
+  String get extensionSettingsSourceCore;
+
+  /// No description provided for @extensionSettingsSourceAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get extensionSettingsSourceAll;
+
+  /// No description provided for @extensionSettingsResults.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No settings found} =1{1 setting found} other{{count} settings found}}'**
+  String extensionSettingsResults(int count);
+
+  /// No description provided for @extensionSettingsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension settings are not available yet.'**
+  String get extensionSettingsUnavailable;
+
+  /// No description provided for @extensionSettingsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No installed extension contributes settings.'**
+  String get extensionSettingsEmpty;
+
+  /// No description provided for @extensionSettingsOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get extensionSettingsOther;
+
+  /// No description provided for @extensionSettingsEditInJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit in settings.json'**
+  String get extensionSettingsEditInJson;
+
+  /// No description provided for @extensionSettingsReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Setting'**
+  String get extensionSettingsReset;
+
+  /// No description provided for @extensionSettingsCopyId.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Setting ID'**
+  String get extensionSettingsCopyId;
+
+  /// No description provided for @extensionSettingsCopyJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Setting as JSON'**
+  String get extensionSettingsCopyJson;
+
+  /// No description provided for @extensionSettingsMoreActions.
+  ///
+  /// In en, this message translates to:
+  /// **'More Actions...'**
+  String get extensionSettingsMoreActions;
+
+  /// No description provided for @extensionSettingsModified.
+  ///
+  /// In en, this message translates to:
+  /// **'Modified'**
+  String get extensionSettingsModified;
+
+  /// No description provided for @extensionSettingsAlsoModifiedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Also modified in: {target}'**
+  String extensionSettingsAlsoModifiedIn(String target);
+
+  /// No description provided for @extensionSettingsAddItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Item'**
+  String get extensionSettingsAddItem;
+
+  /// No description provided for @extensionSettingsAddPattern.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Pattern'**
+  String get extensionSettingsAddPattern;
+
+  /// No description provided for @extensionSettingsRemoveItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Item'**
+  String get extensionSettingsRemoveItem;
+
+  /// No description provided for @extensionSettingsEditItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Item'**
+  String get extensionSettingsEditItem;
+
+  /// No description provided for @extensionSettingsOk.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get extensionSettingsOk;
+
+  /// No description provided for @extensionSettingsCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get extensionSettingsCancel;
+
+  /// No description provided for @extensionSettingsLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings for {language}: values are written to \"[{language}]\".'**
+  String extensionSettingsLanguage(String language);
+
+  /// No description provided for @extensionSettingsDeprecated.
+  ///
+  /// In en, this message translates to:
+  /// **'Deprecated'**
+  String get extensionSettingsDeprecated;
+
+  /// No description provided for @extensionSettingsValidationNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Value must be a number.'**
+  String get extensionSettingsValidationNumber;
+
+  /// No description provided for @extensionSettingsValidationInteger.
+  ///
+  /// In en, this message translates to:
+  /// **'Value must be an integer.'**
+  String get extensionSettingsValidationInteger;
+
+  /// No description provided for @extensionSettingsValidationMin.
+  ///
+  /// In en, this message translates to:
+  /// **'Value must be greater than or equal to {value}.'**
+  String extensionSettingsValidationMin(String value);
+
+  /// No description provided for @extensionSettingsValidationMax.
+  ///
+  /// In en, this message translates to:
+  /// **'Value must be less than or equal to {value}.'**
+  String extensionSettingsValidationMax(String value);
+
+  /// No description provided for @extensionSettingsValidationExclusiveMin.
+  ///
+  /// In en, this message translates to:
+  /// **'Value must be strictly greater than {value}.'**
+  String extensionSettingsValidationExclusiveMin(String value);
+
+  /// No description provided for @extensionSettingsValidationExclusiveMax.
+  ///
+  /// In en, this message translates to:
+  /// **'Value must be strictly less than {value}.'**
+  String extensionSettingsValidationExclusiveMax(String value);
+
+  /// No description provided for @extensionSettingsValidationMultipleOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Value must be a multiple of {value}.'**
+  String extensionSettingsValidationMultipleOf(String value);
+
+  /// No description provided for @extensionSettingsValidationMaxLength.
+  ///
+  /// In en, this message translates to:
+  /// **'Value must be {value} or fewer characters long.'**
+  String extensionSettingsValidationMaxLength(String value);
+
+  /// No description provided for @extensionSettingsValidationMinLength.
+  ///
+  /// In en, this message translates to:
+  /// **'Value must be {value} or more characters long.'**
+  String extensionSettingsValidationMinLength(String value);
+
+  /// No description provided for @extensionSettingsValidationPattern.
+  ///
+  /// In en, this message translates to:
+  /// **'Value must match regex `{pattern}`.'**
+  String extensionSettingsValidationPattern(String pattern);
+
+  /// No description provided for @extensionSettingsValidationEnum.
+  ///
+  /// In en, this message translates to:
+  /// **'Value is not accepted. Valid values: {values}.'**
+  String extensionSettingsValidationEnum(String values);
+
+  /// No description provided for @extensionSettingsValidationUniqueItems.
+  ///
+  /// In en, this message translates to:
+  /// **'Array has duplicate items'**
+  String get extensionSettingsValidationUniqueItems;
+
+  /// No description provided for @extensionSettingsValidationMinItems.
+  ///
+  /// In en, this message translates to:
+  /// **'Array must have at least {value} items'**
+  String extensionSettingsValidationMinItems(String value);
+
+  /// No description provided for @extensionSettingsValidationMaxItems.
+  ///
+  /// In en, this message translates to:
+  /// **'Array must have at most {value} items'**
+  String extensionSettingsValidationMaxItems(String value);
 }
 
 class _AppLocalizationsDelegate
