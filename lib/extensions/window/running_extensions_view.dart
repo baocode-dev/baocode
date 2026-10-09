@@ -16,7 +16,7 @@ import 'runtime_extensions.dart';
 class ExtensionRunningExtensionsView extends StatelessWidget {
   const ExtensionRunningExtensionsView({super.key, required this.service});
 
-  final ExtensionRuntimeService service;
+  final RunningExtensionsService service;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -48,7 +48,7 @@ class _Row extends StatefulWidget {
   const _Row({required this.extension, required this.service});
 
   final RunningExtension extension;
-  final ExtensionRuntimeService service;
+  final RunningExtensionsService service;
 
   @override
   State<_Row> createState() => _RowState();
@@ -197,7 +197,7 @@ class ExtensionRunningExtensionsTitle extends StatelessWidget {
     required this.service,
   });
 
-  final ExtensionRuntimeService service;
+  final RunningExtensionsService service;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(

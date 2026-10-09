@@ -468,9 +468,9 @@ void main() {
     });
   });
 
-  group('ExtensionRuntimeService', () {
+  group('RunningExtensionsService', () {
     test('orders the slowest activation first and groups the errors', () {
-      final service = ExtensionRuntimeService();
+      final service = RunningExtensionsService();
       service.didActivate(
         'a.x',
         'A',
@@ -517,7 +517,7 @@ void main() {
     });
 
     test('a failed activation is kept with its missing dependency', () {
-      final service = ExtensionRuntimeService();
+      final service = RunningExtensionsService();
       service.activationError(
         'a.x',
         'A',

@@ -147,7 +147,7 @@ final class RunningExtension {
 
 /// Every running extension of the app, as the "Running Extensions" view
 /// shows them.
-final class ExtensionRuntimeService extends ChangeNotifier {
+final class RunningExtensionsService extends ChangeNotifier {
   final Map<String, RunningExtension> _extensions = {};
 
   /// By extension id.

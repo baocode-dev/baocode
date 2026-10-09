@@ -28,7 +28,7 @@
 //     ExtensionQuickInputUi: quickInputUi,
 //     ExtensionMessageUi: messageUi,
 //     // per workspace (created with the host):
-//     ExtensionRuntimeService: runtime,
+//     RunningExtensionsService: runtime,
 //     ExtensionProgressService: progress,
 //     ExtensionOutputService: output,
 //     ExtensionLabelService: labels,

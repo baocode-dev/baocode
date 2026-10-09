@@ -48,7 +48,7 @@ final class MainThreadExtensionService
 
   /// This session's `ExtHostExtensionService`.
   final ExtHostExtensionServiceProxy _proxy;
-  final ExtensionRuntimeService _extensions;
+  final RunningExtensionsService _extensions;
   final ExtensionMessageUi? ui;
   final String hostId;
 
@@ -61,7 +61,7 @@ final class MainThreadExtensionService
       MainThreadExtensionService(
         host,
         ExtHostExtensionServiceProxy(context.rpc),
-        context.service<ExtensionRuntimeService>(),
+        context.service<RunningExtensionsService>(),
         ui: context.maybeService<ExtensionMessageUi>(),
         hostId: host.workspace.id,
       ),
@@ -108,6 +108,7 @@ final class MainThreadExtensionService
     Map<String, Object?> activationReason,
   ) {
     final id = extensionIdFromWire(extensionId);
+    _host.didActivate(id);
     _extensions.didActivate(
       id,
       _nameOf(id),

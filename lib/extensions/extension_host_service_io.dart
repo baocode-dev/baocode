@@ -9,6 +9,7 @@ import 'host/ext_host_connection.dart';
 import 'host/extension_host_manager.dart';
 import 'host/extension_server_io.dart';
 import 'host/extension_server_pool_io.dart';
+import 'host/implicit_activation_events.dart';
 import 'host/init_data.dart';
 import 'main_thread/main_thread_context.dart';
 
@@ -31,6 +32,7 @@ final class ExtensionHostService extends ChangeNotifier {
     this.trusted = true,
     this.developmentLocations = const [],
     this.logger,
+    this.includeExtension,
   }) {
     manager = ExtensionHostManager(
       start: _startSession,
@@ -56,7 +58,24 @@ final class ExtensionHostService extends ChangeNotifier {
   final List<VsUri> developmentLocations;
   final RpcLogger? logger;
 
+  /// Whether a scanned extension runs here (enabled, in this workspace);
+  /// all do when null. Upstream leaves disabled extensions out of the
+  /// registry altogether.
+  final bool Function(Map<String, Object?> description)? includeExtension;
+
   late final ExtensionHostManager manager;
+
+  /// `extensionRegistryVersionId`: bumped by every [refreshExtensions].
+  int _extensionsVersionId = 0;
+
+  /// The extensions the running session activated (lowercase ids), told by
+  /// `MainThreadExtensionService`.
+  final _activated = <String>{};
+
+  /// [id] was activated in the running session.
+  void didActivate(String id) => _activated.add(id.toLowerCase());
+
+  bool isActivated(String id) => _activated.contains(id.toLowerCase());
 
   /// The extensions of the running (or last) session.
   ValueListenable<ExtensionDescriptions> get extensions => _extensions;
@@ -72,10 +91,13 @@ final class ExtensionHostService extends ChangeNotifier {
   Future<ExtHostSession> _startSession() async {
     final server = await pool.server;
     final environment = await server.environment();
-    final scanned = await server.scanExtensions(
-      language: language,
-      developmentLocations: developmentLocations,
+    final scanned = _included(
+      await server.scanExtensions(
+        language: language,
+        developmentLocations: developmentLocations,
+      ),
     );
+    _activated.clear();
     _extensions.value = List.unmodifiable(scanned);
     configuration.setExtensions(scanned);
     final previous = _context;
@@ -91,6 +113,7 @@ final class ExtensionHostService extends ChangeNotifier {
         product: product,
         environment: environment,
         extensions: scanned,
+        extensionsVersionId: _extensionsVersionId,
         workspace: workspace,
         language: language,
         sessionId: _sessionId,
@@ -140,6 +163,76 @@ final class ExtensionHostService extends ChangeNotifier {
     );
     unawaited(connection.closed.then((_) => context.dispose()));
     return connection;
+  }
+
+  List<Map<String, Object?>> _included(List<Map<String, Object?>> scanned) {
+    final include = includeExtension;
+    return include == null ? scanned : [...scanned.where(include)];
+  }
+
+  static String _idOf(Map<String, Object?> description) =>
+      switch (description['identifier']) {
+        {'value': final String value} => value,
+        final Object? other => '$other',
+      };
+
+  /// What makes two scans of an extension the same one.
+  static String _signatureOf(Map<String, Object?> description) =>
+      '${description['version']}|${description['extensionLocation']}';
+
+  /// The installed or enabled extensions changed: the running host gets
+  /// them as `$deltaExtensions` (upstream's
+  /// `AbstractExtensionService._deltaExtensions`); one that must drop an
+  /// extension it activated (uninstalled, disabled, updated) is restarted,
+  /// as upstream asks the user to. A host not running scans afresh as it
+  /// starts.
+  Future<void> refreshExtensions() async {
+    final rpc = manager.rpc;
+    if (rpc == null || manager.state != ExtensionHostState.running) return;
+    final server = await pool.server;
+    final scanned = _included(
+      await server.scanExtensions(
+        language: language,
+        developmentLocations: developmentLocations,
+      ),
+    );
+    final before = {
+      for (final e in _extensions.value) _idOf(e).toLowerCase(): e,
+    };
+    final after = {for (final e in scanned) _idOf(e).toLowerCase(): e};
+    final toRemove = <Map<String, Object?>>[
+      for (final MapEntry(:key, :value) in before.entries)
+        if (after[key] == null ||
+            _signatureOf(after[key]!) != _signatureOf(value))
+          value,
+    ];
+    final toAdd = <Map<String, Object?>>[
+      for (final MapEntry(:key, :value) in after.entries)
+        if (before[key] == null ||
+            _signatureOf(before[key]!) != _signatureOf(value))
+          value,
+    ];
+    if (toAdd.isEmpty && toRemove.isEmpty) return;
+    if (toRemove.any((e) => isActivated(_idOf(e)))) {
+      await manager.restart();
+      return;
+    }
+    _extensionsVersionId++;
+    _extensions.value = List.unmodifiable(scanned);
+    configuration.setExtensions(scanned);
+    Map<String, Object?> identifier(Map<String, Object?> e) {
+      final id = _idOf(e);
+      return {'value': id, '_lower': id.toLowerCase()};
+    }
+
+    await ExtHostExtensionServiceProxy(rpc).$deltaExtensions({
+      'versionId': _extensionsVersionId,
+      'toRemove': [for (final e in toRemove) identifier(e)],
+      'toAdd': toAdd,
+      'addActivationEvents': createActivationEventsMap(toAdd),
+      'myToRemove': [for (final e in toRemove) identifier(e)],
+      'myToAdd': [for (final e in toAdd) identifier(e)],
+    });
   }
 
   /// Starts the host when needed and activates [event]'s extensions.
