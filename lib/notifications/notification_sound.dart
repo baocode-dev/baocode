@@ -13,9 +13,11 @@ abstract final class NotificationSound {
   /// Windows plays from memory as it is.
   static const microwaveAsset = 'assets/sounds/microwave.wav';
   static const manOhYeahAsset = 'assets/sounds/man-oh-yeah.wav';
+  static const gulpGulpGulpGulpAsset = 'assets/sounds/gulp-gulp-gulp-gulp.wav';
 
   static Future<Uint8List>? _microwave;
   static Future<Uint8List>? _manOhYeah;
+  static Future<Uint8List>? _gulpGulpGulpGulp;
 
   /// The system's sounds, name to file, sorted by name; read once.
   static Future<Map<String, String>> systemSounds() =>
@@ -35,6 +37,12 @@ abstract final class NotificationSound {
     if (value == NotificationSoundValue.manOhYeah) {
       final bytes = await (_manOhYeah ??= rootBundle
           .load(manOhYeahAsset)
+          .then((data) => data.buffer.asUint8List()));
+      return host.playSound(bytes: bytes);
+    }
+    if (value == NotificationSoundValue.gulpGulpGulpGulp) {
+      final bytes = await (_gulpGulpGulpGulp ??= rootBundle
+          .load(gulpGulpGulpGulpAsset)
           .then((data) => data.buffer.asUint8List()));
       return host.playSound(bytes: bytes);
     }

@@ -90,14 +90,17 @@ class AttentionSettings {
         ];
 }
 
-/// What `notifications.sound` holds: [microwave], [manOhYeah], [none], a
-/// system sound ([system]) or a sound file's path.
+/// What `notifications.sound` holds: [microwave], [manOhYeah], [gulpGulpGulpGulp],
+/// [none], a system sound ([system]) or a sound file's path.
 abstract final class NotificationSoundValue {
   /// The app's own, a microwave timer's "ding" (assets/sounds/microwave.wav).
   static const microwave = 'microwave';
 
   /// The bundled "man-oh-yeah" sound (assets/sounds/man-oh-yeah.wav).
   static const manOhYeah = 'man-oh-yeah';
+
+  /// The bundled "Gulp Gulp Gulp Gulp" sound.
+  static const gulpGulpGulpGulp = 'gulp-gulp-gulp-gulp';
 
   /// No sound.
   static const none = 'none';
@@ -116,6 +119,7 @@ abstract final class NotificationSoundValue {
   static bool isFile(String value) =>
       value != microwave &&
       value != manOhYeah &&
+      value != gulpGulpGulpGulp &&
       value != none &&
       systemName(value) == null;
 }

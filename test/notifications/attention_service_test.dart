@@ -229,5 +229,9 @@ void main() {
       NotificationSoundValue.isFile(NotificationSoundValue.manOhYeah),
       isFalse,
     );
+    expect(
+      NotificationSoundValue.isFile(NotificationSoundValue.gulpGulpGulpGulp),
+      isFalse,
+    );
   });
 }

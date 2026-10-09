@@ -877,6 +877,7 @@
   "notificationsSound": "提示音",
   "notificationsSoundMicrowave": "微波炉“叮”",
   "notificationsSoundManOhYeah": "man-oh-yeah",
+  "notificationsSoundGulpGulpGulpGulp": "Gulp Gulp Gulp Gulp",
   "notificationsSoundNone": "无",
   "notificationsSoundChoose": "选择文件…",
   "notificationsSoundLabel": "提示音：{name}",

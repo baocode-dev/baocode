@@ -43,6 +43,9 @@ class NotificationsSettingsPage extends StatefulWidget {
     if (sound == NotificationSoundValue.manOhYeah) {
       return l10n.notificationsSoundManOhYeah;
     }
+    if (sound == NotificationSoundValue.gulpGulpGulpGulp) {
+      return l10n.notificationsSoundGulpGulpGulpGulp;
+    }
     if (sound == NotificationSoundValue.none) {
       return l10n.notificationsSoundNone;
     }
@@ -236,6 +239,10 @@ class _NotificationsSettingsPageState extends State<NotificationsSettingsPage> {
       choice(
         l10n.notificationsSoundManOhYeah,
         NotificationSoundValue.manOhYeah,
+      ),
+      choice(
+        l10n.notificationsSoundGulpGulpGulpGulp,
+        NotificationSoundValue.gulpGulpGulpGulp,
       ),
       choice(l10n.notificationsSoundNone, NotificationSoundValue.none),
       if (_systemSounds.isNotEmpty) const IdeMenuSeparator(),

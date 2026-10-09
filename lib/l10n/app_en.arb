@@ -1966,6 +1966,10 @@
   "@notificationsSoundManOhYeah": {
     "description": "The bundled man-oh-yeah notification sound."
   },
+  "notificationsSoundGulpGulpGulpGulp": "Gulp Gulp Gulp Gulp",
+  "@notificationsSoundGulpGulpGulpGulp": {
+    "description": "The bundled Gulp Gulp Gulp Gulp notification sound."
+  },
   "notificationsSoundNone": "None",
   "@notificationsSoundNone": {
     "description": "Notification sound choice: no sound."

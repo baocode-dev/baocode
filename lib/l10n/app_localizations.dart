@@ -5360,6 +5360,12 @@ abstract class AppLocalizations {
   /// **'man-oh-yeah'**
   String get notificationsSoundManOhYeah;
 
+  /// The bundled Gulp Gulp Gulp Gulp notification sound.
+  ///
+  /// In en, this message translates to:
+  /// **'Gulp Gulp Gulp Gulp'**
+  String get notificationsSoundGulpGulpGulpGulp;
+
   /// Notification sound choice: no sound.
   ///
   /// In en, this message translates to:

@@ -2903,6 +2903,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notificationsSoundManOhYeah => 'man-oh-yeah';
 
   @override
+  String get notificationsSoundGulpGulpGulpGulp => 'Gulp Gulp Gulp Gulp';
+
+  @override
   String get notificationsSoundNone => '无';
 
   @override
