@@ -312,6 +312,14 @@ void main() {
       expect(opened, ['open file:///tmp/a.txt']);
       await builtins.lookup('vscode.open')!(['https://example.com/x']);
       expect(opened.last, 'external https://example.com/x');
+      // Another scheme opens in an editor (`EditorOpener`); the app's own
+      // goes to its URL handler.
+      await builtins.lookup('vscode.open')!([
+        VsUri('git', path: '/tmp/a.txt'),
+      ]);
+      expect(opened.last, 'open git:/tmp/a.txt');
+      await builtins.lookup('vscode.open')!(['baocode://acme.ext/callback']);
+      expect(opened.last, 'external baocode://acme.ext/callback');
       await builtins.lookup('vscode.diff')!([
         VsUri.file('/tmp/a.txt').toJson(),
         VsUri.file('/tmp/b.txt').toJson(),
@@ -365,6 +373,9 @@ final class _Workbench implements WorkbenchCommandsPort {
   @override
   Future<void> openExternal(String target) async =>
       opened.add('external $target');
+
+  @override
+  bool isExternal(VsUri resource) => resource.scheme == 'baocode';
 
   @override
   Future<void> openDiff(VsUri left, VsUri right, {String? label, String? description, int? column, dynamic options}) async =>

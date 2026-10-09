@@ -36,6 +36,7 @@ import '../extensions/window/window_adapters.dart'
 
 import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 
+import '../extensions/commands/command_arguments.dart' show CommandLocation;
 import '../extensions/commands/command_contributions.dart'
     show ImageIcon, ThemeIconRef;
 import '../extensions/contextkey/context_key_service.dart'

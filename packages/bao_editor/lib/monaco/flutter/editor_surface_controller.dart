@@ -541,7 +541,7 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
       if (inserted != null &&
           (inserted == '\n' ||
               (!inserted.contains('\n') && !inserted.contains('\r')))) {
-        _typeInternal(inserted, fromKeyboard: true);
+        type(inserted);
         return;
       }
     }
@@ -703,7 +703,46 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
   /// goes through Monaco's typing interceptors (enter rules, auto-closing,
   /// overtyping, surrounding, electric characters); longer text is inserted
   /// as is.
-  void type(String text) => _typeInternal(text, fromKeyboard: true);
+  ///
+  /// [typeOverride] sees it first, as upstream's editor runs the `type`
+  /// command an extension may override.
+  void type(String text) {
+    if (_disposed || text.isEmpty) return;
+    if (typeOverride?.call(text) ?? false) return;
+    _typeInternal(text, fromKeyboard: true);
+  }
+
+  /// Takes the keyboard's typed text before the editor does (the `type`
+  /// command when an extension registered it): true when it took it.
+  bool Function(String text)? typeOverride;
+
+  /// `default:type`: types [text] as the keyboard does, past
+  /// [typeOverride].
+  void typeDefault(String text) => _typeInternal(text, fromKeyboard: true);
+
+  /// `compositionType` (`replacePreviousChar` is its [replaceNextCharCnt]
+  /// and [positionDelta] 0): at each caret, [text] replaces the characters
+  /// around it; the caret ends [positionDelta] columns from its end.
+  void compositionType(
+    String text, {
+    int replacePrevCharCnt = 0,
+    int replaceNextCharCnt = 0,
+    int positionDelta = 0,
+  }) {
+    if (_disposed) return;
+    final snapshot = document.snapshot;
+    _runResult(
+      TypeOperations.compositionType(
+        _prevEditType,
+        DocumentCursorModel(snapshot),
+        _cursorSelections(snapshot),
+        text,
+        replacePrevCharCnt,
+        replaceNextCharCnt,
+        positionDelta,
+      ),
+    );
+  }
 
   void _typeInternal(String text, {required bool fromKeyboard}) {
     if (_disposed || text.isEmpty) return;

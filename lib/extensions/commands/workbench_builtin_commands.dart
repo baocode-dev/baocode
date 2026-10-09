@@ -57,6 +57,10 @@ abstract interface class WorkbenchCommandsPort {
   /// workbench's opener does for other schemes.
   Future<void> openExternal(String target);
 
+  /// Whether [resource] is one the opener sends outside the editor (the
+  /// app's own URIs, as their handler takes them).
+  bool isExternal(VsUri resource);
+
   /// A diff editor of [left] and [right].
   Future<void> openDiff(
     VsUri left,
@@ -137,7 +141,11 @@ abstract interface class EditorCommandsPort {
 abstract interface class ExtensionManagementCommandsPort {
   /// `workbench.extensions.installExtension`: an id (`publisher.name`,
   /// `@version` allowed) or a VSIX [vsix].
-  Future<void> install({String? id, VsUri? vsix, Map<String, Object?>? options});
+  Future<void> install({
+    String? id,
+    VsUri? vsix,
+    Map<String, Object?>? options,
+  });
 
   /// `workbench.extensions.uninstallExtension`.
   Future<void> uninstall(String id);
@@ -197,9 +205,7 @@ void Function() registerWorkbenchBuiltinCommands(
             if (info.type != null) 'type': info.type,
             if (info.description != null) 'description': info.description,
           },
-    ]..sort(
-      (a, b) => '${a['key']}'.compareTo('${b['key']}'),
-    );
+    ]..sort((a, b) => '${a['key']}'.compareTo('${b['key']}'));
     debugPrint(const JsonEncoder.withIndent('  ').convert(result));
     return null;
   });
@@ -227,13 +233,22 @@ void Function() registerWorkbenchBuiltinCommands(
         );
       } else if (resource.scheme == 'command') {
         return;
-      } else if (resource.scheme == 'file' ||
-          resource.scheme == 'vscode-remote' ||
-          resource.scheme == 'vscode-userdata') {
-        await workbench.openEditor(resource, label: label is String ? label : null);
-      } else {
+      } else if (const {
+            'mailto',
+            'http',
+            'https',
+            'vsls',
+          }.contains(resource.scheme) ||
+          workbench.isExternal(resource)) {
+        // The opener service's default opener: outside.
         await workbench.openExternal(
           resourceArg is String ? resourceArg : resource.toString(),
+        );
+      } else {
+        // `EditorOpener`: any other resource in an editor.
+        await workbench.openEditor(
+          resource,
+          label: label is String ? label : null,
         );
       }
     }
@@ -263,14 +278,19 @@ void Function() registerWorkbenchBuiltinCommands(
           final Map<Object?, Object?> m => m['label'] as String?,
           _ => null,
         },
-        description: labelArg is Map ? labelArg['description'] as String? : null,
+        description: labelArg is Map
+            ? labelArg['description'] as String?
+            : null,
         column: column,
         options: options,
       );
     }
 
     reg('_workbench.diff', diff);
-    reg('vscode.diff', (args) => diff([arg(args, 0), arg(args, 1), arg(args, 2)]));
+    reg(
+      'vscode.diff',
+      (args) => diff([arg(args, 0), arg(args, 1), arg(args, 2)]),
+    );
 
     regVoid('vscode.openFolder', (args) async {
       final folder = uriArg(arg(args, 0));
@@ -282,7 +302,10 @@ void Function() registerWorkbenchBuiltinCommands(
       };
       await workbench.openFolder(folder, forceNewWindow: forceNewWindow);
     });
-    reg('vscode.newWindow', (args) => workbench.openFolder(null, forceNewWindow: true));
+    reg(
+      'vscode.newWindow',
+      (args) => workbench.openFolder(null, forceNewWindow: true),
+    );
 
     reg('workbench.action.openSettings', (args) {
       final a = arg(args, 0);
@@ -297,7 +320,11 @@ void Function() registerWorkbenchBuiltinCommands(
     reg('workbench.action.openSettings2', (args) {
       final a = arg(args, 0);
       return workbench.openSettings(
-        query: a is Map ? a['query'] as String? : a is String ? a : null,
+        query: a is Map
+            ? a['query'] as String?
+            : a is String
+            ? a
+            : null,
       );
     });
     stops.add(
@@ -390,9 +417,7 @@ void Function() registerWorkbenchBuiltinCommands(
       if (a is Map) {
         final line = a['lineNumber'];
         editor.revealLine(
-          line is num
-              ? line.toInt()
-              : int.tryParse('$line') ?? 0,
+          line is num ? line.toInt() : int.tryParse('$line') ?? 0,
           '${a['at'] ?? 'center'}',
         );
       }
@@ -456,7 +481,9 @@ void Function() registerWorkbenchBuiltinCommands(
       } else if (uriArg(a) case final vsix?) {
         await extensions.install(vsix: vsix, options: opts);
       } else {
-        throw ArgumentError('workbench.extensions.installExtension: an id or a URI');
+        throw ArgumentError(
+          'workbench.extensions.installExtension: an id or a URI',
+        );
       }
     });
     regVoid('workbench.extensions.uninstallExtension', (args) async {

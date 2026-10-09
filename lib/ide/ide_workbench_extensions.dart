@@ -25,7 +25,10 @@ extension _ExtensionsPart on IdeWorkbenchState {
             range: range == null
                 ? null
                 : LspRange(
-                    LspPosition(range.startLineNumber - 1, range.startColumn - 1),
+                    LspPosition(
+                      range.startLineNumber - 1,
+                      range.startColumn - 1,
+                    ),
                     LspPosition(range.endLineNumber - 1, range.endColumn - 1),
                   ),
             select: true,
@@ -99,9 +102,8 @@ extension _ExtensionsPart on IdeWorkbenchState {
         id: 'testing.showMostRecentOutput',
         category: 'Test',
         label: 'Show Output',
-        run: () => widget.extensions?.output.showChannel(
-          testResultsOutputChannelId,
-        ),
+        run: () =>
+            widget.extensions?.output.showChannel(testResultsOutputChannelId),
       ),
     ];
   }
@@ -150,6 +152,10 @@ extension _ExtensionsPart on IdeWorkbenchState {
       debugHost.onOpenRepl = () => _selectPanel(IdePanelTab.debugConsole);
     }
     extensions.tasks?.onOpenProblems = _focusProblems;
+    extensions.builtinCommands
+      ?..onShowReferences = _showCommandReferences
+      ..onRevealInExplorer = _revealInExplorer
+      ..onOpenFolder = _openFolderForCommand;
     extensions.statusBar.addListener(_extensionsUiChanged);
     extensions.languageStatus.addListener(_extensionsUiChanged);
     extensions.output
@@ -165,6 +171,44 @@ extension _ExtensionsPart on IdeWorkbenchState {
     _attachViews(extensions);
     _syncExtensionKeybindings();
     _scheduleTrustPrompt();
+  }
+
+  /// `editor.action.showReferences` and peeked locations: the References
+  /// panel, with the locations in files.
+  void _showCommandReferences(String title, List<CommandLocation> locations) {
+    if (!mounted) return;
+    _showReferences(title, [
+      for (final location in locations)
+        if (location.uri.scheme == 'file')
+          IdeLocation(
+            location.uri.fsPath(),
+            LspRange(
+              LspPosition(
+                location.range.startLineNumber - 1,
+                location.range.startColumn - 1,
+              ),
+              LspPosition(
+                location.range.endLineNumber - 1,
+                location.range.endColumn - 1,
+              ),
+            ),
+          ),
+    ]);
+  }
+
+  /// `vscode.openFolder`: [path] opened as a recent folder is, or the Open
+  /// Folder dialog.
+  Future<void> _openFolderForCommand(
+    String? path, {
+    required bool forceNewWindow,
+  }) async {
+    if (!mounted) return;
+    final open = widget.onOpenRecent;
+    if (path != null && open != null) {
+      open(path);
+    } else {
+      _hostCommand('workbench.action.files.openFolder')?.run();
+    }
   }
 
   void _scheduleTrustPrompt() {
@@ -195,6 +239,10 @@ extension _ExtensionsPart on IdeWorkbenchState {
       debugHost.onOpenRepl = null;
     }
     extensions.tasks?.onOpenProblems = null;
+    extensions.builtinCommands
+      ?..onShowReferences = null
+      ..onRevealInExplorer = null
+      ..onOpenFolder = null;
     extensions.statusBar.removeListener(_extensionsUiChanged);
     extensions.languageStatus.removeListener(_extensionsUiChanged);
     extensions.output

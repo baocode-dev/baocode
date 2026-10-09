@@ -163,6 +163,14 @@ final class IdeDocumentsPort
     };
   }
 
+  /// The text of [uri] from its scheme's content provider (as open, when
+  /// it is); null when no provider has the scheme.
+  Future<String?> readVirtual(VsUri uri) async {
+    if (_virtual[uri.toString()] case final open?) return open.text;
+    final provider = _providers[uri.scheme];
+    return provider == null ? null : provider(uri);
+  }
+
   @override
   Future<void> updateVirtualDocument(VsUri uri, String value) async {
     final model = _virtual[uri.toString()];

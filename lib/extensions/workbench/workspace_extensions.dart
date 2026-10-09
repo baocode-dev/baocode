@@ -120,6 +120,7 @@ import '../window/window_ports.dart';
 import '../workspace/workspace_context.dart';
 import '../workspace/workspace_save.dart';
 import 'editor_feature_driver.dart';
+import 'ide_builtin_commands.dart';
 import 'ide_documents.dart';
 import 'default_formatter.dart';
 import 'save_participants.dart';
@@ -547,6 +548,11 @@ final class WorkspaceExtensions extends ChangeNotifier {
   /// The editors' and documents' state, once [attach]ed.
   DocumentsAndEditorsService? get documentsAndEditors => _documentsAndEditors;
 
+  /// The built-in commands' ports (`vscode.open`, `type`, references…),
+  /// while attached; the workbench gives them what only it can do.
+  IdeBuiltinCommands? get builtinCommands => _builtinCommands;
+  IdeBuiltinCommands? _builtinCommands;
+
   /// The window's progress (notifications and the status bar).
   ExtensionProgressService? get progress => _progress;
 
@@ -926,10 +932,32 @@ final class WorkspaceExtensions extends ChangeNotifier {
       unawaited(fileChanges.cancel());
     });
     commands.activation = ExtensionHostCommandActivation(host);
+    final builtins = _builtinCommands = IdeBuiltinCommands(
+      workspace: workspace,
+      editors: editors,
+      documents: port,
+      files: files,
+      views: views,
+      commands: commands,
+      management: management,
+      appScheme: app.urls.scheme,
+      openUri: (target) async {
+        final uri = VsUri.parse(target);
+        if (uri.scheme == app.urls.scheme) {
+          await app.urls.open(uri);
+        } else {
+          await app.openExternal?.call(target);
+        }
+      },
+    );
     _stops.add(
       registerWorkbenchBuiltinCommands(
         commands.builtins,
         contextKeys: contextKeys,
+        workbench: builtins,
+        editor: builtins,
+        extensions: builtins,
+        restartExtensionHost: () async => _host?.manager.restart(),
       ),
     );
     _stops.add(registerLanguageCommands(languageRoot, commands.builtins));
@@ -1268,6 +1296,8 @@ final class WorkspaceExtensions extends ChangeNotifier {
     terminals.dispose();
     unawaited(terminalEnvironment.store?.dispose());
     _editorFeatures?.dispose();
+    _builtinCommands?.dispose();
+    _builtinCommands = null;
     _documentsPort?.dispose();
     _documentsAndEditors?.dispose();
     _editors?.dispose();
