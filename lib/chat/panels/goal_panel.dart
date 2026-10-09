@@ -74,6 +74,11 @@ class _GoalPanelState extends State<GoalPanel> {
   /// Ticks the time it has been worked toward, while it is.
   Timer? _clock;
 
+  /// When work toward it stopped, seen stopping: the time shown holds there
+  /// until work goes on. Null while it is worked on, and when it was not
+  /// seen stopping (the time shows then not at all).
+  DateTime? _stoppedAt;
+
   final TextEditingController _text = TextEditingController();
   final FocusNode _textFocus = FocusNode();
 
@@ -92,6 +97,11 @@ class _GoalPanelState extends State<GoalPanel> {
       _editing = false;
       _confirmingClear = false;
     }
+    if (widget.activity != GoalActivity.waiting) {
+      _stoppedAt = null;
+    } else if (oldWidget.activity != GoalActivity.waiting) {
+      _stoppedAt = DateTime.now();
+    }
     _scheduleLeave();
     _tick();
   }
@@ -107,6 +117,7 @@ class _GoalPanelState extends State<GoalPanel> {
   void _tick() {
     final counting =
         widget.goal.state == GoalState.active &&
+        widget.activity != GoalActivity.waiting &&
         widget.goal.setAt != null &&
         TickerMode.valuesOf(context).enabled;
     if (!counting) {
@@ -314,10 +325,17 @@ class _GoalPanelState extends State<GoalPanel> {
         GoalActivity.waiting => Text(l10n.goalWaiting, style: style),
       },
     };
-    // How long it has been worked toward; once met, how long it took.
+    // How long it has been worked toward (stopped, until then); once met,
+    // how long it took.
     final setAt = goal.setAt;
-    if (goal.state != GoalState.active || setAt == null) return state;
-    final elapsed = DateTime.now().difference(setAt);
+    final until = switch (widget.activity) {
+      GoalActivity.waiting => _stoppedAt,
+      _ => DateTime.now(),
+    };
+    if (goal.state != GoalState.active || setAt == null || until == null) {
+      return state;
+    }
+    final elapsed = until.difference(setAt);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

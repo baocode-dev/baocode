@@ -59,6 +59,23 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('its time holds while nothing works on it', (tester) async {
+    final goal = KernelGoal(
+      'all tests pass',
+      setAt: DateTime.now().subtract(const Duration(seconds: 27)),
+    );
+    // Not seen stopping: how long it went is not known.
+    await pump(tester, goal, activity: GoalActivity.waiting);
+    expect(find.textContaining(' · '), findsNothing);
+
+    await pump(tester, goal);
+    expect(find.text(' · 27s'), findsOneWidget);
+    await pump(tester, goal, activity: GoalActivity.waiting);
+    await tester.pump(const Duration(seconds: 5));
+    expect(find.text(' · 27s'), findsOneWidget);
+    // Nothing ticks: a timer left pending would fail the test.
+  });
+
   testWidgets('opened, it shows why it is not met yet and edits it', (
     tester,
   ) async {
