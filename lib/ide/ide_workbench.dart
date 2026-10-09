@@ -12,6 +12,12 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../chat/chat_keys.dart';
+import '../debug/common/debug_types.dart';
+import '../debug/service/debug_service.dart';
+import '../debug/ui/debug_strings.dart';
+import '../debug/ui/debug_toolbar.dart';
+import '../debug/ui/debug_view.dart';
+import '../debug/ui/run_and_debug_view.dart';
 import '../extensions/import/extension_import.dart';
 import '../extensions/keybindings/extension_keybindings.dart';
 import '../extensions/recommendations/recommendations.dart';
@@ -19,6 +25,7 @@ import '../extensions/runtime/extension_runtime_service.dart';
 import '../extensions/runtime/runtime_status_item.dart';
 import '../extensions/ui/extension_detail.dart';
 import '../extensions/ui/extensions_view.dart';
+import '../extensions/trust/trust_ui.dart';
 import '../extensions/ui/import_dialog.dart';
 import '../extensions/ui/vsix_drop.dart';
 import '../extensions/window/output/output_panel.dart';
@@ -26,6 +33,7 @@ import '../extensions/window/quick_input/quick_input_widget.dart';
 import '../extensions/window/status_bar_items.dart';
 import '../extensions/window/window_adapters.dart'
     show WorkbenchCommandExecutor;
+
 import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 
 import '../extensions/commands/command_contributions.dart'
@@ -150,6 +158,7 @@ class IdeWorkbench extends StatefulWidget {
     this.onIgnoreRecommendation,
     this.textSearch = ideSearchText,
     this.extensions,
+    @visibleForTesting this.debugService,
     this.commitMessage = ideClaudeCommitMessage,
     this.pinned = false,
     this.onPinnedChanged,
@@ -224,6 +233,10 @@ class IdeWorkbench extends StatefulWidget {
   /// bar entries, output, commands…; none for a folder without (the view
   /// says so).
   final WorkspaceExtensions? extensions;
+
+  /// Injected by focused workbench tests; normal windows use [extensions].
+  @visibleForTesting
+  final DebugService? debugService;
 
   /// Writes the Source Control view's commit messages (Claude Haiku; a
   /// fake in widget tests).
@@ -315,11 +328,12 @@ class IdeWorkbench extends StatefulWidget {
 }
 
 /// The side views of the activity bar. The outline is a pane of the
-/// explorer, as in VS Code; there is no Run and Debug view.
+/// explorer, as in VS Code.
 enum IdeSideView {
   explorer,
   search,
   sourceControl,
+  debug,
   extensions,
 
   /// An extension's view container ([IdeWorkbenchState._viewContainer]).
@@ -335,6 +349,8 @@ typedef _Chord = ({String label, List<KeyChord> chords, String message});
 
 class IdeWorkbenchState extends State<IdeWorkbench> {
   final _editorKey = GlobalKey<IdeEditorState>();
+  final _runAndDebugKey = GlobalKey<RunAndDebugViewState>();
+  DebugService? _listenedDebug;
 
   /// The markdown files shown as their source rather than their preview,
   /// the last switched last (a few hundred kept, with the window's state).
@@ -538,6 +554,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The panel's tab, or null when the panel is hidden.
   IdePanelTab? get _panel => _layout.panel;
   set _panel(IdePanelTab? tab) => _layout.panel = tab;
+
+  DebugService? get _debug => widget.debugService ?? widget.extensions?.debug;
 
   /// The tab the panel shows again when toggled back.
   IdePanelTab get _lastPanel => _layout.lastPanel;
@@ -1203,6 +1221,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (oldWidget.remote != widget.remote) {
       oldWidget.remote?.removeListener(_remoteChanged);
       widget.remote?.addListener(_remoteChanged);
+    }
+    if (oldWidget.debugService != widget.debugService) {
+      _syncDebugListener();
+      widget.extensions?.contextKeys.notifyExternalChange();
     }
     if (oldWidget.workspace != widget.workspace ||
         oldWidget.extensions != widget.extensions) {
@@ -1870,6 +1892,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _togglePanel(IdePanelTab tab) =>
       setState(() => _panel = _panel == tab ? null : tab);
+
+  void _toggleDebugConsole() {
+    _togglePanel(IdePanelTab.debugConsole);
+    if (_panel == IdePanelTab.debugConsole) _focusPanel();
+  }
 
   void _selectPanel(IdePanelTab tab) => setState(() => _panel = tab);
 
@@ -3045,9 +3072,126 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     ];
   }
 
+  void _runAndDebugAction(
+    Future<void> Function(RunAndDebugViewState view) action,
+  ) {
+    _showView(IdeSideView.debug);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final view = _runAndDebugKey.currentState;
+      if (view != null) unawaited(action(view));
+    });
+  }
+
+  List<IdeCommand> _debugCommands() {
+    final service = _debug;
+    if (service == null) return const [];
+    final session = service.viewModel.focusedSession;
+    final thread = debugActionThread(service);
+    return [
+      IdeCommand(
+        id: 'workbench.view.debug',
+        category: 'View',
+        label: DebugStrings.of(context).runAndDebug,
+        run: () => _showView(IdeSideView.debug),
+      ),
+      IdeCommand(
+        id: 'debug.start',
+        category: 'Debug',
+        label: 'Start Debugging',
+        run: () => _runAndDebugAction((view) => view.start()),
+      ),
+      IdeCommand(
+        id: 'debug.startFromConfig',
+        category: 'Debug',
+        label: 'Start Debugging from Configuration',
+        run: () => _runAndDebugAction((view) => view.start()),
+        runWithArgs: (args) {
+          final config = args is Map ? args.cast<String, Object?>() : null;
+          _runAndDebugAction((view) => view.start(config: config));
+        },
+      ),
+      IdeCommand(
+        id: 'debug.addConfiguration',
+        category: 'Debug',
+        label: 'Add Configuration...',
+        run: () => _runAndDebugAction((view) => view.addConfiguration()),
+      ),
+      IdeCommand(
+        id: 'debug.openConfigFile',
+        category: 'Debug',
+        label: 'Open launch.json',
+        run: () => _runAndDebugAction((view) => view.openConfigFile()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.run',
+        category: 'Debug',
+        label: 'Run Without Debugging',
+        run: () => _runAndDebugAction((view) => view.runWithoutDebugging()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.toggleRepl',
+        category: 'Debug',
+        label: 'Toggle Debug Console',
+        run: _toggleDebugConsole,
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.stop',
+        category: 'Debug',
+        label: 'Stop Debugging',
+        run: () => unawaited(service.stopSession(null)),
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.restart',
+        category: 'Debug',
+        label: 'Restart Debugging',
+        enabled: session != null,
+        run: () {
+          if (session != null) unawaited(service.restartSession(session));
+        },
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.continue',
+        category: 'Debug',
+        label: 'Continue',
+        enabled: thread != null,
+        run: () => unawaited(thread?.continue_()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.pause',
+        category: 'Debug',
+        label: 'Pause',
+        enabled: thread != null,
+        run: () => unawaited(thread?.pause()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.stepOver',
+        category: 'Debug',
+        label: 'Step Over',
+        enabled: thread != null,
+        run: () => unawaited(thread?.next()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.stepInto',
+        category: 'Debug',
+        label: 'Step Into',
+        enabled: thread != null,
+        run: () => unawaited(thread?.stepIn()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.stepOut',
+        category: 'Debug',
+        label: 'Step Out',
+        enabled: thread != null,
+        run: () => unawaited(thread?.stepOut()),
+      ),
+    ];
+  }
+
   /// The workbench's commands, then the editor's, then [IdeWorkbench.commands].
   List<IdeCommand> _allCommands() => [
     ..._workbenchCommands(),
+    ..._debugCommands(),
     ..._editorCommands(),
     ..._layoutCommands(),
     ..._searchCommands(),
@@ -3130,6 +3274,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         badge: _gitCount,
       ),
       item(
+        IdeSideView.debug,
+        Codicons.debugAlt,
+        keys.titleWithKeybinding(
+          DebugStrings.of(context).runAndDebug,
+          'workbench.view.debug',
+        ),
+      ),
+      item(
         IdeSideView.extensions,
         Codicons.extensions,
         keys.titleWithKeybinding(l10n.extTitle, 'workbench.view.extensions'),
@@ -3195,6 +3347,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       trash: WindowControls.canMoveToTrash ? WindowControls.moveToTrash : null,
       commitMessage: widget.commitMessage,
     ),
+    IdeSideView.debug => switch (_debug) {
+      final debug? => DebugView(
+        service: debug,
+        runAndDebugKey: _runAndDebugKey,
+      ),
+      null => const SizedBox.shrink(),
+    },
     IdeSideView.extensions => _extensionsView(),
     IdeSideView.container => _extensionContainerView(),
   };
@@ -3392,11 +3551,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   Widget _editorArea(List<IdeCommand> commands) {
     final active = widget.workspace.active;
+    final debug = _debug;
+    final dockedToolbar =
+        debug != null && debug.settings().toolBarLocation == 'docked';
     return IdeCard(
       color: themeColors['editor.background'],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (dockedToolbar) DebugToolbar(service: debug),
           if (widget.workspace.documents.isNotEmpty) ...[
             IdeTabBar(
               documents: widget.workspace.documents,
@@ -3772,6 +3935,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       minAbove: hidden ? IdeRows.minChat : IdeRows.minEditor,
     );
     final panelVisible = rows.panel > 0;
+    final debug = _debug;
+    final editor = KeyedSubtree(
+      key: const ValueKey('ide-editor'),
+      child: _editorArea(commands),
+    );
+    final toolbarLocation = debug?.settings().toolBarLocation;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -3785,10 +3954,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   enabled: !hidden,
                   child: ExcludeFocus(
                     excluding: hidden,
-                    child: KeyedSubtree(
-                      key: const ValueKey('ide-editor'),
-                      child: _editorArea(commands),
-                    ),
+                    child: toolbarLocation == 'floating' && debug != null
+                        ? FloatingDebugToolbar(service: debug, child: editor)
+                        : editor,
                   ),
                 ),
               ),
@@ -3927,6 +4095,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     output: _extensionOutput(
                       shown: shown && _panel == IdePanelTab.output,
                     ),
+                    debugConsole: switch (_debug) {
+                      final debug? => DebugConsolePanel(service: debug),
+                      null => null,
+                    },
                     viewTabs: _panelViewTabs(),
                     selectedView: _panelContainer,
                     onViewTab: (id) => setState(() {

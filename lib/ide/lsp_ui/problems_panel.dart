@@ -19,6 +19,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
+import '../../debug/ui/debug_strings.dart';
 import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
@@ -39,6 +40,7 @@ enum IdePanelTab {
   problems,
   output,
   references,
+  debugConsole,
   terminal,
 
   /// An extension's view container ([IdeBottomPanel.viewTabs]).
@@ -214,6 +216,7 @@ class IdeBottomPanel extends StatelessWidget {
     this.terminal,
     this.terminalActions,
     this.output,
+    this.debugConsole,
     this.viewTabs = const [],
     this.selectedView,
     this.onViewTab,
@@ -257,6 +260,9 @@ class IdeBottomPanel extends StatelessWidget {
 
   /// The extensions' output channels; no OUTPUT tab without them.
   final Widget? output;
+
+  /// Debug Console; no tab when debugging is unavailable.
+  final Widget? debugConsole;
 
   @override
   Widget build(BuildContext context) {
@@ -321,6 +327,14 @@ class IdeBottomPanel extends StatelessWidget {
                             selected: tab == IdePanelTab.references,
                             onTap: () => onTab(IdePanelTab.references),
                           ),
+                          if (debugConsole != null)
+                            _Tab(
+                              label: DebugStrings.of(context).debugConsole
+                                  .toUpperCase(),
+                              tooltip: DebugStrings.of(context).debugConsole,
+                              selected: tab == IdePanelTab.debugConsole,
+                              onTap: () => onTab(IdePanelTab.debugConsole),
+                            ),
                           if (terminal != null)
                             _Tab(
                               label: context.l10n.panelTerminal,
@@ -371,6 +385,8 @@ class IdeBottomPanel extends StatelessWidget {
                 IdePanelTab.problems => _problems(all, context.l10n),
                 IdePanelTab.output => output ?? const SizedBox.shrink(),
                 IdePanelTab.references => _references(context.l10n),
+                IdePanelTab.debugConsole =>
+                  debugConsole ?? const SizedBox.shrink(),
                 IdePanelTab.terminal =>
                   terminal ?? _message(context.l10n.panelTerminalUnavailable),
                 IdePanelTab.view => _shownView?.body ?? const SizedBox.shrink(),

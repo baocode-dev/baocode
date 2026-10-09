@@ -31,7 +31,8 @@ import 'debug_strings.dart';
 
 /// A session is starting or running.
 bool debugStartDisabled(DebugService service) =>
-    service.state == DebugState.initializing || service.state == DebugState.running;
+    service.state == DebugState.initializing ||
+    service.state == DebugState.running;
 
 class RunAndDebugView extends StatefulWidget {
   const RunAndDebugView({super.key, required this.service});
@@ -68,11 +69,17 @@ class RunAndDebugViewState extends State<RunAndDebugView> {
   }
 
   /// Starts the selected configuration, or [config]/[name].
-  Future<void> start({bool noDebug = false, String? name, Json? config, Launch? launch}) async {
+  Future<void> start({
+    bool noDebug = false,
+    String? name,
+    Json? config,
+    Launch? launch,
+  }) async {
     final selected = manager.selectedConfiguration;
     launch ??= selected.launch;
     final configOrName = config ?? (name ?? selected.name);
-    if (configOrName == null || (configOrName is String && configOrName.isEmpty)) {
+    if (configOrName == null ||
+        (configOrName is String && configOrName.isEmpty)) {
       // Nothing selected: pick a configuration, or create launch.json.
       final picked = await _pickConfiguration();
       if (picked == null) return;
@@ -94,7 +101,12 @@ class RunAndDebugViewState extends State<RunAndDebugView> {
       return null;
     }
     final picked = await service.host.pick<LaunchConfigurationEntry>([
-      for (final e in all) DebugPickItem(e.name, e, description: e.launch.hidden ? null : e.launch.name),
+      for (final e in all)
+        DebugPickItem(
+          e.name,
+          e,
+          description: e.launch.hidden ? null : e.launch.name,
+        ),
     ], placeholder: 'Select a debug configuration');
     if (picked != null) {
       await manager.selectConfiguration(picked.launch, name: picked.name);
@@ -121,9 +133,18 @@ class RunAndDebugViewState extends State<RunAndDebugView> {
       alignRight: true,
       entries: ideMenuGroups([
         [
-          IdeMenuAction(s.addConfiguration, onSelected: () => unawaited(_addConfiguration())),
-          IdeMenuAction(s.openLaunchJson, onSelected: () => unawaited(openConfigFile())),
-          IdeMenuAction(s.selectDebugger, onSelected: () => unawaited(_createLaunchJson())),
+          IdeMenuAction(
+            s.addConfiguration,
+            onSelected: () => unawaited(_addConfiguration()),
+          ),
+          IdeMenuAction(
+            s.openLaunchJson,
+            onSelected: () => unawaited(openConfigFile()),
+          ),
+          IdeMenuAction(
+            s.selectDebugger,
+            onSelected: () => unawaited(_createLaunchJson()),
+          ),
         ],
       ]),
     );
@@ -136,6 +157,9 @@ class RunAndDebugViewState extends State<RunAndDebugView> {
     await _writeInitialConfiguration(debugger);
   }
 
+  /// Adds a debugger configuration from the workbench command.
+  Future<void> addConfiguration() => _addConfiguration();
+
   Future<void> _createLaunchJson() async {
     final debugger = await _pickDebugger();
     if (debugger == null) return;
@@ -143,28 +167,38 @@ class RunAndDebugViewState extends State<RunAndDebugView> {
   }
 
   Future<Debugger?> _pickDebugger() {
-    final debuggers = service.registry.debuggers.where((d) => d.enabled).toList();
+    final debuggers = service.registry.debuggers
+        .where((d) => d.enabled)
+        .toList();
     if (debuggers.isEmpty) {
       service.host.showError(DebugStrings.of(context).noDebuggers);
       return Future.value(null);
     }
     if (debuggers.length == 1) return Future.value(debuggers.first);
-    return service.host.pick<Debugger>(
-      [for (final d in debuggers) DebugPickItem(d.label, d)],
-      placeholder: DebugStrings.of(context).selectDebugger,
-    );
+    return service.host.pick<Debugger>([
+      for (final d in debuggers) DebugPickItem(d.label, d),
+    ], placeholder: DebugStrings.of(context).selectDebugger);
   }
 
   /// Appends the debugger's initial configurations to launch.json,
   /// creating the file where there is none.
   Future<void> _writeInitialConfiguration(Debugger debugger) async {
     final token = CancellationTokenSource().token;
-    final folder = manager.selectedConfiguration.launch?.workspace ?? service.host.workspaceFolders.firstOrNull;
-    final configs = await manager.provideDebugConfigurations(folder?.uri, debugger.type, token);
+    final folder =
+        manager.selectedConfiguration.launch?.workspace ??
+        service.host.workspaceFolders.firstOrNull;
+    final configs = await manager.provideDebugConfigurations(
+      folder?.uri,
+      debugger.type,
+      token,
+    );
     final launch = manager.selectedConfiguration.launch;
     if (launch is FolderLaunch) {
       if (launch.getConfig() == null) {
-        await launch.openConfigFile(type: debugger.type, suppressInitialConfigs: configs.isEmpty);
+        await launch.openConfigFile(
+          type: debugger.type,
+          suppressInitialConfigs: configs.isEmpty,
+        );
       } else if (configs.isNotEmpty) {
         for (final config in configs) {
           await launch.writeConfiguration(config);
@@ -190,11 +224,12 @@ class RunAndDebugViewState extends State<RunAndDebugView> {
     }
     final debugger = await _pickDebugger();
     if (debugger == null) return;
-    await service.startDebugging(
-      null,
-      {'type': debugger.type, 'request': 'launch', 'name': debugger.label, 'noDebug': true},
-      options: const DebugSessionOptions(noDebug: true, startedByUser: true),
-    );
+    await service.startDebugging(null, {
+      'type': debugger.type,
+      'request': 'launch',
+      'name': debugger.label,
+      'noDebug': true,
+    }, options: const DebugSessionOptions(noDebug: true, startedByUser: true));
   }
 
   @override
@@ -209,16 +244,24 @@ class RunAndDebugViewState extends State<RunAndDebugView> {
           label: selected.name ?? s.noConfigurations,
           enabled: configurations.isNotEmpty,
           onTap: (anchor) => unawaited(_showConfigMenu(anchor)),
-          onStart: debugStartDisabled(service) ? null : () => unawaited(start()),
+          onStart: debugStartDisabled(service)
+              ? null
+              : () => unawaited(start()),
           onGear: (anchor) => unawaited(showGearMenu(anchor)),
         ),
         if (selected.name != null)
           _StartRow(
             s: s,
-            onStart: debugStartDisabled(service) ? null : () => unawaited(start()),
-            onRun: debugStartDisabled(service) ? null : () => unawaited(runWithoutDebugging()),
+            onStart: debugStartDisabled(service)
+                ? null
+                : () => unawaited(start()),
+            onRun: debugStartDisabled(service)
+                ? null
+                : () => unawaited(runWithoutDebugging()),
           ),
-        if (configurations.isEmpty && service.debugUx == 'simple' && service.state == DebugState.inactive)
+        if (configurations.isEmpty &&
+            service.debugUx == 'simple' &&
+            service.state == DebugState.inactive)
           _Welcome(
             s: s,
             hasFolder: service.host.workspaceFolders.isNotEmpty,
@@ -238,12 +281,17 @@ class RunAndDebugViewState extends State<RunAndDebugView> {
         for (final e in all)
           IdeMenuAction(
             e.launch.hidden ? '${e.name}  (${e.launch.name})' : e.name,
-            checked: e.name == manager.selectedConfiguration.name &&
+            checked:
+                e.name == manager.selectedConfiguration.name &&
                 e.launch == manager.selectedConfiguration.launch,
-            onSelected: () => unawaited(manager.selectConfiguration(e.launch, name: e.name)),
+            onSelected: () =>
+                unawaited(manager.selectConfiguration(e.launch, name: e.name)),
           ),
         if (all.isNotEmpty) const IdeMenuSeparator(),
-        IdeMenuAction(DebugStrings.of(context).addConfiguration, onSelected: () => unawaited(_addConfiguration())),
+        IdeMenuAction(
+          DebugStrings.of(context).addConfiguration,
+          onSelected: () => unawaited(_addConfiguration()),
+        ),
       ],
     );
   }
@@ -295,10 +343,17 @@ class _ConfigRow extends StatelessWidget {
                           label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 13, color: debugColor('dropdown.foreground')),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: debugColor('dropdown.foreground'),
+                          ),
                         ),
                       ),
-                      Icon(Codicons.chevronDown, size: 14, color: debugColor('dropdown.foreground')),
+                      Icon(
+                        Codicons.chevronDown,
+                        size: 14,
+                        color: debugColor('dropdown.foreground'),
+                      ),
                     ],
                   ),
                 ),
@@ -311,7 +366,9 @@ class _ConfigRow extends StatelessWidget {
           builder: (context) => IdeActionButton(
             icon: Codicons.debugStart,
             tooltip: DebugStrings.of(context).startDebugging,
-            color: onStart == null ? null : debugColor('debugIcon.startForeground'),
+            color: onStart == null
+                ? null
+                : debugColor('debugIcon.startForeground'),
             onPressed: onStart,
           ),
         ),
@@ -328,7 +385,11 @@ class _ConfigRow extends StatelessWidget {
 }
 
 class _StartRow extends StatelessWidget {
-  const _StartRow({required this.s, required this.onStart, required this.onRun});
+  const _StartRow({
+    required this.s,
+    required this.onStart,
+    required this.onRun,
+  });
 
   final DebugStrings s;
   final VoidCallback? onStart;
@@ -339,7 +400,11 @@ class _StartRow extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
     child: Row(
       children: [
-        Icon(Codicons.debugStart, size: 16, color: debugColor('debugIcon.startForeground')),
+        Icon(
+          Codicons.debugStart,
+          size: 16,
+          color: debugColor('debugIcon.startForeground'),
+        ),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
@@ -349,7 +414,12 @@ class _StartRow extends StatelessWidget {
         ),
         IdeHover(
           message: s.runWithoutDebugging,
-          child: IdeActionButton(icon: Codicons.play, tooltip: s.runWithoutDebugging, size: 20, onPressed: onRun),
+          child: IdeActionButton(
+            icon: Codicons.play,
+            tooltip: s.runWithoutDebugging,
+            size: 20,
+            onPressed: onRun,
+          ),
         ),
       ],
     ),
@@ -357,7 +427,12 @@ class _StartRow extends StatelessWidget {
 }
 
 class _Welcome extends StatelessWidget {
-  const _Welcome({required this.s, required this.hasFolder, required this.hasLaunch, required this.onCreate});
+  const _Welcome({
+    required this.s,
+    required this.hasFolder,
+    required this.hasLaunch,
+    required this.onCreate,
+  });
 
   final DebugStrings s;
   final bool hasFolder;
@@ -370,21 +445,40 @@ class _Welcome extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(s.welcomeRun, style: TextStyle(fontSize: 20, color: IdeListColors.foreground)),
+        Text(
+          s.welcomeRun,
+          style: TextStyle(fontSize: 20, color: IdeListColors.foreground),
+        ),
         const SizedBox(height: 12),
         if (!hasFolder)
-          Text(s.welcomeNoFolder, style: TextStyle(fontSize: 13, height: 1.5, color: IdeListColors.foreground))
+          Text(
+            s.welcomeNoFolder,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: IdeListColors.foreground,
+            ),
+          )
         else ...[
           Text(
-            hasLaunch ? s.welcomeCustomize.replaceAll('{link}', s.createLaunchJson) : s.welcomeNoFolder,
-            style: TextStyle(fontSize: 13, height: 1.5, color: IdeListColors.foreground),
+            hasLaunch
+                ? s.welcomeCustomize.replaceAll('{link}', s.createLaunchJson)
+                : s.welcomeNoFolder,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: IdeListColors.foreground,
+            ),
           ),
           const SizedBox(height: 8),
           MouseRegion(
             cursor: SystemMouseCursors.click,
             child: GestureDetector(
               onTap: onCreate,
-              child: Text(s.createLaunchJson, style: TextStyle(fontSize: 13, color: debugIconLinkColor)),
+              child: Text(
+                s.createLaunchJson,
+                style: TextStyle(fontSize: 13, color: debugIconLinkColor),
+              ),
             ),
           ),
         ],
@@ -395,4 +489,3 @@ class _Welcome extends StatelessWidget {
 
 /// The debug link color (`textLink.foreground`).
 Color get debugIconLinkColor => debugColor('textLink.foreground');
-

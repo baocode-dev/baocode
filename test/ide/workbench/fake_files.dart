@@ -7,6 +7,7 @@ import 'package:baocode/ide/git/commit_message.dart';
 import 'package:baocode/ide/git/git_repository.dart';
 import 'package:baocode/ide/git/repository_scan.dart';
 import 'package:baocode/ide/ide_color_theme_picker.dart';
+import 'package:baocode/debug/service/debug_service.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/ide_workspace.dart';
 import 'package:baocode/ide/lsp/language_features.dart';
@@ -191,6 +192,7 @@ Future<IdeWorkspace> pumpWorkbench(
   ValueChanged<String>? onRemoveFolder,
   Project? project,
   WorkspaceExtensions? extensions,
+  DebugService? debugService,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -229,6 +231,7 @@ Future<IdeWorkspace> pumpWorkbench(
         onIgnoreRecommendation: onIgnoreRecommendation,
         textSearch: textSearch ?? ideSearchText,
         extensions: extensions,
+        debugService: debugService,
         // Never the real Claude Code under test.
         commitMessage: commitMessage ?? _noModel,
         onPinnedChanged: onPinnedChanged,

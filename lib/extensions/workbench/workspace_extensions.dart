@@ -21,6 +21,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
+import '../../debug/service/debug_service.dart';
 import '../../ide/ide_notifications.dart' show IdeSeverity;
 import '../../ide/ide_workspace.dart';
 import '../../ide/lsp/language_features.dart';
@@ -45,6 +46,7 @@ import '../editors/editor_ports.dart';
 import '../extension_host_service_io.dart';
 import '../files/disk_file_system_provider_io.dart';
 import '../files/file_service.dart';
+import '../files/file_types.dart';
 import '../files/workspace_file_watcher.dart';
 import '../gallery/extension_enablement.dart';
 import '../gallery/extension_management_backend.dart';
@@ -66,6 +68,7 @@ import '../main_thread/main_thread_bulk_edits.dart';
 import '../main_thread/main_thread_configuration.dart';
 import '../main_thread/main_thread_document_content_providers.dart';
 import '../main_thread/main_thread_documents.dart';
+import '../main_thread/main_thread_debug_service.dart';
 import '../main_thread/main_thread_file_system.dart' show ExtensionActivator;
 import '../main_thread/main_thread_decorations.dart';
 import '../main_thread/main_thread_message_service.dart';
@@ -76,6 +79,9 @@ import '../runtime/extension_runtime_service.dart';
 import '../recommendations/recommendations.dart';
 import '../search/search_service.dart';
 import '../ui/extensions_model.dart';
+import '../trust/trust_ui.dart';
+import '../trust/workspace_trust.dart';
+import '../trust/workspace_trust_storage_io.dart';
 import '../decorations/explorer_decorations.dart';
 import '../decorations/file_decorations_service.dart';
 import '../views/views_service.dart';
@@ -105,6 +111,7 @@ import 'editor_feature_driver.dart';
 import 'ide_documents.dart';
 import 'ide_text_editors.dart';
 import 'jsonc_settings_file.dart';
+import 'workspace_debug_host.dart';
 
 /// What the whole app shares: one runtime, one VS Code server (and its
 /// extensions folder), the user's settings and the extensions' storage.
@@ -221,11 +228,17 @@ final class ExtensionsApp {
     ),
   );
 
+  late final WorkspaceTrustStore trustStore = WorkspaceTrustStore(
+    FileWorkspaceTrustStorage(p.join(userDirectory, 'workspaceTrust.json')),
+    ignorePathCase: Platform.isMacOS || Platform.isWindows,
+  );
+
   Future<void>? _loading;
 
-  /// Reads what is kept on disk (which extensions are disabled), once:
-  /// before anything reads or changes it.
-  Future<void> load() => _loading ??= enablement.load();
+  /// Reads enablement and trust before a workspace can run extensions.
+  Future<void> load() =>
+      _loading ??= Future.wait([enablement.load(), trustStore.load()])
+          .then((_) {});
 
   /// The installed extensions as the server's `extensions.json` lists them
   /// (no server needed): each one's id, folder and manifest, enabled
@@ -293,6 +306,7 @@ final class ExtensionsApp {
   Future<void> dispose() async {
     await _changes.close();
     await pool.dispose();
+    trustStore.dispose();
   }
 }
 
@@ -440,6 +454,25 @@ final class WorkspaceExtensions extends ChangeNotifier {
   ExtensionProgressService? _progress;
   WorkspaceFileWatcher? _watcher;
   ExtensionEditorFeatureDriver? _editorFeatures;
+  DebugService? _debug;
+  WorkspaceDebugHost? _debugHost;
+  JsonStateStore? _debugState;
+  WorkspaceTrustService? _trust;
+  Future<void>? _trustPrompt;
+  Future<void>? _debugShutdown;
+
+  DebugService? get debug => _debug;
+  WorkspaceDebugHost? get debugHost => _debugHost;
+  WorkspaceTrustService? get trust => _trust;
+
+  /// Completion of debug-session cleanup and the final state write after dispose.
+  Future<void> get debugShutdown => _debugShutdown ?? Future.value();
+
+  /// Asked once the real workbench has a dialog context; headless stays restricted.
+  Future<void> showStartupTrustPrompt() async {
+    if (_disposed || _trust == null || dialogContext?.call() == null) return;
+    await (_trustPrompt ??= _trust!.showStartupPromptIfNeeded(label: root));
+  }
 
   /// The extensions' CodeLenses, inlay hints and inline completions in the
   /// editor on screen, once [attach]ed.
@@ -485,6 +518,22 @@ final class WorkspaceExtensions extends ChangeNotifier {
       workspace: folderSettings,
     );
     languageRegistry.configuration = configuration;
+    final trust = _trust = WorkspaceTrustService(
+      store: app.trustStore,
+      workspaceUris: () => [
+        for (final folder in workspaceContext.workspaceFolders) folder.uri,
+      ],
+      workspaceId: extHostWorkspace.id,
+      setting: (key) => configuration.getValue(key),
+      prompt: IdeWorkspaceTrustPrompt(
+        contextOf: () =>
+            dialogContext?.call() ??
+            (throw StateError('No window to request workspace trust in')),
+      ),
+    );
+    await trust.initialize();
+    if (_disposed) return;
+    configuration.trusted = trust.isWorkspaceTrusted;
 
     final editors = _editors = IdeTextEditors(workspace);
     final documentsAndEditors = _documentsAndEditors =
@@ -535,8 +584,45 @@ final class WorkspaceExtensions extends ChangeNotifier {
       dialogs: dialogs,
       commands: WorkbenchCommandExecutor(commands),
     );
+    final debugState = _debugState = JsonStateStore(
+      p.join(
+        app.userDirectory,
+        'workspaceStorage',
+        extHostWorkspace.id,
+        'debug.json',
+      ),
+    );
+    await debugState.load();
+    if (_disposed) return;
+    final debugHost = _debugHost = WorkspaceDebugHost(
+      workspace: workspace,
+      configuration: configuration,
+      context: workspaceContext,
+      keys: contextKeys,
+      commands: commands,
+      inputs: quickInput,
+      dialogs: dialogs,
+      trust: trust,
+      activate: (event) async {
+        final host = _host;
+        if (host == null) {
+          throw StateError('Workspace extensions are not attached');
+        }
+        await host.activateByEvent(event);
+      },
+      extensions: () => _host?.extensions.value ?? const [],
+      language: app.language,
+    );
+    final debug = _debug = DebugService(
+      host: debugHost,
+      storage: WorkspaceDebugStorage(debugState),
+      fileStore: WorkspaceLaunchFiles(files),
+    );
+    await debug.configurationManager.initialize();
+    if (_disposed) return;
     final host = _host = ExtensionHostService(
       pool: app.pool,
+      workspaceTrusted: () => trust.isWorkspaceTrusted,
       loadProduct: app.product,
       language: app.language,
       workspace: extHostWorkspace,
@@ -554,8 +640,11 @@ final class WorkspaceExtensions extends ChangeNotifier {
             MainThreadConfiguration.customer,
         MainContext.mainThreadTreeViews.nid: MainThreadTreeViews.customer,
         MainContext.mainThreadDecorations.nid: MainThreadDecorations.customer,
+        MainContext.mainThreadDebugService.nid: MainThreadDebugService.customer,
       },
       services: {
+        DebugService: debug,
+        WorkspaceTrustService: trust,
         ExtensionCommandRegistry: commands,
         ContextKeyService: contextKeys,
         CommandActivation: _LazyCommandActivation(this),
@@ -618,11 +707,61 @@ final class WorkspaceExtensions extends ChangeNotifier {
           }),
         ),
       },
-      includeExtension: (description) => app.enablement.isEnabled(
-        _idOf(description),
-        workspaceId: extHostWorkspace.id,
-      ),
+      includeExtension: (description) =>
+          app.enablement.isEnabled(
+            _idOf(description),
+            workspaceId: extHostWorkspace.id,
+          ) &&
+          runsInWorkspace(
+            description,
+            trusted: trust.isWorkspaceTrusted,
+            trustEnabled: trust.isWorkspaceTrustEnabled,
+            configured: (configuration.getValue(
+              'extensions.supportUntrustedWorkspaces',
+            ) as Map?)?.cast(),
+          ),
     );
+    void updateTrust() {
+      trust.update();
+      configuration.trusted = trust.isWorkspaceTrusted;
+    }
+
+    configuration.addListener(updateTrust);
+    workspaceContext.addListener(updateTrust);
+    _stops.add(() {
+      configuration.removeListener(updateTrust);
+      workspaceContext.removeListener(updateTrust);
+    });
+    final trustChanges = trust.onDidChangeTrust.listen((trusted) {
+      configuration.trusted = trusted;
+      contextKeys.setContext('isWorkspaceTrusted', trusted);
+      // JS trust can only be granted in place; revocation needs a fresh host.
+      if (!trusted && host.manager.rpc != null) {
+        unawaited(host.manager.restart());
+      } else {
+        unawaited(_refreshExtensions());
+      }
+      notifyListeners();
+    });
+    contextKeys.setContext('isWorkspaceTrusted', trust.isWorkspaceTrusted);
+    final saved = state.saved.listen((uri) {
+      debug.onFilesSaved([uri]);
+      if (_isLaunchFile(uri)) unawaited(_reloadDebugLaunches());
+    });
+    final fileChanges = files.onDidFilesChange.listen((changes) {
+      debug.onFilesDeleted([
+        for (final change in changes)
+          if (change.type == FileChangeType.deleted) change.resource,
+      ]);
+      if (changes.any((change) => _isLaunchFile(change.resource))) {
+        unawaited(_reloadDebugLaunches());
+      }
+    });
+    _stops.add(() {
+      unawaited(trustChanges.cancel());
+      unawaited(saved.cancel());
+      unawaited(fileChanges.cancel());
+    });
     commands.activation = ExtensionHostCommandActivation(host);
     _stops.add(
       registerWorkbenchBuiltinCommands(
@@ -685,6 +824,26 @@ final class WorkspaceExtensions extends ChangeNotifier {
     documents.addListener(_documentsChanged);
     notifyListeners();
     if (start) unawaited(startHost());
+    unawaited(showStartupTrustPrompt());
+  }
+
+  bool _isLaunchFile(VsUri uri) => workspaceContext.workspaceFolders.any(
+    (folder) => uriEqual(
+      uri,
+      folder.uri.joinPath(['.vscode', 'launch.json']),
+      ignoreCase: Platform.isMacOS || Platform.isWindows,
+    ),
+  );
+
+  Future<void> _reloadDebugLaunches() async {
+    if (_disposed) return;
+    try {
+      await _debug?.configurationManager.reload();
+    } on Object catch (error) {
+      if (!_disposed) {
+        _workspace?.notifications.notify(IdeSeverity.error, '$error');
+      }
+    }
   }
 
   /// Runs the extension in [folder] as one under development
@@ -790,6 +949,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
     final host = _host;
     if (host == null) return;
     final extensions = host.extensions.value;
+    _debug?.registry.setExtensions(debuggerExtensions(extensions));
     commands.setExtensions(extensions);
     statusBar.setContributions(extensions);
     views.setExtensions(commands.extensions);
@@ -908,6 +1068,12 @@ final class WorkspaceExtensions extends ChangeNotifier {
         identical(workspace.extensionDocuments, _documentsAndEditors?.state)) {
       workspace.extensionDocuments = null;
     }
+    _debugHost?.dispose();
+    _debugShutdown = () async {
+      await _host?.context?.dispose();
+      _debug?.dispose();
+      await _debugState?.dispose();
+    }();
     _host
       ?..extensions.removeListener(_extensionsChanged)
       ..removeListener(notifyListeners)
@@ -918,6 +1084,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
     _documentsAndEditors?.dispose();
     _editors?.dispose();
     _progress?.dispose();
+    _trust?.dispose();
     _configuration?.dispose();
     _folderSettings
       ?..file.dispose()

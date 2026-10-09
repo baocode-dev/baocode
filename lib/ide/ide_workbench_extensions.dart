@@ -9,12 +9,36 @@ part of 'ide_workbench.dart';
 extension _ExtensionsPart on IdeWorkbenchState {
   WorkspaceExtensions? get _workspaceExtensions => widget.extensions;
 
+  void _syncDebugListener() {
+    final debug = _debug;
+    if (identical(debug, _listenedDebug)) return;
+    _listenedDebug?.removeListener(_debugChanged);
+    _listenedDebug = debug?..addListener(_debugChanged);
+  }
+
+  void _debugChanged() {
+    if (!mounted) return;
+    _refresh(() {});
+    _workspaceExtensions?.contextKeys.notifyExternalChange();
+  }
+
+  void _panelFocusChanged() {
+    _workspaceExtensions?.contextKeys.notifyExternalChange();
+  }
+
   /// Follows [extensions]' UI state: what the status bar and the panel
   /// show of them, and the window dialogs are shown in.
   void _attachExtensions(WorkspaceExtensions? extensions) {
+    _syncDebugListener();
+    _panelFocus.addListener(_panelFocusChanged);
     if (extensions == null) return;
     extensions.dialogContext = () => mounted ? context : null;
     extensions.contextKeys.fallback = keyContext;
+    final debugHost = extensions.debugHost;
+    if (debugHost != null) {
+      debugHost.onOpenDebugView = () => _showView(IdeSideView.debug);
+      debugHost.onOpenRepl = () => _selectPanel(IdePanelTab.debugConsole);
+    }
     extensions.statusBar.addListener(_extensionsUiChanged);
     extensions.output
       ..addListener(_extensionsUiChanged)
@@ -28,9 +52,21 @@ extension _ExtensionsPart on IdeWorkbenchState {
     ExtensionRuntimeService.instance.addListener(_extensionsUiChanged);
     _attachViews(extensions);
     _syncExtensionKeybindings();
+    _scheduleTrustPrompt();
+  }
+
+  void _scheduleTrustPrompt() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.visible) {
+        unawaited(_workspaceExtensions?.showStartupTrustPrompt());
+      }
+    });
   }
 
   void _detachExtensions(WorkspaceExtensions? extensions) {
+    _listenedDebug?.removeListener(_debugChanged);
+    _listenedDebug = null;
+    _panelFocus.removeListener(_panelFocusChanged);
     if (extensions == null) return;
     // First: what follows the context keys stops before they change.
     _detachViews(extensions);
@@ -38,6 +74,11 @@ extension _ExtensionsPart on IdeWorkbenchState {
       extensions.contextKeys.fallback = null;
     }
     extensions.dialogContext = null;
+    final debugHost = extensions.debugHost;
+    if (debugHost != null) {
+      debugHost.onOpenDebugView = null;
+      debugHost.onOpenRepl = null;
+    }
     extensions.statusBar.removeListener(_extensionsUiChanged);
     extensions.output
       ..removeListener(_extensionsUiChanged)
@@ -50,7 +91,11 @@ extension _ExtensionsPart on IdeWorkbenchState {
   }
 
   void _extensionsUiChanged() {
-    if (mounted) _refresh(() {});
+    _syncDebugListener();
+    if (mounted) {
+      _refresh(() {});
+      _scheduleTrustPrompt();
+    }
   }
 
   /// The keybinding service has the extensions' keybindings of the
@@ -253,6 +298,12 @@ extension _ExtensionsPart on IdeWorkbenchState {
     final extensions = _workspaceExtensions;
     if (extensions == null) return const [];
     return [
+      if (extensions.trust case final trust? when left)
+        ?workspaceTrustStatusItem(
+          trust,
+          context.l10n,
+          onTrust: () => unawaited(trust.requestWorkspaceTrust()),
+        ),
       if (left)
         ?extensionRuntimeStatusItem(
           ExtensionRuntimeService.instance.state,

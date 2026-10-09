@@ -80,11 +80,10 @@ final class MainThreadEditorTabs extends MainThreadEditorTabsUnsupported {
         for (final tab in tabs.tabs)
           if (tab.groupId == groupId) editorTabDto(tab),
       ];
-      if (groupTabs.isEmpty) continue;
       result.add({
         'groupId': groupId,
         'isActive': groupId == tabs.activeGroupId,
-        'viewColumn': groupTabs.isEmpty ? 1 : _viewColumnOf(groupId),
+        'viewColumn': _viewColumnOf(groupId),
         'tabs': groupTabs,
       });
     }

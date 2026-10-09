@@ -50,14 +50,22 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   storage, secrets, URLs, authentication), webview degradation.
 - bao_editor: decoration types, injected text, inlay hints, CodeLens zones, ghost text.
 - Gallery/VSIX/import/capabilities/recommendations and the Extensions view (lib/extensions/ui).
-- lib/debug: debug model, sessions, DAP client, Run and Debug views (not yet wired to the workbench).
+- lib/debug: debug model, sessions, DAP client, Run and Debug views, Debug Console and floating/docked toolbar, wired to the workbench's activity bar, panel and commands (`test/extensions/workbench/ide_workbench_extensions_test.dart`).
 - MainThreadDebugService: extension-host DAP transport, configuration/descriptor providers, session/cache/focus/custom
   events, breakpoints and console APIs. Scripted RPC evidence: `test/extensions/debug/main_thread_debug_service_test.dart`;
   related debug tests: 41 passed, 2 pre-existing presentation skips. Protocol fixtures/proxy/actor tests: 142 passed.
-  This is protocol evidence, not yet real-extension debugging acceptance.
+  This is protocol evidence; full real-extension debugging acceptance remains pending beyond Node launch/attach.
 - WorkspaceDebugHost: IDE configuration/editor variables, trust requests, save, commands, quick input and read-only
   adapter sources (deferred reveal and adapter-backed reload); launch files through FileService and debug state through
-  JsonStateStore. `test/extensions/workbench/workspace_debug_host_test.dart`: 8 passed. Not yet assembled into the workspace.
+  JsonStateStore. `test/extensions/workbench/workspace_debug_host_test.dart`: 8 passed.
+- Workspace debug assembly: DebugService/launch files/state, dynamic workspace trust, launch reload and breakpoint removal
+  are connected in `WorkspaceExtensions`. Tests cover headless restricted mode and persisted breakpoint/watch state in
+  `test/extensions/workbench/workspace_extensions_debug_test.dart`.
+- Run and Debug, Debug Console and toolbar are connected to the IDE workbench, with native view and debug commands;
+  widget coverage is in `test/extensions/workbench/ide_workbench_extensions_test.dart`.
+- The bundled js-debug is exercised with the real REH and its Node runtime: `pwa-node` launch and attach both bind a
+  breakpoint, stop in `add`, and expose local arguments (`test/extensions/workbench/workspace_debug_exthost_test.dart`,
+  tagged `exthost`). Empty editor groups are announced before tab updates (`main_thread_editor_tabs_test.dart`).
 - Assembly (lib/extensions/workbench): `ExtensionsApp` (one per app) and `WorkspaceExtensions` (one per local IDE
   folder) over `IdeWorkspace` (`IdeTextEditors`, `IdeDocumentsPort`, `IdeWorkspaceEditApplier`); real-runtime test
   `test/extensions/workbench/workspace_extensions_exthost_test.dart` (TS diagnostics, completion, hover).
@@ -73,8 +81,8 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 
 1. Finish editor-feature rendering from the registry: CodeLens, inlay hints, inline completions, document highlights,
    links, colors and folding (driver over `IdeEditorViews` + `RegistryLanguageFeatures`).
-2. Assemble DebugService with a real workspace host (activation, launch files, persistence, dialogs, editor/terminal),
-   then wire Run and Debug/console/toolbar/breakpoints to the workbench. Implement terminal, tasks, SCM and testing actors.
+2. Complete real-extension debugging acceptance beyond Node launch/attach (Python, Go, Rust/C++, debugger controls,
+   breakpoint variants and preLaunchTask); connect real debug terminal/task backends. Implement SCM and testing actors.
 3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
    bao_remote LSP, docs and l10n), after replacing its language capability coverage.
 4. SSH remote: REH on the remote through bao_remote port forwarding, with the extensionKind split.
@@ -95,8 +103,11 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   `RpcProtocol.call(preserveJsonNull: true)` preserves JSON-null replies as `rpcNull` for debug configuration resolvers:
   JSON null opens launch.json; undefined cancels silently. Existing generated nullable proxies keep their prior behavior.
 - Debug visualizers/visualizer trees remain explicitly unsupported (no model/UI service). No fake registration.
-- The pinned VSCodium REH lacks js-debug (only debug-auto-launch/debug-server-ready are present). Runtime packaging
-  must add a pinned, permissively licensed js-debug before Node launch/attach acceptance; protocol tests are not a substitute.
+- The pinned VSCodium REH already bundles `ms-vscode.js-debug` 1.117.0 (MIT) and `ms-vscode.js-debug-companion` 1.1.3.
+  The js-debug version and official VSIX SHA-256 match upstream 1.135.0's `product.json`; a prior assumption that they
+  were absent was incorrect. Packaging needs no additional VSIX. Real launch and attach are covered by the tagged test.
+- On macOS, `Directory.systemTemp` may return `/var/folders` while Node reports `/private/var/folders`; resolve the
+  temporary test workspace symlink before setting js-debug breakpoints so the DAP source paths match.
 - Debug tasks and terminals reject explicitly until their real backends are connected; no successful no-op for a requested task.
 - Extension pages show over the editors (not as editor tabs): BaoCode's tabs are documents.
 - A multi-folder workspace runs one extension host on its first folder for now.

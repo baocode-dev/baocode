@@ -6,19 +6,25 @@
 import 'package:baocode/extensions/gallery/extension_management_backend.dart';
 import 'package:baocode/extensions/gallery/open_vsx_client.dart';
 import 'package:baocode/extensions/configuration/configuration_service.dart';
+import 'package:baocode/debug/ui/debug_toolbar.dart';
+import 'package:baocode/debug/ui/debug_view.dart';
+import 'package:baocode/debug/ui/run_and_debug_view.dart';
 import 'package:baocode/extensions/workbench/workspace_extensions.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/lsp_ui/problems_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../debug/support/fake_debug_adapter.dart';
 import '../../ide/workbench/fake_files.dart';
 import '../gallery/fixture_http.dart';
 import '../ui/fake_backend.dart';
 
 final class _Settings extends ChangeNotifier implements SettingsFile {
   @override
-  final Map<String, Object?> values = {};
+  final Map<String, Object?> values = {
+    'security.workspace.trust.startupPrompt': 'never',
+  };
 
   @override
   Future<void> write(List<String> path, Object? value) async {}
@@ -120,9 +126,8 @@ void main() {
   testWidgets('OUTPUT is a tab of the panel with extensions', (tester) async {
     final extensions = _extensions();
     await pumpWorkbench(tester, {'a.txt': 'text'}, extensions: extensions);
-    _workbench(
-      tester,
-    ).commandsById['workbench.action.output.toggleOutput']!.run();
+    _workbench(tester).commandsById['workbench.action.output.toggleOutput']!
+        .run();
     await tester.pumpAndSettle();
     expect(find.text('OUTPUT'), findsOneWidget);
     expect(extensions.output.panelVisible.value, isTrue);
@@ -131,6 +136,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(extensions.output.panelVisible.value, isFalse);
   });
+
+  testWidgets(
+    'debug view, console and commands use the assembled debug service',
+    (tester) async {
+      final fixture = await createFakeDebugService();
+      addTearDown(fixture.service.dispose);
+      await pumpWorkbench(
+        tester,
+        {'a.txt': 'text'},
+        open: ['a.txt'],
+        debugService: fixture.service,
+      );
+
+      _workbench(tester).commandsById['workbench.view.debug']!.run();
+      await tester.pumpAndSettle();
+      expect(find.byType(DebugView), findsOneWidget);
+      expect(find.byType(RunAndDebugView), findsOneWidget);
+      expect(find.byType(FloatingDebugToolbar), findsOneWidget);
+
+      _workbench(tester).commandsById['workbench.action.toggleRepl']!.run();
+      await tester.pumpAndSettle();
+      expect(find.byType(DebugConsolePanel), findsOneWidget);
+      expect(find.text('DEBUG CONSOLE'), findsNWidgets(2));
+
+      _workbench(tester).commandsById['workbench.view.debug']!.run();
+      await tester.pumpAndSettle();
+      expect(find.byType(DebugView), findsOneWidget);
+    },
+  );
 
   testWidgets('without extensions, the panel has no OUTPUT tab', (
     tester,
@@ -168,9 +202,7 @@ void main() {
   });
 
   testWidgets('a file whose language no installed extension provides gets '
-      'its extension recommended, in the notification center', (
-    tester,
-  ) async {
+      'its extension recommended, in the notification center', (tester) async {
     final extensions = _extensions();
     final workspace = await pumpWorkbench(
       tester,

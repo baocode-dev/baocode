@@ -30,11 +30,14 @@ final class ExtensionHostService extends ChangeNotifier {
     required this.customers,
     this.services = const {},
     this.language = 'en',
-    this.trusted = true,
+    bool trusted = true,
+    this.workspaceTrusted,
     this.developmentLocations = const [],
     this.logger,
     this.includeExtension,
-  }) {
+    // Keep the public named argument `trusted` while storing its fallback.
+    // ignore: prefer_initializing_formals
+  }) : _trusted = trusted {
     manager = ExtensionHostManager(
       start: _startSession,
       extensionServiceId: ExtHostContext.extHostExtensionService.nid,
@@ -57,7 +60,11 @@ final class ExtensionHostService extends ChangeNotifier {
   /// The app's services the actors use ([MainThreadContext.service]).
   final Map<Type, Object> services;
   final String language;
-  final bool trusted;
+  final bool _trusted;
+
+  /// Read as each session initializes, including a restart after trust changes.
+  final bool Function()? workspaceTrusted;
+  bool get trusted => workspaceTrusted?.call() ?? _trusted;
 
   /// Folders loaded as extensions under development; a change applies as
   /// the host starts again.

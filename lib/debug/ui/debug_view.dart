@@ -41,6 +41,7 @@ class DebugView extends StatefulWidget {
   const DebugView({
     super.key,
     required this.service,
+    this.runAndDebugKey,
     this.sections = const DebugViewSections(),
     this.onEditBreakpoint,
     this.expanded,
@@ -48,6 +49,7 @@ class DebugView extends StatefulWidget {
   });
 
   final DebugService service;
+  final GlobalKey<RunAndDebugViewState>? runAndDebugKey;
   final DebugViewSections sections;
 
   /// "Edit Breakpoint" of the breakpoints view (the editor's widget).
@@ -62,8 +64,10 @@ class DebugView extends StatefulWidget {
 }
 
 class _DebugViewState extends State<DebugView> {
-  late Set<String> _expanded = widget.expanded ?? {'variables', 'watch', 'callStack', 'breakpoints'};
-  late final BreakpointsViewController _breakpoints = BreakpointsViewController();
+  late Set<String> _expanded =
+      widget.expanded ?? {'variables', 'watch', 'callStack', 'breakpoints'};
+  late final BreakpointsViewController _breakpoints =
+      BreakpointsViewController();
   final ChangeNotifier _collapseWatch = _CollapseSignal();
   final ChangeNotifier _collapseStack = _CollapseSignal();
 
@@ -89,7 +93,9 @@ class _DebugViewState extends State<DebugView> {
     final service = widget.service;
     final sections = widget.sections;
     final session = service.viewModel.focusedSession;
-    final variablesCount = service.viewModel.focusedStackFrame != null ? 1 : null;
+    final variablesCount = service.viewModel.focusedStackFrame != null
+        ? 1
+        : null;
     final panes = <IdePane>[
       if (sections.variables)
         IdePane(
@@ -105,15 +111,24 @@ class _DebugViewState extends State<DebugView> {
           badge: service.model.getWatchExpressions().isEmpty
               ? null
               : IdeCountBadge(service.model.getWatchExpressions().length),
-          actions: watchViewActions(context, service, onCollapseAll: () => (_collapseWatch as _CollapseSignal).fire()),
+          actions: watchViewActions(
+            context,
+            service,
+            onCollapseAll: () => (_collapseWatch as _CollapseSignal).fire(),
+          ),
           body: WatchView(service: service, collapseAll: _collapseWatch),
         ),
       if (sections.callStack)
         IdePane(
           id: 'callStack',
           title: s.callStack,
-          badge: service.model.getSessions().isEmpty ? null : IdeCountBadge(service.model.getSessions().length),
-          actions: callStackViewActions(context, onCollapseAll: () => (_collapseStack as _CollapseSignal).fire()),
+          badge: service.model.getSessions().isEmpty
+              ? null
+              : IdeCountBadge(service.model.getSessions().length),
+          actions: callStackViewActions(
+            context,
+            onCollapseAll: () => (_collapseStack as _CollapseSignal).fire(),
+          ),
           body: CallStackView(service: service, collapseAll: _collapseStack),
         ),
       if (sections.breakpoints)
@@ -123,7 +138,8 @@ class _DebugViewState extends State<DebugView> {
           actions: breakpointsViewActions(
             context,
             service,
-            onAddFunctionBreakpoint: () => _breakpoints.addFunctionBreakpoint(service),
+            onAddFunctionBreakpoint: () =>
+                _breakpoints.addFunctionBreakpoint(service),
           ),
           body: BreakpointsView(
             service: service,
@@ -131,13 +147,18 @@ class _DebugViewState extends State<DebugView> {
             onEditBreakpoint: widget.onEditBreakpoint,
           ),
         ),
-      if (sections.loadedScripts && (session?.capabilities.flag('supportsLoadedSourcesRequest') ?? false))
-        IdePane(id: 'loadedScripts', title: s.loadedScripts, body: LoadedScriptsView(service: service)),
+      if (sections.loadedScripts &&
+          (session?.capabilities.flag('supportsLoadedSourcesRequest') ?? false))
+        IdePane(
+          id: 'loadedScripts',
+          title: s.loadedScripts,
+          body: LoadedScriptsView(service: service),
+        ),
     ];
 
     return Column(
       children: [
-        RunAndDebugView(service: service),
+        RunAndDebugView(key: widget.runAndDebugKey, service: service),
         const SizedBox(height: 4),
         Expanded(
           child: IdePaneContainer(
@@ -176,7 +197,9 @@ class _DebugConsolePanelState extends State<DebugConsolePanel> {
         title: DebugStrings.of(context).debugConsole,
         actions: _consoleKey.currentState?.actions(context) ?? const [],
       ),
-      Expanded(child: DebugConsoleView(key: _consoleKey, service: widget.service)),
+      Expanded(
+        child: DebugConsoleView(key: _consoleKey, service: widget.service),
+      ),
     ],
   );
 }

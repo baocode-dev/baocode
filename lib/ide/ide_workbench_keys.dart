@@ -590,7 +590,11 @@ extension _WorkbenchKeys on IdeWorkbenchState {
     'auxiliaryBarVisible' => _chatShown,
     'auxiliaryBarFocus' => _chatFocus.hasFocus,
     'focusedView' => _focusedView ?? '',
-    'inDebugMode' || 'inDebugRepl' => false,
+    'inDebugMode' =>
+      (_debug?.state ?? DebugState.inactive) != DebugState.inactive,
+    'inDebugRepl' =>
+      _panelFocus.hasFocus &&
+          (_panel ?? _lastPanel) == IdePanelTab.debugConsole,
     _ => null,
   };
 
@@ -603,6 +607,7 @@ extension _WorkbenchKeys on IdeWorkbenchState {
         IdeSideView.explorer => 'outline',
         IdeSideView.search => 'workbench.view.search',
         IdeSideView.sourceControl => 'workbench.scm',
+        IdeSideView.debug => 'workbench.debug.viewlet',
         IdeSideView.extensions => 'workbench.views.extensions.installed',
         IdeSideView.container => null,
       };
@@ -1323,6 +1328,7 @@ extension on IdeSideView {
     IdeSideView.explorer => 'workbench.view.explorer',
     IdeSideView.search => 'workbench.view.search',
     IdeSideView.sourceControl => 'workbench.view.scm',
+    IdeSideView.debug => 'workbench.view.debug',
     IdeSideView.extensions => 'workbench.view.extensions',
     // Its container's id, which the workbench has.
     IdeSideView.container => 'workbench.view.extension',
@@ -1335,6 +1341,7 @@ extension on IdePanelTab {
     IdePanelTab.problems => 'workbench.panel.markers',
     IdePanelTab.output => 'workbench.panel.output',
     IdePanelTab.references => 'workbench.panel.referenceSearch',
+    IdePanelTab.debugConsole => 'workbench.panel.repl',
     IdePanelTab.terminal => 'terminal',
     // Its container's id, which the workbench has.
     IdePanelTab.view => 'workbench.panel.extension',
@@ -1345,6 +1352,7 @@ extension on IdePanelTab {
     IdePanelTab.problems => 'workbench.panel.markers.view',
     IdePanelTab.output => 'workbench.panel.output',
     IdePanelTab.references => 'workbench.panel.referenceSearch',
+    IdePanelTab.debugConsole => 'workbench.panel.repl',
     IdePanelTab.terminal => 'terminal',
     // An extension view's, when it has the focus (see `_focusedView`).
     IdePanelTab.view => 'workbench.panel.extension',
