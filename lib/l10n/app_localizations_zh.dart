@@ -7365,4 +7365,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get extsPageClose => '关闭扩展';
+
+  @override
+  String get themeSelectIconThemePlaceholder => '选择文件图标主题（按上下箭头键预览）';
+
+  @override
+  String get themeIconThemeBuiltIn => '内置';
 }

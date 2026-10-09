@@ -7791,4 +7791,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get extsPageClose => 'Close Extension';
+
+  @override
+  String get themeSelectIconThemePlaceholder =>
+      'Select File Icon Theme (Up/Down Keys to Preview)';
+
+  @override
+  String get themeIconThemeBuiltIn => 'Built-in';
 }

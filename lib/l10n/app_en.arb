@@ -5966,5 +5966,7 @@
   "@wbRecommendExtension": {"placeholders": {"name": {"type": "String"}, "language": {"type": "String"}}},
   "wbRecommendExtensionDontShow": "Don't Show Again for This Extension",
   "extsNoHost": "Extensions are not available for this folder yet.",
-  "extsPageClose": "Close Extension"
+  "extsPageClose": "Close Extension",
+  "themeSelectIconThemePlaceholder": "Select File Icon Theme (Up/Down Keys to Preview)",
+  "themeIconThemeBuiltIn": "Built-in"
 }

@@ -26,6 +26,7 @@ import '../../ide/lsp/language_features.dart';
 import '../../ide/lsp/lsp_protocol.dart' show LspPosition, LspRange;
 import '../../platform/data_dir.dart';
 import '../../settings/jsonc.dart';
+import '../../theme/file_icon_theme.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchThemeService;
 import '../../settings/jsonc_file.dart';
 import '../commands/builtin_commands.dart';
@@ -240,10 +241,12 @@ final class ExtensionsApp {
     }
     final manifests = <Map<String, Object?>>[];
     for (final entry in entries) {
-      if (entry case {
-        'identifier': {'id': final String id},
-        'relativeLocation': final String relative,
-      } when enablement.isEnabled(id)) {
+      if (entry
+          case {
+            'identifier': {'id': final String id},
+            'relativeLocation': final String relative,
+          }
+          when enablement.isEnabled(id)) {
         final folder = p.join(extensionsDirectory, relative);
         try {
           final manifest = parseJsonc(
@@ -266,9 +269,15 @@ final class ExtensionsApp {
   /// The installed extensions' color themes, before any host runs.
   Future<void> applyInstalledThemes() async {
     WorkbenchThemeService.instance.waitsForExtensionThemes = true;
-    await WorkbenchThemeService.instance.setExtensionThemes(
-      WorkspaceExtensions._contributions(await installedManifests(), 'themes'),
-    );
+    final manifests = await installedManifests();
+    await Future.wait([
+      WorkbenchThemeService.instance.setExtensionThemes(
+        WorkspaceExtensions._contributions(manifests, 'themes'),
+      ),
+      FileIconThemeService.instance.setExtensionThemes(
+        WorkspaceExtensions._contributions(manifests, 'iconThemes'),
+      ),
+    ]);
   }
 
   /// A workspace's extensions; [root] is its folder.
@@ -637,6 +646,13 @@ final class WorkspaceExtensions extends ChangeNotifier {
       configuration: configuration,
     );
 
+    // File icon themes that map languages ask the last workspace opened.
+    FileIconThemeService.instance.languageIdOf = languageIdFor;
+    _stops.add(() {
+      final icons = FileIconThemeService.instance;
+      if (icons.languageIdOf == languageIdFor) icons.languageIdOf = null;
+    });
+
     // The documents the workspace has open, and those it opens from now.
     workspace
       ..extensionDocuments = state
@@ -757,6 +773,11 @@ final class WorkspaceExtensions extends ChangeNotifier {
     unawaited(
       WorkbenchThemeService.instance.setExtensionThemes(
         _contributions(extensions, 'themes'),
+      ),
+    );
+    unawaited(
+      FileIconThemeService.instance.setExtensionThemes(
+        _contributions(extensions, 'iconThemes'),
       ),
     );
     notifyListeners();

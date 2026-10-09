@@ -12816,6 +12816,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close Extension'**
   String get extsPageClose;
+
+  /// No description provided for @themeSelectIconThemePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Select File Icon Theme (Up/Down Keys to Preview)'**
+  String get themeSelectIconThemePlaceholder;
+
+  /// No description provided for @themeIconThemeBuiltIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in'**
+  String get themeIconThemeBuiltIn;
 }
 
 class _AppLocalizationsDelegate

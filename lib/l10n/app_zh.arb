@@ -2117,5 +2117,7 @@
   "wbRecommendExtension": "建议为 {language} 文件安装“{name}”扩展。",
   "wbRecommendExtensionDontShow": "不再为此扩展显示",
   "extsNoHost": "此文件夹暂不支持扩展。",
-  "extsPageClose": "关闭扩展"
+  "extsPageClose": "关闭扩展",
+  "themeSelectIconThemePlaceholder": "选择文件图标主题（按上下箭头键预览）",
+  "themeIconThemeBuiltIn": "内置"
 }

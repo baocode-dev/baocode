@@ -38,6 +38,7 @@ import '../l10n/l10n.dart';
 import '../keybindings/keybinding_service.dart';
 import '../settings/user_settings.dart';
 import '../theme/codicons.dart';
+import '../theme/file_icon_theme.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/back_to_chat_button.dart';

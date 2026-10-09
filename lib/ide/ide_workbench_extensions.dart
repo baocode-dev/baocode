@@ -306,6 +306,13 @@ extension _ExtensionsPart on IdeWorkbenchState {
         run: () => unawaited(_importExtensions()),
       ),
       IdeCommand(
+        id: 'workbench.action.selectIconTheme',
+        category: 'Preferences',
+        label: 'File Icon Theme',
+        enabled: widget.settings != null,
+        run: _selectIconTheme,
+      ),
+      IdeCommand(
         id: 'editor.action.inlineSuggest.trigger',
         label: 'Trigger Inline Suggestion',
         enabled: widget.workspace.active != null,
@@ -373,6 +380,66 @@ extension _ExtensionsPart on IdeWorkbenchState {
           () => widget.onIgnoreRecommendation?.call(id),
         ),
       ],
+    );
+  }
+
+  /// Preferences: File Icon Theme: the bundled theme and the extensions';
+  /// moving through them previews each, accepting keeps it in
+  /// settings.json (`workbench.iconTheme`).
+  void _selectIconTheme() {
+    final service = FileIconThemeService.instance;
+    final current = service.setting;
+    final l10n = context.l10n;
+    final ids = Map<IdeQuickPickItem, String?>.identity();
+    IdeQuickPickItem item(String label, String? id, {String? description}) {
+      final entry = IdeQuickPickItem(label: label, description: description);
+      ids[entry] = id;
+      return entry;
+    }
+
+    final bundled = item(
+      'Material Icon Theme',
+      null,
+      description: l10n.themeIconThemeBuiltIn,
+    );
+    final themes = service.themes
+      ..sort((a, b) => ideLocaleCompare(a.label, b.label));
+    final items = [
+      bundled,
+      for (final theme in themes) item(theme.label, theme.id),
+    ];
+    var accepted = false;
+    _showQuickModel(
+      IdeQuickPick(
+        items: items,
+        placeholder: l10n.themeSelectIconThemePlaceholder,
+        activeItems: [
+          items.firstWhere(
+            (candidate) => ids[candidate] == current,
+            orElse: () => bundled,
+          ),
+        ],
+        sortByLabel: false,
+        onDidChangeActive: (item) {
+          if (item != null) unawaited(service.select(ids[item]));
+        },
+        onDidAccept: (item) {
+          if (item == null) return;
+          accepted = true;
+          final id = ids[item];
+          unawaited(service.select(id));
+          unawaited(
+            widget.settings?.edit(
+              const ['workbench.iconTheme'],
+              id,
+              remove: id == null,
+            ),
+          );
+        },
+        onDidHide: () {
+          if (!accepted) unawaited(service.select(current));
+        },
+      ),
     );
   }
 }
