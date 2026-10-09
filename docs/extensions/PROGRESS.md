@@ -55,6 +55,9 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   events, breakpoints and console APIs. Scripted RPC evidence: `test/extensions/debug/main_thread_debug_service_test.dart`;
   related debug tests: 41 passed, 2 pre-existing presentation skips. Protocol fixtures/proxy/actor tests: 142 passed.
   This is protocol evidence, not yet real-extension debugging acceptance.
+- WorkspaceDebugHost: IDE configuration/editor variables, trust requests, save, commands, quick input and read-only
+  adapter sources (deferred reveal and adapter-backed reload); launch files through FileService and debug state through
+  JsonStateStore. `test/extensions/workbench/workspace_debug_host_test.dart`: 8 passed. Not yet assembled into the workspace.
 - Assembly (lib/extensions/workbench): `ExtensionsApp` (one per app) and `WorkspaceExtensions` (one per local IDE
   folder) over `IdeWorkspace` (`IdeTextEditors`, `IdeDocumentsPort`, `IdeWorkspaceEditApplier`); real-runtime test
   `test/extensions/workbench/workspace_extensions_exthost_test.dart` (TS diagnostics, completion, hover).
@@ -92,6 +95,9 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   `RpcProtocol.call(preserveJsonNull: true)` preserves JSON-null replies as `rpcNull` for debug configuration resolvers:
   JSON null opens launch.json; undefined cancels silently. Existing generated nullable proxies keep their prior behavior.
 - Debug visualizers/visualizer trees remain explicitly unsupported (no model/UI service). No fake registration.
+- The pinned VSCodium REH lacks js-debug (only debug-auto-launch/debug-server-ready are present). Runtime packaging
+  must add a pinned, permissively licensed js-debug before Node launch/attach acceptance; protocol tests are not a substitute.
+- Debug tasks and terminals reject explicitly until their real backends are connected; no successful no-op for a requested task.
 - Extension pages show over the editors (not as editor tabs): BaoCode's tabs are documents.
 - A multi-folder workspace runs one extension host on its first folder for now.
 - Keybindings: the keybinding service holds one set of extension keybindings, the visible workbench's.
