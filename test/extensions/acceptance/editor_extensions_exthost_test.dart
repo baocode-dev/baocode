@@ -2,15 +2,18 @@
 // data folder, installed through the workspace's management: GitLens
 // (current line blame, CodeLens, hover, its views), Error Lens with Code
 // Spell Checker's and TypeScript's diagnostics, and Todo Tree (its tree
-// and its highlights). The editor is a widgetless view, the extensions'
+// and its highlights), and VSCodeVim (its modes, editing through the
+// `type` command and its cursor). The editor is a widgetless view, the extensions'
 // `activeTextEditor`.
 @Tags(['exthost'])
 @TestOn('mac-os || linux')
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bao_editor/monaco/flutter/editor_decorations.dart';
+import 'package:bao_editor/monaco/flutter/editor_view_styles.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:baocode/extensions/views/tree_view.dart';
 import 'package:baocode/ide/ide_editor_views.dart';
@@ -264,6 +267,85 @@ void main() {
         for (final d in highlighted) text.substring(d.start, d.end),
       ], contains(startsWith('TODO')));
       expect(w.unsupported, isEmpty, reason: w.report());
+    },
+    timeout: timeout,
+    skip: openVsxSkip(),
+  );
+
+  test(
+    '九.2: VSCodeVim modes, editing and its block cursor',
+    () async {
+      final w = await OpenVsxWorkspace.create(
+        extensionIds: const ['vscodevim.vim'],
+        files: {'a.txt': 'alpha\nbeta\ngamma\n'},
+      );
+      final view = await w.show('a.txt');
+      await w.activated('vscodevim.vim');
+      final controller = view.controller;
+      final contextKeys = w.extensions.contextKeys;
+      String? mode() => contextKeys.getContextKeyValue('vim.mode') as String?;
+      String status() => [
+        for (final e in w.extensions.statusBar.entries)
+          if (e.extensionId?.toLowerCase() == 'vscodevim.vim') e.text,
+      ].join(' ');
+      Future<void> keys(String typed) async {
+        for (final key in typed.split('')) {
+          controller.type(key);
+        }
+      }
+
+      Future<void> text(String expected) async {
+        try {
+          await eventually(
+            'the text',
+            () => view.document.text == expected ? true : null,
+            timeout: const Duration(seconds: 20),
+          );
+        } on TimeoutException {
+          expect(view.document.text, expected, reason: w.report());
+        }
+      }
+
+      // Normal mode: its context key, status and block cursor.
+      await eventually('Normal mode', () {
+        return mode() == 'Normal' &&
+                controller.caretStyle == EditorCaretStyle.block
+            ? true
+            : null;
+      });
+      _caretAt(view, 1);
+      w.workspace.editorViews.changed(view);
+
+      // `x` deletes the character under the cursor; `j` `dd` the line.
+      await keys('x');
+      await text('lpha\nbeta\ngamma\n');
+      await keys('jdd');
+      await text('lpha\ngamma\n');
+
+      // `i`: Insert mode; typing goes through `default:type`.
+      await keys('i');
+      await eventually('Insert mode', () {
+        return mode() == 'Insert' &&
+                controller.caretStyle == EditorCaretStyle.line &&
+                status().contains('INSERT')
+            ? true
+            : null;
+      });
+      await keys('ok ');
+      await text('lpha\nok gamma\n');
+
+      // Escape (its keybinding's command): Normal again, `u` undoes.
+      await w.extensions.commands.executeCommand('extension.vim_escape');
+      await eventually('Normal mode again', () {
+        return mode() == 'Normal' &&
+                controller.caretStyle == EditorCaretStyle.block
+            ? true
+            : null;
+      });
+      await keys('u');
+      await text('lpha\ngamma\n');
+      expect(w.unsupported, isEmpty, reason: w.report());
+      expect(w.extensions.running.withErrors, isEmpty, reason: w.report());
     },
     timeout: timeout,
     skip: openVsxSkip(),

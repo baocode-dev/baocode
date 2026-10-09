@@ -97,6 +97,10 @@ final class IdeBuiltinCommands
   Future<void> Function(String? path, {required bool forceNewWindow})?
   onOpenFolder;
 
+  /// Highlights the focused editor's occurrences again (the extensions'
+  /// editor features set it).
+  void Function()? onTriggerWordHighlight;
+
   final TypeCommandInterceptor _typing;
   IdeEditorView? _shown;
 
@@ -472,6 +476,9 @@ final class IdeBuiltinCommands
   @override
   void triggerParameterHints() =>
       _app('editor.action.triggerParameterHints')?.run();
+
+  @override
+  void triggerWordHighlight() => onTriggerWordHighlight?.call();
 
   // --- ExtensionManagementCommandsPort
 

@@ -998,6 +998,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
       setting: (key, languageId) =>
           configuration.getValue(key, languageId: languageId),
     );
+    builtins.onTriggerWordHighlight = _editorFeatures?.restoreHighlights;
     host.extensions.addListener(_extensionsChanged);
     host.addListener(notifyListeners);
     // Installed, uninstalled, enabled or disabled anywhere: the running

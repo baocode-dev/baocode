@@ -25,6 +25,7 @@ import '../vs/editor/contrib/smartSelect/browser/smart_select.dart';
 import '../vs/editor/contrib/snippet/browser/snippet_session.dart';
 import 'bracket_matching.dart' show defaultBracketPairs;
 import 'document_snapshot.dart';
+import 'editor_view_styles.dart';
 import 'editor_document_model.dart';
 
 /// Returns the offset [rows] visual rows from [offset], keeping [preferredX]
@@ -129,6 +130,25 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
     if (value < 1 || value == _tabSize) return;
     _tabSize = value;
     _config = null;
+  }
+
+  /// How line numbers show (Monaco `editor.lineNumbers`), over the
+  /// surface's `lineNumbers`; null leaves them to it.
+  EditorLineNumbersStyle? get lineNumbersStyle => _lineNumbersStyle;
+  EditorLineNumbersStyle? _lineNumbersStyle;
+  set lineNumbersStyle(EditorLineNumbersStyle? value) {
+    if (value == _lineNumbersStyle || _disposed) return;
+    _lineNumbersStyle = value;
+    notifyListeners();
+  }
+
+  /// How the caret is drawn (Monaco `editor.cursorStyle`).
+  EditorCaretStyle get caretStyle => _caretStyle;
+  EditorCaretStyle _caretStyle = EditorCaretStyle.line;
+  set caretStyle(EditorCaretStyle value) {
+    if (value == _caretStyle || _disposed) return;
+    _caretStyle = value;
+    notifyListeners();
   }
 
   bool get insertSpaces => _insertSpaces;

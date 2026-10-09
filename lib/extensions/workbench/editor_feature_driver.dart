@@ -194,6 +194,14 @@ final class ExtensionEditorFeatureDriver {
     }
   }
 
+  /// `editor.action.wordHighlight.trigger` (upstream
+  /// `WordHighlighter.restore(250)`): the shown editor's occurrences
+  /// looked up again after [highlightDelay], unless turned off.
+  void restoreHighlights() {
+    _highlightSnapshot = null;
+    _scheduleHighlights();
+  }
+
   void _clearHighlights(IdeEditorView view) {
     for (final key in _highlightColors.keys) {
       view.features.decorations.removeDecorationsByType(key);

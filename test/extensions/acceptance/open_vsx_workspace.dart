@@ -222,7 +222,12 @@ final class OpenVsxWorkspace {
       focus: () {},
       reveal: (_, _, {center = false}) {},
     );
+    // As the editor widget does: its carets and text moving tell the
+    // extensions.
+    void changed() => workspace.editorViews.changed(view);
+    controller.addListener(changed);
     addTearDown(() {
+      controller.removeListener(changed);
       workspace.editorViews.hide(view);
       features.dispose();
       controller.dispose();

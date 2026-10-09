@@ -24,6 +24,7 @@ import 'editor_minimap.dart';
 import 'editor_scrollbar.dart';
 import 'editor_surface_controller.dart';
 import 'editor_view_painters.dart';
+import 'editor_view_styles.dart';
 import 'editor_view_theme.dart';
 import 'viewport_layout.dart';
 
@@ -37,6 +38,7 @@ export 'editor_decorations.dart'
         EditorInjectedText,
         EditorInjectedTextTarget,
         EditorUnderlineStyle;
+export 'editor_view_styles.dart';
 export 'editor_view_painters.dart' show EditorRenderWhitespace;
 export 'editor_view_theme.dart' show EditorViewTheme;
 
@@ -2140,13 +2142,18 @@ class _EditorSurfaceState extends State<EditorSurface>
         _syncFolding(snapshot);
         _revealSelectionsInFolds(selections);
         final glyphs = _ensureGlyphs(scaler);
+        final lineNumbers =
+            controller.lineNumbersStyle ??
+            (widget.lineNumbers
+                ? EditorLineNumbersStyle.on
+                : EditorLineNumbersStyle.off);
         final geometry = EditorViewGeometry.compute(
           size: size,
           lineHeight: glyphs.lineHeight,
           digitWidth: glyphs.digitWidth,
           lineCount: snapshot.lineCount,
           glyphMargin: widget.glyphMargin,
-          lineNumbers: widget.lineNumbers,
+          lineNumbers: lineNumbers != EditorLineNumbersStyle.off,
           folding: widget.folding,
           minimapWidth: widget.showMinimap ? widget.minimapWidth : 0,
         );
@@ -2257,6 +2264,7 @@ class _EditorSurfaceState extends State<EditorSurface>
                       focused: focused,
                       caretColor: widget.caretColor,
                       visible: _caretVisible,
+                      style: widget.controller.caretStyle,
                     ),
                   ),
                 ),
@@ -2272,8 +2280,18 @@ class _EditorSurfaceState extends State<EditorSurface>
                     background: widget.backgroundColor,
                     theme: theme,
                     glyphs: glyphs,
-                    lineNumbers: widget.lineNumbers,
+                    lineNumbers: lineNumbers,
                     activeLines: activeLines,
+                    cursorLine: primary.isValid
+                        ? snapshot
+                              .positionAtOffset(
+                                primary.extentOffset.clamp(
+                                  0,
+                                  snapshot.text.length,
+                                ),
+                              )
+                              .lineNumber
+                        : 0,
                     folding: _folding,
                     foldingVersion: _foldingVersion,
                     showFoldingControls: _hover == _Part.gutter,

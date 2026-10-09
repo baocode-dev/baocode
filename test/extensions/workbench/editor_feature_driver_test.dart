@@ -426,6 +426,10 @@ void main() {
       views.changed(view);
       await tester.pump(const Duration(milliseconds: 300));
       expect(highlights.positions, hasLength(2));
+      // `editor.action.wordHighlight.trigger`: looked up again.
+      driver!.restoreHighlights();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(highlights.positions, hasLength(3));
 
       focused = false;
       views.changed(view);
@@ -434,8 +438,10 @@ void main() {
       focused = true;
       views.changed(view);
       await tester.pump(const Duration(milliseconds: 300));
+      driver!.restoreHighlights();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(features.decorations.decorations.isEmpty, isTrue);
-      expect(highlights.positions, hasLength(2));
+      expect(highlights.positions, hasLength(3));
       await stop(tester);
     },
   );

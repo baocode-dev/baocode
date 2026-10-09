@@ -552,6 +552,11 @@ Uint8List _serializeReplyOk(int req, Object? value) {
 }
 
 /// `serializeReplyErr` with `transformErrorForSerialization`'s shape.
+/// An `Error.stack` as V8 writes it, `name: message` then the frames:
+/// what the extension host logs of an error it was not given a stack for.
+String _v8Stack(String name, String message, StackTrace stack) =>
+    '$name: $message\n$stack';
+
 Uint8List _serializeReplyErr(int req, Object error, StackTrace stack) {
   // Upstream's keys, in its order (`cause` and `code` are never set here).
   final Map<String, Object?> err;
@@ -568,15 +573,16 @@ Uint8List _serializeReplyErr(int req, Object error, StackTrace stack) {
       r'$isError': true,
       'name': error.name,
       'message': error.message,
-      'stack': error.stack,
+      'stack': error.stack ?? _v8Stack(error.name, error.message, stack),
       'noTelemetry': false,
     };
   } else {
+    final name = error is RpcUnsupported ? 'Unsupported' : 'Error';
     err = {
       r'$isError': true,
-      'name': error is RpcUnsupported ? 'Unsupported' : 'Error',
+      'name': name,
       'message': '$error',
-      'stack': '$stack',
+      'stack': _v8Stack(name, '$error', stack),
       'noTelemetry': false,
     };
   }

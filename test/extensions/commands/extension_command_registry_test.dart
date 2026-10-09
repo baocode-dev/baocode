@@ -436,4 +436,7 @@ final class _Editor implements EditorCommandsPort {
 
   @override
   void triggerParameterHints() => log.add('parameterHints');
+
+  @override
+  void triggerWordHighlight() => log.add('wordHighlight');
 }

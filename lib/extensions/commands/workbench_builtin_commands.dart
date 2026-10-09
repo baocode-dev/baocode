@@ -135,6 +135,10 @@ abstract interface class EditorCommandsPort {
 
   /// `editor.action.triggerParameterHints`.
   void triggerParameterHints();
+
+  /// `editor.action.wordHighlight.trigger`: the focused editor's
+  /// occurrences highlighted again (unless turned off).
+  void triggerWordHighlight();
 }
 
 /// Installing and uninstalling extensions for extensions.
@@ -466,6 +470,10 @@ void Function() registerWorkbenchBuiltinCommands(
     });
     reg('editor.action.triggerParameterHints', (args) {
       editor.triggerParameterHints();
+      return null;
+    });
+    reg('editor.action.wordHighlight.trigger', (args) {
+      editor.triggerWordHighlight();
       return null;
     });
   }

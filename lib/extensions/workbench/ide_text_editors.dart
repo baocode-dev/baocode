@@ -12,6 +12,7 @@ import 'dart:async';
 import 'package:bao_editor/monaco/flutter/editor_decoration_types.dart'
     show EditorDecorationsController;
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/flutter/editor_view_styles.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
 import 'package:bao_exthost/bao_exthost.dart' show VsUri;
@@ -331,11 +332,6 @@ final class IdeTextEditorUi implements TextEditorUi {
 
   final IdeEditorView view;
 
-  /// The cursor style and line numbers an extension set; the editor paints
-  /// its own (a line caret, line numbers on).
-  int _cursorStyle = EditorCursorStyle.line;
-  int _lineNumbers = EditorLineNumbers.on;
-
   @override
   EditorDocumentModel get document => view.controller.document;
 
@@ -374,8 +370,9 @@ final class IdeTextEditorUi implements TextEditorUi {
     tabSize: view.controller.tabSize,
     indentSize: view.controller.tabSize,
     insertSpaces: view.controller.insertSpaces,
-    cursorStyle: _cursorStyle,
-    lineNumbers: _lineNumbers,
+    cursorStyle: view.controller.caretStyle.index + 1,
+    lineNumbers:
+        (view.controller.lineNumbersStyle ?? EditorLineNumbersStyle.on).index,
   );
 
   @override
@@ -469,8 +466,15 @@ final class IdeTextEditorUi implements TextEditorUi {
     if (detectIndentation) controller.detectIndentation();
     if (tabSize != null) controller.tabSize = tabSize;
     if (insertSpaces != null) controller.insertSpaces = insertSpaces;
-    if (cursorStyle != null) _cursorStyle = cursorStyle;
-    if (lineNumbers != null) _lineNumbers = lineNumbers;
+    if (cursorStyle != null) {
+      controller.caretStyle =
+          EditorCaretStyle.fromApi(cursorStyle) ?? controller.caretStyle;
+    }
+    if (lineNumbers != null) {
+      controller.lineNumbersStyle =
+          EditorLineNumbersStyle.fromApi(lineNumbers) ??
+          controller.lineNumbersStyle;
+    }
   }
 
   @override
