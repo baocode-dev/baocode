@@ -370,7 +370,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The panel's height, and the room for it, when its sash's drag began.
   ({IdeRows rows, double room})? _panelDragStart;
   IdeSideView _view = IdeSideView.explorer;
-  final IdeNotifications _notifications = IdeNotifications();
+  /// The workspace's notifications (the extension host's go there too).
+  IdeNotifications get _notifications => widget.workspace.notifications;
 
   /// Servers whose install was recommended in this session.
   final Set<String> _recommended = {};
@@ -884,7 +885,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     FocusManager.instance.addLateKeyEventHandler(_onLateKey);
     KeybindingService.instance.addListener(_keybindingsChanged);
     _registerCommandKeybindings();
-    _notifications.addListener(_notificationsChanged);
     widget.settings?.addListener(_settingsChanged);
     widget.remote?.addListener(_remoteChanged);
     if (widget.terminalBackend.supported) {
@@ -919,6 +919,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _attach() {
     final workspace = widget.workspace;
+    workspace.notifications.addListener(_notificationsChanged);
     workspace.layout.terminals = _terminals != null;
     _explorer = IdeExplorerController(
       files: workspace.files,
@@ -995,6 +996,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   final Map<IdeGitRepository?, IdeScmSession> _scmSessions = {};
 
   void _detach(IdeWorkspace workspace) {
+    workspace.notifications.removeListener(_notificationsChanged);
     workspace.removeListener(_workspaceChanged);
     for (final watch in _editWatches.values) {
       unawaited(watch.cancel());
@@ -1146,7 +1148,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _timeline.dispose();
     _search.dispose();
     _extensions?.dispose();
-    _notifications.dispose();
     _scm.dispose();
     _terminals
       ?..removeListener(_terminalsChanged)

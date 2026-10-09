@@ -23,7 +23,8 @@ typedef ExtensionDescriptions = List<Map<String, Object?>>;
 final class ExtensionHostService extends ChangeNotifier {
   ExtensionHostService({
     required this.pool,
-    required this.product,
+    this.product,
+    this.loadProduct,
     required this.workspace,
     required this.configuration,
     required this.customers,
@@ -41,7 +42,11 @@ final class ExtensionHostService extends ChangeNotifier {
   }
 
   final ExtensionServerPool pool;
-  final ExtHostProduct product;
+
+  /// The runtime's product, or how to read it once the runtime is there
+  /// ([loadProduct]); one of them is given.
+  final ExtHostProduct? product;
+  final Future<ExtHostProduct> Function()? loadProduct;
   final ExtHostWorkspace workspace;
   final ConfigurationService configuration;
 
@@ -90,6 +95,7 @@ final class ExtensionHostService extends ChangeNotifier {
 
   Future<ExtHostSession> _startSession() async {
     final server = await pool.server;
+    final product = this.product ?? await loadProduct!();
     final environment = await server.environment();
     final scanned = _included(
       await server.scanExtensions(

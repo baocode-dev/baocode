@@ -39,6 +39,7 @@ import 'package:bao_editor/textmate/textmate_syntax.dart';
 import 'git/git_blame.dart';
 import 'ide_commands.dart';
 import 'ide_editor_features.dart';
+import 'ide_editor_views.dart';
 import 'ide_find_widget.dart';
 import 'ide_menu.dart';
 import 'ide_status_bar.dart' show ideEolEdits;
@@ -317,6 +318,7 @@ class IdeEditorState extends State<IdeEditor> {
           _selectionChanged();
           if (textChanged) _refreshFindResults();
           _updateBlame(navigated: !textChanged);
+          _shownViewChanged();
         }
         if (textChanged) {
           widget.workspace.notifyDocumentChanged(doc);
@@ -325,6 +327,7 @@ class IdeEditorState extends State<IdeEditor> {
       });
       return controller;
     });
+    _showView(doc, _nativeController!);
     _workspaceChanged();
     _snapshot = doc.model.snapshot;
     _selectionChanged();
@@ -753,7 +756,61 @@ class IdeEditorState extends State<IdeEditor> {
     LogicalKeyboardKey.altRight,
   };
 
+  /// Each open document's view, for the workspace's [IdeEditorViews].
+  final Map<IdeDocument, IdeEditorView> _views = {};
+
+  /// The view shown, and the workspace's views it is shown in.
+  IdeEditorView? _shownView;
+  IdeEditorViews? _shownIn;
+
+  void _showView(IdeDocument doc, EditorSurfaceController controller) {
+    var view = _views[doc];
+    if (view == null || !identical(view.controller, controller)) {
+      bool shown() => identical(_nativeController, controller);
+      view = _views[doc] = IdeEditorView(
+        document: doc,
+        controller: controller,
+        features: _features.of(doc, controller),
+        visibleLines: () {
+          final state = _surfaceKey.currentState;
+          if (!shown() || state is! EditorSurfaceView) return null;
+          return (state as EditorSurfaceView).visibleLineRange;
+        },
+        hasFocus: () => shown() && _focusNode.hasFocus,
+        focus: () {
+          if (shown()) focus();
+        },
+        reveal: (start, end, {center = false}) {
+          if (!shown()) return;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final state = _surfaceKey.currentState;
+            if (mounted && shown() && state is EditorSurfaceView) {
+              (state as EditorSurfaceView).revealRange(start, end);
+            }
+          });
+          WidgetsBinding.instance.scheduleFrame();
+        },
+      );
+    }
+    final views = widget.workspace.editorViews;
+    if (!identical(_shownIn, views)) _hideView();
+    _shownView = view;
+    _shownIn = views..show(view);
+  }
+
+  void _hideView() {
+    final view = _shownView;
+    _shownView = null;
+    if (view != null) _shownIn?.hide(view);
+    _shownIn = null;
+  }
+
+  void _shownViewChanged() {
+    if (_shownView case final view?) _shownIn?.changed(view);
+  }
+
   void _viewChanged() {
+    _shownViewChanged();
     _language?.onViewChanged();
     _textMateViewportChanged();
     _languageChanged();
@@ -990,6 +1047,7 @@ class IdeEditorState extends State<IdeEditor> {
             _disposeLanguageSession();
           }
           _semanticSources.remove(entry.key);
+          if (identical(_views.remove(entry.key), _shownView)) _hideView();
           _features.release(entry.key);
           if (identical(_nativeController, controller)) {
             _nativeController = null;
@@ -1018,6 +1076,8 @@ class IdeEditorState extends State<IdeEditor> {
   }
 
   void _disposeNativeControllers() {
+    _hideView();
+    _views.clear();
     _disposeLanguageSession();
     _nativeController = null;
     _syntaxRequest++;

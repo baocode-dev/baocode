@@ -358,6 +358,10 @@ final class RpcProtocol {
     _disposed = true;
     _checkTimer?.cancel();
     for (final completer in _pending.values) {
+      // A caller that did not wait for the answer (a notification sent
+      // with `unawaited`) must not see the cancellation as an uncaught
+      // error; one that waits still gets it.
+      completer.future.ignore();
       completer.completeError(const CancellationException());
     }
     _pending.clear();

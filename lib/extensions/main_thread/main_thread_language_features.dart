@@ -1420,15 +1420,13 @@ final class _ExtensionReferenceProvider extends _ExtensionProvider
 final class _ExtensionCodeActionProvider extends _ExtensionProvider
     implements CodeActionProvider {
   _ExtensionCodeActionProvider(
-    MainThreadLanguageFeatures actor,
-    int handle, {
+    super.actor,
+    super.handle, {
     required this.supportsResolve,
     required this.metadata,
-    required String displayName,
-    required String extensionId,
-  }) : _displayName = displayName,
-       _extensionId = extensionId,
-       super(actor, handle);
+    required this._displayName,
+    required this._extensionId,
+  });
 
   final bool supportsResolve;
   final ({
@@ -1515,13 +1513,11 @@ final class _ExtensionCodeActionProvider extends _ExtensionProvider
 class _ExtensionFormattingProvider extends _ExtensionProvider
     implements DocumentFormattingEditProvider {
   _ExtensionFormattingProvider(
-    MainThreadLanguageFeatures actor,
-    int handle, {
-    required String extensionId,
-    required String displayName,
-  }) : _extensionId = extensionId,
-       _displayName = displayName,
-       super(actor, handle);
+    super.actor,
+    super.handle, {
+    required this._extensionId,
+    required this._displayName,
+  });
 
   final String _extensionId;
   final String _displayName;
@@ -1552,14 +1548,12 @@ class _ExtensionFormattingProvider extends _ExtensionProvider
 final class _ExtensionRangeFormattingProvider extends _ExtensionProvider
     implements DocumentRangeFormattingEditProvider {
   _ExtensionRangeFormattingProvider(
-    MainThreadLanguageFeatures actor,
-    int handle, {
-    required String extensionId,
-    required String displayName,
+    super.actor,
+    super.handle, {
+    required this._extensionId,
+    required this._displayName,
     required this.supportsRanges,
-  }) : _extensionId = extensionId,
-       _displayName = displayName,
-       super(actor, handle);
+  });
 
   final String _extensionId;
   final String _displayName;
@@ -1615,13 +1609,13 @@ final class _ExtensionRangeFormattingProvider extends _ExtensionProvider
 final class _ExtensionOnTypeFormattingProvider extends _ExtensionProvider
     implements OnTypeFormattingEditProvider {
   _ExtensionOnTypeFormattingProvider(
-    MainThreadLanguageFeatures actor,
-    int handle,
+    super.actor,
+    super.handle,
     this.autoFormatTriggerCharacters, {
-    required String extensionId,
-  }) : _extensionId = extensionId,
-       super(actor, handle);
+    required this._extensionId,
+  });
 
+  @override
   final List<String> autoFormatTriggerCharacters;
   final String _extensionId;
 
@@ -1860,13 +1854,12 @@ final class _ExtensionDocumentRangeSemanticTokensProvider
 final class _ExtensionCompletionProvider extends _ExtensionProvider
     implements CompletionItemProvider {
   _ExtensionCompletionProvider(
-    MainThreadLanguageFeatures actor,
-    int handle,
+    super.actor,
+    super.handle,
     this.triggerCharacters, {
     required this.supportsResolve,
-    required String extensionId,
-  }) : _extensionId = extensionId,
-       super(actor, handle);
+    required this._extensionId,
+  });
 
   @override
   final List<String> triggerCharacters;
@@ -1964,8 +1957,8 @@ final class _ExtensionCompletionProvider extends _ExtensionProvider
 final class _ExtensionInlineCompletionsProvider extends _ExtensionProvider
     implements InlineCompletionsProvider {
   _ExtensionInlineCompletionsProvider(
-    MainThreadLanguageFeatures actor,
-    int handle, {
+    super.actor,
+    super.handle, {
     required this.supportsHandleEvents,
     required this.supportsSetModelId,
     required this.supportsOnDidChange,
@@ -1981,8 +1974,7 @@ final class _ExtensionInlineCompletionsProvider extends _ExtensionProvider
        yieldsToGroupIdsValue = yieldsToExtensionIds,
        excludesGroupIdsValue = excludesExtensionIds,
        displayNameOverride = displayName,
-       extensionIdOverride = extensionId,
-       super(actor, handle);
+       extensionIdOverride = extensionId;
 
   final bool supportsHandleEvents;
   final bool supportsSetModelId;
@@ -2139,13 +2131,12 @@ final class _ExtensionInlineCompletionsProvider extends _ExtensionProvider
 final class _ExtensionSignatureHelpProvider extends _ExtensionProvider
     implements SignatureHelpProvider {
   _ExtensionSignatureHelpProvider(
-    MainThreadLanguageFeatures actor,
-    int handle, {
+    super.actor,
+    super.handle, {
     required List<String> triggerCharacters,
     required List<String> retriggerCharacters,
   }) : signatureHelpTriggerCharacters = triggerCharacters,
-       signatureHelpRetriggerCharacters = retriggerCharacters,
-       super(actor, handle);
+       signatureHelpRetriggerCharacters = retriggerCharacters;
 
   @override
   final List<String> signatureHelpTriggerCharacters;
@@ -2179,13 +2170,12 @@ final class _ExtensionSignatureHelpProvider extends _ExtensionProvider
 final class _ExtensionInlayHintsProvider extends _ExtensionProvider
     implements InlayHintsProvider {
   _ExtensionInlayHintsProvider(
-    MainThreadLanguageFeatures actor,
-    int handle, {
+    super.actor,
+    super.handle, {
     required this.supportsResolve,
     required this.events,
     required String? displayName,
-  }) : displayNameOverride = displayName,
-       super(actor, handle);
+  }) : displayNameOverride = displayName;
 
   final bool supportsResolve;
   final Stream<Object?>? events;
@@ -2343,12 +2333,11 @@ final class _ExtensionColorProvider extends _ExtensionProvider
 final class _ExtensionFoldingRangeProvider extends _ExtensionProvider
     implements FoldingRangeProvider {
   _ExtensionFoldingRangeProvider(
-    MainThreadLanguageFeatures actor,
-    int handle, {
+    super.actor,
+    super.handle, {
     required this.events,
     required String extensionId,
-  }) : extensionIdOverride = extensionId,
-       super(actor, handle);
+  }) : extensionIdOverride = extensionId;
 
   final Stream<Object?>? events;
   final String extensionIdOverride;

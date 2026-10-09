@@ -222,7 +222,7 @@ class IdeNotifications extends ChangeNotifier {
       _unread++;
       if (!silent) {
         _toasts.add(notification);
-        _schedulePurge(notification);
+        if (hasListeners) _schedulePurge(notification);
       }
     }
     notifyListeners();
@@ -241,6 +241,29 @@ class IdeNotifications extends ChangeNotifier {
         hideToast(notification);
       }
     });
+  }
+
+  // Toasts only time out while a workbench shows them: the notifications
+  // outlive the workbench (they are the workspace's), and a toast nobody
+  // saw should still be there when one shows it again.
+  @override
+  void addListener(VoidCallback listener) {
+    final shown = hasListeners;
+    super.addListener(listener);
+    if (shown || _disposed) return;
+    for (final toast in _toasts) {
+      _schedulePurge(toast);
+    }
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+    if (hasListeners) return;
+    for (final timer in _timers.values) {
+      timer.cancel();
+    }
+    _timers.clear();
   }
 
   /// The pointer is over [notification]'s toast.

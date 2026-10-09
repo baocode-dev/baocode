@@ -289,6 +289,13 @@ final class DocumentsAndEditorsState extends ChangeNotifier
 
   // --- ExtensionDocumentSync (the app's reports) ---
 
+  /// The keys of the app's untitled documents (`untitled:Untitled-1`), by
+  /// the name the app reports them under.
+  final Map<String, String> _untitledKeys = {};
+
+  /// The registry key of the document the app calls [path].
+  String _keyOf(String path) => _untitledKeys[path] ?? path;
+
   @override
   void openDocument(
     String path,
@@ -300,9 +307,11 @@ final class DocumentsAndEditorsState extends ChangeNotifier
     String encoding = 'utf8',
   }) {
     if (_disposed) return;
+    final uri = isUntitled ? VsUri('untitled', path: path) : VsUri.file(path);
+    if (isUntitled) _untitledKeys[path] = documentKeyOf(uri);
     documents.open(
-      path,
-      uri: isUntitled ? VsUri('untitled', path: path) : VsUri.file(path),
+      _keyOf(path),
+      uri: uri,
       text: text,
       model: model,
       languageId: languageId,
@@ -320,7 +329,7 @@ final class DocumentsAndEditorsState extends ChangeNotifier
     EditorContentChangeEventLike event,
   ) {
     if (_disposed) return;
-    final document = documents[path];
+    final document = documents[_keyOf(path)];
     if (document == null) return;
     final changed = documents.acceptModelChanges(
       document,
@@ -328,17 +337,62 @@ final class DocumentsAndEditorsState extends ChangeNotifier
       isUndoing: event.isUndoing,
       isRedoing: event.isRedoing,
     );
+    // `textFileService.isDirty`: an undo back to the saved text is clean.
+    final isDirty = document.isUntitled || model.isDirty;
     if (changed != null) {
-      document.isDirty = true;
-      _modelChanges.add((document, changed, true));
+      _modelChanges.add((document, changed, isDirty));
+    }
+    if (document.isDirty != isDirty) {
+      documents.markDirty(document, isDirty);
+      _dirtyChanges.add((document.uri, isDirty));
     }
     documents.notifyListeners();
+  }
+
+  /// A document of another scheme than `file:`/`untitled:` (a
+  /// `TextDocumentContentProvider`'s, `git:`…) is open with [text].
+  void openResource(
+    VsUri uri,
+    EditorDocumentModel model, {
+    required String text,
+    required String languageId,
+  }) {
+    if (_disposed) return;
+    documents.open(
+      documentKeyOf(uri),
+      uri: uri,
+      text: text,
+      model: model,
+      languageId: languageId,
+    );
+    documents.notifyListeners();
+  }
+
+  /// A new extension host session: it knows nothing yet, so every
+  /// document and editor is announced again (upstream's
+  /// `MainThreadDocumentsAndEditors` constructor sends the full state).
+  void resendAll() {
+    if (_disposed) return;
+    for (final document in documents.documents) {
+      document.announced = false;
+    }
+    _entries.clear();
+    activeEditorId = null;
+    _pendingAddedDocuments.clear();
+    _pendingRemovedDocuments.clear();
+    _pendingAddedEditors.clear();
+    _pendingRemovedEditors.clear();
+    _deltaHasActiveEditor = false;
+    _pendingActiveEditor = null;
+    _lastPositions.clear();
+    _positionsSent = false;
+    _documentsChanged();
   }
 
   @override
   void saveDocument(String path, EditorDocumentModel model, String text) {
     if (_disposed) return;
-    final document = documents[path];
+    final document = documents[_keyOf(path)];
     if (document == null) return;
     final wasDirty = document.isDirty;
     documents.markSaved(document);
@@ -354,7 +408,7 @@ final class DocumentsAndEditorsState extends ChangeNotifier
     bool isDirty,
   ) {
     if (_disposed) return;
-    final document = documents[path];
+    final document = documents[_keyOf(path)];
     if (document == null || document.isDirty == isDirty) return;
     documents.markDirty(document, isDirty);
     _dirtyChanges.add((document.uri, isDirty));
@@ -368,7 +422,7 @@ final class DocumentsAndEditorsState extends ChangeNotifier
     String encoding,
   ) {
     if (_disposed) return;
-    final document = documents[path];
+    final document = documents[_keyOf(path)];
     if (document == null || document.encoding == encoding) return;
     documents.markEncoding(document, encoding);
     _encodingChanges.add((document.uri, encoding));
@@ -378,13 +432,15 @@ final class DocumentsAndEditorsState extends ChangeNotifier
   @override
   void closeDocument(String path, EditorDocumentModel model) {
     if (_disposed) return;
+    final key = _keyOf(path);
+    _untitledKeys.remove(path);
     for (final id in _entries.entries
-        .where((entry) => entry.value.document.key == path)
+        .where((entry) => entry.value.document.key == key)
         .map((entry) => entry.key)
         .toList()) {
       _dropEditor(id);
     }
-    final removed = documents.close(path);
+    final removed = documents.close(key);
     if (removed != null) _pendingRemovedDocuments.add(removed);
     _flush();
   }
@@ -435,7 +491,7 @@ final class DocumentsAndEditorsState extends ChangeNotifier
       final ui = editors.uiOf(id);
       final path = editors.pathOfEditor(id);
       if (ui == null || path == null) continue;
-      final document = documents[path];
+      final document = documents[_keyOf(path)];
       if (document == null || !document.mirror.isSynchronized) continue;
       _entries[id] = TextEditorEntry(id: id, document: document, ui: ui)
         ..tabId = _tabIdFor(document, id);

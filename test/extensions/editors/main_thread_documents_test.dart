@@ -3,7 +3,6 @@
 // JSON `extHostDocuments.ts`, `extHostDocumentData.ts` and
 // `extHostTextEditor.ts` send, through their generated actors.
 
-import 'dart:async';
 
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
@@ -102,9 +101,13 @@ void main() {
         .applyOffsetEdits([const EditorOffsetEdit(4, 5, 'b')]);
     await pump();
 
-    expect(callsToHost(rpc), hasLength(1));
-    final (method, args) = callsToHost(rpc).single;
-    expect(method, r'ExtHostDocuments.$acceptModelChanged');
+    // The change, then the document turning dirty (`ModelTracker` and
+    // `onDidChangeDirty` upstream).
+    expect(callsToHost(rpc).map((c) => c.$1), [
+      r'ExtHostDocuments.$acceptModelChanged',
+      r'ExtHostDocuments.$acceptDirtyStateChanged',
+    ]);
+    final (_, args) = callsToHost(rpc).first;
     expect(args[0], VsUri.file('/p/a.dart').toJson());
     expect(args[1], {
       'changes': [
@@ -141,7 +144,10 @@ void main() {
     model.undo();
     await pump();
 
-    final args = callsToHost(rpc).single.$2;
+    // The undo, then the document clean again (back at its saved text).
+    expect(callsToHost(rpc).last.$1, r'ExtHostDocuments.$acceptDirtyStateChanged');
+    expect(callsToHost(rpc).last.$2[1], false);
+    final args = callsToHost(rpc).first.$2;
     final event = (args[1]! as Map).cast<String, Object?>();
     expect(event['isUndoing'], true);
     expect(event['isRedoing'], false);
@@ -399,7 +405,7 @@ void main() {
     expect(editor.appliedEdits, isEmpty);
   });
 
-  test(r'$tryInsertSnippet removes the snippet syntax', () async {
+  test(r'$tryInsertSnippet gives the editor the snippet', () async {
     fixture.open('/p/a.dart', 'a\n');
     final editor = fixture.workbench.openEditor('/p/a.dart', text: 'a\n');
     fixture.state.editorsChanged();
@@ -415,7 +421,8 @@ void main() {
       {'undoStopBefore': true, 'undoStopAfter': true},
     ]);
 
-    expect(editor.inserted.single.text, 'for (i = 0; ; ) {\n\t\n}');
+    // The editor runs it as a snippet (its tab stops and placeholders).
+    expect(editor.inserted.single.text, 'for (\${1:i} = 0; \$2; \$3) {\n\t\$0\n}');
   });
 
   test(r'$tryShowTextDocument opens the document and answers the editor id',

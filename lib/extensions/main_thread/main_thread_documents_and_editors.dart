@@ -69,6 +69,8 @@ final class SessionDocumentsAndEditors {
       rpc: rpc,
     );
     textEditors = MainThreadTextEditors(state: service.state, rpc: rpc);
+    // A new host knows nothing: everything open is announced to it.
+    service.state.resendAll();
   }
 
   final MainThreadContext context;

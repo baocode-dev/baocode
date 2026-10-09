@@ -1,0 +1,718 @@
+// The app's extensions, put together: [ExtensionsApp] holds what the app
+// shares (the runtime, the VS Code server, extension storage, secrets,
+// URLs, the user's settings), and a [WorkspaceExtensions] per IDE workspace
+// holds its extension host and everything the host's main-thread actors
+// reach: its documents and editors, language features, commands, status
+// bar items, quick inputs, output channels, progress and notifications.
+//
+// Follows VS Code 08d4889f9ec4a1685d257b9b95de036c8e1ce1e5 (1.135.0): the
+// workbench services `AbstractExtensionService` starts the extension host
+// with (src/vs/workbench/services/extensions/common/
+// abstractExtensionService.ts) and the order it activates (`*`, then
+// `onStartupFinished`; `onLanguage:` as documents open).
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:bao_editor/textmate/textmate_syntax.dart';
+import 'package:bao_exthost/bao_exthost.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/widgets.dart';
+import 'package:path/path.dart' as p;
+
+import '../../ide/ide_workspace.dart';
+import '../../ide/lsp/language_features.dart';
+import '../../platform/data_dir.dart';
+import '../../settings/jsonc.dart';
+import '../../settings/jsonc_file.dart';
+import '../commands/builtin_commands.dart';
+import '../commands/extension_command_registry.dart'
+    show CommandActivation, ExtensionCommandRegistry;
+import '../commands/host_command_activation_io.dart';
+import '../commands/workbench_builtin_commands.dart';
+import '../configuration/configuration_service.dart';
+import '../configuration/core_configuration.dart';
+import '../contextkey/context_key_service.dart';
+import '../editors/document_registry.dart';
+import '../editors/documents_and_editors_service.dart';
+import '../editors/editor_ports.dart';
+import '../extension_host_service_io.dart';
+import '../files/disk_file_system_provider_io.dart';
+import '../files/file_service.dart';
+import '../files/workspace_file_watcher.dart';
+import '../gallery/extension_enablement.dart';
+import '../host/extension_host_manager.dart' show ExtensionHostState;
+import '../host/extension_server_io.dart';
+import '../host/extension_server_pool_io.dart';
+import '../host/init_data.dart';
+import '../language/language_customers.dart';
+import '../language/language_selector.dart';
+import '../languages/language_registry.dart';
+import '../languages/language_status.dart';
+import '../main_thread/commands_customers.dart';
+import '../main_thread/documents_customers.dart';
+import '../main_thread/main_thread_authentication.dart';
+import '../main_thread/main_thread_bulk_edits.dart';
+import '../main_thread/main_thread_configuration.dart';
+import '../main_thread/main_thread_document_content_providers.dart';
+import '../main_thread/main_thread_documents.dart';
+import '../main_thread/main_thread_file_system.dart' show ExtensionActivator;
+import '../main_thread/main_thread_message_service.dart';
+import '../main_thread/window_customers.dart';
+import '../main_thread/workspace_customers.dart';
+import '../runtime/extension_runtime_service.dart';
+import '../search/search_service.dart';
+import '../window/auth/authentication_app_services.dart';
+import '../window/auth/authentication_extensions_service.dart';
+import '../window/auth/authentication_ports.dart';
+import '../window/auth/authentication_service.dart';
+import '../window/auth/authentication_ui.dart';
+import '../window/extension_storage.dart';
+import '../window/json_state_store.dart';
+import '../window/label_service.dart';
+import '../window/output/extension_output_service.dart';
+import '../window/progress_service.dart';
+import '../window/quick_input/quick_input_service.dart';
+import '../window/runtime_extensions.dart';
+import '../window/secrets/extension_secret_service.dart';
+import '../window/secrets/secret_backend.dart';
+import '../window/status_bar_service.dart';
+import '../window/url_service.dart';
+import '../window/webview_degradation.dart';
+import '../window/webview_placeholders.dart';
+import '../window/window_adapters.dart';
+import '../window/window_ports.dart';
+import '../workspace/workspace_context.dart';
+import '../workspace/workspace_save.dart';
+import 'ide_documents.dart';
+import 'ide_text_editors.dart';
+import 'jsonc_settings_file.dart';
+
+/// What the whole app shares: one runtime, one VS Code server (and its
+/// extensions folder), the user's settings and the extensions' storage.
+final class ExtensionsApp {
+  ExtensionsApp({
+    required this.userSettings,
+    ExtensionRuntimeService? runtime,
+    String? dataDirectory,
+    this.openExternal,
+    this.filePickers,
+    this.loadRuntime,
+    Future<CoreConfiguration> Function()? coreConfiguration,
+  }) : runtime = runtime ?? ExtensionRuntimeService.instance,
+       dataDirectory = dataDirectory ?? DataDirectory.current.path,
+       _loadCore = coreConfiguration ?? CoreConfiguration.load;
+
+  /// `User/settings.json`.
+  final SettingsFile userSettings;
+  final ExtensionRuntimeService runtime;
+
+  /// Gives the runtime in place of [runtime] (tests).
+  final Future<ExtHostRuntime> Function()? loadRuntime;
+
+  Future<ExtHostRuntime> _runtime() =>
+      loadRuntime?.call() ?? runtime.ensureReady();
+
+  /// The data folder (`<data>`).
+  final String dataDirectory;
+
+  /// Opens a URL in the system's browser (a file in its app).
+  final Future<bool> Function(String target)? openExternal;
+
+  /// The native open and save panels.
+  final ExtensionFilePickers? filePickers;
+
+  final Future<CoreConfiguration> Function() _loadCore;
+
+  /// `<data>/extensions/`: the user's extensions, VS Code's layout.
+  String get extensionsDirectory => p.join(dataDirectory, 'extensions');
+
+  /// `<data>/exthost-data/`: the server's own data.
+  String get serverDataDirectory => p.join(dataDirectory, 'exthost-data');
+
+  String get userDirectory => p.join(dataDirectory, 'User');
+
+  /// The one VS Code server, started on the runtime once it is there.
+  late final ExtensionServerPool pool = ExtensionServerPool(_launch);
+
+  Future<ExtensionServerLaunch> _launch() async {
+    final installed = await _runtime();
+    return ExtensionServerLaunch(
+      node: installed.nodeExecutable,
+      serverMain: installed.serverMain,
+      commit: installed.productCommit,
+      serverDataDir: serverDataDirectory,
+      extensionsDir: extensionsDirectory,
+    );
+  }
+
+  /// The runtime's `product.json`.
+  Future<ExtHostProduct> product() async {
+    final installed = await _runtime();
+    final json = jsonDecode(await File(installed.productJson).readAsString());
+    return ExtHostProduct.fromJson((json as Map).cast());
+  }
+
+  CoreConfiguration? _core;
+  Future<CoreConfiguration>? _coreLoading;
+
+  /// VS Code's own settings' schemas (core_configuration.json).
+  Future<CoreConfiguration> coreConfiguration() async =>
+      _core ??= await (_coreLoading ??= _loadCore());
+
+  late final ExtensionStorageService storage = ExtensionStorageService(
+    userDir: userDirectory,
+  );
+
+  late final ExtensionSecretService secrets = ExtensionSecretService(
+    backend: SecretBackend.forPlatform(
+      fallbackDirectory: p.join(userDirectory, 'globalStorage', 'secrets'),
+    ),
+    keyIndexPath: p.join(userDirectory, 'globalStorage', 'secret-keys.json'),
+  );
+
+  late final ExtensionUrlService urls = ExtensionUrlService();
+
+  late final WorkbenchWindowFocus focus = WorkbenchWindowFocus();
+
+  /// Which extensions are disabled, globally and per workspace.
+  late final ExtensionEnablementStore enablement = ExtensionEnablementStore(
+    JsonStateStore(
+      p.join(userDirectory, 'globalStorage', 'extension-enablement.json'),
+    ),
+  );
+
+  /// A workspace's extensions; [root] is its folder.
+  WorkspaceExtensions workspace(String root) =>
+      WorkspaceExtensions(app: this, root: root);
+
+  Future<void> dispose() async {
+    await pool.dispose();
+  }
+}
+
+/// One IDE workspace's extensions: its extension host and the main-thread
+/// services the host's actors reach. Made before the workspace (it gives
+/// the workspace its [languages]), then [attach]ed to it.
+final class WorkspaceExtensions extends ChangeNotifier {
+  WorkspaceExtensions({required this.app, required this.root});
+
+  final ExtensionsApp app;
+
+  /// The workspace's folder.
+  final String root;
+
+  late final ExtHostWorkspace extHostWorkspace = ExtHostWorkspace.folder(root);
+
+  /// The documents the extension host has.
+  final ExtensionDocumentRegistry documents = ExtensionDocumentRegistry();
+
+  /// The language features the extensions provide.
+  late final LanguageFeatureRoot languageRoot = LanguageFeatureRoot()
+    ..documents = documents;
+
+  /// What the editor asks for completions, hovers, diagnostics….
+  LanguageFeatures get languages => languageRoot.language;
+
+  /// The language ids of files.
+  final LanguageRegistry languageRegistry = LanguageRegistry();
+
+  /// The language id [path]'s document opens as.
+  String languageIdFor(String path) {
+    final id = languageRegistry.languageIdFor(path);
+    return id == unknownLanguageId ? 'plaintext' : id;
+  }
+
+  final ExtensionCommandRegistry commands = ExtensionCommandRegistry(
+    builtins: BuiltinCommands(),
+  );
+  final ContextKeyService contextKeys = ContextKeyService();
+  final ExtensionStatusBarService statusBar = ExtensionStatusBarService();
+  final ExtensionQuickInputService quickInput = ExtensionQuickInputService();
+  final ExtensionOutputService output = ExtensionOutputService();
+  final RunningExtensionsService running = RunningExtensionsService();
+  final LanguageStatusService languageStatus = LanguageStatusService();
+  final ExtensionWebviewPlaceholders webviews = ExtensionWebviewPlaceholders();
+  final SearchService search = SearchService();
+  late final FileService files = FileService()
+    ..registerProvider('file', DiskFileSystemProvider());
+  late final WorkspaceContextService workspaceContext = WorkspaceContextService(
+    extHostWorkspace,
+    ignorePathCase: Platform.isMacOS || Platform.isWindows,
+  );
+  late final ExtensionLabelService labels = ExtensionLabelService(
+    userHome:
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'],
+    windows: Platform.isWindows,
+  );
+
+  /// The workbench's dialog context, set while its IDE is built.
+  BuildContext? Function()? dialogContext;
+
+  IdeWorkspace? _workspace;
+  IdeTextEditors? _editors;
+  DocumentsAndEditorsService? _documentsAndEditors;
+  IdeDocumentsPort? _documentsPort;
+  ExtensionHostService? _host;
+  ConfigurationService? _configuration;
+  JsoncSettingsFile? _folderSettings;
+  ExtensionProgressService? _progress;
+  WorkspaceFileWatcher? _watcher;
+  final _stops = <void Function()>[];
+  bool _disposed = false;
+
+  /// The extension host, once [attach]ed.
+  ExtensionHostService? get host => _host;
+
+  /// The workspace's settings as extensions read them, once [attach]ed.
+  ConfigurationService? get configuration => _configuration;
+
+  /// The editors' and documents' state, once [attach]ed.
+  DocumentsAndEditorsService? get documentsAndEditors => _documentsAndEditors;
+
+  /// The window's progress (notifications and the status bar).
+  ExtensionProgressService? get progress => _progress;
+
+  /// Gives the extensions [workspace]'s documents and editors, and starts
+  /// its extension host (`*`, then `onStartupFinished`) unless [start] is
+  /// false.
+  Future<void> attach(IdeWorkspace workspace, {bool start = true}) async {
+    if (_disposed || _workspace != null) return;
+    _workspace = workspace;
+    final core = await app.coreConfiguration();
+    try {
+      // The bundled languages' associations, before a document is told
+      // its language.
+      await TextMateSyntax.loadLanguages();
+    } on Object {
+      // Without them, files open as plain text until an extension says.
+    }
+    if (_disposed) return;
+    final folderSettings = _folderSettings = JsoncSettingsFile(
+      JsoncFile(p.join(root, '.vscode', 'settings.json'))..watch(),
+    );
+    unawaited(folderSettings.file.load());
+    final configuration = _configuration = ConfigurationService(
+      registry: core.registry(),
+      user: app.userSettings,
+      workspace: folderSettings,
+    );
+    languageRegistry.configuration = configuration;
+
+    final editors = _editors = IdeTextEditors(workspace);
+    final documentsAndEditors = _documentsAndEditors =
+        DocumentsAndEditorsService(
+          documents: documents,
+          editors: editors,
+          decorations: null,
+        );
+    final state = documentsAndEditors.state;
+    state.attachTabs(editors);
+    final port = _documentsPort = IdeDocumentsPort(
+      workspace: workspace,
+      state: state,
+      languageIdFor: languageIdFor,
+    );
+    final progress = _progress = ExtensionProgressService(
+      notifications: workspace.notifications,
+    );
+    final dialogs = WorkbenchDialogs(
+      context: () =>
+          dialogContext?.call() ??
+          (throw StateError('No window to show a dialog in')),
+    );
+    final authenticationApp = AuthenticationAppServices.at(
+      p.join(app.userDirectory, 'globalStorage', 'authentication.json'),
+      secrets: _AuthSecrets(app.secrets),
+    );
+    final authentication = AuthenticationService(
+      access: authenticationApp.access,
+    );
+    final authenticationUi = AuthenticationUi(
+      dialogs: dialogs,
+      quickInput: DialogAuthQuickInput(
+        () =>
+            dialogContext?.call() ??
+            (throw StateError('No window to show a dialog in')),
+      ),
+      clipboard: FunctionAuthClipboard(
+        (text) => Clipboard.setData(ClipboardData(text: text)),
+      ),
+      opener: WorkbenchExternalOpener(app.openExternal ?? (_) async => false),
+      notifications: workspace.notifications,
+    );
+    final messageUi = ExtensionMessageUi(
+      notifications: workspace.notifications,
+      dialogs: dialogs,
+      commands: WorkbenchCommandExecutor(commands),
+    );
+    final host = _host = ExtensionHostService(
+      pool: app.pool,
+      loadProduct: app.product,
+      workspace: extHostWorkspace,
+      configuration: configuration,
+      customers: {
+        ...windowCustomers(),
+        ...commandsCustomers(),
+        ...workspaceCustomers,
+        ...documentsAndEditorsCustomers,
+        ...languageCustomers(
+          languageRoot,
+          activation: (selector) => _activateLanguages(_languagesOf(selector)),
+        ),
+        MainContext.mainThreadConfiguration.nid:
+            MainThreadConfiguration.customer,
+      },
+      services: {
+        ExtensionCommandRegistry: commands,
+        ContextKeyService: contextKeys,
+        CommandActivation: _LazyCommandActivation(this),
+        DocumentsAndEditorsService: documentsAndEditors,
+        DocumentsPort: port,
+        TextContentProvidersPort: port,
+        EditorTabsHost: editors,
+        WorkspaceEditApplier: IdeWorkspaceEditApplier(
+          workspace: workspace,
+          state: state,
+          refactoringAutoSave: () =>
+              configuration.getValue('files.refactoring.autoSave') != false,
+        ),
+        WorkspaceSavePort: IdeWorkspaceSave(workspace),
+        LanguageRegistry: languageRegistry,
+        LanguageStatusService: languageStatus,
+        WorkspaceContextService: workspaceContext,
+        SearchService: search,
+        FileService: files,
+        ExtensionOutputService: output,
+        RunningExtensionsService: running,
+        ExtensionStatusBarService: statusBar,
+        ExtensionQuickInputService: quickInput,
+        ExtensionProgressService: progress,
+        ExtensionMessageUi: messageUi,
+        ExtensionCommandExecutor: WorkbenchCommandExecutor(commands),
+        ExtensionLabelService: labels,
+        ExtensionStorageService: app.storage,
+        ExtensionSecretService: app.secrets,
+        ExtensionUrlService: app.urls,
+        ExtensionWindowFocus: app.focus,
+        ExtensionExternalOpener: WorkbenchExternalOpener(
+          app.openExternal ?? (_) async => false,
+        ),
+        ExtensionFilePickers: app.filePickers ?? const _NoFilePickers(),
+        ExtensionWebviewPlaceholders: webviews,
+        ExtensionWebviewUi: ExtensionWebviewUi(
+          placeholders: webviews,
+          notifications: workspace.notifications,
+          commands: WorkbenchCommandExecutor(commands),
+        ),
+        ExtensionAuthenticationUi: ExtensionAuthenticationUi(
+          authentication: authentication,
+          app: authenticationApp,
+          extensions: AuthenticationExtensionsService(
+            authentication: authentication,
+            app: authenticationApp,
+            ui: authenticationUi,
+          ),
+          ui: authenticationUi,
+          urls: app.urls,
+        ),
+        ExtensionHostLog: ExtensionHostLog(
+          (message) => output.logExtensionHostMessage({
+            'type': r'__$console',
+            'severity': 'warn',
+            'arguments': jsonEncode([message]),
+          }),
+        ),
+      },
+      includeExtension: (description) => app.enablement.isEnabled(
+        _idOf(description),
+        workspaceId: extHostWorkspace.id,
+      ),
+    );
+    commands.activation = ExtensionHostCommandActivation(host);
+    _stops.add(
+      registerWorkbenchBuiltinCommands(
+        commands.builtins,
+        contextKeys: contextKeys,
+      ),
+    );
+    _stops.add(registerLanguageCommands(languageRoot, commands.builtins));
+    languageRoot.commandExecutor = (command) async {
+      if (command case {'id': final String id}) {
+        final args = switch (command['arguments']) {
+          final List<Object?> args => args,
+          _ => const <Object?>[],
+        };
+        await commands.executeCommand(id, args);
+      }
+    };
+    host.extensions.addListener(_extensionsChanged);
+    host.addListener(notifyListeners);
+    _watcher = WorkspaceFileWatcher(
+      files: files,
+      workspace: workspaceContext,
+      configuration: configuration,
+    );
+
+    // The documents the workspace has open, and those it opens from now.
+    workspace
+      ..extensionDocuments = state
+      ..syncExtensionDocuments();
+    documents.addListener(_documentsChanged);
+    notifyListeners();
+    if (start) unawaited(startHost());
+  }
+
+  /// The language ids [selector] names (`*` and filters without one
+  /// name none).
+  static Set<String> _languagesOf(LanguageSelector selector) =>
+      switch (selector) {
+        LanguageIdSelector(:final languageId) when languageId != '*' => {
+          languageId,
+        },
+        LanguageIdSelector() => const {},
+        LanguageFilter(:final language)
+            when language != null && language != '*' =>
+          {language},
+        LanguageFilter() => const {},
+        LanguageSelectorList(:final selectors) => {
+          for (final item in selectors) ..._languagesOf(item),
+        },
+      };
+
+  static String _idOf(Map<String, Object?> description) =>
+      switch (description['identifier']) {
+        {'value': final String value} => value,
+        final Object? other => '$other',
+      };
+
+  /// Starts the extension host and runs the startup activation events;
+  /// what went wrong is in the extension host's output.
+  Future<void> startHost() async {
+    final host = _host;
+    if (host == null) return;
+    try {
+      await host.startup();
+      _documentsChanged();
+    } on Object catch (error) {
+      output.logExtensionHostMessage({
+        'type': r'__$console',
+        'severity': 'error',
+        'arguments': jsonEncode(['Extension host failed to start: $error']),
+      });
+    }
+  }
+
+  /// The languages `onLanguage:` was sent for.
+  final Set<String> _activatedLanguages = {};
+
+  /// A document opened in a language not seen before: its extensions
+  /// activate (`onLanguage:<id>`, and `onLanguage`).
+  void _documentsChanged() {
+    final host = _host;
+    if (host == null) return;
+    final languages = {
+      for (final document in documents.documents) document.mirror.languageId,
+    };
+    unawaited(_activateLanguages(languages));
+  }
+
+  Future<void> _activateLanguages(Iterable<String> languages) async {
+    final host = _host;
+    if (host == null) return;
+    final fresh = [
+      for (final language in languages)
+        if (_activatedLanguages.add(language)) language,
+    ];
+    if (fresh.isEmpty) return;
+    try {
+      await host.activateByEvent('onLanguage');
+      await Future.wait([
+        for (final language in fresh)
+          host.activateByEvent('onLanguage:$language'),
+      ]);
+    } on Object {
+      // Logged by the host's output; the editor carries on without.
+    }
+  }
+
+  /// The installed extensions changed (the host scanned them): their
+  /// commands, menus, status bar items and languages.
+  void _extensionsChanged() {
+    final host = _host;
+    if (host == null) return;
+    final extensions = host.extensions.value;
+    commands.setExtensions(extensions);
+    statusBar.setContributions(extensions);
+    unawaited(_registerLanguages(extensions));
+    notifyListeners();
+  }
+
+  final Set<String> _languageExtensions = {};
+
+  Future<void> _registerLanguages(List<Map<String, Object?>> extensions) async {
+    final seen = <String>{};
+    for (final extension in extensions) {
+      final id = _idOf(extension);
+      seen.add(id);
+      final contributes = extension['contributes'];
+      if (contributes is! Map) continue;
+      final languages = contributes['languages'];
+      if (languages is! List || languages.isEmpty) continue;
+      final location = switch (extension['extensionLocation']) {
+        final Map<Object?, Object?> uri => VsUri.revive(uri.cast()),
+        _ => null,
+      };
+      final contributions = [
+        for (final language in languages)
+          if (language is Map) language.cast<String, Object?>(),
+      ];
+      final configurations = <String, Map<String, Object?>>{};
+      final configurationPaths = <String, String>{};
+      if (location != null && location.scheme == 'file') {
+        for (final language in contributions) {
+          final languageId = language['id'];
+          final relative = language['configuration'];
+          if (languageId is! String || relative is! String) continue;
+          final path = p.normalize(p.join(location.fsPath(), relative));
+          try {
+            final json = parseJsonc(await File(path).readAsString());
+            if (json is Map) {
+              configurations[languageId] = json.cast();
+              configurationPaths[languageId] = path;
+            }
+          } on Object {
+            // A missing or broken file: the language has no configuration.
+          }
+        }
+      }
+      if (_disposed) return;
+      languageRegistry.unregisterExtension(id);
+      languageRegistry.registerExtensionLanguages(
+        id,
+        contributions,
+        configurations: configurations,
+        configurationPaths: configurationPaths,
+      );
+      _languageExtensions.add(id);
+    }
+    for (final id in _languageExtensions.difference(seen).toList()) {
+      languageRegistry.unregisterExtension(id);
+      _languageExtensions.remove(id);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    for (final stop in _stops) {
+      stop();
+    }
+    documents.removeListener(_documentsChanged);
+    final workspace = _workspace;
+    if (workspace != null &&
+        identical(workspace.extensionDocuments, _documentsAndEditors?.state)) {
+      workspace.extensionDocuments = null;
+    }
+    _host
+      ?..extensions.removeListener(_extensionsChanged)
+      ..removeListener(notifyListeners)
+      ..dispose();
+    _watcher?.dispose();
+    _documentsPort?.dispose();
+    _documentsAndEditors?.dispose();
+    _editors?.dispose();
+    _progress?.dispose();
+    _configuration?.dispose();
+    _folderSettings
+      ?..file.dispose()
+      ..dispose();
+    languageRoot.dispose();
+    commands.dispose();
+    contextKeys.dispose();
+    statusBar.dispose();
+    quickInput.dispose();
+    output.dispose();
+    running.dispose();
+    languageStatus.dispose();
+    webviews.dispose();
+    languageRegistry.dispose();
+    documents.dispose();
+    super.dispose();
+  }
+}
+
+/// No open or save panel (a headless app): every pick is cancelled.
+final class _NoFilePickers implements ExtensionFilePickers {
+  const _NoFilePickers();
+
+  @override
+  Future<List<String>?> pickOpen({
+    required bool files,
+    required bool folders,
+    required bool many,
+    String? directory,
+    String? title,
+    String? openLabel,
+    Map<String, List<String>> filters = const {},
+  }) async => null;
+
+  @override
+  Future<String?> pickSave({
+    String? directory,
+    String? name,
+    String? title,
+    String? saveLabel,
+    Map<String, List<String>> filters = const {},
+  }) async => null;
+}
+
+/// The authentication's secrets in the app's secret storage.
+final class _AuthSecrets implements AuthSecretStore {
+  _AuthSecrets(this.secrets);
+
+  final ExtensionSecretService secrets;
+
+  static const _owner = 'baocode.authentication';
+
+  @override
+  Future<String?> get(String key) => secrets.get(_owner, key);
+
+  @override
+  Future<void> set(String key, String value) => secrets.set(_owner, key, value);
+
+  @override
+  Future<void> delete(String key) => secrets.delete(_owner, key);
+
+  @override
+  Stream<String> get onDidChange => secrets.changes
+      .where((change) => change.extensionId == _owner)
+      .map((change) => change.key);
+}
+
+/// The commands' activation once the host exists ([CommandActivation]).
+final class _LazyCommandActivation implements CommandActivation {
+  _LazyCommandActivation(this.extensions);
+
+  final WorkspaceExtensions extensions;
+
+  @override
+  Future<void> activateByEvent(String activationEvent) =>
+      extensions.host?.activateByEvent(activationEvent) ?? Future.value();
+
+  @override
+  bool activationEventIsDone(String activationEvent) =>
+      extensions.host?.manager.activatedOn(activationEvent) ?? false;
+
+  @override
+  bool get extensionHostIsReady =>
+      extensions.host?.manager.state == ExtensionHostState.running;
+}
+
+/// `ExtensionActivator` for the file system actors.
+ExtensionActivator extensionActivatorOf(WorkspaceExtensions extensions) =>
+    ExtensionActivator(
+      (event) => extensions.host?.activateByEvent(event) ?? Future.value(),
+    );

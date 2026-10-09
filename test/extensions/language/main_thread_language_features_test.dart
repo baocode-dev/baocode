@@ -411,7 +411,7 @@ void main() {
       final activated = <String>[];
       root.activation = (selector) async {
         activated.add((selector as LanguageIdSelector).languageId);
-        return null;
+        return;
       };
       await call(r'$registerDefinitionSupport', [
         7,

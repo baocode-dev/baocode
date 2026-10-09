@@ -166,8 +166,9 @@ abstract interface class TextEditorUi {
     String? eol,
   });
 
-  /// Replaces each of [ranges] (editor coordinates) with [text], the
-  /// first caret left at the end of each.
+  /// Inserts the snippet [text] (TextMate snippet syntax, as
+  /// `SnippetController2.insert` takes it) in place of each of [ranges]
+  /// (editor coordinates), its tab stops then active.
   void insertAtRanges(
     String text,
     List<Range> ranges, {

@@ -267,7 +267,10 @@ void main() {
     fixture.state.encodingChanged('/p/a.dart', model, 'utf16le');
 
     expect(saved, [VsUri.file('/p/a.dart')]);
-    expect(dirty, [(VsUri.file('/p/a.dart'), false)]);
+    expect(dirty, [
+      (VsUri.file('/p/a.dart'), true),
+      (VsUri.file('/p/a.dart'), false),
+    ]);
     expect(encodings, [(VsUri.file('/p/a.dart'), 'utf16le')]);
   });
 

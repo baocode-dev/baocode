@@ -471,6 +471,11 @@ class TextMateSyntax {
   /// The theme, once TextMate is known to be available.
   Future<TextMateEditorTheme?> get theme async => (await _ready())?.theme;
 
+  /// Registers VS Code's bundled languages (their file associations, which
+  /// `getLanguageIds` answers from), as the editor's first use does.
+  static Future<void> loadLanguages({AssetBundle? bundle}) =>
+      _Resources.load(bundle ?? rootBundle);
+
   /// The VS Code language of the file at [path]
   /// (`guessLanguageIdByFilepathOrFirstLine`) when a grammar highlights it;
   /// null when Monarch does: a language pack's Monarch grammar claims the

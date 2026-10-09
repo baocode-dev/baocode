@@ -78,7 +78,7 @@ final class MainThreadEditorTabs extends MainThreadEditorTabsUnsupported {
     for (final groupId in tabs.groupIds) {
       final groupTabs = [
         for (final tab in tabs.tabs)
-          if (tab.groupId == groupId) _tabDto(tab),
+          if (tab.groupId == groupId) editorTabDto(tab),
       ];
       if (groupTabs.isEmpty) continue;
       result.add({
@@ -96,36 +96,6 @@ final class MainThreadEditorTabs extends MainThreadEditorTabsUnsupported {
       if (tab.groupId == groupId) return tab.viewColumn;
     }
     return groupId + 1;
-  }
-
-  /// `_buildTabObject`: one tab's DTO.
-  Map<String, Object?> _tabDto(EditorTabInfo tab) => {
-    'id': tab.tabId,
-    'label': tab.label,
-    'input': _inputDto(tab),
-    'isActive': tab.isActive,
-    'isPinned': tab.isPinned,
-    'isPreview': tab.isPreview,
-    'isDirty': tab.isDirty,
-  };
-
-  /// `_editorInputToDto`: a text editor's resource, a diff's two sides, or
-  /// unknown for anything else (an image preview).
-  Map<String, Object?> _inputDto(EditorTabInfo tab) {
-    if (tab.isDiff) {
-      return {
-        'kind': TabInputKind.textDiffInput,
-        'original': tab.originalUri!.toJson(),
-        'modified': tab.modifiedUri!.toJson(),
-      };
-    }
-    if (tab.uri case final uri?) {
-      return {
-        'kind': TabInputKind.textInput,
-        'uri': uri.toJson(),
-      };
-    }
-    return {'kind': TabInputKind.unknownInput};
   }
 
   void _sendOperation(Map<String, Object?> operation) {
@@ -174,6 +144,33 @@ final class MainThreadEditorTabs extends MainThreadEditorTabsUnsupported {
 
   /// The model last sent (for checks).
   List<Map<String, Object?>>? get lastModel => _lastModel;
+}
+
+/// `_buildTabObject`: one tab's DTO (`IEditorTabDto`).
+Map<String, Object?> editorTabDto(EditorTabInfo tab) => {
+  'id': tab.tabId,
+  'label': tab.label,
+  'input': _inputDto(tab),
+  'isActive': tab.isActive,
+  'isPinned': tab.isPinned,
+  'isPreview': tab.isPreview,
+  'isDirty': tab.isDirty,
+};
+
+/// `_editorInputToDto`: a text editor's resource, a diff's two sides, or
+/// unknown for anything else (an image preview).
+Map<String, Object?> _inputDto(EditorTabInfo tab) {
+  if (tab.isDiff) {
+    return {
+      'kind': TabInputKind.textDiffInput,
+      'original': tab.originalUri!.toJson(),
+      'modified': tab.modifiedUri!.toJson(),
+    };
+  }
+  if (tab.uri case final uri?) {
+    return {'kind': TabInputKind.textInput, 'uri': uri.toJson()};
+  }
+  return {'kind': TabInputKind.unknownInput};
 }
 
 /// The actor of `MainContext.mainThreadEditorTabs`.

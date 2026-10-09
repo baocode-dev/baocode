@@ -162,7 +162,7 @@ final class MainThreadTextEditors extends MainThreadTextEditorsUnsupported {
     return state.insertSnippet(
       id,
       modelVersionId.toInt(),
-      _stripSnippetSyntax(template),
+      template,
       [for (final selection in selections) _range(selection)],
       undoStopBefore: opts['undoStopBefore'] == true,
       undoStopAfter: opts['undoStopAfter'] == true,
@@ -189,13 +189,28 @@ final class MainThreadTextEditors extends MainThreadTextEditorsUnsupported {
       path,
       column: position,
       preserveFocus: options['preserveFocus'] == true,
-      preview: options['preview'] == true,
-      selection: switch (options['selection']) {
-        final Map<Object?, Object?> selection =>
-          EditorSelectionValue.fromJson(selection.cast()),
-        _ => null,
-      },
+      // `ITextDocumentShowOptions.pinned` is `!preview`.
+      preview: options['pinned'] == false,
     );
+    // `selection` is an `IRange` of the model: selected, and revealed
+    // (`TextEditorRevealType.InCenterIfOutsideViewport`).
+    if (id == null) return null;
+    if (options['selection'] case final Map<Object?, Object?> range) {
+      final selection = _range(range);
+      state.setSelections(id, [
+        EditorSelectionValue(
+          anchorLine: selection.startLineNumber,
+          anchorColumn: selection.startColumn,
+          activeLine: selection.endLineNumber,
+          activeColumn: selection.endColumn,
+        ),
+      ]);
+      state.revealRange(
+        id,
+        selection,
+        TextEditorRevealType.inCenterIfOutsideViewport,
+      );
+    }
     return id;
   }
 
@@ -223,73 +238,6 @@ final class MainThreadTextEditors extends MainThreadTextEditorsUnsupported {
     range['endLineNumber']! as int,
     range['endColumn']! as int,
   );
-
-  /// `$tryInsertSnippet`: the text with its snippet syntax removed, since
-  /// BaoCode's editor inserts snippets as plain text for now (the
-  /// extension's tab stops are not applied). A tab stop becomes empty, a
-  /// placeholder its default text, and a variable its name.
-  static String _stripSnippetSyntax(String template) {
-    final out = StringBuffer();
-    var i = 0;
-    while (i < template.length) {
-      final code = template.codeUnitAt(i);
-      if (code != 0x24) {
-        if (code == 0x5C && i + 1 < template.length) {
-          // `\$`, `\}`, `\\`: keep the escaped character alone.
-          final next = template[i + 1];
-          if (next == r'$' || next == '}' || next == r'\') {
-            out.write(next);
-            i += 2;
-            continue;
-          }
-        }
-        out.writeCharCode(code);
-        i++;
-        continue;
-      }
-      // `${…}` or `$name` or `$1`.
-      if (i + 1 < template.length && template.codeUnitAt(i + 1) == 0x7B) {
-        final end = template.indexOf('}', i + 2);
-        if (end < 0) {
-          i++;
-          continue;
-        }
-        final inner = template.substring(i + 2, end);
-        final colon = inner.indexOf(':');
-        if (colon >= 0) {
-          // `${1:label}` (or `${1|a,b|}` after a choice was written).
-          final body = inner.substring(colon + 1);
-          out.write(body.startsWith('|') && body.endsWith('|')
-              ? body.substring(1, body.length - 1).split(',').first
-              : body);
-        } else if (int.tryParse(inner) == null) {
-          // `${TM_FILENAME}`: BaoCode cannot resolve variables yet, so the
-          // name stands in.
-          out.write(inner);
-        }
-        i = end + 1;
-        continue;
-      }
-      var j = i + 1;
-      while (j < template.length) {
-        final c = template.codeUnitAt(j);
-        final isWord =
-            (c >= 0x30 && c <= 0x39) ||
-            (c >= 0x41 && c <= 0x5A) ||
-            (c >= 0x61 && c <= 0x7A) ||
-            c == 0x5F;
-        if (!isWord) break;
-        j++;
-      }
-      if (j > i + 1 && int.tryParse(template.substring(i + 1, j)) == null) {
-        // `$TM_FILENAME` as a variable, or `$name` as a tab stop with a
-        // name: either way the name alone stays.
-        out.write(template.substring(i + 1, j));
-      }
-      i = j;
-    }
-    return out.toString();
-  }
 }
 
 /// The actor of `MainContext.mainThreadTextEditors`.
