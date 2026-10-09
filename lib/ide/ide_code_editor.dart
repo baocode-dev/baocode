@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:bao_editor/monaco/flutter/editor_code_lens.dart';
+import 'package:bao_editor/monaco/flutter/editor_inline_suggest.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 import 'package:bao_editor/monaco/flutter/language_configuration_assets.dart';
@@ -75,6 +77,10 @@ class IdeCodeEditor extends StatefulWidget {
     this.readOnly = false,
     this.bare = false,
     this.decorations = const [],
+    this.decorationProviders = const [],
+    this.inlineSuggest,
+    this.codeLens,
+    this.gutterIconBuilder,
     this.highlights,
   });
 
@@ -91,6 +97,20 @@ class IdeCodeEditor extends StatefulWidget {
 
   /// Painted over the text (lines marked, say).
   final List<EditorDecoration> decorations;
+
+  /// The extension-driven features to paint too (decoration types, inlay
+  /// hints), each searched per visible line.
+  final List<EditorDecorationProvider> decorationProviders;
+
+  /// Ghost text of an inline completion, if any.
+  final EditorInlineSuggestController? inlineSuggest;
+
+  /// CodeLenses, if any.
+  final EditorCodeLensController? codeLens;
+
+  /// The image of a decoration's `gutterIconPath`; none painted without it.
+  final Widget Function(BuildContext context, EditorGutterIcon icon)?
+  gutterIconBuilder;
 
   /// Where its highlighting is kept past it; its own, gone with it, when
   /// null.
@@ -270,6 +290,11 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
       styledLines: _highlight?.styledLines,
       showMinimap: false,
       decorations: widget.decorations,
+      decorationProviders: widget.decorationProviders,
+      inlineSuggest: widget.inlineSuggest,
+      codeLens: widget.codeLens,
+      codeLensColors: EditorCodeLensColors.from(colors.get),
+      gutterIconBuilder: widget.gutterIconBuilder,
       onViewChanged: _viewChanged,
       style: AppFonts.codeStyle(13)
           .copyWith(color: colors['editor.foreground'], height: 1.45),

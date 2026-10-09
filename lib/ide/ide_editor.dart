@@ -12,6 +12,7 @@ import '../keybindings/keybinding_service.dart';
 import '../l10n/command_titles.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
+import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' hide ColorScheme;
 
 import 'package:bao_editor/monaco/flutter/diff_editor.dart';
@@ -37,6 +38,7 @@ import 'package:bao_editor/textmate/textmate_syntax.dart';
 
 import 'git/git_blame.dart';
 import 'ide_commands.dart';
+import 'ide_editor_features.dart';
 import 'ide_find_widget.dart';
 import 'ide_menu.dart';
 import 'ide_status_bar.dart' show ideEolEdits;
@@ -185,6 +187,10 @@ class IdeEditorState extends State<IdeEditor> {
   late final IdeGitBlameController _blame = IdeGitBlameController()
     ..addListener(_rebuildSoon);
 
+  /// The editor features extensions drive (decoration types, inlay hints,
+  /// CodeLens, ghost text), one set per document.
+  final IdeEditorFeaturesRegistry _features = IdeEditorFeaturesRegistry();
+
   /// The carets last moved without an edit ([IdeGitBlameController.update]).
   bool _caretsNavigated = false;
   EditorKeyChord? _pendingChord;
@@ -296,6 +302,10 @@ class IdeEditorState extends State<IdeEditor> {
       }
       controller.onPaste = () async =>
           await widget.onPaste?.call(doc, controller) ?? false;
+      // Its decorations/inlay hints/CodeLens, painted from the start.
+      _features
+          .of(doc, controller)
+          .setTheme(ideDecorationTheme(_themes.colors));
       unawaited(_loadLanguageConfiguration(doc, controller));
       var previousText = controller.value.text;
       controller.addListener(() {
@@ -829,6 +839,7 @@ class IdeEditorState extends State<IdeEditor> {
   void _colorThemeChanged() {
     if (!mounted) return;
     _language?.semanticTokenStyler = _semanticTokenStyler;
+    _features.setTheme(ideDecorationTheme(_themes.colors));
     if (getThemeTypeSelector(_themes.colorTheme.type) == _monarchTheme) return;
     _theme = _loadMonarchTheme();
     _tokenizedDocuments.clear();
@@ -979,6 +990,7 @@ class IdeEditorState extends State<IdeEditor> {
             _disposeLanguageSession();
           }
           _semanticSources.remove(entry.key);
+          _features.release(entry.key);
           if (identical(_nativeController, controller)) {
             _nativeController = null;
             _focusNode.unfocus();
@@ -1137,6 +1149,7 @@ class IdeEditorState extends State<IdeEditor> {
     widget.workspace.removeListener(_workspaceChanged);
     _themes.removeListener(_colorThemeChanged);
     _blame.dispose();
+    _features.dispose();
     _disposeNativeControllers();
     _textMate.dispose();
     _findController.dispose();
@@ -1887,6 +1900,11 @@ class IdeEditorState extends State<IdeEditor> {
       AppFonts.codeStyle(13)
           .copyWith(color: colors['editor.foreground'], height: 1.45);
 
+  /// The active document's editor features, for the extension host (null
+  /// until its editor exists).
+  IdeEditorFeatures? featuresOf(IdeDocument document) =>
+      _features.ofDocument(document);
+
   /// The active document's editor; in a diff, the modified side, with
   /// what the diff gives it ([side]).
   Widget _surface(WorkbenchColors colors, {DiffEditorSide? side}) =>
@@ -1907,6 +1925,17 @@ class IdeEditorState extends State<IdeEditor> {
           ..._findDecorations,
           ..._blameDecorations(colors),
         ],
+        decorationProviders: switch (_features.ofDocument(widget.active)) {
+          final features? => [features.decorations, features.inlayHints],
+          null => const [],
+        },
+        inlineSuggest: _features.ofDocument(widget.active)?.inlineSuggest,
+        codeLens: _features.ofDocument(widget.active)?.codeLens,
+        codeLensColors:
+            _features.ofDocument(widget.active)?.codeLensColors ??
+            EditorCodeLensColors.from(colors.get),
+        codeLensIcon: (name) => Codicons.byName[name],
+        gutterIconBuilder: ideGutterIconBuilder,
         // A diff editor's editors fold nothing and have no minimap.
         viewZones: side?.zones ?? const [],
         scrollPosition: side?.scrollPosition,

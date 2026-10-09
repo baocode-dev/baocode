@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show immutable, listEquals;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, immutable, listEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -12,8 +13,10 @@ import '../vs/editor/common/languages/language_configuration.dart'
     show CharacterPair, FoldingRules;
 import 'bracket_matching.dart';
 import 'document_snapshot.dart';
+import 'editor_code_lens.dart';
 import 'editor_decorations.dart';
 import 'editor_folding.dart';
+import 'editor_inline_suggest.dart';
 import 'editor_keybindings.dart';
 import 'editor_minimap.dart';
 import 'editor_scrollbar.dart';
@@ -23,7 +26,15 @@ import 'editor_view_theme.dart';
 import 'viewport_layout.dart';
 
 export 'editor_decorations.dart'
-    show EditorDecoration, EditorDecorationKind, EditorUnderlineStyle;
+    show
+        EditorDecoration,
+        EditorDecorationKind,
+        EditorDecorationProvider,
+        EditorDecorationSet,
+        EditorGutterIcon,
+        EditorInjectedText,
+        EditorInjectedTextTarget,
+        EditorUnderlineStyle;
 export 'editor_view_painters.dart' show EditorRenderWhitespace;
 export 'editor_view_theme.dart' show EditorViewTheme;
 
@@ -31,7 +42,8 @@ export 'editor_view_theme.dart' show EditorViewTheme;
 /// [heightInLines] lines tall after model line [afterLineNumber] (0: above
 /// the first), showing [content] in the text area, scrolled with the text,
 /// and [margin] in the gutter. A press in a zone moves no caret
-/// (`suppressMouseDown`).
+/// (`suppressMouseDown`); an [interactive] zone's content gets the pointer
+/// (a CodeLens's links), others ignore it.
 @immutable
 class EditorViewZone {
   const EditorViewZone({
@@ -39,10 +51,14 @@ class EditorViewZone {
     required this.heightInLines,
     this.content,
     this.margin,
+    this.interactive = false,
   });
 
   final int afterLineNumber;
   final double heightInLines;
+
+  /// Whether [content] and [margin] receive pointer events.
+  final bool interactive;
 
   /// Laid out as wide as the text can scroll, and the zone's height.
   final Widget? content;
@@ -84,6 +100,12 @@ class EditorSurface extends StatefulWidget {
     this.readOnly = false,
     this.theme = const EditorViewTheme(),
     this.decorations = const [],
+    this.decorationProviders = const [],
+    this.inlineSuggest,
+    this.codeLens,
+    this.codeLensColors = const EditorCodeLensColors(),
+    this.codeLensIcon,
+    this.gutterIconBuilder,
     this.viewZones = const [],
     this.scrollPosition,
     this.lineNumbers = true,
@@ -134,6 +156,32 @@ class EditorSurface extends StatefulWidget {
   /// Only those intersecting visible lines are painted; pass the same list
   /// instance while unchanged.
   final List<EditorDecoration> decorations;
+
+  /// More decorations, each set searched per visible line: decoration
+  /// types (`EditorDecorationsController`), inlay hints
+  /// (`EditorInlayHintsController`), tracked ranges. The surface repaints
+  /// when one notifies, and lays lines out anew when one
+  /// [EditorDecorationProvider.affectsLayout].
+  final List<EditorDecorationProvider> decorationProviders;
+
+  /// Ghost text of an inline completion: painted after the caret (its
+  /// other lines in a view zone); while it shows, Tab accepts it, Escape
+  /// hides it and Cmd/Ctrl+Right accepts its next word.
+  final EditorInlineSuggestController? inlineSuggest;
+
+  /// CodeLenses, as view zones above their lines; told which lines are in
+  /// view so it can resolve them.
+  final EditorCodeLensController? codeLens;
+  final EditorCodeLensColors codeLensColors;
+
+  /// The codicon for `$(name)` in CodeLens titles.
+  final IconData? Function(String name)? codeLensIcon;
+
+  /// The image of a decoration's gutter icon (`gutterIconPath`), sized
+  /// into the glyph margin cell (as `gutterIconSize` says) by the surface;
+  /// without it gutter icons are not shown.
+  final Widget Function(BuildContext context, EditorGutterIcon icon)?
+  gutterIconBuilder;
 
   /// Space between lines (see [EditorViewZone]).
   final List<EditorViewZone> viewZones;
@@ -268,6 +316,10 @@ abstract interface class EditorSurfaceView {
   /// The first and last one-based model lines with a visible row; null
   /// before the first layout or when none is visible.
   ({int first, int last})? get visibleLineRange;
+
+  /// The decorations (all sources) touching [offset], e.g. for their
+  /// hover messages.
+  List<EditorDecoration> decorationsAt(int offset);
 }
 
 enum _Part {
@@ -328,7 +380,15 @@ class _EditorSurfaceState extends State<EditorSurface>
 
   // Decorations, brackets and caches.
   List<EditorDecoration>? _decorationSource;
-  SortedDecorations _decorations = SortedDecorations.empty;
+  SortedDecorations _baseDecorations = SortedDecorations.empty;
+  EditorDecorationSet _decorations = SortedDecorations.empty;
+  EditorDecorationSet? _layoutDecorations;
+  List<EditorViewZone> _zones = const [];
+
+  // Injected text under the pointer.
+  EditorInjectedTextTarget? _hoveredTarget;
+  MouseCursor? _injectionCursor;
+  ({int first, int last})? _reportedViewport;
   Object? _bracketKey;
   BracketMatch? _bracketMatch;
   final IndentGuideCache _guideCache = IndentGuideCache();
@@ -379,6 +439,9 @@ class _EditorSurfaceState extends State<EditorSurface>
     _focusNode = widget.focusNode ?? FocusNode();
     _focusNode.addListener(_onFocusChange);
     widget.controller.addListener(_onControllerChange);
+    for (final listenable in _listened(widget)) {
+      listenable.addListener(_onDecorationsChange);
+    }
     if (widget.scrollPosition case final position?) {
       position.addListener(_followScrollPosition);
       _scrollLeft = position.value.dx;
@@ -387,6 +450,17 @@ class _EditorSurfaceState extends State<EditorSurface>
   }
 
   bool _followingScroll = false;
+
+  /// What the surface repaints for besides its controller.
+  static List<Listenable> _listened(EditorSurface widget) => [
+    ...widget.decorationProviders,
+    ?widget.inlineSuggest,
+    ?widget.codeLens,
+  ];
+
+  void _onDecorationsChange() {
+    if (mounted) setState(() {});
+  }
 
   void _followScrollPosition() {
     final position = widget.scrollPosition!.value;
@@ -427,6 +501,16 @@ class _EditorSurfaceState extends State<EditorSurface>
       if (_focusNode.hasFocus) _onFocusChange();
     }
     if (oldWidget.readOnly != widget.readOnly) _onFocusChange();
+    final oldListened = _listened(oldWidget);
+    final listened = _listened(widget);
+    if (!listEquals(oldListened, listened)) {
+      for (final listenable in oldListened) {
+        listenable.removeListener(_onDecorationsChange);
+      }
+      for (final listenable in listened) {
+        listenable.addListener(_onDecorationsChange);
+      }
+    }
     if (oldWidget.scrollPosition != widget.scrollPosition) {
       oldWidget.scrollPosition?.removeListener(_followScrollPosition);
       widget.scrollPosition?.addListener(_followScrollPosition);
@@ -758,6 +842,12 @@ class _EditorSurfaceState extends State<EditorSurface>
       a.top + layout.lineHeight,
     );
   }
+
+  @override
+  List<EditorDecoration> decorationsAt(int offset) => [
+    for (final decoration in _decorations.intersecting(offset, offset))
+      if (decoration.start <= offset && offset <= decoration.end) decoration,
+  ];
 
   @override
   Rect? glyphMarginRect(int lineNumber) {
@@ -1271,6 +1361,11 @@ class _EditorSurfaceState extends State<EditorSurface>
         }
       }
     }
+    if (_injectionTargetAt(event.localPosition) case (final target, _)
+        when target.pointerDown(event, modifier: _linkModifier)) {
+      _dragPointer = null;
+      return;
+    }
     final controller = widget.controller;
     final offset = layout.hitTest(local);
     if (widget.onContentPointerDown?.call(offset, event) ?? false) {
@@ -1491,6 +1586,7 @@ class _EditorSurfaceState extends State<EditorSurface>
 
   void _onHover(PointerHoverEvent event) {
     _updateHover(event.localPosition);
+    _hoverInjection(event.localPosition);
     _reportTextHover(event.localPosition);
   }
 
@@ -1545,6 +1641,7 @@ class _EditorSurfaceState extends State<EditorSurface>
 
   void _onExit(PointerExitEvent event) {
     _pointerInside = false;
+    _hoverInjection(null);
     _reportTextHover(null);
     _scheduleScrollbarHide();
     if (_hover != _Part.none || _hoveredScrollbar != ScrollbarPart.none) {
@@ -1561,12 +1658,172 @@ class _EditorSurfaceState extends State<EditorSurface>
     if (intercepted != null && intercepted != KeyEventResult.ignored) {
       return intercepted;
     }
+    final suggest = _inlineSuggestKey(event);
+    if (suggest != KeyEventResult.ignored) return suggest;
     return handleEditorKeyEvent(
       widget.controller,
       this,
       event,
       resolve: widget.keyResolver,
     );
+  }
+
+  /// Whether Cmd (macOS) or Ctrl is down: links in injected text.
+  static bool get _linkModifier {
+    final keyboard = HardwareKeyboard.instance;
+    return defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.iOS
+        ? keyboard.isMetaPressed
+        : keyboard.isControlPressed;
+  }
+
+  /// `inlineSuggest.commit` (Tab), `hide` (Escape) and `acceptNextWord`
+  /// (Cmd/Ctrl+Right) while ghost text shows.
+  KeyEventResult _inlineSuggestKey(KeyEvent event) {
+    final suggest = widget.inlineSuggest;
+    if (suggest == null || !suggest.isVisible || event is KeyUpEvent) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    final key = event.logicalKey;
+    final plain =
+        !keyboard.isShiftPressed &&
+        !keyboard.isAltPressed &&
+        !keyboard.isControlPressed &&
+        !keyboard.isMetaPressed;
+    if (key == LogicalKeyboardKey.tab && plain && !widget.readOnly) {
+      return suggest.accept() ? KeyEventResult.handled : KeyEventResult.ignored;
+    }
+    if (key == LogicalKeyboardKey.escape && plain) {
+      if (event is KeyDownEvent) suggest.dismiss();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowRight &&
+        _linkModifier &&
+        !keyboard.isShiftPressed &&
+        !keyboard.isAltPressed &&
+        !widget.readOnly) {
+      return suggest.acceptNextWord()
+          ? KeyEventResult.handled
+          : KeyEventResult.ignored;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  /// Tells the CodeLens controller which lines are in view, after layout.
+  void _scheduleViewportReport() {
+    final range = visibleLineRange;
+    if (range == null || range == _reportedViewport) return;
+    _reportedViewport = range;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.codeLens?.viewportChanged(range.first, range.last);
+    });
+  }
+
+  /// The injected text at surface-local [position] that the pointer can
+  /// act on, with its box (surface-local).
+  (EditorInjectedTextTarget, Rect)? _injectionTargetAt(Offset position) {
+    final layout = _layout;
+    final geometry = _geometry;
+    if (layout == null ||
+        geometry == null ||
+        !geometry.contentRect.contains(position)) {
+      return null;
+    }
+    final hit = layout.injectionAt(position - geometry.contentRect.topLeft);
+    if (hit?.injection.text.data case final EditorInjectedTextTarget target) {
+      return (target, hit!.rect.shift(geometry.contentRect.topLeft));
+    }
+    return null;
+  }
+
+  void _hoverInjection(Offset? position) {
+    final hit = position == null ? null : _injectionTargetAt(position);
+    final target = hit?.$1;
+    final modifier = _linkModifier;
+    if (!identical(target, _hoveredTarget)) {
+      _hoveredTarget?.hover(null, modifier: modifier);
+    }
+    _hoveredTarget = target;
+    target?.hover(hit!.$2, modifier: modifier);
+    final cursor = target?.cursor(modifier: modifier);
+    if (cursor != _injectionCursor) setState(() => _injectionCursor = cursor);
+  }
+
+  /// The gutter icons of the visible lines' decorations
+  /// (`glyphMarginClassName` of a `gutterIconPath`), each line's last on
+  /// top.
+  List<Widget> _gutterIcons(
+    BuildContext context,
+    ViewportLayout layout,
+    EditorViewGeometry geometry,
+  ) {
+    final builder = widget.gutterIconBuilder!;
+    final snapshot = layout.snapshot;
+    final size = Size(geometry.glyphMarginWidth, layout.lineHeight);
+    final icons = <Widget>[];
+    for (final line in layout.visibleLineNumbers) {
+      final start = snapshot.lineStarts[line - 1];
+      final end = snapshot.contentEnds[line - 1];
+      for (final decoration in _decorations.intersecting(start, end)) {
+        final icon = decoration.gutterIcon;
+        if (icon == null) continue;
+        // A range that ends at a line's start is not on that line.
+        if (decoration.end == start && decoration.start < start) continue;
+        final top = layout.caretRect(start).top + geometry.contentRect.top;
+        icons.add(
+          Positioned(
+            key: ValueKey((line, icons.length)),
+            left: 0,
+            top: top,
+            width: size.width,
+            height: size.height,
+            child: IgnorePointer(
+              child: ClipRect(child: _sizedGutterIcon(context, icon, builder)),
+            ),
+          ),
+        );
+      }
+    }
+    if (icons.isEmpty) return const [];
+    return [
+      Positioned.fromRect(
+        rect: geometry.gutterRect,
+        child: ClipRect(child: Stack(children: icons)),
+      ),
+    ];
+  }
+
+  /// `gutterIconSize`: `auto` (the image's size), `contain`, `cover`, or
+  /// a percentage of the cell; centered (`background-position: center`).
+  static Widget _sizedGutterIcon(
+    BuildContext context,
+    EditorGutterIcon icon,
+    Widget Function(BuildContext, EditorGutterIcon) builder,
+  ) {
+    final image = builder(context, icon);
+    final size = icon.size?.trim() ?? 'auto';
+    if (size.endsWith('%')) {
+      final percent = double.tryParse(size.substring(0, size.length - 1));
+      if (percent != null) {
+        return Center(
+          child: FractionallySizedBox(
+            widthFactor: percent / 100,
+            heightFactor: percent / 100,
+            child: FittedBox(child: image),
+          ),
+        );
+      }
+    }
+    return switch (size) {
+      'contain' => FittedBox(child: image),
+      'cover' => FittedBox(fit: BoxFit.cover, child: image),
+      _ => OverflowBox(
+        maxWidth: double.infinity,
+        maxHeight: double.infinity,
+        child: image,
+      ),
+    };
   }
 
   Widget _textSemantics(Widget child, TextDirection direction) {
@@ -1638,13 +1895,58 @@ class _EditorSurfaceState extends State<EditorSurface>
 
   void _syncDecorations() {
     final source = widget.decorations;
-    if (identical(source, _decorationSource)) return;
-    final previous = _decorationSource;
-    _decorationSource = source;
-    if (previous != null && listEquals(previous, source)) return;
-    _decorations = source.isEmpty
+    if (!identical(source, _decorationSource)) {
+      final previous = _decorationSource;
+      _decorationSource = source;
+      if (previous == null || !listEquals(previous, source)) {
+        _baseDecorations = source.isEmpty
+            ? SortedDecorations.empty
+            : SortedDecorations(source);
+      }
+    }
+    final providers = [...widget.decorationProviders, ?widget.inlineSuggest];
+    if (providers.isEmpty) {
+      _decorations = _baseDecorations;
+      return;
+    }
+    // A new set only when one of the sets changed, so that painters keyed
+    // on it repaint only then.
+    final sets = [
+      if (!_baseDecorations.isEmpty) _baseDecorations,
+      for (final provider in providers)
+        if (!provider.decorations.isEmpty) provider.decorations,
+    ];
+    final current = _decorations;
+    if (current is CompositeDecorations && listEquals(current.sets, sets)) {
+      return;
+    }
+    _decorations = sets.isEmpty
         ? SortedDecorations.empty
-        : SortedDecorations(source);
+        : (sets.length == 1 ? sets.single : CompositeDecorations(sets));
+  }
+
+  /// Whether some decoration changes how lines are laid out.
+  bool get _decorationsAffectLayout =>
+      _baseDecorations.affectsLayout ||
+      (widget.inlineSuggest?.affectsLayout ?? false) ||
+      widget.decorationProviders.any((provider) => provider.affectsLayout);
+
+  /// The view zones: the widget's, the CodeLenses' and the ghost text's.
+  List<EditorViewZone> _computeZones(double lineHeight) {
+    final codeLens = widget.codeLens;
+    final inlineSuggest = widget.inlineSuggest;
+    if (codeLens == null && inlineSuggest == null) return widget.viewZones;
+    return [
+      ...widget.viewZones,
+      ...?codeLens?.zones(
+        style: widget.style,
+        lineHeight: lineHeight,
+        colors: widget.codeLensColors,
+        icon: widget.codeLensIcon,
+        tabSize: widget.controller.tabSize,
+      ),
+      ...?inlineSuggest?.zones(widget.style),
+    ];
   }
 
   EditorGutterGlyphs _ensureGlyphs(TextScaler scaler) {
@@ -1678,10 +1980,12 @@ class _EditorSurfaceState extends State<EditorSurface>
     final hidden = _folding.hiddenLines;
     final lineHeight = _glyphs!.lineHeight;
     final zones = [
-      for (final zone in widget.viewZones)
+      for (final zone in _zones)
         ViewportZone(zone.afterLineNumber, zone.heightInLines * lineHeight),
     ];
     final wrap = widget.wrap && size.width > 0;
+    // Lines are decorated only while some decoration changes their layout.
+    final decorations = _decorationsAffectLayout ? _decorations : null;
     final current = _layout;
     if (current != null &&
         identical(_layoutSnapshot, snapshot) &&
@@ -1694,6 +1998,7 @@ class _EditorSurfaceState extends State<EditorSurface>
         _layoutHidden == hidden &&
         listEquals(_layoutZones, zones) &&
         _layoutTabSize == widget.controller.tabSize &&
+        _layoutDecorations == decorations &&
         current.stopRenderingLineAfter == widget.stopRenderingLineAfter) {
       return current;
     }
@@ -1709,6 +2014,10 @@ class _EditorSurfaceState extends State<EditorSurface>
       stopRenderingLineAfter: widget.stopRenderingLineAfter,
       hiddenLines: hidden,
       zones: zones,
+      lineDecorations: decorations == null
+          ? null
+          : (lineNumber) =>
+                ViewportLineDecorations.of(decorations, snapshot, lineNumber),
       previousLayout: current,
       horizontalScrollOffset: _scrollLeft,
       verticalScrollOffset: _scrollTop,
@@ -1725,6 +2034,7 @@ class _EditorSurfaceState extends State<EditorSurface>
     _layoutHidden = hidden;
     _layoutZones = zones;
     _layoutTabSize = widget.controller.tabSize;
+    _layoutDecorations = decorations;
     return layout;
   }
 
@@ -1742,7 +2052,7 @@ class _EditorSurfaceState extends State<EditorSurface>
         ? math.max(_scrollWidth(layout), area.width)
         : area.width;
     final children = <Widget>[];
-    for (final (index, zone) in widget.viewZones.indexed) {
+    for (final (index, zone) in _zones.indexed) {
       final child = content ? zone.content : zone.margin;
       if (child == null || index >= layout.zones.length) continue;
       final top = layout.zoneTop(index) - _scrollTop;
@@ -1754,7 +2064,7 @@ class _EditorSurfaceState extends State<EditorSurface>
           top: top,
           width: width,
           height: height,
-          child: child,
+          child: zone.interactive ? child : IgnorePointer(child: child),
         ),
       );
     }
@@ -1762,10 +2072,8 @@ class _EditorSurfaceState extends State<EditorSurface>
     return [
       Positioned.fromRect(
         rect: area,
-        child: IgnorePointer(
-          child: ClipRect(
-            child: Stack(clipBehavior: Clip.none, children: children),
-          ),
+        child: ClipRect(
+          child: Stack(clipBehavior: Clip.none, children: children),
         ),
       ),
     ];
@@ -1809,7 +2117,9 @@ class _EditorSurfaceState extends State<EditorSurface>
           minimapWidth: widget.showMinimap ? widget.minimapWidth : 0,
         );
         _geometry = geometry;
+        _zones = _computeZones(glyphs.lineHeight);
         final layout = _ensureLayout(snapshot, geometry, direction, scaler);
+        if (widget.codeLens != null) _scheduleViewportReport();
         final maxTop = _maxScrollTop(layout);
         final maxLeft = _maxScrollLeft(layout);
         if (_scrollTop > maxTop || _scrollLeft > maxLeft) {
@@ -1896,92 +2206,105 @@ class _EditorSurfaceState extends State<EditorSurface>
                 ),
               ),
             ),
-            if (widget.viewZones.isNotEmpty)
+            if (_zones.isNotEmpty)
               ..._zoneWidgets(layout, geometry, content: true),
             Positioned.fill(
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: EditorCaretPainter(
-                    layout: layout,
-                    contentRect: contentRect,
-                    scrollTop: _scrollTop,
-                    scrollLeft: _scrollLeft,
-                    selections: selections,
-                    affinity: primary.affinity,
-                    composing: value.composing,
-                    focused: focused,
-                    caretColor: widget.caretColor,
-                    visible: _caretVisible,
+              child: IgnorePointer(
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: EditorCaretPainter(
+                      layout: layout,
+                      contentRect: contentRect,
+                      scrollTop: _scrollTop,
+                      scrollLeft: _scrollLeft,
+                      selections: selections,
+                      affinity: primary.affinity,
+                      composing: value.composing,
+                      focused: focused,
+                      caretColor: widget.caretColor,
+                      visible: _caretVisible,
+                    ),
                   ),
                 ),
               ),
             ),
             Positioned.fill(
-              child: CustomPaint(
-                painter: EditorGutterPainter(
-                  layout: layout,
-                  geometry: geometry,
-                  scrollTop: _scrollTop,
-                  background: widget.backgroundColor,
-                  theme: theme,
-                  glyphs: glyphs,
-                  lineNumbers: widget.lineNumbers,
-                  activeLines: activeLines,
-                  folding: _folding,
-                  foldingVersion: _foldingVersion,
-                  showFoldingControls: _hover == _Part.gutter,
-                  foldingEnabled: widget.folding,
-                  decorations: _decorations,
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: EditorGutterPainter(
+                    layout: layout,
+                    geometry: geometry,
+                    scrollTop: _scrollTop,
+                    background: widget.backgroundColor,
+                    theme: theme,
+                    glyphs: glyphs,
+                    lineNumbers: widget.lineNumbers,
+                    activeLines: activeLines,
+                    folding: _folding,
+                    foldingVersion: _foldingVersion,
+                    showFoldingControls: _hover == _Part.gutter,
+                    foldingEnabled: widget.folding,
+                    decorations: _decorations,
+                  ),
                 ),
               ),
             ),
-            if (widget.viewZones.isNotEmpty)
+            if (_zones.isNotEmpty)
               ..._zoneWidgets(layout, geometry, content: false),
+            if (widget.gutterIconBuilder != null &&
+                widget.glyphMargin &&
+                !_decorations.isEmpty)
+              ..._gutterIcons(context, layout, geometry),
             if (geometry.minimapWidth > 0)
               Positioned.fill(
-                child: RepaintBoundary(
-                  child: CustomPaint(
-                    painter: EditorMinimapPainter(
-                      cache: _minimapCache,
-                      layout: layout,
-                      rect: geometry.minimapRect,
-                      geometry: _minimapGeometry(layout, geometry),
-                      styledLines: widget.styledLines,
-                      foreground: widget.style.color ?? const Color(0xffcccccc),
-                      background: widget.backgroundColor,
-                      theme: theme,
-                      tabSize: controller.tabSize,
-                      selections: selections,
-                      decorations: _decorations,
-                      showSlider: _hover == _Part.minimap,
-                      sliderActive: _dragMode == _DragMode.minimap,
+                child: IgnorePointer(
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: EditorMinimapPainter(
+                        cache: _minimapCache,
+                        layout: layout,
+                        rect: geometry.minimapRect,
+                        geometry: _minimapGeometry(layout, geometry),
+                        styledLines: widget.styledLines,
+                        foreground:
+                            widget.style.color ?? const Color(0xffcccccc),
+                        background: widget.backgroundColor,
+                        theme: theme,
+                        tabSize: controller.tabSize,
+                        selections: selections,
+                        decorations: _decorations,
+                        showSlider: _hover == _Part.minimap,
+                        sliderActive: _dragMode == _DragMode.minimap,
+                      ),
                     ),
                   ),
                 ),
               ),
             Positioned.fill(
-              child: CustomPaint(
-                painter: EditorScrollbarPainter(
-                  layout: layout,
-                  theme: theme,
-                  contentRect: contentRect,
-                  verticalTrack: geometry.verticalScrollbarRect,
-                  horizontalTrack: geometry.horizontalScrollbarRect,
-                  vertical: _verticalSlider(layout, geometry),
-                  horizontal: _horizontalSlider(layout, geometry),
-                  scrollTop: _scrollTop,
-                  scrollLeft: _scrollLeft,
-                  scrollHeight: scrollHeight,
-                  decorations: _decorations,
-                  overviewCache: _overviewCache,
-                  cursorLines: activeLines.toList(),
-                  hovered: _hoveredScrollbar,
-                  dragging: switch (_dragMode) {
-                    _DragMode.verticalScrollbar => ScrollbarPart.vertical,
-                    _DragMode.horizontalScrollbar => ScrollbarPart.horizontal,
-                    _ => ScrollbarPart.none,
-                  },
-                  fade: _scrollbarFade,
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: EditorScrollbarPainter(
+                    layout: layout,
+                    theme: theme,
+                    contentRect: contentRect,
+                    verticalTrack: geometry.verticalScrollbarRect,
+                    horizontalTrack: geometry.horizontalScrollbarRect,
+                    vertical: _verticalSlider(layout, geometry),
+                    horizontal: _horizontalSlider(layout, geometry),
+                    scrollTop: _scrollTop,
+                    scrollLeft: _scrollLeft,
+                    scrollHeight: scrollHeight,
+                    decorations: _decorations,
+                    overviewCache: _overviewCache,
+                    cursorLines: activeLines.toList(),
+                    hovered: _hoveredScrollbar,
+                    dragging: switch (_dragMode) {
+                      _DragMode.verticalScrollbar => ScrollbarPart.vertical,
+                      _DragMode.horizontalScrollbar => ScrollbarPart.horizontal,
+                      _ => ScrollbarPart.none,
+                    },
+                    fade: _scrollbarFade,
+                  ),
                 ),
               ),
             ),
@@ -1993,7 +2316,9 @@ class _EditorSurfaceState extends State<EditorSurface>
             _dragMode == _DragMode.word;
         final paintedSurface = MouseRegion(
           cursor: textCursor
-              ? (_hover == _Part.content ? widget.contentCursor : null) ??
+              ? (_hover == _Part.content
+                        ? _injectionCursor ?? widget.contentCursor
+                        : null) ??
                     SystemMouseCursors.text
               : MouseCursor.defer,
           onEnter: _onEnter,
@@ -2052,6 +2377,9 @@ class _EditorSurfaceState extends State<EditorSurface>
   void dispose() {
     widget.scrollPosition?.removeListener(_followScrollPosition);
     widget.controller.removeListener(_onControllerChange);
+    for (final listenable in _listened(widget)) {
+      listenable.removeListener(_onDecorationsChange);
+    }
     _focusNode.removeListener(_onFocusChange);
     _detach();
     if (_ownsFocusNode) _focusNode.dispose();

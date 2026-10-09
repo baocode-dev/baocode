@@ -238,7 +238,7 @@ class _Runtime {
   _Runtime(this.syntax, this.resources, this.channel, this.theme) {
     _subscription = channel.responses.listen(_onResponse);
     channel
-      ..send(TextMateInit(resources.grammars))
+      ..send(TextMateInit(syntax._allGrammars(resources)))
       ..send(
         TextMateSetTheme(toRawTheme(theme.data), theme.data.tokenColorMap),
       );
@@ -342,6 +342,74 @@ class TextMateSyntax {
   /// The theme the editor paints with; null until TextMate is available.
   ValueListenable<TextMateEditorTheme?> get editorTheme => _editorTheme;
   final ValueNotifier<TextMateEditorTheme?> _editorTheme = ValueNotifier(null);
+
+  /// The grammars extensions contributed, as `contributes.grammars`
+  /// validated them. They join the bundled ones.
+  final List<IValidGrammarDefinition> _contributedGrammars = [];
+
+  /// Grammars an extension contributed (VS Code's
+  /// `TextMateTokenizationService.registerGrammarDefinitions`), so files of
+  /// languages the bundled grammars do not cover are highlighted too.
+  ///
+  /// A grammar added after the runtime started is sent to the worker as a
+  /// whole new set; documents tokenize again from the start.
+  void addGrammars(
+    Iterable<IValidGrammarDefinition> grammars, {
+    String? sourceExtensionId,
+  }) {
+    if (grammars.isEmpty) return;
+    _contributedGrammars.addAll(
+      sourceExtensionId == null
+          ? grammars
+          : [
+              for (final grammar in grammars)
+                IValidGrammarDefinition(
+                  location: grammar.location,
+                  language: grammar.language,
+                  scopeName: grammar.scopeName,
+                  embeddedLanguages: grammar.embeddedLanguages,
+                  tokenTypes: grammar.tokenTypes,
+                  injectTo: grammar.injectTo,
+                  balancedBracketSelectors: grammar.balancedBracketSelectors,
+                  unbalancedBracketSelectors:
+                      grammar.unbalancedBracketSelectors,
+                  sourceExtensionId: sourceExtensionId,
+                ),
+            ],
+    );
+    _restartForGrammars();
+  }
+
+  /// Replaces the contributed grammars [sourceExtensionId] added.
+  void removeGrammarsOf(String sourceExtensionId) {
+    final before = _contributedGrammars.length;
+    _contributedGrammars.removeWhere(
+      (grammar) => grammar.sourceExtensionId == sourceExtensionId,
+    );
+    if (_contributedGrammars.length != before) _restartForGrammars();
+  }
+
+  /// Every grammar the worker has: the bundle's, then the contributions.
+  List<IValidGrammarDefinition> _allGrammars(_Resources resources) => [
+    ...resources.grammars,
+    ..._contributedGrammars,
+  ];
+
+  void _restartForGrammars() {
+    final started = _started;
+    if (started == null) return;
+    // The worker took its grammars at init; a new set means a new runtime.
+    final theme = started.theme;
+    _started = null;
+    _runtime = null;
+    started.dispose();
+    unawaited(
+      _ready().then((runtime) {
+        if (runtime != null) runtime.setTheme(theme);
+      }),
+    );
+    _editorTheme.value = null;
+  }
 
   Future<_Runtime?> _ready() => _runtime ??= _start();
 

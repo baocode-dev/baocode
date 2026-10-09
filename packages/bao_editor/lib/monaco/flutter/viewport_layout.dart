@@ -10,6 +10,146 @@ import 'package:flutter/widgets.dart' show SizedBox, WidgetSpan;
 import '../vs/editor/common/core/cursor_columns.dart';
 import '../vs/editor/common/core/range.dart';
 import 'document_snapshot.dart';
+import 'editor_decorations.dart';
+
+/// A text style a decoration lays over line-relative UTF-16 offsets
+/// `[start, end)` (Monaco's `inlineClassName`): merged over the token style,
+/// with [opacity] multiplied into the resulting colors.
+@immutable
+class ViewportInlineStyle {
+  const ViewportInlineStyle(this.start, this.end, {this.style, this.opacity});
+
+  final int start;
+  final int end;
+  final TextStyle? style;
+  final double? opacity;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ViewportInlineStyle &&
+      other.start == start &&
+      other.end == end &&
+      other.style == style &&
+      other.opacity == opacity;
+
+  @override
+  int get hashCode => Object.hash(start, end, style, opacity);
+}
+
+/// Text injected at line-relative UTF-16 [offset] (Monaco's
+/// `LineInjectedText`; see [EditorInjectedText]).
+@immutable
+class ViewportInjection {
+  const ViewportInjection(this.offset, this.text);
+
+  final int offset;
+  final EditorInjectedText text;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ViewportInjection &&
+      other.offset == offset &&
+      other.text == text;
+
+  @override
+  int get hashCode => Object.hash(offset, text);
+}
+
+/// What decorations change in how one line is shaped: inline styles and
+/// injected text ([injections] sorted by offset, in their order at one
+/// offset, as `LineInjectedText.fromDecorations` sorts them).
+@immutable
+class ViewportLineDecorations {
+  const ViewportLineDecorations({
+    this.styles = const [],
+    this.injections = const [],
+  });
+
+  static const none = ViewportLineDecorations();
+
+  /// What [decorations] change on one-based [lineNumber] of [snapshot]:
+  /// their text styles over the line's part of their ranges, their
+  /// `before` text at their start and `after` text at their end
+  /// (`LineInjectedText.fromDecorations`: by column, then before ahead of
+  /// after, then in decoration order). Looks up only the decorations
+  /// touching the line.
+  factory ViewportLineDecorations.of(
+    EditorDecorationSet decorations,
+    DocumentSnapshot snapshot,
+    int lineNumber,
+  ) {
+    final lineStart = snapshot.lineStarts[lineNumber - 1];
+    final lineEnd = snapshot.contentEnds[lineNumber - 1];
+    List<ViewportInlineStyle>? styles;
+    List<(int, int, ViewportInjection)>? injections;
+    var order = 0;
+    for (final decoration in decorations.intersecting(lineStart, lineEnd)) {
+      if (!decoration.affectsLayout) continue;
+      if (decoration.textStyle != null || decoration.opacity != null) {
+        final start = math.max(decoration.start, lineStart) - lineStart;
+        final end = math.min(decoration.end, lineEnd) - lineStart;
+        if (end > start) {
+          (styles ??= []).add(
+            ViewportInlineStyle(
+              start,
+              end,
+              style: decoration.textStyle,
+              opacity: decoration.opacity,
+            ),
+          );
+        }
+      }
+      if (decoration.before case final before?
+          when decoration.start >= lineStart && decoration.start <= lineEnd) {
+        (injections ??= []).add((
+          0,
+          order++,
+          ViewportInjection(decoration.start - lineStart, before),
+        ));
+      }
+      if (decoration.after case final after?
+          when decoration.end >= lineStart && decoration.end <= lineEnd) {
+        (injections ??= []).add((
+          1,
+          order++,
+          ViewportInjection(decoration.end - lineStart, after),
+        ));
+      }
+    }
+    if (styles == null && injections == null) return none;
+    injections?.sort((a, b) {
+      final byOffset = a.$3.offset.compareTo(b.$3.offset);
+      if (byOffset != 0) return byOffset;
+      final bySide = a.$1.compareTo(b.$1);
+      return bySide != 0 ? bySide : a.$2.compareTo(b.$2);
+    });
+    return ViewportLineDecorations(
+      styles: styles ?? const [],
+      injections: [
+        if (injections != null)
+          for (final (_, _, injection) in injections) injection,
+      ],
+    );
+  }
+
+  final List<ViewportInlineStyle> styles;
+  final List<ViewportInjection> injections;
+
+  bool get isEmpty => styles.isEmpty && injections.isEmpty;
+}
+
+/// The [ViewportLineDecorations] of one-based [lineNumber]; asked once per
+/// line a layout shapes.
+typedef ViewportLineDecorator = ViewportLineDecorations Function(
+  int lineNumber,
+);
+
+/// Injected text a point is over (see [ViewportLayout.injectionAt]).
+typedef ViewportInjectionHit = ({
+  int lineNumber,
+  ViewportInjection injection,
+  Rect rect,
+});
 
 /// A visual row of one logical document line. Offsets are UTF-16, end-exclusive;
 /// [top] and [height] are in unscrolled document coordinates.
@@ -222,6 +362,12 @@ class HiddenLineRanges {
 /// hit-test points are relative to the viewport's origin. Positions at a soft
 /// wrap have downstream affinity unless specified otherwise. Call [dispose]
 /// when finished.
+///
+/// [lineDecorations] gives each line's inline styles and injected text
+/// (Monaco's `ModelLineProjectionData` with injections): an injection is one
+/// placeholder in the paragraph, as wide as its box, so it takes room and
+/// wraps with the text, while offsets the layout takes and gives stay
+/// document offsets (`translateToInputOffset`/`translateToOutputPosition`).
 class ViewportLayout {
   ViewportLayout({
     required this.snapshot,
@@ -235,6 +381,7 @@ class ViewportLayout {
     this.stopRenderingLineAfter = defaultStopRenderingLineAfter,
     HiddenLineRanges? hiddenLines,
     this.zones = const [],
+    this.lineDecorations,
     ViewportLayout? previousLayout,
     double horizontalScrollOffset = 0,
     double verticalScrollOffset = 0,
@@ -309,6 +456,9 @@ class ViewportLayout {
 
   /// Space between lines (view zones), in no particular order.
   final List<ViewportZone> zones;
+
+  /// Each line's inline styles and injected text, if any.
+  final ViewportLineDecorator? lineDecorations;
 
   // The zones by position: each one's index into [zones], the zero-based
   // view line it is above, and the heights of those before it.
@@ -552,12 +702,32 @@ class ViewportLayout {
     if (spans != null && rendered < length) spans = _truncate(spans, rendered);
     // Monaco counts the characters past the limit, not past the cut.
     final overflow = rendered < length ? length - stopRenderingLineAfter : 0;
-    var shape = _cache.lookup(content, spans, overflow);
+    var injections = const <ViewportInjection>[];
+    final decorations = lineDecorations?.call(line + 1);
+    if (decorations != null && !decorations.isEmpty) {
+      if (decorations.styles.isNotEmpty) {
+        spans = _applyInlineStyles(
+          spans ?? [TextSpan(text: content)],
+          decorations.styles,
+          content.length,
+          style.color,
+        );
+      }
+      injections = [
+        for (final injection in decorations.injections)
+          if (injection.offset >= 0 &&
+              injection.offset <= rendered &&
+              injection.text.text.isNotEmpty)
+            injection,
+      ];
+    }
+    var shape = _cache.lookup(content, spans, overflow, injections);
     if (shape == null) {
       shape = _LineShape(
         content: content,
         overflow: overflow,
         spans: spans == null ? null : List<TextSpan>.of(spans),
+        injections: injections,
         style: style,
         wrapWidth: _cache.wrapWidth,
         textDirection: textDirection,
@@ -604,6 +774,93 @@ class ViewportLayout {
       if (last >= 0xD800 && last <= 0xDBFF) return limit - 1;
     }
     return limit;
+  }
+
+  /// [spans] (covering [length] units) split at [styles]' boundaries, each
+  /// piece's style merged with the styles over it in order (Monaco's
+  /// `LineDecorationsNormalizer` over the token parts) and its colors faded
+  /// by their opacities.
+  static List<TextSpan> _applyInlineStyles(
+    List<TextSpan> spans,
+    List<ViewportInlineStyle> styles,
+    int length,
+    Color? baseColor,
+  ) {
+    final runs = <(int, int, TextStyle?)>[];
+    var at = 0;
+    void flatten(InlineSpan span, TextStyle? inherited) {
+      if (span is! TextSpan) return;
+      final own = span.style;
+      final style = inherited == null ? own : inherited.merge(own);
+      final text = span.text;
+      if (text != null && text.isNotEmpty) {
+        runs.add((at, at + text.length, style));
+        at += text.length;
+      }
+      for (final child in span.children ?? const <InlineSpan>[]) {
+        flatten(child, style);
+      }
+    }
+
+    for (final span in spans) {
+      flatten(span, null);
+    }
+    final cuts = <int>{0, length};
+    for (final (start, end, _) in runs) {
+      cuts
+        ..add(start)
+        ..add(end);
+    }
+    for (final s in styles) {
+      cuts
+        ..add(s.start.clamp(0, length))
+        ..add(s.end.clamp(0, length));
+    }
+    final points = cuts.toList()..sort();
+    final source = _plainText(spans);
+    final result = <TextSpan>[];
+    var runIndex = 0;
+    for (var i = 0; i + 1 < points.length; i++) {
+      final a = points[i];
+      final b = points[i + 1];
+      if (a >= b || b > source.length) continue;
+      while (runIndex < runs.length && runs[runIndex].$2 <= a) {
+        runIndex++;
+      }
+      TextStyle? style = runIndex < runs.length && runs[runIndex].$1 <= a
+          ? runs[runIndex].$3
+          : null;
+      var opacity = 1.0;
+      var styled = false;
+      for (final s in styles) {
+        if (s.start <= a && s.end >= b) {
+          if (s.style case final extra?) {
+            style = style == null ? extra : style.merge(extra);
+          }
+          opacity *= s.opacity ?? 1;
+          styled = true;
+        }
+      }
+      if (styled && opacity < 1) {
+        final color = style?.color ?? baseColor;
+        style = (style ?? const TextStyle()).copyWith(
+          color: color?.withValues(alpha: color.a * opacity),
+          decorationColor: style?.decorationColor?.withValues(
+            alpha: style.decorationColor!.a * opacity,
+          ),
+        );
+      }
+      result.add(TextSpan(text: source.substring(a, b), style: style));
+    }
+    return result;
+  }
+
+  static String _plainText(List<TextSpan> spans) {
+    final buffer = StringBuffer();
+    for (final span in spans) {
+      buffer.write(span.toPlainText(includeSemanticsLabels: false));
+    }
+    return buffer.toString();
   }
 
   /// [spans] cut after [length] UTF-16 units of text.
@@ -777,10 +1034,63 @@ class ViewportLayout {
     final local = shape.painter.getPositionForOffset(
       Offset(point.dx + horizontalScrollOffset, localY),
     );
-    // Not past the rendered text: the pill has no offsets of its own.
+    // Not past the rendered text: the pill has no offsets of its own, and
+    // injected text maps to the column it is at.
     final lineStart = snapshot.lineStarts[line];
-    final column = math.min(local.offset, shape.content.length);
+    final column = math.min(
+      shape.fromParagraph(local.offset),
+      shape.content.length,
+    );
     return (lineStart + column).clamp(lineStart, snapshot.contentEnds[line]);
+  }
+
+  /// The injected text at viewport [point], if any, with its box in
+  /// viewport coordinates.
+  ViewportInjectionHit? injectionAt(Offset point) {
+    if (lineDecorations == null) return null;
+    final documentY = point.dy + verticalScrollOffset;
+    final count = wrap ? rows.length : viewLineCount;
+    if (count == 0) return null;
+    final index = _rowIndexAt(documentY);
+    if (index >= count) return null;
+    final line = wrap ? rows[index].lineNumber - 1 : _modelLineOfView(index);
+    final shape = _shapeForLine(line);
+    if (shape.injections.isEmpty) return null;
+    final top = wrap ? _viewTops[_viewLineOfModel(line)] : _viewTop(index);
+    final local = Offset(point.dx + horizontalScrollOffset, documentY - top);
+    for (final (index, rect) in shape.injectionRects().indexed) {
+      if (rect != null && rect.contains(local)) {
+        return (
+          lineNumber: line + 1,
+          injection: shape.injections[index],
+          rect: rect.shift(
+            Offset(-horizontalScrollOffset, top - verticalScrollOffset),
+          ),
+        );
+      }
+    }
+    return null;
+  }
+
+  /// The caret after the end of one-based [lineNumber] and the text
+  /// injected there (and its "Show more" pill), where a fold's placeholder
+  /// goes.
+  Rect lineEndRect(int lineNumber) {
+    final line = lineNumber.clamp(1, snapshot.lineCount) - 1;
+    final shape = _shapeForLine(line);
+    final textPosition = TextPosition(
+      offset: shape.paragraphLength,
+      affinity: TextAffinity.upstream,
+    );
+    final origin = shape.painter.getOffsetForCaret(textPosition, Rect.zero);
+    final view = _viewLineOfModel(line);
+    final top = wrap ? _viewTops[view] : _viewTop(view);
+    return Rect.fromLTWH(
+      origin.dx - horizontalScrollOffset,
+      (wrap ? origin.dy : 0) + top - verticalScrollOffset,
+      1,
+      lineHeight,
+    );
   }
 
   /// The un-clipped insertion caret, including offsets in CRLF (which map to
@@ -809,7 +1119,11 @@ class ViewportLayout {
     // Past the rendered text, the caret is after the pill (Monaco's range
     // at the line's width).
     if (localOffset > shape.content.length) {
-      localOffset = shape.content.length + (shape.overflow > 0 ? 1 : 0);
+      localOffset = shape.overflow > 0
+          ? shape.paragraphLength
+          : shape.toParagraph(shape.content.length);
+    } else {
+      localOffset = shape.toParagraph(localOffset);
     }
     final textPosition = TextPosition(offset: localOffset, affinity: affinity);
     final origin = painter.getOffsetForCaret(textPosition, Rect.zero);
@@ -862,7 +1176,10 @@ class ViewportLayout {
       if (from < to) {
         final shape = _shapeForLine(line);
         for (final box in shape.painter.getBoxesForSelection(
-          TextSelection(baseOffset: from, extentOffset: to),
+          TextSelection(
+            baseOffset: shape.toParagraph(from),
+            extentOffset: shape.toParagraph(to),
+          ),
           boxHeightStyle: ui.BoxHeightStyle.max,
         )) {
           var rect = box.toRect();
@@ -917,6 +1234,7 @@ class ViewportLayout {
             lineTop(lineNumber) - verticalScrollOffset,
           );
       shape.painter.paint(canvas, at);
+      if (shape.injections.isNotEmpty) shape.paintInjections(canvas, at);
       if (shape.overflow > 0) {
         shape.paintOverflow(
           canvas,
@@ -1048,13 +1366,19 @@ class _ShapeCache {
       this.textDirection == textDirection &&
       this.textScaler == textScaler;
 
-  _LineShape? lookup(String content, List<TextSpan>? spans, int overflow) {
+  _LineShape? lookup(
+    String content,
+    List<TextSpan>? spans,
+    int overflow,
+    List<ViewportInjection> injections,
+  ) {
     final candidates = _entries.remove(content);
     if (candidates == null) return null;
     _entries[content] = candidates; // most recently used
     for (final candidate in candidates) {
       if (candidate.overflow == overflow &&
-          listEquals(candidate.spans, spans)) {
+          listEquals(candidate.spans, spans) &&
+          listEquals(candidate.injections, injections)) {
         return candidate;
       }
     }
@@ -1090,12 +1414,18 @@ class _ShapeCache {
 }
 
 /// Measured, document-position-independent paragraph geometry. Only identical
-/// text and identical styled spans can share it.
+/// text, styled spans and injections can share it.
+///
+/// The paragraph holds one placeholder (U+FFFC, one UTF-16 unit) per tab
+/// (with tab stops), per injected text and for the overflow pill. Tabs stand
+/// for themselves, so a paragraph offset is the line offset plus the
+/// injections before it ([toParagraph], [fromParagraph]).
 class _LineShape {
   _LineShape({
     required this.content,
     required this.overflow,
     required this.spans,
+    required this.injections,
     required TextStyle style,
     required double wrapWidth,
     required TextDirection textDirection,
@@ -1105,16 +1435,11 @@ class _LineShape {
     required int? tabSize,
     required double spaceWidth,
   }) : painter = TextPainter(
-         text: _withOverflow(
-           _buildText(content, spans, style, tabSize),
-           overflow,
-         ),
          textDirection: textDirection,
          textScaler: textScaler,
          strutStyle: strut,
        ) {
     try {
-      final tabs = tabSize != null && content.contains('\t');
       if (overflow > 0) {
         _label = TextPainter(
           text: TextSpan(
@@ -1125,27 +1450,15 @@ class _LineShape {
           textScaler: textScaler,
         )..layout();
       }
-      if (tabs || overflow > 0) {
-        painter.setPlaceholderDimensions([
-          if (tabs)
-            for (final columns in _tabColumns(content, tabSize))
-              PlaceholderDimensions(
-                size: Size(columns * spaceWidth, 0),
-                alignment: ui.PlaceholderAlignment.baseline,
-                baseline: TextBaseline.alphabetic,
-                baselineOffset: 0,
-              ),
-          if (overflow > 0)
-            PlaceholderDimensions(
-              size: Size(_label!.width + 2 * _pillInset, 0),
-              alignment: ui.PlaceholderAlignment.baseline,
-              baseline: TextBaseline.alphabetic,
-              baselineOffset: 0,
-            ),
-        ]);
-      }
+      _boxes = [
+        for (final injection in injections)
+          _InjectionBox(injection.text, style, textScaler, spaceWidth),
+      ];
+      final dimensions = <PlaceholderDimensions>[];
+      painter.text = _build(style, tabSize, spaceWidth, dimensions);
+      if (dimensions.isNotEmpty) painter.setPlaceholderDimensions(dimensions);
       painter.layout(maxWidth: wrapWidth);
-      if (content.isEmpty) {
+      if (content.isEmpty && injections.isEmpty) {
         height = lineHeight;
         left = 0;
         width = 0;
@@ -1159,6 +1472,9 @@ class _LineShape {
     } catch (_) {
       painter.dispose();
       _label?.dispose();
+      for (final box in _boxes) {
+        box.dispose();
+      }
       rethrow;
     }
   }
@@ -1166,72 +1482,109 @@ class _LineShape {
   /// `.mtkoverflow`'s padding and border: 4px and 1px.
   static const _pillInset = 5.0;
 
-  /// [text] followed by the pill's placeholder when the line overflows.
-  static InlineSpan _withOverflow(InlineSpan text, int overflow) {
-    if (overflow == 0) return text;
-    return TextSpan(
-      children: [
-        text,
-        const WidgetSpan(
-          alignment: ui.PlaceholderAlignment.baseline,
-          baseline: TextBaseline.alphabetic,
-          child: SizedBox.shrink(),
-        ),
-      ],
-    );
-  }
+  static const _placeholder = WidgetSpan(
+    alignment: ui.PlaceholderAlignment.baseline,
+    baseline: TextBaseline.alphabetic,
+    child: SizedBox.shrink(),
+  );
 
-  static InlineSpan _buildText(
-    String content,
-    List<TextSpan>? spans,
+  static PlaceholderDimensions _dimensions(double width) =>
+      PlaceholderDimensions(
+        size: Size(width, 0),
+        alignment: ui.PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        baselineOffset: 0,
+      );
+
+  /// Placeholder kinds in paragraph order: an index into [injections], or
+  /// [_tabKind]/[_overflowKind].
+  List<int> _kinds = const [];
+  static const _tabKind = -1;
+  static const _overflowKind = -2;
+
+  /// The paragraph: [spans] (or [content]) with a placeholder for each tab,
+  /// injection and the overflow pill, whose sizes go to [dimensions].
+  InlineSpan _build(
     TextStyle style,
     int? tabSize,
+    double spaceWidth,
+    List<PlaceholderDimensions> dimensions,
   ) {
-    if (tabSize == null || !content.contains('\t')) {
+    final tabs = tabSize != null && content.contains('\t');
+    if (!tabs && injections.isEmpty && overflow == 0) {
       return spans == null
           ? TextSpan(text: content, style: style)
           : TextSpan(style: style, children: spans);
     }
-    return spans == null
-        ? TextSpan(style: style, children: _splitTabs(content))
-        : TextSpan(
-            style: style,
-            children: [for (final s in spans) _withTabs(s)],
+    final tabColumns = tabs ? _tabColumns(content, tabSize) : const <int>[];
+    final runs = <(String, TextStyle?)>[];
+    void flatten(InlineSpan span, TextStyle? inherited) {
+      if (span is! TextSpan) return;
+      final own = span.style;
+      final merged = inherited == null ? own : inherited.merge(own);
+      final text = span.text;
+      if (text != null && text.isNotEmpty) runs.add((text, merged));
+      for (final child in span.children ?? const <InlineSpan>[]) {
+        flatten(child, merged);
+      }
+    }
+
+    if (spans case final spans?) {
+      for (final span in spans) {
+        flatten(span, null);
+      }
+    } else if (content.isNotEmpty) {
+      runs.add((content, null));
+    }
+    final kinds = <int>[];
+    final children = <InlineSpan>[];
+    var next = 0;
+    var tab = 0;
+    void inject(int offset) {
+      while (next < injections.length && injections[next].offset == offset) {
+        children.add(_placeholder);
+        dimensions.add(_dimensions(_boxes[next].width));
+        kinds.add(next);
+        next++;
+      }
+    }
+
+    var at = 0;
+    for (final (text, runStyle) in runs) {
+      var segmentStart = 0;
+      void flush(int end) {
+        if (end > segmentStart) {
+          children.add(
+            TextSpan(text: text.substring(segmentStart, end), style: runStyle),
           );
-  }
+        }
+        segmentStart = end;
+      }
 
-  /// Replaces each tab with a placeholder (one UTF-16 unit, like the tab).
-  static List<InlineSpan> _splitTabs(String text) {
-    final parts = text.split('\t');
-    return [
-      for (var i = 0; i < parts.length; i++) ...[
-        if (i > 0)
-          const WidgetSpan(
-            alignment: ui.PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
-            child: SizedBox.shrink(),
-          ),
-        if (parts[i].isNotEmpty) TextSpan(text: parts[i]),
-      ],
-    ];
-  }
-
-  static InlineSpan _withTabs(InlineSpan span) {
-    if (span is! TextSpan) return span;
-    final text = span.text;
-    final children = span.children;
-    final hasTab = text != null && text.contains('\t');
-    if (!hasTab && children == null) return span;
-    return TextSpan(
-      style: span.style,
-      children: [
-        if (hasTab)
-          ..._splitTabs(text)
-        else if (text != null)
-          TextSpan(text: text),
-        for (final child in children ?? const <InlineSpan>[]) _withTabs(child),
-      ],
-    );
+      for (var i = 0; i < text.length; i++) {
+        if (next < injections.length && injections[next].offset == at + i) {
+          flush(i);
+          inject(at + i);
+        }
+        if (tabs && text.codeUnitAt(i) == 0x09) {
+          flush(i);
+          children.add(_placeholder);
+          dimensions.add(_dimensions(tabColumns[tab++] * spaceWidth));
+          kinds.add(_tabKind);
+          segmentStart = i + 1;
+        }
+      }
+      flush(text.length);
+      at += text.length;
+    }
+    inject(content.length);
+    if (overflow > 0) {
+      children.add(_placeholder);
+      dimensions.add(_dimensions(_label!.width + 2 * _pillInset));
+      kinds.add(_overflowKind);
+    }
+    _kinds = kinds;
+    return TextSpan(style: style, children: children);
   }
 
   /// Visible columns advanced by each tab of [content], like Monaco's
@@ -1262,10 +1615,76 @@ class _LineShape {
   /// Characters past the render limit; 0 when rendered in full.
   final int overflow;
   final List<TextSpan>? spans;
+
+  /// Injected text by line offset (see [ViewportLineDecorations]).
+  final List<ViewportInjection> injections;
+  List<_InjectionBox> _boxes = const [];
   final TextPainter painter;
   TextPainter? _label;
   Color? _labelColor;
   late final double height;
+
+  /// The paragraph's length: the content, its injections and the pill.
+  int get paragraphLength =>
+      content.length + injections.length + (overflow > 0 ? 1 : 0);
+
+  /// The paragraph offset of line offset [column] (at most the content's
+  /// length): past the injections before it, and among those at it, at the
+  /// first boundary a cursor stop allows (`InjectedTextCursorStops`; the
+  /// leftmost when none does).
+  int toParagraph(int column) {
+    if (injections.isEmpty) return column;
+    var before = 0;
+    while (before < injections.length && injections[before].offset < column) {
+      before++;
+    }
+    var end = before;
+    while (end < injections.length && injections[end].offset == column) {
+      end++;
+    }
+    return column + before + _caretStop(before, end);
+  }
+
+  int _caretStop(int from, int to) {
+    if (from == to || injections[from].text.hasLeftCursorStop) return 0;
+    for (var j = from + 1; j < to; j++) {
+      if (injections[j - 1].text.hasRightCursorStop ||
+          injections[j].text.hasLeftCursorStop) {
+        return j - from;
+      }
+    }
+    return injections[to - 1].text.hasRightCursorStop ? to - from : 0;
+  }
+
+  /// The line offset of paragraph offset [offset]: one within or around
+  /// injected text is the column it is at (`translateToInputOffset`).
+  int fromParagraph(int offset) {
+    var count = 0;
+    while (count < injections.length &&
+        injections[count].offset + count < offset) {
+      count++;
+    }
+    return offset - count;
+  }
+
+  /// Each injection's box in the paragraph (null when not laid out).
+  List<Rect?> injectionRects() {
+    final result = List<Rect?>.filled(injections.length, null);
+    final boxes = painter.inlinePlaceholderBoxes ?? const <TextBox>[];
+    for (var k = 0; k < boxes.length && k < _kinds.length; k++) {
+      final kind = _kinds[k];
+      if (kind >= 0) result[kind] = _boxes[kind].rect(boxes[k]);
+    }
+    return result;
+  }
+
+  void paintInjections(Canvas canvas, Offset at) {
+    final boxes = painter.inlinePlaceholderBoxes ?? const <TextBox>[];
+    for (var k = 0; k < boxes.length && k < _kinds.length; k++) {
+      final kind = _kinds[k];
+      if (kind >= 0) _boxes[kind].paint(canvas, at, boxes[k]);
+    }
+  }
 
   /// The pill's box in the paragraph (a row high), when [overflow].
   Rect? get overflowBox {
@@ -1322,9 +1741,13 @@ class _LineShape {
     if (--references > 0) return;
     painter.dispose();
     _label?.dispose();
+    for (final box in _boxes) {
+      box.dispose();
+    }
   }
 
-  late final List<ViewportRow> rows = content.isEmpty || _metrics.isEmpty
+  late final List<ViewportRow> rows =
+      (content.isEmpty && injections.isEmpty) || _metrics.isEmpty
       ? [
           ViewportRow(
             lineNumber: 0,
@@ -1356,12 +1779,153 @@ class _LineShape {
     return ViewportRow(
       lineNumber: 0,
       visualLineIndex: index,
-      startOffset: boundary.start,
-      endOffset: boundary.end,
+      startOffset: math.min(fromParagraph(boundary.start), content.length),
+      endOffset: math.min(fromParagraph(boundary.end), content.length),
       top: localTop,
       height: localBottom - localTop,
       left: metrics[index].left,
       width: metrics[index].width,
     );
   }
+}
+
+/// The box of one injected text: its text shaped in the editor's font with
+/// the injection's style, inside CSS margin, border and padding (`border`
+/// makes `box-sizing: border-box`, as `collectBorderSettingsCSSText` does).
+class _InjectionBox {
+  _InjectionBox(
+    EditorInjectedText injected,
+    TextStyle editorStyle,
+    TextScaler textScaler,
+    double charWidth,
+  ) : _injected = injected {
+    final editorFontSize = editorStyle.fontSize ?? 14;
+    final fontSize =
+        injected.fontSize?.resolve(
+          fontSize: editorFontSize,
+          editorFontSize: editorFontSize,
+          charWidth: charWidth,
+          percentOf: editorFontSize,
+        ) ??
+        editorFontSize;
+    double resolve(EditorCssLength length) => length.resolve(
+      fontSize: fontSize,
+      editorFontSize: editorFontSize,
+      charWidth: charWidth,
+    );
+    var style = TextStyle(
+      color: editorStyle.color,
+      fontFamily: editorStyle.fontFamily,
+      fontFamilyFallback: editorStyle.fontFamilyFallback,
+      fontFeatures: editorStyle.fontFeatures,
+      fontWeight: editorStyle.fontWeight,
+      fontStyle: editorStyle.fontStyle,
+      letterSpacing: editorStyle.letterSpacing,
+      fontSize: fontSize,
+    );
+    if (injected.style case final own?) style = style.merge(own);
+    if (injected.opacity < 1) {
+      final color = style.color;
+      style = style.copyWith(
+        color: color?.withValues(alpha: color.a * injected.opacity),
+      );
+    }
+    _text = TextPainter(
+      text: TextSpan(text: injected.text, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: textScaler,
+      maxLines: 1,
+    )..layout();
+    _baseline = _text.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+    _margin = injected.margin.resolve(
+      fontSize: fontSize,
+      editorFontSize: editorFontSize,
+      charWidth: charWidth,
+    );
+    _padding = injected.padding.resolve(
+      fontSize: fontSize,
+      editorFontSize: editorFontSize,
+      charWidth: charWidth,
+    );
+    _border =
+        injected.borderColor == null ||
+            injected.borderStyle == EditorBorderStyle.none
+        ? 0.0
+        : resolve(injected.borderWidth);
+    _radius = resolve(injected.borderRadius);
+    final chrome = _padding.horizontal + 2 * _border;
+    _boxWidth = switch (injected.width) {
+      null => _text.width + chrome,
+      final width when _border > 0 => math.max(resolve(width), chrome),
+      final width => resolve(width) + chrome,
+    };
+    _boxHeight = switch (injected.height) {
+      null => null,
+      final height when _border > 0 => resolve(height),
+      final height => resolve(height) + _padding.vertical + 2 * _border,
+    };
+    width = math.max(0, _margin.left + _boxWidth + _margin.right);
+  }
+
+  final EditorInjectedText _injected;
+  late final TextPainter _text;
+  late final double _baseline;
+  late final EdgeInsets _margin;
+  late final EdgeInsets _padding;
+  late final double _border;
+  late final double _radius;
+  late final double _boxWidth;
+  late final double? _boxHeight;
+
+  /// The placeholder's width: margin and box.
+  late final double width;
+
+  /// The border box at [placeholder] (a zero-height box on the baseline).
+  Rect rect(TextBox placeholder) {
+    final textTop = placeholder.top - _baseline;
+    final top = textTop - _padding.top - _border;
+    return Rect.fromLTWH(
+      placeholder.left + _margin.left,
+      top,
+      _boxWidth,
+      _boxHeight ?? _text.height + _padding.vertical + 2 * _border,
+    );
+  }
+
+  void paint(Canvas canvas, Offset at, TextBox placeholder) {
+    final box = rect(placeholder).shift(at);
+    final injected = _injected;
+    final rrect = RRect.fromRectAndRadius(box, Radius.circular(_radius));
+    if (injected.backgroundColor case final background?) {
+      var color = background;
+      if (injected.opacity < 1) {
+        color = color.withValues(alpha: color.a * injected.opacity);
+      }
+      canvas.drawRRect(rrect, Paint()..color = color);
+    }
+    if (_border > 0) {
+      canvas.drawRRect(
+        rrect.deflate(_border / 2),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = _border
+          ..color = injected.borderColor!,
+      );
+    }
+    final clip = injected.width != null || injected.height != null;
+    if (clip) {
+      canvas.save();
+      canvas.clipRect(box);
+    }
+    _text.paint(
+      canvas,
+      Offset(
+        box.left + _border + _padding.left,
+        placeholder.top + at.dy - _baseline,
+      ),
+    );
+    if (clip) canvas.restore();
+  }
+
+  void dispose() => _text.dispose();
 }

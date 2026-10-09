@@ -563,7 +563,9 @@ class _MenuPanel extends StatelessWidget {
     ),
     child: ClipRRect(
       borderRadius: BorderRadius.circular(7),
-      child: DefaultTextStyle(
+      // [DefaultTextStyle.merge]: the items keep the app's font (the
+      // theme's), as the rest of the window has it.
+      child: DefaultTextStyle.merge(
         style: TextStyle(
           fontSize: 13,
           color: IdeMenuColors.foreground,

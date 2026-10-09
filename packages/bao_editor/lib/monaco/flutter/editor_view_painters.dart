@@ -344,7 +344,7 @@ class EditorOverlayPainter extends CustomPainter {
   final List<TextSelection> selections;
   final bool focused;
   final Color selectionColor;
-  final SortedDecorations decorations;
+  final EditorDecorationSet decorations;
   final BracketMatch? bracketMatch;
   final EditorFoldingModel folding;
   final int foldingVersion;
@@ -411,25 +411,52 @@ class EditorOverlayPainter extends CustomPainter {
     for (final decoration in decorations.intersecting(windowStart, windowEnd)) {
       final background = decoration.resolvedBackground(theme);
       final border = decoration.borderColor;
-      if (background == null && border == null) continue;
+      final outline = decoration.outlineColor;
+      if (background == null && border == null && outline == null) continue;
+      void box(Rect rect) {
+        final radius = Radius.circular(decoration.borderRadius);
+        if (background != null) {
+          if (decoration.borderRadius > 0) {
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(rect, radius),
+              paint..color = background,
+            );
+          } else {
+            canvas.drawRect(rect, paint..color = background);
+          }
+        }
+        if (border != null) {
+          strokeBox(
+            canvas,
+            rect,
+            border,
+            width: decoration.borderWidth,
+            style: decoration.borderStyle,
+            radius: decoration.borderRadius,
+          );
+        }
+        if (outline != null) {
+          strokeBox(
+            canvas,
+            rect.inflate(decoration.outlineWidth),
+            outline,
+            width: decoration.outlineWidth,
+            style: decoration.outlineStyle,
+          );
+        }
+      }
+
       if (decoration.isWholeLine) {
         final first = snapshot.positionAtOffset(decoration.start).lineNumber;
         final last = snapshot.positionAtOffset(decoration.end).lineNumber;
         for (final line in visible) {
           if (line < first || line > last) continue;
-          final band = lineBand(line);
-          if (background != null) {
-            canvas.drawRect(band, paint..color = background);
-          }
-          if (border != null) _strokeRect(canvas, band, border);
+          box(lineBand(line));
         }
         continue;
       }
       for (final rect in _rects(decoration.start, decoration.end)) {
-        if (background != null) {
-          canvas.drawRect(rect, paint..color = background);
-        }
-        if (border != null) _strokeRect(canvas, rect, border);
+        box(rect);
       }
       if (background == null) continue;
       if (decoration.fillsLineOnLineBreak) {
@@ -497,14 +524,69 @@ class EditorOverlayPainter extends CustomPainter {
   List<Rect> _rects(int start, int end, {bool newline = false}) =>
       layout.offsetRangeRects(start, end, markNewlines: newline);
 
-  static void _strokeRect(Canvas canvas, Rect rect, Color color) {
-    canvas.drawRect(
-      rect.deflate(0.5),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = color,
+  static void _strokeRect(Canvas canvas, Rect rect, Color color) =>
+      strokeBox(canvas, rect, color);
+
+  /// A CSS border [width] wide inside [rect] in [style], its corners
+  /// rounded by [radius].
+  static void strokeBox(
+    Canvas canvas,
+    Rect rect,
+    Color color, {
+    double width = 1,
+    EditorBorderStyle style = EditorBorderStyle.solid,
+    double radius = 0,
+  }) {
+    if (width <= 0 || style == EditorBorderStyle.none) return;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = color;
+    if (style == EditorBorderStyle.double && width >= 3) {
+      final line = width / 3;
+      paint.strokeWidth = line;
+      for (final inset in [line / 2, width - line / 2]) {
+        final box = rect.deflate(inset);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            box,
+            Radius.circular(math.max(0, radius - inset)),
+          ),
+          paint,
+        );
+      }
+      return;
+    }
+    paint.strokeWidth = width;
+    final box = rect.deflate(width / 2);
+    final rrect = RRect.fromRectAndRadius(
+      box,
+      Radius.circular(math.max(0, radius - width / 2)),
     );
+    if (style != EditorBorderStyle.dashed &&
+        style != EditorBorderStyle.dotted) {
+      if (radius > 0) {
+        canvas.drawRRect(rrect, paint);
+      } else {
+        canvas.drawRect(box, paint);
+      }
+      return;
+    }
+    final dash = style == EditorBorderStyle.dotted
+        ? width
+        : math.max(3.0, 3 * width);
+    final gap = style == EditorBorderStyle.dotted ? width : dash;
+    if (style == EditorBorderStyle.dotted) paint.strokeCap = StrokeCap.butt;
+    final path = Path()..addRRect(rrect);
+    final dashed = Path();
+    for (final metric in path.computeMetrics()) {
+      for (var at = 0.0; at < metric.length; at += dash + gap) {
+        dashed.addPath(
+          metric.extractPath(at, math.min(at + dash, metric.length)),
+          Offset.zero,
+        );
+      }
+    }
+    canvas.drawPath(dashed, paint);
   }
 
   void _paintOccurrences(Canvas canvas, int windowStart, int windowEnd) {
@@ -640,7 +722,7 @@ class EditorTextPainter extends CustomPainter {
   final int foldingVersion;
   final EditorGutterGlyphs glyphs;
   final EditorRenderWhitespace renderWhitespace;
-  final SortedDecorations decorations;
+  final EditorDecorationSet decorations;
 
   /// Rect of the fold placeholder after collapsed header [lineNumber], in
   /// content coordinates.
@@ -649,11 +731,8 @@ class EditorTextPainter extends CustomPainter {
     EditorGutterGlyphs glyphs,
     int lineNumber,
   ) {
-    final snapshot = layout.snapshot;
-    final end = layout.caretRect(
-      snapshot.contentEnds[lineNumber - 1],
-      affinity: TextAffinity.upstream,
-    );
+    // After the text injected at the end of the line, if any.
+    final end = layout.lineEndRect(lineNumber);
     final height = layout.lineHeight;
     return Rect.fromLTWH(
       end.left + 4,
@@ -767,10 +846,7 @@ class EditorTextPainter extends CustomPainter {
     final snapshot = layout.snapshot;
     final lineNumber = snapshot.positionAtOffset(decoration.end).lineNumber;
     if (layout.hiddenLines.isHidden(lineNumber)) return;
-    final row = layout.caretRect(
-      snapshot.contentEnds[lineNumber - 1],
-      affinity: TextAffinity.upstream,
-    );
+    final row = layout.lineEndRect(lineNumber);
     final left = folding.isCollapsedAt(lineNumber)
         ? placeholderRect(layout, glyphs, lineNumber).right
         : row.left;
@@ -971,7 +1047,7 @@ class EditorGutterPainter extends CustomPainter {
   final bool foldingEnabled;
 
   /// Their [EditorDecoration.marginColor]s and line decoration icons.
-  final SortedDecorations decorations;
+  final EditorDecorationSet decorations;
 
   @override
   void paint(Canvas canvas, Size size) {
