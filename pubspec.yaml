@@ -25,6 +25,7 @@ environment:
 # pub.dev yet): see each one's HANDOFF.md.
 workspace:
   - packages/bao_editor
+  - packages/bao_exthost
   - packages/bao_pty
   - packages/bao_remote
   - packages/bao_xterm
@@ -38,6 +39,8 @@ workspace:
 dependencies:
   bao_editor:
     path: packages/bao_editor
+  bao_exthost:
+    path: packages/bao_exthost
   bao_pty:
     path: packages/bao_pty
   bao_remote:
