@@ -54,6 +54,12 @@ class IdeEditorViews extends ChangeNotifier {
   IdeEditorView? _active;
   bool _disposed = false;
 
+  /// The decoration types the editors paint
+  /// (`registerTextEditorDecorationType`), shared by every editor widget
+  /// and the extension host's editors, so a type outlives the widget.
+  final EditorDecorationTypeRegistry decorationTypes =
+      EditorDecorationTypeRegistry();
+
   /// The editor on screen, if any.
   IdeEditorView? get active => _active;
 
@@ -86,6 +92,7 @@ class IdeEditorViews extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     unawaited(_changes.close());
+    decorationTypes.dispose();
     super.dispose();
   }
 }

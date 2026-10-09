@@ -34,8 +34,20 @@ final class IdeTextEditors extends ChangeNotifier
     this.showTimeout = const Duration(seconds: 5),
   }) {
     workspace.editorViews.addListener(_viewsChanged);
+    _viewChanges = workspace.editorViews.changes.listen(_viewChanged);
     workspace.addListener(_workspaceChanged);
     _tabs = _readTabs();
+  }
+
+  /// The editor on screen moved its carets, scrolled or changed options
+  /// (`MainThreadTextEditor`'s `onPropertiesChanged`): its id.
+  void Function(String editorId)? onEditorStateChanged;
+
+  late final StreamSubscription<IdeEditorView> _viewChanges;
+
+  void _viewChanged(IdeEditorView view) {
+    if (_disposed || !identical(view, _shown)) return;
+    onEditorStateChanged?.call(idOf(view));
   }
 
   final IdeWorkspace workspace;
@@ -301,6 +313,7 @@ final class IdeTextEditors extends ChangeNotifier
   void dispose() {
     _disposed = true;
     workspace.editorViews.removeListener(_viewsChanged);
+    unawaited(_viewChanges.cancel());
     workspace.removeListener(_workspaceChanged);
     for (final waiter in _waiters) {
       waiter();

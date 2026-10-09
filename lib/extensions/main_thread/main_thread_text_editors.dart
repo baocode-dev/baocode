@@ -52,15 +52,23 @@ final class MainThreadTextEditors extends MainThreadTextEditorsUnsupported {
     Map<String, Object?> extensionId,
     String key,
     Map<String, Object?> options,
-  ) => state.registerDecorationType(
-    '${extensionId['value'] ?? extensionId['id']}',
-    _key(key),
-    options,
-  );
+  ) {
+    _registeredDecorationTypes.add(key);
+    state.registerDecorationType(
+      '${extensionId['value'] ?? extensionId['id']}',
+      _key(key),
+      options,
+    );
+  }
 
   @override
-  void $removeTextEditorDecorationType(String key) =>
-      state.removeDecorationType(_key(key));
+  void $removeTextEditorDecorationType(String key) {
+    _registeredDecorationTypes.remove(key);
+    state.removeDecorationType(_key(key));
+  }
+
+  /// The host's decoration types, removed with it.
+  final Set<String> _registeredDecorationTypes = {};
 
   @override
   Future<void> $trySetDecorations(
@@ -226,7 +234,13 @@ final class MainThreadTextEditors extends MainThreadTextEditorsUnsupported {
     await state.editors.hideEditor(id);
   }
 
-  void dispose() {}
+  /// The host is gone: its decoration types go with it.
+  void dispose() {
+    for (final key in _registeredDecorationTypes) {
+      state.removeDecorationType(_key(key));
+    }
+    _registeredDecorationTypes.clear();
+  }
 
   /// Upstream prefixes a decoration type's key with the actor instance's
   /// id, so a second host's types never collide with the first's.

@@ -130,6 +130,34 @@ void main() {
     expect(keys.getContextKeyValue('config.editor.fontSize'), 17);
   });
 
+  test('config.* keys from settings given after construction', () async {
+    final configuration = ConfigurationService(
+      registry: ConfigurationRegistry(),
+      user: _Settings(),
+    );
+    await configuration.update('ext.views', {
+      'commits': true,
+    }, target: ConfigurationTarget.user);
+    final keys = ContextKeyService();
+    final changed = <bool>[];
+    keys.onDidChangeContext(
+      (e) => changed.add(e.affectsSome({'config.ext.views.commits'})),
+    );
+    expect(keys.getContextKeyValue('config.ext.views.commits'), isNull);
+
+    keys.configuration = ConfigurationContextKeys(configuration);
+    expect(changed, [true]);
+    // A property of an object setting, as upstream's `getValue` reads it.
+    expect(keys.getContextKeyValue('config.ext.views.commits'), isTrue);
+    await configuration.update('ext.views', {
+      'commits': false,
+    }, target: ConfigurationTarget.user);
+    expect(keys.getContextKeyValue('config.ext.views.commits'), isFalse);
+
+    keys.configuration = null;
+    expect(keys.getContextKeyValue('config.ext.views.commits'), isNull);
+  });
+
   test('arrays in settings read as JSON text', () async {
     final configuration = ConfigurationService(
       registry: ConfigurationRegistry(),

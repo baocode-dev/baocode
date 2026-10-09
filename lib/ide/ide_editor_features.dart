@@ -38,10 +38,15 @@ import 'ide_workspace.dart';
 /// reached by the extension host as `vscode.window.activeTextEditor`'s
 /// decoration/inlay/CodeLens features.
 class IdeEditorFeaturesRegistry {
-  IdeEditorFeaturesRegistry();
+  /// [types] given is the workspace's (kept on dispose); otherwise the
+  /// registry has its own.
+  IdeEditorFeaturesRegistry({EditorDecorationTypeRegistry? types})
+    : _types = types,
+      _ownsTypes = types == null;
 
   final Map<IdeDocument, IdeEditorFeatures> _features = {};
   EditorDecorationTypeRegistry? _types;
+  final bool _ownsTypes;
   EditorDecorationTheme? _theme;
 
   /// All open documents' features (the theme's type registry is shared).
@@ -89,7 +94,7 @@ class IdeEditorFeaturesRegistry {
       features.dispose();
     }
     _features.clear();
-    _types?.dispose();
+    if (_ownsTypes) _types?.dispose();
     _types = null;
   }
 }

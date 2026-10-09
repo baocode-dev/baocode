@@ -194,7 +194,9 @@ class IdeEditorState extends State<IdeEditor> {
 
   /// The editor features extensions drive (decoration types, inlay hints,
   /// CodeLens, ghost text), one set per document.
-  final IdeEditorFeaturesRegistry _features = IdeEditorFeaturesRegistry();
+  late final IdeEditorFeaturesRegistry _features = IdeEditorFeaturesRegistry(
+    types: widget.workspace.editorViews.decorationTypes,
+  );
 
   /// The carets last moved without an edit ([IdeGitBlameController.update]).
   bool _caretsNavigated = false;

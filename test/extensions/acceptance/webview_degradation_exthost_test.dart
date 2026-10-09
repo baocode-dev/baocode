@@ -57,7 +57,12 @@ Future<void> _body() async {
   expect(
     webviews.logLines,
     containsAll([
-      contains('"degradation.preview" (degradation.preview) needs a Webview'),
+      // Named by the extension's display name (a custom editor is sent
+      // only the extension's id).
+      contains(
+        'The Degradation Fixture extension\'s editor "degradation.preview" '
+        '(degradation.preview) needs a Webview',
+      ),
       contains('needs a notebook editor'),
     ]),
   );

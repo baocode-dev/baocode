@@ -41,6 +41,7 @@ import '../commands/host_command_activation_io.dart';
 import '../commands/workbench_builtin_commands.dart';
 import '../configuration/configuration_service.dart';
 import '../configuration/core_configuration.dart';
+import '../contextkey/configuration_context.dart';
 import '../contextkey/context_key_service.dart';
 import '../editors/document_registry.dart';
 import '../editors/documents_and_editors_service.dart';
@@ -404,6 +405,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
     registry: commands,
     contextKeys: contextKeys,
     menuService: menus,
+    views: views,
   );
   final ExtensionStatusBarService statusBar = ExtensionStatusBarService();
 
@@ -418,13 +420,16 @@ final class WorkspaceExtensions extends ChangeNotifier {
   late final ExtensionViewsService views = ExtensionViewsService(
     contextKeys: contextKeys,
     activate: (event) async => _host?.activateByEvent(event),
+    commands: commands.builtins,
   );
   final ExtensionQuickInputService quickInput = ExtensionQuickInputService();
   final ExtensionOutputService output = ExtensionOutputService();
   final RunningExtensionsService running = RunningExtensionsService();
   final LanguageStatusService languageStatus = LanguageStatusService();
   late final ExtensionWebviewPlaceholders webviews =
-      ExtensionWebviewPlaceholders()..onLogLine = output.logWarning;
+      ExtensionWebviewPlaceholders()
+        ..onLogLine = output.logWarning
+        ..nameOf = (id) => running.extension(id)?.name;
 
   /// The source controls extensions register.
   final ScmService scm = ScmService();
@@ -573,6 +578,9 @@ final class WorkspaceExtensions extends ChangeNotifier {
       workspace: folderSettings,
     );
     languageRegistry.configuration = configuration;
+    // The `config.` context keys of `when` clauses read these settings.
+    contextKeys.configuration = ConfigurationContextKeys(configuration);
+    _stops.add(() => contextKeys.configuration = null);
     final trust = _trust = WorkspaceTrustService(
       store: app.trustStore,
       workspaceUris: () => [
@@ -595,10 +603,11 @@ final class WorkspaceExtensions extends ChangeNotifier {
         DocumentsAndEditorsService(
           documents: documents,
           editors: editors,
-          decorations: null,
+          decorations: workspace.editorViews.decorationTypes,
         );
     final state = documentsAndEditors.state;
     state.attachTabs(editors);
+    editors.onEditorStateChanged = state.editorStateChanged;
     final port = _documentsPort = IdeDocumentsPort(
       workspace: workspace,
       state: state,
@@ -841,9 +850,8 @@ final class WorkspaceExtensions extends ChangeNotifier {
           opener: WorkbenchExternalOpener(
             app.openExternal ?? (_) async => false,
           ),
-          onOutput: () => output.showChannel(
-            ExtensionOutputService.extensionHostChannelId,
-          ),
+          onOutput: () =>
+              output.showChannel(ExtensionOutputService.extensionHostChannelId),
         ),
         ExtensionAuthenticationUi: ExtensionAuthenticationUi(
           authentication: authentication,

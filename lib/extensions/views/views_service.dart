@@ -21,18 +21,25 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../commands/builtin_commands.dart';
 import '../commands/command_contributions.dart';
 import '../contextkey/context_key_service.dart';
 import 'tree_view.dart';
 import 'view_contributions.dart';
 
 /// Shows a view, opening its container (the workbench's).
-typedef ExtensionViewOpener =
-    Future<void> Function(String viewId, {required bool focus});
+typedef ExtensionViewOpener = Future<void> Function(
+  String viewId, {
+  required bool focus,
+});
 
 /// One workspace's extension views.
 final class ExtensionViewsService extends ChangeNotifier {
-  ExtensionViewsService({this.contextKeys, this.activate});
+  ExtensionViewsService({this.contextKeys, this.activate, this.commands});
+
+  /// Where each view's `<viewId>.focus` command goes.
+  final BuiltinCommands? commands;
+  final Map<String, void Function()> _focusCommands = {};
 
   /// Where the `view.<id>.visible` and `focusedView` keys go.
   final ContextKeyService? contextKeys;
@@ -59,6 +66,7 @@ final class ExtensionViewsService extends ChangeNotifier {
   /// The installed extensions changed: their containers and views.
   void setExtensions(List<ExtensionSource> extensions) {
     _contributions = ViewContributions(extensions);
+    _registerFocusCommands();
     final ids = {
       for (final view in _contributions.views)
         if (view.type == ExtensionViewType.tree) view.id,
@@ -170,9 +178,57 @@ final class ExtensionViewsService extends ChangeNotifier {
     return openView(views.first.id, focus: focus);
   }
 
+  /// `registerFocusViewAction`: `<viewId>.focus` opens and focuses the
+  /// view (`{preserveFocus: true}` only opens it).
+  void _registerFocusCommands() {
+    final commands = this.commands;
+    if (commands == null) return;
+    final ids = {for (final view in _contributions.views) view.id};
+    for (final id in [..._focusCommands.keys]) {
+      if (!ids.contains(id)) _focusCommands.remove(id)!();
+    }
+    for (final id in ids) {
+      _focusCommands[id] ??= commands.register('$id.focus', (args) {
+        final preserveFocus = switch (args.firstOrNull) {
+          {'preserveFocus': true} => true,
+          _ => false,
+        };
+        return openView(id, focus: !preserveFocus);
+      });
+    }
+  }
+
+  /// The views' focus commands, for the Command Palette: "Focus on (name)
+  /// View" in its container's category, while the view's `when` holds.
+  List<({String id, String title, String category})> focusCommands(
+    ContextKeyValues context,
+  ) => [
+    for (final view in _contributions.views)
+      if (context.contextMatchesRules(view.when))
+        (
+          id: '${view.id}.focus',
+          title: 'Focus on ${view.name} View',
+          category:
+              _contributions.container(view.containerId)?.title ??
+              _builtinTitles[view.containerId] ??
+              'View',
+        ),
+  ];
+
+  static const _builtinTitles = {
+    BuiltinViewContainers.explorer: 'Explorer',
+    BuiltinViewContainers.scm: 'Source Control',
+    BuiltinViewContainers.debug: 'Run and Debug',
+    BuiltinViewContainers.testing: 'Testing',
+  };
+
   @override
   void dispose() {
     _disposed = true;
+    for (final stop in _focusCommands.values) {
+      stop();
+    }
+    _focusCommands.clear();
     for (final tree in _treeViews.values) {
       tree.headerChanges.removeListener(_headerChanged);
       tree.dispose();

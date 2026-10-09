@@ -475,6 +475,17 @@ void main() {
 
     await rpcActor.invoke(r'$removeTextEditorDecorationType', ['myType']);
     expect(editor.decorations!.typeKeys, isNot(contains(key)));
+
+    // The host gone, the types it registered go too.
+    await rpcActor.invoke(r'$registerTextEditorDecorationType', [
+      {'value': 'baocode.test'},
+      'other',
+      {'backgroundColor': '#00ff00'},
+    ]);
+    final other = '${fixture.state.instanceId}-other';
+    expect(fixture.decorations!.contains(other), isTrue);
+    actor.dispose();
+    expect(fixture.decorations!.contains(other), isFalse);
   });
 
   test(r'$getDiffInformation answers no changes', () async {

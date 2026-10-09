@@ -170,6 +170,21 @@ abstract interface class ContextKeyConfiguration {
 /// and the workbench's [fallback].
 final class _RootContext extends Context {
   _RootContext(int id, this._configuration, this._fire) : super(id, null) {
+    _listen();
+  }
+
+  /// [configuration] now answers the `config.` keys (the workspace's
+  /// settings, once it has them): every cached one changes.
+  void setConfiguration(ContextKeyConfiguration? configuration) {
+    _stop?.call();
+    _configuration = configuration;
+    _listen();
+    final all = _cache.keys.toList();
+    _cache.clear();
+    _fire(_ArrayChangeEvent(all));
+  }
+
+  void _listen() {
     _stop = _configuration?.onDidChange((keys) {
       if (keys == null) {
         final all = _cache.keys.toList();
@@ -193,7 +208,7 @@ final class _RootContext extends Context {
 
   static const _keyPrefix = 'config.';
 
-  final ContextKeyConfiguration? _configuration;
+  ContextKeyConfiguration? _configuration;
   final void Function(ContextKeyChangeEvent) _fire;
   final Map<String, Object?> _cache = {};
   void Function()? _stop;
@@ -452,6 +467,11 @@ final class ContextKeyService extends AbstractContextKeyService
   late final _RootContext _root;
   int _lastContextId = 0;
   final _contexts = <int, Context>{};
+
+  /// Where the `config.` keys are read from, when it was not given at
+  /// construction (the workspace's settings arrive later).
+  set configuration(ContextKeyConfiguration? value) =>
+      _root.setConfiguration(value);
 
   /// Reads the keys this service does not hold: the workbench's own lookup
   /// of its UI state (focus, visible parts…), after the values set here.

@@ -36,12 +36,20 @@ final class WebviewPlaceholder {
   /// It was shown again after being hidden.
   bool revealed = false;
 
-  String get extensionId => switch (extension['identifier']) {
-    final Map<Object?, Object?> id => '${id['value']}',
-    _ => '${extension['publisher']}.${extension['name']}',
-  };
+  /// `IExtensionDescription.identifier`, or a `WebviewExtensionDescription`'s
+  /// `id` (all a panel, view or custom editor is sent).
+  String get extensionId =>
+      switch (extension['identifier'] ?? extension['id']) {
+        final Map<Object?, Object?> id => '${id['value']}',
+        final String id => id,
+        _ => '${extension['publisher']}.${extension['name']}',
+      };
 
-  String get extensionName => '${extension['displayName'] ?? extensionId}';
+  /// The extension's display name, when the workbench knows it.
+  String? displayName;
+
+  String get extensionName =>
+      '${displayName ?? extension['displayName'] ?? extensionId}';
 
   /// The line the Output panel gets: what could not be shown, and why.
   String get description => kind == WebviewKind.notebook
@@ -67,6 +75,9 @@ final class ExtensionWebviewPlaceholders extends ChangeNotifier {
   /// Where each line goes as it is added (the Output panel's "Extension
   /// Host" channel).
   void Function(String line)? onLogLine;
+
+  /// An extension's display name by id, for the notices and lines.
+  String? Function(String extensionId)? nameOf;
 
   /// Adds [line] for the Output panel.
   void logLine(String line) {
@@ -182,6 +193,7 @@ final class ExtensionWebviewPlaceholders extends ChangeNotifier {
   List<WebviewPlaceholder> get notebooks => _ofKind(WebviewKind.notebook);
 
   WebviewPlaceholder _add(WebviewPlaceholder placeholder) {
+    placeholder.displayName ??= nameOf?.call(placeholder.extensionId);
     _placeholders[placeholder.handle] = placeholder;
     notifyListeners();
     return placeholder;
