@@ -6292,21 +6292,65 @@ class AppLocalizationsZh extends AppLocalizations {
   String get networkProxyRefresh => '重新检测';
 
   @override
-  String get networkTest => '测试连接';
+  String get networkTest => '连通性测试';
 
   @override
-  String get networkTestDescription => '通过当前使用的代理连接 api.anthropic.com。';
+  String get networkTestDescription =>
+      '通过当前使用的代理访问这些网站，看能否连上、速度如何（新建连接到开始收到响应的用时）。';
 
   @override
-  String get networkTesting => '正在连接…';
+  String get networkTesting => '测试中…';
 
   @override
-  String networkTestOk(int ms) {
-    return '连接成功，用时 $ms 毫秒。';
+  String get networkTestRun => '开始测试';
+
+  @override
+  String get networkTestRunAgain => '重新测试';
+
+  @override
+  String get networkTestIdle => '未测试';
+
+  @override
+  String networkTestMs(int ms) {
+    return '$ms ms';
   }
 
   @override
-  String networkTestFailed(String error) {
-    return '连接失败：$error';
+  String get networkTestUnreachable => '无法访问';
+
+  @override
+  String networkTestSummary(int reached, int total) {
+    return '$total 个网站中 $reached 个可以访问。';
   }
+
+  @override
+  String get networkFailureTimeout => '超时';
+
+  @override
+  String get networkFailureRefused => '连接被拒绝';
+
+  @override
+  String get networkFailureReset => '连接被重置';
+
+  @override
+  String get networkFailureDns => '域名解析失败';
+
+  @override
+  String get networkFailureTls => 'TLS 握手失败';
+
+  @override
+  String get networkFailureProxyAuth => '代理需要认证';
+
+  @override
+  String get networkFailureOther => '连接失败';
+
+  @override
+  String get networkTestHintRefused => '代理地址上没有程序响应：请确认 Clash（或其他代理）正在运行。';
+
+  @override
+  String get networkTestHintOffline => '所有网站都无法访问：请检查本机网络和代理。';
+
+  @override
+  String get networkTestHintBlocked =>
+      '只有百度能访问：其他网站没有经过代理。请检查上面的代理设置，或 Clash 的模式和规则。';
 }

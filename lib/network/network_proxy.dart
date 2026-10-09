@@ -8,6 +8,7 @@ import 'network_proxy_stub.dart'
     as platform;
 import 'proxy_settings.dart';
 
+export 'connection_test.dart';
 export 'proxy_settings.dart';
 
 /// Follows [setting] (settings.json's) as [changes] notifies, and sends
@@ -21,5 +22,5 @@ Future<void> startNetworkProxy(
 /// The proxy now, the system's read again.
 Future<ProxyRoute> currentProxyRoute() => platform.currentProxyRoute();
 
-/// How long [url] took to answer through it; throws what went wrong.
+/// How long [url] took to answer through it; throws a [ProbeFailure].
 Future<Duration> probeConnection(Uri url) => platform.probeConnection(url);

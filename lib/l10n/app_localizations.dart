@@ -11040,32 +11040,116 @@ abstract class AppLocalizations {
   /// No description provided for @networkTest.
   ///
   /// In en, this message translates to:
-  /// **'Test Connection'**
+  /// **'Connection Test'**
   String get networkTest;
 
   /// No description provided for @networkTestDescription.
   ///
   /// In en, this message translates to:
-  /// **'Connects to api.anthropic.com through the proxy in use.'**
+  /// **'Reaches these sites through the proxy in use: whether each answers, and how quickly (a new connection\'s time, until the answer starts).'**
   String get networkTestDescription;
 
   /// No description provided for @networkTesting.
   ///
   /// In en, this message translates to:
-  /// **'Connecting…'**
+  /// **'Testing…'**
   String get networkTesting;
 
-  /// No description provided for @networkTestOk.
+  /// No description provided for @networkTestRun.
   ///
   /// In en, this message translates to:
-  /// **'Connected in {ms} ms.'**
-  String networkTestOk(int ms);
+  /// **'Run Test'**
+  String get networkTestRun;
 
-  /// No description provided for @networkTestFailed.
+  /// No description provided for @networkTestRunAgain.
   ///
   /// In en, this message translates to:
-  /// **'Couldn\'t connect: {error}'**
-  String networkTestFailed(String error);
+  /// **'Test Again'**
+  String get networkTestRunAgain;
+
+  /// No description provided for @networkTestIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Not tested'**
+  String get networkTestIdle;
+
+  /// A site's answer time, in milliseconds.
+  ///
+  /// In en, this message translates to:
+  /// **'{ms} ms'**
+  String networkTestMs(int ms);
+
+  /// No description provided for @networkTestUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unreachable'**
+  String get networkTestUnreachable;
+
+  /// No description provided for @networkTestSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{reached} of {total} sites reachable.'**
+  String networkTestSummary(int reached, int total);
+
+  /// No description provided for @networkFailureTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Timed out'**
+  String get networkFailureTimeout;
+
+  /// No description provided for @networkFailureRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection refused'**
+  String get networkFailureRefused;
+
+  /// No description provided for @networkFailureReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection reset'**
+  String get networkFailureReset;
+
+  /// No description provided for @networkFailureDns.
+  ///
+  /// In en, this message translates to:
+  /// **'DNS lookup failed'**
+  String get networkFailureDns;
+
+  /// No description provided for @networkFailureTls.
+  ///
+  /// In en, this message translates to:
+  /// **'TLS failed'**
+  String get networkFailureTls;
+
+  /// No description provided for @networkFailureProxyAuth.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy needs sign-in'**
+  String get networkFailureProxyAuth;
+
+  /// No description provided for @networkFailureOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t connect'**
+  String get networkFailureOther;
+
+  /// No description provided for @networkTestHintRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing answers at the proxy\'s address: check that Clash (or the proxy) is running.'**
+  String get networkTestHintRefused;
+
+  /// No description provided for @networkTestHintOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'No site answers: check this computer\'s network connection and the proxy.'**
+  String get networkTestHintOffline;
+
+  /// No description provided for @networkTestHintBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Only Baidu answers: the proxy isn\'t getting the others through. Check the proxy above, or Clash\'s mode and rules.'**
+  String get networkTestHintBlocked;
 }
 
 class _AppLocalizationsDelegate

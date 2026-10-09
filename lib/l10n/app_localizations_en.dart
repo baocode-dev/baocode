@@ -6684,22 +6684,67 @@ class AppLocalizationsEn extends AppLocalizations {
   String get networkProxyRefresh => 'Detect Again';
 
   @override
-  String get networkTest => 'Test Connection';
+  String get networkTest => 'Connection Test';
 
   @override
   String get networkTestDescription =>
-      'Connects to api.anthropic.com through the proxy in use.';
+      'Reaches these sites through the proxy in use: whether each answers, and how quickly (a new connection\'s time, until the answer starts).';
 
   @override
-  String get networkTesting => 'Connecting…';
+  String get networkTesting => 'Testing…';
 
   @override
-  String networkTestOk(int ms) {
-    return 'Connected in $ms ms.';
+  String get networkTestRun => 'Run Test';
+
+  @override
+  String get networkTestRunAgain => 'Test Again';
+
+  @override
+  String get networkTestIdle => 'Not tested';
+
+  @override
+  String networkTestMs(int ms) {
+    return '$ms ms';
   }
 
   @override
-  String networkTestFailed(String error) {
-    return 'Couldn\'t connect: $error';
+  String get networkTestUnreachable => 'Unreachable';
+
+  @override
+  String networkTestSummary(int reached, int total) {
+    return '$reached of $total sites reachable.';
   }
+
+  @override
+  String get networkFailureTimeout => 'Timed out';
+
+  @override
+  String get networkFailureRefused => 'Connection refused';
+
+  @override
+  String get networkFailureReset => 'Connection reset';
+
+  @override
+  String get networkFailureDns => 'DNS lookup failed';
+
+  @override
+  String get networkFailureTls => 'TLS failed';
+
+  @override
+  String get networkFailureProxyAuth => 'Proxy needs sign-in';
+
+  @override
+  String get networkFailureOther => 'Couldn\'t connect';
+
+  @override
+  String get networkTestHintRefused =>
+      'Nothing answers at the proxy\'s address: check that Clash (or the proxy) is running.';
+
+  @override
+  String get networkTestHintOffline =>
+      'No site answers: check this computer\'s network connection and the proxy.';
+
+  @override
+  String get networkTestHintBlocked =>
+      'Only Baidu answers: the proxy isn\'t getting the others through. Check the proxy above, or Clash\'s mode and rules.';
 }

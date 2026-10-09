@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:baocode/network/connection_test.dart';
 import 'package:baocode/network/network_proxy_io.dart';
 import 'package:baocode/network/proxy_settings.dart';
 import 'package:flutter/foundation.dart';
@@ -43,6 +44,27 @@ void main() {
     system = _clash;
     environment = const {};
     systemReads = 0;
+  });
+
+  test('starts as main() starts it, under a timeout', () async {
+    final app = NetworkProxy.instance;
+    final overrides = HttpOverrides.current;
+    addTearDown(() {
+      NetworkProxy.instance = app;
+      HttpOverrides.global = overrides;
+    });
+    NetworkProxy.instance = NetworkProxy(
+      system: () async => system,
+      environment: () async => environment,
+    );
+    // The future is a Future<void>, not a Future<ProxyRoute> that would
+    // refuse this onTimeout as it runs.
+    await startNetworkProxy(
+      settings,
+      (key) => settings[key],
+    ).timeout(const Duration(seconds: 1), onTimeout: () {});
+    expect(NetworkProxy.instance.current, _clash);
+    expect(HttpOverrides.current, isA<NetworkProxyOverrides>());
   });
 
   test('follows the system proxy by default', () async {
@@ -178,5 +200,110 @@ void main() {
       }
     }, NetworkProxyOverrides(proxy));
     expect(requested, ['http://example.invalid/x']);
+  });
+
+  group('probe', () {
+    late NetworkProxy proxy;
+
+    setUp(() {
+      // Real sockets, on this machine: not the test binding's 400s.
+      final overrides = HttpOverrides.current;
+      HttpOverrides.global = null;
+      addTearDown(() => HttpOverrides.global = overrides);
+      system = const ProxyRoute.direct();
+      proxy = make();
+    });
+
+    test('any answer is the site reached, timed to its headers', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) {
+        request.response
+          ..statusCode = 404
+          ..write('x' * 100000)
+          ..close();
+      });
+      final time = await proxy.probe(
+        Uri.parse('http://127.0.0.1:${server.port}/'),
+      );
+      expect(time, lessThan(const Duration(seconds: 5)));
+    });
+
+    test('nothing listening is refused', () async {
+      final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final port = socket.port;
+      await socket.close();
+      await expectLater(
+        proxy.probe(Uri.parse('http://127.0.0.1:$port/')),
+        throwsA(
+          isA<ProbeFailure>().having(
+            (failure) => failure.kind,
+            'kind',
+            ProbeFailureKind.refused,
+          ),
+        ),
+      );
+    });
+
+    test('no answer in time is a timeout', () async {
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final held = <Socket>[];
+      server.listen(held.add);
+      addTearDown(() async {
+        for (final socket in held) {
+          socket.destroy();
+        }
+        await server.close();
+      });
+      await expectLater(
+        proxy.probe(
+          Uri.parse('http://127.0.0.1:${server.port}/'),
+          timeout: const Duration(milliseconds: 200),
+        ),
+        throwsA(
+          isA<ProbeFailure>().having(
+            (failure) => failure.kind,
+            'kind',
+            ProbeFailureKind.timeout,
+          ),
+        ),
+      );
+    });
+  });
+
+  test('a failure is named by what the system said', () {
+    ProbeFailureKind kind(Object error) => probeFailure(error).kind;
+    expect(kind(TimeoutException('')), ProbeFailureKind.timeout);
+    expect(
+      kind(const SocketException('x', osError: OSError('', 10061))),
+      ProbeFailureKind.refused,
+    );
+    expect(
+      kind(const SocketException('x', osError: OSError('', 54))),
+      ProbeFailureKind.reset,
+    );
+    expect(
+      kind(const SocketException("Failed host lookup: 'www.google.com'")),
+      ProbeFailureKind.dns,
+    );
+    expect(
+      kind(const HandshakeException('Connection terminated during handshake')),
+      ProbeFailureKind.reset,
+    );
+    expect(
+      kind(const HandshakeException('CERTIFICATE_VERIFY_FAILED')),
+      ProbeFailureKind.tls,
+    );
+    expect(
+      kind(const HttpException('Proxy failed to establish tunnel (407 x)')),
+      ProbeFailureKind.proxyAuth,
+    );
+    expect(kind(StateError('?')), ProbeFailureKind.other);
+  });
+
+  test('each site has its logo', () {
+    for (final site in TestSite.all) {
+      expect(File(site.icon).existsSync(), isTrue, reason: site.icon);
+    }
   });
 }

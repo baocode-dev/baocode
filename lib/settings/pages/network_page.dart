@@ -8,18 +8,20 @@ import '../../l10n/l10n.dart';
 import '../../network/network_proxy.dart';
 import '../../theme/codicons.dart';
 import '../user_settings.dart';
+import 'network_test_view.dart';
 import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
 
 /// Settings → Network: the proxy BaoCode and the Claude Code it starts go
 /// through (`http.proxyMode`, `http.proxy`), the one in use now, and a
-/// test of it.
+/// test of it: whether a few sites answer through it, and how quickly.
 class NetworkSettingsPage extends StatefulWidget {
   const NetworkSettingsPage({
     super.key,
     this.settings,
     this.detect = currentProxyRoute,
     this.probe = probeConnection,
+    this.sites,
   });
 
   /// settings.json; none under test, where choices are not kept.
@@ -28,12 +30,11 @@ class NetworkSettingsPage extends StatefulWidget {
   /// The proxy in use now.
   final Future<ProxyRoute> Function() detect;
 
-  /// How long [probeUrl] takes to answer through it.
+  /// How long a site takes to answer through it; throws a [ProbeFailure].
   final Future<Duration> Function(Uri url) probe;
 
-  /// What Test Connection asks: Claude Code's API, the one that has to
-  /// get through.
-  static final probeUrl = Uri.parse('https://api.anthropic.com/');
+  /// What the test asks; [TestSite.all] by default.
+  final List<TestSite>? sites;
 
   static String modeName(BuildContext context, ProxyMode mode) {
     final l10n = context.l10n;
@@ -48,25 +49,6 @@ class NetworkSettingsPage extends StatefulWidget {
   State<NetworkSettingsPage> createState() => _NetworkSettingsPageState();
 }
 
-/// Test Connection's answer.
-sealed class _Probe {
-  const _Probe();
-}
-
-class _Probing extends _Probe {
-  const _Probing();
-}
-
-class _Reached extends _Probe {
-  const _Reached(this.time);
-  final Duration time;
-}
-
-class _Failed extends _Probe {
-  const _Failed(this.error);
-  final String error;
-}
-
 class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
   /// The proxy in use, once detected; null while it is.
   ProxyRoute? _route;
@@ -74,9 +56,17 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
   /// What was typed as the address, when it is not one.
   String? _invalid;
 
-  _Probe? _probe;
+  /// The test's, by site; empty before it runs.
+  Map<String, SiteResult> _results = const {};
+
+  /// Counts the tests: a site's answer to one gone is not shown.
+  int _run = 0;
 
   int _detecting = 0;
+
+  List<TestSite> get _sites => widget.sites ?? TestSite.all;
+
+  bool get _testing => _results.values.any((result) => result is SiteTesting);
 
   @override
   void initState() {
@@ -91,8 +81,10 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     super.dispose();
   }
 
+  /// The proxy changed: what was tested went through the one before.
   void _changed() {
-    setState(() => _probe = null);
+    _run++;
+    setState(() => _results = const {});
     unawaited(_detect());
   }
 
@@ -103,22 +95,55 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     if (mounted && asked == _detecting) setState(() => _route = route);
   }
 
+  /// Asks every site at once, each shown as it answers.
   Future<void> _test() async {
-    setState(() => _probe = const _Probing());
-    _Probe probe;
-    try {
-      probe = _Reached(await widget.probe(NetworkSettingsPage.probeUrl));
-    } on Object catch (error) {
-      probe = _Failed(_message(error));
+    final run = ++_run;
+    final sites = _sites;
+    setState(
+      () => _results = {for (final site in sites) site.id: const SiteTesting()},
+    );
+    Future<void> ask(TestSite site) async {
+      SiteResult result;
+      try {
+        result = SiteReached(await widget.probe(site.url));
+      } on ProbeFailure catch (failure) {
+        result = SiteUnreached(failure);
+      } on Object catch (error) {
+        result = SiteUnreached(ProbeFailure(ProbeFailureKind.other, '$error'));
+      }
+      if (!mounted || run != _run) return;
+      setState(() => _results = {..._results, site.id: result});
     }
-    if (mounted) setState(() => _probe = probe);
+
+    await Future.wait([for (final site in sites) ask(site)]);
   }
 
-  /// [error] in a line: a socket's message without its class.
-  static String _message(Object error) => switch (error) {
-    TimeoutException() => 'timed out',
-    _ => '$error'.replaceFirst(RegExp(r'^\w+Exception:\s*'), ''),
-  };
+  /// What the answers together suggest, once all are in; null when they
+  /// suggest nothing.
+  String? _hint(BuildContext context) {
+    final l10n = context.l10n;
+    final results = _results;
+    if (results.isEmpty || _testing) return null;
+    final failures = [
+      for (final result in results.values)
+        if (result is SiteUnreached) result.failure.kind,
+    ];
+    if (failures.isEmpty) return null;
+    if (failures.length == results.length) {
+      return failures.every((kind) => kind == ProbeFailureKind.refused)
+          ? l10n.networkTestHintRefused
+          : l10n.networkTestHintOffline;
+    }
+    // Only the site at home answers: the others do not get through.
+    final reached = [
+      for (final MapEntry(:key, :value) in results.entries)
+        if (value is SiteReached) key,
+    ];
+    if (reached.length == 1 && reached.single == 'baidu') {
+      return l10n.networkTestHintBlocked;
+    }
+    return null;
+  }
 
   void _write(String key, Object? value) {
     final settings = widget.settings;
@@ -220,27 +245,42 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
           children: [
             SettingsRow(
               label: l10n.networkTest,
-              description: switch (_probe) {
-                null => l10n.networkTestDescription,
-                _Probing() => l10n.networkTesting,
-                _Reached(:final time) => l10n.networkTestOk(
-                  time.inMilliseconds,
-                ),
-                _Failed(:final error) => l10n.networkTestFailed(error),
-              },
+              description: _summary(context),
               trailing: IdeButton(
-                label: l10n.networkTest,
-                icon: Codicons.debugStart,
+                label: _results.isEmpty
+                    ? l10n.networkTestRun
+                    : l10n.networkTestRunAgain,
+                icon: _results.isEmpty ? Codicons.debugStart : Codicons.refresh,
                 secondary: true,
-                onPressed: _probe is _Probing || _route == null
+                spinning: _testing,
+                onPressed: _testing || _route == null
                     ? null
                     : () => unawaited(_test()),
               ),
             ),
+            for (final site in _sites)
+              NetworkTestRow(site: site, result: _results[site.id]),
+            if (_hint(context) case final hint?)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 11,
+                ),
+                child: Text(hint, style: SettingsText.description),
+              ),
           ],
         ),
       ],
     );
+  }
+
+  /// The test's description, and how many answered once all have.
+  String _summary(BuildContext context) {
+    final l10n = context.l10n;
+    final results = _results;
+    if (results.isEmpty || _testing) return l10n.networkTestDescription;
+    final reached = results.values.whereType<SiteReached>().length;
+    return l10n.networkTestSummary(reached, results.length);
   }
 
   /// The proxy in use, in words.

@@ -98,6 +98,7 @@ flutter:
     - assets/sounds/
     # Emojibase's emoji, for project icons (tool/generate_emoji.mjs).
     - assets/emoji/
+    - assets/network/
     # VS Code TextMate grammars and color themes (tool/generate_textmate_assets.mjs).
 
   # VS Code's icon font (tool/generate_codicons.mjs; lib/theme/codicons.dart).

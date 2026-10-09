@@ -4839,23 +4839,41 @@
   "networkProxyStatusOff": "Direct.",
   "networkProxyStatusAutoConfig": "Direct: the system sets its proxy with an auto-config (PAC) file, which BaoCode doesn't follow. Turn on Clash's system proxy, or enter the address manually.",
   "networkProxyRefresh": "Detect Again",
-  "networkTest": "Test Connection",
-  "networkTestDescription": "Connects to api.anthropic.com through the proxy in use.",
-  "networkTesting": "Connecting…",
-  "networkTestOk": "Connected in {ms} ms.",
-  "@networkTestOk": {
+  "networkTest": "Connection Test",
+  "networkTestDescription": "Reaches these sites through the proxy in use: whether each answers, and how quickly (a new connection's time, until the answer starts).",
+  "networkTesting": "Testing…",
+  "networkTestRun": "Run Test",
+  "networkTestRunAgain": "Test Again",
+  "networkTestIdle": "Not tested",
+  "networkTestMs": "{ms} ms",
+  "@networkTestMs": {
+    "description": "A site's answer time, in milliseconds.",
     "placeholders": {
       "ms": {
         "type": "int"
       }
     }
   },
-  "networkTestFailed": "Couldn't connect: {error}",
-  "@networkTestFailed": {
+  "networkTestUnreachable": "Unreachable",
+  "networkTestSummary": "{reached} of {total} sites reachable.",
+  "@networkTestSummary": {
     "placeholders": {
-      "error": {
-        "type": "String"
+      "reached": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
       }
     }
-  }
+  },
+  "networkFailureTimeout": "Timed out",
+  "networkFailureRefused": "Connection refused",
+  "networkFailureReset": "Connection reset",
+  "networkFailureDns": "DNS lookup failed",
+  "networkFailureTls": "TLS failed",
+  "networkFailureProxyAuth": "Proxy needs sign-in",
+  "networkFailureOther": "Couldn't connect",
+  "networkTestHintRefused": "Nothing answers at the proxy's address: check that Clash (or the proxy) is running.",
+  "networkTestHintOffline": "No site answers: check this computer's network connection and the proxy.",
+  "networkTestHintBlocked": "Only Baidu answers: the proxy isn't getting the others through. Check the proxy above, or Clash's mode and rules."
 }

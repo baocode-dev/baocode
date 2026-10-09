@@ -1,3 +1,6 @@
+import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:baocode/ide/ide_code_editor.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/code_font.dart';
 import 'package:flutter/material.dart';
@@ -45,5 +48,42 @@ void main() {
     );
     expect(interface.scale(10), closeTo(16.5, 1e-9));
     expect(code.scale(10), closeTo(11, 1e-9));
+  });
+
+  testWidgets('the IDE editor keeps to the code size; one sized as the '
+      "interface (the side panel's) to the interface's text", (tester) async {
+    Future<(double, double)> pump({required bool interfaceSized}) async {
+      final controller = EditorSurfaceController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SystemTextScale(
+            scaler: TextScaler.noScaling,
+            child: MediaQuery(
+              data: const MediaQueryData(textScaler: TextScaler.linear(1.5)),
+              child: IdeCodeEditor(
+                controller: controller,
+                path: 'a.dart',
+                interfaceSized: interfaceSized,
+              ),
+            ),
+          ),
+        ),
+      );
+      final surface = find.byType(EditorSurface);
+      final scale = MediaQuery.textScalerOf(tester.element(surface)).scale(1);
+      final size = tester.widget<EditorSurface>(surface).style.fontSize!;
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 20));
+      return (scale, size);
+    }
+
+    CodeFont.size.value = CodeFont.defaultSize + 4;
+    final (editorScale, editorSize) = await pump(interfaceSized: false);
+    expect(editorScale, 1);
+    expect(editorSize, AppFonts.codeStyle(13).fontSize);
+    final (panelScale, panelSize) = await pump(interfaceSized: true);
+    expect(panelScale, 1.5);
+    expect(panelSize, AppFonts.uiCodeStyle(13).fontSize);
   });
 }

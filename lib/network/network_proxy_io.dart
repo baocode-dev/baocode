@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../kernel/claude_code/claude_environment.dart';
+import 'connection_test.dart';
 import 'proxy_settings.dart';
 
 /// The proxy the app's requests and the Claude Code it starts go through,
@@ -133,11 +134,13 @@ class NetworkProxy {
   Future<Map<String, String>> environment() async =>
       (await resolve()).environment;
 
-  /// Whether [url] answers through the proxy now: how long it took, or
-  /// what went wrong. Any HTTP status is an answer.
+  /// Whether [url] answers through the proxy now: how long until its
+  /// answer's headers came, on a new connection (the name looked up, the
+  /// proxy's tunnel, TLS), or throws a [ProbeFailure]. Any HTTP status is
+  /// an answer; the body is not read.
   Future<Duration> probe(
     Uri url, {
-    Duration timeout = const Duration(seconds: 10),
+    Duration timeout = const Duration(seconds: 8),
   }) async {
     final route = await resolve();
     final client = HttpClient()
@@ -145,16 +148,65 @@ class NetworkProxy {
       ..findProxy = route.findProxy;
     final watch = Stopwatch()..start();
     try {
-      final request = await client.headUrl(url).timeout(timeout);
-      final response = await request.close().timeout(timeout);
-      await response.drain<void>();
+      final response = await client
+          .getUrl(url)
+          .then((request) => request.close())
+          .timeout(timeout);
       if (response.statusCode == HttpStatus.proxyAuthenticationRequired) {
-        throw const HttpException('407 Proxy Authentication Required');
+        throw const ProbeFailure(ProbeFailureKind.proxyAuth);
       }
       return watch.elapsed;
+    } on ProbeFailure {
+      rethrow;
+    } on Object catch (error) {
+      throw probeFailure(error);
     } finally {
       client.close(force: true);
     }
+  }
+}
+
+/// [error], from asking a site, as why it was not reached.
+@visibleForTesting
+ProbeFailure probeFailure(Object error) {
+  const refused = {61, 111, 10061};
+  const reset = {54, 104, 10054};
+  switch (error) {
+    case TimeoutException():
+      return const ProbeFailure(ProbeFailureKind.timeout);
+    case SocketException(:final message, :final osError):
+      final code = osError?.errorCode;
+      final text = '$message ${osError?.message ?? ''}'.toLowerCase();
+      final detail = osError?.message ?? message;
+      if (refused.contains(code) || text.contains('refused')) {
+        return ProbeFailure(ProbeFailureKind.refused, detail);
+      }
+      if (reset.contains(code) || text.contains('reset')) {
+        return ProbeFailure(ProbeFailureKind.reset, detail);
+      }
+      if (text.contains('host lookup') || text.contains('nodename')) {
+        return ProbeFailure(ProbeFailureKind.dns, detail);
+      }
+      if (text.contains('timed out')) {
+        return ProbeFailure(ProbeFailureKind.timeout, detail);
+      }
+      return ProbeFailure(ProbeFailureKind.other, detail);
+    case HandshakeException(:final message):
+      // Cut off in the middle of it: blocked, as a reset is.
+      return ProbeFailure(
+        message.contains('terminated')
+            ? ProbeFailureKind.reset
+            : ProbeFailureKind.tls,
+        message,
+      );
+    case TlsException(:final message):
+      return ProbeFailure(ProbeFailureKind.tls, message);
+    case HttpException(:final message) when message.contains('407'):
+      return ProbeFailure(ProbeFailureKind.proxyAuth, message);
+    case HttpException(:final message):
+      return ProbeFailure(ProbeFailureKind.other, message);
+    default:
+      return ProbeFailure(ProbeFailureKind.other, '$error');
   }
 }
 
@@ -195,10 +247,12 @@ Future<ProxyRoute> readSystemProxy() async {
 Future<void> startNetworkProxy(
   Listenable changes,
   Object? Function(String key) setting,
-) {
+) async {
   final proxy = NetworkProxy.instance..follow(changes, setting);
   HttpOverrides.global = NetworkProxyOverrides(proxy);
-  return proxy.resolve();
+  // A Future<void> of its own: a Future<ProxyRoute> passed on as one
+  // would refuse main's `timeout(onTimeout: () {})` as it runs.
+  await proxy.resolve();
 }
 
 Future<ProxyRoute> currentProxyRoute() => NetworkProxy.instance.resolve();

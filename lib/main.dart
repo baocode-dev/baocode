@@ -369,6 +369,13 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
 
   late final AppLocale _locale = widget.appLocale ?? AppLocale();
 
+  /// The code's font, size and ligatures: what restyles all code.
+  static final Listenable _codeFont = Listenable.merge([
+    CodeFont.families,
+    CodeFont.size,
+    CodeFont.ligatures,
+  ]);
+
   late final AppSettings _settings =
       widget.settings ?? AppSettings(locale: _locale);
 
@@ -460,18 +467,15 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
     // A theme change restyles everything, as the workbench's does; so does
     // a language change, at once: in all windows.
     return WorkbenchThemeScope(
+      // The code's font, size and ligatures are read as widgets build, so a
+      // change rebuilds everything, as a theme change does: what a window's
+      // navigator keeps (its page) would not be by rebuilding the app
+      // alone. The text scale is a MediaQuery instead (see _app's builder).
+      restyle: _codeFont,
       builder: (context) => AppLocaleScope(
         notifier: _locale,
         child: ListenableBuilder(
-          // The code's font, size and ligatures are read as the app is
-          // built, so a change rebuilds it; the text scale is a MediaQuery
-          // instead (see the builder in _app).
-          listenable: Listenable.merge([
-            _locale,
-            CodeFont.families,
-            CodeFont.size,
-            CodeFont.ligatures,
-          ]),
+          listenable: _locale,
           builder: (context, _) => _windows.started
               ? ListenableBuilder(
                   listenable: _windows,
