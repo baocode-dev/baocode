@@ -41,24 +41,34 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 
 ## Done
 
-- packages/bao_exthost: VsUri (uri.ts), PersistentProtocol (ipc.net.ts), server handshake (remoteAgentConnection.ts),
-  IPC channels (ipc.ts), RPCProtocol (rpcProtocol.ts), cancellation.
+- packages/bao_exthost: VsUri, PersistentProtocol, server handshake, IPC channels, RPCProtocol, generated proxies
+  (`tool/generate_exthost_*`), runtime manifest/download.
+- lib/extensions/host: server process and pool, connection, init data, activation events, crash restart, deltas
+  (`$deltaExtensions` on install/uninstall/enable/disable; restart only when an activated extension goes).
+- Main-thread actors: commands, configuration, documents and editors (EOL/BOM mapping), language features (all
+  providers), diagnostics, workspace/files/search/trust, window (messages, progress, quick input, status bar, output,
+  storage, secrets, URLs, authentication), webview degradation.
+- bao_editor: decoration types, injected text, inlay hints, CodeLens zones, ghost text.
+- Gallery/VSIX/import/capabilities/recommendations and the Extensions view (lib/extensions/ui).
+- lib/debug: debug model, sessions, DAP client, Run and Debug views (not yet wired to the workbench).
+- Assembly (lib/extensions/workbench): `ExtensionsApp` (one per app) and `WorkspaceExtensions` (one per local IDE
+  folder) over `IdeWorkspace` (`IdeTextEditors`, `IdeDocumentsPort`, `IdeWorkspaceEditApplier`); real-runtime test
+  `test/extensions/workbench/workspace_extensions_exthost_test.dart` (TS diagnostics, completion, hover).
+- App wiring: main.dart makes the `ExtensionsApp`; workbench.dart gives each local IDE space its extensions (remote
+  folders: none yet); IdeWorkbench shows the Extensions view, extension pages, status bar entries, quick inputs,
+  OUTPUT, palette commands, keybindings, runtime download status, recommendations, .vsix/dev-folder drops
+  (`test/extensions/workbench/ide_workbench_extensions_test.dart`). lib/ide/extensions (LSP catalog view) removed.
 
 ## In progress / next
 
-Work plan (parallel; each line is one owner, paths are disjoint):
-
-| Area | Paths | State |
-| --- | --- | --- |
-| Protocol codegen, parity tool, byte fixtures | tool/generate_exthost_*.{mjs,dart}, tool/exthost_codegen/, packages/bao_exthost/lib/src/generated/ | in progress |
-| Runtime packaging, CDN manifest, downloader, CI | tool/build_exthost_runtime.dart, assets/exthost/, packages/bao_exthost/lib/src/runtime/, lib/extensions/runtime/, .github/workflows/ | in progress |
-| Editor: decoration types, injected text, inlay hints, CodeLens, ghost text | packages/bao_editor/ | in progress |
-| Language feature registry + document mirror/EOL mapping | lib/extensions/language/, lib/extensions/documents/ | in progress |
-| Open VSX, VSIX, capability scan, import, Extensions view | lib/extensions/{gallery,vsix,import,capabilities,ui,recommendations}/ | in progress |
-| Debug model/session/UI | lib/debug/ | in progress |
-| Host layer: server process, connection, init data, activation, crash restart | lib/extensions/host/ | done (unit tests) |
-| MainThread actors + workbench wiring | lib/extensions/main_thread/, lib/extensions/services/ | next, after codegen |
-| LSP removal | lib/ide/lsp/, assets/lsp/, bao_remote LSP | last |
+1. Editor features from the registry into the active editor: CodeLens, inlay hints, inline completions, document
+   highlights, links, colors, folding (driver over `IdeEditorViews` + `RegistryLanguageFeatures`).
+2. TreeViews / view containers / file decorations / menus in the workbench.
+3. Debug wiring (MainThreadDebugService ↔ lib/debug UI), terminal/tasks/SCM/testing actors.
+4. LSP removal (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp, bao_remote LSP, docs, l10n).
+5. SSH remote: REH on the remote through bao_remote port forwarding, extensionKind split.
+6. Real-extension integration tests and screenshots, docs, parity regeneration, analyze, full test once, macOS
+   build, merge.
 
 ## Decisions and deviations
 
@@ -71,3 +81,8 @@ Work plan (parallel; each line is one owner, paths are disjoint):
 
 - No reconnection in PersistentProtocol: a lost local connection restarts the extension host.
 - Dart `null` ⇄ JS `undefined` in IPC; RPC replies `null` as `undefined` (`rpcNull` for a JSON null).
+- Extension pages show over the editors (not as editor tabs): BaoCode's tabs are documents.
+- A multi-folder workspace runs one extension host on its first folder for now.
+- Keybindings: the keybinding service holds one set of extension keybindings, the visible workbench's.
+- Toasts time out only while a workbench listens to the notifications (they are the workspace's now).
+- `test/workspace/quit_confirmation_test.dart` fails on main already (not this branch's).
