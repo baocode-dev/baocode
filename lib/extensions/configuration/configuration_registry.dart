@@ -59,15 +59,22 @@ final class ConfigurationProperty {
 
 /// `IConfigurationRegistry`, rebuilt whenever extensions change.
 final class ConfigurationRegistry {
+  /// [core]: VS Code's own settings by key (a schema's `title` and
+  /// `groupOrder` are its group's, as core_configuration.json has them);
+  /// [coreDefaults]: the `configurationDefaults` VS Code registers itself,
+  /// applied before extensions'.
   ConfigurationRegistry({
     Map<String, Map<String, Object?>> core = const {},
+    Map<String, Object?> coreDefaults = const {},
     List<Map<String, Object?>> extensions = const [],
   }) {
     _core = core;
+    _coreDefaults = coreDefaults;
     setExtensions(extensions);
   }
 
   late Map<String, Map<String, Object?>> _core;
+  late Map<String, Object?> _coreDefaults;
 
   final Map<String, ConfigurationProperty> _properties = {};
 
@@ -83,7 +90,13 @@ final class ConfigurationRegistry {
     _properties.clear();
     _defaultOverrides.clear();
     for (final MapEntry(:key, :value) in _core.entries) {
-      _register(key, value, null, null, null);
+      _register(
+        key,
+        value,
+        null,
+        value['title'] as String?,
+        (value['groupOrder'] as num?)?.toInt(),
+      );
     }
     for (final extension in extensions) {
       final contributes = extension['contributes'];
@@ -110,25 +123,36 @@ final class ConfigurationRegistry {
         }
       }
     }
+    _addDefaults(_coreDefaults);
     for (final extension in extensions) {
       final contributes = extension['contributes'];
       if (contributes is! Map) continue;
       final defaults = contributes['configurationDefaults'];
-      if (defaults is! Map) continue;
-      for (final MapEntry(:key, :value) in defaults.entries) {
-        if (key is! String) continue;
-        if (isOverrideKey(key) && value is Map) {
-          final merged = <String, Object?>{
-            ...?(_defaultOverrides[key] as Map?)?.cast<String, Object?>(),
-            ...value.cast<String, Object?>(),
-          };
-          _defaultOverrides[key] = merged;
-        } else {
-          _defaultOverrides[key] = value;
-        }
+      if (defaults is Map) _addDefaults(defaults);
+    }
+  }
+
+  void _addDefaults(Map<Object?, Object?> defaults) {
+    for (final MapEntry(:key, :value) in defaults.entries) {
+      if (key is! String) continue;
+      if (isOverrideKey(key) && value is Map) {
+        final merged = <String, Object?>{
+          ...?(_defaultOverrides[key] as Map?)?.cast<String, Object?>(),
+          ...value.cast<String, Object?>(),
+        };
+        _defaultOverrides[key] = merged;
+      } else {
+        _defaultOverrides[key] = value;
       }
     }
   }
+
+  /// The `configurationDefaults` of `[lang]` keys (merged), for the
+  /// settings editor's language filter.
+  Map<String, Object?> get languageDefaults => {
+    for (final MapEntry(:key, :value) in _defaultOverrides.entries)
+      if (isOverrideKey(key)) key: value,
+  };
 
   void _register(
     String key,
@@ -140,7 +164,8 @@ final class ConfigurationRegistry {
     _properties[key] = ConfigurationProperty(
       key: key,
       schema: schema,
-      scope: ConfigurationScope.parse(schema['scope']) ??
+      scope:
+          ConfigurationScope.parse(schema['scope']) ??
           (schema['scope'] is int
               ? schema['scope']! as int
               : ConfigurationScope.window),
@@ -193,7 +218,8 @@ final class ConfigurationRegistry {
 
 Object? _clone(Object? value) => switch (value) {
   final Map<Object?, Object?> m => {
-    for (final MapEntry(:key, :value) in m.entries) key as String: _clone(value),
+    for (final MapEntry(:key, :value) in m.entries)
+      key as String: _clone(value),
   },
   final List<Object?> l => [for (final e in l) _clone(e)],
   _ => value,
