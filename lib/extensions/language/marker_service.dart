@@ -89,7 +89,7 @@ class MarkerCode {
 
 /// `IMarkerData`: one-based model coordinates.
 class MarkerData {
-  const MarkerData({
+  MarkerData({
     required this.severity,
     required this.message,
     required this.startLineNumber,
@@ -115,7 +115,10 @@ class MarkerData {
   final int? modelVersionId;
   final List<RelatedInformation>? relatedInformation;
   final List<MarkerTag>? tags;
-  final String? origin;
+
+  /// Who publishes it (the extension host that sent it); upstream sets it
+  /// when the extension host did not.
+  String? origin;
 
   /// `IMarkerData.makeKey`.
   String get key => makeKey(useMessage: true);
@@ -140,7 +143,7 @@ class MarkerData {
 
 /// `IMarker`.
 class Marker extends MarkerData {
-  const Marker({
+  Marker({
     required this.owner,
     required this.resource,
     required super.severity,

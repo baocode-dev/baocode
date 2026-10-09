@@ -417,7 +417,7 @@ void main() {
     // The model range 1..4 is raw 1..4 shifted by the BOM.
     expect(hover!.range, const LspRange(LspPosition(0, 1), LspPosition(0, 4)));
 
-    markers.changeOne('ts', VsUri.file(path), const [
+    markers.changeOne('ts', VsUri.file(path), [
       MarkerData(
         severity: MarkerSeverity.warning,
         message: 'w',
@@ -443,7 +443,7 @@ void main() {
     registration.dispose();
     expect(notified, 2);
     markers.changeOne('o', VsUri.file(path), [
-      const MarkerData(
+      MarkerData(
         severity: MarkerSeverity.error,
         message: 'e',
         startLineNumber: 1,
@@ -457,7 +457,7 @@ void main() {
   });
 
   group('code actions', () {
-    const diag = MarkerData(
+    final diag = MarkerData(
       severity: MarkerSeverity.error,
       message: 'e',
       startLineNumber: 1,
@@ -469,7 +469,7 @@ void main() {
     test('sorted: diagnostics first, preferred first, AI last', () async {
       service.codeActionProvider.register(
         sel('typescript'),
-        Actions(const [
+        Actions([
           CodeAction(title: 'ai', kind: 'quickfix', isAI: true, diagnostics: [diag]),
           CodeAction(title: 'plain', kind: 'refactor'),
           CodeAction(title: 'preferred', kind: 'refactor', isPreferred: true),

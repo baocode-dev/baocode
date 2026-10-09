@@ -445,7 +445,10 @@ class RegistryLanguageFeatures extends ChangeNotifier
 
   final LanguageFeaturesService service;
   final MarkerService markers;
-  final LanguageFeatureDocuments documents;
+
+  /// The open documents' models; the workbench swaps the object in when the
+  /// document area replaces what it mirrors.
+  LanguageFeatureDocuments documents;
 
   /// Runs a command a provider attached to a result.
   final Future<void> Function(Command command)? commandExecutor;
@@ -664,9 +667,21 @@ class RegistryLanguageFeatures extends ChangeNotifier
     LanguageFeatureDocument doc,
     Position modelPosition, [
     CancellationToken token = CancellationToken.none,
+  ]) => hoversFor(doc, modelPosition, token);
+
+  /// [hovers] with the recursive flag the `vscode.experimental.*` commands
+  /// pass (`LanguageFeatureRegistry.ordered`).
+  Future<List<Hover>> hoversFor(
+    LanguageFeatureDocument doc,
+    Position modelPosition, [
+    CancellationToken token = CancellationToken.none,
+    bool recursive = false,
   ]) async {
     final results = await Future.wait([
-      for (final provider in service.hoverProvider.ordered(doc))
+      for (final provider in service.hoverProvider.ordered(
+        doc,
+        recursive: recursive,
+      ))
         _safe(() => provider.provideHover(doc, modelPosition, token)),
     ]);
     return [
@@ -1384,6 +1399,30 @@ class RegistryLanguageFeatures extends ChangeNotifier
         : [for (final edit in edits) _editorTextEdit(doc.uri, edit)];
   }
 
+  /// [onTypeFormat] for a document already in hand (model coordinates).
+  Future<List<TextEdit>?> onTypeFormatDocument(
+    LanguageFeatureDocument doc,
+    Position modelPosition,
+    String ch,
+    FormattingOptions options,
+    CancellationToken token,
+  ) async {
+    final providers = service.onTypeFormattingEditProvider.ordered(doc);
+    if (providers.isEmpty ||
+        !providers[0].autoFormatTriggerCharacters.contains(ch)) {
+      return null;
+    }
+    return _safe(
+      () => providers[0].provideOnTypeFormattingEdits(
+        doc,
+        modelPosition,
+        ch,
+        options,
+        token,
+      ),
+    );
+  }
+
   /// Characters that trigger on-type formatting in [path].
   Set<String> onTypeFormattingTriggerCharacters(String path) {
     final doc = documents.documentForPath(path);
@@ -2049,7 +2088,11 @@ class RegistryLanguageFeatures extends ChangeNotifier
       for (var i = 0; i < results.length; i++)
         for (final info in results[i] ?? const <ColorInformation>[])
           _withOrigin(
-            ColorInformation(_editorRange(doc.uri, info.range), info.color),
+            ColorInformation(
+              _editorRange(doc.uri, info.range),
+              info.color,
+              data: info.data,
+            ),
             providers[i],
             info,
             doc.uri,
@@ -2070,7 +2113,7 @@ class RegistryLanguageFeatures extends ChangeNotifier
       () =>
           (origin.provider as DocumentColorProvider).provideColorPresentations(
             doc,
-            ColorInformation(original.range, color.color),
+            ColorInformation(original.range, color.color, data: original.data),
             CancellationToken.none,
           ),
     );
@@ -2132,6 +2175,15 @@ class RegistryLanguageFeatures extends ChangeNotifier
   ) async {
     final doc = documents.documentForPath(path);
     if (doc == null) return const [];
+    return selectionRangesForDocument(doc, positions);
+  }
+
+  /// [selectionRanges] for a document already in hand; [positions] are
+  /// model coordinates.
+  Future<List<List<Range>>> selectionRangesForDocument(
+    LanguageFeatureDocument doc,
+    List<Position> positions,
+  ) async {
     final modelPositions = [
       for (final position in positions) doc.toModelPosition(position),
     ];

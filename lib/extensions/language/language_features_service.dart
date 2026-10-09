@@ -17,13 +17,79 @@
 //   drop/paste edits); workspace symbols and call/type hierarchy live here
 //   instead of in global namespaces.
 
+import 'dart:async';
+
 import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 
 import 'language_feature_registry.dart';
 import 'language_providers.dart';
 
+/// Which registry changed, and how many providers it has now.
+class LanguageFeatureChange {
+  const LanguageFeatureChange(this.name, this.count);
+
+  /// The feature's name, as a provider kind (`hover`, `completion`…).
+  final String name;
+  final int count;
+}
+
 class LanguageFeaturesService {
   NotebookInfoResolver? _notebookTypeResolver;
+
+  final _onDidChangeProviders =
+      StreamController<LanguageFeatureChange>.broadcast(sync: true);
+
+  /// A provider was registered or unregistered (`onDidChange` of every
+  /// registry, merged).
+  Stream<LanguageFeatureChange> get onDidChangeProviders =>
+      _onDidChangeProviders.stream;
+
+  final _subscriptions = <StreamSubscription<int>>[];
+  bool _listening = false;
+
+  void _listen() {
+    if (_listening) return;
+    _listening = true;
+    for (final (name, registry) in _namedRegistries) {
+      _subscriptions.add(
+        registry.onDidChange.listen(
+          (count) => _onDidChangeProviders.add(
+            LanguageFeatureChange(name, count),
+          ),
+        ),
+      );
+    }
+  }
+
+  List<(String, LanguageFeatureRegistry<Object?>)> get _namedRegistries => [
+    ('reference', referenceProvider),
+    ('rename', renameProvider),
+    ('codeAction', codeActionProvider),
+    ('definition', definitionProvider),
+    ('typeDefinition', typeDefinitionProvider),
+    ('declaration', declarationProvider),
+    ('implementation', implementationProvider),
+    ('documentSymbol', documentSymbolProvider),
+    ('inlayHints', inlayHintsProvider),
+    ('color', colorProvider),
+    ('codeLens', codeLensProvider),
+    ('documentFormattingEdit', documentFormattingEditProvider),
+    ('documentRangeFormattingEdit', documentRangeFormattingEditProvider),
+    ('onTypeFormattingEdit', onTypeFormattingEditProvider),
+    ('signatureHelp', signatureHelpProvider),
+    ('hover', hoverProvider),
+    ('documentHighlight', documentHighlightProvider),
+    ('selectionRange', selectionRangeProvider),
+    ('foldingRange', foldingRangeProvider),
+    ('link', linkProvider),
+    ('inlineCompletions', inlineCompletionsProvider),
+    ('completion', completionProvider),
+    ('linkedEditingRange', linkedEditingRangeProvider),
+    ('documentRangeSemanticTokens', documentRangeSemanticTokensProvider),
+    ('documentSemanticTokens', documentSemanticTokensProvider),
+    ('callHierarchy', callHierarchyProvider),
+    ('typeHierarchy', typeHierarchyProvider),
+  ];
 
   void setNotebookTypeResolver(NotebookInfoResolver? resolver) =>
       _notebookTypeResolver = resolver;
@@ -77,13 +143,27 @@ class LanguageFeaturesService {
     WorkspaceSymbolProvider provider,
   ) {
     _workspaceSymbolProviders.add(provider);
-    return FeatureRegistration(
-      () => _workspaceSymbolProviders.remove(provider),
+    _onDidChangeProviders.add(
+      LanguageFeatureChange('workspaceSymbol', _workspaceSymbolProviders.length),
     );
+    return FeatureRegistration(() {
+      _workspaceSymbolProviders.remove(provider);
+      _onDidChangeProviders.add(
+        LanguageFeatureChange(
+          'workspaceSymbol',
+          _workspaceSymbolProviders.length,
+        ),
+      );
+    });
   }
 
   /// Every registry, for change listening.
-  List<LanguageFeatureRegistry<Object?>> get registries => [
+  List<LanguageFeatureRegistry<Object?>> get registries {
+    _listen();
+    return _registryList;
+  }
+
+  List<LanguageFeatureRegistry<Object?>> get _registryList => [
     referenceProvider,
     renameProvider,
     codeActionProvider,
@@ -113,7 +193,20 @@ class LanguageFeaturesService {
     typeHierarchyProvider,
   ];
 
+  /// Whether [name]'s registry has at least one provider now.
+  bool hasAny(String name) => switch (name) {
+    'workspaceSymbol' => _workspaceSymbolProviders.isNotEmpty,
+    _ => _namedRegistries
+        .where((entry) => entry.$1 == name)
+        .any((entry) => entry.$2.allNoModel().isNotEmpty),
+  };
+
   void dispose() {
+    for (final subscription in _subscriptions) {
+      unawaited(subscription.cancel());
+    }
+    _subscriptions.clear();
+    unawaited(_onDidChangeProviders.close());
     for (final registry in registries) {
       registry.dispose();
     }

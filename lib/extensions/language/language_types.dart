@@ -246,6 +246,7 @@ class CompletionItem {
     this.additionalTextEdits,
     this.command,
     this.action,
+    this.data,
   });
 
   final CompletionItemLabel label;
@@ -265,6 +266,9 @@ class CompletionItem {
   final List<SingleEditOperation>? additionalTextEdits;
   final Command? command;
   final Command? action;
+
+  /// Provider data a resolve needs (the extension host's cache id).
+  final Object? data;
 
   bool get isSnippet =>
       insertTextRules & CompletionItemInsertTextRule.insertAsSnippet != 0;
@@ -738,10 +742,14 @@ class ColorPresentation {
 
 /// `IColorInformation`.
 class ColorInformation {
-  const ColorInformation(this.range, this.color);
+  const ColorInformation(this.range, this.color, {this.data});
 
   final IRange range;
   final Color color;
+
+  /// Provider data a color presentation needs (the extension host's cache
+  /// id); null when the provider cannot resolve one.
+  final Object? data;
 }
 
 // --- selection, folding
@@ -892,13 +900,16 @@ class RenameLocation {
 
 /// `CodeLens`.
 class CodeLens {
-  const CodeLens(this.range, {this.id, this.command});
+  const CodeLens(this.range, {this.id, this.command, this.data});
 
   final IRange range;
   final String? id;
 
   /// Null until resolved.
   final Command? command;
+
+  /// Provider data a resolve needs (the extension host's cache id).
+  final Object? data;
 }
 
 /// `CodeLensList`.
