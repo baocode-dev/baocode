@@ -16,14 +16,10 @@
 // `IdeCommand`s for the lead to merge into the palette's list; keybinding
 // labels come from [IdeCommand.shortcutLabel], which reads the app's
 // keybinding service (the extensions' keybindings are in it).
-//
-// Also listed: each contributed view's `<viewId>.focus` (viewsService.ts
-// `registerFocusViewAction`).
 
 import '../../ide/ide_commands.dart';
 import '../contextkey/context_key_service.dart';
 import '../menus/menu_service.dart';
-import '../views/views_service.dart';
 import 'command_contributions.dart';
 import 'extension_command_registry.dart';
 
@@ -33,15 +29,11 @@ final class ExtensionCommandPalette {
     required this.registry,
     required this.contextKeys,
     required this.menuService,
-    this.views,
   });
 
   final ExtensionCommandRegistry registry;
   final ContextKeyValues contextKeys;
   final MenuService menuService;
-
-  /// The contributed views, whose `<viewId>.focus` commands are listed.
-  final ExtensionViewsService? views;
 
   /// The commands to list: each contributed command whose `commandPalette`
   /// item (when it has one) holds now and whose `enablement` holds;
@@ -58,13 +50,6 @@ final class ExtensionCommandPalette {
         enabled: action.enabled,
         run: () => registry.executeCommand(action.id),
         runWithArgs: (args) => registry.executeCommand(action.id, [args]),
-      ),
-    for (final view in views?.focusCommands(contextKeys) ?? const [])
-      IdeCommand(
-        id: view.id,
-        label: view.title,
-        category: view.category,
-        run: () => registry.executeCommand(view.id),
       ),
   ];
 

@@ -405,7 +405,6 @@ final class WorkspaceExtensions extends ChangeNotifier {
     registry: commands,
     contextKeys: contextKeys,
     menuService: menus,
-    views: views,
   );
   final ExtensionStatusBarService statusBar = ExtensionStatusBarService();
 
@@ -420,7 +419,6 @@ final class WorkspaceExtensions extends ChangeNotifier {
   late final ExtensionViewsService views = ExtensionViewsService(
     contextKeys: contextKeys,
     activate: (event) async => _host?.activateByEvent(event),
-    commands: commands.builtins,
   );
   final ExtensionQuickInputService quickInput = ExtensionQuickInputService();
   final ExtensionOutputService output = ExtensionOutputService();
