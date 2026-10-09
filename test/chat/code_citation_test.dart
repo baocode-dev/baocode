@@ -30,6 +30,27 @@ Future<void> pumpMarkdown(
   ),
 );
 
+/// [data] in a page that scrolls, as in the chat: code is taller than the
+/// window.
+Future<void> pumpMarkdownInPage(WidgetTester tester, String data) =>
+    tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CodeCitationScope(
+            root: '/p',
+            child: SingleChildScrollView(child: MarkdownView(data)),
+          ),
+        ),
+      ),
+    );
+
+/// Whether the only thing that scrolls inside [of] is sideways.
+bool sidewaysOnly(WidgetTester tester, Finder of) => tester
+    .stateList<ScrollableState>(
+      find.descendant(of: of, matching: find.byType(Scrollable)),
+    )
+    .every((scroll) => scroll.position.axis == Axis.horizontal);
+
 /// The texts shown, whole.
 List<String> texts(WidgetTester tester) => [
   for (final text in tester.widgetList<RichText>(find.byType(RichText)))
@@ -167,30 +188,24 @@ void main() {}
       expect(texts(tester), containsAll(['1\n2\n3', 'After.']));
     });
 
-    testWidgets('taller than its height, the code scrolls inside', (
+    testWidgets('is as tall as its lines, nothing scrolling down in it', (
       tester,
     ) async {
       final code = [for (var i = 0; i < 60; i++) 'line $i'].join('\n');
-      await pumpMarkdown(tester, '```1:60:a.txt\n$code\n```');
-      final card = tester.getSize(find.byType(CodeCitationCard));
-      expect(card.height, lessThan(CodeCitationCard.maxCodeHeight + 60));
-      final scroll = tester.state<ScrollableState>(
-        find
-            .descendant(
-              of: find.byType(CodeCitationCard),
-              matching: find.byType(Scrollable),
-            )
-            .first,
+      await pumpMarkdownInPage(tester, '```1:60:a.txt\n$code\n```');
+      final card = find.byType(CodeCitationCard);
+      expect(
+        tester.getSize(card).height,
+        greaterThan(CodeCitationCard.maxCodeHeight * 2),
       );
-      expect(scroll.position.axis, Axis.vertical);
-      expect(scroll.position.maxScrollExtent, greaterThan(0));
+      expect(sidewaysOnly(tester, card), isTrue);
     });
 
     testWidgets('its sideways scrollbar is at the card\'s bottom, not the '
         'code\'s', (tester) async {
       final code = [for (var i = 0; i < 60; i++) 'line $i ${'x' * 400}']
           .join('\n');
-      await pumpMarkdown(tester, '```1:60:a.txt\n$code\n```');
+      await pumpMarkdownInPage(tester, '```1:60:a.txt\n$code\n```');
       final sideways = tester
           .stateList<ScrollableState>(
             find.descendant(
@@ -206,7 +221,6 @@ void main() {}
       );
       final card = tester.getRect(find.byType(CodeCitationCard));
       final bar = tester.getRect(scrollbar);
-      expect(bar.height, lessThanOrEqualTo(CodeCitationCard.maxCodeHeight));
       expect(card.bottom - bar.bottom, lessThan(2));
     });
 
@@ -293,6 +307,7 @@ void main() {}
       expect(redTexts(), ['final a = 1;']);
       answers.last.complete(colored(both));
       await tester.pump();
+      await tester.pump();
       expect(redTexts(), ['final a = 1;', 'final b = 2;']);
     });
   });
@@ -317,6 +332,20 @@ void main() {}
         expect(texts(tester), contains('same: 45 bytes'));
         expect(find.byIcon(Codicons.chevronDown), findsNothing);
         expect(find.byIcon(Codicons.copy), findsOneWidget);
+      });
+    }
+
+    for (final fence in ['', 'text', 'json']) {
+      testWidgets('("$fence") is as tall as its lines, nothing scrolling '
+          'down in it', (tester) async {
+        final code = [for (var i = 0; i < 80; i++) 'line $i'].join('\n');
+        await pumpMarkdownInPage(tester, '```$fence\n$code\n```');
+        final card = find.byType(MarkdownCodeBlock);
+        expect(
+          tester.getSize(card).height,
+          greaterThan(CodeCitationCard.maxCodeHeight * 2),
+        );
+        expect(sidewaysOnly(tester, card), isTrue);
       });
     }
 
@@ -369,6 +398,8 @@ void main() {}
         final code = [
           for (var i = 0; i < 40; i++) '  line_$i = ${'long_value_' * 20};',
         ].join('\n');
+        final page = ScrollController();
+        addTearDown(page.dispose);
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
@@ -380,9 +411,13 @@ void main() {}
                       CopySelectionTextIntent.copy,
                 },
                 child: SelectionArea(
-                  child: SizedBox(
-                    width: 350,
-                    child: MarkdownView('```$fence\n$code\n```'),
+                  // The page scrolls, not the code.
+                  child: SingleChildScrollView(
+                    controller: page,
+                    child: SizedBox(
+                      width: 350,
+                      child: MarkdownView('```$fence\n$code\n```'),
+                    ),
                   ),
                 ),
               ),
@@ -393,13 +428,10 @@ void main() {}
         final views = tester.widgetList<SingleChildScrollView>(
           find.byType(SingleChildScrollView),
         );
-        final vertical = views
-            .singleWhere((view) => view.scrollDirection == Axis.vertical)
-            .controller!;
         final horizontal = views
             .singleWhere((view) => view.scrollDirection == Axis.horizontal)
             .controller!;
-        vertical.jumpTo(18 * 12);
+        page.jumpTo(18 * 12);
         horizontal.jumpTo(100);
         await tester.pumpAndSettle();
         final finder = find.byWidgetPredicate(

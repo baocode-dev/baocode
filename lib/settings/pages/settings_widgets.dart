@@ -356,6 +356,7 @@ class SettingsSlider extends StatelessWidget {
     required this.label,
     required this.semanticLabel,
     required this.onChanged,
+    this.tapOnly = false,
   });
 
   final int step;
@@ -363,6 +364,10 @@ class SettingsSlider extends StatelessWidget {
   final String label;
   final String semanticLabel;
   final ValueChanged<int> onChanged;
+
+  /// A step is picked by a click, not by dragging the thumb: for one whose
+  /// every step relayouts the window, which a drag would do on each.
+  final bool tapOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -397,6 +402,7 @@ class SettingsSlider extends StatelessWidget {
                 value: step.toDouble(),
                 max: (count - 1).toDouble(),
                 divisions: count - 1,
+                allowedInteraction: tapOnly ? SliderInteraction.tapOnly : null,
                 semanticFormatterCallback: (_) => semanticLabel,
                 onChanged: (value) {
                   final picked = value.round();

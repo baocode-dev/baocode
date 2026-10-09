@@ -4148,11 +4148,11 @@ abstract class AppLocalizations {
   /// **'Commands'**
   String get composerCommands;
 
-  /// Title of the menu @ opens in the composer: the other conversations to refer to, under their projects' folders.
+  /// Title of the menu @ opens in the composer: the project's files and folders, then the other conversations to refer to, under their projects' folders.
   ///
   /// In en, this message translates to:
-  /// **'Conversations'**
-  String get composerConversations;
+  /// **'Files and conversations'**
+  String get composerMentions;
 
   /// No description provided for @composerPlaceholder.
   ///
@@ -10290,7 +10290,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsCodeSizeDescription.
   ///
   /// In en, this message translates to:
-  /// **'The size of code in the editor, the terminal and file views. Code in the chat follows the interface text size.'**
+  /// **'The size of code in the editor and the terminal. Code in the chat and the side panel follows the interface text size.'**
   String get appearanceSettingsCodeSizeDescription;
 
   /// No description provided for @appearanceSettingsCodeSizeLabel.
@@ -10320,7 +10320,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsUiScaleDescription.
   ///
   /// In en, this message translates to:
-  /// **'The size of the interface text, code in the chat included. The editor and the terminal keep the code size.'**
+  /// **'The size of the interface text, code in the chat and the side panel included. The editor and the terminal keep the code size.'**
   String get appearanceSettingsUiScaleDescription;
 
   /// No description provided for @appearanceSettingsUiScaleLabel.

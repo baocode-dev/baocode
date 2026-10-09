@@ -103,6 +103,10 @@ class ViewWindow : public Win32Window {
   HWND view_ = nullptr;
   WNDPROC view_proc_ = nullptr;
 
+  // The scancode bits of the last key down the view took (see ViewProc),
+  // for the character messages that follow one sent without them.
+  LPARAM key_down_scancode_bits_ = 0;
+
   // Who is told what happens to the window, and as which.
   WindowObserver* observer_ = nullptr;
   int64_t view_id_ = 0;

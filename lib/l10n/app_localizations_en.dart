@@ -2256,7 +2256,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get composerCommands => 'Commands';
 
   @override
-  String get composerConversations => 'Conversations';
+  String get composerMentions => 'Files and conversations';
 
   @override
   String get composerPlaceholder =>
@@ -6199,7 +6199,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceSettingsCodeSizeDescription =>
-      'The size of code in the editor, the terminal and file views. Code in the chat follows the interface text size.';
+      'The size of code in the editor and the terminal. Code in the chat and the side panel follows the interface text size.';
 
   @override
   String appearanceSettingsCodeSizeLabel(String size) {
@@ -6218,7 +6218,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceSettingsUiScaleDescription =>
-      'The size of the interface text, code in the chat included. The editor and the terminal keep the code size.';
+      'The size of the interface text, code in the chat and the side panel included. The editor and the terminal keep the code size.';
 
   @override
   String appearanceSettingsUiScaleLabel(String percent) {

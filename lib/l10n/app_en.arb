@@ -1355,9 +1355,9 @@
   "@composerCommands": {
     "description": "Suggestion menu title."
   },
-  "composerConversations": "Conversations",
-  "@composerConversations": {
-    "description": "Title of the menu @ opens in the composer: the other conversations to refer to, under their projects' folders."
+  "composerMentions": "Files and conversations",
+  "@composerMentions": {
+    "description": "Title of the menu @ opens in the composer: the project's files and folders, then the other conversations to refer to, under their projects' folders."
   },
   "composerPlaceholder": "Plan, search, build anything  ·  drop or paste files  / for commands",
   "composerApprovalTitle": "How should {agent} get approval?",
@@ -4362,7 +4362,7 @@
     }
   },
   "appearanceSettingsCodeSize": "Code Size",
-  "appearanceSettingsCodeSizeDescription": "The size of code in the editor, the terminal and file views. Code in the chat follows the interface text size.",
+  "appearanceSettingsCodeSizeDescription": "The size of code in the editor and the terminal. Code in the chat and the side panel follows the interface text size.",
   "appearanceSettingsCodeSizeLabel": "Code size: {size}",
   "@appearanceSettingsCodeSizeLabel": {
     "placeholders": {
@@ -4374,7 +4374,7 @@
   "appearanceSettingsLigatures": "Font Ligatures",
   "appearanceSettingsLigaturesDescription": "Draws sequences such as => and != as one glyph where the font has one. The terminal does not.",
   "appearanceSettingsUiScale": "Interface Text Size",
-  "appearanceSettingsUiScaleDescription": "The size of the interface text, code in the chat included. The editor and the terminal keep the code size.",
+  "appearanceSettingsUiScaleDescription": "The size of the interface text, code in the chat and the side panel included. The editor and the terminal keep the code size.",
   "appearanceSettingsUiScaleLabel": "Interface text size: {percent}%",
   "@appearanceSettingsUiScaleLabel": {
     "placeholders": {

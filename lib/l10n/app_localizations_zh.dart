@@ -2188,7 +2188,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get composerCommands => '命令';
 
   @override
-  String get composerConversations => '对话';
+  String get composerMentions => '文件和对话';
 
   @override
   String get composerPlaceholder => '规划、搜索、构建任何内容  ·  拖入或粘贴文件  / 命令';
@@ -5822,7 +5822,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceSettingsCodeSizeDescription =>
-      '编辑器、终端和文件视图中代码的字号。对话里的代码跟随界面文字大小。';
+      '编辑器和终端中代码的字号。对话和侧边栏里的代码跟随界面文字大小。';
 
   @override
   String appearanceSettingsCodeSizeLabel(String size) {
@@ -5841,7 +5841,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceSettingsUiScaleDescription =>
-      '缩放界面文字，包括对话里的代码。编辑器和终端的代码字号不受影响。';
+      '缩放界面文字，包括对话和侧边栏里的代码。编辑器和终端的代码字号不受影响。';
 
   @override
   String appearanceSettingsUiScaleLabel(String percent) {

@@ -48,6 +48,8 @@ String content(WidgetTester tester) => [
 void main() {
   testWidgets('@ offers the other conversations under their projects\' '
       'folders, the arrows going over the headings', (tester) async {
+    // Typed as `@cht`: no file of the kernel's matches it, only the
+    // conversations (their titles' c, h and t).
     final workspace = await pumpKept(
       tester,
       KeptCatalog([
@@ -62,9 +64,10 @@ void main() {
       ..setArchived(keptThread(workspace, 'a3'), true);
     await tester.pump();
 
-    await typeText(tester, 'see @');
+    await typeText(tester, 'see @cht');
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(SuggestionMenu), findsOneWidget);
-    expect(inMenu(find.text('Conversations')), findsOneWidget);
+    expect(inMenu(find.text('Files and conversations')), findsOneWidget);
     // Neither this conversation nor an archived one.
     expect(inMenu(find.text('Chat a1')), findsNothing);
     expect(inMenu(find.text('Chat a3')), findsNothing);
@@ -137,7 +140,9 @@ void main() {
     expect(content(tester), '@b1\n');
   });
 
-  testWidgets('with no other conversation, @ stays text', (tester) async {
+  testWidgets('with no other conversation, @ offers the files alone', (
+    tester,
+  ) async {
     final workspace = await pumpKept(
       tester,
       KeptCatalog([kept('a1', '/tmp/a', 1)]),
@@ -147,7 +152,27 @@ void main() {
 
     await typeText(tester, 'mail me @');
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byType(SuggestionMenu), findsNothing);
+    expect(find.byType(SuggestionMenu), findsOneWidget);
+    expect(inMenu(find.text('main.dart')), findsOneWidget);
+    expect(inMenu(find.text('Chat a1')), findsNothing);
+  });
+
+  testWidgets('@ offers the project\'s files ahead of the conversations, and '
+      'a picked one is its tag', (tester) async {
+    final workspace = await pumpKept(
+      tester,
+      KeptCatalog([kept('a1', '/tmp/a', 1), kept('a2', '/tmp/a', 2)]),
+    );
+    workspace.select(keptThread(workspace, 'a1'));
+    await tester.pump();
+
+    await typeText(tester, 'see @comp');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(inMenu(find.text('composer.dart')), findsOneWidget);
+    expect(highlighted(tester), 0);
+
+    await pressKey(tester, LogicalKeyboardKey.enter);
+    expect(content(tester), 'see [@lib/chat/composer/composer.dart] \n');
   });
 
   group('a session reference', () {

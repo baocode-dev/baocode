@@ -105,15 +105,26 @@ void main() {
     expect(width(false), width(true) - 2 * UserMessageBubble.radius);
   });
 
-  testWidgets('@ opens no menu without conversations to refer to: files '
-      'come in dragged, pasted or picked', (tester) async {
+  testWidgets('@ opens the files of the project, narrowed by what follows', (
+    tester,
+  ) async {
     await pumpScreen(tester);
-    await typeText(tester, 'look at @hist');
+    await typeText(tester, 'look at @pub');
     await settleAnimations(tester);
-    expect(find.byType(SuggestionMenu), findsNothing);
+    expect(find.byType(SuggestionMenu), findsOneWidget);
     expect(
-      composerController(tester).document.toPlainText(),
-      'look at @hist\n',
+      find.descendant(
+        of: find.byType(SuggestionMenu),
+        matching: find.text('pubspec.yaml'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(SuggestionMenu),
+        matching: find.text('main.dart'),
+      ),
+      findsNothing,
     );
   });
 

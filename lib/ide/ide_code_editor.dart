@@ -77,6 +77,7 @@ class IdeCodeEditor extends StatefulWidget {
     this.bare = false,
     this.decorations = const [],
     this.highlights,
+    this.interfaceSized = false,
   });
 
   final EditorSurfaceController controller;
@@ -96,6 +97,10 @@ class IdeCodeEditor extends StatefulWidget {
   /// Where its highlighting is kept past it; its own, gone with it, when
   /// null.
   final IdeCodeHighlights? highlights;
+
+  /// Sized as the window's text is ([AppFonts.uiCodeStyle]), not by the
+  /// code size: for a file shown beside the chat.
+  final bool interfaceSized;
 
   @override
   State<IdeCodeEditor> createState() => IdeCodeEditorState();
@@ -254,28 +259,30 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
   @override
   Widget build(BuildContext context) {
     final colors = _themes.colors;
-    return CodeTextScale(
-      child: EditorSurface(
-        key: _surfaceKey,
-        controller: widget.controller,
-        focusNode: widget.focusNode,
-        readOnly: widget.readOnly,
-        lineNumbers: !widget.bare,
-        glyphMargin: !widget.bare,
-        folding: !widget.bare,
-        indentGuides: !widget.bare,
-        scrollBeyondLastLine: !widget.bare,
-        backgroundColor: colors['editor.background'],
-        selectionColor: colors['editor.selectionBackground'],
-        caretColor: colors['editorCursor.foreground'],
-        theme: EditorViewTheme.fromColors(colors.get),
-        styledLines: _highlight?.styledLines,
-        showMinimap: false,
-        decorations: widget.decorations,
-        onViewChanged: _viewChanged,
-        style: AppFonts.codeStyle(13)
-            .copyWith(color: colors['editor.foreground'], height: 1.45),
-      ),
+    final surface = EditorSurface(
+      key: _surfaceKey,
+      controller: widget.controller,
+      focusNode: widget.focusNode,
+      readOnly: widget.readOnly,
+      lineNumbers: !widget.bare,
+      glyphMargin: !widget.bare,
+      folding: !widget.bare,
+      indentGuides: !widget.bare,
+      scrollBeyondLastLine: !widget.bare,
+      backgroundColor: colors['editor.background'],
+      selectionColor: colors['editor.selectionBackground'],
+      caretColor: colors['editorCursor.foreground'],
+      theme: EditorViewTheme.fromColors(colors.get),
+      styledLines: _highlight?.styledLines,
+      showMinimap: false,
+      decorations: widget.decorations,
+      onViewChanged: _viewChanged,
+      style:
+          (widget.interfaceSized
+                  ? AppFonts.uiCodeStyle(13)
+                  : AppFonts.codeStyle(13))
+              .copyWith(color: colors['editor.foreground'], height: 1.45),
     );
+    return widget.interfaceSized ? surface : CodeTextScale(child: surface);
   }
 }

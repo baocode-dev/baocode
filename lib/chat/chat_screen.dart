@@ -551,6 +551,7 @@ class _ChatScreenState extends State<ChatScreen>
           colorizeBlock: widget.colorizeCodeBlock,
           child: ComposerVocabulary(
             commands: _commandSuggestions(),
+            suggestFiles: _session.suggestFiles,
             sessions: widget.sessions,
             child: child!,
           ),
