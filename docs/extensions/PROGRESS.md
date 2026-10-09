@@ -119,15 +119,17 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   panes in the Source Control view after BaoCode's Git panes, with `scm/title`, `scm/resourceGroup/context` and
   `scm/resourceState/context` menus. The built-in Git extension runs (its API sees the repository) and its provider is
   received but not shown. Tests: `test/extensions/scm/` (scripted, widget) and `scm_exthost_test.dart` (real REH).
+- Language status items (lib/extensions/languages/language_status*.dart): `$setLanguageStatus` with selector
+  matching and upstream's order, one status bar entry for the active document (severity icon, busy spinner, hover
+  list, click menu of the items' commands). The TypeScript version item is asserted in the 九.1 acceptance test.
 
 ## In progress / next
 
 1. Editor-feature rendering from the registry is complete (CodeLens, inlay hints, inline completions, highlights,
    folding, links, colors).
 2. Complete real-extension debugging acceptance beyond Node launch/attach (Python, Go, Rust/C++, debugger controls,
-   breakpoint variants and preLaunchTask in a real session). Implement the testing actor, language status items
-   (`$setLanguageStatus` is still unsupported) and the accept-only actors real extensions call (timeline, language
-   model tools, profile content handlers).
+   breakpoint variants and preLaunchTask in a real session). Implement the testing actor and the accept-only actors
+   real extensions call (timeline, language model tools, profile content handlers).
 3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
    bao_remote LSP, docs and l10n), after replacing its language capability coverage.
 4. SSH remote: REH on the remote through bao_remote port forwarding, with the extensionKind split.

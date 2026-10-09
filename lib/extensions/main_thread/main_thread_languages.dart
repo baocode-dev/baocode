@@ -95,20 +95,29 @@ final class MainThreadLanguages extends MainThreadLanguagesUnsupported {
   /// (`_languageService.getRegisteredLanguageIds()`).
   void start() {
     _sendLanguageIds();
-    _subscriptions
-      ..add(languages.changes.listen((_) => _sendLanguageIds()))
-      ..add(status.changed.listen((handles) => _sendStatuses()));
+    _subscriptions.add(languages.changes.listen((_) => _sendLanguageIds()));
   }
 
   void _sendLanguageIds() {
     unawaited(_proxy.$acceptLanguageIds(languages.languageIds));
   }
 
-  /// `$setLanguageStatus`/`$removeLanguageStatus`: what the app shows as
-  /// the document's language status items.
-  void _sendStatuses() {}
+  /// The status items this session set, gone with it.
+  final Set<num> _statuses = {};
 
   // --- from the extension host
+
+  @override
+  void $setLanguageStatus(num handle, Map<String, Object?> status) {
+    _statuses.add(handle);
+    this.status.setStatus(handle, LanguageStatus.fromJson(status));
+  }
+
+  @override
+  void $removeLanguageStatus(num handle) {
+    _statuses.remove(handle);
+    status.removeStatus(handle);
+  }
 
   @override
   Future<void> $changeLanguage(VsUri resource, String languageId) async {
@@ -179,6 +188,10 @@ final class MainThreadLanguages extends MainThreadLanguagesUnsupported {
       unawaited(subscription.cancel());
     }
     _subscriptions.clear();
+    for (final handle in _statuses) {
+      status.removeStatus(handle);
+    }
+    _statuses.clear();
   }
 
   /// The service the workbench makes for the languages actor.

@@ -3,189 +3,149 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// `window.createLanguageStatusItem`: the entries an extension shows at a
-// document's language (a server's state, a count of problems, a "Select
-// Interpreter" button), rendered in the status bar beside the IDE's own
-// language entries.
+// `window.createLanguageStatusItem`: the entries an extension shows for a
+// document's language (a server's state, the TypeScript version, a
+// "Select Interpreter" button).
 //
 // Ported from VS Code 08d4889f9ec4a1685d257b9b95de036c8e1ce1e5 (1.135.0):
 // src/vs/workbench/services/languageStatus/common/languageStatusService.ts
-// (`LanguageStatusService.addStatus` and `ILanguageStatus`),
-// src/vs/workbench/api/common/extHostLanguageStatus.ts
-// (`MainThreadLanguages.$setLanguageStatus`/`$removeLanguageStatus`),
+// (`ILanguageStatus`, `addStatus`, `getLanguageStatus`'s order),
+// src/vs/workbench/api/browser/mainThreadLanguages.ts
+// (`$setLanguageStatus`, `$removeLanguageStatus`) and the item's text from
 // src/vs/workbench/contrib/languageStatus/browser/languageStatus.ts
-// (the item's text, detail, command, severity and busy spinner).
+// (`computeText`, the severity codicons).
 //
-// Deviations:
-// - The status items are shown in the workbench's status bar (the app's
-//   `IdeStatusBarItem`s) rather than in a language-status hover; the
-//   language-status UI this replaces is lib/ide/lsp_ui/language_status.dart,
-//   which is LSP's and goes with it.
-// - `accessibility`'s `information` is shown as the item's tooltip.
-
-import 'dart:async';
+// Deviations: matching uses the selector's score on the document's URI and
+// language alone (no notebook cells); the workbench shows the items as one
+// status bar entry whose hover lists them and whose click offers their
+// commands (no pinning of dedicated entries).
 
 import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 import 'package:flutter/foundation.dart';
 
-/// `LanguageStatusSeverity`.
+import '../language/language_selector.dart';
+
+/// `Severity` as `ILanguageStatus` has it.
 abstract final class LanguageStatusSeverity {
-  static const int information = 0;
-  static const int warning = 1;
-  static const int error = 2;
+  static const int ignore = 0;
+  static const int info = 1;
+  static const int warning = 2;
+  static const int error = 3;
 }
 
-/// `ILanguageStatus`: one entry, as `$setLanguageStatus` sends it.
-class LanguageStatusItem {
-  const LanguageStatusItem({
+/// `ILanguageStatus`.
+final class LanguageStatus {
+  const LanguageStatus({
     required this.id,
     required this.name,
-    required this.selectorLanguageId,
-    this.selectorPath,
-    this.selectorPattern,
-    this.severity = LanguageStatusSeverity.information,
-    this.command,
-    this.text,
-    this.detail,
+    required this.selector,
+    this.severity = LanguageStatusSeverity.info,
+    this.label = '',
+    this.detail = '',
     this.busy = false,
-    this.accessibilityInformation,
+    this.source = '',
+    this.command,
+    this.accessibilityLabel,
   });
 
-  factory LanguageStatusItem.fromJson(Map<String, Object?> json) {
-    final selector = (json['selector'] as Map?)?.cast<String, Object?>();
-    return LanguageStatusItem(
-      id: '${json['id']}',
-      name: '${json['name']}',
-      selectorLanguageId: '${selector?['language']}',
-      selectorPath: selector?['scheme'] as String?,
-      selectorPattern: selector?['pattern'] as String?,
-      severity: (json['severity'] as num?)?.toInt() ?? 0,
-      command: (json['command'] as Map?)?.cast<String, Object?>(),
-      text: json['text'] as String?,
-      detail: json['detail'] as String?,
-      busy: json['busy'] == true,
-      accessibilityInformation: (json['accessibilityInformation'] as Map?)
-          ?.cast<String, Object?>()['label'] as String?,
-    );
-  }
+  factory LanguageStatus.fromJson(Map<String, Object?> json) => LanguageStatus(
+    id: '${json['id']}',
+    name: '${json['name'] ?? ''}',
+    selector:
+        LanguageSelector.parse(json['selector']) ??
+        const LanguageSelectorList([]),
+    severity:
+        (json['severity'] as num?)?.toInt() ?? LanguageStatusSeverity.info,
+    label: switch (json['label']) {
+      final String s => s,
+      {'value': final String s} => s,
+      _ => '',
+    },
+    detail: json['detail'] as String? ?? '',
+    busy: json['busy'] == true,
+    source: json['source'] as String? ?? '',
+    command: (json['command'] as Map?)?.cast(),
+    accessibilityLabel:
+        (json['accessibilityInfo'] as Map?)?['label'] as String?,
+  );
 
+  /// `publisher.name/id`.
   final String id;
-
-  /// The extension's name for it (`name` of the DTO).
   final String name;
-  final String selectorLanguageId;
-  final String? selectorPath;
-  final String? selectorPattern;
+  final LanguageSelector selector;
   final int severity;
-  final Map<String, Object?>? command;
 
-  /// The text the entry shows; null shows the name.
-  final String? text;
-
-  /// The hover text, shown after a separator.
-  final String? detail;
+  /// The text, with `$(codicon)`s.
+  final String label;
+  final String detail;
   final bool busy;
-  final String? accessibilityInformation;
 
-  /// Whether this item is about [path]'s document (the language matches).
-  bool matches(String languageId) =>
-      selectorLanguageId.isEmpty ||
-      selectorLanguageId == languageId ||
-      _matchesPattern(languageId);
+  /// The extension's name.
+  final String source;
 
-  bool _matchesPattern(String languageId) => false;
+  /// `{id, title, arguments, tooltip}`, its arguments the extension host's.
+  final Map<String, Object?>? command;
+  final String? accessibilityLabel;
 
-  /// The key the workbench groups items by (the extension's item id).
-  String get key => id;
+  /// `computeText`: the label with a spinner while busy.
+  String get text => busy
+      ? (label.isEmpty ? r'$(loading~spin)' : '$label \$(loading~spin)')
+      : label;
 }
 
-/// What the app shows of a status item.
-class LanguageStatusEntry {
-  const LanguageStatusEntry({
-    required this.item,
-    required this.host,
-  });
-
-  final LanguageStatusItem item;
-
-  /// The extension that set it (`plugin.name`).
-  final String host;
-
-  /// The icon for the item's severity, or a spinner while it is busy.
-  String? get icon => item.busy
-      ? 'sync'
-      : switch (item.severity) {
-          LanguageStatusSeverity.warning => 'warning',
-          LanguageStatusSeverity.error => 'error',
-          _ => null,
-        };
-
-  /// The entry's text: its own, else the name, its detail after a
-  /// separator.
-  String get label => [
-    item.text ?? item.name,
-    if (item.detail != null && item.detail!.isNotEmpty) item.detail!,
-  ].join(' — ');
-
-  String get tooltip => [
-    item.name,
-    if (item.detail != null && item.detail!.isNotEmpty) item.detail!,
-  ].join('\n');
-}
-
-/// The language status items extensions set, by handle.
-///
-/// `MainThreadLanguages.$setLanguageStatus`/`$removeLanguageStatus` fill
-/// it; the workbench shows them (see `language_status_ui.dart`) and
-/// activates the language of each new item's extension
-/// (`onLanguageStatusItem` is not an activation event upstream; the
-/// extension is already active when it sets one).
+/// `ILanguageStatusService`: the items, by the extension host's handle.
 final class LanguageStatusService extends ChangeNotifier {
-  final Map<num, (LanguageStatusItem, String)> _items = {};
-  final _changed = StreamController<List<num>>.broadcast(sync: true);
+  final Map<num, (LanguageStatus, int)> _items = {};
+  int _clock = 0;
 
-  /// The handles that changed, for `$acceptLanguageStatus`.
-  Stream<List<num>> get changed => _changed.stream;
-
-  Map<num, (LanguageStatusItem, String)> get items => Map.unmodifiable(_items);
-
-  /// `addStatus(status)`: [handle] is the extension host's number for the
-  /// item.
-  void setStatus(num handle, LanguageStatusItem item, {String host = ''}) {
-    _items[handle] = (item, host);
-    _changed.add([handle]);
+  /// `addStatus`; one handle's status replaces its last.
+  void setStatus(num handle, LanguageStatus status) {
+    _items[handle] = (status, _clock++);
     notifyListeners();
   }
 
   void removeStatus(num handle) {
     if (_items.remove(handle) == null) return;
-    _changed.add([handle]);
     notifyListeners();
   }
 
-  /// The items that apply to a document of [languageId] at [path].
-  List<LanguageStatusEntry> forDocument(String languageId, {String? path}) => [
-    for (final (item, host) in _items.values)
-      if (item.matches(languageId)) LanguageStatusEntry(item: item, host: host),
-  ];
+  /// Every item, as set.
+  List<LanguageStatus> get all => [for (final (s, _) in _items.values) s];
 
-  /// Every item, in the order they were set.
-  List<LanguageStatusEntry> get all => [
-    for (final (item, host) in _items.values)
-      LanguageStatusEntry(item: item, host: host),
-  ];
+  /// Every handle's item gone (its extension host ended).
+  void clear() {
+    if (_items.isEmpty) return;
+    _items.clear();
+    notifyListeners();
+  }
 
-  @override
-  void dispose() {
-    unawaited(_changed.close());
-    super.dispose();
+  /// `getLanguageStatus(model)`: the items whose selector matches the
+  /// document, most severe first, then by source and id.
+  List<LanguageStatus> forDocument(VsUri uri, String languageId) {
+    final scored = [
+      for (final (status, clock) in _items.values)
+        (
+          status,
+          clock,
+          score(status.selector, uri, languageId, true, null, null),
+        ),
+    ];
+    // `LanguageFeatureRegistry.ordered`: by score, then newest first; then
+    // sorted as `getLanguageStatus` does (stable).
+    final matching = [
+      for (final entry in scored)
+        if (entry.$3 > 0) entry,
+    ]..sort((a, b) => a.$3 != b.$3 ? b.$3 - a.$3 : b.$2 - a.$2);
+    final ordered = [for (final (s, _, _) in matching) s];
+    mergeSort(
+      ordered,
+      compare: (a, b) {
+        var result = b.severity - a.severity;
+        if (result == 0) result = a.source.compareTo(b.source);
+        if (result == 0) result = a.id.compareTo(b.id);
+        return result;
+      },
+    );
+    return ordered;
   }
 }
-
-/// Where a status item's command runs.
-abstract interface class LanguageStatusCommands {
-  Future<void> execute(String command, List<Object?> arguments);
-}
-
-/// The extension host's `UriComponents` as a plain string, for messages.
-String languageStatusUriText(VsUri uri) => uri.toString();

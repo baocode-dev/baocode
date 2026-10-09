@@ -54,6 +54,7 @@ extension _ExtensionsPart on IdeWorkbenchState {
     }
     extensions.tasks?.onOpenProblems = _focusProblems;
     extensions.statusBar.addListener(_extensionsUiChanged);
+    extensions.languageStatus.addListener(_extensionsUiChanged);
     extensions.output
       ..addListener(_extensionsUiChanged)
       // `OutputChannel.show()`: the OUTPUT tab, focused unless asked not.
@@ -98,6 +99,7 @@ extension _ExtensionsPart on IdeWorkbenchState {
     }
     extensions.tasks?.onOpenProblems = null;
     extensions.statusBar.removeListener(_extensionsUiChanged);
+    extensions.languageStatus.removeListener(_extensionsUiChanged);
     extensions.output
       ..removeListener(_extensionsUiChanged)
       ..onRevealPanel = null
@@ -337,6 +339,31 @@ extension _ExtensionsPart on IdeWorkbenchState {
 
   /// The extensions' status bar entries of a side, and on the left the
   /// runtime's download.
+  /// The language status items of [path]'s document, as one entry.
+  IdeStatusBarItem? _extensionLanguageStatus(String path) {
+    final extensions = _workspaceExtensions;
+    if (extensions == null) return null;
+    return extensionLanguageStatusItem(
+      extensions.languageStatus.forDocument(
+        VsUri.file(path),
+        extensions.languageIdFor(path),
+      ),
+      name: 'Editor Language Status',
+      context: () => context,
+      run: (command) async {
+        final id = command['id'];
+        if (id is! String) return;
+        try {
+          await extensions.commands.executeCommand(id, [
+            ...?command['arguments'] as List?,
+          ]);
+        } on Object catch (error) {
+          _notifications.notify(IdeSeverity.error, '$error');
+        }
+      },
+    );
+  }
+
   List<IdeStatusBarItem> _extensionStatusItems({required bool left}) {
     final extensions = _workspaceExtensions;
     if (extensions == null) return const [];

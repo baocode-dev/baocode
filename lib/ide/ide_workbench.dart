@@ -48,6 +48,7 @@ import '../extensions/menus/menu_widgets.dart'
     show ideMenuActionIcon, ideMenuActionImage, ideMenuGroupsOf;
 import '../extensions/views/tree_view_widget.dart';
 import '../extensions/views/view_contributions.dart';
+import '../extensions/languages/language_status_ui.dart';
 import '../extensions/scm/scm_view.dart';
 import '../extensions/workbench/workspace_extensions.dart';
 import '../keybindings/vscode_import.dart' show VsCodeInstalls;
@@ -4371,6 +4372,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           IdeLanguageNames.forPath(active.path),
           tooltip: l10n.wbLanguageMode,
         ),
+        ?_extensionLanguageStatus(active.path),
         ...extensionItems,
         bell,
       ],

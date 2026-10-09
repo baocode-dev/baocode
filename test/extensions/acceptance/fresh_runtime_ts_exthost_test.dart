@@ -403,4 +403,25 @@ Future<void> _typeScriptFeatures(
     hints.expand((h) => h.label).map((part) => part.label).join(),
     contains('first:'),
   );
+
+  // Language status: the TypeScript version item for the document
+  // (`createLanguageStatusItem`); JSON's is not the TypeScript file's.
+  final statuses = await _eventually('language status', () async {
+    final found = extensions.languageStatus.forDocument(
+      VsUri.file(file),
+      extensions.languageIdFor(file),
+    );
+    return found.isEmpty ? null : found;
+  });
+  expect(statuses.map((s) => s.id), [
+    'vscode.typescript-language-features/typescript.version',
+  ]);
+  expect(statuses.single.label, isNotEmpty);
+  expect(
+    extensions.languageStatus.forDocument(
+      VsUri.file('/elsewhere/notes.txt'),
+      'plaintext',
+    ),
+    isEmpty,
+  );
 }
