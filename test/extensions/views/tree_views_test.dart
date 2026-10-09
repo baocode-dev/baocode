@@ -54,9 +54,11 @@ void main() {
     };
     rpc.handlers[r'ExtHostTreeViews.$getChildren'] = (args) {
       final handles = args[1] as List<Object?>?;
-      if (handles == null) return [
-        [0, ...children['']!],
-      ];
+      if (handles == null) {
+        return [
+          [0, ...children['']!],
+        ];
+      }
       return [
         for (final (i, handle) in handles.indexed)
           [i, ...?children[handle]],
