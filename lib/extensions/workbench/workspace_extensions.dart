@@ -26,6 +26,7 @@ import '../../ide/ide_notifications.dart' show IdeSeverity;
 import '../../ide/ide_workspace.dart';
 import '../../ide/lsp/language_features.dart';
 import '../../ide/lsp/lsp_protocol.dart' show LspPosition, LspRange;
+import '../../ide/terminal/terminal_instance.dart' show TerminalBackend;
 import '../../platform/data_dir.dart';
 import '../../settings/jsonc.dart';
 import '../../theme/file_icon_theme.dart';
@@ -72,6 +73,8 @@ import '../main_thread/main_thread_debug_service.dart';
 import '../main_thread/main_thread_file_system.dart' show ExtensionActivator;
 import '../main_thread/main_thread_decorations.dart';
 import '../main_thread/main_thread_message_service.dart';
+import '../main_thread/main_thread_terminal_service.dart';
+import '../main_thread/main_thread_terminal_shell_integration.dart';
 import '../main_thread/main_thread_tree_views.dart';
 import '../main_thread/window_customers.dart';
 import '../main_thread/workspace_customers.dart';
@@ -91,6 +94,7 @@ import '../window/auth/authentication_ports.dart';
 import '../window/auth/authentication_service.dart';
 import '../window/auth/authentication_ui.dart';
 import '../window/extension_storage.dart';
+import '../terminal/environment_variable_service.dart';
 import '../window/json_state_store.dart';
 import '../window/label_service.dart';
 import '../window/output/extension_output_service.dart';
@@ -318,9 +322,14 @@ final class WorkspaceExtensions extends ChangeNotifier {
     required this.app,
     required this.root,
     this._management,
+    this._terminalBackend = const TerminalBackend(),
   });
 
   final ExtensionManagementBackend? _management;
+
+  /// Where the terminals extensions make before the workbench binds its
+  /// own start.
+  final TerminalBackend _terminalBackend;
 
   final ExtensionsApp app;
 
@@ -328,6 +337,27 @@ final class WorkspaceExtensions extends ChangeNotifier {
   final String root;
 
   late final ExtHostWorkspace extHostWorkspace = ExtHostWorkspace.folder(root);
+
+  /// The extensions' environment variable collections, the persistent ones
+  /// kept in the workspace's storage.
+  late final EnvironmentVariableService terminalEnvironment =
+      EnvironmentVariableService(
+        store: JsonStateStore(
+          p.join(
+            app.userDirectory,
+            'workspaceStorage',
+            extHostWorkspace.id,
+            'terminal.json',
+          ),
+        ),
+      );
+
+  /// The terminals extensions see: the workbench's once it binds its own.
+  late final ExtensionTerminals terminals = ExtensionTerminals(
+    root: root,
+    environment: terminalEnvironment,
+    backend: _terminalBackend,
+  );
 
   /// The documents the extension host has.
   final ExtensionDocumentRegistry documents = ExtensionDocumentRegistry();
@@ -584,6 +614,8 @@ final class WorkspaceExtensions extends ChangeNotifier {
       dialogs: dialogs,
       commands: WorkbenchCommandExecutor(commands),
     );
+    await terminalEnvironment.load();
+    if (_disposed) return;
     final debugState = _debugState = JsonStateStore(
       p.join(
         app.userDirectory,
@@ -641,9 +673,14 @@ final class WorkspaceExtensions extends ChangeNotifier {
         MainContext.mainThreadTreeViews.nid: MainThreadTreeViews.customer,
         MainContext.mainThreadDecorations.nid: MainThreadDecorations.customer,
         MainContext.mainThreadDebugService.nid: MainThreadDebugService.customer,
+        MainContext.mainThreadTerminalService.nid:
+            MainThreadTerminalService.customer,
+        MainContext.mainThreadTerminalShellIntegration.nid:
+            MainThreadTerminalShellIntegration.customer,
       },
       services: {
         DebugService: debug,
+        ExtensionTerminals: terminals,
         WorkspaceTrustService: trust,
         ExtensionCommandRegistry: commands,
         ContextKeyService: contextKeys,
@@ -964,6 +1001,10 @@ final class WorkspaceExtensions extends ChangeNotifier {
     final host = _host;
     if (host == null) return;
     final extensions = host.extensions.value;
+    // Those of extensions gone go with them.
+    terminalEnvironment.retain({
+      for (final extension in extensions) _idOf(extension),
+    });
     _debug?.registry.setExtensions(debuggerExtensions(extensions));
     commands.setExtensions(extensions);
     statusBar.setContributions(extensions);
@@ -1094,6 +1135,8 @@ final class WorkspaceExtensions extends ChangeNotifier {
       ..removeListener(notifyListeners)
       ..dispose();
     _watcher?.dispose();
+    terminals.dispose();
+    unawaited(terminalEnvironment.store?.dispose());
     _editorFeatures?.dispose();
     _documentsPort?.dispose();
     _documentsAndEditors?.dispose();

@@ -32,6 +32,7 @@ extension _ExtensionsPart on IdeWorkbenchState {
     _syncDebugListener();
     _panelFocus.addListener(_panelFocusChanged);
     if (extensions == null) return;
+    if (_terminals case final terminals?) extensions.terminals.bind(terminals);
     extensions.dialogContext = () => mounted ? context : null;
     extensions.contextKeys.fallback = keyContext;
     final debugHost = extensions.debugHost;
@@ -68,6 +69,9 @@ extension _ExtensionsPart on IdeWorkbenchState {
     _listenedDebug = null;
     _panelFocus.removeListener(_panelFocusChanged);
     if (extensions == null) return;
+    if (_terminals case final terminals?) {
+      extensions.terminals.unbind(terminals);
+    }
     // First: what follows the context keys stops before they change.
     _detachViews(extensions);
     if (extensions.contextKeys.fallback == keyContext) {

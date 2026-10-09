@@ -48,18 +48,92 @@ import 'terminal_profiles.dart';
 import 'terminal_shell.dart';
 import 'terminal_xterm.dart';
 
+import 'package:bao_xterm/common/event.dart';
 import 'package:bao_xterm/common/platform.dart';
 import 'package:bao_xterm/common/services/decoration_service.dart';
 import 'package:bao_xterm/headless/terminal.dart' as internal;
 
 /// What a new terminal runs in [root]: [terminalLaunch] in the app;
-/// [shell] when a profile names it, else the user's shell.
+/// [shell] when a profile names it, else the user's shell; in the
+/// environment [environment] asks for.
 typedef TerminalLauncher = Future<PtyLaunch> Function(
   String root, {
   int columns,
   int rows,
   TerminalShell? shell,
+  TerminalEnvironmentRequest? environment,
 });
+
+/// Why a terminal closed, as VS Code's `TerminalExitReason` (its values
+/// are the wire's).
+enum TerminalExitReason { unknown, shutdown, process, user, extension }
+
+/// What an extension asks of a terminal it makes (VS Code's
+/// `IShellLaunchConfig`, from `vscode.window.createTerminal`'s options and
+/// tasks'); a terminal of the user's has none.
+class TerminalLaunchConfig {
+  const TerminalLaunchConfig({
+    this.name,
+    this.executable,
+    this.arguments,
+    this.cwd,
+    this.env,
+    this.strictEnv = false,
+    this.hideFromUser = false,
+    this.isTransient = false,
+    this.initialText,
+    this.waitOnExit,
+    this.extHostTerminalId,
+    this.isFeatureTerminal = false,
+    this.isExtensionOwnedTerminal = false,
+    this.forceShellIntegration = false,
+    this.titleTemplate,
+    this.type,
+    this.customPty,
+  });
+
+  /// Its fixed name, instead of its process's.
+  final String? name;
+
+  /// The shell to run, with [arguments]; the default profile's when null.
+  final String? executable;
+  final List<String>? arguments;
+
+  /// Where it starts; the workspace's folder when null.
+  final String? cwd;
+
+  /// Over the environment (a null value removes the variable), or instead
+  /// of it when [strictEnv].
+  final Map<String, String?>? env;
+  final bool strictEnv;
+
+  /// Not in the panel's tabs until shown (`hideFromUser`).
+  final bool hideFromUser;
+
+  /// Not kept across restarts (`isTransient`): none are here.
+  final bool isTransient;
+
+  /// Written to it before the process prints.
+  final String? initialText;
+
+  /// Kept after its process exits until a key is pressed, with the message
+  /// this gives for the exit code (`waitOnExit`); closed at once when null.
+  final String? Function(int? exitCode)? waitOnExit;
+
+  /// The extension host's id of a terminal it made (`extHostTerminalId`).
+  final String? extHostTerminalId;
+  final bool isFeatureTerminal;
+  final bool isExtensionOwnedTerminal;
+  final bool forceShellIntegration;
+  final String? titleTemplate;
+
+  /// `'Task'` for a task's terminal.
+  final String? type;
+
+  /// A Pseudoterminal: what stands for its process, given the terminal
+  /// (`customPtyImplementation`); [executable] and [env] do not apply.
+  final Future<Pty> Function(TerminalInstance instance)? customPty;
+}
 
 /// The terminal profiles there are, [configured] (the user's
 /// `terminal.integrated.profiles.<os>`) over VS Code's defaults:
@@ -112,6 +186,8 @@ class TerminalInstance extends ChangeNotifier {
     this._rows = 24,
     this.onExit,
     this.shell,
+    this.config,
+    this.environmentMutator,
   }) {
     _initPlatform();
     xterm = TerminalXterm(
@@ -146,8 +222,17 @@ class TerminalInstance extends ChangeNotifier {
     );
     keyboard.onKey((_) => showCursor());
     // What the keyboard, the mouse and the app's replies send.
-    terminal.onData(writeText);
-    terminal.onBinary((data) => write(latin1.encode(data)));
+    terminal.onData((data) {
+      writeText(data);
+      _onInput.add(data);
+    });
+    terminal.onBinary((data) {
+      write(latin1.encode(data));
+      _onInput.add(data);
+    });
+    if (config?.initialText case final text?) {
+      terminal.write('$text\r\n');
+    }
     unawaited(_start());
   }
 
@@ -172,8 +257,24 @@ class TerminalInstance extends ChangeNotifier {
   /// Its number, from 1 up, as VS Code's `instanceId`.
   final int id;
 
-  /// The folder it starts in.
+  /// The folder it starts in, unless [config] says another.
   final String root;
+
+  /// What an extension asked of it; null for the user's.
+  final TerminalLaunchConfig? config;
+
+  /// The extensions' environment variable collections, applied to the
+  /// environment of a terminal whose [config] is not strict.
+  final void Function(Map<String, String> environment)? environmentMutator;
+
+  final _onInput = StreamController<String>.broadcast(sync: true);
+
+  /// What the user typed into it, and what [sendText] sent: VS Code's
+  /// `onDidInputData`.
+  Stream<String> get onInput => _onInput.stream;
+
+  /// Why it closed, once it has.
+  TerminalExitReason? exitReason;
   final TerminalBackend backend;
 
   /// Told once the process has exited, or failed to start: after [exited],
@@ -213,6 +314,11 @@ class TerminalInstance extends ChangeNotifier {
   /// its folder. There from the launch on, to see the first prompt.
   ShellIntegration? get shellIntegration => _shellIntegration;
   ShellIntegration? _shellIntegration;
+
+  final _onShellIntegrationReady = StreamController<void>.broadcast(sync: true);
+
+  /// Fired once [shellIntegration] is there.
+  Stream<void> get onShellIntegrationReady => _onShellIntegrationReady.stream;
 
   /// Find in the terminal: made the first time it is asked for.
   late final TerminalFind find = () {
@@ -288,10 +394,22 @@ class TerminalInstance extends ChangeNotifier {
   /// What the user named it; null leaves it to the process.
   String? get userTitle => _userTitle;
 
-  /// Its name in the tabs: the user's, else the process's (VS Code's
-  /// default `terminal.integrated.tabs.title`, `${process}`).
+  /// Its name in the tabs: the user's, else its [config]'s, else the
+  /// process's (VS Code's default `terminal.integrated.tabs.title`,
+  /// `${process}`).
   String get title =>
-      _userTitle ?? (processName.isEmpty ? 'Terminal' : processName);
+      _userTitle ??
+      config?.name ??
+      (processName.isEmpty ? 'Terminal' : processName);
+
+  /// Whether it is kept, after its process exited, until a key is pressed
+  /// (its [config]'s `waitOnExit`).
+  bool get waitingForKey => _waitingForKey;
+  bool _waitingForKey = false;
+
+  /// Asked to be closed: a key was pressed after its process exited and it
+  /// [waitingForKey].
+  void Function(TerminalInstance instance)? onRequestClose;
 
   /// Names it [title]; none (or only spaces) gives it back to the process,
   /// as VS Code's rename does with no name.
@@ -321,8 +439,14 @@ class TerminalInstance extends ChangeNotifier {
   Stream<Uint8List> get output => _output.stream;
 
   /// Sends [data] to the process as typed; kept until it has started, and
-  /// dropped once it has exited.
+  /// dropped once it has exited (a key then closes a terminal
+  /// [waitingForKey]).
   void write(Uint8List data) {
+    if (_waitingForKey && !_disposed) {
+      _waitingForKey = false;
+      onRequestClose?.call(this);
+      return;
+    }
     if (_exited || _disposed || data.isEmpty) return;
     if (_pty case final pty?) {
       pty.write(data);
@@ -333,6 +457,48 @@ class TerminalInstance extends ChangeNotifier {
 
   /// [write]s [text] in UTF-8.
   void writeText(String text) => write(utf8.encode(text));
+
+  /// VS Code's `sendText`: [text] with its line endings as Enter presses,
+  /// one more when [shouldExecute] and it does not end with one; in
+  /// bracketed paste when [bracketedPasteMode] and the process asked for
+  /// it.
+  void sendText(
+    String text, {
+    bool shouldExecute = false,
+    bool bracketedPasteMode = false,
+  }) {
+    if (bracketedPasteMode &&
+        terminal.coreService.decPrivateModes.bracketedPasteMode) {
+      text = '\x1b[200~$text\x1b[201~';
+    }
+    text = text.replaceAll(RegExp(r'\r?\n'), '\r');
+    if (shouldExecute && !text.endsWith('\r')) text += '\r';
+    writeText(text);
+    _onInput.add(text);
+    if (shouldExecute) _onDidExecuteText.fire(null);
+  }
+
+  /// VS Code's `runCommand`: [commandLine] typed at the prompt and run;
+  /// what was at the prompt (or anything, without shell integration) is
+  /// cancelled first with ctrl+c.
+  Future<void> runCommand(
+    String commandLine, {
+    bool shouldExecute = true,
+  }) async {
+    final detection = _shellIntegration?.commandDetection;
+    if (shouldExecute &&
+        (detection == null || detection.promptInputModel.value.isNotEmpty)) {
+      sendText('\x03');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    sendText(
+      commandLine,
+      shouldExecute: shouldExecute,
+      bracketedPasteMode: !shouldExecute,
+    );
+  }
+
+  final _onDidExecuteText = Emitter<void>();
 
   /// Its grid, as its view lays it out; the process is told.
   void resize(int columns, int rows) {
@@ -365,23 +531,53 @@ class TerminalInstance extends ChangeNotifier {
 
   Future<void> _start() async {
     try {
-      final shell = this.shell == null ? null : await this.shell;
-      if (_disposed) return;
-      final launch = await backend.launch(
-        root,
-        columns: _columns,
-        rows: _rows,
-        shell: shell,
-      );
-      if (_disposed) return;
-      _launch = launch;
-      _shellIntegration = ShellIntegration(
-        terminal,
-        nonce: shellIntegrationNonce(launch),
-        decorationService: decorations,
-      );
-      notifyListeners();
-      final pty = await backend.start(launch);
+      final config = this.config;
+      final Pty pty;
+      if (config?.customPty case final customPty?) {
+        // After whoever made it was told it exists.
+        await Future<void>.value();
+        if (_disposed) return;
+        _shellIntegration = ShellIntegration(
+          terminal,
+          decorationService: decorations,
+          onDidExecuteText: _onDidExecuteText.event,
+        );
+        _onShellIntegrationReady.add(null);
+        pty = await customPty(this);
+      } else {
+        final executable = config?.executable;
+        final TerminalShell? shell = executable != null
+            ? (executable: executable, arguments: config?.arguments ?? const [])
+            : this.shell == null
+            ? null
+            : await this.shell;
+        if (_disposed) return;
+        final mutator = environmentMutator;
+        final launch = await backend.launch(
+          config?.cwd ?? root,
+          columns: _columns,
+          rows: _rows,
+          shell: shell,
+          environment: config?.env != null || mutator != null
+              ? TerminalEnvironmentRequest(
+                  env: config?.env,
+                  strict: config?.strictEnv ?? false,
+                  mutate: mutator,
+                )
+              : null,
+        );
+        if (_disposed) return;
+        _launch = launch;
+        _shellIntegration = ShellIntegration(
+          terminal,
+          nonce: shellIntegrationNonce(launch),
+          decorationService: decorations,
+          onDidExecuteText: _onDidExecuteText.event,
+        );
+        _onShellIntegrationReady.add(null);
+        notifyListeners();
+        pty = await backend.start(launch);
+      }
       if (_disposed) {
         pty.kill();
         return;
@@ -389,7 +585,10 @@ class TerminalInstance extends ChangeNotifier {
       _pty = pty;
       _printing = pty.output.listen(_printed);
       unawaited(pty.exitCode.then(_processExited));
-      if (launch.columns != _columns || launch.rows != _rows) {
+      // Resized while it started: the process is told.
+      final launch = _launch;
+      if (launch != null &&
+          (launch.columns != _columns || launch.rows != _rows)) {
         pty.resize(_columns, _rows);
       }
       for (final data in _typedAhead) {
@@ -437,6 +636,33 @@ class TerminalInstance extends ChangeNotifier {
 
   void _processExited(int code) {
     if (_disposed) return;
+    exitReason ??= TerminalExitReason.process;
+    if (config?.waitOnExit case final waitOnExit?) {
+      // VS Code's `_onProcessExit` with `waitOnExit`: the exit's message,
+      // then the one asked for, and the next key closes it.
+      _exited = true;
+      _exitCode = code;
+      _typedAhead.clear();
+      if (code > 0) {
+        terminal.write(
+          formatMessageForTerminal(
+            _launch == null
+                ? 'The terminal process terminated with exit code: $code.'
+                : 'The terminal process "${_commandLine(_launch!)}" '
+                      'terminated with exit code: $code.',
+          ),
+        );
+      }
+      if (waitOnExit(code) case final message?) {
+        terminal.write(
+          formatMessageForTerminal(message, excludeLeadingNewLine: true),
+        );
+      }
+      _waitingForKey = true;
+      notifyListeners();
+      onExit?.call(this);
+      return;
+    }
     // node-pty reports 0 for a process a signal ended, and VS Code closes a
     // terminal quietly then: only a code above 0 is explained.
     _end(
@@ -470,6 +696,9 @@ class TerminalInstance extends ChangeNotifier {
     if (!_exited) _pty?.kill();
     unawaited(_printing?.cancel());
     unawaited(_output.close());
+    unawaited(_onInput.close());
+    unawaited(_onShellIntegrationReady.close());
+    _onDidExecuteText.dispose();
     if (_findCreated) {
       terminalColorTheme.removeListener(_updateFindColors);
       find.dispose();

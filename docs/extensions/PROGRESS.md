@@ -99,6 +99,13 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - Workbench extension views: TreeViews in Explorer/activity-bar containers and panel containers; view/title and item
   menus, welcome content, file decorations and panel badges. Widget evidence:
   `test/extensions/workbench/ide_workbench_views_test.dart`.
+- Terminals for extensions (lib/extensions/main_thread/main_thread_terminal_service.dart,
+  main_thread_terminal_shell_integration.dart, lib/extensions/terminal/environment_variable_service.dart):
+  `createTerminal` (shell, args, cwd, env/strictEnv, name, hideFromUser, waitOnExit, initialText) and Pseudoterminals
+  on the panel's `TerminalService`, the terminal events, data events, `sendText`/`show`/`hide`/`dispose`, the default
+  profile (`env.shell`), persistent environment variable collections, and shell integration (`executeCommand`,
+  `read()`, exit codes, cwd, env). The workbench binds its service; headless, `ExtensionTerminals` keeps its own.
+  Tests: `test/extensions/terminal/` (scripted) and `terminal_exthost_test.dart` (real REH, real zsh).
 
 ## In progress / next
 
@@ -131,7 +138,13 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   were absent was incorrect. Packaging needs no additional VSIX. Real launch and attach are covered by the tagged test.
 - On macOS, `Directory.systemTemp` may return `/var/folders` while Node reports `/private/var/folders`; resolve the
   temporary test workspace symlink before setting js-debug breakpoints so the DAP source paths match.
-- Debug tasks and terminals reject explicitly until their real backends are connected; no successful no-op for a requested task.
+- Debug tasks reject explicitly until the task backend is connected; no successful no-op for a requested task.
+- Extension terminals live in the panel only (no editor-area terminals or splits); terminal completion, quick fix and
+  link providers are accepted without UI; contributed terminal profiles are recorded, not offered in the menu.
+  Remote (SSH) terminals do not get an extension's `env` or the environment collections.
+- `TerminalShellExecution.read()` is cut from the process data at the OSC 633/133 `C`/`D` sequences rather than from
+  xterm's post-parse data events, so a fast command's output is not lost when C, output and D arrive in one chunk.
+- `test/ide/terminal/terminal_color_theme_test.dart` fails on the branch base too (pixel sampling).
 - Extension pages show over the editors (not as editor tabs): BaoCode's tabs are documents.
 - A multi-folder workspace runs one extension host on its first folder for now.
 - Keybindings: the keybinding service holds one set of extension keybindings, the visible workbench's.

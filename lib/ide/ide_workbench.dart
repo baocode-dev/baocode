@@ -572,6 +572,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The panel's terminals; none where they cannot run (the web).
   TerminalService? _terminals;
+  List<StreamSubscription<Object?>> _terminalRequests = const [];
   IdeReferences? _references;
 
   /// The Problems and References lists' focused rows and collapsed files.
@@ -990,10 +991,23 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     widget.settings?.addListener(_settingsChanged);
     widget.remote?.addListener(_remoteChanged);
     if (widget.terminalBackend.supported) {
-      _terminals = TerminalService(
+      final terminals = _terminals = TerminalService(
         root: widget.workspace.root,
         backend: widget.terminalBackend,
       )..addListener(_terminalsChanged);
+      // An extension's `Terminal.show()` and `hide()`.
+      _terminalRequests = [
+        terminals.onDidRequestShow.listen((preserveFocus) {
+          if (!mounted) return;
+          setState(() => _panel = IdePanelTab.terminal);
+          if (!preserveFocus) _focusTerminalSoon();
+        }),
+        terminals.onDidRequestHide.listen((_) {
+          if (mounted && _panel == IdePanelTab.terminal) {
+            setState(() => _panel = null);
+          }
+        }),
+      ];
     }
     _restoreView();
     _attach();
@@ -1259,6 +1273,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _timeline.dispose();
     _search.dispose();
     _scm.dispose();
+    for (final subscription in _terminalRequests) {
+      unawaited(subscription.cancel());
+    }
     _terminals
       ?..removeListener(_terminalsChanged)
       ..dispose();

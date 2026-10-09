@@ -50,7 +50,7 @@ void main() {
   test('a Windows shell is named without its .exe', () async {
     final (:terminal, started: _, exits: _) = _start(
       backend: TerminalBackend(
-        launch: (root, {columns = 80, rows = 24, shell}) async =>
+        launch: (root, {columns = 80, rows = 24, shell, environment}) async =>
             PtyLaunch(executable: 'pwsh.EXE', workingDirectory: root),
         start: FakePty.starter([]),
         supported: true,
@@ -258,12 +258,13 @@ void main() {
     final ptys = <FakePty>[];
     final (:terminal, started: _, exits: _) = _start(
       backend: TerminalBackend(
-        launch: (root, {columns = 80, rows = 24, shell}) async => PtyLaunch(
-          executable: '/bin/zsh',
-          arguments: const ['-l'],
-          workingDirectory: root,
-          environment: const {'VSCODE_NONCE': 'n0nce'},
-        ),
+        launch: (root, {columns = 80, rows = 24, shell, environment}) async =>
+            PtyLaunch(
+              executable: '/bin/zsh',
+              arguments: const ['-l'],
+              workingDirectory: root,
+              environment: const {'VSCODE_NONCE': 'n0nce'},
+            ),
         start: FakePty.starter(ptys),
         linkStat: (_) async => null,
         supported: true,
