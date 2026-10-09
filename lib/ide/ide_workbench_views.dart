@@ -12,6 +12,18 @@ extension _ViewsPart on IdeWorkbenchState {
     extensions.views
       ..addListener(_extensionsUiChanged)
       ..opener = _openExtensionView;
+    extensions.menus.addListener(_extensionsUiChanged);
+    // The views' `when` and the editor title's menus follow the context.
+    _stopViewContext = extensions.contextKeys.onDidChangeContext((event) {
+      final menus = extensions.menus;
+      final keys = {
+        for (final view in extensions.views.contributions.views)
+          ...?view.when?.keys(),
+        ...menus.contextKeysOf('editor/title'),
+        ...menus.contextKeysOf('editor/title/run'),
+      };
+      if (event.affectsSome(keys)) _extensionsUiChanged();
+    });
     // Extensions run the workbench's commands too
     // (`CommandsRegistry`), but not their own palette entries again.
     extensions.commands.appCommands = _commandsForExtensions;
@@ -19,6 +31,9 @@ extension _ViewsPart on IdeWorkbenchState {
 
   void _detachViews(WorkspaceExtensions extensions) {
     final views = extensions.views..removeListener(_extensionsUiChanged);
+    extensions.menus.removeListener(_extensionsUiChanged);
+    _stopViewContext?.call();
+    _stopViewContext = null;
     if (views.opener == _openExtensionView) views.opener = null;
     views.setVisibleViews(const {});
     if (extensions.commands.appCommands == _commandsForExtensions) {
@@ -347,6 +362,129 @@ extension _ViewsPart on IdeWorkbenchState {
             label: 'Collapse All',
             run: () => views.treeView(view.id)?.collapseAll(),
           ),
+    ];
+  }
+
+  // --- Menus ---------------------------------------------------------------
+
+  /// [menu]'s extension groups for [doc] (its resource's context keys
+  /// over the workspace's), whose commands run with [args].
+  List<MenuGroup> _resourceMenu(
+    String menu,
+    String? path, {
+    Map<String, Object?> keys = const {},
+    required List<Object?> args,
+  }) {
+    final extensions = widget.extensions;
+    if (extensions == null) return const [];
+    final context = extensions.contextKeys.createOverlay({
+      ...resourceContextKeys(
+        path == null ? null : VsUri.file(path),
+        languageId: path == null ? null : extensions.languageIdFor(path),
+      ),
+      ...keys,
+    });
+    return extensions.menus.menuItems(menu, context, args: args);
+  }
+
+  /// A document's resource for menus: none for an untitled one's.
+  static String? _resourcePath(IdeDocument doc) =>
+      doc.isUntitled ? null : doc.path;
+
+  /// `editor/context`, run with the editor's resource.
+  List<IdeMenuGroup> _editorExtensionMenu() {
+    final active = widget.workspace.active;
+    if (active == null) return const [];
+    final path = _resourcePath(active);
+    return ideMenuGroupsOf(
+      _resourceMenu(
+        'editor/context',
+        path,
+        args: [if (path != null) VsUri.file(path)],
+      ),
+    );
+  }
+
+  /// `explorer/context`, run with the row's resource and the selected
+  /// ones.
+  List<IdeMenuGroup> _explorerExtensionMenu(
+    String path,
+    List<String> selected, {
+    required bool isFolder,
+  }) => ideMenuGroupsOf(
+    _resourceMenu(
+      'explorer/context',
+      path,
+      keys: {
+        'explorerResourceIsFolder': isFolder,
+        'explorerResourceIsRoot': widget.workspace.roots.contains(path),
+      },
+      args: [
+        VsUri.file(path),
+        [for (final s in selected.isEmpty ? [path] : selected) VsUri.file(s)],
+      ],
+    ),
+  );
+
+  /// `editor/title/context`, run with the tab's resource.
+  List<IdeMenuGroup> _tabExtensionMenu(IdeDocument doc) {
+    final path = _resourcePath(doc);
+    return ideMenuGroupsOf(
+      _resourceMenu(
+        'editor/title/context',
+        path,
+        args: [if (path != null) VsUri.file(path)],
+      ),
+    );
+  }
+
+  /// `editor/title` but its `navigation` group: More Actions'.
+  List<IdeMenuGroup> _editorTitleExtensionMenu(IdeDocument doc) {
+    final path = _resourcePath(doc);
+    return ideMenuGroupsOf([
+      for (final group in _resourceMenu(
+        'editor/title',
+        path,
+        args: [if (path != null) VsUri.file(path)],
+      ))
+        if (group.id != 'navigation') group,
+    ]);
+  }
+
+  /// `editor/title`'s `navigation` group, and `editor/title/run`, as
+  /// buttons for the active editor.
+  List<Widget> _editorTitleExtensionActions() {
+    final active = widget.workspace.active;
+    if (active == null || widget.extensions == null) return const [];
+    final path = _resourcePath(active);
+    final args = [if (path != null) VsUri.file(path)];
+    final actions = [
+      for (final group in _resourceMenu('editor/title', path, args: args))
+        if (group.id == 'navigation') ...group.actions,
+      for (final group in _resourceMenu('editor/title/run', path, args: args))
+        ...group.actions,
+    ];
+    return [
+      for (final action in actions)
+        IdeActionButton(
+          icon: ideMenuActionIcon(action),
+          iconWidget: ideMenuActionImage(action, 16),
+          tooltip: action is MenuCommandAction
+              ? KeybindingService.instance.titleWithKeybinding(
+                  action.title,
+                  action.id,
+                )
+              : action.title,
+          onPressed: switch (action) {
+            MenuCommandAction(:final run, enabled: true) => () =>
+                unawaited(run()),
+            MenuSubmenuAction(:final actions) when actions.isNotEmpty => () =>
+                unawaited(
+                  (actions.first as MenuCommandAction?)?.run(),
+                ),
+            _ => null,
+          },
+        ),
     ];
   }
 }

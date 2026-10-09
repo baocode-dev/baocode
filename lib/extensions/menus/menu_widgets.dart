@@ -17,12 +17,18 @@
 // actions beyond the navigation group; the overflow always shows when the
 // other groups have items (no width measuring).
 
+import 'dart:io';
+
+import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 import 'package:flutter/material.dart' hide ImageIcon;
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
+import '../../keybindings/keybinding_service.dart';
 import '../../theme/codicons.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../commands/command_contributions.dart';
 import 'menu_service.dart';
 
@@ -63,6 +69,7 @@ class IdeMenuActions extends StatelessWidget {
         for (final action in buttons)
           IdeActionButton(
             icon: ideMenuActionIcon(action),
+            iconWidget: ideMenuActionImage(action, iconSize),
             tooltip: action.title,
             size: size,
             iconSize: iconSize,
@@ -76,25 +83,41 @@ class IdeMenuActions extends StatelessWidget {
             tooltip: context.l10n.extMenusMoreActions,
             size: size,
             iconSize: iconSize,
-            entries: () async => [for (final a in overflow) ?_entry(a)],
+            entries: () async => [for (final a in overflow) ?ideMenuEntryOf(a)],
           ),
       ],
     );
   }
 
-  IdeMenuEntry? _entry(MenuAction action) => switch (action) {
-    MenuCommandAction(:final run, :final enabled, :final alt) => IdeMenuAction(
-      action.title,
-      enabled: enabled,
-      onSelected: () => run(),
-      submenu: alt == null ? null : [_entry(alt)!],
-    ),
-    MenuSubmenuAction(:final title, :final groups) => IdeMenuAction(
-      title,
-      submenu: [for (final g in groups) for (final a in g.actions) ?_entry(a)],
-    ),
-  };
 }
+
+/// [action] as a context menu's entry, with its command's keybinding.
+IdeMenuEntry? ideMenuEntryOf(MenuAction action) => switch (action) {
+  // Its `alt` is what holding Alt shows upstream; menus here show the
+  // action itself.
+  MenuCommandAction(:final id, :final run, :final enabled) => IdeMenuAction(
+    action.title,
+    enabled: enabled,
+    keybinding: KeybindingService.instance.labelFor(id),
+    onSelected: () => run(),
+  ),
+  MenuSubmenuAction(:final title, :final groups) => IdeMenuAction(
+    title,
+    submenu: ideMenuGroups([
+      for (final g in groups) [for (final a in g.actions) ?ideMenuEntryOf(a)],
+    ]),
+  ),
+};
+
+/// [groups] as a context menu's, to merge with the workbench's
+/// ([ideMergedMenuGroups]).
+List<IdeMenuGroup> ideMenuGroupsOf(List<MenuGroup> groups) => [
+  for (final group in groups)
+    (
+      id: group.id,
+      entries: [for (final a in group.actions) ?ideMenuEntryOf(a)],
+    ),
+];
 
 /// An action's icon: its codicon, its image, or a generic one.
 IconData ideMenuActionIcon(MenuAction action) => switch (action.icon) {
@@ -103,3 +126,26 @@ IconData ideMenuActionIcon(MenuAction action) => switch (action.icon) {
   _ => Codicons.symbolMethod,
 };
 
+
+/// An action's image icon (light or dark for the theme), if it has one.
+Widget? ideMenuActionImage(MenuAction action, double size) =>
+    switch (action.icon) {
+      final ImageIcon image => _image(
+        themeColors.dark ? image.dark : image.light ?? image.dark,
+        size,
+      ),
+      _ => null,
+    };
+
+Widget _image(VsUri uri, double size) {
+  if (uri.scheme != 'file') return SizedBox.square(dimension: size);
+  final path = uri.fsPath();
+  return path.toLowerCase().endsWith('.svg')
+      ? SvgPicture.file(File(path), width: size, height: size)
+      : Image.file(
+          File(path),
+          width: size,
+          height: size,
+          errorBuilder: (_, _, _) => SizedBox.square(dimension: size),
+        );
+}

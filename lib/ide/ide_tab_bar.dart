@@ -96,7 +96,22 @@ class IdeTabBar extends StatefulWidget {
     this.local = true,
     this.markdownPreview,
     this.onMarkdownPreview,
+    this.extensionContextMenu,
+    this.extensionTitleMenu,
+    this.extensionTitleActions = const [],
   });
+
+  /// The extensions' `editor/title/context` groups for a tab, merged into
+  /// its context menu's.
+  final List<IdeMenuGroup> Function(IdeDocument doc)? extensionContextMenu;
+
+  /// The extensions' `editor/title` groups but `navigation`, for the
+  /// active editor: in More Actions.
+  final List<IdeMenuGroup> Function(IdeDocument doc)? extensionTitleMenu;
+
+  /// The extensions' `editor/title` `navigation` actions for the active
+  /// editor: buttons before More Actions.
+  final List<Widget> extensionTitleActions;
 
   final List<IdeDocument> documents;
 
@@ -193,59 +208,74 @@ class _IdeTabBarState extends State<IdeTabBar> {
       position: position,
       anchor: anchor,
       alignRight: anchor != null,
-      entries: ideMenuGroups([
+      entries: ideMergedMenuGroups(
         [
-          item(
-            IdeTabAction.close,
-            l10n.tabClose,
-            command: 'workbench.action.closeActiveEditor',
+          (
+            id: '1_close',
+            entries: [
+              item(
+                IdeTabAction.close,
+                l10n.tabClose,
+                command: 'workbench.action.closeActiveEditor',
+              ),
+              item(
+                IdeTabAction.closeOthers,
+                l10n.tabCloseOthers,
+                enabled: docs.length > 1,
+              ),
+              item(
+                IdeTabAction.closeToTheRight,
+                l10n.tabCloseToTheRight,
+                enabled: index >= 0 && index < docs.length - 1,
+              ),
+              item(
+                IdeTabAction.closeSaved,
+                l10n.tabCloseSaved,
+                enabled: docs.any((d) => !d.dirty),
+              ),
+              item(IdeTabAction.closeAll, l10n.tabCloseAll),
+            ],
           ),
-          item(
-            IdeTabAction.closeOthers,
-            l10n.tabCloseOthers,
-            enabled: docs.length > 1,
+          (
+            id: '1_cutcopypaste',
+            entries: [
+              item(
+                IdeTabAction.copyPath,
+                l10n.tabCopyPath,
+                command: 'copyFilePath',
+              ),
+              item(
+                IdeTabAction.copyRelativePath,
+                l10n.tabCopyRelativePath,
+                command: 'copyRelativeFilePath',
+              ),
+            ],
           ),
-          item(
-            IdeTabAction.closeToTheRight,
-            l10n.tabCloseToTheRight,
-            enabled: index >= 0 && index < docs.length - 1,
+          (
+            id: '2_files',
+            entries: [
+              // Not a revision's tab, whose file may be gone.
+              if (widget.local &&
+                  WindowControls.canRevealInFileManager &&
+                  doc.readRevision == null)
+                item(
+                  IdeTabAction.revealInFileManager,
+                  l10n.revealInFileManager,
+                  command: 'revealFileInOS',
+                ),
+              if (widget.local &&
+                  WindowControls.canOpenInDefaultApp &&
+                  doc.readRevision == null)
+                item(IdeTabAction.openInDefaultApp, l10n.openInDefaultApp),
+              item(IdeTabAction.revealInExplorer, l10n.tabRevealInExplorerView),
+            ],
           ),
-          item(
-            IdeTabAction.closeSaved,
-            l10n.tabCloseSaved,
-            enabled: docs.any((d) => !d.dirty),
-          ),
-          item(IdeTabAction.closeAll, l10n.tabCloseAll),
         ],
         [
-          item(
-            IdeTabAction.copyPath,
-            l10n.tabCopyPath,
-            command: 'copyFilePath',
-          ),
-          item(
-            IdeTabAction.copyRelativePath,
-            l10n.tabCopyRelativePath,
-            command: 'copyRelativeFilePath',
-          ),
+          ...?widget.extensionContextMenu?.call(doc),
+          if (anchor != null) ...?widget.extensionTitleMenu?.call(doc),
         ],
-        [
-          // Not a revision's tab, whose file may be gone.
-          if (widget.local &&
-              WindowControls.canRevealInFileManager &&
-              doc.readRevision == null)
-            item(
-              IdeTabAction.revealInFileManager,
-              l10n.revealInFileManager,
-              command: 'revealFileInOS',
-            ),
-          if (widget.local &&
-              WindowControls.canOpenInDefaultApp &&
-              doc.readRevision == null)
-            item(IdeTabAction.openInDefaultApp, l10n.openInDefaultApp),
-          item(IdeTabAction.revealInExplorer, l10n.tabRevealInExplorerView),
-        ],
-      ]),
+      ),
     );
   }
 
@@ -301,6 +331,7 @@ class _IdeTabBarState extends State<IdeTabBar> {
             final onChanged?,
           ))
             _MarkdownSwitch(preview: preview, onChanged: onChanged),
+          ...widget.extensionTitleActions,
           if (widget.active case final active?)
             Builder(
               builder: (context) => _TabBarAction(

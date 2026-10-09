@@ -83,6 +83,7 @@ class IdeEditor extends StatefulWidget {
     this.onOpenLocation,
     this.onShowReferences,
     this.onShowCommands,
+    this.extensionContextMenu,
     this.formatOnSave = false,
     this.gitBlame = true,
     this.keyResolver,
@@ -110,6 +111,10 @@ class IdeEditor extends StatefulWidget {
 
   /// Opens the Command Palette: the context menu's last item.
   final VoidCallback? onShowCommands;
+
+  /// The extensions' `editor/context` groups, merged into the context
+  /// menu's.
+  final List<IdeMenuGroup> Function()? extensionContextMenu;
 
   /// Formats the document before saving (`editor.formatOnSave`, off by
   /// default) when a language server can.
@@ -1364,41 +1369,53 @@ class IdeEditorState extends State<IdeEditor> {
       showIdeMenu(
         context,
         position: position,
-        entries: ideMenuGroups([
-          languageItems(const [
-            'editor.action.revealDefinition',
-            'editor.action.goToTypeDefinition',
-            'editor.action.goToImplementation',
-            'editor.action.goToReferences',
-          ]),
-          [
-            ...languageItems(const ['editor.action.rename']),
-            editorItem('editor.action.changeAll'),
-            ...languageItems([
-              'editor.action.formatDocument',
-              if (hasSelection) 'editor.action.formatSelection',
-              'editor.action.refactor',
-              'editor.action.sourceAction',
+        entries: ideMergedMenuGroups([
+          (
+            id: 'navigation',
+            entries: languageItems(const [
+              'editor.action.revealDefinition',
+              'editor.action.goToTypeDefinition',
+              'editor.action.goToImplementation',
+              'editor.action.goToReferences',
             ]),
-          ],
-          [
-            editorItem('editor.action.clipboardCutAction'),
-            editorItem('editor.action.clipboardCopyAction'),
-            editorItem('editor.action.clipboardPasteAction'),
-          ],
-          [
-            if (showCommands != null)
-              IdeMenuAction(
-                l10n.editorCommandPalette,
-                keybinding: const IdeKeybinding(
-                  LogicalKeyboardKey.keyP,
-                  primary: true,
-                  shift: true,
-                ).label(),
-                onSelected: showCommands,
-              ),
-          ],
-        ]),
+          ),
+          (
+            id: '1_modification',
+            entries: [
+              ...languageItems(const ['editor.action.rename']),
+              editorItem('editor.action.changeAll'),
+              ...languageItems([
+                'editor.action.formatDocument',
+                if (hasSelection) 'editor.action.formatSelection',
+                'editor.action.refactor',
+                'editor.action.sourceAction',
+              ]),
+            ],
+          ),
+          (
+            id: '9_cutcopypaste',
+            entries: [
+              editorItem('editor.action.clipboardCutAction'),
+              editorItem('editor.action.clipboardCopyAction'),
+              editorItem('editor.action.clipboardPasteAction'),
+            ],
+          ),
+          (
+            id: 'z_commands',
+            entries: [
+              if (showCommands != null)
+                IdeMenuAction(
+                  l10n.editorCommandPalette,
+                  keybinding: const IdeKeybinding(
+                    LogicalKeyboardKey.keyP,
+                    primary: true,
+                    shift: true,
+                  ).label(),
+                  onSelected: showCommands,
+                ),
+            ],
+          ),
+        ], widget.extensionContextMenu?.call() ?? const []),
       ),
     );
   }

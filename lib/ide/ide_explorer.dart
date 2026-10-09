@@ -521,9 +521,20 @@ class IdeExplorer extends StatefulWidget {
     this.onAddFolder,
     this.onRemoveFolder,
     this.decorations,
+    this.extensionContextMenu,
   });
 
   final IdeExplorerController controller;
+
+  /// The extensions' `explorer/context` groups for [path] (the clicked
+  /// row's, or the root's) and the [selected] paths, merged into the
+  /// context menu's.
+  final List<IdeMenuGroup> Function(
+    String path,
+    List<String> selected, {
+    required bool isFolder,
+  })?
+  extensionContextMenu;
 
   /// More rows' decorations (the extensions'), after Git's.
   final IdeExplorerDecorations? decorations;
@@ -1135,7 +1146,9 @@ class IdeExplorerState extends State<IdeExplorer> {
         final participants = _controller.participants;
         // `onWillRenameFiles`: extensions (TypeScript's imports) edit
         // first; the rename runs whatever they answer.
-        await participants?.willMove([(_controller._uri(from), _controller._uri(to))]);
+        await participants?.willMove([
+          (_controller._uri(from), _controller._uri(to)),
+        ]);
         await files.rename(from, to);
         participants?.didMove([(_controller._uri(from), _controller._uri(to))]);
         _controller.forget(from);
@@ -1382,152 +1395,181 @@ class IdeExplorerState extends State<IdeExplorer> {
     return showIdeMenu(
       context,
       position: position,
-      entries: ideMenuGroups([
+      entries: ideMergedMenuGroups(
         [
-          if (isFolder) ...[
-            IdeMenuAction(
-              l10n.explorerNewFile,
-              keybinding: _keybinding('explorer.newFile'),
-              onSelected: () =>
-                  unawaited(startCreate(parent: path, directory: false)),
-            ),
-            IdeMenuAction(
-              l10n.explorerNewFolder,
-              keybinding: _keybinding('explorer.newFolder'),
-              onSelected: () =>
-                  unawaited(startCreate(parent: path, directory: true)),
-            ),
-          ],
-          if (widget.local && WindowControls.canRevealInFileManager)
-            IdeMenuAction(
-              l10n.revealInFileManager,
-              keybinding: keys(const [
-                IdeKeybinding(
-                  LogicalKeyboardKey.keyR,
-                  primary: true,
-                  alt: true,
-                  mac: true,
+          (
+            id: 'navigation',
+            entries: [
+              if (isFolder) ...[
+                IdeMenuAction(
+                  l10n.explorerNewFile,
+                  keybinding: _keybinding('explorer.newFile'),
+                  onSelected: () =>
+                      unawaited(startCreate(parent: path, directory: false)),
                 ),
-              ]),
-              onSelected: () =>
-                  unawaited(WindowControls.revealInFileManager(path)),
-            ),
-          if (widget.onOpenInDefaultApp case final open?
-              when targets.any((target) => !target.isDirectory))
-            IdeMenuAction(
-              l10n.openInDefaultApp,
-              onSelected: () {
-                for (final target in targets) {
-                  if (!target.isDirectory) open(target.path);
-                }
-              },
-            ),
-        ],
-        [
-          if (isFolder && !multiple && widget.onFindInFolder != null)
-            IdeMenuAction(
-              l10n.explorerFindInFolder,
-              keybinding: keys(const [
-                IdeKeybinding(LogicalKeyboardKey.keyF, shift: true, alt: true),
-              ]),
-              onSelected: () => widget.onFindInFolder!(path),
-            ),
-        ],
-        [
-          if (!isRoot) ...[
-            IdeMenuAction(
-              l10n.commonCut,
-              keybinding: _keybinding('filesExplorer.cut'),
-              onSelected: () => _copy(targets, cut: true),
-            ),
-            IdeMenuAction(
-              l10n.commonCopy,
-              keybinding: _keybinding('filesExplorer.copy'),
-              onSelected: () => _copy(targets, cut: false),
-            ),
-          ],
-          if (isFolder)
-            IdeMenuAction(
-              l10n.commonPaste,
-              keybinding: _keybinding('filesExplorer.paste'),
-              enabled: canPaste,
-              onSelected: () => unawaited(_paste(path)),
-            ),
-        ],
-        [
-          IdeMenuAction(
-            l10n.tabCopyPath,
-            keybinding: keys(const [
-              IdeKeybinding(
-                LogicalKeyboardKey.keyC,
-                primary: true,
-                alt: true,
-                mac: true,
-              ),
-              IdeKeybinding(
-                LogicalKeyboardKey.keyC,
-                shift: true,
-                alt: true,
-                mac: false,
-              ),
-            ]),
-            onSelected: () => unawaited(
-              Clipboard.setData(
-                ClipboardData(
-                  text: multiple ? _paths(targets).join('\n') : path,
+                IdeMenuAction(
+                  l10n.explorerNewFolder,
+                  keybinding: _keybinding('explorer.newFolder'),
+                  onSelected: () =>
+                      unawaited(startCreate(parent: path, directory: true)),
                 ),
-              ),
-            ),
+              ],
+              if (widget.local && WindowControls.canRevealInFileManager)
+                IdeMenuAction(
+                  l10n.revealInFileManager,
+                  keybinding: keys(const [
+                    IdeKeybinding(
+                      LogicalKeyboardKey.keyR,
+                      primary: true,
+                      alt: true,
+                      mac: true,
+                    ),
+                  ]),
+                  onSelected: () =>
+                      unawaited(WindowControls.revealInFileManager(path)),
+                ),
+              if (widget.onOpenInDefaultApp case final open?
+                  when targets.any((target) => !target.isDirectory))
+                IdeMenuAction(
+                  l10n.openInDefaultApp,
+                  onSelected: () {
+                    for (final target in targets) {
+                      if (!target.isDirectory) open(target.path);
+                    }
+                  },
+                ),
+            ],
           ),
-          IdeMenuAction(
-            l10n.tabCopyRelativePath,
-            keybinding: keys(const [
-              IdeKeybinding(
-                LogicalKeyboardKey.keyC,
-                primary: true,
-                alt: true,
-                shift: true,
-                mac: true,
-              ),
-            ]),
-            onSelected: () => unawaited(
-              Clipboard.setData(
-                ClipboardData(
-                  text: multiple
-                      ? [for (final t in targets) _relative(t.path)].join('\n')
-                      : _relative(path),
+          (
+            id: '4_search',
+            entries: [
+              if (isFolder && !multiple && widget.onFindInFolder != null)
+                IdeMenuAction(
+                  l10n.explorerFindInFolder,
+                  keybinding: keys(const [
+                    IdeKeybinding(
+                      LogicalKeyboardKey.keyF,
+                      shift: true,
+                      alt: true,
+                    ),
+                  ]),
+                  onSelected: () => widget.onFindInFolder!(path),
                 ),
-              ),
-            ),
+            ],
           ),
-        ],
-        [
-          if (widget.onAddFolder case final add? when row == null)
-            IdeMenuAction(l10n.ideAddFolderToWorkspace, onSelected: add),
-          if (widget.onRemoveFolder case final remove? when workspaceFolder)
-            IdeMenuAction(
-              l10n.ideRemoveFolderFromWorkspace,
-              onSelected: () => remove(path),
-            ),
-        ],
-        [
-          if (!isRoot) ...[
-            if (!multiple)
+          (
+            id: '5_cutcopypaste',
+            entries: [
+              if (!isRoot) ...[
+                IdeMenuAction(
+                  l10n.commonCut,
+                  keybinding: _keybinding('filesExplorer.cut'),
+                  onSelected: () => _copy(targets, cut: true),
+                ),
+                IdeMenuAction(
+                  l10n.commonCopy,
+                  keybinding: _keybinding('filesExplorer.copy'),
+                  onSelected: () => _copy(targets, cut: false),
+                ),
+              ],
+              if (isFolder)
+                IdeMenuAction(
+                  l10n.commonPaste,
+                  keybinding: _keybinding('filesExplorer.paste'),
+                  enabled: canPaste,
+                  onSelected: () => unawaited(_paste(path)),
+                ),
+            ],
+          ),
+          (
+            id: '6_copypath',
+            entries: [
               IdeMenuAction(
-                l10n.explorerRename,
-                keybinding: _keybinding('renameFile'),
-                onSelected: () => startRename(row),
+                l10n.tabCopyPath,
+                keybinding: keys(const [
+                  IdeKeybinding(
+                    LogicalKeyboardKey.keyC,
+                    primary: true,
+                    alt: true,
+                    mac: true,
+                  ),
+                  IdeKeybinding(
+                    LogicalKeyboardKey.keyC,
+                    shift: true,
+                    alt: true,
+                    mac: false,
+                  ),
+                ]),
+                onSelected: () => unawaited(
+                  Clipboard.setData(
+                    ClipboardData(
+                      text: multiple ? _paths(targets).join('\n') : path,
+                    ),
+                  ),
+                ),
               ),
-            IdeMenuAction(
-              l10n.commonDelete,
-              keybinding: _keybinding(
-                widget.trash == null ? 'deleteFile' : 'moveFileToTrash',
+              IdeMenuAction(
+                l10n.tabCopyRelativePath,
+                keybinding: keys(const [
+                  IdeKeybinding(
+                    LogicalKeyboardKey.keyC,
+                    primary: true,
+                    alt: true,
+                    shift: true,
+                    mac: true,
+                  ),
+                ]),
+                onSelected: () => unawaited(
+                  Clipboard.setData(
+                    ClipboardData(
+                      text: multiple
+                          ? [for (final t in targets) _relative(t.path)]
+                                .join('\n')
+                          : _relative(path),
+                    ),
+                  ),
+                ),
               ),
-              onSelected: () => unawaited(_delete(targets)),
-            ),
-          ],
+            ],
+          ),
+          (
+            id: '2_workspace',
+            entries: [
+              if (widget.onAddFolder case final add? when row == null)
+                IdeMenuAction(l10n.ideAddFolderToWorkspace, onSelected: add),
+              if (widget.onRemoveFolder case final remove? when workspaceFolder)
+                IdeMenuAction(
+                  l10n.ideRemoveFolderFromWorkspace,
+                  onSelected: () => remove(path),
+                ),
+            ],
+          ),
+          (
+            id: '7_modification',
+            entries: [
+              if (!isRoot) ...[
+                if (!multiple)
+                  IdeMenuAction(
+                    l10n.explorerRename,
+                    keybinding: _keybinding('renameFile'),
+                    onSelected: () => startRename(row),
+                  ),
+                IdeMenuAction(
+                  l10n.commonDelete,
+                  keybinding: _keybinding(
+                    widget.trash == null ? 'deleteFile' : 'moveFileToTrash',
+                  ),
+                  onSelected: () => unawaited(_delete(targets)),
+                ),
+              ],
+            ],
+          ),
         ],
-      ]),
+        widget.extensionContextMenu?.call(path, [
+              for (final t in targets) t.path,
+            ], isFolder: isFolder) ??
+            const [],
+      ),
     );
   }
 

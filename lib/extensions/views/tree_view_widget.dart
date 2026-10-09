@@ -783,6 +783,7 @@ class _TreeRow extends StatelessWidget {
                 for (final action in actions)
                   IdeActionButton(
                     icon: ideMenuActionIcon(action),
+                    iconWidget: ideMenuActionImage(action, 16),
                     tooltip: action.title,
                     size: 20,
                     onPressed: action is MenuCommandAction && action.enabled

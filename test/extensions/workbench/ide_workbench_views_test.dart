@@ -10,8 +10,13 @@ import 'package:baocode/extensions/decorations/file_decorations_service.dart';
 import 'package:baocode/extensions/gallery/open_vsx_client.dart';
 import 'package:baocode/extensions/views/tree_view.dart';
 import 'package:baocode/extensions/workbench/workspace_extensions.dart';
+import 'package:baocode/ide/ide_explorer.dart';
+import 'package:baocode/ide/ide_tab_bar.dart';
 import 'package:baocode/ide/ide_workbench.dart';
-import 'package:flutter/gestures.dart' show kSecondaryButton;
+import 'package:bao_editor/monaco/flutter/editor_surface.dart'
+    show EditorSurface;
+import 'package:flutter/gestures.dart'
+    show PointerDeviceKind, kSecondaryButton, kSecondaryMouseButton;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -76,6 +81,15 @@ WorkspaceExtensions _extensions() {
           {'command': 'acme.remove', 'title': 'Remove', 'icon': r'$(trash)'},
           {'command': 'acme.update', 'title': 'Update Dependency'},
           {'command': 'acme.add', 'title': 'Add Dependency'},
+          {
+            'command': 'acme.preview',
+            'title': 'Preview Text',
+            'icon': r'$(open-preview)',
+          },
+          {'command': 'acme.share', 'title': 'Share Text'},
+          {'command': 'acme.explore', 'title': 'Acme: Explore'},
+          {'command': 'acme.tab', 'title': 'Acme: From Tab'},
+          {'command': 'acme.lookup', 'title': 'Acme: Look Up'},
         ],
         'viewsContainers': {
           'activitybar': [
@@ -97,6 +111,31 @@ WorkspaceExtensions _extensions() {
           },
         ],
         'menus': {
+          'editor/title': [
+            {
+              'command': 'acme.preview',
+              'when': 'resourceExtname == .txt',
+              'group': 'navigation',
+            },
+            {'command': 'acme.share', 'when': 'resourceExtname == .txt'},
+          ],
+          'editor/context': [
+            {
+              'command': 'acme.lookup',
+              'when': 'resourceLangId == plaintext',
+              'group': 'navigation',
+            },
+          ],
+          'explorer/context': [
+            {
+              'command': 'acme.explore',
+              'when': '!explorerResourceIsFolder',
+              'group': '7_modification',
+            },
+          ],
+          'editor/title/context': [
+            {'command': 'acme.tab', 'group': '1_close'},
+          ],
           'view/title': [
             {
               'command': 'acme.refresh',
@@ -287,6 +326,93 @@ void main() {
     await tester.pumpAndSettle();
     expect(asked, contains(endsWith('a.txt')));
     expect(find.text('X'), findsOneWidget);
+    await _end(tester);
+  });
+
+  testWidgets('extensions\' menus in the editor title, the editor\'s, the '
+      'explorer\'s and the tabs\' context menus, run with the resource', (
+    tester,
+  ) async {
+    final extensions = _extensions();
+    final ran = <(String, List<Object?>)>[];
+    for (final id in [
+      'acme.preview',
+      'acme.share',
+      'acme.explore',
+      'acme.tab',
+      'acme.lookup',
+    ]) {
+      extensions.commands.builtins.register(id, (args) async {
+        ran.add((id, args));
+        return null;
+      });
+    }
+    await pumpWorkbench(
+      tester,
+      {'a.txt': 'text'},
+      open: ['a.txt'],
+      extensions: extensions,
+      nativeEditor: true,
+    );
+    // The painted editor's assets.
+    for (var i = 0; i < 10; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+    final file = '$testRoot/a.txt';
+
+    // editor/title's navigation group: a button.
+    await tester.tap(find.byTooltip('Preview Text'));
+    await tester.pumpAndSettle();
+    expect(ran.last.$1, 'acme.preview');
+    expect((ran.last.$2.single! as VsUri).fsPath(), file);
+
+    // Its other groups: in More Actions, after the tab's own.
+    await tester.tap(find.byTooltip('More Actions…'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share Text'));
+    await tester.pumpAndSettle();
+    expect(ran.last.$1, 'acme.share');
+
+    // A tab's context menu.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(IdeTabBar),
+        matching: find.text('a.txt'),
+      ),
+      buttons: kSecondaryButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Acme: From Tab'));
+    await tester.pumpAndSettle();
+    expect(ran.last.$1, 'acme.tab');
+
+    // The editor's context menu.
+    await tester.tapAt(
+      tester.getTopLeft(find.byType(EditorSurface)) + const Offset(40, 8),
+      buttons: kSecondaryMouseButton,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Acme: Look Up'));
+    await tester.pumpAndSettle();
+    expect(ran.last.$1, 'acme.lookup');
+
+    // A file's row in the explorer.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(IdeExplorer),
+        matching: find.text('a.txt'),
+      ),
+      buttons: kSecondaryButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Acme: Explore'));
+    await tester.pumpAndSettle();
+    expect(ran.last.$1, 'acme.explore');
+    expect((ran.last.$2.first! as VsUri).fsPath(), file);
+    expect(ran.last.$2.last, isA<List<Object?>>());
     await _end(tester);
   });
 }

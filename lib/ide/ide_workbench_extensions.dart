@@ -32,6 +32,8 @@ extension _ExtensionsPart on IdeWorkbenchState {
 
   void _detachExtensions(WorkspaceExtensions? extensions) {
     if (extensions == null) return;
+    // First: what follows the context keys stops before they change.
+    _detachViews(extensions);
     if (extensions.contextKeys.fallback == keyContext) {
       extensions.contextKeys.fallback = null;
     }
@@ -43,7 +45,6 @@ extension _ExtensionsPart on IdeWorkbenchState {
       ..panelVisible.value = false;
     extensions.removeListener(_extensionsUiChanged);
     ExtensionRuntimeService.instance.removeListener(_extensionsUiChanged);
-    _detachViews(extensions);
     _extensionKeys?.dispose();
     _extensionKeys = null;
   }

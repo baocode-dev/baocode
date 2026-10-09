@@ -26,10 +26,18 @@ import '../extensions/window/quick_input/quick_input_widget.dart';
 import '../extensions/window/status_bar_items.dart';
 import '../extensions/window/window_adapters.dart'
     show WorkbenchCommandExecutor;
+import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+
 import '../extensions/commands/command_contributions.dart'
     show ImageIcon, ThemeIconRef;
 import '../extensions/contextkey/context_key_service.dart'
     show ContextKeyService;
+import '../extensions/contextkey/workbench_context_keys.dart'
+    show resourceContextKeys;
+import '../extensions/menus/menu_service.dart'
+    show MenuCommandAction, MenuGroup, MenuSubmenuAction;
+import '../extensions/menus/menu_widgets.dart'
+    show ideMenuActionIcon, ideMenuActionImage, ideMenuGroupsOf;
 import '../extensions/views/tree_view_widget.dart';
 import '../extensions/views/view_contributions.dart';
 import '../extensions/workbench/workspace_extensions.dart';
@@ -90,6 +98,7 @@ import 'ide_explorer.dart';
 import 'ide_hover.dart';
 import 'ide_layout.dart';
 import 'ide_list.dart' show IdeKeyboardList;
+import 'ide_menu.dart' show IdeMenuGroup;
 import 'ide_modern_ui.dart';
 import 'ide_notifications.dart';
 import 'ide_panes.dart';
@@ -419,6 +428,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// ([_ViewsPart._commandsForExtensions]).
   Map<String, IdeCommand>? _appCommandsCache;
   bool _makingAppCommands = false;
+
+  /// Stops following the context keys extension views and menus depend on.
+  void Function()? _stopViewContext;
 
   /// The workspace's notifications (the extension host's go there too).
   IdeNotifications get _notifications => widget.workspace.notifications;
@@ -3282,6 +3294,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                 git,
                             ],
                             decorations: widget.extensions?.explorerDecorations,
+                            extensionContextMenu: _explorerExtensionMenu,
                             onAddFolder: workspace.isMultiRoot
                                 ? widget.onAddFolder
                                 : null,
@@ -3390,6 +3403,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   : null,
               onMarkdownPreview: (preview) =>
                   unawaited(_setMarkdownPreview(preview)),
+              extensionContextMenu: _tabExtensionMenu,
+              extensionTitleMenu: _editorTitleExtensionMenu,
+              extensionTitleActions: _editorTitleExtensionActions(),
             ),
             if (active != null && !active.isUntitled)
               IdeBreadcrumbs(
@@ -3504,6 +3520,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                 onOpenLocation: _openLocation,
                                 onShowReferences: _showReferences,
                                 onShowCommands: () => _showQuickInput('>'),
+                                extensionContextMenu: _editorExtensionMenu,
                                 formatOnSave: _formatOnSave,
                                 gitBlame: _gitBlame,
                                 keyResolver: _resolveEditorKey,
