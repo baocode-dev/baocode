@@ -37,7 +37,9 @@ import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_them
 import 'package:bao_editor/textmate/textmate_syntax.dart';
 
 import 'git/git_blame.dart';
+import 'ide_color_picker.dart';
 import 'ide_commands.dart';
+import 'ide_editor_colors.dart';
 import 'ide_editor_features.dart';
 import 'ide_editor_views.dart';
 import 'ide_find_widget.dart';
@@ -151,6 +153,7 @@ class IdeEditorState extends State<IdeEditor> {
   late final FocusNode _focusNode = FocusNode(debugLabel: 'ide editor');
   // The surface's state implements EditorViewHost, which editor commands use.
   final GlobalKey _surfaceKey = GlobalKey();
+  final GlobalKey _areaKey = GlobalKey();
   late final ScrollController _scrollController = ScrollController();
   final TextEditingController _findController = TextEditingController();
   final TextEditingController _replaceController = TextEditingController();
@@ -473,6 +476,13 @@ class IdeEditorState extends State<IdeEditor> {
   /// editor's own bindings; everything else (e.g. F8, workbench shortcuts)
   /// keeps bubbling.
   KeyEventResult _onEditorKey(KeyEvent event) {
+    final colors = _features.ofDocument(widget.active)?.colors;
+    if (colors?.picker != null &&
+        event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape) {
+      colors!.closePicker();
+      return KeyEventResult.handled;
+    }
     if (widget.keyResolver != null) return _onTextKey(event);
     final session = _language;
     if (session == null) return KeyEventResult.ignored;
@@ -2028,6 +2038,7 @@ class IdeEditorState extends State<IdeEditor> {
             features.decorations,
             features.inlayHints,
             features.links,
+            features.colors,
           ],
           null => const [],
         },
@@ -2069,6 +2080,36 @@ class IdeEditorState extends State<IdeEditor> {
             : SystemMouseCursors.click,
         style: _editorStyle(colors),
       );
+
+  /// The color picker open on a swatch, below where it was clicked (above
+  /// when there is no room), within the editor.
+  Widget _colorPicker(EditorColorPicker? picker, WorkbenchColors colors) {
+    final box = _areaKey.currentContext?.findRenderObject();
+    if (picker == null || box is! RenderBox || !box.hasSize) {
+      return const SizedBox.shrink();
+    }
+    final anchor = box.globalToLocal(picker.anchor);
+    final size = box.size;
+    final left = (anchor.dx - 12)
+        .clamp(0.0, math.max(0.0, size.width - IdeColorPicker.width))
+        .toDouble();
+    final below = anchor.dy + 12;
+    final top = below + IdeColorPicker.height <= size.height
+        ? below
+        : math.max(0.0, anchor.dy - 12 - IdeColorPicker.height);
+    return Stack(
+      children: [
+        Positioned(
+          left: left,
+          top: top,
+          child: TapRegion(
+            onTapOutside: (_) => picker.close(),
+            child: IdeColorPicker(picker: picker, colors: colors),
+          ),
+        ),
+      ],
+    );
+  }
 
   /// [_blame]'s lines, each after its end (`GitBlameEditorDecoration`).
   List<EditorDecoration> _blameDecorations(WorkbenchColors colors) {
@@ -2173,6 +2214,7 @@ class IdeEditorState extends State<IdeEditor> {
         child: ColoredBox(
           color: colors['editor.background'],
           child: Stack(
+            key: _areaKey,
             children: [
               Positioned.fill(
                 child: widget.nativeEditorEnabled
@@ -2246,6 +2288,16 @@ class IdeEditorState extends State<IdeEditor> {
                         ),
                       ),
                     ),
+                  ),
+                ),
+              if (_features.ofDocument(widget.active)?.colors
+                  case final documentColors?
+                  when widget.nativeEditorEnabled)
+                Positioned.fill(
+                  child: ListenableBuilder(
+                    listenable: documentColors,
+                    builder: (context, _) =>
+                        _colorPicker(documentColors.picker, colors),
                   ),
                 ),
             ],

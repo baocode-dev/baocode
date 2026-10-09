@@ -30,6 +30,7 @@ import 'package:bao_editor/monaco/flutter/editor_inline_suggest.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 
 import '../theme/workbench_theme.dart';
+import 'ide_editor_colors.dart';
 import 'ide_editor_links.dart';
 import 'ide_workspace.dart';
 
@@ -110,7 +111,8 @@ class IdeEditorFeatures {
        ),
        inlayHints = EditorInlayHintsController(controller.document),
        codeLens = EditorCodeLensController(controller.document),
-       inlineSuggest = EditorInlineSuggestController(controller);
+       inlineSuggest = EditorInlineSuggestController(controller),
+       colors = EditorDocumentColors(controller);
 
   static Color? _noColors(String id) => null;
 
@@ -131,6 +133,9 @@ class IdeEditorFeatures {
   /// Document links under the editor's modifier-click gesture.
   final EditorDocumentLinks links = EditorDocumentLinks();
 
+  /// `registerColorProvider`: color swatches and their picker.
+  final EditorDocumentColors colors;
+
   /// The colors the last [setTheme] resolved (`theme.colors`).
   EditorDecorationTheme get theme => decorations.theme;
 
@@ -140,6 +145,7 @@ class IdeEditorFeatures {
     inlayHints.colors = EditorInlayHintColors.from(value.colors);
     inlineSuggest.colors = EditorGhostTextColors.from(value.colors);
     links.setColor(value.colors('editorLink.activeForeground'));
+    colors.setDark(value.isDark);
     // CodeLens zones take their colors where they are built.
   }
 
@@ -153,6 +159,7 @@ class IdeEditorFeatures {
     codeLens.addListener(listener);
     inlineSuggest.addListener(listener);
     links.addListener(listener);
+    colors.addListener(listener);
   }
 
   void removeListener(VoidCallback listener) {
@@ -161,6 +168,7 @@ class IdeEditorFeatures {
     codeLens.removeListener(listener);
     inlineSuggest.removeListener(listener);
     links.removeListener(listener);
+    colors.removeListener(listener);
   }
 
   void dispose() {
@@ -169,6 +177,7 @@ class IdeEditorFeatures {
     codeLens.dispose();
     inlineSuggest.dispose();
     links.dispose();
+    colors.dispose();
   }
 }
 

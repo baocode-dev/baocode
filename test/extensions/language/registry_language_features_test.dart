@@ -241,6 +241,34 @@ void open(String text) {
   documents.add(path, doc);
 }
 
+class _Colors extends DocumentColorProvider {
+  _Colors(this.seen);
+
+  final List<ColorInformation> seen;
+
+  @override
+  FutureOr<List<ColorInformation>?> provideDocumentColors(
+    LanguageFeatureDocument model,
+    CancellationToken token,
+  ) => [ColorInformation(Range(1, 3, 1, 7), const Color(1, 1, 1, 1), data: 'cache-1')];
+
+  @override
+  FutureOr<List<ColorPresentation>?> provideColorPresentations(
+    LanguageFeatureDocument model,
+    ColorInformation colorInfo,
+    CancellationToken token,
+  ) {
+    seen.add(colorInfo);
+    return [
+      ColorPresentation(
+        '#f00',
+        textEdit: TextEdit(colorInfo.range, '#f00'),
+        additionalTextEdits: [TextEdit(Range(1, 1, 1, 1), ' ')],
+      ),
+    ];
+  }
+}
+
 void main() {
   setUp(() {
     service = LanguageFeaturesService();
@@ -433,6 +461,31 @@ void main() {
     expect(diagnostic.severity, LspDiagnosticSeverity.warning);
     expect(diagnostic.unnecessary, isTrue);
     expect(features.allDiagnostics.keys, [path]);
+  });
+
+  test('color presentations: the picked color at the tracked range, in '
+      'the provider\'s coordinates, with its data', () async {
+    open('\uFEFFa #fff');
+    final seen = <ColorInformation>[];
+    service.colorProvider.register(sel('typescript'), _Colors(seen));
+    final colors = await features.documentColors(path);
+    // Model columns 3..7 are editor columns 4..8 behind the BOM.
+    expect('${colors.single.range}', '${Range(1, 4, 1, 8)}');
+    final presentations = await features.colorPresentations(
+      path,
+      colors.single,
+      range: Range(1, 4, 1, 10),
+      preview: const Color(1, 0, 0, 1),
+    );
+    expect('${seen.single.range}', '${Range(1, 3, 1, 9)}');
+    expect(seen.single.color.red, 1);
+    expect(seen.single.data, 'cache-1');
+    expect(presentations.single.label, '#f00');
+    expect('${presentations.single.textEdit!.range}', '${Range(1, 4, 1, 10)}');
+    expect(
+      '${presentations.single.additionalTextEdits!.single.range}',
+      '${Range(1, 2, 1, 2)}',
+    );
   });
 
   test('markers and registry changes notify listeners', () async {

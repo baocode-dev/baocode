@@ -75,6 +75,13 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - Document-link providers now render modifier-hover link decorations and open resolved links on Cmd/Ctrl-click. Results
   expire on edits, provider changes, and tab switches; stale resolves cannot open old links. Widget pointer tests and
   provider tests cover the editor surface; command URIs are not executed.
+- Document colors: provider colors paint swatches (tracked through edits until the debounced refresh; late results
+  dropped; `editor.colorDecorators`/`colorDecoratorsLimit`). A swatch click opens the color picker (saturation box,
+  opacity and hue strips, header label = provider presentation, click to cycle; original color to revert). Drags
+  preview the provider's presentation and write on release; each write applies the main and additional edits as one
+  undo step, and the picker tracks the color's range for the next request. External edits, Escape, outside taps and tab
+  switches close it. Tests: `editor_feature_driver_test.dart`, `test/ide/ide_editor_colors_test.dart` (real editor,
+  screenshot `editor_color_picker.png`), `registry_language_features_test.dart`.
 - Assembly (lib/extensions/workbench): `ExtensionsApp` (one per app) and `WorkspaceExtensions` (one per local IDE
   folder) over `IdeWorkspace` (`IdeTextEditors`, `IdeDocumentsPort`, `IdeWorkspaceEditApplier`); real-runtime test
   `test/extensions/workbench/workspace_extensions_exthost_test.dart` (TS diagnostics, completion, hover).
@@ -88,8 +95,8 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 
 ## In progress / next
 
-1. Finish editor-feature rendering from the registry: colors; CodeLens, inlay hints, inline completions,
-   document highlights, syntax folding and document links now reach the editor driver.
+1. Editor-feature rendering from the registry is complete (CodeLens, inlay hints, inline completions, highlights,
+   folding, links, colors).
 2. Complete real-extension debugging acceptance beyond Node launch/attach (Python, Go, Rust/C++, debugger controls,
    breakpoint variants and preLaunchTask); connect real debug terminal/task backends. Implement SCM and testing actors.
 3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
@@ -123,6 +130,8 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - Keybindings: the keybinding service holds one set of extension keybindings, the visible workbench's.
 - Toasts time out only while a workbench listens to the notifications (they are the workspace's now).
 - Panel view containers render as bottom-panel tabs; auxiliary-bar containers use activity-bar entries.
+- Color picker drags write on release, not on every move (upstream leaves an undo stop per move); no default
+  color provider (`editor.defaultColorDecorators`).
 - Tree drag and drop and `TreeItemAligner` are not implemented; alt menu actions are not shown.
 - `test/chat/chat_width_test.dart` (composer grows with the setting), two chat mode-picker tests in
   `test/chat/chat_keys_test.dart`, and `test/workspace/quit_confirmation_test.dart` fail on the merge base too.

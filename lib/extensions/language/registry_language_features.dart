@@ -2100,20 +2100,35 @@ class RegistryLanguageFeatures extends ChangeNotifier
     ];
   }
 
-  /// `getColorPresentations` from the provider of [color].
+  /// `getColorPresentations` from the provider of [color]: of [preview]
+  /// (the picked color; [color]'s own by default) at [range] (editor
+  /// coordinates of the color's text now; where the provider found it by
+  /// default).
   Future<List<ColorPresentation>> colorPresentations(
     String path,
-    ColorInformation color,
-  ) async {
+    ColorInformation color, {
+    Color? preview,
+    IRange? range,
+  }) async {
     final origin = _origins[color];
     final doc = documents.documentForPath(path);
     if (origin == null || doc == null) return const [];
     final original = origin.value as ColorInformation;
+    final modelRange = range == null
+        ? original.range
+        : Range.fromPositions(
+            doc.toModelPosition(Range.startPositionOf(range)),
+            doc.toModelPosition(Range.endPositionOf(range)),
+          );
     final result = await _safe(
       () =>
           (origin.provider as DocumentColorProvider).provideColorPresentations(
             doc,
-            ColorInformation(original.range, color.color, data: original.data),
+            ColorInformation(
+              modelRange,
+              preview ?? color.color,
+              data: original.data,
+            ),
             CancellationToken.none,
           ),
     );

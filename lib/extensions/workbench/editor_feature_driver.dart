@@ -12,15 +12,23 @@
 // src/vs/editor/contrib/inlineCompletions/browser/model/
 // inlineCompletionsModel.ts (asked as the user types at one caret; the
 // first item shown; `handleItemDidShow`, the item's command on accept, the
-// result disposed when replaced).
+// result disposed when replaced), and src/vs/editor/contrib/colorPicker/
+// browser/colorDetector.ts (every provider's colors, debounced on content
+// and provider changes, `editor.colorDecorators` and
+// `editor.colorDecoratorsLimit`; the picker asks the color's provider for
+// presentations at the color's current range).
 //
 // Deviations: one inline completion shows (no cycling through the others);
 // its `additionalTextEdits` are not applied; inlay hints are asked for the
-// lines on screen without the extra margin upstream adds.
+// lines on screen without the extra margin upstream adds; no default color
+// provider (`editor.defaultColorDecorators`): colors come from extensions.
 
 import 'dart:async';
+import 'dart:ui' show Color;
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart'
+    show EditorOffsetEdit;
 import 'package:bao_editor/monaco/flutter/editor_code_lens.dart';
 import 'package:bao_editor/monaco/flutter/editor_decoration_types.dart'
     show EditorDecorationTypeRegistry;
@@ -34,6 +42,7 @@ import 'package:bao_editor/monaco/vs/editor/contrib/folding/browser/folding_rang
 import 'package:bao_editor/monaco/vs/editor/contrib/snippet/browser/snippet_parser.dart';
 import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 
+import '../../ide/ide_editor_colors.dart';
 import '../../ide/ide_editor_links.dart';
 import '../../ide/ide_editor_views.dart';
 import '../language/language_features_service.dart';
@@ -59,6 +68,7 @@ final class ExtensionEditorFeatureDriver {
     this.highlightDelay = const Duration(milliseconds: 250),
     this.foldingDelay = const Duration(milliseconds: 250),
     this.linkDelay = const Duration(milliseconds: 250),
+    this.colorDelay = const Duration(milliseconds: 250),
     this.inlineDelay = const Duration(milliseconds: 50),
   }) {
     views.addListener(_activeChanged);
@@ -90,6 +100,7 @@ final class ExtensionEditorFeatureDriver {
   final Duration highlightDelay;
   final Duration foldingDelay;
   final Duration linkDelay;
+  final Duration colorDelay;
   final Duration inlineDelay;
 
   static const _highlightColors = {
@@ -108,12 +119,14 @@ final class ExtensionEditorFeatureDriver {
   Timer? _highlightTimer;
   Timer? _foldingTimer;
   Timer? _linkTimer;
+  Timer? _colorTimer;
   Timer? _inlineTimer;
   int _codeLensGeneration = 0;
   int _inlayGeneration = 0;
   int _highlightGeneration = 0;
   int _foldingGeneration = 0;
   int _linkGeneration = 0;
+  int _colorGeneration = 0;
   int _inlineGeneration = 0;
   DocumentSnapshot? _highlightSnapshot;
   int? _highlightOffset;
@@ -147,12 +160,15 @@ final class ExtensionEditorFeatureDriver {
       ..onDismissed = (_) => _clearInline();
     features.links.onOpen = (link, snapshot) =>
         unawaited(_openDocumentLink(view, snapshot, link));
+    features.colors.onPresentations = (color, start, end, value) =>
+        _colorPresentations(view, color, start, end, value);
     _changes = view.controller.document.changes.listen((event) {
       _scheduleCodeLens();
       _scheduleInlayHints();
       _scheduleHighlights();
       _scheduleFolding();
       _scheduleLinks();
+      _scheduleColors();
       if (!event.isUndoing && !event.isRedoing) _scheduleInline(event);
     });
     _watchProviders(view);
@@ -161,6 +177,7 @@ final class ExtensionEditorFeatureDriver {
     _scheduleHighlights(immediately: true);
     _scheduleFolding(immediately: true);
     _scheduleLinks(immediately: true);
+    _scheduleColors(immediately: true);
   }
 
   void _registerHighlightTypes(EditorDecorationTypeRegistry types) {
@@ -195,12 +212,14 @@ final class ExtensionEditorFeatureDriver {
     _highlightTimer?.cancel();
     _foldingTimer?.cancel();
     _linkTimer?.cancel();
+    _colorTimer?.cancel();
     _inlineTimer?.cancel();
     _codeLensGeneration++;
     _inlayGeneration++;
     _highlightGeneration++;
     _foldingGeneration++;
     _linkGeneration++;
+    _colorGeneration++;
     _inlineGeneration++;
     _inlayLines = null;
     _highlightSnapshot = null;
@@ -213,6 +232,10 @@ final class ExtensionEditorFeatureDriver {
       view.features.links
         ..setLinks(null, const [])
         ..onOpen = null;
+      view.features.colors
+        ..closePicker()
+        ..clear()
+        ..onPresentations = null;
       view.features.codeLens
         ..resolve = null
         ..onCommand = null;
@@ -261,6 +284,7 @@ final class ExtensionEditorFeatureDriver {
     _scheduleHighlights();
     _scheduleFolding();
     _scheduleLinks();
+    _scheduleColors();
   }
 
   void _viewChanged(IdeEditorView view) {
@@ -583,6 +607,109 @@ final class ExtensionEditorFeatureDriver {
     } else if (uri case final Uri target when target.hasScheme) {
       await openLink(VsUri.parse(target.toString()));
     }
+  }
+
+  // --- Document colors ---------------------------------------------------
+
+  void _scheduleColors({bool immediately = false}) {
+    final view = _view;
+    if (_disposed || view == null) return;
+    _colorTimer?.cancel();
+    final generation = ++_colorGeneration;
+    // The swatches shown move with the text until the new ones come.
+    _colorTimer = Timer(
+      immediately ? Duration.zero : colorDelay,
+      () => unawaited(_updateColors(view, generation)),
+    );
+  }
+
+  Future<void> _updateColors(IdeEditorView view, int generation) async {
+    if (!_enabled('editor.colorDecorators')) {
+      view.features.colors.clear();
+      return;
+    }
+    final snapshot = view.controller.document.snapshot;
+    final colors = await languages.documentColors(view.document.path);
+    if (_disposed ||
+        generation != _colorGeneration ||
+        !identical(view, _view) ||
+        !identical(snapshot, view.controller.document.snapshot)) {
+      return;
+    }
+    // `editor.colorDecoratorsLimit` (upstream default 500).
+    final limit = switch (setting?.call(
+      'editor.colorDecoratorsLimit',
+      languageIdOf?.call(view.document.path),
+    )) {
+      final int value when value >= 0 => value,
+      _ => 500,
+    };
+    view.features.colors.setColors(snapshot, [
+      for (final info in colors.take(limit))
+        if (info.range case final Range range)
+          EditorDocumentColor(
+            snapshot.offsetAtPosition(range.getStartPosition()),
+            snapshot.offsetAtPosition(range.getEndPosition()),
+            Color.from(
+              alpha: info.color.alpha,
+              red: info.color.red,
+              green: info.color.green,
+              blue: info.color.blue,
+            ),
+            data: info,
+          ),
+    ]);
+  }
+
+  /// The provider's presentations of [value] for [color]'s text, now at
+  /// [start, end) (upstream `getColorPresentations` with the picker's
+  /// tracked range).
+  Future<List<EditorColorPresentation>> _colorPresentations(
+    IdeEditorView view,
+    EditorDocumentColor color,
+    int start,
+    int end,
+    Color value,
+  ) async {
+    final info = color.data;
+    if (info is! lang.ColorInformation) return const [];
+    final snapshot = view.controller.document.snapshot;
+    final range = Range.fromPositions(
+      snapshot.positionAtOffset(start),
+      snapshot.positionAtOffset(end),
+    );
+    final presentations = await languages.colorPresentations(
+      view.document.path,
+      info,
+      range: range,
+      preview: lang.Color(value.r, value.g, value.b, value.a),
+    );
+    if (_disposed ||
+        !identical(view, _view) ||
+        !identical(snapshot, view.controller.document.snapshot)) {
+      return const [];
+    }
+    EditorOffsetEdit offsetEdit(lang.TextEdit edit) => EditorOffsetEdit(
+      snapshot.offsetAtPosition(Range.startPositionOf(edit.range)),
+      snapshot.offsetAtPosition(Range.endPositionOf(edit.range)),
+      edit.text,
+    );
+    return [
+      for (final presentation in presentations)
+        EditorColorPresentation(
+          presentation.label,
+          snapshot: snapshot,
+          edit: switch (presentation.textEdit) {
+            final edit? => offsetEdit(edit),
+            null => null,
+          },
+          additionalEdits: [
+            for (final edit
+                in presentation.additionalTextEdits ?? const <lang.TextEdit>[])
+              offsetEdit(edit),
+          ],
+        ),
+    ];
   }
 
   // --- Inline completions --------------------------------------------------

@@ -20,10 +20,12 @@ import 'package:baocode/extensions/language/marker_service.dart';
 import 'package:baocode/extensions/language/registry_language_features.dart';
 import 'package:baocode/extensions/workbench/editor_feature_driver.dart';
 import 'package:baocode/ide/ide_commands.dart' show ideUsesMacKeys;
+import 'package:baocode/ide/ide_editor_colors.dart';
 import 'package:baocode/ide/ide_editor_features.dart';
 import 'package:baocode/ide/ide_editor_views.dart';
 import 'package:baocode/ide/ide_workspace.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/painting.dart' as ui show Color;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -171,6 +173,52 @@ class _Links extends LinkProvider {
     resolved++;
     return pendingResolve?.future ??
         Link(link.range, url: VsUri.parse('https://example.org/count'));
+  }
+}
+
+/// `console` (line 2) is a color; its presentations are hex and rgb, each
+/// writing a marker comment at the top as an additional edit.
+class _Colors extends DocumentColorProvider {
+  final asked = <Completer<List<ColorInformation>?>>[];
+  final presented = <(Range, Color)>[];
+  bool delayed = false;
+
+  @override
+  FutureOr<List<ColorInformation>?> provideDocumentColors(
+    LanguageFeatureDocument model,
+    CancellationToken token,
+  ) {
+    final result = [
+      ColorInformation(Range(2, 1, 2, 8), const Color(0, 0, 1, 1), data: 7),
+    ];
+    if (!delayed) return result;
+    final request = Completer<List<ColorInformation>?>();
+    asked.add(request);
+    return request.future;
+  }
+
+  @override
+  FutureOr<List<ColorPresentation>?> provideColorPresentations(
+    LanguageFeatureDocument model,
+    ColorInformation colorInfo,
+    CancellationToken token,
+  ) {
+    final color = colorInfo.color;
+    presented.add((colorInfo.range as Range, color));
+    int byte(double value) => (value * 255).round();
+    String hex(double value) => byte(value).toRadixString(16).padLeft(2, '0');
+    final hexLabel =
+        '#${hex(color.red)}${hex(color.green)}${hex(color.blue)}';
+    final rgbLabel =
+        'rgb(${byte(color.red)}, ${byte(color.green)}, ${byte(color.blue)})';
+    return [
+      for (final label in [hexLabel, rgbLabel])
+        ColorPresentation(
+          label,
+          textEdit: TextEdit(colorInfo.range, label),
+          additionalTextEdits: [TextEdit(Range(1, 1, 1, 1), '/*c*/')],
+        ),
+    ];
   }
 }
 
@@ -573,6 +621,139 @@ void main() {
     controller.applyEdits([const EditorOffsetEdit(0, 0, 'x')]);
     await tester.pump(const Duration(milliseconds: 100));
     expect(features.inlineSuggest.isVisible, isFalse);
+    await stop(tester);
+  });
+
+  testWidgets('provider colors show swatches that move with edits; late '
+      'results and the setting leave none', (tester) async {
+    final provider = _Colors();
+    service.colorProvider.register(ts, provider);
+    start();
+    views.show(view);
+    await tester.pump(const Duration(milliseconds: 10));
+    final swatch = features.colors.decorations.items.single;
+    expect((swatch.start, swatch.end), (6, 13));
+    expect(swatch.before!.backgroundColor, const ui.Color(0xff0000ff));
+    expect(features.colors.affectsLayout, isTrue);
+
+    // Typing before it moves it at once; the refresh comes later.
+    provider.delayed = true;
+    controller.applyEdits([const EditorOffsetEdit(0, 0, 'x')]);
+    expect(features.colors.decorations.items.single.start, 7);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(provider.asked, hasLength(1));
+    controller.applyEdits([const EditorOffsetEdit(0, 0, 'y')]);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(provider.asked, hasLength(2));
+    // The first answer is of a text that is gone.
+    provider.asked.first.complete([
+      ColorInformation(Range(1, 1, 1, 2), const Color(1, 0, 0, 1)),
+    ]);
+    await tester.pump();
+    expect(features.colors.decorations.items.single.start, 8);
+    provider.asked.last.complete([
+      ColorInformation(Range(2, 1, 2, 8), const Color(0, 1, 0, 1)),
+    ]);
+    await tester.pump();
+    final current = features.colors.decorations.items.single;
+    expect(current.before!.backgroundColor, const ui.Color(0xff00ff00));
+
+    settings['editor.colorDecorators'] = false;
+    controller.applyEdits([const EditorOffsetEdit(0, 0, 'z')]);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(features.colors.decorations.isEmpty, isTrue);
+    await stop(tester);
+  });
+
+  testWidgets('the color picker previews provider presentations and writes '
+      'one with its additional edits as one undo step', (tester) async {
+    final provider = _Colors();
+    service.colorProvider.register(ts, provider);
+    start();
+    views.show(view);
+    await tester.pump(const Duration(milliseconds: 10));
+    final swatch =
+        features.colors.decorations.items.single.before!.data!
+            as EditorColorSwatch;
+    expect(
+      swatch.pointerDown(
+        const PointerDownEvent(
+          kind: PointerDeviceKind.mouse,
+          buttons: kSecondaryMouseButton,
+        ),
+        modifier: false,
+      ),
+      isFalse,
+    );
+    expect(
+      swatch.pointerDown(
+        const PointerDownEvent(
+          kind: PointerDeviceKind.mouse,
+          buttons: kPrimaryMouseButton,
+          position: Offset(40, 30),
+        ),
+        modifier: false,
+      ),
+      isTrue,
+    );
+    final picker = features.colors.picker!;
+    expect(picker.anchor, const Offset(40, 30));
+    await tester.pump();
+    expect(picker.presentations.map((p) => p.label), [
+      '#0000ff',
+      'rgb(0, 0, 255)',
+    ]);
+    expect('${provider.presented.single.$1}', '${Range(2, 1, 2, 8)}');
+
+    // Dragging previews: the label follows, the text does not.
+    await picker.preview(const ui.Color(0xffff0000));
+    expect(picker.presentation!.label, '#ff0000');
+    expect(controller.document.text, 'count\nconsole.\n');
+
+    await picker.commit();
+    expect(controller.document.text, '/*c*/count\n#ff0000.\n');
+    expect((picker.start, picker.end), (11, 18));
+    expect(picker.isOpen, isTrue);
+
+    // The next presentation is asked for at the color's new place.
+    await picker.nextPresentation();
+    expect('${provider.presented.last.$1}', '${Range(2, 1, 2, 8)}');
+    expect(
+      controller.document.text,
+      '/*c*//*c*/count\nrgb(255, 0, 0).\n',
+    );
+    expect((picker.start, picker.end), (16, 30));
+
+    // One undo takes back the main and the additional edit together.
+    expect(controller.undo(), isTrue);
+    expect(controller.document.text, '/*c*/count\n#ff0000.\n');
+    // A change not the picker's own closes it.
+    expect(features.colors.picker, isNull);
+    expect(picker.isOpen, isFalse);
+    await stop(tester);
+  });
+
+  testWidgets('reverting writes the original color; switching tabs closes '
+      'the picker', (tester) async {
+    final provider = _Colors();
+    service.colorProvider.register(ts, provider);
+    start();
+    views.show(view);
+    await tester.pump(const Duration(milliseconds: 10));
+    final swatch =
+        features.colors.decorations.items.single.before!.data!
+            as EditorColorSwatch;
+    final picker = features.colors.open(swatch, Offset.zero)!;
+    await tester.pump();
+    await picker.pick(const ui.Color(0xff00ff00));
+    expect(controller.document.text, '/*c*/count\n#00ff00.\n');
+    await picker.revert();
+    expect(controller.document.text, '/*c*//*c*/count\n#0000ff.\n');
+    expect(picker.value, picker.originalColor);
+
+    views.hide(view);
+    expect(features.colors.picker, isNull);
+    expect(features.colors.decorations.isEmpty, isTrue);
     await stop(tester);
   });
 }
