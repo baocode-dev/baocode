@@ -346,7 +346,8 @@ function mapNode(node, seen = new Set()) {
     case ts.SyntaxKind.BigIntKeyword: case ts.SyntaxKind.SymbolKeyword: case ts.SyntaxKind.FunctionType:
     case ts.SyntaxKind.ConstructorType:
       return T.object;
-    case ts.SyntaxKind.ObjectKeyword: return T.map;
+    // `object` is any non-primitive: arrays and functions too.
+    case ts.SyntaxKind.ObjectKeyword: return T.object;
     case ts.SyntaxKind.VoidKeyword: return T.void;
     case ts.SyntaxKind.UndefinedKeyword: return T.undef;
     case ts.SyntaxKind.TemplateLiteralType: return T.string;

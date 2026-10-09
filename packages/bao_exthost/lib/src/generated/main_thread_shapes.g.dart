@@ -5107,11 +5107,7 @@ abstract interface class MainThreadStorageShape {
   Future<String?> $initializeExtensionStorage(bool shared, String extensionId);
 
   /// `$setValue(shared: boolean, extensionId: string, value: object): Promise<void>`
-  FutureOr<void> $setValue(
-    bool shared,
-    String extensionId,
-    Map<String, Object?> value,
-  );
+  FutureOr<void> $setValue(bool shared, String extensionId, Object? value);
 
   /// `$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void`
   FutureOr<void> $registerExtensionStorageKeysToSync(
@@ -5132,11 +5128,8 @@ base class MainThreadStorageUnsupported implements MainThreadStorageShape {
   ) => _unsupported('MainThreadStorage', r'$initializeExtensionStorage');
 
   @override
-  FutureOr<void> $setValue(
-    bool shared,
-    String extensionId,
-    Map<String, Object?> value,
-  ) => _unsupported('MainThreadStorage', r'$setValue');
+  FutureOr<void> $setValue(bool shared, String extensionId, Object? value) =>
+      _unsupported('MainThreadStorage', r'$setValue');
 
   @override
   FutureOr<void> $registerExtensionStorageKeysToSync(
@@ -5167,7 +5160,7 @@ final class MainThreadStorageActor implements RpcActor {
         await target.$setValue(
           a.arg(0, decodeBool, 'shared'),
           a.arg(1, decodeString, 'extensionId'),
-          a.arg(2, decodeMap, 'value'),
+          a.arg(2, decodeObject, 'value'),
         );
         return null;
       case r'$registerExtensionStorageKeysToSync':
