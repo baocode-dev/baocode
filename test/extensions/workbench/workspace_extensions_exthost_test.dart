@@ -90,6 +90,10 @@ Future<void> _body(String runtime) async {
     workspace.dispose();
   });
   await extensions.attach(workspace, start: false);
+  // The TypeScript extension does not run in restricted mode
+  // (`untrustedWorkspaces.supported: false`): the user trusts the folder
+  // at the startup prompt.
+  await extensions.trust!.setWorkspaceTrust(true);
   await workspace.open(file);
 
   // The document is the extension host's, in VS Code's language.

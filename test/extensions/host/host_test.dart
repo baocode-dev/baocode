@@ -261,6 +261,30 @@ void main() {
       manager.dispose();
     });
 
+    test('activation events asked while the start failed are sent to the '
+        'next start (a runtime download that failed, retried)', () async {
+      var fail = true;
+      final manager = ExtensionHostManager(
+        start: () => fail
+            ? Future<ExtHostSession>.error(StateError('no runtime'))
+            : start(),
+        extensionServiceId: _service,
+      );
+      await expectLater(manager.activateByEvent('*'), throwsStateError);
+      await expectLater(
+        manager.activateByEvent('onLanguage:typescript'),
+        throwsStateError,
+      );
+      expect(manager.state, ExtensionHostState.failed);
+      fail = false;
+      await manager.activateByEvent('*');
+      await pumpEventQueue();
+      expect(sessions, hasLength(1));
+      expect(services.single.events, ['*', 'onLanguage:typescript']);
+      expect(manager.state, ExtensionHostState.running);
+      manager.dispose();
+    });
+
     test('a stop is not a crash', () async {
       final manager = ExtensionHostManager(
         start: start,

@@ -105,6 +105,11 @@ final class ExtensionHostManager extends ChangeNotifier {
     } on Object catch (e) {
       _error = e;
       _session = null;
+      // Upstream starts a new host with a new manager, and so an empty
+      // activation cache: the events asked for while this one failed to
+      // start are sent again to the next.
+      _cachedActivations.clear();
+      _replayEvents = true;
       _setState(ExtensionHostState.failed);
       rethrow;
     }
@@ -123,8 +128,19 @@ final class ExtensionHostManager extends ChangeNotifier {
     });
     unawaited(session.closed.then((_) => _onClosed(session)));
     _setState(ExtensionHostState.running);
+    if (_replayEvents) {
+      // Upstream sends a new host every event asked for so far
+      // (`_allRequestedActivateEvents`), those that failed with the start
+      // too.
+      _replayEvents = false;
+      for (final event in _requestedEvents.toList()) {
+        unawaited(activateByEvent(event).catchError((Object _) {}));
+      }
+    }
     return session;
   }
+
+  bool _replayEvents = false;
 
   void _onClosed(ExtHostSession session) {
     if (!identical(session, _current)) return;

@@ -942,13 +942,19 @@ final class WorkspaceExtensions extends ChangeNotifier {
     ];
     if (fresh.isEmpty) return;
     try {
-      await host.activateByEvent('onLanguage');
+      // Upstream fires both without waiting on either.
       await Future.wait([
         for (final language in fresh)
           host.activateByEvent('onLanguage:$language'),
+        host.activateByEvent('onLanguage'),
       ]);
     } on Object {
-      // Logged by the host's output; the editor carries on without.
+      // Logged by the host's output; the editor carries on without. When
+      // the host could not start (no runtime yet), the next start asks
+      // again.
+      if (host.manager.state == ExtensionHostState.failed) {
+        _activatedLanguages.removeAll(fresh);
+      }
     }
   }
 

@@ -82,6 +82,13 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   undo step, and the picker tracks the color's range for the next request. External edits, Escape, outside taps and tab
   switches close it. Tests: `editor_feature_driver_test.dart`, `test/ide/ide_editor_colors_test.dart` (real editor,
   screenshot `editor_color_picker.png`), `registry_language_features_test.dart`.
+- Acceptance 九.1/九.7 (tagged `exthost`): `test/extensions/acceptance/fresh_runtime_ts_exthost_test.dart` — fresh data
+  folder, the real dl.baocode.dev archive served by a local mirror that drops the first transfer (failure leaves nothing
+  behind; retry completes with downloading/installing/ready progress), TS completion/hover/definition/references/
+  rename/diagnostics/format/quick fix/CodeLens/inlay hints on a second, offline app, then SIGKILL of the extension host
+  and automatic recovery. Fixes it found: failed starts no longer cache activations (and replay requested events on the
+  next start, upstream `_allRequestedActivateEvents`), `onLanguage`/`onLanguage:<id>` are sent together, languages are
+  asked again after a failed start, and socket write errors after a reset no longer escape as unhandled errors.
 - Assembly (lib/extensions/workbench): `ExtensionsApp` (one per app) and `WorkspaceExtensions` (one per local IDE
   folder) over `IdeWorkspace` (`IdeTextEditors`, `IdeDocumentsPort`, `IdeWorkspaceEditApplier`); real-runtime test
   `test/extensions/workbench/workspace_extensions_exthost_test.dart` (TS diagnostics, completion, hover).
@@ -128,6 +135,8 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - Extension pages show over the editors (not as editor tabs): BaoCode's tabs are documents.
 - A multi-folder workspace runs one extension host on its first folder for now.
 - Keybindings: the keybinding service holds one set of extension keybindings, the visible workbench's.
+- The built-in TypeScript extension declares `untrustedWorkspaces.supported: false`: in a new (untrusted) folder it runs
+  only once the user trusts the folder (startup prompt), as upstream. Tests trust the folder explicitly.
 - Toasts time out only while a workbench listens to the notifications (they are the workspace's now).
 - Panel view containers render as bottom-panel tabs; auxiliary-bar containers use activity-bar entries.
 - Color picker drags write on release, not on every move (upstream leaves an undo stop per move); no default

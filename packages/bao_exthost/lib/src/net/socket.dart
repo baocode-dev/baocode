@@ -23,6 +23,10 @@ abstract interface class ExtHostSocket {
 final class IoExtHostSocket implements ExtHostSocket {
   IoExtHostSocket(this._socket) {
     _socket.setOption(SocketOption.tcpNoDelay, true);
+    // A write to a socket the other side reset fails here (`done`), not
+    // where it was written; the reader sees the socket close and the
+    // protocol ends there.
+    _socket.done.ignore();
   }
 
   final Socket _socket;
