@@ -23,6 +23,7 @@ import 'package:path/path.dart' as p;
 
 import '../../ide/ide_workspace.dart';
 import '../../ide/lsp/language_features.dart';
+import '../../ide/lsp/lsp_protocol.dart' show LspPosition, LspRange;
 import '../../platform/data_dir.dart';
 import '../../settings/jsonc.dart';
 import '../../settings/jsonc_file.dart';
@@ -92,6 +93,7 @@ import '../window/window_adapters.dart';
 import '../window/window_ports.dart';
 import '../workspace/workspace_context.dart';
 import '../workspace/workspace_save.dart';
+import 'editor_feature_driver.dart';
 import 'ide_documents.dart';
 import 'ide_text_editors.dart';
 import 'jsonc_settings_file.dart';
@@ -351,6 +353,11 @@ final class WorkspaceExtensions extends ChangeNotifier {
   JsoncSettingsFile? _folderSettings;
   ExtensionProgressService? _progress;
   WorkspaceFileWatcher? _watcher;
+  ExtensionEditorFeatureDriver? _editorFeatures;
+
+  /// The extensions' CodeLenses, inlay hints and inline completions in the
+  /// editor on screen, once [attach]ed.
+  ExtensionEditorFeatureDriver? get editorFeatures => _editorFeatures;
   final _stops = <void Function()>[];
   bool _disposed = false;
 
@@ -540,6 +547,25 @@ final class WorkspaceExtensions extends ChangeNotifier {
         await commands.executeCommand(id, args);
       }
     };
+    _editorFeatures = ExtensionEditorFeatureDriver(
+      views: workspace.editorViews,
+      languages: languageRoot.language,
+      service: languageRoot.service,
+      executeCommand: commands.executeCommand,
+      openLocation: (uri, range) async {
+        if (uri.scheme != 'file') return;
+        await workspace.openAt(
+          uri.fsPath(),
+          LspRange(
+            LspPosition(range.startLineNumber - 1, range.startColumn - 1),
+            LspPosition(range.endLineNumber - 1, range.endColumn - 1),
+          ),
+        );
+      },
+      languageIdOf: languageIdFor,
+      setting: (key, languageId) =>
+          configuration.getValue(key, languageId: languageId),
+    );
     host.extensions.addListener(_extensionsChanged);
     host.addListener(notifyListeners);
     // Installed, uninstalled, enabled or disabled anywhere: the running
@@ -742,6 +768,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
       ..removeListener(notifyListeners)
       ..dispose();
     _watcher?.dispose();
+    _editorFeatures?.dispose();
     _documentsPort?.dispose();
     _documentsAndEditors?.dispose();
     _editors?.dispose();

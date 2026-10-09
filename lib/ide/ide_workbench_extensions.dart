@@ -306,6 +306,12 @@ extension _ExtensionsPart on IdeWorkbenchState {
         run: () => unawaited(_importExtensions()),
       ),
       IdeCommand(
+        id: 'editor.action.inlineSuggest.trigger',
+        label: 'Trigger Inline Suggestion',
+        enabled: widget.workspace.active != null,
+        run: () => unawaited(extensions.editorFeatures?.trigger()),
+      ),
+      IdeCommand(
         id: 'workbench.action.restartExtensionHost',
         category: 'Developer',
         label: 'Restart Extension Host',

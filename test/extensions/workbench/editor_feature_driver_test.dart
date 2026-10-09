@@ -1,0 +1,284 @@
+// The extensions' CodeLenses, inlay hints and inline completions reach the
+// editor on screen (goal 九.1: CodeLens and InlayHints of the TS extension
+// go through this driver).
+
+import 'dart:async';
+
+import 'package:bao_editor/monaco/flutter/editor_document_model.dart'
+    show EditorOffsetEdit;
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_exthost/bao_exthost.dart' show CancellationToken, VsUri;
+import 'package:baocode/extensions/documents/ext_host_document_mirror.dart';
+import 'package:baocode/extensions/language/language_feature_document.dart';
+import 'package:baocode/extensions/language/language_features_service.dart';
+import 'package:baocode/extensions/language/language_providers.dart';
+import 'package:baocode/extensions/language/language_selector.dart';
+import 'package:baocode/extensions/language/language_types.dart';
+import 'package:baocode/extensions/language/marker_service.dart';
+import 'package:baocode/extensions/language/registry_language_features.dart';
+import 'package:baocode/extensions/workbench/editor_feature_driver.dart';
+import 'package:baocode/ide/ide_editor_features.dart';
+import 'package:baocode/ide/ide_editor_views.dart';
+import 'package:baocode/ide/ide_workspace.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+const _path = '/w/a.ts';
+
+class _Lenses extends CodeLensProvider {
+  final changes = StreamController<void>.broadcast();
+  int asked = 0;
+
+  @override
+  Stream<void>? get onDidChange => changes.stream;
+
+  @override
+  FutureOr<CodeLensList?> provideCodeLenses(
+    LanguageFeatureDocument model,
+    CancellationToken token,
+  ) {
+    asked++;
+    return CodeLensList([CodeLens(Range(1, 1, 1, 6), id: 'a')]);
+  }
+
+  @override
+  bool get canResolveCodeLens => true;
+
+  @override
+  FutureOr<CodeLens?> resolveCodeLens(
+    LanguageFeatureDocument model,
+    CodeLens codeLens,
+    CancellationToken token,
+  ) => CodeLens(
+    codeLens.range,
+    id: codeLens.id,
+    command: const Command(
+      id: 'acme.references',
+      title: '2 references',
+      arguments: [1],
+    ),
+  );
+}
+
+class _Hints extends InlayHintsProvider {
+  final ranges = <Range>[];
+
+  @override
+  FutureOr<InlayHintList?> provideInlayHints(
+    LanguageFeatureDocument model,
+    Range range,
+    CancellationToken token,
+  ) {
+    ranges.add(range);
+    return InlayHintList([
+      const InlayHint(
+        label: [InlayHintLabelPart(': number')],
+        position: Position(1, 6),
+        kind: InlayHintKind.type,
+      ),
+    ]);
+  }
+}
+
+class _Inline extends InlineCompletionsProvider {
+  final shown = <String>[];
+  int disposed = 0;
+
+  @override
+  FutureOr<InlineCompletions?> provideInlineCompletions(
+    LanguageFeatureDocument model,
+    Position position,
+    InlineCompletionContext context,
+    CancellationToken token,
+  ) => const InlineCompletions([
+    InlineCompletion(
+      insertText: 'log()',
+      command: Command(id: 'acme.accepted', title: ''),
+    ),
+  ]);
+
+  @override
+  void handleItemDidShow(
+    InlineCompletions completions,
+    InlineCompletion item,
+    String updatedInsertText,
+  ) => shown.add(updatedInsertText);
+
+  @override
+  void disposeInlineCompletions(
+    InlineCompletions completions,
+    InlineCompletionsDisposeReason reason,
+  ) => disposed++;
+}
+
+void main() {
+  late LanguageFeaturesService service;
+  late MarkerService markers;
+  late RegistryLanguageFeatures languages;
+  late IdeEditorViews views;
+  late IdeDocument document;
+  late EditorSurfaceController controller;
+  late IdeEditorFeatures features;
+  late IdeEditorView view;
+  late List<(String, List<Object?>)> commands;
+  late Map<String, Object?> settings;
+  late bool focused;
+  ExtensionEditorFeatureDriver? driver;
+
+  setUp(() {
+    service = LanguageFeaturesService();
+    markers = MarkerService();
+    final documents = LocalLanguageFeatureDocuments()
+      ..add(
+        _path,
+        ExtHostDocumentMirror(
+          uri: VsUri.file(_path),
+          languageId: 'typescript',
+          text: 'count\nconsole.\n',
+        ),
+      );
+    languages = RegistryLanguageFeatures(
+      service: service,
+      markers: markers,
+      documents: documents,
+    );
+    views = IdeEditorViews();
+    document = IdeDocument(_path, 'count\nconsole.\n');
+    controller = EditorSurfaceController(document: document.model);
+    features = IdeEditorFeatures(
+      controller: controller,
+      types: EditorDecorationTypeRegistry(),
+    );
+    focused = true;
+    view = IdeEditorView(
+      document: document,
+      controller: controller,
+      features: features,
+      visibleLines: () => (first: 1, last: 2),
+      hasFocus: () => focused,
+      focus: () {},
+      reveal: (_, _, {center = false}) {},
+    );
+    commands = [];
+    settings = {};
+  });
+
+  tearDown(() {
+    driver?.dispose();
+    driver = null;
+    features.dispose();
+    controller.dispose();
+    views.dispose();
+    languages.dispose();
+    markers.dispose();
+    service.dispose();
+  });
+
+  ExtensionEditorFeatureDriver start() => driver = ExtensionEditorFeatureDriver(
+    views: views,
+    languages: languages,
+    service: service,
+    executeCommand: (id, args) async {
+      commands.add((id, args));
+      return null;
+    },
+    openLocation: (_, _) async {},
+    setting: (key, _) => settings[key],
+  );
+
+  // Before the binding checks for timers, which is before tear-downs.
+  Future<void> stop(WidgetTester tester) async {
+    await tester.pump(const Duration(seconds: 1));
+    driver?.dispose();
+    driver = null;
+  }
+
+  final ts = LanguageSelector.parse('typescript')!;
+
+  testWidgets('CodeLenses show, resolve into commands that run, and follow '
+      'the provider\'s changes', (tester) async {
+    final lenses = _Lenses();
+    service.codeLensProvider.register(ts, lenses);
+    start();
+    views.show(view);
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(features.codeLens.lenses, hasLength(1));
+    expect('${features.codeLens.lenses.single.range}', '${Range(1, 1, 1, 6)}');
+
+    final resolved = await features.codeLens.resolve!(
+      features.codeLens.lenses.single,
+    );
+    expect(resolved!.command!.title, '2 references');
+    features.codeLens.onCommand!(resolved, resolved.command!);
+    await tester.pump();
+    expect(commands.single.$1, 'acme.references');
+    expect(commands.single.$2, [1]);
+
+    final before = lenses.asked;
+    lenses.changes.add(null);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(lenses.asked, before + 1);
+    await stop(tester);
+  });
+
+  testWidgets('editor.codeLens: false shows none', (tester) async {
+    service.codeLensProvider.register(ts, _Lenses());
+    settings['editor.codeLens'] = false;
+    start();
+    views.show(view);
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(features.codeLens.lenses, isEmpty);
+    await stop(tester);
+  });
+
+  testWidgets('inlay hints are asked for the lines on screen and painted', (
+    tester,
+  ) async {
+    final hints = _Hints();
+    service.inlayHintsProvider.register(ts, hints);
+    start();
+    views.show(view);
+    await tester.pump(const Duration(milliseconds: 10));
+    expect('${hints.ranges.single}', '${Range(1, 1, 2, 9)}');
+    expect(features.inlayHints.hints.single.label.single.label, ': number');
+    expect(
+      '${features.inlayHints.hints.single.position}',
+      '${const Position(1, 6)}',
+    );
+    await stop(tester);
+  });
+
+  testWidgets('typing asks for an inline completion, shown as ghost text; '
+      'accepting runs its command', (tester) async {
+    final inline = _Inline();
+    service.inlineCompletionsProvider.register(ts, inline);
+    start();
+    views.show(view);
+    // `console.` typed to `console.l`, the caret after it.
+    controller.applyEdits([const EditorOffsetEdit(14, 14, 'l')]);
+    controller.setSelections([const TextSelection.collapsed(offset: 15)]);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(features.inlineSuggest.isVisible, isTrue);
+    expect(inline.shown, ['log()']);
+
+    expect(features.inlineSuggest.accept(), isTrue);
+    await tester.pump();
+    expect(commands.map((c) => c.$1), ['acme.accepted']);
+    expect(inline.disposed, greaterThan(0));
+    await stop(tester);
+  });
+
+  testWidgets('an editor without the focus asks for no inline completion', (
+    tester,
+  ) async {
+    final inline = _Inline();
+    service.inlineCompletionsProvider.register(ts, inline);
+    focused = false;
+    start();
+    views.show(view);
+    controller.applyEdits([const EditorOffsetEdit(0, 0, 'x')]);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(features.inlineSuggest.isVisible, isFalse);
+    await stop(tester);
+  });
+}
