@@ -5822,7 +5822,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceSettingsCodeSizeDescription =>
-      '编辑器和终端中代码的字号。对话和侧边栏里的代码跟随界面文字大小。';
+      'Fast IDE 编辑器及侧边栏文件、变更视图中源码的字号。终端和对话中的代码跟随界面文字大小。';
 
   @override
   String appearanceSettingsCodeSizeLabel(String size) {
@@ -5841,7 +5841,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceSettingsUiScaleDescription =>
-      '缩放界面文字，包括对话和侧边栏里的代码。编辑器和终端的代码字号不受影响。';
+      '缩放界面文字、对话中的代码和终端文字。Fast IDE 编辑器及侧边栏文件、变更中的源码使用代码字号。';
 
   @override
   String appearanceSettingsUiScaleLabel(String percent) {

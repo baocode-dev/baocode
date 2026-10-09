@@ -14,6 +14,8 @@
 
 import 'dart:ui' show Color;
 
+import 'package:flutter/widgets.dart' show TextScaler;
+
 import '../../platform/app_platform.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/code_font.dart';
@@ -427,14 +429,25 @@ String vscodeTerminalFontFamily() {
   return families.map((f) => f.contains(' ') ? "'$f'" : f).join(', ');
 }
 
+/// The base size of the terminal font. Unlike editor code, terminal text is
+/// part of the window's interface and is scaled by the interface text scale.
+const terminalBaseFontSize = 13.0;
+
+/// The terminal font size for the current interface text scale. The
+/// [TextScaler] is supplied by the terminal view because the xterm renderer is
+/// canvas-based and does not inherit Flutter's text scaling automatically.
+double vscodeTerminalFontSize([TextScaler? textScaler]) =>
+    textScaler?.scale(CodeFont.uiSized(terminalBaseFontSize)) ??
+    CodeFont.uiSized(terminalBaseFontSize);
+
 /// The options VS Code's terminal creates xterm.js with that the renderer
-/// reads, at their defaults: the editor's font at the editor's size (see
-/// [CodeFont.sized]),`terminal.integrated.lineHeight` 1, `letterSpacing` 0, a block
-/// cursor that does not blink and an outline when unfocused, bold in bright
-/// colors, a minimum contrast ratio of 4.5, overlapping glyphs rescaled,
-/// 1000 lines of scrollback, no smooth scrolling and Modern UI's 10px
-/// scrollbar with the overview ruler's top border. The colors are
-/// [theme]'s, the workbench's ([terminalColorTheme]) by default.
+/// reads, at their defaults: the interface font at its interface size,
+/// `terminal.integrated.lineHeight` 1, `letterSpacing` 0, a block cursor that
+/// does not blink and an outline when unfocused, bold in bright colors, a
+/// minimum contrast ratio of 4.5, overlapping glyphs rescaled, 1000 lines of
+/// scrollback, no smooth scrolling and Modern UI's 10px scrollbar with the
+/// overview ruler's top border. The colors are [theme]'s, the workbench's
+/// ([terminalColorTheme]) by default.
 ITerminalOptions vscodeTerminalOptions({
   int? cols,
   int? rows,
@@ -449,7 +462,7 @@ ITerminalOptions vscodeTerminalOptions({
   fontFamily: vscodeTerminalFontFamily(),
   fontWeight: 'normal',
   fontWeightBold: 'bold',
-  fontSize: CodeFont.sized(13),
+  fontSize: vscodeTerminalFontSize(),
   letterSpacing: 0,
   lineHeight: 1,
   minimumContrastRatio: terminalMinimumContrastRatio,

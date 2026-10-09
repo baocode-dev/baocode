@@ -86,4 +86,57 @@ void main() {
     expect(panelScale, 1.5);
     expect(panelSize, AppFonts.uiCodeStyle(13).fontSize);
   });
+
+  testWidgets('side panel code follows code size, not interface scale', (
+    tester,
+  ) async {
+    final scale = ValueNotifier(1.0);
+    final controller = EditorSurfaceController();
+    addTearDown(scale.dispose);
+    addTearDown(controller.dispose);
+    controller.value = const TextEditingValue(
+      text: 'description: example\ndocumentation: example',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) {
+          final media = MediaQuery.of(context);
+          return SystemTextScale(
+            scaler: media.textScaler,
+            child: ValueListenableBuilder<double>(
+              valueListenable: scale,
+              child: child,
+              builder: (context, value, child) => MediaQuery(
+                data: media.copyWith(textScaler: TextScaler.linear(value)),
+                child: child!,
+              ),
+            ),
+          );
+        },
+        home: ValueListenableBuilder<double>(
+          valueListenable: CodeFont.size,
+          builder: (_, _, _) =>
+              IdeCodeEditor(controller: controller, path: 'example.yaml'),
+        ),
+      ),
+    );
+    final surface = find.byType(EditorSurface);
+    final state = tester.state(surface);
+    final view = state as EditorSurfaceView;
+    final height = view.lineHeight;
+    final width = view.caretRectAt(12)!.left - view.caretRectAt(0)!.left;
+    scale.value = 1.5;
+    await tester.pump();
+    expect(tester.state(surface), same(state));
+    expect(view.lineHeight, closeTo(height, 1e-9));
+    expect(
+      view.caretRectAt(12)!.left - view.caretRectAt(0)!.left,
+      closeTo(width, 1e-9),
+    );
+    CodeFont.size.value = CodeFont.defaultSize + 6;
+    await tester.pump();
+    expect(view.lineHeight, greaterThan(height * 1.4));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 20));
+  });
 }

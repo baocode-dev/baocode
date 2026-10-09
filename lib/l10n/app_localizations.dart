@@ -10290,7 +10290,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsCodeSizeDescription.
   ///
   /// In en, this message translates to:
-  /// **'The size of code in the editor and the terminal. Code in the chat and the side panel follows the interface text size.'**
+  /// **'The size of code in the IDE editor and the side panel\'s file and changes views. The terminal and chat follow the interface text size.'**
   String get appearanceSettingsCodeSizeDescription;
 
   /// No description provided for @appearanceSettingsCodeSizeLabel.
@@ -10320,7 +10320,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsUiScaleDescription.
   ///
   /// In en, this message translates to:
-  /// **'The size of the interface text, code in the chat and the side panel included. The editor and the terminal keep the code size.'**
+  /// **'The size of interface text, code in the chat, and terminal text. Code in the IDE editor and side panel files and changes keeps its own size.'**
   String get appearanceSettingsUiScaleDescription;
 
   /// No description provided for @appearanceSettingsUiScaleLabel.

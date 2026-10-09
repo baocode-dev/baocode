@@ -4362,7 +4362,7 @@
     }
   },
   "appearanceSettingsCodeSize": "Code Size",
-  "appearanceSettingsCodeSizeDescription": "The size of code in the editor and the terminal. Code in the chat and the side panel follows the interface text size.",
+  "appearanceSettingsCodeSizeDescription": "The size of code in the IDE editor and the side panel's file and changes views. The terminal and chat follow the interface text size.",
   "appearanceSettingsCodeSizeLabel": "Code size: {size}",
   "@appearanceSettingsCodeSizeLabel": {
     "placeholders": {
@@ -4374,7 +4374,7 @@
   "appearanceSettingsLigatures": "Font Ligatures",
   "appearanceSettingsLigaturesDescription": "Draws sequences such as => and != as one glyph where the font has one. The terminal does not.",
   "appearanceSettingsUiScale": "Interface Text Size",
-  "appearanceSettingsUiScaleDescription": "The size of the interface text, code in the chat and the side panel included. The editor and the terminal keep the code size.",
+  "appearanceSettingsUiScaleDescription": "The size of interface text, code in the chat, and terminal text. Code in the IDE editor and side panel files and changes keeps its own size.",
   "appearanceSettingsUiScaleLabel": "Interface text size: {percent}%",
   "@appearanceSettingsUiScaleLabel": {
     "placeholders": {

@@ -32,6 +32,7 @@ import 'package:baocode/chat/side_panel/terminal_preview.dart';
 import 'package:baocode/chat/panels/activity_strip.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/code_font.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/material_file_icons.dart';
 import 'package:baocode/workspace/preference_store.dart';
@@ -393,6 +394,175 @@ void main() {
     expect(await _previewScreen(tester), 'one\ntwo');
     expect(printed.last, '\x1b[31mtwo\x1b[0m\n');
     await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('read-only file and diff rows follow code size, not interface '
+      'size', (tester) async {
+    final scale = ValueNotifier(1.0);
+    final originalSize = CodeFont.size.value;
+    addTearDown(scale.dispose);
+    addTearDown(() => CodeFont.size.value = originalSize);
+    final files = _Files({'/p/a.dart': 'one\nnew'});
+
+    Future<void> check(FileOpenRequest request) async {
+      scale.value = 1;
+      CodeFont.size.value = CodeFont.defaultSize;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          localizationsDelegates: const [FlutterQuillLocalizations.delegate],
+          builder: (context, child) {
+            final media = MediaQuery.of(context);
+            return SystemTextScale(
+              scaler: media.textScaler,
+              child: ValueListenableBuilder<double>(
+                valueListenable: scale,
+                child: child,
+                builder: (context, value, child) => MediaQuery(
+                  data: media.copyWith(textScaler: TextScaler.linear(value)),
+                  child: child!,
+                ),
+              ),
+            );
+          },
+          home: ValueListenableBuilder<double>(
+            valueListenable: CodeFont.size,
+            builder: (context, _, _) => Material(
+              child: FilePreview(request: request, files: files),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final list = find.descendant(
+        of: find.byType(FilePreview),
+        matching: find.byType(ListView),
+      );
+      double lineHeight() => tester.widget<ListView>(list).itemExtent!;
+      final initial = lineHeight();
+      expect(initial, greaterThan(0));
+      expect(MediaQuery.textScalerOf(tester.element(list)).scale(12), 12);
+
+      scale.value = 1.5;
+      await tester.pumpAndSettle();
+      expect(lineHeight(), closeTo(initial, 1e-9));
+      expect(MediaQuery.textScalerOf(tester.element(list)).scale(12), 12);
+
+      CodeFont.size.value = CodeFont.defaultSize + 6;
+      await tester.pumpAndSettle();
+      expect(lineHeight(), greaterThan(initial * 1.3));
+    }
+
+    await check(const FileOpenRequest('/p/a.dart', diff: true));
+    await check(
+      FileOpenRequest(
+        '/p/a.dart',
+        diff: true,
+        original: () async => 'one\nold',
+      ),
+    );
+  });
+
+  testWidgets('file and diff line numbers stay visible during horizontal '
+      'scrolling', (tester) async {
+    final ascii = 'x' * 175;
+    final wide = '汉字' * 75;
+    final files = _Files({'/p/a.dart': 'one\n$ascii\n$wide'});
+
+    Future<void> check(FileOpenRequest request) async {
+      await tester.pumpWidget(
+        _app(FilePreview(request: request, files: files)),
+      );
+      await tester.pumpAndSettle();
+      final horizontal = find.descendant(
+        of: find.byType(FilePreview),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is SingleChildScrollView &&
+              widget.scrollDirection == Axis.horizontal,
+        ),
+      );
+      final controller = tester
+          .widget<SingleChildScrollView>(horizontal)
+          .controller!;
+      expect(controller.position.maxScrollExtent, greaterThan(200));
+      final wideText = find.text(wide);
+      final painter = TextPainter(
+        text: TextSpan(text: wide, style: tester.widget<Text>(wideText).style),
+        textDirection: TextDirection.ltr,
+        textScaler: MediaQuery.textScalerOf(tester.element(wideText)),
+      )..layout();
+      expect(
+        controller.position.maxScrollExtent +
+            controller.position.viewportDimension,
+        greaterThan(painter.width + 40),
+      );
+      final renderedWidth = painter.width;
+      painter.dispose();
+      final number = find.text('1').first;
+      final before = tester.getTopLeft(number).dx;
+      final textBefore = tester.getTopLeft(find.text('one')).dx;
+
+      controller.jumpTo(200);
+      await tester.pump();
+      expect(tester.getTopLeft(number).dx, closeTo(before, 0.1));
+      expect(
+        tester.getTopLeft(find.text('one')).dx,
+        lessThan(textBefore - 190),
+      );
+      controller.jumpTo(controller.position.maxScrollExtent);
+      await tester.pump();
+      expect(tester.getTopLeft(number).dx, closeTo(before, 0.1));
+      expect(
+        tester.getTopLeft(wideText).dx + renderedWidth,
+        lessThan(tester.getTopRight(horizontal).dx),
+      );
+    }
+
+    await check(const FileOpenRequest('/p/a.dart', diff: true));
+    await check(
+      FileOpenRequest(
+        '/p/a.dart',
+        diff: true,
+        original: () async => 'two\n$ascii\n$wide',
+      ),
+    );
+  });
+
+  testWidgets('short preview lines do not create horizontal overflow', (
+    tester,
+  ) async {
+    final glyph = TextPainter(
+      text: TextSpan(text: 'x', style: AppFonts.codeStyle(12)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final line = 'x' * ((500 - 90) / glyph.width).floor();
+    glyph.dispose();
+    await tester.pumpWidget(
+      _app(
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: 500,
+            height: 300,
+            child: FilePreview(
+              request: const FileOpenRequest('/p/a.dart', diff: true),
+              files: _Files({'/p/a.dart': line}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final horizontal = find.byWidgetPredicate(
+      (widget) =>
+          widget is SingleChildScrollView &&
+          widget.scrollDirection == Axis.horizontal,
+    );
+    final controller = tester
+        .widget<SingleChildScrollView>(horizontal)
+        .controller!;
+    expect(controller.position.maxScrollExtent, 0);
   });
 
   testWidgets('lines selected in a diff copy one to a line, and paste '

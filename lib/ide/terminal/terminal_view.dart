@@ -54,6 +54,7 @@ import 'terminal_clipboard.dart';
 import 'terminal_find.dart';
 import 'terminal_instance.dart';
 import 'terminal_keyboard.dart';
+import 'terminal_render_theme.dart';
 import 'terminal_renderer.dart';
 import 'terminal_widget.dart';
 
@@ -127,6 +128,7 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   final _gutter = ValueNotifier(0);
   ShellIntegration? _integration;
   final _integrationSubscriptions = DisposableStore();
+  double? _terminalFontSize;
 
   // The link under the pointer, where the pointer is on the grid, the
   // latest look-up, and the link a press began on.
@@ -148,11 +150,26 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncTerminalFontSize();
+  }
+
+  void _syncTerminalFontSize() {
+    final size = vscodeTerminalFontSize(MediaQuery.textScalerOf(context));
+    if (size == _terminalFontSize) return;
+    _terminalFontSize = size;
+    _instance.xterm.options.fontSize = size;
+  }
+
+  @override
   void didUpdateWidget(TerminalView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.instance != widget.instance) {
       _detach(oldWidget.instance);
+      _terminalFontSize = null;
       _attach();
+      _syncTerminalFontSize();
     } else {
       _instance.keyboard.runsKeybindings = widget.shouldSkipShell == null;
     }
@@ -575,7 +592,7 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
           final options = terminal.optionsService.rawOptions;
           final layout = decorationLayout(
             fontSize: options.fontSize,
-            defaultFontSize: CodeFont.sized(13),
+            defaultFontSize: CodeFont.uiSized(terminalBaseFontSize),
             lineHeight: options.lineHeight,
           );
           final top = terminal.buffer.ydisp;
