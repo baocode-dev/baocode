@@ -6412,4 +6412,937 @@ class AppLocalizationsZh extends AppLocalizations {
   String extensionSettingsValidationMaxItems(String value) {
     return '数组最多只能有 $value 项';
   }
+
+  @override
+  String get windowMessageDefaultSource => '扩展';
+
+  @override
+  String get windowMessageManageExtension => '管理扩展';
+
+  @override
+  String windowStatusBarHide(String name) {
+    return '隐藏“$name”';
+  }
+
+  @override
+  String get windowStatusBarLoading => '正在加载...';
+
+  @override
+  String get windowSecretsFallbackWarning =>
+      '没有可用的系统密钥环（请安装并解锁 GNOME Keyring、KWallet 等 Secret Service）。扩展的机密信息将改为保存在 BaoCode 数据文件夹中的加密文件里，密钥放在旁边一个只有你能读取的文件中。';
+
+  @override
+  String get windowOutputExtensionHost => '扩展主机';
+
+  @override
+  String get windowOutputSwitch => '切换输出';
+
+  @override
+  String get windowOutputClear => '清除输出';
+
+  @override
+  String get windowOutputScrollOff => '关闭自动滚动';
+
+  @override
+  String get windowOutputScrollOn => '打开自动滚动';
+
+  @override
+  String get windowOutputOpenInEditor => '在编辑器中打开输出';
+
+  @override
+  String get windowOutputSetLogLevel => '设置日志级别...';
+
+  @override
+  String get windowOutputSetAsDefault => '设为默认值';
+
+  @override
+  String get windowOutputFilter => '筛选';
+
+  @override
+  String get windowOutputLevelTrace => '跟踪';
+
+  @override
+  String get windowOutputLevelDebug => '调试';
+
+  @override
+  String get windowOutputLevelInfo => '信息';
+
+  @override
+  String get windowOutputLevelWarning => '警告';
+
+  @override
+  String get windowOutputLevelError => '错误';
+
+  @override
+  String get windowOutputLevelOff => '关';
+
+  @override
+  String get windowOutputNoChannels => '没有输出通道。';
+
+  @override
+  String windowOutputTruncated(String size) {
+    return '只显示此输出的最后 $size。在编辑器中打开可查看全部内容。';
+  }
+
+  @override
+  String get trustFolderTitle => '你信任此文件夹中文件的作者吗？';
+
+  @override
+  String get trustWorkspaceTitle => '你信任此工作区中文件的作者吗？';
+
+  @override
+  String get trustStartupDetailsFolder => 'BaoCode 提供的一些功能可能会自动执行此文件夹中的文件。';
+
+  @override
+  String get trustStartupDetailsWorkspace => 'BaoCode 提供的一些功能可能会自动执行此工作区中的文件。';
+
+  @override
+  String get trustLearnMore => '如果你不信任这些文件的作者，建议继续以受限模式使用，因为这些文件可能是恶意的。';
+
+  @override
+  String get trustOption => '是，我信任作者';
+
+  @override
+  String get trustFolderOptionDescription => '信任文件夹并启用所有功能';
+
+  @override
+  String get trustWorkspaceOptionDescription => '信任工作区并启用所有功能';
+
+  @override
+  String get dontTrustOption => '否，我不信任作者';
+
+  @override
+  String get dontTrustFolderOptionDescription => '以受限模式打开文件夹';
+
+  @override
+  String get dontTrustWorkspaceOptionDescription => '以受限模式打开工作区';
+
+  @override
+  String trustParentFolder(String name) {
+    return '信任父文件夹“$name”中所有文件的作者';
+  }
+
+  @override
+  String get trustImmediateRequestTitle => '你信任此文件夹中文件的作者吗？';
+
+  @override
+  String get trustImmediateRequestDetails =>
+      '如果你不信任当前打开的文件的来源，使用某个功能可能会带来安全风险。';
+
+  @override
+  String get trustGrantFolder => '信任文件夹并继续';
+
+  @override
+  String get trustGrantWorkspace => '信任工作区并继续';
+
+  @override
+  String get trustManage => '管理';
+
+  @override
+  String get trustResourcesTitle => '你信任此文件夹中文件的作者吗？';
+
+  @override
+  String get trustResourcesDetails => '你正在打开一个不受信任的文件夹。你信任此内容的作者吗？';
+
+  @override
+  String get trustResourcesLearnMore => '如果你不信任这些文件的作者，建议不要继续，因为这些文件可能是恶意的。';
+
+  @override
+  String get trustRestrictedMode => '受限模式';
+
+  @override
+  String get trustRestrictedModeAria => '受限模式：此文件夹不受信任，部分功能已被禁用。';
+
+  @override
+  String get trustRestrictedModeTooltip => '此文件夹不受信任，部分功能已被禁用。';
+
+  @override
+  String get trustRestrictedModeTrust => '信任';
+
+  @override
+  String get trustRestrictedModeManage => '管理工作区信任';
+
+  @override
+  String get trustRequestCancelled => '信任请求已取消。';
+
+  @override
+  String get filesParticipantOk => '确定';
+
+  @override
+  String get filesParticipantPreview => '显示预览';
+
+  @override
+  String get filesParticipantSkip => '跳过更改';
+
+  @override
+  String get filesParticipantDontAsk => '不再询问我';
+
+  @override
+  String filesParticipantCreate(String name) {
+    return '扩展“$name”想通过此文件创建进行重构更改。';
+  }
+
+  @override
+  String filesParticipantCopy(String name) {
+    return '扩展“$name”想通过此文件复制进行重构更改。';
+  }
+
+  @override
+  String filesParticipantMove(String name) {
+    return '扩展“$name”想通过此文件移动进行重构更改。';
+  }
+
+  @override
+  String filesParticipantDelete(String name) {
+    return '扩展“$name”想通过此文件删除进行重构更改。';
+  }
+
+  @override
+  String filesParticipantManyCreate(int count) {
+    return '$count 个扩展想通过此文件创建进行重构更改。';
+  }
+
+  @override
+  String filesParticipantManyCopy(int count) {
+    return '$count 个扩展想通过此文件复制进行重构更改。';
+  }
+
+  @override
+  String filesParticipantManyMove(int count) {
+    return '$count 个扩展想通过此文件移动进行重构更改。';
+  }
+
+  @override
+  String filesParticipantManyDelete(int count) {
+    return '$count 个扩展想通过此文件删除进行重构更改。';
+  }
+
+  @override
+  String get filesParticipantsCreate => '正在运行“文件创建”参与者...';
+
+  @override
+  String get filesParticipantsCopy => '正在运行“文件复制”参与者...';
+
+  @override
+  String get filesParticipantsMove => '正在运行“文件重命名”参与者...';
+
+  @override
+  String get filesParticipantsDelete => '正在运行“文件删除”参与者...';
+
+  @override
+  String workspaceFolderAddedOne(String name) {
+    return '扩展“$name”向工作区添加了 1 个文件夹';
+  }
+
+  @override
+  String workspaceFolderAddedMany(String name, int count) {
+    return '扩展“$name”向工作区添加了 $count 个文件夹';
+  }
+
+  @override
+  String workspaceFolderRemovedOne(String name) {
+    return '扩展“$name”从工作区移除了 1 个文件夹';
+  }
+
+  @override
+  String workspaceFolderRemovedMany(String name, int count) {
+    return '扩展“$name”从工作区移除了 $count 个文件夹';
+  }
+
+  @override
+  String workspaceFoldersChanged(String name) {
+    return '扩展“$name”更改了工作区的文件夹';
+  }
+
+  @override
+  String windowAuthConfirmAccess(
+    String extension,
+    String provider,
+    String account,
+  ) {
+    return '扩展“$extension”想要访问 $provider 账户“$account”。';
+  }
+
+  @override
+  String get windowAuthAllow => '允许';
+
+  @override
+  String get windowAuthDeny => '拒绝';
+
+  @override
+  String get windowAuthUseOtherAccount => '登录其他账户';
+
+  @override
+  String windowAuthSelectAccount(String extension, String provider) {
+    return '扩展“$extension”想要访问 $provider 账户';
+  }
+
+  @override
+  String windowAuthSelectAccountPlaceholder(String extension) {
+    return '选择“$extension”要使用的账户，或按 Esc 取消';
+  }
+
+  @override
+  String windowAuthAccessRequest(String provider, String extension) {
+    return '为 $extension 授予访问 $provider 的权限...(1)';
+  }
+
+  @override
+  String windowAuthSignInRequest(String provider, String extension) {
+    return '使用 $provider 登录以使用 $extension (1)';
+  }
+
+  @override
+  String get extMenusMoreActions => '更多操作...';
+
+  @override
+  String get extMenusPaletteCategory => '扩展';
+
+  @override
+  String get extsCapabilityFull => '完全支持';
+
+  @override
+  String get extsCapabilityFullDetail => '可在扩展主机中运行，无需 webview。';
+
+  @override
+  String get extsCapabilityPartial => '部分支持';
+
+  @override
+  String get extsCapabilityPartialDetail =>
+      '可以运行，但它的部分界面无法显示：BaoCode 没有 webview。';
+
+  @override
+  String get extsCapabilityNeedsWebview => '需要 webview';
+
+  @override
+  String get extsCapabilityNeedsWebviewDetail =>
+      '它的主要功能绘制在 webview 中，而 BaoCode 没有 webview。';
+
+  @override
+  String get extsCapabilityFromManifest => '仅根据清单判断，未读取代码。';
+
+  @override
+  String extsFindingWebviewView(String name) {
+    return 'Webview 视图：$name';
+  }
+
+  @override
+  String extsFindingCustomEditor(String name) {
+    return '自定义编辑器：$name';
+  }
+
+  @override
+  String extsFindingNotebook(String name) {
+    return '笔记本：$name';
+  }
+
+  @override
+  String extsFindingNotebookRenderer(String name) {
+    return '笔记本渲染器：$name';
+  }
+
+  @override
+  String extsFindingWebviewPanelCode(String file) {
+    return '其代码会创建 webview 面板（$file）。';
+  }
+
+  @override
+  String extsFindingWebviewViewCode(String file) {
+    return '其代码会创建 webview 视图（$file）。';
+  }
+
+  @override
+  String extsFindingCustomEditorCode(String file) {
+    return '其代码注册了自定义编辑器（$file）。';
+  }
+
+  @override
+  String extsFindingNotebookCode(String file) {
+    return '其代码注册了笔记本（$file）。';
+  }
+
+  @override
+  String get extsFindingBrowserOnly => '它只能在浏览器中运行。';
+
+  @override
+  String get extsFindingScanIncomplete => '未能读取它的全部代码。';
+
+  @override
+  String get extsCoreLanguageFeatures => '语言功能';
+
+  @override
+  String get extsCoreLanguageServer => '语言服务器';
+
+  @override
+  String get extsCoreSyntaxHighlighting => '语法高亮';
+
+  @override
+  String get extsCoreSnippets => '代码片段';
+
+  @override
+  String get extsCoreDebugging => '调试';
+
+  @override
+  String get extsCoreThemes => '主题';
+
+  @override
+  String get extsCoreTasks => '任务';
+
+  @override
+  String get extsCoreTreeViews => '树视图';
+
+  @override
+  String get extsCoreSourceControl => '源代码管理';
+
+  @override
+  String get extsCoreTesting => '测试';
+
+  @override
+  String get extsCoreJsonSchemas => 'JSON 架构';
+
+  @override
+  String get extsCoreTerminal => '终端';
+
+  @override
+  String get extsCoreAuthentication => '身份验证';
+
+  @override
+  String get extsCoreLocalization => '本地化';
+
+  @override
+  String extsStillWorks(String features) {
+    return '仍然可用：$features。';
+  }
+
+  @override
+  String get extsListSeparator => '、';
+
+  @override
+  String extsEngineIncompatible(String current, String requested) {
+    return '需要 VS Code $requested，当前为 $current。';
+  }
+
+  @override
+  String get extsEngineMissing => '它没有说明需要哪个版本的 VS Code。';
+
+  @override
+  String extsEngineInvalid(String requested) {
+    return '无效的引擎“$requested”。';
+  }
+
+  @override
+  String extsEngineCompatible(String engine) {
+    return '需要 VS Code $engine。';
+  }
+
+  @override
+  String get extsTitleUpdates => '更新';
+
+  @override
+  String get extsTitleOpenVsx => 'Open VSX';
+
+  @override
+  String get extsUpdates => '更新';
+
+  @override
+  String get extsCheckForUpdates => '检查更新';
+
+  @override
+  String get extsMoreActions => '更多操作...';
+
+  @override
+  String get extsInstallFromVsix => '从 VSIX 安装...';
+
+  @override
+  String get extsImportFromEditors => '从 VS Code 导入...';
+
+  @override
+  String get extsSearchPlaceholder => '搜索 Open VSX 扩展';
+
+  @override
+  String extsSearchFailed(String error) {
+    return '无法搜索 Open VSX：$error';
+  }
+
+  @override
+  String get extsLoadMore => '加载更多';
+
+  @override
+  String extsUpdateTo(String version) {
+    return '更新到 $version';
+  }
+
+  @override
+  String get extsUpdating => '正在更新...';
+
+  @override
+  String get extsEnable => '启用';
+
+  @override
+  String get extsDisable => '禁用';
+
+  @override
+  String get extsEnableWorkspace => '启用（工作区）';
+
+  @override
+  String get extsDisableWorkspace => '禁用（工作区）';
+
+  @override
+  String get extsDisabled => '已禁用';
+
+  @override
+  String get extsDisabledWorkspace => '已禁用（工作区）';
+
+  @override
+  String get extsSwitchToPreRelease => '切换到预发布版本';
+
+  @override
+  String get extsSwitchToRelease => '切换到正式版本';
+
+  @override
+  String get extsInstallPreRelease => '安装预发布版本';
+
+  @override
+  String extsInstallVersion(String version) {
+    return '安装 $version';
+  }
+
+  @override
+  String get extsPreRelease => '预发布';
+
+  @override
+  String get extsBuiltin => '内置';
+
+  @override
+  String get extsDevelopment => '开发中';
+
+  @override
+  String get extsVerifiedPublisher => '已验证的发布者';
+
+  @override
+  String extsDownloads(String count) {
+    return '$count 次下载';
+  }
+
+  @override
+  String extsLoadFailed(String error) {
+    return '无法加载：$error';
+  }
+
+  @override
+  String get extsVersion => '版本';
+
+  @override
+  String get extsPreReleaseToggle => '预发布';
+
+  @override
+  String get extsLatestVersion => '最新';
+
+  @override
+  String get extsTabDetails => '详情';
+
+  @override
+  String get extsTabFeatures => '功能';
+
+  @override
+  String get extsTabChangelog => '更新日志';
+
+  @override
+  String get extsNoReadme => '此扩展没有 README。';
+
+  @override
+  String get extsNoChangelog => '此扩展没有更新日志。';
+
+  @override
+  String get extsContributions => '贡献点';
+
+  @override
+  String get extsNoContributions => '此扩展没有任何贡献点。';
+
+  @override
+  String get extsActivationEvents => '激活事件';
+
+  @override
+  String get extsApiProposals => 'API 提案';
+
+  @override
+  String get extsCompatibility => '兼容性';
+
+  @override
+  String get extsInformation => '信息';
+
+  @override
+  String get extsInfoIdentifier => '标识符';
+
+  @override
+  String get extsInfoVersion => '版本';
+
+  @override
+  String get extsInfoLatest => '最新';
+
+  @override
+  String get extsInfoLastUpdated => '最后更新';
+
+  @override
+  String get extsInfoEngine => 'VS Code';
+
+  @override
+  String get extsInfoPlatform => '平台';
+
+  @override
+  String get extsInfoLicense => '许可证';
+
+  @override
+  String get extsInfoRepository => '仓库';
+
+  @override
+  String get extsInfoCategories => '分类';
+
+  @override
+  String get extsInfoLocation => '位置';
+
+  @override
+  String get extsVsixTitle => '安装扩展 VSIX';
+
+  @override
+  String extsVsixInvalid(String name, String error) {
+    return '$name 不是有效的 VSIX：$error';
+  }
+
+  @override
+  String extsVsixPlatformMismatch(String platform, String current) {
+    return '它是为 $platform 构建的，不适用于 $current。';
+  }
+
+  @override
+  String extsVsixReplaces(String version) {
+    return '它将替换版本 $version。';
+  }
+
+  @override
+  String extsPlatformCompatible(String platform) {
+    return '平台：$platform';
+  }
+
+  @override
+  String get extsPlatformUniversal => '通用';
+
+  @override
+  String get extsDevFolderTitle => '开发中的扩展';
+
+  @override
+  String extsDevFolderDetail(String name) {
+    return '将 $name 作为开发扩展加载？';
+  }
+
+  @override
+  String get extsDevFolderLoad => '加载';
+
+  @override
+  String get extsImportTitle => '导入扩展';
+
+  @override
+  String get extsImportDetecting => '正在查找其他编辑器...';
+
+  @override
+  String get extsImportNoEditors =>
+      '未找到 VS Code、Cursor、Windsurf 或 VSCodium 的安装。';
+
+  @override
+  String get extsImportFrom => '从以下位置导入扩展：';
+
+  @override
+  String extsImportProduct(String product, int count) {
+    return '$product（$count）';
+  }
+
+  @override
+  String get extsImportContinue => '继续';
+
+  @override
+  String extsImportScanning(int done, int total) {
+    return '正在检查扩展市场... 已完成 $done/$total';
+  }
+
+  @override
+  String extsImportSummary(int count, String products) {
+    return '来自 $products 的 $count 个扩展。';
+  }
+
+  @override
+  String get extsImportSectionReinstall => 'Open VSX 上有';
+
+  @override
+  String get extsImportSectionProprietary => '专有';
+
+  @override
+  String get extsImportSectionCopy => '从磁盘复制';
+
+  @override
+  String get extsImportSectionUnavailable => '无法检查';
+
+  @override
+  String get extsImportSectionSkipped => '已跳过';
+
+  @override
+  String extsImportVersions(String installed, String remote) {
+    return '本地 v$installed，Open VSX 上 v$remote';
+  }
+
+  @override
+  String get extsImportPreReleaseOnly => '仅有预发布版本';
+
+  @override
+  String get extsImportNoAlternative => '没有已知的替代品。';
+
+  @override
+  String extsImportAlternativeUnavailable(String ids) {
+    return '替代品（$ids）不在 Open VSX 上。';
+  }
+
+  @override
+  String extsImportAlternative(String label, String id) {
+    return '改用 $label（$id）。';
+  }
+
+  @override
+  String get extsImportCopyNotFound => '它不在 Open VSX 上。';
+
+  @override
+  String get extsImportCopyEngine => '它在 Open VSX 上，但不适用于此版本的 VS Code。';
+
+  @override
+  String get extsImportCopyPlatform => '它在 Open VSX 上，但不适用于此平台。';
+
+  @override
+  String get extsImportCopyConsent => '将按其原样复制文件，之后不会更新。';
+
+  @override
+  String get extsImportSkipInstalled => '已安装。';
+
+  @override
+  String get extsImportSkipEditor => '仅适用于其他编辑器。';
+
+  @override
+  String extsImportUnavailable(String error) {
+    return '无法检查：$error';
+  }
+
+  @override
+  String extsImportSettings(int count) {
+    return '导入其设置（$count）';
+  }
+
+  @override
+  String extsImportButton(int count) {
+    return '导入（$count）';
+  }
+
+  @override
+  String extsImportRunning(String name, int done, int total) {
+    return '正在导入 $name... 已完成 $done/$total';
+  }
+
+  @override
+  String get extsReportTitle => '导入报告';
+
+  @override
+  String extsReportSummary(int count, int failed) {
+    return '已导入 $count 个，失败 $failed 个。';
+  }
+
+  @override
+  String extsReportInstalled(String version) {
+    return '已安装 v$version。';
+  }
+
+  @override
+  String extsReportAlternative(String id) {
+    return '已改为安装 $id。';
+  }
+
+  @override
+  String get extsReportCopied => '已从磁盘复制。';
+
+  @override
+  String get extsReportNotImported => '未导入。';
+
+  @override
+  String extsReportFailed(String error) {
+    return '失败：$error';
+  }
+
+  @override
+  String extsReportSettings(int added, int kept) {
+    return '设置：新增 $added 项，保留 $kept 项。';
+  }
+
+  @override
+  String extsReportSettingsFailed(String error) {
+    return '无法写入设置：$error';
+  }
+
+  @override
+  String get extsProprietaryLicense => '其许可证不允许其他编辑器使用。';
+
+  @override
+  String get extsProprietaryRemote => '它属于远程开发组件。';
+
+  @override
+  String get extsProprietaryAi => '它是与 GitHub 绑定的 AI 助手。';
+
+  @override
+  String get extsProprietaryNotebooks => '它与 Microsoft 笔记本绑定。';
+
+  @override
+  String windowExtensionMissingDependency(String extension, String dependency) {
+    return '无法激活扩展“$extension”，因为它依赖的扩展“$dependency”尚未加载。要重新加载窗口以加载该扩展吗？';
+  }
+
+  @override
+  String get windowExtensionReloadWindow => '重新加载窗口';
+
+  @override
+  String get windowRunningExtensionsTitle => '正在运行的扩展';
+
+  @override
+  String get windowRunningExtensionsEmpty => '没有正在运行的扩展。';
+
+  @override
+  String get windowRunningExtensionsActivating => '正在激活...';
+
+  @override
+  String windowRunningExtensionsStartup(String time) {
+    return '启动激活：${time}ms';
+  }
+
+  @override
+  String windowRunningExtensionsActivation(String time) {
+    return '激活：${time}ms';
+  }
+
+  @override
+  String windowRunningExtensionsErrors(int count) {
+    return '$count 个未捕获的错误';
+  }
+
+  @override
+  String get windowRunningExtensionsHost => '扩展宿主';
+
+  @override
+  String get windowWebviewUnsupported => '此功能需要 Webview，BaoCode 不支持。';
+
+  @override
+  String get windowWebviewTitle => '不支持 Webview';
+
+  @override
+  String windowWebviewPanelDetail(String extension, String title) {
+    return '扩展“$extension”打开了“$title”，它需要用 Webview 显示。该扩展的其他功能仍可正常使用。';
+  }
+
+  @override
+  String windowWebviewViewDetail(String extension, String title) {
+    return '扩展“$extension”的“$title”视图需要 Webview，BaoCode 不支持。';
+  }
+
+  @override
+  String windowWebviewCustomEditorDetail(String extension, String viewType) {
+    return '扩展“$extension”的“$viewType”编辑器需要 Webview，BaoCode 不支持。';
+  }
+
+  @override
+  String get windowWebviewOpenInBrowser => '在浏览器中打开';
+
+  @override
+  String get windowWebviewShowOutput => '显示输出';
+
+  @override
+  String get windowWebviewNoFallback => '无法在此显示该扩展的界面。它贡献的其他功能照常可用。';
+
+  @override
+  String windowAuthConfirmLogin(String extension, String provider) {
+    return '扩展“$extension”想要使用 $provider 登录。';
+  }
+
+  @override
+  String windowAuthConfirmRelogin(String extension, String provider) {
+    return '扩展“$extension”希望您重新使用 $provider 登录。';
+  }
+
+  @override
+  String get windowAuthLearnMore => '了解更多';
+
+  @override
+  String get windowAuthDidNotConsent => '用户未同意登录。';
+
+  @override
+  String get windowAuthDeviceCodeTitle => '设备代码认证';
+
+  @override
+  String windowAuthDeviceCodeDetail(String code, String uri) {
+    return '您的代码：$code\n\n要完成认证，请访问 $uri 并输入上面的代码。';
+  }
+
+  @override
+  String get windowAuthCopyAndContinue => '复制并继续';
+
+  @override
+  String get windowAuthIncorrectAccount => '检测到错误的账户';
+
+  @override
+  String windowAuthIncorrectAccountDetail(String chosen, String requested) {
+    return '所选的账户 $chosen 与请求的账户 $requested 不匹配。';
+  }
+
+  @override
+  String get windowAuthContinue => '继续';
+
+  @override
+  String get windowAuthSignInAgain => '重新登录';
+
+  @override
+  String get windowQuickInputSelectAll => '全选';
+
+  @override
+  String windowQuickInputToggleOn(String label) {
+    return '$label：已勾选';
+  }
+
+  @override
+  String windowQuickInputToggleOff(String label) {
+    return '$label：未勾选';
+  }
+
+  @override
+  String get windowAuthAccounts => '账户';
+
+  @override
+  String windowAuthAccountsWithRequests(int count) {
+    return '$count 个账户请求';
+  }
+
+  @override
+  String get windowAuthSignOut => '退出登录';
+
+  @override
+  String windowAuthSignOutMenu(int count) {
+    return '退出 $count 个账户';
+  }
+
+  @override
+  String get windowAuthSignOutAll => '退出所有账户';
+
+  @override
+  String windowAuthSignOutConfirm(String account, String provider) {
+    return '退出 $provider 的 $account 账户？';
+  }
+
+  @override
+  String get windowAuthManageTrusted => '管理受信任的扩展...';
+
+  @override
+  String get windowAuthNoTrustedExtensions => '没有扩展被授予账户访问权限。';
+
+  @override
+  String get windowAuthRemoveAllTrusted => '全部移除';
 }

@@ -11228,6 +11228,1558 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Array must have at most {value} items'**
   String extensionSettingsValidationMaxItems(String value);
+
+  /// No description provided for @windowMessageDefaultSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension'**
+  String get windowMessageDefaultSource;
+
+  /// No description provided for @windowMessageManageExtension.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Extension'**
+  String get windowMessageManageExtension;
+
+  /// No description provided for @windowStatusBarHide.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide \'{name}\''**
+  String windowStatusBarHide(String name);
+
+  /// No description provided for @windowStatusBarLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading...'**
+  String get windowStatusBarLoading;
+
+  /// Warning shown once when extension secrets (vscode.SecretStorage) fall back to an encrypted file because the system has no secret store.
+  ///
+  /// In en, this message translates to:
+  /// **'No system keyring answered (install and unlock a Secret Service such as GNOME Keyring or KWallet). Extension secrets are kept in an encrypted file in BaoCode\'s data folder instead, with its key in a file beside it that only you can read.'**
+  String get windowSecretsFallbackWarning;
+
+  /// Label of the Output panel channel showing the extension host's console messages and errors.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension Host'**
+  String get windowOutputExtensionHost;
+
+  /// No description provided for @windowOutputSwitch.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch Output'**
+  String get windowOutputSwitch;
+
+  /// No description provided for @windowOutputClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Output'**
+  String get windowOutputClear;
+
+  /// No description provided for @windowOutputScrollOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn Auto Scrolling Off'**
+  String get windowOutputScrollOff;
+
+  /// No description provided for @windowOutputScrollOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn Auto Scrolling On'**
+  String get windowOutputScrollOn;
+
+  /// No description provided for @windowOutputOpenInEditor.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Output in Editor'**
+  String get windowOutputOpenInEditor;
+
+  /// No description provided for @windowOutputSetLogLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'Set Log Level...'**
+  String get windowOutputSetLogLevel;
+
+  /// No description provided for @windowOutputSetAsDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Set As Default'**
+  String get windowOutputSetAsDefault;
+
+  /// No description provided for @windowOutputFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter'**
+  String get windowOutputFilter;
+
+  /// No description provided for @windowOutputLevelTrace.
+  ///
+  /// In en, this message translates to:
+  /// **'Trace'**
+  String get windowOutputLevelTrace;
+
+  /// No description provided for @windowOutputLevelDebug.
+  ///
+  /// In en, this message translates to:
+  /// **'Debug'**
+  String get windowOutputLevelDebug;
+
+  /// No description provided for @windowOutputLevelInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Info'**
+  String get windowOutputLevelInfo;
+
+  /// No description provided for @windowOutputLevelWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Warning'**
+  String get windowOutputLevelWarning;
+
+  /// No description provided for @windowOutputLevelError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get windowOutputLevelError;
+
+  /// No description provided for @windowOutputLevelOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get windowOutputLevelOff;
+
+  /// No description provided for @windowOutputNoChannels.
+  ///
+  /// In en, this message translates to:
+  /// **'No output channels.'**
+  String get windowOutputNoChannels;
+
+  /// Note at the top of the Output panel when a channel's file is too big to keep whole.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the last {size} of this output are shown. Open it in the editor to see all of it.'**
+  String windowOutputTruncated(String size);
+
+  /// Title of the dialog asking about a folder's trust (VS Code's folderTrust).
+  ///
+  /// In en, this message translates to:
+  /// **'Do you trust the authors of the files in this folder?'**
+  String get trustFolderTitle;
+
+  /// Title of the dialog asking about a multi-folder workspace's trust (VS Code's workspaceTrust).
+  ///
+  /// In en, this message translates to:
+  /// **'Do you trust the authors of the files in this workspace?'**
+  String get trustWorkspaceTitle;
+
+  /// Explanation under the startup trust dialog for a folder.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode provides features that may automatically execute files in this folder.'**
+  String get trustStartupDetailsFolder;
+
+  /// Explanation under the startup trust dialog for a workspace.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode provides features that may automatically execute files in this workspace.'**
+  String get trustStartupDetailsWorkspace;
+
+  /// The last line of the startup trust dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'If you don\'t trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious.'**
+  String get trustLearnMore;
+
+  /// The button that trusts the workspace in the startup trust dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Yes, I trust the authors'**
+  String get trustOption;
+
+  /// The sublabel of the trust button for a folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Trust folder and enable all features'**
+  String get trustFolderOptionDescription;
+
+  /// The sublabel of the trust button for a workspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Trust workspace and enable all features'**
+  String get trustWorkspaceOptionDescription;
+
+  /// The button that opens the folder in restricted mode.
+  ///
+  /// In en, this message translates to:
+  /// **'No, I don\'t trust the authors'**
+  String get dontTrustOption;
+
+  /// The sublabel of the restricted mode button for a folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Open folder in restricted mode'**
+  String get dontTrustFolderOptionDescription;
+
+  /// The sublabel of the restricted mode button for a workspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Open workspace in restricted mode'**
+  String get dontTrustWorkspaceOptionDescription;
+
+  /// The checkbox that trusts the parent folder instead.
+  ///
+  /// In en, this message translates to:
+  /// **'Trust the authors of all files in the parent folder \'{name}\''**
+  String trustParentFolder(String name);
+
+  /// Title of the dialog an extension's trust request shows.
+  ///
+  /// In en, this message translates to:
+  /// **'Do you trust the authors of the files in this folder?'**
+  String get trustImmediateRequestTitle;
+
+  /// Explanation of the dialog an extension's trust request shows.
+  ///
+  /// In en, this message translates to:
+  /// **'A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.'**
+  String get trustImmediateRequestDetails;
+
+  /// The button that trusts the folder for an extension's request.
+  ///
+  /// In en, this message translates to:
+  /// **'Trust Folder & Continue'**
+  String get trustGrantFolder;
+
+  /// The button that trusts the workspace for an extension's request.
+  ///
+  /// In en, this message translates to:
+  /// **'Trust Workspace & Continue'**
+  String get trustGrantWorkspace;
+
+  /// The button that opens the Workspace Trust settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage'**
+  String get trustManage;
+
+  /// Title of the dialog asking about one folder's trust.
+  ///
+  /// In en, this message translates to:
+  /// **'Do you trust the authors of the files in this folder?'**
+  String get trustResourcesTitle;
+
+  /// Explanation of the dialog asking about one folder's trust.
+  ///
+  /// In en, this message translates to:
+  /// **'You are trying to open an untrusted folder. Do you trust the authors of this content?'**
+  String get trustResourcesDetails;
+
+  /// The last line of the dialog asking about one folder's trust.
+  ///
+  /// In en, this message translates to:
+  /// **'If you don\'t trust the authors of these files, we recommend not continuing as the files may be malicious.'**
+  String get trustResourcesLearnMore;
+
+  /// The status bar's Restricted Mode text.
+  ///
+  /// In en, this message translates to:
+  /// **'Restricted Mode'**
+  String get trustRestrictedMode;
+
+  /// Tooltip of the status bar's Restricted Mode item.
+  ///
+  /// In en, this message translates to:
+  /// **'Restricted Mode: Some features are disabled because this folder is not trusted.'**
+  String get trustRestrictedModeAria;
+
+  /// The status bar item's tooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Some features are disabled because this folder is not trusted.'**
+  String get trustRestrictedModeTooltip;
+
+  /// The status bar item's button that trusts the folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Trust'**
+  String get trustRestrictedModeTrust;
+
+  /// The status bar item's menu entry that opens the trust settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Workspace Trust'**
+  String get trustRestrictedModeManage;
+
+  /// Not used yet: placeholder for a cancelled trust request's message.
+  ///
+  /// In en, this message translates to:
+  /// **'The trust request was cancelled.'**
+  String get trustRequestCancelled;
+
+  /// The button that applies the edits extensions return for a file operation.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get filesParticipantOk;
+
+  /// The button that shows a diff of the edits extensions return.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Preview'**
+  String get filesParticipantPreview;
+
+  /// The cancel button of the participants' prompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip Changes'**
+  String get filesParticipantSkip;
+
+  /// The checkbox that remembers the participants' prompt answer.
+  ///
+  /// In en, this message translates to:
+  /// **'Do not ask me again'**
+  String get filesParticipantDontAsk;
+
+  /// The participants' prompt for a file creation.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension \'{name}\' wants to make refactoring changes with this file creation.'**
+  String filesParticipantCreate(String name);
+
+  /// The participants' prompt for a file copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension \'{name}\' wants to make refactoring changes with this file copy.'**
+  String filesParticipantCopy(String name);
+
+  /// The participants' prompt for a file move (rename).
+  ///
+  /// In en, this message translates to:
+  /// **'Extension \'{name}\' wants to make refactoring changes with this file move.'**
+  String filesParticipantMove(String name);
+
+  /// The participants' prompt for a file deletion.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension \'{name}\' wants to make refactoring changes with this file deletion.'**
+  String filesParticipantDelete(String name);
+
+  /// The participants' prompt for a file creation by several extensions.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} extensions want to make refactoring changes with this file creation.'**
+  String filesParticipantManyCreate(int count);
+
+  /// The participants' prompt for a file copy by several extensions.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} extensions want to make refactoring changes with this file copy.'**
+  String filesParticipantManyCopy(int count);
+
+  /// The participants' prompt for a file move by several extensions.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} extensions want to make refactoring changes with this file move.'**
+  String filesParticipantManyMove(int count);
+
+  /// The participants' prompt for a file deletion by several extensions.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} extensions want to make refactoring changes with this file deletion.'**
+  String filesParticipantManyDelete(int count);
+
+  /// The participants' progress notification for a file creation.
+  ///
+  /// In en, this message translates to:
+  /// **'Running \'File Create\' participants...'**
+  String get filesParticipantsCreate;
+
+  /// The participants' progress notification for a file copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Running \'File Copy\' participants...'**
+  String get filesParticipantsCopy;
+
+  /// The participants' progress notification for a file move (rename).
+  ///
+  /// In en, this message translates to:
+  /// **'Running \'File Rename\' participants...'**
+  String get filesParticipantsMove;
+
+  /// The participants' progress notification for a file deletion.
+  ///
+  /// In en, this message translates to:
+  /// **'Running \'File Delete\' participants...'**
+  String get filesParticipantsDelete;
+
+  /// Status message when an extension adds a folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension \'{name}\' added 1 folder to the workspace'**
+  String workspaceFolderAddedOne(String name);
+
+  /// Status message when an extension adds several folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension \'{name}\' added {count} folders to the workspace'**
+  String workspaceFolderAddedMany(String name, int count);
+
+  /// Status message when an extension removes a folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension \'{name}\' removed 1 folder from the workspace'**
+  String workspaceFolderRemovedOne(String name);
+
+  /// Status message when an extension removes several folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension \'{name}\' removed {count} folders from the workspace'**
+  String workspaceFolderRemovedMany(String name, int count);
+
+  /// Status message when an extension replaces folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension \'{name}\' changed folders of the workspace'**
+  String workspaceFoldersChanged(String name);
+
+  /// No description provided for @windowAuthConfirmAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'The extension \'{extension}\' wants to access the {provider} account \'{account}\'.'**
+  String windowAuthConfirmAccess(
+    String extension,
+    String provider,
+    String account,
+  );
+
+  /// No description provided for @windowAuthAllow.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow'**
+  String get windowAuthAllow;
+
+  /// No description provided for @windowAuthDeny.
+  ///
+  /// In en, this message translates to:
+  /// **'Deny'**
+  String get windowAuthDeny;
+
+  /// No description provided for @windowAuthUseOtherAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to another account'**
+  String get windowAuthUseOtherAccount;
+
+  /// No description provided for @windowAuthSelectAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'The extension \'{extension}\' wants to access a {provider} account'**
+  String windowAuthSelectAccount(String extension, String provider);
+
+  /// No description provided for @windowAuthSelectAccountPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Select an account for \'{extension}\' to use or Esc to cancel'**
+  String windowAuthSelectAccountPlaceholder(String extension);
+
+  /// No description provided for @windowAuthAccessRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Grant access to {provider} for {extension}... (1)'**
+  String windowAuthAccessRequest(String provider, String extension);
+
+  /// No description provided for @windowAuthSignInRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with {provider} to use {extension} (1)'**
+  String windowAuthSignInRequest(String provider, String extension);
+
+  /// No description provided for @extMenusMoreActions.
+  ///
+  /// In en, this message translates to:
+  /// **'More Actions...'**
+  String get extMenusMoreActions;
+
+  /// No description provided for @extMenusPaletteCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Extensions'**
+  String get extMenusPaletteCategory;
+
+  /// No description provided for @extsCapabilityFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Fully supported'**
+  String get extsCapabilityFull;
+
+  /// No description provided for @extsCapabilityFullDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Runs on the extension host without webviews.'**
+  String get extsCapabilityFullDetail;
+
+  /// No description provided for @extsCapabilityPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Partly supported'**
+  String get extsCapabilityPartial;
+
+  /// No description provided for @extsCapabilityPartialDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Runs, but some of its UI cannot be shown: BaoCode has no webviews.'**
+  String get extsCapabilityPartialDetail;
+
+  /// No description provided for @extsCapabilityNeedsWebview.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs a webview'**
+  String get extsCapabilityNeedsWebview;
+
+  /// No description provided for @extsCapabilityNeedsWebviewDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Its main features are drawn in a webview, which BaoCode does not have.'**
+  String get extsCapabilityNeedsWebviewDetail;
+
+  /// No description provided for @extsCapabilityFromManifest.
+  ///
+  /// In en, this message translates to:
+  /// **'From the manifest only; the code was not read.'**
+  String get extsCapabilityFromManifest;
+
+  /// No description provided for @extsFindingWebviewView.
+  ///
+  /// In en, this message translates to:
+  /// **'Webview view: {name}'**
+  String extsFindingWebviewView(String name);
+
+  /// No description provided for @extsFindingCustomEditor.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom editor: {name}'**
+  String extsFindingCustomEditor(String name);
+
+  /// No description provided for @extsFindingNotebook.
+  ///
+  /// In en, this message translates to:
+  /// **'Notebooks: {name}'**
+  String extsFindingNotebook(String name);
+
+  /// No description provided for @extsFindingNotebookRenderer.
+  ///
+  /// In en, this message translates to:
+  /// **'Notebook renderer: {name}'**
+  String extsFindingNotebookRenderer(String name);
+
+  /// No description provided for @extsFindingWebviewPanelCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Its code creates webview panels ({file}).'**
+  String extsFindingWebviewPanelCode(String file);
+
+  /// No description provided for @extsFindingWebviewViewCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Its code creates webview views ({file}).'**
+  String extsFindingWebviewViewCode(String file);
+
+  /// No description provided for @extsFindingCustomEditorCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Its code registers a custom editor ({file}).'**
+  String extsFindingCustomEditorCode(String file);
+
+  /// No description provided for @extsFindingNotebookCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Its code registers a notebook ({file}).'**
+  String extsFindingNotebookCode(String file);
+
+  /// No description provided for @extsFindingBrowserOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'It only runs in a browser.'**
+  String get extsFindingBrowserOnly;
+
+  /// No description provided for @extsFindingScanIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Not all of its code could be read.'**
+  String get extsFindingScanIncomplete;
+
+  /// No description provided for @extsCoreLanguageFeatures.
+  ///
+  /// In en, this message translates to:
+  /// **'language features'**
+  String get extsCoreLanguageFeatures;
+
+  /// No description provided for @extsCoreLanguageServer.
+  ///
+  /// In en, this message translates to:
+  /// **'the language server'**
+  String get extsCoreLanguageServer;
+
+  /// No description provided for @extsCoreSyntaxHighlighting.
+  ///
+  /// In en, this message translates to:
+  /// **'syntax highlighting'**
+  String get extsCoreSyntaxHighlighting;
+
+  /// No description provided for @extsCoreSnippets.
+  ///
+  /// In en, this message translates to:
+  /// **'snippets'**
+  String get extsCoreSnippets;
+
+  /// No description provided for @extsCoreDebugging.
+  ///
+  /// In en, this message translates to:
+  /// **'debugging'**
+  String get extsCoreDebugging;
+
+  /// No description provided for @extsCoreThemes.
+  ///
+  /// In en, this message translates to:
+  /// **'themes'**
+  String get extsCoreThemes;
+
+  /// No description provided for @extsCoreTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'tasks'**
+  String get extsCoreTasks;
+
+  /// No description provided for @extsCoreTreeViews.
+  ///
+  /// In en, this message translates to:
+  /// **'tree views'**
+  String get extsCoreTreeViews;
+
+  /// No description provided for @extsCoreSourceControl.
+  ///
+  /// In en, this message translates to:
+  /// **'source control'**
+  String get extsCoreSourceControl;
+
+  /// No description provided for @extsCoreTesting.
+  ///
+  /// In en, this message translates to:
+  /// **'testing'**
+  String get extsCoreTesting;
+
+  /// No description provided for @extsCoreJsonSchemas.
+  ///
+  /// In en, this message translates to:
+  /// **'JSON schemas'**
+  String get extsCoreJsonSchemas;
+
+  /// No description provided for @extsCoreTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'the terminal'**
+  String get extsCoreTerminal;
+
+  /// No description provided for @extsCoreAuthentication.
+  ///
+  /// In en, this message translates to:
+  /// **'authentication'**
+  String get extsCoreAuthentication;
+
+  /// No description provided for @extsCoreLocalization.
+  ///
+  /// In en, this message translates to:
+  /// **'localization'**
+  String get extsCoreLocalization;
+
+  /// No description provided for @extsStillWorks.
+  ///
+  /// In en, this message translates to:
+  /// **'Still works: {features}.'**
+  String extsStillWorks(String features);
+
+  /// No description provided for @extsListSeparator.
+  ///
+  /// In en, this message translates to:
+  /// **', '**
+  String get extsListSeparator;
+
+  /// No description provided for @extsEngineIncompatible.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs VS Code {requested}; this is {current}.'**
+  String extsEngineIncompatible(String current, String requested);
+
+  /// No description provided for @extsEngineMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'It does not say which VS Code it needs.'**
+  String get extsEngineMissing;
+
+  /// No description provided for @extsEngineInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid engine \'{requested}\'.'**
+  String extsEngineInvalid(String requested);
+
+  /// No description provided for @extsEngineCompatible.
+  ///
+  /// In en, this message translates to:
+  /// **'Requires VS Code {engine}.'**
+  String extsEngineCompatible(String engine);
+
+  /// No description provided for @extsTitleUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get extsTitleUpdates;
+
+  /// No description provided for @extsTitleOpenVsx.
+  ///
+  /// In en, this message translates to:
+  /// **'Open VSX'**
+  String get extsTitleOpenVsx;
+
+  /// No description provided for @extsUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get extsUpdates;
+
+  /// No description provided for @extsCheckForUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for Updates'**
+  String get extsCheckForUpdates;
+
+  /// No description provided for @extsMoreActions.
+  ///
+  /// In en, this message translates to:
+  /// **'More Actions...'**
+  String get extsMoreActions;
+
+  /// No description provided for @extsInstallFromVsix.
+  ///
+  /// In en, this message translates to:
+  /// **'Install from VSIX...'**
+  String get extsInstallFromVsix;
+
+  /// No description provided for @extsImportFromEditors.
+  ///
+  /// In en, this message translates to:
+  /// **'Import from VS Code...'**
+  String get extsImportFromEditors;
+
+  /// No description provided for @extsSearchPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Open VSX Extensions'**
+  String get extsSearchPlaceholder;
+
+  /// No description provided for @extsSearchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not search Open VSX: {error}'**
+  String extsSearchFailed(String error);
+
+  /// No description provided for @extsLoadMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Load More'**
+  String get extsLoadMore;
+
+  /// No description provided for @extsUpdateTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Update to {version}'**
+  String extsUpdateTo(String version);
+
+  /// No description provided for @extsUpdating.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating...'**
+  String get extsUpdating;
+
+  /// No description provided for @extsEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable'**
+  String get extsEnable;
+
+  /// No description provided for @extsDisable.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable'**
+  String get extsDisable;
+
+  /// No description provided for @extsEnableWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable (Workspace)'**
+  String get extsEnableWorkspace;
+
+  /// No description provided for @extsDisableWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable (Workspace)'**
+  String get extsDisableWorkspace;
+
+  /// No description provided for @extsDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get extsDisabled;
+
+  /// No description provided for @extsDisabledWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled (Workspace)'**
+  String get extsDisabledWorkspace;
+
+  /// No description provided for @extsSwitchToPreRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to Pre-Release Version'**
+  String get extsSwitchToPreRelease;
+
+  /// No description provided for @extsSwitchToRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to Release Version'**
+  String get extsSwitchToRelease;
+
+  /// No description provided for @extsInstallPreRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'Install Pre-Release Version'**
+  String get extsInstallPreRelease;
+
+  /// No description provided for @extsInstallVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Install {version}'**
+  String extsInstallVersion(String version);
+
+  /// No description provided for @extsPreRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'Pre-Release'**
+  String get extsPreRelease;
+
+  /// No description provided for @extsBuiltin.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in'**
+  String get extsBuiltin;
+
+  /// No description provided for @extsDevelopment.
+  ///
+  /// In en, this message translates to:
+  /// **'Development'**
+  String get extsDevelopment;
+
+  /// No description provided for @extsVerifiedPublisher.
+  ///
+  /// In en, this message translates to:
+  /// **'Verified publisher'**
+  String get extsVerifiedPublisher;
+
+  /// No description provided for @extsDownloads.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} downloads'**
+  String extsDownloads(String count);
+
+  /// No description provided for @extsLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load it: {error}'**
+  String extsLoadFailed(String error);
+
+  /// No description provided for @extsVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get extsVersion;
+
+  /// No description provided for @extsPreReleaseToggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pre-Release'**
+  String get extsPreReleaseToggle;
+
+  /// No description provided for @extsLatestVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Latest'**
+  String get extsLatestVersion;
+
+  /// No description provided for @extsTabDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Details'**
+  String get extsTabDetails;
+
+  /// No description provided for @extsTabFeatures.
+  ///
+  /// In en, this message translates to:
+  /// **'Features'**
+  String get extsTabFeatures;
+
+  /// No description provided for @extsTabChangelog.
+  ///
+  /// In en, this message translates to:
+  /// **'Changelog'**
+  String get extsTabChangelog;
+
+  /// No description provided for @extsNoReadme.
+  ///
+  /// In en, this message translates to:
+  /// **'This extension has no README.'**
+  String get extsNoReadme;
+
+  /// No description provided for @extsNoChangelog.
+  ///
+  /// In en, this message translates to:
+  /// **'This extension has no changelog.'**
+  String get extsNoChangelog;
+
+  /// No description provided for @extsContributions.
+  ///
+  /// In en, this message translates to:
+  /// **'Contributions'**
+  String get extsContributions;
+
+  /// No description provided for @extsNoContributions.
+  ///
+  /// In en, this message translates to:
+  /// **'This extension contributes nothing.'**
+  String get extsNoContributions;
+
+  /// No description provided for @extsActivationEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Activation Events'**
+  String get extsActivationEvents;
+
+  /// No description provided for @extsApiProposals.
+  ///
+  /// In en, this message translates to:
+  /// **'API Proposals'**
+  String get extsApiProposals;
+
+  /// No description provided for @extsCompatibility.
+  ///
+  /// In en, this message translates to:
+  /// **'Compatibility'**
+  String get extsCompatibility;
+
+  /// No description provided for @extsInformation.
+  ///
+  /// In en, this message translates to:
+  /// **'Information'**
+  String get extsInformation;
+
+  /// No description provided for @extsInfoIdentifier.
+  ///
+  /// In en, this message translates to:
+  /// **'Identifier'**
+  String get extsInfoIdentifier;
+
+  /// No description provided for @extsInfoVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get extsInfoVersion;
+
+  /// No description provided for @extsInfoLatest.
+  ///
+  /// In en, this message translates to:
+  /// **'Latest'**
+  String get extsInfoLatest;
+
+  /// No description provided for @extsInfoLastUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Last Updated'**
+  String get extsInfoLastUpdated;
+
+  /// No description provided for @extsInfoEngine.
+  ///
+  /// In en, this message translates to:
+  /// **'VS Code'**
+  String get extsInfoEngine;
+
+  /// No description provided for @extsInfoPlatform.
+  ///
+  /// In en, this message translates to:
+  /// **'Platform'**
+  String get extsInfoPlatform;
+
+  /// No description provided for @extsInfoLicense.
+  ///
+  /// In en, this message translates to:
+  /// **'License'**
+  String get extsInfoLicense;
+
+  /// No description provided for @extsInfoRepository.
+  ///
+  /// In en, this message translates to:
+  /// **'Repository'**
+  String get extsInfoRepository;
+
+  /// No description provided for @extsInfoCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'Categories'**
+  String get extsInfoCategories;
+
+  /// No description provided for @extsInfoLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get extsInfoLocation;
+
+  /// No description provided for @extsVsixTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Install Extension VSIX'**
+  String get extsVsixTitle;
+
+  /// No description provided for @extsVsixInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} is not a valid VSIX: {error}'**
+  String extsVsixInvalid(String name, String error);
+
+  /// No description provided for @extsVsixPlatformMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'It is built for {platform}, not for {current}.'**
+  String extsVsixPlatformMismatch(String platform, String current);
+
+  /// No description provided for @extsVsixReplaces.
+  ///
+  /// In en, this message translates to:
+  /// **'It replaces version {version}.'**
+  String extsVsixReplaces(String version);
+
+  /// No description provided for @extsPlatformCompatible.
+  ///
+  /// In en, this message translates to:
+  /// **'Platform: {platform}'**
+  String extsPlatformCompatible(String platform);
+
+  /// No description provided for @extsPlatformUniversal.
+  ///
+  /// In en, this message translates to:
+  /// **'universal'**
+  String get extsPlatformUniversal;
+
+  /// No description provided for @extsDevFolderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Development Extension'**
+  String get extsDevFolderTitle;
+
+  /// No description provided for @extsDevFolderDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Load {name} as a development extension?'**
+  String extsDevFolderDetail(String name);
+
+  /// No description provided for @extsDevFolderLoad.
+  ///
+  /// In en, this message translates to:
+  /// **'Load'**
+  String get extsDevFolderLoad;
+
+  /// No description provided for @extsImportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Extensions'**
+  String get extsImportTitle;
+
+  /// No description provided for @extsImportDetecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Looking for other editors...'**
+  String get extsImportDetecting;
+
+  /// No description provided for @extsImportNoEditors.
+  ///
+  /// In en, this message translates to:
+  /// **'No VS Code, Cursor, Windsurf or VSCodium installation was found.'**
+  String get extsImportNoEditors;
+
+  /// No description provided for @extsImportFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'Import extensions from:'**
+  String get extsImportFrom;
+
+  /// No description provided for @extsImportProduct.
+  ///
+  /// In en, this message translates to:
+  /// **'{product} ({count})'**
+  String extsImportProduct(String product, int count);
+
+  /// No description provided for @extsImportContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get extsImportContinue;
+
+  /// No description provided for @extsImportScanning.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the gallery... {done} of {total}'**
+  String extsImportScanning(int done, int total);
+
+  /// No description provided for @extsImportSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} extensions from {products}.'**
+  String extsImportSummary(int count, String products);
+
+  /// No description provided for @extsImportSectionReinstall.
+  ///
+  /// In en, this message translates to:
+  /// **'On Open VSX'**
+  String get extsImportSectionReinstall;
+
+  /// No description provided for @extsImportSectionProprietary.
+  ///
+  /// In en, this message translates to:
+  /// **'Proprietary'**
+  String get extsImportSectionProprietary;
+
+  /// No description provided for @extsImportSectionCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy from disk'**
+  String get extsImportSectionCopy;
+
+  /// No description provided for @extsImportSectionUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not be checked'**
+  String get extsImportSectionUnavailable;
+
+  /// No description provided for @extsImportSectionSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Skipped'**
+  String get extsImportSectionSkipped;
+
+  /// No description provided for @extsImportVersions.
+  ///
+  /// In en, this message translates to:
+  /// **'v{installed} here, v{remote} on Open VSX'**
+  String extsImportVersions(String installed, String remote);
+
+  /// No description provided for @extsImportPreReleaseOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'pre-release only'**
+  String get extsImportPreReleaseOnly;
+
+  /// No description provided for @extsImportNoAlternative.
+  ///
+  /// In en, this message translates to:
+  /// **'No alternative is known.'**
+  String get extsImportNoAlternative;
+
+  /// No description provided for @extsImportAlternativeUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Alternatives ({ids}) are not on Open VSX.'**
+  String extsImportAlternativeUnavailable(String ids);
+
+  /// No description provided for @extsImportAlternative.
+  ///
+  /// In en, this message translates to:
+  /// **'Use {label} ({id}) instead.'**
+  String extsImportAlternative(String label, String id);
+
+  /// No description provided for @extsImportCopyNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'It is not on Open VSX.'**
+  String get extsImportCopyNotFound;
+
+  /// No description provided for @extsImportCopyEngine.
+  ///
+  /// In en, this message translates to:
+  /// **'It is on Open VSX, but not for this version of VS Code.'**
+  String get extsImportCopyEngine;
+
+  /// No description provided for @extsImportCopyPlatform.
+  ///
+  /// In en, this message translates to:
+  /// **'It is on Open VSX, but not for this platform.'**
+  String get extsImportCopyPlatform;
+
+  /// No description provided for @extsImportCopyConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'Its files are copied as they are; it will not be updated.'**
+  String get extsImportCopyConsent;
+
+  /// No description provided for @extsImportSkipInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Already installed.'**
+  String get extsImportSkipInstalled;
+
+  /// No description provided for @extsImportSkipEditor.
+  ///
+  /// In en, this message translates to:
+  /// **'Only for another editor.'**
+  String get extsImportSkipEditor;
+
+  /// No description provided for @extsImportUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not be checked: {error}'**
+  String extsImportUnavailable(String error);
+
+  /// No description provided for @extsImportSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Import its settings ({count})'**
+  String extsImportSettings(int count);
+
+  /// No description provided for @extsImportButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Import ({count})'**
+  String extsImportButton(int count);
+
+  /// No description provided for @extsImportRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Importing {name}... {done} of {total}'**
+  String extsImportRunning(String name, int done, int total);
+
+  /// No description provided for @extsReportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Report'**
+  String get extsReportTitle;
+
+  /// No description provided for @extsReportSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported {count}, failed {failed}.'**
+  String extsReportSummary(int count, int failed);
+
+  /// No description provided for @extsReportInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed v{version}.'**
+  String extsReportInstalled(String version);
+
+  /// No description provided for @extsReportAlternative.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed {id} instead.'**
+  String extsReportAlternative(String id);
+
+  /// No description provided for @extsReportCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied from disk.'**
+  String get extsReportCopied;
+
+  /// No description provided for @extsReportNotImported.
+  ///
+  /// In en, this message translates to:
+  /// **'Not imported.'**
+  String get extsReportNotImported;
+
+  /// No description provided for @extsReportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed: {error}'**
+  String extsReportFailed(String error);
+
+  /// No description provided for @extsReportSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings: {added} added, {kept} kept.'**
+  String extsReportSettings(int added, int kept);
+
+  /// No description provided for @extsReportSettingsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not write the settings: {error}'**
+  String extsReportSettingsFailed(String error);
+
+  /// No description provided for @extsProprietaryLicense.
+  ///
+  /// In en, this message translates to:
+  /// **'Its license does not allow other editors to use it.'**
+  String get extsProprietaryLicense;
+
+  /// No description provided for @extsProprietaryRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'It is part of Remote Development.'**
+  String get extsProprietaryRemote;
+
+  /// No description provided for @extsProprietaryAi.
+  ///
+  /// In en, this message translates to:
+  /// **'It is an AI assistant tied to GitHub.'**
+  String get extsProprietaryAi;
+
+  /// No description provided for @extsProprietaryNotebooks.
+  ///
+  /// In en, this message translates to:
+  /// **'It is tied to Microsoft notebooks.'**
+  String get extsProprietaryNotebooks;
+
+  /// No description provided for @windowExtensionMissingDependency.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot activate the \'{extension}\' extension because it depends on the \'{dependency}\' extension, which is not loaded. Would you like to reload the window to load the extension?'**
+  String windowExtensionMissingDependency(String extension, String dependency);
+
+  /// No description provided for @windowExtensionReloadWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload Window'**
+  String get windowExtensionReloadWindow;
+
+  /// No description provided for @windowRunningExtensionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Running Extensions'**
+  String get windowRunningExtensionsTitle;
+
+  /// No description provided for @windowRunningExtensionsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No extensions are running.'**
+  String get windowRunningExtensionsEmpty;
+
+  /// No description provided for @windowRunningExtensionsActivating.
+  ///
+  /// In en, this message translates to:
+  /// **'Activating...'**
+  String get windowRunningExtensionsActivating;
+
+  /// No description provided for @windowRunningExtensionsStartup.
+  ///
+  /// In en, this message translates to:
+  /// **'Startup Activation: {time}ms'**
+  String windowRunningExtensionsStartup(String time);
+
+  /// No description provided for @windowRunningExtensionsActivation.
+  ///
+  /// In en, this message translates to:
+  /// **'Activation: {time}ms'**
+  String windowRunningExtensionsActivation(String time);
+
+  /// No description provided for @windowRunningExtensionsErrors.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} uncaught errors'**
+  String windowRunningExtensionsErrors(int count);
+
+  /// No description provided for @windowRunningExtensionsHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension host'**
+  String get windowRunningExtensionsHost;
+
+  /// No description provided for @windowWebviewUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This feature needs Webview, which BaoCode does not support.'**
+  String get windowWebviewUnsupported;
+
+  /// No description provided for @windowWebviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Webview not supported'**
+  String get windowWebviewTitle;
+
+  /// No description provided for @windowWebviewPanelDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The \'{extension}\' extension opened \'{title}\', which is shown with a Webview. Its other features keep working.'**
+  String windowWebviewPanelDetail(String extension, String title);
+
+  /// No description provided for @windowWebviewViewDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The \'{extension}\' extension\'s \'{title}\' view needs a Webview, which BaoCode does not support.'**
+  String windowWebviewViewDetail(String extension, String title);
+
+  /// No description provided for @windowWebviewCustomEditorDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The \'{extension}\' extension\'s \'{viewType}\' editor needs a Webview, which BaoCode does not support.'**
+  String windowWebviewCustomEditorDetail(String extension, String viewType);
+
+  /// No description provided for @windowWebviewOpenInBrowser.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in Browser'**
+  String get windowWebviewOpenInBrowser;
+
+  /// No description provided for @windowWebviewShowOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Output'**
+  String get windowWebviewShowOutput;
+
+  /// No description provided for @windowWebviewNoFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'This extension\'s UI cannot be shown here. Everything else it contributes works as usual.'**
+  String get windowWebviewNoFallback;
+
+  /// No description provided for @windowAuthConfirmLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'The extension \'{extension}\' wants to sign in using {provider}.'**
+  String windowAuthConfirmLogin(String extension, String provider);
+
+  /// No description provided for @windowAuthConfirmRelogin.
+  ///
+  /// In en, this message translates to:
+  /// **'The extension \'{extension}\' wants you to sign in again using {provider}.'**
+  String windowAuthConfirmRelogin(String extension, String provider);
+
+  /// No description provided for @windowAuthLearnMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Learn more'**
+  String get windowAuthLearnMore;
+
+  /// No description provided for @windowAuthDidNotConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'User did not consent to login.'**
+  String get windowAuthDidNotConsent;
+
+  /// No description provided for @windowAuthDeviceCodeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Device Code Authentication'**
+  String get windowAuthDeviceCodeTitle;
+
+  /// No description provided for @windowAuthDeviceCodeDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Your code: {code}\n\nTo complete authentication, navigate to {uri} and enter the code above.'**
+  String windowAuthDeviceCodeDetail(String code, String uri);
+
+  /// No description provided for @windowAuthCopyAndContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy & Continue'**
+  String get windowAuthCopyAndContinue;
+
+  /// No description provided for @windowAuthIncorrectAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Incorrect account detected'**
+  String get windowAuthIncorrectAccount;
+
+  /// No description provided for @windowAuthIncorrectAccountDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The chosen account, {chosen}, does not match the requested account, {requested}.'**
+  String windowAuthIncorrectAccountDetail(String chosen, String requested);
+
+  /// No description provided for @windowAuthContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get windowAuthContinue;
+
+  /// No description provided for @windowAuthSignInAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in again'**
+  String get windowAuthSignInAgain;
+
+  /// No description provided for @windowQuickInputSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select All'**
+  String get windowQuickInputSelectAll;
+
+  /// No description provided for @windowQuickInputToggleOn.
+  ///
+  /// In en, this message translates to:
+  /// **'{label}: checked'**
+  String windowQuickInputToggleOn(String label);
+
+  /// No description provided for @windowQuickInputToggleOff.
+  ///
+  /// In en, this message translates to:
+  /// **'{label}: unchecked'**
+  String windowQuickInputToggleOff(String label);
+
+  /// No description provided for @windowAuthAccounts.
+  ///
+  /// In en, this message translates to:
+  /// **'Accounts'**
+  String get windowAuthAccounts;
+
+  /// No description provided for @windowAuthAccountsWithRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} accounts requests'**
+  String windowAuthAccountsWithRequests(int count);
+
+  /// No description provided for @windowAuthSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign Out'**
+  String get windowAuthSignOut;
+
+  /// No description provided for @windowAuthSignOutMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out of {count} accounts'**
+  String windowAuthSignOutMenu(int count);
+
+  /// No description provided for @windowAuthSignOutAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign Out of All Accounts'**
+  String get windowAuthSignOutAll;
+
+  /// No description provided for @windowAuthSignOutConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out of the {account} account of {provider}?'**
+  String windowAuthSignOutConfirm(String account, String provider);
+
+  /// No description provided for @windowAuthManageTrusted.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Trusted Extensions...'**
+  String get windowAuthManageTrusted;
+
+  /// No description provided for @windowAuthNoTrustedExtensions.
+  ///
+  /// In en, this message translates to:
+  /// **'No extensions have been given access to an account.'**
+  String get windowAuthNoTrustedExtensions;
+
+  /// No description provided for @windowAuthRemoveAllTrusted.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove All'**
+  String get windowAuthRemoveAllTrusted;
 }
 
 class _AppLocalizationsDelegate
