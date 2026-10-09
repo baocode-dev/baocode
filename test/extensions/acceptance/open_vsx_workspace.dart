@@ -9,12 +9,15 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 import 'package:bao_exthost/bao_exthost.dart';
 import 'package:baocode/extensions/configuration/configuration_service.dart';
 import 'package:baocode/extensions/configuration/core_configuration.dart';
 import 'package:baocode/extensions/gallery/open_vsx_client.dart';
 import 'package:baocode/extensions/host/extension_host_manager.dart';
 import 'package:baocode/extensions/workbench/workspace_extensions.dart';
+import 'package:baocode/ide/ide_editor_features.dart';
+import 'package:baocode/ide/ide_editor_views.dart';
 import 'package:baocode/ide/ide_workspace.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -197,6 +200,35 @@ final class OpenVsxWorkspace {
     final file = path(relative);
     await workspace.open(file);
     return file;
+  }
+
+  /// Opens [relative] and shows it in an editor without a widget (the
+  /// extensions' `activeTextEditor`): its decorations, CodeLenses and
+  /// carets are the view's, as the editor widget's would be.
+  Future<IdeEditorView> show(String relative) async {
+    final file = await open(relative);
+    final doc = workspace.documents.singleWhere((d) => d.path == file);
+    final controller = EditorSurfaceController(document: doc.model);
+    final features = IdeEditorFeatures(
+      controller: controller,
+      types: workspace.editorViews.decorationTypes,
+    );
+    final view = IdeEditorView(
+      document: doc,
+      controller: controller,
+      features: features,
+      visibleLines: () => (first: 1, last: doc.model.snapshot.lineCount),
+      hasFocus: () => true,
+      focus: () {},
+      reveal: (_, _, {center = false}) {},
+    );
+    addTearDown(() {
+      workspace.editorViews.hide(view);
+      features.dispose();
+      controller.dispose();
+    });
+    workspace.editorViews.show(view);
+    return view;
   }
 
   /// Waits until [id] is activated, failing on its activation error.
