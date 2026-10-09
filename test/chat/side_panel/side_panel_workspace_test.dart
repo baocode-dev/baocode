@@ -9,6 +9,7 @@ import 'package:baocode/chat/side_panel/side_panel_controller.dart';
 import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/git/git_repository.dart';
+import 'package:baocode/ide/git/repository_scan.dart';
 import 'package:baocode/ide/ide_explorer.dart';
 import 'package:baocode/ide/ide_list.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
@@ -67,6 +68,8 @@ Future<({AgentSidePanel panel, ChatSession session})> _pump(
   required SidePanelSection section,
   List<String> roots = const [_site, _api],
   List<(String, IdeGitRepository)> repositories = const [],
+  String? workspaceName = 'web',
+  IdeGitRepository? git,
   VoidCallback? onAddFolder,
   ValueChanged<String>? onRemoveFolder,
 }) async {
@@ -92,7 +95,8 @@ Future<({AgentSidePanel panel, ChatSession session})> _pump(
             session: session,
             files: _files,
             watchDirectory: (_) => const Stream.empty(),
-            workspaceName: 'web',
+            workspaceName: workspaceName,
+            git: git,
             roots: roots,
             repositories: repositories,
             onAddFolder: onAddFolder,
@@ -205,6 +209,29 @@ void main() {
     expect(panel.repositoryOf(session.root!), _api);
     expect(_inList('new.go'), findsOneWidget);
     expect(_inList('index.html'), findsNothing);
+  });
+
+  testWidgets('a folder\'s project lists the repositories found in its '
+      'subfolders, its own left out once known not to be one', (tester) async {
+    final own = FakeGit(_workspace)..isRepository = false;
+    final nested = FakeGit(_api)..status = '## dev\x00?? new.go\x00';
+    final (ownGit, nestedGit) = (own.repository(), nested.repository());
+    addTearDown(ownGit.dispose);
+    addTearDown(nestedGit.dispose);
+    await ownGit.refresh();
+    await nestedGit.refresh();
+    await _pump(
+      tester,
+      section: SidePanelSection.changes,
+      workspaceName: null,
+      roots: const [],
+      git: ownGit,
+      repositories: ideFolderRepositories(_workspace, ownGit, [
+        (_api, nestedGit),
+      ]),
+    );
+    expect(_inList('new.go'), findsOneWidget);
+    expect(find.textContaining('doesn\'t have a Git repository'), findsNothing);
   });
 
   group('the files the chat names', () {

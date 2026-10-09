@@ -124,6 +124,19 @@ Future<List<String>> scanRepositories(
   ];
 }
 
+/// [folder]'s repositories as Source Control lists them: its own, [own]
+/// (left out once known not to be one, when others were found), then
+/// [found], those of its subfolders.
+List<(String root, IdeGitRepository git)> ideFolderRepositories(
+  String folder,
+  IdeGitRepository? own,
+  List<(String path, IdeGitRepository git)> found,
+) => [
+  if (own case final git? when found.isEmpty || !git.loaded || git.isRepository)
+    (folder, git),
+  ...found,
+];
+
 /// Finds the repositories of a workspace folder's subfolders, and makes
 /// the repository of one found.
 class IdeRepositoryDetection {
