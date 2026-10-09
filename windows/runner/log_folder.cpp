@@ -4,7 +4,6 @@
 #include <shlobj.h>
 #include <windows.h>
 
-#include <mutex>
 #include <vector>
 
 #include "utils.h"
@@ -15,7 +14,22 @@ namespace {
 constexpr wchar_t kSettingsKey[] = L"Software\\BaoCode";
 constexpr wchar_t kFolderValue[] = L"LogsFolder";
 
-std::mutex g_mutex;
+// Windows' own lock, not std::mutex: built with MSVC 14.40 or later, a
+// std::mutex is constexpr-constructed and crashes in msvcp140.dll's
+// _Mtx_lock where the VC++ runtime installed is older — which is most
+// machines, the app not carrying its own. Path() runs as the app starts
+// (the hang watchdog's folder), so every launch crashed before a window
+// showed.
+SRWLOCK g_lock = SRWLOCK_INIT;
+
+// g_lock held for as long as it is in scope.
+class Locked {
+ public:
+  Locked() { ::AcquireSRWLockExclusive(&g_lock); }
+  ~Locked() { ::ReleaseSRWLockExclusive(&g_lock); }
+  Locked(const Locked&) = delete;
+  Locked& operator=(const Locked&) = delete;
+};
 
 // The folder Flutter named this run; empty until it does.
 std::wstring g_folder;
@@ -60,7 +74,7 @@ bool Made(const std::wstring& folder) {
 
 void SetFolder(const std::wstring& folder) {
   {
-    std::lock_guard<std::mutex> lock(g_mutex);
+    Locked locked;
     g_folder = folder;
   }
   ::RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, kFolderValue, REG_SZ,
@@ -96,7 +110,7 @@ std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> Listen(
 std::wstring Path() {
   std::wstring named;
   {
-    std::lock_guard<std::mutex> lock(g_mutex);
+    Locked locked;
     named = g_folder;
   }
   if (named.empty()) {

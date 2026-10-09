@@ -43,6 +43,11 @@ function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_options(${TARGET} PRIVATE /EHsc)
   target_compile_definitions(${TARGET} PRIVATE "_HAS_EXCEPTIONS=0")
   target_compile_definitions(${TARGET} PRIVATE "$<$<CONFIG:Debug>:_DEBUG>")
+  # A std::mutex as older VC++ runtimes construct it: the app uses the one
+  # installed, and MSVC 14.40's constexpr one crashes in an older
+  # msvcp140.dll the first time it is locked (see log_folder.cpp).
+  target_compile_definitions(${TARGET} PRIVATE
+    "_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR")
 endfunction()
 
 # Flutter library and tool build rules.
