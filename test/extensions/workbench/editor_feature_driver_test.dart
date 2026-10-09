@@ -7,6 +7,8 @@ import 'dart:async';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart'
     show EditorOffsetEdit;
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/folding/browser/folding_ranges.dart'
+    show FoldRange;
 import 'package:bao_exthost/bao_exthost.dart' show CancellationToken, VsUri;
 import 'package:baocode/extensions/documents/ext_host_document_mirror.dart';
 import 'package:baocode/extensions/language/language_feature_document.dart';
@@ -112,6 +114,39 @@ class _DelayedHighlights extends DocumentHighlightProvider {
   }
 }
 
+class _Folds extends FoldingRangeProvider {
+  final changes = StreamController<void>.broadcast();
+  int asked = 0;
+
+  @override
+  Stream<void>? get onDidChange => changes.stream;
+
+  @override
+  FutureOr<List<FoldingRange>?> provideFoldingRanges(
+    LanguageFeatureDocument model,
+    FoldingContext context,
+    CancellationToken token,
+  ) {
+    asked++;
+    return const [FoldingRange(1, 2, kind: FoldingRangeKind.region)];
+  }
+}
+
+class _DelayedFolds extends FoldingRangeProvider {
+  final requests = <Completer<List<FoldingRange>?>>[];
+
+  @override
+  Future<List<FoldingRange>?> provideFoldingRanges(
+    LanguageFeatureDocument model,
+    FoldingContext context,
+    CancellationToken token,
+  ) {
+    final request = Completer<List<FoldingRange>?>();
+    requests.add(request);
+    return request.future;
+  }
+}
+
 class _Inline extends InlineCompletionsProvider {
   final shown = <String>[];
   int disposed = 0;
@@ -155,6 +190,7 @@ void main() {
   late List<(String, List<Object?>)> commands;
   late Map<String, Object?> settings;
   late bool focused;
+  List<FoldRange>? folds;
   ExtensionEditorFeatureDriver? driver;
 
   setUp(() {
@@ -182,6 +218,7 @@ void main() {
       types: EditorDecorationTypeRegistry(),
     );
     focused = true;
+    folds = null;
     view = IdeEditorView(
       document: document,
       controller: controller,
@@ -190,6 +227,7 @@ void main() {
       hasFocus: () => focused,
       focus: () {},
       reveal: (_, _, {center = false}) {},
+      setFoldingRanges: (ranges) => folds = ranges,
     );
     commands = [];
     settings = {};
@@ -349,6 +387,58 @@ void main() {
     ]);
     await tester.pump();
     expect(features.decorations.decorations.items.single.start, 6);
+    await stop(tester);
+  });
+
+  testWidgets(
+    'folding provider ranges reach the editor and refresh on change',
+    (tester) async {
+      final provider = _Folds();
+      service.foldingRangeProvider.register(ts, provider);
+      start();
+      views.show(view);
+      await tester.pump(const Duration(milliseconds: 10));
+      expect(provider.asked, 1);
+      expect(folds, hasLength(1));
+      expect(
+        (folds!.single.startLineNumber, folds!.single.endLineNumber),
+        (1, 2),
+      );
+      expect(folds!.single.type, 'region');
+
+      provider.changes.add(null);
+      expect(folds, hasLength(1));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(provider.asked, 2);
+      expect(folds, hasLength(1));
+      views.hide(view);
+      expect(folds, isNull);
+      await stop(tester);
+      await provider.changes.close();
+    },
+  );
+
+  testWidgets('late folding ranges never replace the newer snapshot', (
+    tester,
+  ) async {
+    final provider = _DelayedFolds();
+    service.foldingRangeProvider.register(ts, provider);
+    start();
+    views.show(view);
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(provider.requests, hasLength(1));
+
+    controller.applyEdits([const EditorOffsetEdit(0, 0, 'new\n')]);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(provider.requests, hasLength(2));
+    provider.requests.last.complete(const [FoldingRange(2, 3)]);
+    await tester.pump();
+    expect(folds, hasLength(1));
+    expect(folds!.single.startLineNumber, 2);
+
+    provider.requests.first.complete(const [FoldingRange(1, 2)]);
+    await tester.pump();
+    expect(folds!.single.startLineNumber, 2);
     await stop(tester);
   });
 

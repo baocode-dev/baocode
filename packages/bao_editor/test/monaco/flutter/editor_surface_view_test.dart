@@ -15,6 +15,8 @@ import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 import 'package:bao_editor/monaco/flutter/editor_view_painters.dart';
 import 'package:bao_editor/monaco/vs/editor/common/languages/language_configuration.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/folding/browser/folding_ranges.dart'
+    show FoldRange;
 
 EditorSurfaceController _controller(String text) {
   final document = EditorDocumentModel(text);
@@ -411,6 +413,42 @@ void main() {
       (1, 3),
     );
   });
+
+  testWidgets(
+    'provider folding replaces indentation and retains collapsed state',
+    (tester) async {
+      final controller = _controller('alpha\nbeta\ngamma\ndelta\nepsilon');
+      await _mount(tester, controller);
+      final surface =
+          tester.state(find.byType(EditorSurface)) as EditorSurfaceView;
+      expect(_gutter(tester).folding.regions.length, 0);
+
+      List<FoldRange> ranges() => [
+        FoldRange(startLineNumber: 1, endLineNumber: 4, type: 'region'),
+      ];
+      surface.setFoldingRanges(ranges());
+      await tester.pump();
+      var gutter = _gutter(tester);
+      expect(gutter.folding.regions.getType(0), 'region');
+      final chevron =
+          _origin(tester) +
+          Offset(
+            gutter.geometry.foldingLeft + gutter.geometry.foldingWidth / 2,
+            gutter.layout.lineHeight / 2,
+          );
+      await _click(tester, chevron, at: Duration.zero);
+      expect(_gutter(tester).layout.visibleLineNumbers.toList(), [1, 5]);
+
+      surface.setFoldingRanges(ranges());
+      await tester.pump();
+      expect(_gutter(tester).layout.visibleLineNumbers.toList(), [1, 5]);
+      surface.setFoldingRanges(null);
+      await tester.pump();
+      gutter = _gutter(tester);
+      expect(gutter.folding.regions.length, 0);
+      expect(gutter.layout.visibleLineNumbers.toList(), [1, 2, 3, 4, 5]);
+    },
+  );
 
   testWidgets('vertical scrollbar drags, pages, and overview marks', (
     tester,

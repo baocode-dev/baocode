@@ -6,6 +6,8 @@
 import 'dart:async';
 
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/folding/browser/folding_ranges.dart'
+    show FoldRange;
 import 'package:flutter/foundation.dart';
 
 import 'ide_editor_features.dart';
@@ -21,6 +23,7 @@ class IdeEditorView {
     required this.hasFocus,
     required this.focus,
     required this.reveal,
+    this.setFoldingRanges,
   });
 
   final IdeDocument document;
@@ -40,6 +43,9 @@ class IdeEditorView {
   /// Scrolls `[start, end)` (UTF-16 offsets) into view, centered when
   /// [center] (or when it was outside the viewport).
   final void Function(int start, int end, {bool center}) reveal;
+
+  /// Syntax folding ranges from an extension, or null for indentation folding.
+  final void Function(List<FoldRange>? ranges)? setFoldingRanges;
 }
 
 /// The workspace's editor views: the one showing (BaoCode shows one editor

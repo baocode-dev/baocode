@@ -768,6 +768,7 @@ class IdeEditorState extends State<IdeEditor> {
   /// The view shown, and the workspace's views it is shown in.
   IdeEditorView? _shownView;
   IdeEditorViews? _shownIn;
+  int _foldingRequest = 0;
 
   void _showView(IdeDocument doc, EditorSurfaceController controller) {
     var view = _views[doc];
@@ -796,15 +797,33 @@ class IdeEditorState extends State<IdeEditor> {
           });
           WidgetsBinding.instance.scheduleFrame();
         },
+        setFoldingRanges: (ranges) {
+          if (!shown()) return;
+          final request = ++_foldingRequest;
+          final snapshot = controller.document.snapshot;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final state = _surfaceKey.currentState;
+            if (mounted &&
+                request == _foldingRequest &&
+                shown() &&
+                identical(controller.document.snapshot, snapshot) &&
+                state is EditorSurfaceView) {
+              (state as EditorSurfaceView).setFoldingRanges(ranges);
+            }
+          });
+          WidgetsBinding.instance.scheduleFrame();
+        },
       );
     }
     final views = widget.workspace.editorViews;
     if (!identical(_shownIn, views)) _hideView();
+    if (!identical(_shownView, view)) _foldingRequest++;
     _shownView = view;
     _shownIn = views..show(view);
   }
 
   void _hideView() {
+    _foldingRequest++;
     final view = _shownView;
     _shownView = null;
     if (view != null) _shownIn?.hide(view);

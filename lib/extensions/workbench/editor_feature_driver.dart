@@ -29,6 +29,8 @@ import 'package:bao_editor/monaco/flutter/editor_inline_suggest.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
 import 'package:bao_editor/monaco/vs/editor/common/decoration_render_options.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/folding/browser/folding_ranges.dart'
+    show FoldRange;
 import 'package:bao_editor/monaco/vs/editor/contrib/snippet/browser/snippet_parser.dart';
 import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 
@@ -53,6 +55,7 @@ final class ExtensionEditorFeatureDriver {
     this.codeLensDelay = const Duration(milliseconds: 250),
     this.inlayHintsDelay = const Duration(milliseconds: 250),
     this.highlightDelay = const Duration(milliseconds: 250),
+    this.foldingDelay = const Duration(milliseconds: 250),
     this.inlineDelay = const Duration(milliseconds: 50),
   }) {
     views.addListener(_activeChanged);
@@ -79,6 +82,7 @@ final class ExtensionEditorFeatureDriver {
   final Duration codeLensDelay;
   final Duration inlayHintsDelay;
   final Duration highlightDelay;
+  final Duration foldingDelay;
   final Duration inlineDelay;
 
   static const _highlightColors = {
@@ -95,10 +99,12 @@ final class ExtensionEditorFeatureDriver {
   Timer? _codeLensTimer;
   Timer? _inlayTimer;
   Timer? _highlightTimer;
+  Timer? _foldingTimer;
   Timer? _inlineTimer;
   int _codeLensGeneration = 0;
   int _inlayGeneration = 0;
   int _highlightGeneration = 0;
+  int _foldingGeneration = 0;
   int _inlineGeneration = 0;
   DocumentSnapshot? _highlightSnapshot;
   int? _highlightOffset;
@@ -134,12 +140,14 @@ final class ExtensionEditorFeatureDriver {
       _scheduleCodeLens();
       _scheduleInlayHints();
       _scheduleHighlights();
+      _scheduleFolding();
       if (!event.isUndoing && !event.isRedoing) _scheduleInline(event);
     });
     _watchProviders(view);
     _scheduleCodeLens(immediately: true);
     _scheduleInlayHints(immediately: true);
     _scheduleHighlights(immediately: true);
+    _scheduleFolding(immediately: true);
   }
 
   void _registerHighlightTypes(EditorDecorationTypeRegistry types) {
@@ -172,10 +180,12 @@ final class ExtensionEditorFeatureDriver {
     _codeLensTimer?.cancel();
     _inlayTimer?.cancel();
     _highlightTimer?.cancel();
+    _foldingTimer?.cancel();
     _inlineTimer?.cancel();
     _codeLensGeneration++;
     _inlayGeneration++;
     _highlightGeneration++;
+    _foldingGeneration++;
     _inlineGeneration++;
     _inlayLines = null;
     _highlightSnapshot = null;
@@ -184,6 +194,7 @@ final class ExtensionEditorFeatureDriver {
     final view = _view;
     if (view != null) {
       _clearHighlights(view);
+      view.setFoldingRanges?.call(null);
       view.features.codeLens
         ..resolve = null
         ..onCommand = null;
@@ -215,6 +226,11 @@ final class ExtensionEditorFeatureDriver {
         _providerChanges.add(changes.listen((_) => _scheduleInlayHints()));
       }
     }
+    for (final provider in service.foldingRangeProvider.ordered(doc)) {
+      if (provider.onDidChange case final changes?) {
+        _providerChanges.add(changes.listen((_) => _scheduleFolding()));
+      }
+    }
   }
 
   void _refreshAll() {
@@ -225,6 +241,7 @@ final class ExtensionEditorFeatureDriver {
     _scheduleInlayHints();
     _highlightSnapshot = null;
     _scheduleHighlights();
+    _scheduleFolding();
   }
 
   void _viewChanged(IdeEditorView view) {
@@ -438,6 +455,49 @@ final class ExtensionEditorFeatureDriver {
             DecorationOptions(range: highlight.range as Range),
       ]);
     }
+  }
+
+  // --- Folding ranges ------------------------------------------------------
+
+  void _scheduleFolding({bool immediately = false}) {
+    final view = _view;
+    if (_disposed || view == null || view.setFoldingRanges == null) return;
+    _foldingTimer?.cancel();
+    final generation = ++_foldingGeneration;
+    _foldingTimer = Timer(
+      immediately ? Duration.zero : foldingDelay,
+      () => unawaited(_updateFolding(view, generation)),
+    );
+  }
+
+  Future<void> _updateFolding(IdeEditorView view, int generation) async {
+    final snapshot = view.controller.document.snapshot;
+    final results = await languages.foldingRanges(view.document.path);
+    if (_disposed ||
+        generation != _foldingGeneration ||
+        !identical(view, _view) ||
+        !identical(snapshot, view.controller.document.snapshot)) {
+      return;
+    }
+    if (results == null) {
+      view.setFoldingRanges!(null);
+      return;
+    }
+    final sorted = [...results]
+      ..sort((a, b) {
+        final start = a.range.start.compareTo(b.range.start);
+        if (start != 0) return start;
+        final rank = a.rank.compareTo(b.rank);
+        return rank != 0 ? rank : b.range.end.compareTo(a.range.end);
+      });
+    view.setFoldingRanges!([
+      for (final result in sorted)
+        FoldRange(
+          startLineNumber: result.range.start,
+          endLineNumber: result.range.end,
+          type: result.range.kind?.value,
+        ),
+    ]);
   }
 
   // --- Inline completions --------------------------------------------------

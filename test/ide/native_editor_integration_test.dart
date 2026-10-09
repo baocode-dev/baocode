@@ -5,8 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/flutter/editor_view_painters.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/folding/browser/folding_ranges.dart'
+    show FoldRange;
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/ide_editor.dart';
 import 'package:baocode/ide/ide_workspace.dart';
@@ -84,6 +87,12 @@ Widget _host(
 
 EditorSurfaceController _controller(WidgetTester tester) =>
     tester.widget<EditorSurface>(find.byType(EditorSurface)).controller;
+
+EditorGutterPainter _foldingGutter(WidgetTester tester) => tester
+    .widgetList<CustomPaint>(find.byType(CustomPaint))
+    .map((paint) => paint.painter)
+    .whereType<EditorGutterPainter>()
+    .single;
 
 TextInputClient _client(WidgetTester tester) =>
     tester.state(find.byType(EditorSurface)) as TextInputClient;
@@ -334,6 +343,69 @@ void main() {
       expect(first.text, 'alpha!');
     },
   );
+
+  testWidgets('folding callbacks ignore old frames and document snapshots', (
+    tester,
+  ) async {
+    final workspace = IdeWorkspace(
+      _root,
+      files: _MemoryFiles({_first: 'one\ntwo\nthree\nfour'}),
+    );
+    addTearDown(workspace.dispose);
+    await workspace.open(_first);
+    await tester.pumpWidget(_host(workspace, GlobalKey<IdeEditorState>()));
+    final view = workspace.editorViews.active!;
+    view.setFoldingRanges!([
+      FoldRange(startLineNumber: 1, endLineNumber: 3, type: 'old'),
+    ]);
+    view.setFoldingRanges!([
+      FoldRange(startLineNumber: 2, endLineNumber: 4, type: 'latest'),
+    ]);
+    await tester.pump();
+    var regions = _foldingGutter(tester).folding.regions;
+    expect(regions.length, 1);
+    expect(regions.getStartLineNumber(0), 2);
+    expect(regions.getType(0), 'latest');
+
+    view.setFoldingRanges!([
+      FoldRange(startLineNumber: 1, endLineNumber: 4, type: 'stale'),
+    ]);
+    _controller(tester).applyEdits([const EditorOffsetEdit(0, 0, 'new\n')]);
+    await tester.pump();
+    regions = _foldingGutter(tester).folding.regions;
+    expect(regions.length, 0);
+  });
+
+  testWidgets('switching documents clears provider folding from the surface', (
+    tester,
+  ) async {
+    const text = 'one\ntwo\nthree\nfour';
+    final workspace = IdeWorkspace(
+      _root,
+      files: _MemoryFiles({_first: text, _second: text}),
+    );
+    addTearDown(workspace.dispose);
+    await workspace.open(_first);
+    await workspace.open(_second);
+    workspace.select(_first);
+    await tester.pumpWidget(_host(workspace, GlobalKey<IdeEditorState>()));
+    final first = workspace.editorViews.active!;
+    first.setFoldingRanges!([
+      FoldRange(startLineNumber: 1, endLineNumber: 3, type: 'first'),
+    ]);
+    await tester.pump();
+    expect(_foldingGutter(tester).folding.regions.getType(0), 'first');
+
+    first.setFoldingRanges!([
+      FoldRange(startLineNumber: 1, endLineNumber: 4, type: 'queued'),
+    ]);
+    workspace.select(_second);
+    await tester.pump();
+    expect(_foldingGutter(tester).folding.regions.length, 0);
+    workspace.select(_first);
+    await tester.pump();
+    expect(_foldingGutter(tester).folding.regions.length, 0);
+  });
 
   testWidgets(
     'find, revealLine, status and external model edits stay connected',

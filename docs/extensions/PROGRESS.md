@@ -68,6 +68,10 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   tagged `exthost`). Empty editor groups are announced before tab updates (`main_thread_editor_tabs_test.dart`).
 - Registry document highlights now paint read/write/text occurrences in the active editor, refresh on caret/content/provider
   changes, and clear on blur or disabled settings (`test/extensions/workbench/editor_feature_driver_test.dart`).
+- Syntax folding providers now drive `bao_editor`'s folding model, retaining collapsed state across refreshes and falling
+  back to indentation when the provider disappears (`packages/bao_editor/test/monaco/flutter/editor_surface_view_test.dart`).
+  The editor drops outdated post-frame and async provider results on document edits/switches; focused tests in
+  `test/ide/native_editor_integration_test.dart` and `test/extensions/workbench/editor_feature_driver_test.dart` pass.
 - Assembly (lib/extensions/workbench): `ExtensionsApp` (one per app) and `WorkspaceExtensions` (one per local IDE
   folder) over `IdeWorkspace` (`IdeTextEditors`, `IdeDocumentsPort`, `IdeWorkspaceEditApplier`); real-runtime test
   `test/extensions/workbench/workspace_extensions_exthost_test.dart` (TS diagnostics, completion, hover).
@@ -81,8 +85,8 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 
 ## In progress / next
 
-1. Finish editor-feature rendering from the registry: CodeLens, inlay hints, inline completions, document highlights,
-   links, colors and folding (driver over `IdeEditorViews` + `RegistryLanguageFeatures`).
+1. Finish editor-feature rendering from the registry: document links and colors; CodeLens, inlay hints, inline
+   completions, document highlights and syntax folding now reach the editor driver.
 2. Complete real-extension debugging acceptance beyond Node launch/attach (Python, Go, Rust/C++, debugger controls,
    breakpoint variants and preLaunchTask); connect real debug terminal/task backends. Implement SCM and testing actors.
 3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,

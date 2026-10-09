@@ -11,6 +11,8 @@ import 'package:flutter/services.dart';
 import '../vs/editor/common/core/range.dart';
 import '../vs/editor/common/languages/language_configuration.dart'
     show CharacterPair, FoldingRules;
+import '../vs/editor/contrib/folding/browser/folding_ranges.dart'
+    show FoldRange;
 import 'bracket_matching.dart';
 import 'document_snapshot.dart';
 import 'editor_code_lens.dart';
@@ -317,6 +319,9 @@ abstract interface class EditorSurfaceView {
   /// before the first layout or when none is visible.
   ({int first, int last})? get visibleLineRange;
 
+  /// Overrides indentation folding with provider ranges; null restores it.
+  void setFoldingRanges(List<FoldRange>? ranges);
+
   /// The decorations (all sources) touching [offset], e.g. for their
   /// hover messages.
   List<EditorDecoration> decorationsAt(int offset);
@@ -372,6 +377,8 @@ class _EditorSurfaceState extends State<EditorSurface>
   // Folding.
   final EditorFoldingModel _folding = EditorFoldingModel();
   int _foldingVersion = 0;
+  List<FoldRange>? _providedFoldingRanges;
+  DocumentSnapshot? _providedFoldingSnapshot;
   Timer? _foldTimer;
   DocumentSnapshot? _foldTimerSnapshot;
   Object? _foldingConfig;
@@ -487,6 +494,14 @@ class _EditorSurfaceState extends State<EditorSurface>
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_onControllerChange);
       widget.controller.addListener(_onControllerChange);
+      _foldTimer?.cancel();
+      _foldTimer = null;
+      _foldTimerSnapshot = null;
+      _folding.clearRegions();
+      _providedFoldingRanges = null;
+      _providedFoldingSnapshot = null;
+      _foldingConfig = null;
+      _foldingVersion++;
       if (_connection?.attached == true) {
         _connection!.setEditingState(widget.controller.value);
       }
@@ -1034,7 +1049,25 @@ class _EditorSurfaceState extends State<EditorSurface>
   FoldingRules? get _foldingRules =>
       widget.foldingRules ?? widget.controller.languageConfiguration?.folding;
 
+  @override
+  void setFoldingRanges(List<FoldRange>? ranges) {
+    if (!mounted) return;
+    final snapshot = widget.controller.document.snapshot;
+    _folding.updateSnapshot(snapshot);
+    if (ranges == null && _providedFoldingRanges != null) {
+      _folding.clearRegions();
+    }
+    _providedFoldingRanges = ranges;
+    _providedFoldingSnapshot = ranges == null ? null : snapshot;
+    if (widget.folding) setState(_recomputeFolding);
+  }
+
   void _syncFolding(DocumentSnapshot snapshot) {
+    if (_providedFoldingSnapshot != null &&
+        !identical(_providedFoldingSnapshot, snapshot)) {
+      _providedFoldingSnapshot = null;
+      _providedFoldingRanges = null;
+    }
     if (!widget.folding) {
       if (_folding.hasCollapsed && _folding.unfoldAll()) _foldingVersion++;
       return;
@@ -1070,6 +1103,7 @@ class _EditorSurfaceState extends State<EditorSurface>
     _folding.recompute(
       tabSize: widget.controller.tabSize,
       rules: _foldingRules,
+      providedRanges: _providedFoldingRanges,
       selections: widget.controller.selections,
     );
     _foldingVersion++;
