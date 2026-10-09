@@ -192,7 +192,9 @@ Future<void> main(List<String> arguments) async {
       setting: colorTheme.colorThemeSetting,
       data: colorTheme.colorThemeData,
     )
-    ..storage = colorTheme;
+    ..storage = colorTheme
+    // A theme of an extension applies once the extensions are read.
+    ..waitsForExtensionThemes = files != null;
   if (colorTheme is ColorThemeSettings) colorTheme.follow(themes);
   unawaited(themes.initialize());
   // The keybindings: keybindings.json and the selected keymap, in effect
@@ -231,6 +233,7 @@ Future<void> main(List<String> arguments) async {
                 _ => AppLocale.english,
               },
         );
+  if (extensions != null) unawaited(extensions.applyInstalledThemes());
   final app = BaoCodeApp(
     windows: windows,
     workspace: workspace,

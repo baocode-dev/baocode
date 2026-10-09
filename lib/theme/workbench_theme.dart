@@ -22,6 +22,7 @@
 // restyles the whole workbench upstream.
 
 import 'dart:async';
+import 'dart:io' show File;
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
@@ -30,6 +31,9 @@ import 'package:flutter/widgets.dart';
 import 'package:bao_editor/monaco/vs/base/common/color.dart' as vs;
 import 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart';
 import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
+import 'package:bao_editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart'
+    show IThemeExtensionPoint;
+import 'package:path/path.dart' as p;
 import 'package:bao_editor/textmate/textmate_manifest.dart';
 import 'package:bao_editor/textmate/textmate_syntax.dart'
     show TextMateThemeSource;
@@ -165,6 +169,10 @@ class WorkbenchThemeService extends ChangeNotifier
   final Map<String, ColorThemeData> _themes = {};
 
   Future<String> _read(String path) async {
+    // An extension's theme: its file on disk.
+    if (p.isAbsolute(path)) {
+      return decodeTextMateResource(await File(path).readAsBytes());
+    }
     final data = await _assets.load('$textMateAssetRoot/$path');
     return decodeTextMateResource(
       data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
@@ -185,7 +193,82 @@ class WorkbenchThemeService extends ChangeNotifier
         label: theme.label,
         type: _themeData(theme).type,
       ),
+    for (final theme in _extensionThemes.values)
+      IdeColorThemeEntry(
+        id: theme.settingsId,
+        label: theme.label,
+        type: theme.type,
+        description: theme.description,
+      ),
   ];
+
+  // --- Extensions' themes (`contributes.themes`) ---------------------------
+
+  /// The installed extensions' themes, by settings id.
+  final Map<String, ColorThemeData> _extensionThemes = {};
+
+  /// Whether the extensions' themes were told once: until then, a setting
+  /// that is not a bundled theme may be one of theirs, and waits (where
+  /// [waitsForExtensionThemes]).
+  bool _extensionThemesKnown = false;
+
+  /// Whether extensions will tell their themes ([setExtensionThemes]):
+  /// the app with extensions.
+  bool waitsForExtensionThemes = false;
+
+  /// The installed extensions' `contributes.themes`: [themes] are each
+  /// extension's id, its folder and its contribution (`id`, `label`,
+  /// `uiTheme`, `path`). The setting's theme applies once it is among them.
+  Future<void> setExtensionThemes(
+    Iterable<
+      ({String extensionId, String location, Map<String, Object?> theme})
+    >
+    themes,
+  ) => _queue(() async {
+    final next = <String, ColorThemeData>{};
+    for (final (:extensionId, :location, :theme) in themes) {
+      final path = theme['path'];
+      if (path is! String || path.isEmpty) continue;
+      final label = theme['label'] is String ? theme['label']! as String : null;
+      final id = theme['id'] is String ? theme['id']! as String : label ?? path;
+      final point = IThemeExtensionPoint(
+        id: id,
+        label: label,
+        description: theme['description'] as String?,
+        path: path,
+        uiTheme: theme['uiTheme'] as String?,
+      );
+      final file = p.normalize(p.join(location, path)).replaceAll(r'\', '/');
+      // Kept when unchanged: a loaded theme stays loaded.
+      final kept = _extensionThemes[id];
+      next[id] = kept != null && kept.location == file
+          ? kept
+          : ColorThemeData.fromExtensionTheme(
+              point,
+              file,
+              extensionId: extensionId,
+            );
+    }
+    _extensionThemes
+      ..clear()
+      ..addAll(next);
+    final first = !_extensionThemesKnown;
+    _extensionThemesKnown = true;
+    // The setting's theme, waiting for them (or gone with an extension).
+    if (_current.settingsId != _setting || !_current.isLoaded || first) {
+      if (_extensionThemes[_setting] case final theme?) {
+        await theme.ensureLoaded(_read);
+        _apply(theme, preview: false);
+      } else if ((await _loadManifest()).themeById(_setting) == null) {
+        await _setColorTheme(_defaultSetting, preview: false);
+      }
+    }
+    notifyListeners();
+  });
+
+  String get _defaultSetting => _current.type == ColorScheme.light
+      ? ThemeSettingDefaults.colorThemeLight
+      : ThemeSettingDefaults.colorThemeDark;
 
   ColorThemeData _themeData(TextMateThemeContribution theme) =>
       _themes[theme.id] ??= ColorThemeData.fromExtensionTheme(
@@ -221,14 +304,17 @@ class WorkbenchThemeService extends ChangeNotifier
     final manifest = await _loadManifest();
     final theme = manifest.themeById(_setting);
     if (theme == null) {
+      if (_extensionThemes[_setting] case final extension?) {
+        await extension.ensureLoaded(_read);
+        if (!identical(extension, _current)) _apply(extension, preview: false);
+        return;
+      }
+      // An extension's, maybe: the restored colors show until the
+      // extensions say ([setExtensionThemes]).
+      if (waitsForExtensionThemes && !_extensionThemesKnown) return;
       // A theme gone (or no longer bundled): the default of the kept
       // theme's type, as `initializeColorTheme` falls back.
-      await _setColorTheme(
-        _current.type == ColorScheme.light
-            ? ThemeSettingDefaults.colorThemeLight
-            : ThemeSettingDefaults.colorThemeDark,
-        preview: false,
-      );
+      await _setColorTheme(_defaultSetting, preview: false);
       return;
     }
     final data = _themeData(theme);
@@ -270,8 +356,10 @@ class WorkbenchThemeService extends ChangeNotifier
     }
     final manifest = await _loadManifest();
     final theme = manifest.themeById(settingsId);
-    if (theme == null) return;
-    final data = _themeData(theme);
+    final data = theme != null
+        ? _themeData(theme)
+        : _extensionThemes[settingsId];
+    if (data == null) return;
     await data.ensureLoaded(_read);
     _apply(data, preview: preview);
   }

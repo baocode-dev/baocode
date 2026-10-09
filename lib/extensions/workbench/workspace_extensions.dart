@@ -26,6 +26,7 @@ import '../../ide/lsp/language_features.dart';
 import '../../ide/lsp/lsp_protocol.dart' show LspPosition, LspRange;
 import '../../platform/data_dir.dart';
 import '../../settings/jsonc.dart';
+import '../../theme/workbench_theme.dart' show WorkbenchThemeService;
 import '../../settings/jsonc_file.dart';
 import '../commands/builtin_commands.dart';
 import '../commands/extension_command_palette.dart';
@@ -213,6 +214,63 @@ final class ExtensionsApp {
     ),
   );
 
+  Future<void>? _loading;
+
+  /// Reads what is kept on disk (which extensions are disabled), once:
+  /// before anything reads or changes it.
+  Future<void> load() => _loading ??= enablement.load();
+
+  /// The installed extensions as the server's `extensions.json` lists them
+  /// (no server needed): each one's id, folder and manifest, enabled
+  /// globally. For what must show before any extension host runs (the
+  /// kept color theme).
+  Future<List<Map<String, Object?>>> installedManifests() async {
+    await load();
+    final List<Object?> entries;
+    try {
+      entries = switch (jsonDecode(
+        await File(p.join(extensionsDirectory, 'extensions.json'))
+            .readAsString(),
+      )) {
+        final List<Object?> list => list,
+        _ => const [],
+      };
+    } on Object {
+      return const [];
+    }
+    final manifests = <Map<String, Object?>>[];
+    for (final entry in entries) {
+      if (entry case {
+        'identifier': {'id': final String id},
+        'relativeLocation': final String relative,
+      } when enablement.isEnabled(id)) {
+        final folder = p.join(extensionsDirectory, relative);
+        try {
+          final manifest = parseJsonc(
+            await File(p.join(folder, 'package.json')).readAsString(),
+          );
+          if (manifest is! Map) continue;
+          manifests.add({
+            ...manifest.cast<String, Object?>(),
+            'identifier': {'value': id},
+            'extensionLocation': VsUri.file(folder).toJson(),
+          });
+        } on Object {
+          // A folder gone or unreadable: not installed as far as this goes.
+        }
+      }
+    }
+    return manifests;
+  }
+
+  /// The installed extensions' color themes, before any host runs.
+  Future<void> applyInstalledThemes() async {
+    WorkbenchThemeService.instance.waitsForExtensionThemes = true;
+    await WorkbenchThemeService.instance.setExtensionThemes(
+      WorkspaceExtensions._contributions(await installedManifests(), 'themes'),
+    );
+  }
+
   /// A workspace's extensions; [root] is its folder.
   WorkspaceExtensions workspace(String root) =>
       WorkspaceExtensions(app: this, root: root);
@@ -379,6 +437,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
   Future<void> attach(IdeWorkspace workspace, {bool start = true}) async {
     if (_disposed || _workspace != null) return;
     _workspace = workspace;
+    await app.load();
     final core = await app.coreConfiguration();
     try {
       // The bundled languages' associations, before a document is told
@@ -693,8 +752,35 @@ final class WorkspaceExtensions extends ChangeNotifier {
     commands.setExtensions(extensions);
     statusBar.setContributions(extensions);
     unawaited(_registerLanguages(extensions));
+    // The app's themes are the running extensions' (the same in every
+    // workspace: the installed and enabled ones).
+    unawaited(
+      WorkbenchThemeService.instance.setExtensionThemes(
+        _contributions(extensions, 'themes'),
+      ),
+    );
     notifyListeners();
   }
+
+  /// Each of [extensions]' `contributes.<point>` entries, with the
+  /// extension's id and folder.
+  static List<
+    ({String extensionId, String location, Map<String, Object?> theme})
+  >
+  _contributions(List<Map<String, Object?>> extensions, String point) => [
+    for (final extension in extensions)
+      if (extension['contributes'] case final Map<Object?, Object?> contributes)
+        if (contributes[point] case final List<Object?> entries)
+          if (extension['extensionLocation']
+              case final Map<Object?, Object?> location)
+            for (final entry in entries)
+              if (entry case final Map<Object?, Object?> theme)
+                (
+                  extensionId: _idOf(extension),
+                  location: VsUri.revive(location.cast()).fsPath(),
+                  theme: theme.cast<String, Object?>(),
+                ),
+  ];
 
   final Set<String> _languageExtensions = {};
 
@@ -812,7 +898,10 @@ final class _AppManagement implements ExtensionManagementBackend {
   Stream<ExtensionManagementEvent> get onDidChange => _app.changes;
 
   @override
-  Future<List<InstalledExtension>> getInstalled() => _inner.getInstalled();
+  Future<List<InstalledExtension>> getInstalled() async {
+    await _app.load();
+    return _inner.getInstalled();
+  }
 
   @override
   Future<InstalledExtension> install(
@@ -838,14 +927,20 @@ final class _AppManagement implements ExtensionManagementBackend {
       _inner.installFromFolder(path);
 
   @override
-  Future<void> uninstall(String id) => _inner.uninstall(id);
+  Future<void> uninstall(String id) async {
+    await _app.load();
+    return _inner.uninstall(id);
+  }
 
   @override
   Future<void> setEnabled(
     String id,
     bool enabled, {
     EnablementScope scope = EnablementScope.global,
-  }) => _inner.setEnabled(id, enabled, scope: scope);
+  }) async {
+    await _app.load();
+    return _inner.setEnabled(id, enabled, scope: scope);
+  }
 
   void dispose() => _inner.dispose();
 }
