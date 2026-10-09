@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 
+import '../extensions/editors/extension_document_sync.dart';
 import 'file_service.dart';
 import 'git/git_repository.dart';
 import 'git/repository_scan.dart';
@@ -197,6 +198,8 @@ class IdeWorkspace extends ChangeNotifier {
     this.languages,
     this._git,
     this.hasFolder = true,
+    this.extensionDocuments,
+    this.extensionLanguageId,
     Stream<void> Function(String directory)? watch,
     List<String> roots = const [],
     this._gitOf,
@@ -403,6 +406,21 @@ class IdeWorkspace extends ChangeNotifier {
   /// workspace keeps it in sync: open, every change (incrementally), save
   /// and close; disposing the workspace shuts it down.
   final LanguageFeatures? languages;
+
+  /// The extension host's view of this workspace's documents, when one
+  /// runs: the workspace reports every open, change, save, dirty state,
+  /// encoding and close through it (`ExtensionDocumentSync`), in place of
+  /// the LSP sync above.
+  ExtensionDocumentSync? extensionDocuments;
+
+  /// The language id [path]'s document is opened as, for
+  /// [extensionDocuments] (the app's language registry decides).
+  final String Function(String path)? extensionLanguageId;
+
+  /// Whether [doc]'s tab is meant to sync to the extension host: a file's
+  /// own tab (not a revision, a diff's original or a media preview).
+  bool _syncsToExtensions(IdeDocument doc) =>
+      doc.isFile && !doc.isUntitled && doc.readRevision == null;
 
   /// The project's Git repository, for the explorer's decorations, Source
   /// Control and the timeline; null for none. Disposed with the workspace.
@@ -841,6 +859,7 @@ class IdeWorkspace extends ChangeNotifier {
   }
 
   void _startSync(IdeDocument doc) {
+    _startExtensionSync(doc);
     final sync = _sync;
     if (sync == null || !doc.isFile || _syncing.containsKey(doc.model)) return;
     sync.openDocument(doc.path, doc.text, version: doc.model.version);
@@ -863,15 +882,72 @@ class IdeWorkspace extends ChangeNotifier {
     );
   }
 
+  /// Reports a file tab to the extension host: its document opens (once per
+  /// model) and every change goes on. The extension host's sync lives on
+  /// the workspace (not per tab) because the mirror maps the model's raw
+  /// text. [doc]'s tabs share the model, as the LSP sync does.
+  void _startExtensionSync(IdeDocument doc) {
+    final sync = extensionDocuments;
+    if (sync == null || !_syncsToExtensions(doc)) return;
+    if (_extensionSyncing.contains(doc.model)) return;
+    _extensionSyncing.add(doc.model);
+    sync.openDocument(
+      doc.path,
+      doc.model,
+      text: doc.text,
+      isUntitled: false,
+      languageId: extensionLanguageId?.call(doc.path) ?? fallbackLanguageId,
+      isDirty: doc.dirty,
+    );
+    _extensionSync[doc.model] = doc.model.changes.listen(
+      (event) => sync.changeDocument(
+        doc.path,
+        doc.model,
+        (
+          version: event.version,
+          changes: event.changes,
+          isUndoing: event.isUndoing,
+          isRedoing: event.isRedoing,
+        ),
+      ),
+    );
+  }
+
+  /// The language the extension host is told a document has when the app
+  /// does not know one.
+  static const fallbackLanguageId = 'plaintext';
+
   /// Stops syncing [doc]'s file, once no other tab has it, or [force]d.
   void _stopSync(IdeDocument doc, {bool force = false}) {
     if (!force && _documents.any((d) => identical(d.model, doc.model))) {
       return;
     }
     final subscription = _syncing.remove(doc.model);
-    if (subscription == null) return;
-    unawaited(subscription.cancel());
-    _sync?.closeDocument(doc.path);
+    unawaited(subscription?.cancel());
+    if (subscription != null) _sync?.closeDocument(doc.path);
+    final extension = _extensionSync.remove(doc.model);
+    _extensionSyncing.remove(doc.model);
+    if (extension != null) {
+      unawaited(extension.cancel());
+      extensionDocuments?.closeDocument(doc.path, doc.model);
+    } else if (subscription == null && doc.isFile) {
+      // A tab the LSP never synced (no LSP, an extension host only) still
+      // opened its document above; tell the host it is gone.
+      extensionDocuments?.closeDocument(doc.path, doc.model);
+    }
+  }
+
+  /// The extension-host sync of each open model (the mirror's changes).
+  final Map<EditorDocumentModel, StreamSubscription<EditorContentChangeEvent>>
+  _extensionSync = {};
+  final Set<EditorDocumentModel> _extensionSyncing = {};
+
+  /// Reports [path]'s document as saved ([IdeWorkspace.save] and
+  /// `saveTo` call it after the file was written).
+  void _extensionSaved(IdeDocument doc) {
+    final sync = extensionDocuments;
+    if (sync == null || !_extensionSyncing.contains(doc.model)) return;
+    sync.saveDocument(doc.path, doc.model, doc.text);
   }
 
   /// Disposes [doc], but not the model another tab still has.
@@ -945,6 +1021,7 @@ class IdeWorkspace extends ChangeNotifier {
     if (_activeKey == doc.key) _activeKey = saved.key;
     _startSync(saved);
     if (_syncing.containsKey(saved.model)) _sync?.saveDocument(path, text);
+    _extensionSaved(saved);
     gitAt(path)?.scheduleRefresh();
     notifyListeners();
     return saved;
@@ -973,6 +1050,7 @@ class IdeWorkspace extends ChangeNotifier {
       doc.deleted = false;
       doc.savedText = text;
       if (_syncing.containsKey(doc.model)) _sync?.saveDocument(doc.path, text);
+      _extensionSaved(doc);
       gitAt(doc.path)?.scheduleRefresh();
       notifyListeners();
     });
