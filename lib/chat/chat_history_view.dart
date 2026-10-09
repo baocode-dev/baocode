@@ -299,6 +299,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// The current press started in the message editor: it takes focus
   /// itself, the history must not.
   bool _pressInEditor = false;
+
+  /// The press went to a sticky copy of a message, over the list.
+  bool _pressOnSticky = false;
+
+  /// Where a drag on the list's text began, to check what it selected.
+  Offset? _dragFrom;
   bool _isPointerInside = false;
   bool _wasStreaming = false;
   bool _shownAtBottom = true;
@@ -522,6 +528,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _selectionDelegate.suspended =
           event.position.dx >= right - _scrollbarGutter;
     }
+    _dragFrom =
+        _pressInEditor ||
+            _pressOnSticky ||
+            event.kind != PointerDeviceKind.mouse ||
+            event.buttons != kPrimaryMouseButton
+        ? null
+        : event.position;
+    _pressOnSticky = false;
     if (_pressInEditor) {
       _pressInEditor = false;
     } else {
@@ -543,6 +557,19 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   void _handlePointerUp(PointerEvent event) {
     _pointersDown--;
+    final from = _dragFrom;
+    _dragFrom = null;
+    if (from != null &&
+        event is PointerUpEvent &&
+        _pointersDown <= 0 &&
+        !_selectionDelegate.suspended &&
+        !_selectionDelegate.extending) {
+      // Once the selection has taken the release in.
+      final to = event.position;
+      scheduleMicrotask(() {
+        if (mounted) _selectionDelegate.checkDrag(from, to);
+      });
+    }
     if (_pointersDown <= 0) {
       _autoScroller?.stopAutoScroll();
       _selectionDelegate
@@ -937,6 +964,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
             child: Align(
               alignment: Alignment.topCenter,
               child: Listener(
+                onPointerDown: (_) => _pressOnSticky = true,
                 // Not in the list: pass scrolling on.
                 onPointerSignal: _forwardWheel,
                 onPointerPanZoomStart: _startEditorPan,
@@ -1865,6 +1893,86 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
       dispatchSelectionEventToChild(selectable, event);
     }
     return super.handleClearSelection(event);
+  }
+
+  // --- A drag on text that selects nothing ---------------------------------
+  //
+  // Seen on users' machines: in one stretch of a conversation a drag selects
+  // nothing, for as long as the app runs (the stretch moving with the
+  // text). The selection's edges go, in list order, to the text under them;
+  // there they went elsewhere, so the list was off. The drag is done again
+  // on a clean list, and what was off reported (errors.log).
+
+  static Iterable<Rect> _globalBoxes(Selectable selectable) {
+    final transform = selectable.getTransformTo(null);
+    return selectable.boundingBoxes.map(
+      (rect) => MatrixUtils.transformRect(transform, rect),
+    );
+  }
+
+  static bool _holds(Selectable selectable, Offset position) =>
+      _globalBoxes(selectable).any((box) => box.contains(position));
+
+  static int _reports = 0;
+
+  /// After a drag from [from] to [to] within one piece of text: when nothing
+  /// came of it, drags again on the list rid of text listed twice or no
+  /// longer registered, in order.
+  void checkDrag(Offset from, Offset to) {
+    if ((to - from).distance < 12) return;
+    if (!selectables.any((s) => _holds(s, from) && _holds(s, to))) return;
+    if (getSelectedContent()?.plainText.trim().isNotEmpty ?? false) return;
+    final before = _describeAround(from);
+    final seen = <Selectable>{};
+    selectables = [
+      for (final selectable in selectables)
+        if (_items.containsKey(selectable) && seen.add(selectable)) selectable,
+    ]..sort(compareOrder);
+    dispatchSelectionEvent(const ClearSelectionEvent());
+    dispatchSelectionEvent(
+      SelectionEdgeUpdateEvent.forStart(globalPosition: from),
+    );
+    dispatchSelectionEvent(SelectionEdgeUpdateEvent.forEnd(globalPosition: to));
+    _dragEnd = null;
+    if (_reports++ >= 3) return;
+    final healed = getSelectedContent()?.plainText.trim().isNotEmpty ?? false;
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: FlutterError(
+          'A drag on text selected nothing '
+          '(${healed ? 'selected' : 'still nothing'} done again).\n$before',
+        ),
+        library: 'chat selection',
+      ),
+    );
+  }
+
+  /// The list's text near [position], for the report: kinds and places
+  /// only, none of the text.
+  String _describeAround(Offset position) {
+    final lines = [
+      'Pressed at $position; ${selectables.length} listed '
+          '(${selectables.length - selectables.toSet().length} twice), '
+          'edges at #$currentSelectionStartIndex, '
+          '#$currentSelectionEndIndex.',
+    ];
+    for (final (index, selectable) in selectables.indexed) {
+      final box = _globalBoxes(selectable)
+          .fold<Rect?>(null, (all, rect) => all?.expandToInclude(rect) ?? rect);
+      if (index != currentSelectionStartIndex &&
+          index != currentSelectionEndIndex &&
+          (box == null || (box.center.dy - position.dy).abs() > 240)) {
+        continue;
+      }
+      lines.add(
+        '#$index ${selectable.runtimeType} item ${_itemOf(selectable)}'
+        '${_items.containsKey(selectable) ? '' : ' unregistered'} '
+        '${box ?? 'no box'}'
+        '${box != null && box.contains(position) ? ' (holds it)' : ''}',
+      );
+      if (lines.length > 40) break;
+    }
+    return lines.join('\n');
   }
 
   /// [StaticSelectionContainerDelegate] replays the last edge positions to
