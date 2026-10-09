@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../chat/chat_width.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
@@ -45,9 +46,6 @@ class SettingsPage extends StatelessWidget {
 
   static const inset = 32.0;
 
-  /// The column's width at most.
-  static const maxWidth = 720.0;
-
   final String title;
   final String? description;
   final List<Widget> children;
@@ -65,25 +63,30 @@ class SettingsPage extends StatelessWidget {
   );
 }
 
-/// A page's scrolling column, [SettingsPage.maxWidth] wide at most, in
-/// the middle of what is left of the window.
+/// A page's scrolling column, as wide at most as the conversation's
+/// ([ChatWidth]), in the middle of what is left of the window.
 class SettingsColumn extends StatelessWidget {
   const SettingsColumn({super.key, required this.children});
 
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final side = ((constraints.maxWidth - SettingsPage.maxWidth) / 2).clamp(
-        SettingsPage.inset,
-        double.infinity,
-      );
-      return ListView(
-        padding: EdgeInsets.fromLTRB(side, 40, side, 40),
-        children: children,
-      );
-    },
+  Widget build(BuildContext context) => ValueListenableBuilder<double>(
+    valueListenable: ChatWidth.current,
+    builder: (context, maxWidth, _) => LayoutBuilder(
+      builder: (context, constraints) {
+        final side = maxWidth.isInfinite
+            ? SettingsPage.inset
+            : ((constraints.maxWidth - maxWidth) / 2).clamp(
+                SettingsPage.inset,
+                double.infinity,
+              );
+        return ListView(
+          padding: EdgeInsets.fromLTRB(side, 40, side, 40),
+          children: children,
+        );
+      },
+    ),
   );
 }
 

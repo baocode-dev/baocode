@@ -5785,7 +5785,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceSettingsChatWidth => '对话宽度';
 
   @override
-  String get appearanceSettingsChatWidthDescription => '窗口很宽时，对话和输入框最多能有多宽。';
+  String get appearanceSettingsChatWidthDescription =>
+      '窗口很宽时，对话、输入框和设置页最多能有多宽。';
 
   @override
   String get appearanceSettingsChatWidthDefault => '默认';
@@ -5820,7 +5821,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceSettingsCodeSize => '代码字号';
 
   @override
-  String get appearanceSettingsCodeSizeDescription => '编辑器、终端、对话和预览中代码的字号。';
+  String get appearanceSettingsCodeSizeDescription =>
+      '编辑器、终端和文件视图中代码的字号。对话里的代码跟随界面文字大小。';
 
   @override
   String appearanceSettingsCodeSizeLabel(String size) {
@@ -5838,7 +5840,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceSettingsUiScale => '界面文字大小';
 
   @override
-  String get appearanceSettingsUiScaleDescription => '缩放窗口的文字，代码的字号不变。';
+  String get appearanceSettingsUiScaleDescription =>
+      '缩放界面文字，包括对话里的代码。编辑器和终端的代码字号不受影响。';
 
   @override
   String appearanceSettingsUiScaleLabel(String percent) {

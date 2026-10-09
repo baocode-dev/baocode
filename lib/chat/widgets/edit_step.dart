@@ -241,7 +241,7 @@ class _DiffLineRow extends StatelessWidget {
       ),
       DiffLineType.context => (' ', AppColors.textFaint, Colors.transparent),
     };
-    final mono = AppFonts.codeStyle(12).copyWith(height: 1.5);
+    final mono = AppFonts.uiCodeStyle(12).copyWith(height: 1.5);
 
     return ColoredBox(
       color: background,

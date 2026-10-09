@@ -4338,7 +4338,7 @@
     }
   },
   "appearanceSettingsChatWidth": "Conversation Width",
-  "appearanceSettingsChatWidthDescription": "How wide the conversation and the message box grow in a wide window.",
+  "appearanceSettingsChatWidthDescription": "How wide the conversation, the message box and the settings grow in a wide window.",
   "appearanceSettingsChatWidthDefault": "Default",
   "appearanceSettingsChatWidthFull": "Full width",
   "appearanceSettingsChatWidthLabel": "Conversation width: {width}",
@@ -4362,7 +4362,7 @@
     }
   },
   "appearanceSettingsCodeSize": "Code Size",
-  "appearanceSettingsCodeSizeDescription": "The size of code in the editor, the terminal, the chat and the previews.",
+  "appearanceSettingsCodeSizeDescription": "The size of code in the editor, the terminal and file views. Code in the chat follows the interface text size.",
   "appearanceSettingsCodeSizeLabel": "Code size: {size}",
   "@appearanceSettingsCodeSizeLabel": {
     "placeholders": {
@@ -4374,7 +4374,7 @@
   "appearanceSettingsLigatures": "Font Ligatures",
   "appearanceSettingsLigaturesDescription": "Draws sequences such as => and != as one glyph where the font has one. The terminal does not.",
   "appearanceSettingsUiScale": "Interface Text Size",
-  "appearanceSettingsUiScaleDescription": "The size of the window's text. Code keeps its own size.",
+  "appearanceSettingsUiScaleDescription": "The size of the interface text, code in the chat included. The editor and the terminal keep the code size.",
   "appearanceSettingsUiScaleLabel": "Interface text size: {percent}%",
   "@appearanceSettingsUiScaleLabel": {
     "placeholders": {

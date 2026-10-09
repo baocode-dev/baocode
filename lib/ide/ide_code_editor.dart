@@ -10,6 +10,7 @@ import 'package:bao_editor/monaco/vs/editor/common/languages/language_configurat
 import 'package:bao_editor/textmate/textmate_syntax.dart';
 
 import '../theme/app_theme.dart';
+import '../theme/code_font.dart';
 import '../theme/workbench_theme.dart' hide ColorScheme;
 
 /// The highlighting of the texts [IdeCodeEditor]s show one after another
@@ -253,26 +254,28 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
   @override
   Widget build(BuildContext context) {
     final colors = _themes.colors;
-    return EditorSurface(
-      key: _surfaceKey,
-      controller: widget.controller,
-      focusNode: widget.focusNode,
-      readOnly: widget.readOnly,
-      lineNumbers: !widget.bare,
-      glyphMargin: !widget.bare,
-      folding: !widget.bare,
-      indentGuides: !widget.bare,
-      scrollBeyondLastLine: !widget.bare,
-      backgroundColor: colors['editor.background'],
-      selectionColor: colors['editor.selectionBackground'],
-      caretColor: colors['editorCursor.foreground'],
-      theme: EditorViewTheme.fromColors(colors.get),
-      styledLines: _highlight?.styledLines,
-      showMinimap: false,
-      decorations: widget.decorations,
-      onViewChanged: _viewChanged,
-      style: AppFonts.codeStyle(13)
-          .copyWith(color: colors['editor.foreground'], height: 1.45),
+    return CodeTextScale(
+      child: EditorSurface(
+        key: _surfaceKey,
+        controller: widget.controller,
+        focusNode: widget.focusNode,
+        readOnly: widget.readOnly,
+        lineNumbers: !widget.bare,
+        glyphMargin: !widget.bare,
+        folding: !widget.bare,
+        indentGuides: !widget.bare,
+        scrollBeyondLastLine: !widget.bare,
+        backgroundColor: colors['editor.background'],
+        selectionColor: colors['editor.selectionBackground'],
+        caretColor: colors['editorCursor.foreground'],
+        theme: EditorViewTheme.fromColors(colors.get),
+        styledLines: _highlight?.styledLines,
+        showMinimap: false,
+        decorations: widget.decorations,
+        onViewChanged: _viewChanged,
+        style: AppFonts.codeStyle(13)
+            .copyWith(color: colors['editor.foreground'], height: 1.45),
+      ),
     );
   }
 }

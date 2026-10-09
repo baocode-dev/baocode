@@ -555,7 +555,7 @@ class _SourceText extends StatelessWidget {
           ),
     child: Text(
       source,
-      style: AppFonts.codeStyle(12.5).copyWith(
+      style: AppFonts.uiCodeStyle(12.5).copyWith(
         color: faint ? AppColors.textMuted : AppColors.text,
         height: 1.5,
       ),

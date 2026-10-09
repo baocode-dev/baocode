@@ -6163,7 +6163,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceSettingsChatWidthDescription =>
-      'How wide the conversation and the message box grow in a wide window.';
+      'How wide the conversation, the message box and the settings grow in a wide window.';
 
   @override
   String get appearanceSettingsChatWidthDefault => 'Default';
@@ -6199,7 +6199,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceSettingsCodeSizeDescription =>
-      'The size of code in the editor, the terminal, the chat and the previews.';
+      'The size of code in the editor, the terminal and file views. Code in the chat follows the interface text size.';
 
   @override
   String appearanceSettingsCodeSizeLabel(String size) {
@@ -6218,7 +6218,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceSettingsUiScaleDescription =>
-      'The size of the window\'s text. Code keeps its own size.';
+      'The size of the interface text, code in the chat included. The editor and the terminal keep the code size.';
 
   @override
   String appearanceSettingsUiScaleLabel(String percent) {

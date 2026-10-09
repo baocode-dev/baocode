@@ -10230,7 +10230,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsChatWidthDescription.
   ///
   /// In en, this message translates to:
-  /// **'How wide the conversation and the message box grow in a wide window.'**
+  /// **'How wide the conversation, the message box and the settings grow in a wide window.'**
   String get appearanceSettingsChatWidthDescription;
 
   /// No description provided for @appearanceSettingsChatWidthDefault.
@@ -10290,7 +10290,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsCodeSizeDescription.
   ///
   /// In en, this message translates to:
-  /// **'The size of code in the editor, the terminal, the chat and the previews.'**
+  /// **'The size of code in the editor, the terminal and file views. Code in the chat follows the interface text size.'**
   String get appearanceSettingsCodeSizeDescription;
 
   /// No description provided for @appearanceSettingsCodeSizeLabel.
@@ -10320,7 +10320,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsUiScaleDescription.
   ///
   /// In en, this message translates to:
-  /// **'The size of the window\'s text. Code keeps its own size.'**
+  /// **'The size of the interface text, code in the chat included. The editor and the terminal keep the code size.'**
   String get appearanceSettingsUiScaleDescription;
 
   /// No description provided for @appearanceSettingsUiScaleLabel.

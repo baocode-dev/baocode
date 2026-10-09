@@ -501,13 +501,16 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
       valueListenable: CodeFont.uiScale,
       builder: (context, percent, scaled) {
         final media = MediaQuery.of(context);
-        return MediaQuery(
-          data: media.copyWith(
-            textScaler: TextScaler.linear(
-              media.textScaler.scale(1) * percent / 100,
+        return SystemTextScale(
+          scaler: media.textScaler,
+          child: MediaQuery(
+            data: media.copyWith(
+              textScaler: TextScaler.linear(
+                media.textScaler.scale(1) * percent / 100,
+              ),
             ),
+            child: scaled!,
           ),
-          child: scaled!,
         );
       },
       child: child,

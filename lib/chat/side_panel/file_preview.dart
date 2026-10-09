@@ -17,6 +17,7 @@ import '../../ide/markdown/markdown_preview.dart';
 import '../../l10n/l10n.dart';
 import '../../platform/app_platform.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/code_font.dart';
 import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
@@ -452,24 +453,26 @@ class _FilePreviewState extends State<FilePreview> {
           text: localizedFileError(context.l10n, error),
         );
       case _Diff(:final rows):
-        return _Lines(
-          key: ValueKey(('diff', _request.path)),
-          count: rows.length,
-          reveal: widget.reveal,
-          target: _diffTarget(rows),
-          width: _width(rows.map((row) => row.text)),
-          // Lines of the file as it is now, none taken out.
-          onCopy: (first, last, text) {
-            final copied = rows.sublist(first, last + 1);
-            if (copied.any((row) => row.modified == null)) return;
-            _copied(copied.first.modified!, copied.last.modified!, text);
-          },
-          row: (context, i) => _LineRow(
-            numbers: (rows[i].original, rows[i].modified),
-            type: rows[i].type,
-            text: rows[i].text,
-            colors: _colors.elementAtOrNull(i),
-            gutter: _gutter(rows.length),
+        return CodeTextScale(
+          child: _Lines(
+            key: ValueKey(('diff', _request.path)),
+            count: rows.length,
+            reveal: widget.reveal,
+            target: _diffTarget(rows),
+            width: _width(rows.map((row) => row.text)),
+            // Lines of the file as it is now, none taken out.
+            onCopy: (first, last, text) {
+              final copied = rows.sublist(first, last + 1);
+              if (copied.any((row) => row.modified == null)) return;
+              _copied(copied.first.modified!, copied.last.modified!, text);
+            },
+            row: (context, i) => _LineRow(
+              numbers: (rows[i].original, rows[i].modified),
+              type: rows[i].type,
+              text: rows[i].text,
+              colors: _colors.elementAtOrNull(i),
+              gutter: _gutter(rows.length),
+            ),
           ),
         );
       case _Text(:final lines):
@@ -488,20 +491,23 @@ class _FilePreviewState extends State<FilePreview> {
         }
         if (_edit case final edit?) return _editing(edit);
         final range = _request.range;
-        return _Lines(
-          key: ValueKey(('text', _request.path)),
-          count: lines.length,
-          reveal: widget.reveal,
-          target: range == null ? null : range.start - 1,
-          width: _width(lines),
-          onCopy: (first, last, text) => _copied(first + 1, last + 1, text),
-          row: (context, i) => _LineRow(
-            numbers: (null, i + 1),
-            type: DiffLineType.context,
-            text: lines[i],
-            colors: _colors.elementAtOrNull(i),
-            gutter: _gutter(lines.length),
-            marked: range != null && i + 1 >= range.start && i + 1 <= range.end,
+        return CodeTextScale(
+          child: _Lines(
+            key: ValueKey(('text', _request.path)),
+            count: lines.length,
+            reveal: widget.reveal,
+            target: range == null ? null : range.start - 1,
+            width: _width(lines),
+            onCopy: (first, last, text) => _copied(first + 1, last + 1, text),
+            row: (context, i) => _LineRow(
+              numbers: (null, i + 1),
+              type: DiffLineType.context,
+              text: lines[i],
+              colors: _colors.elementAtOrNull(i),
+              gutter: _gutter(lines.length),
+              marked:
+                  range != null && i + 1 >= range.start && i + 1 <= range.end,
+            ),
           ),
         );
     }
