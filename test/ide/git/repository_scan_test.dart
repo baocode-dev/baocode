@@ -109,9 +109,8 @@ void main() {
       isTrue,
     );
     expect(
-      IdeRepositoryScan.parse(const {
-        'git.autoRepositoryDetection': false,
-      }).subFolders,
+      IdeRepositoryScan.parse(const {'git.autoRepositoryDetection': false})
+          .subFolders,
       isFalse,
     );
   });
@@ -119,7 +118,7 @@ void main() {
   test('a folder is a repository at its working tree\'s top level', () async {
     Future<bool> isTop(IdeGitOutput output) => IdeGitService(
       '/w/site',
-      runner: (arguments, {required workingDirectory}) async {
+      runner: (arguments, {required workingDirectory, limit}) async {
         expect(arguments, [
           'rev-parse',
           '--is-inside-work-tree',

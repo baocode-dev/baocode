@@ -227,6 +227,19 @@ void main() {
       expect(bad.stderr, isNotEmpty);
     });
 
+    test('a limit stops the output there, and says it was cut', () async {
+      for (final name in ['a', 'b', 'c']) {
+        File(at('$name.txt')).writeAsStringSync(name);
+      }
+      const status = ['status', '-z', '--porcelain=v1'];
+      final cut = await client().git(status, cwd: root, limit: 2);
+      expect(cut.truncated, isTrue);
+      expect(cut.stdout, '?? a.txt\x00?? b.txt\x00');
+      final whole = await client().git(status, cwd: root, limit: 3);
+      expect(whole.truncated, isFalse);
+      expect('\x00'.allMatches(whole.stdout), hasLength(3));
+    });
+
     test('changes to the repository are heard', () async {
       final heard = <void>[];
       final subscription = client().watchRepository(root).listen(heard.add);

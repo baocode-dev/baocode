@@ -21,7 +21,6 @@
 // template (`author, when • subject`) by default.
 
 import 'dart:async';
-import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show TextSelection;
@@ -30,6 +29,7 @@ import '../../l10n/app_localizations.dart';
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/flutter/lines_diff.dart';
 import 'package:bao_editor/monaco/vs/editor/common/diff/default_lines_diff_computer/default_lines_diff_computer.dart';
 import 'package:bao_editor/monaco/vs/editor/common/diff/range_mapping.dart';
 
@@ -107,9 +107,6 @@ class IdeGitBlameController extends ChangeNotifier {
   /// Files whose blame is kept (upstream: 100 per repository).
   static const cacheSize = 20;
 
-  /// Documents with more lines than this are diffed on another isolate.
-  static const isolateLineCount = 10000;
-
   IdeGitRepository? _repository;
   String? _path;
   EditorDocumentModel? _model;
@@ -130,6 +127,11 @@ class IdeGitBlameController extends ChangeNotifier {
   (int, String)? _diffKey;
   Timer? _diffTimer;
   int _diffRequest = 0;
+
+  /// Whether a diff runs on another isolate, and the document to diff once
+  /// it is done when it changed since.
+  bool _diffing = false;
+  EditorDocumentModel? _diffAgain;
 
   bool _disposed = false;
   List<IdeGitLineBlame> _lines = const [];
@@ -308,35 +310,51 @@ class IdeGitBlameController extends ChangeNotifier {
   }
 
   Future<void> _computeDiff(EditorDocumentModel model) async {
+    // One on another isolate at a time: the last text next.
+    if (_diffing) {
+      _diffAgain = model;
+      return;
+    }
     final request = ++_diffRequest;
     final key = (model.version, model.savedText);
     final original = _linesOf(DocumentSnapshot(key.$2));
     final modified = _linesOf(model.snapshot);
-    final diff = original.length + modified.length > isolateLineCount
-        ? await _diffOnIsolate(original, modified)
-        : _diffLines(original, modified);
-    if (_disposed || request != _diffRequest) return;
-    if (_diffKey case (final v, final s)
-        when v == key.$1 && identical(s, key.$2)) {
-      _diffKey = null;
+    final LinesDiff diff;
+    if (isSmallLinesDiff(original, modified)) {
+      diff = _diffLines(original, modified);
+    } else {
+      _diffing = true;
+      try {
+        diff = await computeLinesDiffOnIsolate(
+          original,
+          modified,
+          _diffOptions,
+        );
+      } finally {
+        _diffing = false;
+      }
     }
-    _diff = _Diff(key.$1, key.$2, diff.changes);
-    _refresh();
+    if (_disposed) return;
+    if (request == _diffRequest) {
+      if (_diffKey case (final v, final s)
+          when v == key.$1 && identical(s, key.$2)) {
+        _diffKey = null;
+      }
+      _diff = _Diff(key.$1, key.$2, diff.changes);
+      _refresh();
+    }
+    if (_diffAgain case final next?) {
+      _diffAgain = null;
+      unawaited(_computeDiff(next));
+    }
   }
 
-  static LinesDiff _diffLines(List<String> original, List<String> modified) =>
-      DefaultLinesDiffComputer().computeDiff(
-        original,
-        modified,
-        const LinesDiffComputerOptions(maxComputationTimeMs: 5000),
-      );
+  static const _diffOptions = LinesDiffComputerOptions(
+    maxComputationTimeMs: 5000,
+  );
 
-  /// [_diffLines] on another isolate, from a closure that holds the lines
-  /// only.
-  static Future<LinesDiff> _diffOnIsolate(
-    List<String> original,
-    List<String> modified,
-  ) => Isolate.run(() => _diffLines(original, modified));
+  static LinesDiff _diffLines(List<String> original, List<String> modified) =>
+      DefaultLinesDiffComputer().computeDiff(original, modified, _diffOptions);
 
   static List<String> _linesOf(DocumentSnapshot snapshot) => [
     for (var i = 0; i < snapshot.lineCount; i++)

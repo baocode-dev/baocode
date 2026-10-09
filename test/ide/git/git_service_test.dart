@@ -3,6 +3,7 @@ library;
 
 import 'dart:io';
 
+import 'package:bao_remote/local.dart' show runGit;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/git/git_model.dart';
 import 'package:baocode/ide/git/git_repository.dart';
@@ -160,6 +161,20 @@ void main() {
       service.branch('feature', ref: 'HEAD'),
       throwsA(isA<IdeGitException>()),
     );
+  }, skip: hasGit ? false : 'Git is not installed');
+
+  test('a status read with a limit stops Git past it', () async {
+    for (var i = 0; i < 300; i++) {
+      await write('many/f$i.txt', '');
+    }
+    const status = ['status', '-z', '--porcelain=v1', '--untracked-files=all'];
+    final cut = await runGit(status, workingDirectory: root, limit: 100);
+    expect(cut.truncated, isTrue);
+    expect('\x00'.allMatches(cut.stdout).length, 100);
+    expect(cut.stdout, endsWith('\x00'));
+    final whole = await runGit(status, workingDirectory: root, limit: 300);
+    expect(whole.truncated, isFalse);
+    expect('\x00'.allMatches(whole.stdout).length, 300);
   }, skip: hasGit ? false : 'Git is not installed');
 
   test('outside a repository there is no status', () async {

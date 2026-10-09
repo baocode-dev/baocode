@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -8,12 +9,14 @@ import '../../ide/file_service.dart';
 import '../../ide/git/git_change_editor.dart';
 import '../../ide/git/git_model.dart';
 import '../../ide/git/git_repository.dart';
+import '../../ide/git/git_service.dart';
 import '../../ide/git/scm_tree.dart';
 import '../../ide/ide_dialog.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_list.dart';
 import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../workspace/window_controls.dart';
@@ -142,8 +145,38 @@ class _GitChangeListState extends State<GitChangeList> {
 
   IdeGitRepository get _git => widget.git;
 
+  /// The last rows and what they were made of: made again only when that
+  /// changed, not at every build (a hover, a selection).
+  ({
+    IdeGitState state,
+    bool tree,
+    Set<IdeGitGroup> groups,
+    Set<String> folders,
+    List<_Row> rows,
+  })?
+  _cache;
+
   List<_Row> _rows() {
     final state = widget.state;
+    if (_cache case final cache?
+        when identical(cache.state, state) &&
+            cache.tree == widget.tree &&
+            setEquals(cache.groups, _collapsedGroups) &&
+            setEquals(cache.folders, _collapsedFolders)) {
+      return cache.rows;
+    }
+    final rows = _makeRows(state);
+    _cache = (
+      state: state,
+      tree: widget.tree,
+      groups: {..._collapsedGroups},
+      folders: {..._collapsedFolders},
+      rows: rows,
+    );
+    return rows;
+  }
+
+  List<_Row> _makeRows(IdeGitState state) {
     final rows = <_Row>[];
     for (final group in IdeGitGroup.values) {
       final resources = state.group(group);
@@ -170,7 +203,7 @@ class _GitChangeListState extends State<GitChangeList> {
         }
       }
 
-      add(ideScmTree(state.root, resources), 1);
+      add(ideScmGroupTree(state, group), 1);
     }
     return rows;
   }
@@ -178,7 +211,7 @@ class _GitChangeListState extends State<GitChangeList> {
   @override
   Widget build(BuildContext context) {
     final rows = _rows();
-    return ListView.builder(
+    final list = ListView.builder(
       padding: const EdgeInsets.only(bottom: 12),
       itemExtent: IdeListColors.rowHeight,
       itemCount: rows.length,
@@ -187,6 +220,36 @@ class _GitChangeListState extends State<GitChangeList> {
         final _FolderRow row => _folderRow(row),
         final _FileRow row => _fileRow(row),
       },
+    );
+    if (!widget.state.didHitLimit) return list;
+    // Past the status's limit, that only its first changes show.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1, right: 6),
+                child: Icon(
+                  Codicons.warning,
+                  size: 14,
+                  color: AppColors.caution,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  context.l10n.scmTooManyChanges(IdeGitService.statusLimit),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(child: list),
+      ],
     );
   }
 
@@ -247,9 +310,10 @@ class _GitChangeListState extends State<GitChangeList> {
 
   /// What can be done to [resources] of [group], as inline actions and
   /// menu items: discard and stage the changes, or unstage them.
+  /// [resources] gathers them when an action runs.
   List<({String label, IconData icon, VoidCallback run})> _actions(
     IdeGitGroup group,
-    List<IdeGitResource> resources,
+    List<IdeGitResource> Function() resources,
   ) {
     final l10n = context.l10n;
     return [
@@ -257,19 +321,19 @@ class _GitChangeListState extends State<GitChangeList> {
         (
           label: l10n.scmDiscardChanges,
           icon: Codicons.discard,
-          run: () => unawaited(_discard(resources)),
+          run: () => unawaited(_discard(resources())),
         ),
       if (group == IdeGitGroup.staged)
         (
           label: l10n.scmUnstageChanges,
           icon: Codicons.remove,
-          run: () => _unstage(resources),
+          run: () => _unstage(resources()),
         )
       else
         (
           label: l10n.scmStageChanges,
           icon: Codicons.add,
-          run: () => _stage(resources),
+          run: () => _stage(resources()),
         ),
     ];
   }
@@ -317,7 +381,7 @@ class _GitChangeListState extends State<GitChangeList> {
               IdeMenuAction(l10n.scmOpenFile, onSelected: () => open(path)),
           ],
           [
-            for (final action in _actions(group, resources))
+            for (final action in _actions(group, () => resources))
               IdeMenuAction(action.label, onSelected: action.run),
           ],
           [
@@ -400,7 +464,7 @@ class _GitChangeListState extends State<GitChangeList> {
               child: IdeResourceLabel(
                 name: group.localizedLabel(context.l10n),
                 actions: [
-                  if (hovered) ..._inline(_actions(group, row.resources)),
+                  if (hovered) ..._inline(_actions(group, () => row.resources)),
                 ],
               ),
             ),
@@ -415,7 +479,8 @@ class _GitChangeListState extends State<GitChangeList> {
   Widget _folderRow(_FolderRow row) {
     final folder = row.folder;
     final collapsed = _collapsedFolders.contains(row.key);
-    final resources = folder.resources.toList();
+    // Gathered when acted on: a folder can hold thousands.
+    List<IdeGitResource> resources() => folder.resources.toList();
     return _draggable(
       [ComposerFile(folder.path, directory: true)],
       IdeListRow(
@@ -426,7 +491,8 @@ class _GitChangeListState extends State<GitChangeList> {
             _collapsedFolders.add(row.key);
           }
         }),
-        onContextMenu: (position) => _showMenu(position, row.group, resources),
+        onContextMenu: (position) =>
+            _showMenu(position, row.group, resources()),
         builder: (context, hovered) => Padding(
           padding: EdgeInsets.only(
             left: 4.0 + row.depth * IdeListColors.indent,
@@ -499,7 +565,7 @@ class _GitChangeListState extends State<GitChangeList> {
                         tooltip: l10n.scmOpenFile,
                         onPressed: () => open(resource.path),
                       ),
-                    ..._inline(_actions(resource.group, [resource])),
+                    ..._inline(_actions(resource.group, () => [resource])),
                   ],
                 ],
               ),

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_editor/monaco/flutter/diff_editor_model.dart';
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
+import 'package:bao_editor/monaco/flutter/lines_diff.dart';
 import 'package:bao_editor/monaco/vs/editor/common/diff/range_mapping.dart';
 
 /// A diff editor's model: the diff, and the alignments, zones and
@@ -76,6 +77,43 @@ void main() {
     expect(diff.mappings, hasLength(2));
     await tester.pump(const Duration(milliseconds: 100));
     expect(diff.mappings, isEmpty);
+  });
+
+  test(
+    'texts past a few thousand characters are compared off this '
+    'isolate; edits while it runs are compared after it, the last text',
+    () async {
+      // Every line changed: on this isolate, longer than a frame.
+      String text(String word) =>
+          [for (var i = 0; i < 60; i++) '$word $i ${'z' * 50}'].join('\n');
+      expect(
+        isSmallLinesDiff(text('a').split('\n'), text('b').split('\n')),
+        isFalse,
+      );
+      final before = ValueNotifier<String?>(text('before'));
+      final after = EditorDocumentModel(text('after'));
+      final diff = DiffEditorModel(original: before, modified: after);
+      addTearDown(() {
+        diff.dispose();
+        after.dispose();
+        before.dispose();
+      });
+      expect(diff.mappings, isNull);
+      for (final word in ['one', 'two', 'three']) {
+        after.replaceText(text(word));
+      }
+      before.value = text('three');
+      final deadline = DateTime.now().add(const Duration(seconds: 20));
+      while (diff.mappings?.isEmpty != true) {
+        expect(DateTime.now().isBefore(deadline), isTrue);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+    },
+  );
+
+  test('a few thousand characters at most are compared here', () {
+    expect(isSmallLinesDiff(['a' * 999], ['b' * 999]), isTrue);
+    expect(isSmallLinesDiff(['a' * 1000], ['b' * 1000]), isFalse);
   });
 
   test('side by side, the side with fewer lines is filled up', () {

@@ -92,7 +92,13 @@ class IdeGitRepository extends ChangeNotifier {
         if (_disposed) return;
         _state = state;
         _error = null;
-        if (state != null) _watch(state.root);
+        // A huge repository is not refreshed by its files' changes (VS
+        // Code's `isRepositoryHuge`): each would read the status again.
+        if (state?.didHitLimit ?? false) {
+          _unwatch();
+        } else if (state != null) {
+          _watch(state.root);
+        }
       } catch (error) {
         if (_disposed) return;
         _error = error;
@@ -131,6 +137,12 @@ class IdeGitRepository extends ChangeNotifier {
             if (working) _watcher = null;
           },
         );
+  }
+
+  void _unwatch() {
+    _refreshTimer?.cancel();
+    unawaited(_watcher?.cancel());
+    _watcher = null;
   }
 
   /// Runs [operation] after the ones queued before it; a [background]
@@ -231,8 +243,13 @@ class IdeGitRepository extends ChangeNotifier {
       _operate(() => service.undoCommit(head));
 
   /// Stages the untracked changes too, then commits everything: VS Code's
-  /// smart commit with `git.smartCommitChanges: all`.
+  /// smart commit with `git.smartCommitChanges: all`. Past the status's
+  /// limit, not all of them are known: the whole tree is staged.
   Future<void> commitEverything(String message) => _operate(() async {
+    if (_state?.didHitLimit ?? false) {
+      await service.stage(null);
+      return service.commit(message, all: true);
+    }
     final untracked = [
       for (final resource in _state?.resources ?? const <IdeGitResource>[])
         if (resource.status == IdeGitStatus.untracked) resource.path,

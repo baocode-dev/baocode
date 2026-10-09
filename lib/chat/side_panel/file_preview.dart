@@ -249,7 +249,10 @@ class _FilePreviewState extends State<FilePreview> {
       if (text == null && error is! IdeFileNotFoundException) {
         loaded = _Failed(error!);
       } else {
-        loaded = _Diff(fileDiff(original, text ?? ''), deleted: text == null);
+        // Compared off this isolate: seconds, for a file changed throughout.
+        final rows = await fileDiffAsync(original, text ?? '');
+        if (!mounted || load != _load) return;
+        loaded = _Diff(rows, deleted: text == null);
       }
     } else if (text == null) {
       loaded = _Failed(error!);

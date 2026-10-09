@@ -67,6 +67,7 @@ class FakeGit {
   Future<IdeGitOutput> run(
     List<String> arguments, {
     required String workingDirectory,
+    int? limit,
   }) async {
     calls.add(arguments);
     await hold?.call(arguments);
@@ -83,7 +84,7 @@ class FakeGit {
             ? const IdeGitOutput(1, '')
             : IdeGitOutput(0, '$resolved\n');
       case ['status', ...]:
-        return IdeGitOutput(0, status);
+        return limited(status, limit);
       case ['for-each-ref', '--format', _, 'refs/heads']:
         return IdeGitOutput(
           0,
@@ -193,3 +194,18 @@ String gitLogRecord(
 }) =>
     '$id\x1f${parents.join(' ')}\x1f$author\x1fada@example.com\x1f$time\x1f'
     '$refs\x1f$message\n\x1e';
+
+/// [output]'s first [limit] NUL-terminated records, as `runGit` reads
+/// them: truncated when there were more.
+IdeGitOutput limited(String output, int? limit) {
+  if (limit == null) return IdeGitOutput(0, output);
+  var end = 0;
+  for (var records = 0; records < limit; records++) {
+    final at = output.indexOf('\x00', end);
+    if (at < 0) return IdeGitOutput(0, output);
+    end = at + 1;
+  }
+  return end < output.length && output.indexOf('\x00', end) >= 0
+      ? IdeGitOutput.truncated(output.substring(0, end))
+      : IdeGitOutput(0, output);
+}

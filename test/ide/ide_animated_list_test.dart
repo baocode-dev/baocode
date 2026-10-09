@@ -89,4 +89,63 @@ void main() {
     await pumpList(tester, [row('a'), row('b')], reduceMotion: true);
     expect(heightOf(tester, 'b'), 22);
   });
+
+  group('with an extent', () {
+    Future<void> pumpRows(
+      WidgetTester tester,
+      List<String> names, {
+      ScrollController? controller,
+      void Function(int index)? built,
+    }) => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: IdeAnimatedList.builder(
+            controller: controller,
+            itemExtent: 22,
+            header: const SizedBox(height: 40, child: Text('header')),
+            keys: [for (final name in names) ValueKey(name)],
+            itemBuilder: (context, index) {
+              built?.call(index);
+              return SizedBox(height: 22, child: Text(names[index]));
+            },
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('a jump among thousands builds only the rows there', (
+      tester,
+    ) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      final built = <int>{};
+      final names = [for (var i = 0; i < 10000; i++) 'r$i'];
+      await pumpRows(tester, names, controller: controller, built: built.add);
+      expect(topOf(tester, 'header'), 0);
+      expect(topOf(tester, 'r0'), 40);
+
+      built.clear();
+      controller.jumpTo(40 + 5000 * 22);
+      await tester.pump();
+      expect(topOf(tester, 'r5000'), 0);
+      expect(built.length, lessThan(100));
+      // Those shown, and the cache's few around them.
+      expect(built.every((index) => index >= 4980 && index < 5100), isTrue);
+    });
+
+    testWidgets('a new row grows in, pushing the next down', (tester) async {
+      await pumpRows(tester, ['a', 'c']);
+      expect(topOf(tester, 'c'), 40 + 22);
+
+      await pumpRows(tester, ['a', 'b', 'c']);
+      expect(heightOf(tester, 'b'), 0);
+      await tester.pump(const Duration(milliseconds: 75));
+      final middle = heightOf(tester, 'b');
+      expect(middle, greaterThan(0));
+      expect(middle, lessThan(22));
+      expect(topOf(tester, 'c'), closeTo(40 + 22 + middle, 0.01));
+      await tester.pumpAndSettle();
+      expect(topOf(tester, 'c'), 40 + 44);
+    });
+  });
 }

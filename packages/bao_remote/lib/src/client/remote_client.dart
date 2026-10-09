@@ -428,16 +428,25 @@ class RemoteClient {
     {'root': root, 'query': textQueryToJson(query)},
   ).map((item) => searchItemFromJson(_map(item)));
 
+  /// `git` there; [limit] as `runGit`'s (a server before it reads all).
   Future<IdeGitOutput> git(
     List<String> arguments, {
     required String cwd,
+    int? limit,
   }) async {
     final result = _map(
       await peer.request(RemoteProtocol.gitRun, {
         'arguments': arguments,
         'cwd': cwd,
+        'limit': ?limit,
       }),
     );
+    if (result['truncated'] == true) {
+      return IdeGitOutput.truncated(
+        result['stdout'] as String? ?? '',
+        result['stderr'] as String? ?? '',
+      );
+    }
     return IdeGitOutput(
       result['exitCode'] as int,
       result['stdout'] as String? ?? '',

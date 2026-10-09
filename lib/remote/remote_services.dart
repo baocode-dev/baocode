@@ -156,8 +156,8 @@ class RemoteIdeFileService implements IdeHostFiles {
 /// The Git of the project at [root] on [host]: its commands run there.
 IdeGitService remoteGitService(SshHost host, String root) => IdeGitService(
   root,
-  runner: (arguments, {required workingDirectory}) async =>
-      (await host.ready).git(arguments, cwd: workingDirectory),
+  runner: (arguments, {required workingDirectory, limit}) async =>
+      (await host.ready).git(arguments, cwd: workingDirectory, limit: limit),
   watcher: (repository) => resilientStream(
     host,
     (client) => client.watchRepository(repository),

@@ -1,3 +1,6 @@
+import 'dart:isolate';
+
+import 'package:bao_editor/monaco/flutter/lines_diff.dart';
 import 'package:bao_editor/monaco/vs/editor/common/diff/default_lines_diff_computer/default_lines_diff_computer.dart';
 
 import '../chat_models.dart' show DiffLineType;
@@ -26,6 +29,16 @@ List<String> diffLines(String text) {
     for (final line in lines)
       line.endsWith('\r') ? line.substring(0, line.length - 1) : line,
   ];
+}
+
+/// [fileDiff] off the caller's isolate unless the texts are small
+/// ([linesDiffInlineCharacters]): what changed throughout takes seconds to compare,
+/// however short the file.
+Future<List<FileDiffRow>> fileDiffAsync(String original, String modified) {
+  if (original.length + modified.length <= linesDiffInlineCharacters) {
+    return Future.value(fileDiff(original, modified));
+  }
+  return Isolate.run(() => fileDiff(original, modified));
 }
 
 /// [original] to [modified], line by line (as the IDE's diff editor finds

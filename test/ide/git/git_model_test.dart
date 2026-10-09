@@ -67,6 +67,23 @@ void main() {
       expect(state.ignored, [_in('build'), _in('debug.log')]);
     });
 
+    test('a status cut at its limit says so; a rename cut from its source '
+        'is left out', () {
+      final cut = parseGitStatus(
+        _root,
+        '## main\x00'
+        '?? a.txt\x00'
+        'R  new.dart\x00',
+        truncated: true,
+      );
+      expect(cut.didHitLimit, isTrue);
+      expect([for (final r in cut.resources) r.path], [_in('a.txt')]);
+      expect(
+        parseGitStatus(_root, '## main\x00?? a.txt\x00').didHitLimit,
+        isFalse,
+      );
+    });
+
     test('branch lines: unborn, detached, gone upstream', () {
       expect(
         parseGitStatus(_root, '## No commits yet on main\x00').head.unborn,

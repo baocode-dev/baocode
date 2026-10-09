@@ -30,6 +30,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -217,7 +218,43 @@ final class _ResourceRow implements _ScmRow {
   final String parent;
 
   @override
-  String get key => '${resource.group.name}:${resource.path}';
+  late final String key = '${resource.group.name}:${resource.path}';
+}
+
+/// The Changes list's rows for a status and the view's settings when they
+/// were made: made again only when one of them changed, for the list's
+/// builds and its keyboard asking for them many times between.
+final class _ScmRows {
+  _ScmRows(this.state, IdeScmSession session, this.rows)
+    : treeView = session.treeView,
+      sort = session.sort,
+      collapsedGroups = {...session.collapsedGroups},
+      collapsedFolders = {...session.collapsedFolders};
+
+  final IdeGitState state;
+  final bool treeView;
+  final IdeScmSort sort;
+  final Set<IdeGitGroup> collapsedGroups;
+  final Set<String> collapsedFolders;
+  final List<_ScmRow> rows;
+
+  bool isFor(IdeGitState state, IdeScmSession session) =>
+      identical(state, this.state) &&
+      session.treeView == treeView &&
+      session.sort == sort &&
+      setEquals(session.collapsedGroups, collapsedGroups) &&
+      setEquals(session.collapsedFolders, collapsedFolders);
+
+  /// Each row's index by its key.
+  late final Map<String, int> indices = {
+    for (final (index, row) in rows.indexed) row.key: index,
+  };
+
+  /// Each row's widget's key.
+  late final List<Key> keys = [
+    for (final row in rows)
+      row is _GroupRow ? ValueKey('group:${row.key}') : ValueKey(row.key),
+  ];
 }
 
 class IdeScmViewState extends State<IdeScmView>
@@ -234,8 +271,7 @@ class IdeScmViewState extends State<IdeScmView>
 
   /// The rows above the changes (the input, the action button), measured
   /// for revealing a row, and their last height.
-  final GlobalKey _inputKey = GlobalKey();
-  final GlobalKey _actionKey = GlobalKey();
+  final GlobalKey _headerKey = GlobalKey();
   double _headerHeight = 0;
 
   /// The focused row's key: a resource's (`group:path`), a folder's or a
@@ -462,8 +498,25 @@ class IdeScmViewState extends State<IdeScmView>
   bool get _graphHasFocus => _graphFocus.hasPrimaryFocus;
 
   List<_ScmRow> get _rows => switch (_git?.state) {
-    final state? => _changeRows(state),
+    final state? => _rowsOf(state).rows,
     null => const [],
+  };
+
+  _ScmRows? _rowCache;
+
+  /// [state]'s rows ([_changeRows]), made again only when it or the view's
+  /// settings changed.
+  _ScmRows _rowsOf(IdeGitState state) {
+    if (_rowCache case final cache? when cache.isFor(state, _session)) {
+      return cache;
+    }
+    return _rowCache = _ScmRows(state, _session, _changeRows(state));
+  }
+
+  /// The index of the row of [key] among [_rows]; -1 for none.
+  int _indexOf(String? key) => switch (_git?.state) {
+    final state? when key != null => _rowsOf(state).indices[key] ?? -1,
+    _ => -1,
   };
 
   List<IdeGraphRow> get _commits => _git?.graph ?? const [];
@@ -480,17 +533,18 @@ class IdeScmViewState extends State<IdeScmView>
 
   /// Focuses [key]'s row and selects the rows from the anchor's to it.
   void _selectRange(String key) {
-    final keys = [for (final row in _rows) row.key];
-    final to = keys.indexOf(key);
-    var from = _anchor == null ? -1 : keys.indexOf(_anchor!);
+    final rows = _rows;
+    final to = _indexOf(key);
+    var from = _indexOf(_anchor);
     if (from < 0) from = to;
     _selected = key;
-    _anchor = keys[from];
+    _anchor = rows[from].key;
     _selection
       ..clear()
-      ..addAll(
-        keys.sublist(from < to ? from : to, (from < to ? to : from) + 1),
-      );
+      ..addAll([
+        for (var i = from < to ? from : to; i <= (from < to ? to : from); i++)
+          rows[i].key,
+      ]);
   }
 
   /// A click on [key]'s row: with Shift, selects the rows from the last
@@ -551,10 +605,8 @@ class IdeScmViewState extends State<IdeScmView>
   }
 
   _ScmRow? get _focusedRow {
-    final key = _selected;
-    return key == null
-        ? null
-        : _rows.where((row) => row.key == key).firstOrNull;
+    final at = _indexOf(_selected);
+    return at < 0 ? null : _rows[at];
   }
 
   bool _isCollapsed(_ScmRow row) => switch (row) {
@@ -596,7 +648,7 @@ class IdeScmViewState extends State<IdeScmView>
   @override
   int get listFocusedIndex => _graphHasFocus
       ? _commits.indexWhere((row) => row.commit.id == _selectedCommit)
-      : _rows.indexWhere((row) => row.key == _selected);
+      : _indexOf(_selected);
 
   @override
   int get listPageSize =>
@@ -614,12 +666,9 @@ class IdeScmViewState extends State<IdeScmView>
   }
 
   void _revealRow(int index) {
-    // Below the input and the action button.
-    final heights = [
-      for (final key in [_inputKey, _actionKey]) key.currentContext?.size,
-    ];
-    if (heights.every((size) => size != null)) {
-      _headerHeight = heights.fold(0.0, (sum, size) => sum + size!.height);
+    // Below the input, the action button and the limit's notice.
+    if (_headerKey.currentContext?.size case final size?) {
+      _headerHeight = size.height;
     }
     ideRevealRow(_changesScroll, index, top: _headerHeight);
   }
@@ -709,7 +758,7 @@ class IdeScmViewState extends State<IdeScmView>
     if (row is! _ResourceRow && !_isCollapsed(row)) {
       _setCollapsed(row, true);
     } else if (row.parent case final parent?) {
-      final at = _rows.indexWhere((row) => row.key == parent);
+      final at = _indexOf(parent);
       if (at >= 0) listFocusAt(at);
     }
   }
@@ -733,7 +782,7 @@ class IdeScmViewState extends State<IdeScmView>
           }
         }
 
-        collapse(ideScmTree(state.root, state.group(group)));
+        collapse(ideScmGroupTree(state, group));
         _session.collapsedGroups.add(group);
       }
       // The focus goes to its group.
@@ -767,11 +816,26 @@ class IdeScmViewState extends State<IdeScmView>
   // --- Changes -------------------------------------------------------------
 
   Widget _changesList(IdeGitRepository git, IdeGitState state) {
-    final items = <Widget>[
-      _inputRow(state),
-      _actionButtonRow(git, state),
-      for (final row in _changeRows(state))
-        switch (row) {
+    final rows = _rowsOf(state);
+    // Only the rows shown are built, and where one is is worked out from
+    // their height: there can be thousands, and a scrollbar dragged.
+    final list = IdeAnimatedList.builder(
+      controller: _changesScroll,
+      itemExtent: IdeListColors.rowHeight,
+      // The input, the action button, and past the status's limit its
+      // notice.
+      header: Column(
+        key: _headerKey,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _inputRow(state),
+          _actionButtonRow(git, state),
+          if (state.didHitLimit) _limitRow(git, state),
+        ],
+      ),
+      keys: rows.keys,
+      itemBuilder: (context, index) {
+        return switch (rows.rows[index]) {
           _GroupRow(:final group, :final resources) => _groupRow(
             git,
             group,
@@ -785,8 +849,9 @@ class IdeScmViewState extends State<IdeScmView>
             resource,
             treeDepth: treeDepth,
           ),
-        },
-    ];
+        };
+      },
+    );
     return Focus(
       focusNode: _listFocus,
       // The empty space's menu is View & Sort's.
@@ -799,28 +864,63 @@ class IdeScmViewState extends State<IdeScmView>
             entries: _viewSortMenu(),
           ),
         ),
-        child: IdeAnimatedList(controller: _changesScroll, children: items),
+        child: list,
       ),
     );
   }
 
+  /// Past the status's limit: that only its first changes show, and that
+  /// the files' changes no longer refresh it (VS Code's warning when a
+  /// repository is huge).
+  Widget _limitRow(IdeGitRepository git, IdeGitState state) => Padding(
+    padding: const EdgeInsets.fromLTRB(19, 2, 12, 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1, right: 6),
+          child: Icon(
+            Codicons.warning,
+            size: 14,
+            color: themeColors['editorWarning.foreground'],
+          ),
+        ),
+        Expanded(
+          child: Text(
+            context.l10n.scmTooManyChanges(IdeGitService.statusLimit),
+            style: TextStyle(
+              fontSize: 12,
+              color: themeColors['descriptionForeground'],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
   /// The list's order (`SCMTreeSorter` in list mode).
   List<IdeGitResource> _sorted(List<IdeGitResource> resources) {
     int byPath(IdeGitResource a, IdeGitResource b) => a.path.compareTo(b.path);
-    return [...resources]..sort(switch (_session.sort) {
-      IdeScmSort.path => byPath,
-      IdeScmSort.name => (a, b) {
-        final order = ideCompareFileNames(
-          p.basename(a.path),
-          p.basename(b.path),
-        );
-        return order != 0 ? order : byPath(a, b);
-      },
-      IdeScmSort.status => (a, b) {
-        final order = a.status.label.compareTo(b.status.label);
-        return order != 0 ? order : byPath(a, b);
-      },
-    });
+    switch (_session.sort) {
+      case IdeScmSort.path:
+        return [...resources]..sort(byPath);
+      case IdeScmSort.status:
+        return [...resources]..sort((a, b) {
+          final order = a.status.label.compareTo(b.status.label);
+          return order != 0 ? order : byPath(a, b);
+        });
+      case IdeScmSort.name:
+        // Each name split once, not at every comparison.
+        final keyed =
+            [
+              for (final resource in resources)
+                (resource, IdeFileNameKey(p.basename(resource.path))),
+            ]..sort((a, b) {
+              final order = a.$2.compareTo(b.$2);
+              return order != 0 ? order : byPath(a.$1, b.$1);
+            });
+        return [for (final (resource, _) in keyed) resource];
+    }
   }
 
   /// The Changes list's rows: each group shown (Merge and Staged Changes
@@ -854,7 +954,7 @@ class IdeScmViewState extends State<IdeScmView>
         }
       }
 
-      add(ideScmTree(state.root, resources), 2, group.name);
+      add(ideScmGroupTree(state, group), 2, group.name);
     }
     return rows;
   }
@@ -902,11 +1002,11 @@ class IdeScmViewState extends State<IdeScmView>
     String key,
   ) {
     final collapsed = _session.collapsedFolders.contains(key);
-    final resources = folder.resources.toList();
+    // Gathered when acted on: a folder can hold thousands.
     final actions = _folderActions(
       git,
       group,
-      () => _targets(key, group, resources),
+      () => _targets(key, group, folder.resources.toList()),
     );
     final bubble = git.decorations?.folder(folder.path)?.color;
     return IdeListRow(
@@ -1046,7 +1146,6 @@ class IdeScmViewState extends State<IdeScmView>
     return KeyedSubtree(
       key: const ValueKey('input'),
       child: Padding(
-        key: _inputKey,
         padding: const EdgeInsets.fromLTRB(19, 5, 12, 5),
         child: IdeInputBox(
           controller: _session.message,
@@ -1159,7 +1258,6 @@ class IdeScmViewState extends State<IdeScmView>
     return KeyedSubtree(
       key: const ValueKey('commit-button'),
       child: Padding(
-        key: _actionKey,
         padding: const EdgeInsets.fromLTRB(19, 4, 12, 4),
         child: changes
             ? _commitButton(git, enabled: true)
@@ -1357,7 +1455,7 @@ class IdeScmViewState extends State<IdeScmView>
                       }
                     }
 
-                    collapse(ideScmTree(git.state!.root, resources));
+                    collapse(ideScmGroupTree(git.state!, group));
                   }),
                 ),
             ],

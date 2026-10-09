@@ -164,6 +164,24 @@ void main() {
     expect(ideBadgeLabel(12000), '12K');
   });
 
+  testWidgets('past the status limit it says so, and builds only the rows '
+      'shown', (tester) async {
+    git.status = [
+      '## main\x00',
+      for (var i = 0; i <= IdeGitService.statusLimit; i++)
+        '?? many/f$i.txt\x00',
+    ].join();
+    await pumpScm(tester);
+    expect(find.textContaining('too many changes'), findsOneWidget);
+    expect(find.text('10K'), findsWidgets);
+    expect(find.byType(IdeListRow).evaluate().length, lessThan(100));
+
+    await tester.drag(text('f0.txt'), const Offset(0, -2000));
+    await tester.pumpAndSettle();
+    expect(text('f0.txt'), findsNothing);
+    expect(find.byType(IdeListRow).evaluate().length, lessThan(100));
+  });
+
   testWidgets('a group collapses and expands', (tester) async {
     await pumpScm(tester);
     await tester.tap(find.text('Staged Changes'));

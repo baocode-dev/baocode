@@ -25,10 +25,12 @@ import 'git_service_stub.dart'
 
 export 'package:bao_remote/git.dart';
 
-/// Runs `git` with [arguments] in [workingDirectory].
+/// Runs `git` with [arguments] in [workingDirectory]; with [limit], reads
+/// only that many NUL-terminated records of its output (`runGit`'s).
 typedef IdeGitRunner = Future<IdeGitOutput> Function(
   List<String> arguments, {
   required String workingDirectory,
+  int? limit,
 });
 
 /// Changes under the repository at [repositoryRoot].
@@ -62,8 +64,15 @@ class IdeGitService {
   /// be watched.
   Stream<void> watch(String repositoryRoot) => _watch(repositoryRoot);
 
-  Future<IdeGitOutput> _git(List<String> arguments, {String? cwd}) =>
-      _run(arguments, workingDirectory: cwd ?? _repositoryRoot ?? root);
+  Future<IdeGitOutput> _git(
+    List<String> arguments, {
+    String? cwd,
+    int? limit,
+  }) => _run(
+    arguments,
+    workingDirectory: cwd ?? _repositoryRoot ?? root,
+    limit: limit,
+  );
 
   static IdeGitOutput _check(IdeGitOutput output, String what) {
     if (output.exitCode == 0) return output;
@@ -126,22 +135,33 @@ class IdeGitService {
     );
   }
 
-  /// The status, or null outside a repository.
+  /// How many changes the status reads at most (VS Code's
+  /// `git.statusLimit`): a folder with a huge untracked tree (a home
+  /// folder made a repository) has hundreds of thousands, too many to read,
+  /// keep and show.
+  static const statusLimit = 10000;
+
+  /// The status, or null outside a repository: at most [statusLimit]
+  /// records, [IdeGitState.didHitLimit] when there were more.
   Future<IdeGitState?> status() async {
     final top = await repositoryRoot();
     if (top == null) return null;
     final output = _check(
-      await _git([
-        'status',
-        '-z',
-        '--porcelain=v1',
-        '--branch',
-        '--untracked-files=all',
-        '--ignored=matching',
-      ]),
+      await _git(
+        [
+          'status',
+          '-z',
+          '--porcelain=v1',
+          '--branch',
+          '--untracked-files=all',
+          '--ignored=matching',
+        ],
+        // And the branch's.
+        limit: statusLimit + 1,
+      ),
       'Cannot read the Git status.',
     );
-    return parseGitStatus(top, output.stdout);
+    return parseGitStatus(top, output.stdout, truncated: output.truncated);
   }
 
   /// `git add -A --`: stages the changes of [paths] (all when null),

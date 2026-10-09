@@ -94,4 +94,56 @@ void main() {
       expect(repository.state!.head.behind, 0);
     },
   );
+
+  group('past the status limit', () {
+    String huge() => [
+      '## main\x00',
+      for (var i = 0; i <= IdeGitService.statusLimit; i++) '?? many/f$i\x00',
+    ].join();
+
+    test('only its first changes are kept, and file changes no longer read '
+        'it until a refresh finds fewer', () async {
+      final changes = StreamController<void>.broadcast();
+      addTearDown(changes.close);
+      final repository = IdeGitRepository(
+        IdeGitService(
+          git.root,
+          runner: git.run,
+          watcher: (_) => changes.stream,
+        ),
+        refreshDelay: const Duration(milliseconds: 20),
+      );
+      addTearDown(repository.dispose);
+      git.status = huge();
+      await repository.refresh();
+      expect(repository.state!.didHitLimit, isTrue);
+      expect(repository.state!.count, IdeGitService.statusLimit);
+      expect(changes.hasListener, isFalse);
+
+      git.calls.clear();
+      changes.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(statusReads(), 0);
+
+      git.status = '## main\x00?? one\x00';
+      await repository.refresh();
+      expect(repository.state!.didHitLimit, isFalse);
+      expect(changes.hasListener, isTrue);
+      changes.add(null);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(statusReads(), 2);
+    });
+
+    test(
+      'Commit everything stages the whole tree, not the changes known',
+      () async {
+        git.status = huge();
+        await repository.refresh();
+        await repository.commitEverything('All');
+        expect(git.callsTo('add'), [
+          ['add', '-A', '--', '.'],
+        ]);
+      },
+    );
+  });
 }

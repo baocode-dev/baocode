@@ -13,7 +13,6 @@
 // `SCMTreeSorter` in src/vs/workbench/contrib/scm/browser/scmViewPane.ts
 // and `compareFileNames` in src/vs/base/common/comparers.ts.
 
-import 'package:path/path.dart' as p;
 
 import 'git_model.dart';
 
@@ -60,15 +59,17 @@ List<IdeScmTreeNode> ideScmTree(
   final folders = <String, IdeScmTreeFolder>{root: top};
   IdeScmTreeFolder folderAt(String path) {
     if (folders[path] case final folder?) return folder;
-    final parent = folderAt(p.dirname(path));
-    final folder = IdeScmTreeFolder(path, p.basename(path));
+    final parent = folderAt(ideGitDirname(path));
+    final folder = IdeScmTreeFolder(path, ideGitBasename(path));
     parent.children.add(folder);
     return folders[path] = folder;
   }
 
   for (final resource in resources) {
-    final directory = p.dirname(resource.path);
-    final parent = p.isWithin(root, directory) ? folderAt(directory) : top;
+    final directory = ideGitDirname(resource.path);
+    final parent =
+        folders[directory] ??
+        (ideGitIsWithin(root, directory) ? folderAt(directory) : top);
     parent.children.add(IdeScmTreeFile(resource));
   }
 
@@ -89,41 +90,91 @@ List<IdeScmTreeNode> ideScmTree(
         finish(child as IdeScmTreeFolder);
       }
     }
-    folder.children.sort(_compareNodes);
+    _sortNodes(folder.children);
   }
 
   finish(top);
   return top.children;
 }
 
-int _compareNodes(IdeScmTreeNode a, IdeScmTreeNode b) {
-  final aFolder = a is IdeScmTreeFolder;
-  final bFolder = b is IdeScmTreeFolder;
-  if (aFolder != bFolder) return aFolder ? -1 : 1;
-  String name(IdeScmTreeNode node) => switch (node) {
-    IdeScmTreeFolder(:final label) => label,
-    IdeScmTreeFile(:final resource) => p.basename(resource.path),
-  };
-  return ideCompareFileNames(name(a), name(b));
+final _trees = Expando<Map<IdeGitGroup, List<IdeScmTreeNode>>>();
+
+/// [group]'s tree in [state] ([ideScmTree] with folders compacted), built
+/// once per state: every view of it and every row asking share it.
+List<IdeScmTreeNode> ideScmGroupTree(IdeGitState state, IdeGitGroup group) =>
+    (_trees[state] ??= {})[group] ??= ideScmTree(
+      state.root,
+      state.group(group),
+    );
+
+/// Sorts [nodes] by [_compareNodes], each one's name split once rather than
+/// at every comparison.
+void _sortNodes(List<IdeScmTreeNode> nodes) {
+  if (nodes.length < 2) return;
+  final keyed = [
+    for (final node in nodes)
+      (
+        node,
+        IdeFileNameKey(switch (node) {
+          IdeScmTreeFolder(:final label) => label,
+          IdeScmTreeFile(:final resource) => ideGitBasename(resource.path),
+        }),
+      ),
+  ];
+  keyed.sort((a, b) {
+    final aFolder = a.$1 is IdeScmTreeFolder;
+    final bFolder = b.$1 is IdeScmTreeFolder;
+    if (aFolder != bFolder) return aFolder ? -1 : 1;
+    return a.$2.compareTo(b.$2);
+  });
+  for (var i = 0; i < nodes.length; i++) {
+    nodes[i] = keyed[i].$1;
+  }
 }
 
-final _digits = RegExp(r'\d+|\D+');
+/// A name as [ideCompareFileNames] compares it: its runs of digits and of
+/// other characters, lowercased, the digits' values; for sorting many names,
+/// each split once.
+class IdeFileNameKey implements Comparable<IdeFileNameKey> {
+  IdeFileNameKey(this.name) {
+    // Its runs of ASCII digits and of anything else (`\d+|\D+`).
+    final lower = name.toLowerCase();
+    var start = 0;
+    while (start < lower.length) {
+      final digits = _isDigit(lower.codeUnitAt(start));
+      var end = start + 1;
+      while (end < lower.length && _isDigit(lower.codeUnitAt(end)) == digits) {
+        end++;
+      }
+      final part = lower.substring(start, end);
+      parts.add(part);
+      numbers.add(digits ? int.tryParse(part) : null);
+      start = end;
+    }
+  }
+
+  static bool _isDigit(int unit) => unit >= 0x30 && unit <= 0x39;
+
+  final String name;
+  final List<String> parts = [];
+  final List<int?> numbers = [];
+
+  @override
+  int compareTo(IdeFileNameKey other) {
+    for (var i = 0; i < parts.length && i < other.parts.length; i++) {
+      final x = numbers[i];
+      final y = other.numbers[i];
+      final order = x != null && y != null
+          ? x.compareTo(y)
+          : parts[i].compareTo(other.parts[i]);
+      if (order != 0) return order;
+    }
+    final order = parts.length.compareTo(other.parts.length);
+    return order != 0 ? order : name.compareTo(other.name);
+  }
+}
 
 /// `compareFileNames`: case-insensitive, numbers by value (`file2` before
 /// `file10`), then by case.
-int ideCompareFileNames(String a, String b) {
-  final aParts = _digits.allMatches(a.toLowerCase()).map((m) => m[0]!).toList();
-  final bParts = _digits.allMatches(b.toLowerCase()).map((m) => m[0]!).toList();
-  for (var i = 0; i < aParts.length && i < bParts.length; i++) {
-    final x = aParts[i];
-    final y = bParts[i];
-    final xNumber = int.tryParse(x);
-    final yNumber = int.tryParse(y);
-    final order = xNumber != null && yNumber != null
-        ? xNumber.compareTo(yNumber)
-        : x.compareTo(y);
-    if (order != 0) return order;
-  }
-  final order = aParts.length.compareTo(bParts.length);
-  return order != 0 ? order : a.compareTo(b);
-}
+int ideCompareFileNames(String a, String b) =>
+    IdeFileNameKey(a).compareTo(IdeFileNameKey(b));

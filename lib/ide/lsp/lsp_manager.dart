@@ -791,9 +791,39 @@ class LspManager extends ChangeNotifier
     }
   }
 
+  /// How many file changes wait to be told at most, and how many are told
+  /// at once (VS Code's watcher's throttle: `maxBufferedWork` and
+  /// `maxWorkChunkSize`): a folder whose files keep changing (a home folder
+  /// opened, a build) drops what is past it rather than holding up the
+  /// window matching them.
+  static const maxBufferedFileEvents = 30000;
+  static const fileEventChunk = 500;
+
+  /// Whether a change at [path] is in a folder VS Code does not watch
+  /// (`files.watcherExclude`'s defaults): Git's objects and subtree cache,
+  /// the files of a package in `node_modules`, Mercurial's store.
+  bool _watchExcluded(String path) {
+    final separator = _paths.separator;
+    bool under(String folder, {bool deeper = false}) {
+      final marker = '$separator$folder$separator';
+      final at = path.indexOf(marker);
+      if (at < 0) return false;
+      return !deeper || path.indexOf(separator, at + marker.length) >= 0;
+    }
+
+    return under('node_modules', deeper: true) ||
+        under('.git${separator}objects') ||
+        under('.git${separator}subtree-cache') ||
+        under('.hg${separator}store');
+  }
+
   void _fileChanged(LspFileEvent event) {
+    if (_watchExcluded(event.path)) return;
     final path = _normalize(event.path);
     final previous = _fileEvents[path];
+    if (previous == null && _fileEvents.length >= maxBufferedFileEvents) {
+      return;
+    }
     final type = switch ((previous, event.type)) {
       (LspFileChangeType.created, LspFileChangeType.changed) =>
         LspFileChangeType.created,
@@ -810,13 +840,22 @@ class LspManager extends ChangeNotifier
     _fileEventTimer ??= Timer(watchDebounce, _flushFileEvents);
   }
 
+  /// Tells the servers the first [fileEventChunk] changes waiting; the
+  /// rest after another [watchDebounce].
   void _flushFileEvents() {
     _fileEventTimer = null;
     final events = [
-      for (final MapEntry(:key, :value) in _fileEvents.entries)
+      for (final MapEntry(:key, :value) in _fileEvents.entries.take(
+        fileEventChunk,
+      ))
         LspFileEvent(key, value),
     ];
-    _fileEvents.clear();
+    for (final event in events) {
+      _fileEvents.remove(event.path);
+    }
+    if (_fileEvents.isNotEmpty) {
+      _fileEventTimer = Timer(watchDebounce, _flushFileEvents);
+    }
     for (final server in _servers.values) {
       final client = server.client;
       if (client == null || !client.isInitialized) continue;
@@ -824,19 +863,33 @@ class LspManager extends ChangeNotifier
       if (watchers.isEmpty) continue;
       client.didChangeWatchedFiles([
         for (final event in events)
-          if (watchers.any(
-            (w) =>
-                w.matches(event.path, event.type) ||
-                (_paths.isWithin(server.root, event.path) &&
-                    w.basePath == null &&
-                    w.matches(
-                      _paths.relative(event.path, from: server.root),
-                      event.type,
-                    )),
-          ))
-            event,
+          if (_watched(watchers, server.root, event)) event,
       ]);
     }
+  }
+
+  /// Whether one of [watchers] (of a server at [root]) watches [event]: by
+  /// its path, or one without a base by the path under [root] (worked out
+  /// once, not for each watcher).
+  bool _watched(
+    List<LspFileWatcher> watchers,
+    String root,
+    LspFileEvent event,
+  ) {
+    String? relative;
+    var inRoot = false;
+    var known = false;
+    for (final watcher in watchers) {
+      if (watcher.matches(event.path, event.type)) return true;
+      if (watcher.basePath != null) continue;
+      if (!known) {
+        known = true;
+        inRoot = _paths.isWithin(root, event.path);
+        if (inRoot) relative = _paths.relative(event.path, from: root);
+      }
+      if (inRoot && watcher.matches(relative!, event.type)) return true;
+    }
+    return false;
   }
 
   // Answers.

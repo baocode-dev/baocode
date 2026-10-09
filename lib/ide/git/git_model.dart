@@ -235,6 +235,7 @@ class IdeGitState {
     required this.head,
     required List<IdeGitResource> resources,
     List<String> ignored = const [],
+    this.didHitLimit = false,
   }) : resources = List.unmodifiable(resources),
        ignored = List.unmodifiable(ignored);
 
@@ -248,10 +249,23 @@ class IdeGitState {
   /// Ignored paths (absolute): files, and folders ignored as a whole.
   final List<String> ignored;
 
-  List<IdeGitResource> group(IdeGitGroup group) => [
-    for (final resource in resources)
-      if (resource.group == group) resource,
-  ];
+  /// Whether there were more changes than were read (VS Code's
+  /// `didHitLimit`): [resources] are the first of them, and [ignored] may
+  /// miss some.
+  final bool didHitLimit;
+
+  /// [group]'s resources, in status order (read once).
+  List<IdeGitResource> group(IdeGitGroup group) => _groups[group.index];
+
+  late final List<List<IdeGitResource>> _groups = () {
+    final groups = [for (final _ in IdeGitGroup.values) <IdeGitResource>[]];
+    for (final resource in resources) {
+      groups[resource.group.index].add(resource);
+    }
+    return [
+      for (final group in groups) List<IdeGitResource>.unmodifiable(group),
+    ];
+  }();
 
   /// `setCountBadge` with `git.countBadge: all`: every resource of every
   /// group.
@@ -310,16 +324,18 @@ class IdeGitDecorations {
         if (resource.group == group) _files[resource.path] = resource.status;
       }
     }
+    final root = state.root;
     for (final MapEntry(key: path, value: status) in _files.entries) {
-      if (!status.propagates) continue;
-      var folder = p.dirname(path);
-      while (p.isWithin(state.root, folder) || p.equals(folder, state.root)) {
+      if (!status.propagates || !ideGitIsWithin(root, path)) continue;
+      var folder = ideGitDirname(path);
+      while (true) {
         final current = _folders[folder];
-        if (current == null || status.priority > current.priority) {
-          _folders[folder] = status;
-        }
-        if (p.equals(folder, state.root)) break;
-        folder = p.dirname(folder);
+        // A folder's is its folders' too: from here up, they have it.
+        if (current != null && current.priority >= status.priority) break;
+        _folders[folder] = status;
+        // Up to the root, which is as long only when it is the root.
+        if (folder.length <= root.length) break;
+        folder = ideGitDirname(folder);
       }
     }
     for (final ignored in state.ignored) {
@@ -377,9 +393,43 @@ class IdeGitDecorations {
   }
 }
 
+final _posix = p.style == p.Style.posix;
+
+/// [p.dirname] of a status's path (normalized, absolute): on POSIX without
+/// package:path's parsing, which its tens of thousands of paths, each
+/// walked up, would make a frame's work.
+String ideGitDirname(String path) {
+  if (_posix && !path.endsWith('/')) {
+    final slash = path.lastIndexOf('/');
+    if (slash > 0) return path.substring(0, slash);
+  }
+  return p.dirname(path);
+}
+
+/// [p.basename] of a status's path, as [ideGitDirname].
+String ideGitBasename(String path) => _posix && !path.endsWith('/')
+    ? path.substring(path.lastIndexOf('/') + 1)
+    : p.basename(path);
+
+/// [p.isWithin] for a status's paths under [root], as [ideGitDirname].
+bool ideGitIsWithin(String root, String path) {
+  if (_posix) {
+    final prefix = root.endsWith('/') ? root : '$root/';
+    if (path.length > prefix.length && path.startsWith(prefix)) return true;
+  }
+  return p.isWithin(root, path);
+}
+
 /// `git status -z --porcelain=v1 --branch` (with ignored entries) as
 /// resources in groups, like `Repository.updateModelState`.
-IdeGitState parseGitStatus(String root, String output) {
+/// [truncated]: the output stops at a record's end, after which there were
+/// more ([IdeGitState.didHitLimit]); a rename's record cut from its source
+/// is left out.
+IdeGitState parseGitStatus(
+  String root,
+  String output, {
+  bool truncated = false,
+}) {
   var head = const IdeGitHead();
   final resources = <IdeGitResource>[];
   final ignored = <String>[];
@@ -392,8 +442,19 @@ IdeGitState parseGitStatus(String root, String output) {
     return value;
   }
 
-  String absolute(String relative) =>
-      p.normalize(p.join(root, p.joinAll(relative.split('/'))));
+  // Git's paths are relative, `/`-separated and normalized but for an
+  // ignored folder's trailing slash: on POSIX, joined as they are.
+  final posix = p.style == p.Style.posix && p.isAbsolute(root);
+  final prefix = root.endsWith('/') ? root : '$root/';
+  String absolute(String relative) {
+    if (posix) {
+      final end = relative.endsWith('/')
+          ? relative.length - 1
+          : relative.length;
+      return end == 0 ? p.normalize(root) : prefix + relative.substring(0, end);
+    }
+    return p.normalize(p.join(root, p.joinAll(relative.split('/'))));
+  }
 
   while (offset < output.length) {
     final record = field();
@@ -408,7 +469,10 @@ IdeGitState parseGitStatus(String root, String output) {
     final y = record[1];
     final relative = record.substring(3);
     String? original;
-    if (x == 'R' || x == 'C') original = field();
+    if (x == 'R' || x == 'C') {
+      if (truncated && output.indexOf('\x00', offset) < 0) break;
+      original = field();
+    }
     final path = absolute(relative);
     final originalPath = original == null ? null : absolute(original);
     void add(IdeGitStatus status, IdeGitGroup group) => resources.add(
@@ -479,6 +543,7 @@ IdeGitState parseGitStatus(String root, String output) {
     head: head,
     resources: resources,
     ignored: ignored,
+    didHitLimit: truncated,
   );
 }
 

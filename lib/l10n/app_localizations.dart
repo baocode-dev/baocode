@@ -5864,6 +5864,12 @@ abstract class AppLocalizations {
   /// **'Changes'**
   String get scmChanges;
 
+  /// No description provided for @scmTooManyChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'This repository has too many changes: only the first {count} are shown, and file changes no longer refresh them. Use Refresh to read them again.'**
+  String scmTooManyChanges(int count);
+
   /// No description provided for @scmGroupMerge.
   ///
   /// In en, this message translates to:

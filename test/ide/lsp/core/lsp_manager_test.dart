@@ -440,6 +440,50 @@ void main() {
     ]);
   });
 
+  test('watched files: not those of folders VS Code does not watch; many '
+      'told a chunk at a time, none lost', () async {
+    final events = StreamController<LspFileEvent>.broadcast();
+    addTearDown(events.close);
+    final lsp = manager([
+      fakeServer(
+        'fake',
+        options: {
+          'watchers': [
+            {'globPattern': '**/*.txt'},
+          ],
+        },
+      ),
+    ], watch: (_) => events.stream);
+    final (_, doc) = await open(lsp, 'a.fake', 'word\n');
+    await running(lsp, doc.path);
+    await until(() => events.hasListener);
+    const many = LspManager.fileEventChunk * 2 + 1;
+    for (var i = 0; i < many; i++) {
+      events.add(
+        LspFileEvent(
+          p.join(root, 'many', 'f$i.txt'),
+          LspFileChangeType.created,
+        ),
+      );
+    }
+    for (final excluded in [
+      p.join(root, 'node_modules', 'pkg', 'lib', 'a.txt'),
+      p.join(root, '.git', 'objects', 'b.txt'),
+    ]) {
+      events.add(LspFileEvent(excluded, LspFileChangeType.changed));
+    }
+    final package = p.join(root, 'node_modules', 'c.txt');
+    events.add(LspFileEvent(package, LspFileChangeType.changed));
+    await until(() async {
+      final server = await state(lsp, 'fake', doc.path);
+      return (server['watched']! as List).length >= many + 1;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    final watched = (await state(lsp, 'fake', doc.path))['watched']! as List;
+    expect(watched, hasLength(many + 1));
+    expect(watched.last, {'uri': uri(package), 'type': 2});
+  });
+
   test('several servers: answers merge in the language order', () async {
     final lsp = manager([
       fakeServer('a'),

@@ -96,7 +96,10 @@ void main() {
     });
 
     test('a heading\'s anchor in a file is the file', () {
-      expect(FileLink.parseHref('README.md#usage'), const FileLink('README.md'));
+      expect(
+        FileLink.parseHref('README.md#usage'),
+        const FileLink('README.md'),
+      );
     });
 
     test('not a file: the web, mail, other schemes, an anchor, nothing', () {
@@ -217,16 +220,22 @@ see also `pubspec.yaml` and [the site](https://baocode.dev).
     final links = [for (final href in hrefs) FileLink.parseHref(href)];
     expect(links, [
       const FileLink('lib/chat/chat_screen.dart', FileLineRange(42)),
-      const FileLink('lib/chat/panels/activity_strip.dart', FileLineRange(10, 30)),
+      const FileLink(
+        'lib/chat/panels/activity_strip.dart',
+        FileLineRange(10, 30),
+      ),
       const FileLink('docs/release notes.md', FileLineRange(3)),
       null,
       const FileLink('lib/workbench.dart', FileLineRange(2530)),
     ]);
-    expect([for (final text in code) FileLink.parseText(text)], [
-      const FileLink('lib/main.dart', FileLineRange(12)),
-      const FileLink('pubspec.yaml'),
-      null,
-    ]);
+    expect(
+      [for (final text in code) FileLink.parseText(text)],
+      [
+        const FileLink('lib/main.dart', FileLineRange(12)),
+        const FileLink('pubspec.yaml'),
+        null,
+      ],
+    );
   });
 
   test('Claude Code is asked to point at files as links the chat opens', () {
@@ -248,17 +257,23 @@ see also `pubspec.yaml` and [the site](https://baocode.dev).
       '[notes.md](<docs/release notes.md#L3>) '
       '[chat_screen.dart:42](lib/chat/chat_screen.dart#L42)',
     );
-    expect([for (final href in hrefs) FileLink.parseHref(href)], [
-      const FileLink('docs/release notes.md', FileLineRange(3)),
-      const FileLink('lib/chat/chat_screen.dart', FileLineRange(42)),
-    ]);
+    expect(
+      [for (final href in hrefs) FileLink.parseHref(href)],
+      [
+        const FileLink('docs/release notes.md', FileLineRange(3)),
+        const FileLink('lib/chat/chat_screen.dart', FileLineRange(42)),
+      ],
+    );
   });
 
   group('a file\'s diff', () {
     test('every line, those removed before those added in their place', () {
       final rows = fileDiff('a\nb\nc\n', 'a\nB\nc\nd\n');
       expect(
-        [for (final row in rows) (row.type, row.text, row.original, row.modified)],
+        [
+          for (final row in rows)
+            (row.type, row.text, row.original, row.modified),
+        ],
         [
           (DiffLineType.context, 'a', 1, 1),
           (DiffLineType.removed, 'b', 2, null),
@@ -278,6 +293,21 @@ see also `pubspec.yaml` and [the site](https://baocode.dev).
         [for (final row in fileDiff('x\r\ny\r\n', '')) (row.type, row.text)],
         [(DiffLineType.removed, 'x'), (DiffLineType.removed, 'y')],
       );
+    });
+
+    test('past a few thousand characters it is compared off this isolate, '
+        'the same rows', () async {
+      String text(String word) =>
+          [for (var i = 0; i < 60; i++) '$word $i ${'z' * 50}'].join('\n');
+      final (before, after) = (text('before'), text('after'));
+      List<(DiffLineType, String)> of(List<FileDiffRow> rows) => [
+        for (final row in rows) (row.type, row.text),
+      ];
+      expect(
+        of(await fileDiffAsync(before, after)),
+        of(fileDiff(before, after)),
+      );
+      expect(of(await fileDiffAsync('a\n', 'b\n')), of(fileDiff('a\n', 'b\n')));
     });
   });
 }

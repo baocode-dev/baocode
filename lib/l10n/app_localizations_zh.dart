@@ -3202,6 +3202,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scmChanges => '更改';
 
   @override
+  String scmTooManyChanges(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return '此仓库的更改过多：仅显示前 $countString 项，文件变化时也不再自动刷新。需要时请手动刷新。';
+  }
+
+  @override
   String get scmGroupMerge => '合并更改';
 
   @override

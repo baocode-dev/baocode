@@ -2246,6 +2246,15 @@
   "scmNoRepository": "The folder currently open doesn't have a Git repository. You can initialize a repository which will enable source control features powered by Git.",
   "scmInitializeRepository": "Initialize Repository",
   "scmChanges": "Changes",
+  "scmTooManyChanges": "This repository has too many changes: only the first {count} are shown, and file changes no longer refresh them. Use Refresh to read them again.",
+  "@scmTooManyChanges": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
   "scmGroupMerge": "Merge Changes",
   "scmGroupStaged": "Staged Changes",
   "scmGraph": "Graph",

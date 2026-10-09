@@ -12,11 +12,11 @@
 //
 // Deviations: until the diff is computed again, an edit does not move it
 // (upstream's `applyModifiedEdits`); the diff is computed on this isolate
-// for documents up to 10000 lines; no moved code, hidden unchanged regions,
-// word wrap, or other view zones to align with.
+// for a few thousand characters ([isSmallLinesDiff]), one at a time on
+// another past them; no moved code, hidden unchanged regions, word wrap, or
+// other view zones to align with.
 
 import 'dart:async';
-import 'dart:isolate';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -30,6 +30,7 @@ import '../vs/editor/common/diff/range_mapping.dart';
 import 'document_snapshot.dart';
 import 'editor_decorations.dart';
 import 'editor_document_model.dart';
+import 'lines_diff.dart';
 
 /// The diff between [original] (null while it loads) and [modified]'s text.
 class DiffEditorModel extends ChangeNotifier {
@@ -51,9 +52,6 @@ class DiffEditorModel extends ChangeNotifier {
   final bool ignoreTrimWhitespace;
   final int maxComputationTimeMs;
 
-  /// Documents with more lines than this are compared on another isolate.
-  static const isolateLineCount = 10000;
-
   /// How long after an edit the diff is computed again.
   static const debounce = Duration(milliseconds: 200);
 
@@ -61,6 +59,12 @@ class DiffEditorModel extends ChangeNotifier {
   Timer? _timer;
   int _request = 0;
   bool _disposed = false;
+
+  /// Whether a diff is being computed on another isolate, and whether the
+  /// texts changed since it started: one at a time, the last texts next,
+  /// not one more for each edit while one runs.
+  bool _computing = false;
+  bool _again = false;
 
   /// The original's text as a document; null while it loads.
   DocumentSnapshot? get originalSnapshot => _originalSnapshot;
@@ -89,6 +93,10 @@ class DiffEditorModel extends ChangeNotifier {
   Future<void> _compute() async {
     final originalSnapshot = _originalSnapshot;
     if (originalSnapshot == null || _disposed) return;
+    if (_computing) {
+      _again = true;
+      return;
+    }
     final request = ++_request;
     final originalLines = _lines(originalSnapshot);
     final modifiedLines = _lines(modified.snapshot);
@@ -97,25 +105,36 @@ class DiffEditorModel extends ChangeNotifier {
       maxComputationTimeMs: maxComputationTimeMs,
     );
     LinesDiff diff;
-    if (originalLines.length + modifiedLines.length > isolateLineCount) {
-      diff = await Isolate.run(
-        () => DefaultLinesDiffComputer().computeDiff(
-          originalLines,
-          modifiedLines,
-          options,
-        ),
-      );
-    } else {
+    if (isSmallLinesDiff(originalLines, modifiedLines)) {
       diff = DefaultLinesDiffComputer().computeDiff(
         originalLines,
         modifiedLines,
         options,
       );
+    } else {
+      _computing = true;
+      try {
+        diff = await computeLinesDiffOnIsolate(
+          originalLines,
+          modifiedLines,
+          options,
+        );
+      } finally {
+        _computing = false;
+      }
     }
-    if (_disposed || request != _request) return;
-    _mappings = diff.changes;
-    _hitTimeout = diff.hitTimeout;
-    notifyListeners();
+    if (_disposed) return;
+    // Shown though the texts changed since: closer than the last one, until
+    // theirs.
+    if (request == _request) {
+      _mappings = diff.changes;
+      _hitTimeout = diff.hitTimeout;
+      notifyListeners();
+    }
+    if (_again) {
+      _again = false;
+      unawaited(_compute());
+    }
   }
 
   static List<String> _lines(DocumentSnapshot snapshot) => [

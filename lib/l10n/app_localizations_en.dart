@@ -3418,6 +3418,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scmChanges => 'Changes';
 
   @override
+  String scmTooManyChanges(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    return 'This repository has too many changes: only the first $countString are shown, and file changes no longer refresh them. Use Refresh to read them again.';
+  }
+
+  @override
   String get scmGroupMerge => 'Merge Changes';
 
   @override
