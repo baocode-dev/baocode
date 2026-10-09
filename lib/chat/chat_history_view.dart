@@ -1855,6 +1855,18 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
     return result;
   }
 
+  /// Clearing a piece of text can take it off the list: a [Text] given new
+  /// text this frame (the status row's) has none until its own container
+  /// takes the new text in, so it unregisters. Each is cleared from a copy
+  /// first, so the list stays put under the clearing that follows.
+  @override
+  SelectionResult handleClearSelection(ClearSelectionEvent event) {
+    for (final selectable in selectables.toList()) {
+      dispatchSelectionEventToChild(selectable, event);
+    }
+    return super.handleClearSelection(event);
+  }
+
   /// [StaticSelectionContainerDelegate] replays the last edge positions to
   /// text that joins the selection, assuming nothing moves; in a list it
   /// does, so give it where the edges are now.

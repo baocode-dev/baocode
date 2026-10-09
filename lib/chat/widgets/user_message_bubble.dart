@@ -118,6 +118,12 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
   final _selection = _MessageSelectionDelegate();
   Offset? _pressedAt;
 
+  /// The bubble's, moved rather than built anew as the message leaves the
+  /// queue: a selection container built anew around [_selection] would ask
+  /// it about text still laid out in the old one, before it has a size of
+  /// its own, and fail to build.
+  final GlobalKey _bubbleKey = GlobalKey();
+
   @override
   void dispose() {
     _selection.dispose();
@@ -152,7 +158,7 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
 
   @override
   Widget build(BuildContext context) {
-    final bubble = _buildBubble(context);
+    final bubble = KeyedSubtree(key: _bubbleKey, child: _buildBubble(context));
     if (!widget.queued) return bubble;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -385,9 +391,11 @@ class _MessageSelectionDelegate extends SelectionContainerDelegate
   // Text.rich owns the fragment and inline-tag selection beneath this boundary.
   Selectable? _text;
 
+  /// Text built anew comes in before the text it replaces goes (that goes
+  /// once the frame is built): the newer one stays.
   @override
   void add(Selectable selectable) {
-    assert(_text == null);
+    _text?.removeListener(notifyListeners);
     _text = selectable;
     selectable.addListener(notifyListeners);
     notifyListeners();
@@ -395,8 +403,8 @@ class _MessageSelectionDelegate extends SelectionContainerDelegate
 
   @override
   void remove(Selectable selectable) {
-    assert(_text == selectable);
     selectable.removeListener(notifyListeners);
+    if (selectable != _text) return;
     _text = null;
     notifyListeners();
   }
