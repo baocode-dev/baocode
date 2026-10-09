@@ -1,0 +1,27 @@
+{
+  "name": "scm-fixture",
+  "displayName": "SCM Fixture",
+  "publisher": "baocode-test",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "extensionDependencies": ["vscode.git"],
+  "contributes": {
+    "commands": [
+      { "command": "scmFixture.state", "title": "State" },
+      { "command": "scmFixture.open", "title": "Open" },
+      { "command": "scmFixture.commit", "title": "Commit" },
+      { "command": "scmFixture.stage", "title": "Stage", "icon": "$(add)" }
+    ],
+    "menus": {
+      "scm/resourceState/context": [
+        {
+          "command": "scmFixture.stage",
+          "group": "inline",
+          "when": "scmProvider == fixture"
+        }
+      ]
+    }
+  }
+}

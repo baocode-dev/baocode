@@ -114,13 +114,20 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   `terminateTask` and task events for extensions, the Tasks commands and output channel, and the debugger's
   preLaunchTask/postDebugTask runner (`debug.onTaskErrors`, remembered choices, slow-task notice). Tests:
   `test/extensions/tasks/` (real shells, scripted RPC) and `tasks_exthost_test.dart` (real REH and fixture).
+- Source control (lib/extensions/scm, lib/extensions/main_thread/main_thread_scm.dart): extensions' source controls
+  with groups, resource splices, decorations, input box (validation, accept input command), action button and count, as
+  panes in the Source Control view after BaoCode's Git panes, with `scm/title`, `scm/resourceGroup/context` and
+  `scm/resourceState/context` menus. The built-in Git extension runs (its API sees the repository) and its provider is
+  received but not shown. Tests: `test/extensions/scm/` (scripted, widget) and `scm_exthost_test.dart` (real REH).
 
 ## In progress / next
 
 1. Editor-feature rendering from the registry is complete (CodeLens, inlay hints, inline completions, highlights,
    folding, links, colors).
 2. Complete real-extension debugging acceptance beyond Node launch/attach (Python, Go, Rust/C++, debugger controls,
-   breakpoint variants and preLaunchTask in a real session). Implement SCM and testing actors.
+   breakpoint variants and preLaunchTask in a real session). Implement the testing actor, language status items
+   (`$setLanguageStatus` is still unsupported) and the accept-only actors real extensions call (timeline, language
+   model tools, profile content handlers).
 3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
    bao_remote LSP, docs and l10n), after replacing its language capability coverage.
 4. SSH remote: REH on the remote through bao_remote port forwarding, with the extensionKind split.
@@ -157,6 +164,9 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - `TerminalShellExecution.read()` is cut from the process data at the OSC 633/133 `C`/`D` sequences rather than from
   xterm's post-parse data events, so a fast command's output is not lost when C, output and D arrive in one chunk.
 - `test/ide/terminal/terminal_color_theme_test.dart` fails on the branch base too (pixel sampling).
+- SCM: no quick diff, history or artifact providers from extensions (BaoCode's gutter and graph read Git); the input
+  box is a plain text field (no `vscode-sourcecontrol:` model); resources are a list (no tree mode), single selection.
+  Calls to actors BaoCode does not implement at all are counted in `ExtHostParity` as `Actor.$method`.
 - Extension pages show over the editors (not as editor tabs): BaoCode's tabs are documents.
 - A multi-folder workspace runs one extension host on its first folder for now.
 - Keybindings: the keybinding service holds one set of extension keybindings, the visible workbench's.

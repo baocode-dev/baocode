@@ -73,6 +73,7 @@ import '../main_thread/main_thread_debug_service.dart';
 import '../main_thread/main_thread_file_system.dart' show ExtensionActivator;
 import '../main_thread/main_thread_decorations.dart';
 import '../main_thread/main_thread_message_service.dart';
+import '../main_thread/main_thread_scm.dart';
 import '../main_thread/main_thread_task.dart';
 import '../main_thread/main_thread_terminal_service.dart';
 import '../main_thread/main_thread_terminal_shell_integration.dart';
@@ -81,6 +82,7 @@ import '../main_thread/window_customers.dart';
 import '../main_thread/workspace_customers.dart';
 import '../runtime/extension_runtime_service.dart';
 import '../recommendations/recommendations.dart';
+import '../scm/scm_service.dart';
 import '../search/search_service.dart';
 import '../tasks/task_service.dart';
 import '../ui/extensions_model.dart';
@@ -414,6 +416,9 @@ final class WorkspaceExtensions extends ChangeNotifier {
   final RunningExtensionsService running = RunningExtensionsService();
   final LanguageStatusService languageStatus = LanguageStatusService();
   final ExtensionWebviewPlaceholders webviews = ExtensionWebviewPlaceholders();
+
+  /// The source controls extensions register.
+  final ScmService scm = ScmService();
   final SearchService search = SearchService();
   late final FileService files = FileService()
     ..registerProvider('file', DiskFileSystemProvider());
@@ -702,10 +707,12 @@ final class WorkspaceExtensions extends ChangeNotifier {
         MainContext.mainThreadTerminalShellIntegration.nid:
             MainThreadTerminalShellIntegration.customer,
         MainContext.mainThreadTask.nid: MainThreadTask.customer,
+        MainContext.mainThreadSCM.nid: MainThreadSCM.customer,
       },
       services: {
         DebugService: debug,
         TaskService: tasks.service,
+        ScmService: scm,
         ExtensionTerminals: terminals,
         WorkspaceTrustService: trust,
         ExtensionCommandRegistry: commands,
@@ -1152,6 +1159,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
       workspace.extensionDocuments = null;
     }
     _tasks?.dispose();
+    scm.dispose();
     _debugHost?.dispose();
     _debugShutdown = () async {
       await _host?.context?.dispose();

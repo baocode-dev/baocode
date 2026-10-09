@@ -9,6 +9,18 @@ part of 'ide_workbench.dart';
 extension _ExtensionsPart on IdeWorkbenchState {
   WorkspaceExtensions? get _workspaceExtensions => widget.extensions;
 
+  /// The extensions' source controls in the Source Control view.
+  ExtensionScmUi? _extensionScm() => switch (widget.extensions) {
+    final extensions? => ExtensionScmUi(
+      service: extensions.scm,
+      menus: extensions.menus,
+      contextKeys: extensions.contextKeys,
+      executeCommand: extensions.commands.executeCommand,
+      onError: (message) => _notifications.notify(IdeSeverity.error, message),
+    ),
+    null => null,
+  };
+
   void _syncDebugListener() {
     final debug = _debug;
     if (identical(debug, _listenedDebug)) return;

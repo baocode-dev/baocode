@@ -23,6 +23,7 @@ import 'dart:typed_data';
 
 import '../base/cancellation.dart';
 import '../ipc/ipc.dart' show MessagePassingProtocol;
+import '../parity.dart';
 
 /// `MessageType`.
 abstract final class RpcMessageType {
@@ -309,7 +310,11 @@ final class RpcProtocol {
     try {
       final actor = _locals[rpcId];
       if (actor == null) {
-        throw RpcUnsupported('Unknown actor ${actorNames[rpcId] ?? rpcId}');
+        final name = actorNames[rpcId] ?? '$rpcId';
+        // Counted with the shapes' unsupported methods: a whole actor
+        // BaoCode does not implement.
+        ExtHostParity.instance.recordUnsupported(name, method);
+        throw RpcUnsupported('Unknown actor $name');
       }
       result = Future.sync(() => actor.invoke(method, args));
     } on Object catch (e, st) {

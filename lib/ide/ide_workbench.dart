@@ -48,6 +48,7 @@ import '../extensions/menus/menu_widgets.dart'
     show ideMenuActionIcon, ideMenuActionImage, ideMenuGroupsOf;
 import '../extensions/views/tree_view_widget.dart';
 import '../extensions/views/view_contributions.dart';
+import '../extensions/scm/scm_view.dart';
 import '../extensions/workbench/workspace_extensions.dart';
 import '../keybindings/vscode_import.dart' show VsCodeInstalls;
 import '../platform/data_dir.dart';
@@ -3364,6 +3365,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       onRevealInExplorer: _revealInExplorer,
       trash: WindowControls.canMoveToTrash ? WindowControls.moveToTrash : null,
       commitMessage: widget.commitMessage,
+      extensionScm: _extensionScm(),
     ),
     IdeSideView.debug => switch (_debug) {
       final debug? => DebugView(
