@@ -258,6 +258,7 @@ class IdeEditorState extends State<IdeEditor> {
     super.initState();
     _path = widget.active.path;
     _controller.addListener(_selectionChanged);
+    _focusNode.addListener(_shownViewChanged);
     _findController.addListener(_refreshFindResults);
     widget.workspace.addListener(_workspaceChanged);
     _themes.addListener(_colorThemeChanged);
@@ -1222,6 +1223,7 @@ class IdeEditorState extends State<IdeEditor> {
     _findFocusNode.dispose();
     _replaceFocusNode.dispose();
     _controller.dispose();
+    _focusNode.removeListener(_shownViewChanged);
     _focusNode.dispose();
     _areaFocusNode.dispose();
     _scrollController.dispose();

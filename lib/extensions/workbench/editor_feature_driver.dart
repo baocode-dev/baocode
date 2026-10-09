@@ -22,10 +22,13 @@ import 'dart:async';
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:bao_editor/monaco/flutter/editor_code_lens.dart';
+import 'package:bao_editor/monaco/flutter/editor_decoration_types.dart'
+    show EditorDecorationTypeRegistry;
 import 'package:bao_editor/monaco/flutter/editor_inlay_hints.dart';
 import 'package:bao_editor/monaco/flutter/editor_inline_suggest.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/common/decoration_render_options.dart';
 import 'package:bao_editor/monaco/vs/editor/contrib/snippet/browser/snippet_parser.dart';
 import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 
@@ -49,6 +52,7 @@ final class ExtensionEditorFeatureDriver {
     this.setting,
     this.codeLensDelay = const Duration(milliseconds: 250),
     this.inlayHintsDelay = const Duration(milliseconds: 250),
+    this.highlightDelay = const Duration(milliseconds: 250),
     this.inlineDelay = const Duration(milliseconds: 50),
   }) {
     views.addListener(_activeChanged);
@@ -74,7 +78,14 @@ final class ExtensionEditorFeatureDriver {
 
   final Duration codeLensDelay;
   final Duration inlayHintsDelay;
+  final Duration highlightDelay;
   final Duration inlineDelay;
+
+  static const _highlightColors = {
+    'baocode.occurrence.text': 'editor.wordHighlightTextBackground',
+    'baocode.occurrence.read': 'editor.wordHighlightBackground',
+    'baocode.occurrence.write': 'editor.wordHighlightStrongBackground',
+  };
 
   late final StreamSubscription<IdeEditorView> _viewChanges;
   late final StreamSubscription<void> _providers;
@@ -83,10 +94,16 @@ final class ExtensionEditorFeatureDriver {
   final List<StreamSubscription<void>> _providerChanges = [];
   Timer? _codeLensTimer;
   Timer? _inlayTimer;
+  Timer? _highlightTimer;
   Timer? _inlineTimer;
   int _codeLensGeneration = 0;
   int _inlayGeneration = 0;
+  int _highlightGeneration = 0;
   int _inlineGeneration = 0;
+  DocumentSnapshot? _highlightSnapshot;
+  int? _highlightOffset;
+  bool? _highlightEnabled;
+  EditorDecorationTypeRegistry? _highlightTypes;
   ({int first, int last})? _inlayLines;
   List<InlineCompletionsResult> _inlineResults = const [];
   bool _disposed = false;
@@ -105,6 +122,7 @@ final class ExtensionEditorFeatureDriver {
     _view = view;
     if (view == null) return;
     final features = view.features;
+    _registerHighlightTypes(features.types);
     features.codeLens
       ..resolve = ((lens) => _resolveCodeLens(view, lens))
       ..onCommand = (lens, command) => unawaited(_run(command));
@@ -115,11 +133,33 @@ final class ExtensionEditorFeatureDriver {
     _changes = view.controller.document.changes.listen((event) {
       _scheduleCodeLens();
       _scheduleInlayHints();
+      _scheduleHighlights();
       if (!event.isUndoing && !event.isRedoing) _scheduleInline(event);
     });
     _watchProviders(view);
     _scheduleCodeLens(immediately: true);
     _scheduleInlayHints(immediately: true);
+    _scheduleHighlights(immediately: true);
+  }
+
+  void _registerHighlightTypes(EditorDecorationTypeRegistry types) {
+    if (identical(_highlightTypes, types)) return;
+    for (final key in _highlightColors.keys) {
+      _highlightTypes?.removeDecorationType(key);
+    }
+    _highlightTypes = types;
+    for (final entry in _highlightColors.entries) {
+      types.registerDecorationType(
+        entry.key,
+        DecorationRenderOptions(backgroundColor: ThemeColorValue(entry.value)),
+      );
+    }
+  }
+
+  void _clearHighlights(IdeEditorView view) {
+    for (final key in _highlightColors.keys) {
+      view.features.decorations.removeDecorationsByType(key);
+    }
   }
 
   void _detach() {
@@ -131,13 +171,19 @@ final class ExtensionEditorFeatureDriver {
     _providerChanges.clear();
     _codeLensTimer?.cancel();
     _inlayTimer?.cancel();
+    _highlightTimer?.cancel();
     _inlineTimer?.cancel();
     _codeLensGeneration++;
     _inlayGeneration++;
+    _highlightGeneration++;
     _inlineGeneration++;
     _inlayLines = null;
+    _highlightSnapshot = null;
+    _highlightOffset = null;
+    _highlightEnabled = null;
     final view = _view;
     if (view != null) {
+      _clearHighlights(view);
       view.features.codeLens
         ..resolve = null
         ..onCommand = null;
@@ -177,10 +223,13 @@ final class ExtensionEditorFeatureDriver {
     _watchProviders(view);
     _scheduleCodeLens();
     _scheduleInlayHints();
+    _highlightSnapshot = null;
+    _scheduleHighlights();
   }
 
   void _viewChanged(IdeEditorView view) {
     if (!identical(view, _view)) return;
+    _scheduleHighlights();
     final lines = view.visibleLines();
     if (lines == null) return;
     view.features.codeLens.viewportChanged(lines.first, lines.last);
@@ -320,6 +369,74 @@ final class ExtensionEditorFeatureDriver {
       await _run(command);
     } else if (part.part.location case final lang.Location location) {
       await openLocation(location.uri, location.range as Range);
+    }
+  }
+
+  // --- Document highlights -------------------------------------------------
+
+  void _scheduleHighlights({bool immediately = false}) {
+    final view = _view;
+    if (_disposed || view == null) return;
+    final snapshot = view.controller.document.snapshot;
+    final selections = view.controller.selections;
+    final offset =
+        view.hasFocus() &&
+            selections.length == 1 &&
+            selections.first.isCollapsed
+        ? selections.first.extentOffset
+        : null;
+    final preference = setting?.call(
+      'editor.occurrencesHighlight',
+      languageIdOf?.call(view.document.path),
+    );
+    final enabled = preference != false && preference != 'off';
+    if (identical(snapshot, _highlightSnapshot) &&
+        offset == _highlightOffset &&
+        enabled == _highlightEnabled) {
+      return;
+    }
+    _highlightSnapshot = snapshot;
+    _highlightOffset = offset;
+    _highlightEnabled = enabled;
+    _highlightTimer?.cancel();
+    final generation = ++_highlightGeneration;
+    if (offset == null || !enabled) {
+      _clearHighlights(view);
+      return;
+    }
+    _highlightTimer = Timer(
+      immediately ? Duration.zero : highlightDelay,
+      () => unawaited(_updateHighlights(view, snapshot, offset, generation)),
+    );
+  }
+
+  Future<void> _updateHighlights(
+    IdeEditorView view,
+    DocumentSnapshot snapshot,
+    int offset,
+    int generation,
+  ) async {
+    final highlights = await languages.documentHighlights(
+      view.document.path,
+      snapshot.positionAtOffset(offset),
+    );
+    if (_disposed ||
+        generation != _highlightGeneration ||
+        !identical(view, _view) ||
+        !identical(snapshot, view.controller.document.snapshot)) {
+      return;
+    }
+    for (final key in _highlightColors.keys) {
+      final kind = switch (key) {
+        'baocode.occurrence.read' => lang.DocumentHighlightKind.read,
+        'baocode.occurrence.write' => lang.DocumentHighlightKind.write,
+        _ => lang.DocumentHighlightKind.text,
+      };
+      view.features.decorations.setDecorations(key, [
+        for (final highlight in highlights ?? const <lang.DocumentHighlight>[])
+          if ((highlight.kind ?? lang.DocumentHighlightKind.text) == kind)
+            DecorationOptions(range: highlight.range as Range),
+      ]);
     }
   }
 
@@ -470,6 +587,10 @@ final class ExtensionEditorFeatureDriver {
   void dispose() {
     if (_disposed) return;
     _detach();
+    for (final key in _highlightColors.keys) {
+      _highlightTypes?.removeDecorationType(key);
+    }
+    _highlightTypes = null;
     _disposed = true;
     views.removeListener(_activeChanged);
     unawaited(_viewChanges.cancel());

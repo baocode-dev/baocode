@@ -66,6 +66,8 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - The bundled js-debug is exercised with the real REH and its Node runtime: `pwa-node` launch and attach both bind a
   breakpoint, stop in `add`, and expose local arguments (`test/extensions/workbench/workspace_debug_exthost_test.dart`,
   tagged `exthost`). Empty editor groups are announced before tab updates (`main_thread_editor_tabs_test.dart`).
+- Registry document highlights now paint read/write/text occurrences in the active editor, refresh on caret/content/provider
+  changes, and clear on blur or disabled settings (`test/extensions/workbench/editor_feature_driver_test.dart`).
 - Assembly (lib/extensions/workbench): `ExtensionsApp` (one per app) and `WorkspaceExtensions` (one per local IDE
   folder) over `IdeWorkspace` (`IdeTextEditors`, `IdeDocumentsPort`, `IdeWorkspaceEditApplier`); real-runtime test
   `test/extensions/workbench/workspace_extensions_exthost_test.dart` (TS diagnostics, completion, hover).

@@ -80,6 +80,38 @@ class _Hints extends InlayHintsProvider {
   }
 }
 
+class _Highlights extends DocumentHighlightProvider {
+  final positions = <Position>[];
+
+  @override
+  FutureOr<List<DocumentHighlight>?> provideDocumentHighlights(
+    LanguageFeatureDocument model,
+    Position position,
+    CancellationToken token,
+  ) {
+    positions.add(position);
+    return [
+      DocumentHighlight(Range(1, 1, 1, 6), kind: DocumentHighlightKind.read),
+      DocumentHighlight(Range(2, 1, 2, 8), kind: DocumentHighlightKind.write),
+    ];
+  }
+}
+
+class _DelayedHighlights extends DocumentHighlightProvider {
+  final requests = <Completer<List<DocumentHighlight>?>>[];
+
+  @override
+  Future<List<DocumentHighlight>?> provideDocumentHighlights(
+    LanguageFeatureDocument model,
+    Position position,
+    CancellationToken token,
+  ) {
+    final request = Completer<List<DocumentHighlight>?>();
+    requests.add(request);
+    return request.future;
+  }
+}
+
 class _Inline extends InlineCompletionsProvider {
   final shown = <String>[];
   int disposed = 0;
@@ -245,6 +277,78 @@ void main() {
       '${features.inlayHints.hints.single.position}',
       '${const Position(1, 6)}',
     );
+    await stop(tester);
+  });
+
+  testWidgets(
+    'provider document highlights follow the caret and clear on blur',
+    (tester) async {
+      final highlights = _Highlights();
+      service.documentHighlightProvider.register(ts, highlights);
+      start();
+      views.show(view);
+      await tester.pump(const Duration(milliseconds: 10));
+      expect(highlights.positions, hasLength(1));
+      final decorations = features.decorations.decorations.items.toList();
+      expect(decorations.map((item) => (item.start, item.end)), [
+        (0, 5),
+        (6, 13),
+      ]);
+      expect(
+        features.decorations.typeKeys,
+        contains('baocode.occurrence.read'),
+      );
+      expect(
+        features.decorations.typeKeys,
+        contains('baocode.occurrence.write'),
+      );
+
+      controller.setSelections([const TextSelection.collapsed(offset: 2)]);
+      views.changed(view);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(highlights.positions, hasLength(2));
+      views.changed(view);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(highlights.positions, hasLength(2));
+
+      focused = false;
+      views.changed(view);
+      expect(features.decorations.decorations.isEmpty, isTrue);
+      settings['editor.occurrencesHighlight'] = 'off';
+      focused = true;
+      views.changed(view);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(features.decorations.decorations.isEmpty, isTrue);
+      expect(highlights.positions, hasLength(2));
+      await stop(tester);
+    },
+  );
+
+  testWidgets('late document highlights never replace newer caret results', (
+    tester,
+  ) async {
+    final highlights = _DelayedHighlights();
+    service.documentHighlightProvider.register(ts, highlights);
+    start();
+    views.show(view);
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(highlights.requests, hasLength(1));
+
+    controller.setSelections([const TextSelection.collapsed(offset: 2)]);
+    views.changed(view);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(highlights.requests, hasLength(2));
+    highlights.requests.last.complete([
+      DocumentHighlight(Range(2, 1, 2, 8), kind: DocumentHighlightKind.write),
+    ]);
+    await tester.pump();
+    expect(features.decorations.decorations.items.single.start, 6);
+
+    highlights.requests.first.complete([
+      DocumentHighlight(Range(1, 1, 1, 6), kind: DocumentHighlightKind.read),
+    ]);
+    await tester.pump();
+    expect(features.decorations.decorations.items.single.start, 6);
     await stop(tester);
   });
 
