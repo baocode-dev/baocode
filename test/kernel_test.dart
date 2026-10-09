@@ -3198,6 +3198,26 @@ void main() {
       },
     );
 
+    test('Volta\'s shim is passed over for its package\'s build', () async {
+      final root = await Directory.systemTemp.createTemp('baocode-locator-');
+      addTearDown(() => root.delete(recursive: true));
+      final volta = '${root.path}/Volta';
+      final bin = '$volta/bin';
+      final environment = {'LOCALAPPDATA': root.path};
+
+      // No build in Volta's image: the shim is left to the PATH's turn.
+      expect(CliLocator.behindVolta(bin, environment), isNull);
+
+      final exe = File(
+        '$volta/tools/image/packages/@anthropic-ai/claude-code/'
+        'node_modules/@anthropic-ai/claude-code/bin/claude.exe',
+      )..createSync(recursive: true);
+      expect(CliLocator.behindVolta(bin, environment), exe.path);
+      expect(CliLocator.behindVolta(bin, {'VOLTA_HOME': volta}), exe.path);
+      // Another PATH directory is no Volta's.
+      expect(CliLocator.behindVolta(root.path, environment), isNull);
+    });
+
     test('a program is told from a script left in its place', () async {
       final root = await Directory.systemTemp.createTemp('baocode-locator-');
       addTearDown(() => root.delete(recursive: true));

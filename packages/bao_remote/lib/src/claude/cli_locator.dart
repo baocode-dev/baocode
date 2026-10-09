@@ -154,6 +154,11 @@ abstract final class CliLocator {
   /// JSON carries the angle brackets in BaoCode's own attribution (see
   /// [ClaudeLaunch.arguments]). A shim is only a fallback for a layout
   /// [_besideShim] does not know.
+  ///
+  /// Volta's shim is an `.exe` of its own, but it too runs the package's
+  /// build through `cmd.exe /C`, which takes the newlines and quotes of the
+  /// arguments apart and reports the build "not recognized": its package's
+  /// build is run instead ([behindVolta]).
   static List<String> _candidates(Map<String, String> environment) {
     final home = AppPaths.home(environment);
     final path = environment['PATH'] ?? '';
@@ -163,7 +168,10 @@ abstract final class CliLocator {
         // The native build behind each shim on the PATH, and the npm one
         // where it is not on the PATH itself.
         for (final dir in path.split(';'))
-          if (dir.isNotEmpty) ?_besideShim(p.join(dir, 'claude.cmd')),
+          if (dir.isNotEmpty) ...[
+            ?_besideShim(p.join(dir, 'claude.cmd')),
+            ?behindVolta(dir, environment),
+          ],
         ?_besideShim(p.join(npm, 'claude.cmd')),
         // A native build standing on its own.
         for (final dir in path.split(';'))
@@ -200,6 +208,35 @@ abstract final class CliLocator {
       p.join(p.dirname(shim), 'node_modules', '@anthropic-ai', 'claude-code'),
     );
     return File(exe).existsSync() ? exe : shim;
+  }
+
+  /// The native build of the package Volta installed, when [dir] is Volta's
+  /// own `bin` (its shims); null otherwise, or with no build there, which
+  /// leaves the shim to the PATH's turn.
+  @visibleForTesting
+  static String? behindVolta(String dir, Map<String, String> environment) {
+    final volta = switch (environment['VOLTA_HOME']) {
+      final home? when home.isNotEmpty => home,
+      _ => p.join(
+        environment['LOCALAPPDATA'] ?? AppPaths.home(environment),
+        'Volta',
+      ),
+    };
+    if (!p.equals(p.join(volta, 'bin'), dir)) return null;
+    final exe = _nativePackageExe(
+      p.join(
+        volta,
+        'tools',
+        'image',
+        'packages',
+        '@anthropic-ai',
+        'claude-code',
+        'node_modules',
+        '@anthropic-ai',
+        'claude-code',
+      ),
+    );
+    return File(exe).existsSync() ? exe : null;
   }
 
   /// Where the npm package puts its native build.
