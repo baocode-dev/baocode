@@ -7,7 +7,7 @@ import UserNotifications
 /// lib/notifications/): the system's notifications, a sound, the Dock
 /// icon's badge and bounce, and the menu bar icon, whose menu brings the
 /// window — or an agent — back. Over `baocode/attention`.
-final class Attention: NSObject, UNUserNotificationCenterDelegate {
+final class Attention: NSObject, UNUserNotificationCenterDelegate, NSSoundDelegate {
   /// The window's, for the app delegate to ask (see hidesOnClose).
   private(set) static weak var shared: Attention?
 
@@ -17,8 +17,8 @@ final class Attention: NSObject, UNUserNotificationCenterDelegate {
   /// The menu bar icon, while there is one (the `tray.enabled` setting).
   private var statusItem: NSStatusItem?
 
-  /// The sound playing, kept until it is done: NSSound stops when let go.
-  private var sound: NSSound?
+  /// Keep each sound alive until its own playback finishes.
+  private var playingSounds: [NSSound] = []
 
   /// Whether notifications were asked leave for, this run.
   private var authorizationAsked = false
@@ -125,15 +125,22 @@ final class Attention: NSObject, UNUserNotificationCenterDelegate {
   // MARK: Sound
 
   private func play(path: String?, bytes: Data?) {
-    sound?.stop()
+    let sound: NSSound?
     if let bytes {
       sound = NSSound(data: bytes)
     } else if let path {
       sound = NSSound(contentsOf: URL(fileURLWithPath: path), byReference: true)
     } else {
-      sound = nil
+      return
     }
-    sound?.play()
+    guard let sound else { return }
+    sound.delegate = self
+    playingSounds.append(sound)
+    if !sound.play() { playingSounds.removeAll { $0 === sound } }
+  }
+
+  func sound(_ sound: NSSound, didFinishPlaying finished: Bool) {
+    playingSounds.removeAll { $0 === sound }
   }
 
   /// A sound file of the user's for the notifications.

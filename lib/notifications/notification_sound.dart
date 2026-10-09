@@ -12,8 +12,10 @@ abstract final class NotificationSound {
   /// Universfield (Pixabay, Pixabay Content License), as a WAV file, which
   /// Windows plays from memory as it is.
   static const microwaveAsset = 'assets/sounds/microwave.wav';
+  static const manOhYeahAsset = 'assets/sounds/man-oh-yeah.wav';
 
   static Future<Uint8List>? _microwave;
+  static Future<Uint8List>? _manOhYeah;
 
   /// The system's sounds, name to file, sorted by name; read once.
   static Future<Map<String, String>> systemSounds() =>
@@ -27,6 +29,12 @@ abstract final class NotificationSound {
     if (value == NotificationSoundValue.microwave) {
       final bytes = await (_microwave ??= rootBundle
           .load(microwaveAsset)
+          .then((data) => data.buffer.asUint8List()));
+      return host.playSound(bytes: bytes);
+    }
+    if (value == NotificationSoundValue.manOhYeah) {
+      final bytes = await (_manOhYeah ??= rootBundle
+          .load(manOhYeahAsset)
           .then((data) => data.buffer.asUint8List()));
       return host.playSound(bytes: bytes);
     }

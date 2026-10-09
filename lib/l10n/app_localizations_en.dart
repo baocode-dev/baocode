@@ -3006,6 +3006,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationsSoundMicrowave => 'Microwave Ding';
 
   @override
+  String get notificationsSoundManOhYeah => 'man-oh-yeah';
+
+  @override
   String get notificationsSoundNone => 'None';
 
   @override

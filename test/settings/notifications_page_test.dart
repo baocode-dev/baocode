@@ -142,6 +142,23 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     expect(host.sounds, hasLength(3));
 
+    await choose(sound, 'man-oh-yeah');
+    await settle(
+      tester,
+      () =>
+          settings[AttentionSettings.soundKey] ==
+          NotificationSoundValue.manOhYeah,
+    );
+    await tester.pump();
+    expect(tester.widget<SettingsDropdown>(sound).current, 'man-oh-yeah');
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    expect(host.sounds.last, isA<Uint8List>());
+    expect((host.sounds.last as Uint8List).take(4), [82, 73, 70, 70]);
+
+    await tester.tap(find.text('Play'));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    expect(host.sounds, hasLength(5));
+
     await tester.tap(find.text('Show the icon in the menu bar'));
     await settle(tester, () => settings[AttentionSettings.trayKey] == false);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));

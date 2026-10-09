@@ -94,7 +94,7 @@ flutter:
     # Built-in keymaps: VS Code keymap extensions' keybindings (lib/keybindings/keymap.dart).
     - assets/keymaps/
     - assets/keymaps/LICENSES/
-    # The notifications' "ding" (see lib/notifications/notification_sound.dart).
+    # Bundled notification sounds (see lib/notifications/notification_sound.dart).
     - assets/sounds/
     # Emojibase's emoji, for project icons (tool/generate_emoji.mjs).
     - assets/emoji/

@@ -1962,6 +1962,10 @@
   "@notificationsSoundMicrowave": {
     "description": "The app's own notification sound: a microwave's bell."
   },
+  "notificationsSoundManOhYeah": "man-oh-yeah",
+  "@notificationsSoundManOhYeah": {
+    "description": "The bundled man-oh-yeah notification sound."
+  },
   "notificationsSoundNone": "None",
   "@notificationsSoundNone": {
     "description": "Notification sound choice: no sound."

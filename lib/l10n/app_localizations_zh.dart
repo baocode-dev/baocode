@@ -2900,6 +2900,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notificationsSoundMicrowave => '微波炉“叮”';
 
   @override
+  String get notificationsSoundManOhYeah => 'man-oh-yeah';
+
+  @override
   String get notificationsSoundNone => '无';
 
   @override

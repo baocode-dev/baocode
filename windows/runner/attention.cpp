@@ -31,8 +31,44 @@ constexpr UINT kNewWindowCommand = 3;
 constexpr UINT kAgentCommand = 100;
 constexpr UINT kWindowCommand = 1000;
 
-// The alias of a sound MCI plays (a file PlaySound does not: not a WAV).
-constexpr wchar_t kSoundAlias[] = L"baocode_sound";
+// MCI plays files, so bundled WAV bytes need a file for each playback.
+std::wstring SaveTemporaryWav(const std::vector<uint8_t>& bytes) {
+  if (bytes.empty() || bytes.size() > MAXDWORD) {
+    return L"";
+  }
+  wchar_t directory[MAX_PATH + 1] = {};
+  const DWORD length = ::GetTempPathW(MAX_PATH + 1, directory);
+  if (length == 0 || length >= MAX_PATH + 1) {
+    return L"";
+  }
+  wchar_t temporary[MAX_PATH + 1] = {};
+  if (::GetTempFileNameW(directory, L"Bao", 0, temporary) == 0) {
+    return L"";
+  }
+  const HANDLE file = ::CreateFileW(temporary, GENERIC_WRITE, 0, nullptr,
+                                    TRUNCATE_EXISTING, FILE_ATTRIBUTE_TEMPORARY,
+                                    nullptr);
+  DWORD written = 0;
+  const bool saved =
+      file != INVALID_HANDLE_VALUE &&
+      ::WriteFile(file, bytes.data(), static_cast<DWORD>(bytes.size()),
+                  &written, nullptr) &&
+      written == bytes.size();
+  if (file != INVALID_HANDLE_VALUE) {
+    ::CloseHandle(file);
+  }
+  if (!saved) {
+    ::DeleteFileW(temporary);
+    return L"";
+  }
+  std::wstring path(temporary);
+  path.replace(path.size() - 4, 4, L".wav");
+  if (!::MoveFileW(temporary, path.c_str())) {
+    ::DeleteFileW(temporary);
+    return L"";
+  }
+  return path;
+}
 
 const flutter::EncodableValue* Find(const flutter::EncodableMap& map,
                                     const char* key) {
@@ -268,7 +304,7 @@ Attention::Attention(flutter::BinaryMessenger* messenger, HWND window,
 Attention::~Attention() {
   channel_->SetMethodCallHandler(nullptr);
   RemoveIcon();
-  StopSound();
+  StopSounds();
   if (icon_ != nullptr) {
     ::DestroyIcon(icon_);
   }
@@ -341,6 +377,13 @@ void Attention::HandleMethodCall(
 
 std::optional<LRESULT> Attention::HandleMessage(HWND window, UINT message,
                                                 WPARAM wparam, LPARAM lparam) {
+  if (message == MM_MCINOTIFY) {
+    const UINT device = static_cast<UINT>(lparam);
+    if (sounds_.find(device) != sounds_.end()) {
+      CloseSound(device);
+      return 0;
+    }
+  }
   if (message == kTrayMessage) {
     // NOTIFYICON_VERSION_4: the event in the low word.
     switch (LOWORD(lparam)) {
@@ -611,28 +654,33 @@ void Attention::Notify(const std::string& id, const std::wstring& title,
   ::Shell_NotifyIconW(NIM_MODIFY, &data);
 }
 
-void Attention::StopSound() {
-  ::PlaySoundW(nullptr, nullptr, 0);
-  if (mci_open_) {
-    ::mciSendStringW((std::wstring(L"close ") + kSoundAlias).c_str(), nullptr,
-                     0, nullptr);
-    mci_open_ = false;
-  }
-}
-
-void Attention::PlaySoundBytes(std::vector<uint8_t> bytes) {
-  // Stopped first: the sound playing reads the bytes these replace.
-  StopSound();
-  sound_ = std::move(bytes);
-  if (sound_.empty()) {
+void Attention::CloseSound(UINT device) {
+  const auto found = sounds_.find(device);
+  if (found == sounds_.end()) {
     return;
   }
-  ::PlaySoundW(reinterpret_cast<LPCWSTR>(sound_.data()), nullptr,
-               SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+  Sound sound = std::move(found->second);
+  sounds_.erase(found);
+  ::mciSendStringW((L"close " + sound.alias).c_str(), nullptr, 0, nullptr);
+  if (!sound.temporary_path.empty()) {
+    ::DeleteFileW(sound.temporary_path.c_str());
+  }
 }
 
-void Attention::PlaySoundFile(const std::wstring& path) {
-  StopSound();
+void Attention::StopSounds() {
+  while (!sounds_.empty()) {
+    CloseSound(sounds_.begin()->first);
+  }
+}
+
+void Attention::PlaySoundBytes(const std::vector<uint8_t>& bytes) {
+  const std::wstring path = SaveTemporaryWav(bytes);
+  if (!path.empty()) {
+    PlaySoundFile(path, true);
+  }
+}
+
+void Attention::PlaySoundFile(const std::wstring& path, bool temporary) {
   if (path.empty()) {
     return;
   }
@@ -643,18 +691,25 @@ void Attention::PlaySoundFile(const std::wstring& path) {
     std::transform(extension.begin(), extension.end(), extension.begin(),
                    [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
   }
-  if (extension == L".wav") {
-    ::PlaySoundW(path.c_str(), nullptr,
-                 SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
+  const std::wstring alias =
+      L"baocode_sound_" + std::to_wstring(++next_sound_id_);
+  const std::wstring type = extension == L".wav" ? L"waveaudio" : L"mpegvideo";
+  const std::wstring open =
+      L"open \"" + path + L"\" type " + type + L" alias " + alias;
+  if (::mciSendStringW(open.c_str(), nullptr, 0, nullptr) != 0) {
+    if (temporary) ::DeleteFileW(path.c_str());
     return;
   }
-  // MP3 and the like, which PlaySound does not play.
-  const std::wstring open = L"open \"" + path + L"\" type mpegvideo alias " +
-                            kSoundAlias;
-  if (::mciSendStringW(open.c_str(), nullptr, 0, nullptr) == 0) {
-    mci_open_ = true;
-    ::mciSendStringW((std::wstring(L"play ") + kSoundAlias).c_str(), nullptr, 0,
-                     nullptr);
+  const UINT device = ::mciGetDeviceIDW(alias.c_str());
+  if (device == 0) {
+    ::mciSendStringW((L"close " + alias).c_str(), nullptr, 0, nullptr);
+    if (temporary) ::DeleteFileW(path.c_str());
+    return;
+  }
+  sounds_.emplace(device, Sound{alias, temporary ? path : L""});
+  const std::wstring play = L"play " + alias + L" notify";
+  if (::mciSendStringW(play.c_str(), nullptr, 0, window_) != 0) {
+    CloseSound(device);
   }
 }
 

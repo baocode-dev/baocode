@@ -5354,6 +5354,12 @@ abstract class AppLocalizations {
   /// **'Microwave Ding'**
   String get notificationsSoundMicrowave;
 
+  /// The bundled man-oh-yeah notification sound.
+  ///
+  /// In en, this message translates to:
+  /// **'man-oh-yeah'**
+  String get notificationsSoundManOhYeah;
+
   /// Notification sound choice: no sound.
   ///
   /// In en, this message translates to:

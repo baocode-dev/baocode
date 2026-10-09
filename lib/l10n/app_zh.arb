@@ -876,6 +876,7 @@
   "notificationsWhenLabel": "何时通知：{name}",
   "notificationsSound": "提示音",
   "notificationsSoundMicrowave": "微波炉“叮”",
+  "notificationsSoundManOhYeah": "man-oh-yeah",
   "notificationsSoundNone": "无",
   "notificationsSoundChoose": "选择文件…",
   "notificationsSoundLabel": "提示音：{name}",
