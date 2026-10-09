@@ -8,10 +8,13 @@ import 'dart:collection' show UnmodifiableSetView;
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 
+import 'package:bao_exthost/bao_exthost.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, listEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
+
+import '../extensions/files/file_operation_participants.dart';
 
 import '../chat/composer/composer_files.dart';
 import '../chat/composer/file_drag.dart';
@@ -90,6 +93,15 @@ class IdeExplorerController extends ChangeNotifier {
   final IdeFileService files;
   final String root;
   final p.Context paths;
+
+  /// What runs around this explorer's file operations: the extension
+  /// host's file operation participants (renaming a file has TypeScript
+  /// update the imports). Null: nothing runs. See
+  /// lib/extensions/files/file_operation_participants.dart.
+  FileOperationParticipants? participants;
+
+  /// The `file:` URI of [path], for [participants].
+  VsUri _uri(String path) => VsUri.file(path);
 
   /// A multi-folder workspace's folders, the tree's top rows in place of
   /// [root]'s entries (as VS Code lists workspace folders); none for a
@@ -1101,7 +1113,12 @@ class IdeExplorerState extends State<IdeExplorer> {
     try {
       if (edit.renaming case final from?) {
         final to = _controller.paths.join(edit.parent, name);
+        final participants = _controller.participants;
+        // `onWillRenameFiles`: extensions (TypeScript's imports) edit
+        // first; the rename runs whatever they answer.
+        await participants?.willMove([(_controller._uri(from), _controller._uri(to))]);
         await files.rename(from, to);
+        participants?.didMove([(_controller._uri(from), _controller._uri(to))]);
         _controller.forget(from);
         widget.onMoved?.call(from, to);
         await _controller.refresh();
@@ -1119,7 +1136,12 @@ class IdeExplorerState extends State<IdeExplorer> {
           }
         }
         final path = _controller.paths.join(folder, parts.last);
+        final participants = _controller.participants;
+        // `onWillCreateFiles` (the folders are not an extension's file
+        // operation, as upstream's `mkdirp` is not either).
+        await participants?.willCreate([_controller._uri(path)]);
         await files.create(path, directory: edit.directory);
+        participants?.didCreate([_controller._uri(path)]);
         await _controller.refresh();
         await _controller.reveal(path);
         if (!edit.directory) widget.onOpen(path, true);
@@ -1221,7 +1243,12 @@ class IdeExplorerState extends State<IdeExplorer> {
             toTrash = null;
           }
         }
+        final participants = _controller.participants;
+        // `onWillDeleteFiles` (the Trash, a create then delete, is the
+        // app's, as upstream's is not a file operation either).
+        await participants?.willDelete([_controller._uri(row.path)]);
         if (!trashed) await _controller.files.delete(row.path);
+        participants?.didDelete([_controller._uri(row.path)]);
         _controller.forget(row.path);
         widget.onDeleted?.call(row.path);
       } catch (error) {
@@ -1261,7 +1288,14 @@ class IdeExplorerState extends State<IdeExplorer> {
           break;
         }
         if (toPaste.cut) {
+          final participants = _controller.participants;
+          await participants?.willMove([
+            (_controller._uri(source), _controller._uri(target)),
+          ]);
           await files.rename(source, target);
+          participants?.didMove([
+            (_controller._uri(source), _controller._uri(target)),
+          ]);
           _controller.forget(source);
           widget.onMoved?.call(source, target);
           last = target;
@@ -1272,11 +1306,18 @@ class IdeExplorerState extends State<IdeExplorer> {
           }
           taken.add(name);
           final copy = _controller.paths.join(folder, name);
+          final participants = _controller.participants;
+          await participants?.willCopy([
+            (_controller._uri(source), _controller._uri(copy)),
+          ]);
           if (upload) {
             await copyLocalTo(files, source, copy);
           } else {
             await files.copy(source, copy);
           }
+          participants?.didCopy([
+            (_controller._uri(source), _controller._uri(copy)),
+          ]);
           last = copy;
         }
       }
