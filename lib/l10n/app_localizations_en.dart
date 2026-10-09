@@ -7798,4 +7798,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get themeIconThemeBuiltIn => 'Built-in';
+
+  @override
+  String get extViewNoDataProvider =>
+      'There is no data provider registered that can provide view data.';
+
+  @override
+  String get extViewCollapseAll => 'Collapse All';
+
+  @override
+  String get extViewWebviewUnsupported =>
+      'This view needs a Webview, which BaoCode does not support.';
 }

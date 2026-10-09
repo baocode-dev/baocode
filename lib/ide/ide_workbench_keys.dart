@@ -574,7 +574,12 @@ extension _WorkbenchKeys on IdeWorkbenchState {
     'editorIsOpen' => widget.workspace.documents.isNotEmpty,
     'sideBarVisible' => _layout.sidebarVisible,
     'sideBarFocus' => _sidebarFocus.hasFocus,
-    'activeViewlet' => _layout.sidebarVisible ? _view.viewletId : null,
+    'activeViewlet' =>
+      !_layout.sidebarVisible
+          ? null
+          : _view == IdeSideView.container
+          ? _viewContainer
+          : _view.viewletId,
     'explorerViewletFocus' =>
       _sidebarFocus.hasFocus && _view == IdeSideView.explorer,
     'panelVisible' => _panel != null,
@@ -590,6 +595,7 @@ extension _WorkbenchKeys on IdeWorkbenchState {
 
   /// The id of the view with the keyboard (upstream `focusedView`).
   String? get _focusedView {
+    if (widget.extensions?.views.focusedView case final view?) return view;
     if (_explorerFocus.hasFocus) return 'workbench.explorer.fileView';
     if (_sidebarFocus.hasFocus) {
       return switch (_view) {
@@ -597,6 +603,7 @@ extension _WorkbenchKeys on IdeWorkbenchState {
         IdeSideView.search => 'workbench.view.search',
         IdeSideView.sourceControl => 'workbench.scm',
         IdeSideView.extensions => 'workbench.views.extensions.installed',
+        IdeSideView.container => null,
       };
     }
     if (_panelFocus.hasFocus) return (_panel ?? _lastPanel).viewId;
@@ -1316,6 +1323,8 @@ extension on IdeSideView {
     IdeSideView.search => 'workbench.view.search',
     IdeSideView.sourceControl => 'workbench.view.scm',
     IdeSideView.extensions => 'workbench.view.extensions',
+    // Its container's id, which the workbench has.
+    IdeSideView.container => 'workbench.view.extension',
   };
 }
 

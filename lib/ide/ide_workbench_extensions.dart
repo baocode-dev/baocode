@@ -26,6 +26,7 @@ extension _ExtensionsPart on IdeWorkbenchState {
       };
     extensions.addListener(_extensionsUiChanged);
     ExtensionRuntimeService.instance.addListener(_extensionsUiChanged);
+    _attachViews(extensions);
     _syncExtensionKeybindings();
   }
 
@@ -42,6 +43,7 @@ extension _ExtensionsPart on IdeWorkbenchState {
       ..panelVisible.value = false;
     extensions.removeListener(_extensionsUiChanged);
     ExtensionRuntimeService.instance.removeListener(_extensionsUiChanged);
+    _detachViews(extensions);
     _extensionKeys?.dispose();
     _extensionKeys = null;
   }

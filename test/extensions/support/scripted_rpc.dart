@@ -29,6 +29,10 @@ final class ScriptedRpc {
   /// Keyed `Actor.$method`: the error's message.
   final errors = <String, String>{};
 
+  /// Keyed `Actor.$method`: answers that depend on the arguments, over
+  /// [replies].
+  final handlers = <String, FutureOr<Object?> Function(List<Object?> args)>{};
+
   /// Every call: (`Actor.$method`, args).
   final calls = <(String, List<Object?>)>[];
 
@@ -57,6 +61,7 @@ final class _Handlers implements RpcActor {
     if (rpc.errors[key] case final message?) {
       throw RpcRemoteError(name: 'Error', message: message);
     }
+    if (rpc.handlers[key] case final handler?) return handler(args);
     return rpc.replies[key];
   }
 }

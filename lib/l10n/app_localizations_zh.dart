@@ -7371,4 +7371,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get themeIconThemeBuiltIn => '内置';
+
+  @override
+  String get extViewNoDataProvider => '没有已注册的数据提供程序可提供此视图的数据。';
+
+  @override
+  String get extViewCollapseAll => '全部折叠';
+
+  @override
+  String get extViewWebviewUnsupported => '此视图需要 Webview，BaoCode 不支持。';
 }

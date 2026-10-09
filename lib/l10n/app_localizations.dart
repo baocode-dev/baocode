@@ -12828,6 +12828,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Built-in'**
   String get themeIconThemeBuiltIn;
+
+  /// No description provided for @extViewNoDataProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'There is no data provider registered that can provide view data.'**
+  String get extViewNoDataProvider;
+
+  /// No description provided for @extViewCollapseAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse All'**
+  String get extViewCollapseAll;
+
+  /// No description provided for @extViewWebviewUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This view needs a Webview, which BaoCode does not support.'**
+  String get extViewWebviewUnsupported;
 }
 
 class _AppLocalizationsDelegate

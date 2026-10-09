@@ -5968,5 +5968,8 @@
   "extsNoHost": "Extensions are not available for this folder yet.",
   "extsPageClose": "Close Extension",
   "themeSelectIconThemePlaceholder": "Select File Icon Theme (Up/Down Keys to Preview)",
-  "themeIconThemeBuiltIn": "Built-in"
+  "themeIconThemeBuiltIn": "Built-in",
+  "extViewNoDataProvider": "There is no data provider registered that can provide view data.",
+  "extViewCollapseAll": "Collapse All",
+  "extViewWebviewUnsupported": "This view needs a Webview, which BaoCode does not support."
 }

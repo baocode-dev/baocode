@@ -4,9 +4,10 @@ import 'dart:convert';
 import 'dart:io' show File;
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide ImageIcon;
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
@@ -25,6 +26,12 @@ import '../extensions/window/quick_input/quick_input_widget.dart';
 import '../extensions/window/status_bar_items.dart';
 import '../extensions/window/window_adapters.dart'
     show WorkbenchCommandExecutor;
+import '../extensions/commands/command_contributions.dart'
+    show ImageIcon, ThemeIconRef;
+import '../extensions/contextkey/context_key_service.dart'
+    show ContextKeyService;
+import '../extensions/views/tree_view_widget.dart';
+import '../extensions/views/view_contributions.dart';
 import '../extensions/workbench/workspace_extensions.dart';
 import '../keybindings/vscode_import.dart' show VsCodeInstalls;
 import '../platform/data_dir.dart';
@@ -111,6 +118,7 @@ import 'terminal/terminal_profiles.dart';
 import 'terminal/terminal_service.dart';
 
 part 'ide_workbench_extensions.dart';
+part 'ide_workbench_views.dart';
 part 'ide_workbench_keys.dart';
 
 /// The IDE shell is kept mounted when the user returns to the conversation.
@@ -299,7 +307,15 @@ class IdeWorkbench extends StatefulWidget {
 
 /// The side views of the activity bar. The outline is a pane of the
 /// explorer, as in VS Code; there is no Run and Debug view.
-enum IdeSideView { explorer, search, sourceControl, extensions }
+enum IdeSideView {
+  explorer,
+  search,
+  sourceControl,
+  extensions,
+
+  /// An extension's view container ([IdeWorkbenchState._viewContainer]).
+  container,
+}
 
 /// A navigation history entry (Go Back / Go Forward).
 typedef _NavigationEntry = ({String path, LspPosition position});
@@ -391,6 +407,18 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The panel's height, and the room for it, when its sash's drag began.
   ({IdeRows rows, double room})? _panelDragStart;
   IdeSideView _view = IdeSideView.explorer;
+
+  /// The extension view container the side bar shows when [_view] is
+  /// [IdeSideView.container].
+  String? _viewContainer;
+
+  /// The expanded panes of extension view containers, by container.
+  final Map<String, Set<String>> _containerPanes = {};
+
+  /// What extensions run of the workbench's commands, this frame
+  /// ([_ViewsPart._commandsForExtensions]).
+  Map<String, IdeCommand>? _appCommandsCache;
+  bool _makingAppCommands = false;
 
   /// The workspace's notifications (the extension host's go there too).
   IdeNotifications get _notifications => widget.workspace.notifications;
@@ -573,6 +601,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (kept['view'] case final String name) {
       _view = IdeSideView.values.asNameMap()[name] ?? _view;
     }
+    if (kept['viewContainer'] case final String container) {
+      _viewContainer = container;
+    }
+    if (_view == IdeSideView.container && _viewContainer == null) {
+      _view = IdeSideView.explorer;
+    }
     if (kept['markdownSource'] case final List<Object?> paths) {
       _markdownSources.addAll(paths.whereType<String>());
     }
@@ -611,6 +645,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       'panelHeight': ?_panelHeight,
       ..._layout.toJson(),
       'view': _view.name,
+      'viewContainer': ?_viewContainer,
       if (_markdownSources.isNotEmpty) 'markdownSource': [..._markdownSources],
       'editors': editors,
       if (editors.contains(active)) 'active': active,
@@ -2379,6 +2414,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       ..._terminalKeyboardCommands(),
       ..._panelKeyboardCommands(),
       ..._scmKeyboardCommands(),
+      ..._viewKeyboardCommands(),
     ]) {
       byId.putIfAbsent(command.id, () => command);
     }
@@ -3001,6 +3037,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     ...?_editor?.editorCommands,
     ...widget.commands,
     ..._extensionCommands(),
+    ..._viewCommands(),
   ];
 
   /// Takes the .vsix files and extension folders among [paths] dropped on
@@ -3077,6 +3114,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         Codicons.extensions,
         keys.titleWithKeybinding(l10n.extTitle, 'workbench.view.extensions'),
       ),
+      ..._extensionActivityItems(joined: joined),
     ];
     return SizedBox(
       width: IdeModernUI.activityBarWidth,
@@ -3138,6 +3176,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       commitMessage: widget.commitMessage,
     ),
     IdeSideView.extensions => _extensionsView(),
+    IdeSideView.container => _extensionContainerView(),
   };
 
   /// The Explorer view: the folder's tree, the active editor's outline and
@@ -3320,6 +3359,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     activePath: activePath,
                   ),
                 ),
+                ..._extensionPanes(BuiltinViewContainers.explorer),
               ],
             ),
           ),
@@ -3588,6 +3628,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       editorHidden: editorHidden,
     );
     final sidebarVisible = columns.sidebar > 0;
+    _syncExtensionViews(sidebarVisible: sidebarVisible);
     final chatVisible = columns.chat > 0;
     final sidebar = SizedBox(
       key: const ValueKey('ide-sidebar'),
@@ -4464,14 +4505,20 @@ class _SashGripPainter extends CustomPainter {
 /// the hovered item sit on a rounded 32px box.
 class _ActivityItem extends StatefulWidget {
   const _ActivityItem({
-    required this.icon,
+    super.key,
+    this.icon,
+    this.iconBuilder,
     required this.label,
     required this.selected,
     required this.onTap,
     this.badge,
-  });
+  }) : assert(icon != null || iconBuilder != null);
 
-  final IconData icon;
+  final IconData? icon;
+
+  /// An icon that is not a codicon (an extension's image), in the color
+  /// given.
+  final Widget Function(Color color)? iconBuilder;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -4550,16 +4597,19 @@ class _ActivityItemState extends State<_ActivityItem> {
           : null,
       borderRadius: BorderRadius.circular(IdeModernUI.activityItemRadius),
     ),
-    child: Icon(
-      widget.icon,
-      size: IdeModernUI.activityIconSize,
-      color: widget.selected
+    child: _glyph(
+      widget.selected
           ? IdeModernUI.activityActiveForeground
           : _hover
           ? IdeModernUI.activityHoverForeground
           : IdeModernUI.activityForeground,
     ),
   );
+
+  Widget _glyph(Color color) => switch (widget.iconBuilder) {
+    final build? => build(color),
+    null => Icon(widget.icon, size: IdeModernUI.activityIconSize, color: color),
+  };
 }
 
 /// The explorer of a window without a folder: says so, with Open Folder

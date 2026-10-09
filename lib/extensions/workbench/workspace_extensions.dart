@@ -21,6 +21,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
+import '../../ide/ide_notifications.dart' show IdeSeverity;
 import '../../ide/ide_workspace.dart';
 import '../../ide/lsp/language_features.dart';
 import '../../ide/lsp/lsp_protocol.dart' show LspPosition, LspRange;
@@ -67,12 +68,14 @@ import '../main_thread/main_thread_document_content_providers.dart';
 import '../main_thread/main_thread_documents.dart';
 import '../main_thread/main_thread_file_system.dart' show ExtensionActivator;
 import '../main_thread/main_thread_message_service.dart';
+import '../main_thread/main_thread_tree_views.dart';
 import '../main_thread/window_customers.dart';
 import '../main_thread/workspace_customers.dart';
 import '../runtime/extension_runtime_service.dart';
 import '../recommendations/recommendations.dart';
 import '../search/search_service.dart';
 import '../ui/extensions_model.dart';
+import '../views/views_service.dart';
 import '../window/auth/authentication_app_services.dart';
 import '../window/auth/authentication_extensions_service.dart';
 import '../window/auth/authentication_ports.dart';
@@ -343,6 +346,12 @@ final class WorkspaceExtensions extends ChangeNotifier {
     menuService: menus,
   );
   final ExtensionStatusBarService statusBar = ExtensionStatusBarService();
+
+  /// The extensions' view containers and views (`contributes.views`).
+  late final ExtensionViewsService views = ExtensionViewsService(
+    contextKeys: contextKeys,
+    activate: (event) async => _host?.activateByEvent(event),
+  );
   final ExtensionQuickInputService quickInput = ExtensionQuickInputService();
   final ExtensionOutputService output = ExtensionOutputService();
   final RunningExtensionsService running = RunningExtensionsService();
@@ -484,6 +493,8 @@ final class WorkspaceExtensions extends ChangeNotifier {
     final progress = _progress = ExtensionProgressService(
       notifications: workspace.notifications,
     );
+    views.reportError = (message) =>
+        workspace.notifications.notify(IdeSeverity.error, message);
     final dialogs = WorkbenchDialogs(
       context: () =>
           dialogContext?.call() ??
@@ -531,6 +542,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
         ),
         MainContext.mainThreadConfiguration.nid:
             MainThreadConfiguration.customer,
+        MainContext.mainThreadTreeViews.nid: MainThreadTreeViews.customer,
       },
       services: {
         ExtensionCommandRegistry: commands,
@@ -555,6 +567,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
         ExtensionOutputService: output,
         RunningExtensionsService: running,
         ExtensionStatusBarService: statusBar,
+        ExtensionViewsService: views,
         ExtensionQuickInputService: quickInput,
         ExtensionProgressService: progress,
         ExtensionMessageUi: messageUi,
@@ -767,6 +780,16 @@ final class WorkspaceExtensions extends ChangeNotifier {
     final extensions = host.extensions.value;
     commands.setExtensions(extensions);
     statusBar.setContributions(extensions);
+    views.setExtensions(commands.extensions);
+    for (final message in views.messages) {
+      if (_viewMessages.add(message)) {
+        output.logExtensionHostMessage({
+          'type': r'__$console',
+          'severity': 'warn',
+          'arguments': jsonEncode([message]),
+        });
+      }
+    }
     unawaited(_registerLanguages(extensions));
     // The app's themes are the running extensions' (the same in every
     // workspace: the installed and enabled ones).
@@ -804,6 +827,9 @@ final class WorkspaceExtensions extends ChangeNotifier {
   ];
 
   final Set<String> _languageExtensions = {};
+
+  /// The contribution problems logged already.
+  final Set<String> _viewMessages = {};
 
   Future<void> _registerLanguages(List<Map<String, Object?>> extensions) async {
     final seen = <String>{};
@@ -888,6 +914,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
     if (management case final _AppManagement management) management.dispose();
     languageRoot.dispose();
     menus.dispose();
+    views.dispose();
     commands.dispose();
     contextKeys.dispose();
     statusBar.dispose();

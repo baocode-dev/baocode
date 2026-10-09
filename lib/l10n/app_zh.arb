@@ -2119,5 +2119,8 @@
   "extsNoHost": "此文件夹暂不支持扩展。",
   "extsPageClose": "关闭扩展",
   "themeSelectIconThemePlaceholder": "选择文件图标主题（按上下箭头键预览）",
-  "themeIconThemeBuiltIn": "内置"
+  "themeIconThemeBuiltIn": "内置",
+  "extViewNoDataProvider": "没有已注册的数据提供程序可提供此视图的数据。",
+  "extViewCollapseAll": "全部折叠",
+  "extViewWebviewUnsupported": "此视图需要 Webview，BaoCode 不支持。"
 }
