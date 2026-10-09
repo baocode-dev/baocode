@@ -51,6 +51,10 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - bao_editor: decoration types, injected text, inlay hints, CodeLens zones, ghost text.
 - Gallery/VSIX/import/capabilities/recommendations and the Extensions view (lib/extensions/ui).
 - lib/debug: debug model, sessions, DAP client, Run and Debug views (not yet wired to the workbench).
+- MainThreadDebugService: extension-host DAP transport, configuration/descriptor providers, session/cache/focus/custom
+  events, breakpoints and console APIs. Scripted RPC evidence: `test/extensions/debug/main_thread_debug_service_test.dart`;
+  related debug tests: 41 passed, 2 pre-existing presentation skips. Protocol fixtures/proxy/actor tests: 142 passed.
+  This is protocol evidence, not yet real-extension debugging acceptance.
 - Assembly (lib/extensions/workbench): `ExtensionsApp` (one per app) and `WorkspaceExtensions` (one per local IDE
   folder) over `IdeWorkspace` (`IdeTextEditors`, `IdeDocumentsPort`, `IdeWorkspaceEditApplier`); real-runtime test
   `test/extensions/workbench/workspace_extensions_exthost_test.dart` (TS diagnostics, completion, hover).
@@ -66,7 +70,8 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 
 1. Finish editor-feature rendering from the registry: CodeLens, inlay hints, inline completions, document highlights,
    links, colors and folding (driver over `IdeEditorViews` + `RegistryLanguageFeatures`).
-2. Wire debugging (`MainThreadDebugService` ↔ lib/debug UI), then implement terminal, tasks, SCM and testing actors.
+2. Assemble DebugService with a real workspace host (activation, launch files, persistence, dialogs, editor/terminal),
+   then wire Run and Debug/console/toolbar/breakpoints to the workbench. Implement terminal, tasks, SCM and testing actors.
 3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
    bao_remote LSP, docs and l10n), after replacing its language capability coverage.
 4. SSH remote: REH on the remote through bao_remote port forwarding, with the extensionKind split.
@@ -84,6 +89,9 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 
 - No reconnection in PersistentProtocol: a lost local connection restarts the extension host.
 - Dart `null` ⇄ JS `undefined` in IPC; RPC replies `null` as `undefined` (`rpcNull` for a JSON null).
+  `RpcProtocol.call(preserveJsonNull: true)` preserves JSON-null replies as `rpcNull` for debug configuration resolvers:
+  JSON null opens launch.json; undefined cancels silently. Existing generated nullable proxies keep their prior behavior.
+- Debug visualizers/visualizer trees remain explicitly unsupported (no model/UI service). No fake registration.
 - Extension pages show over the editors (not as editor tabs): BaoCode's tabs are documents.
 - A multi-folder workspace runs one extension host on its first folder for now.
 - Keybindings: the keybinding service holds one set of extension keybindings, the visible workbench's.

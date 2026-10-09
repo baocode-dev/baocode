@@ -144,6 +144,7 @@ final class RpcProtocol {
 
   final _locals = <int, RpcActor>{};
   final _pending = <int, Completer<Object?>>{};
+  final _preserveJsonNull = <int>{};
   final _cancelInvoked = <int, CancellationTokenSource>{};
   int _lastMessageId = 0;
   bool _disposed = false;
@@ -162,11 +163,15 @@ final class RpcProtocol {
   void set(int rpcId, RpcActor actor) => _locals[rpcId] = actor;
 
   /// Calls [method] on the other side's actor [rpcId] (`_remoteCall`).
+  ///
+  /// With [preserveJsonNull], a JSON null reply is [rpcNull], distinct from
+  /// an undefined reply (Dart null). Debug configuration resolvers need both.
   Future<Object?> call(
     int rpcId,
     String method,
     List<Object?> args, {
     CancellationToken? token,
+    bool preserveJsonNull = false,
   }) {
     if (_disposed) return Future.error(const CancellationException());
     if (token != null && token.isCancellationRequested) {
@@ -175,6 +180,7 @@ final class RpcProtocol {
     final req = ++_lastMessageId;
     final completer = Completer<Object?>();
     _pending[req] = completer;
+    if (preserveJsonNull) _preserveJsonNull.add(req);
     if (token != null) {
       token.whenCancelled.then((_) {
         if (_pending.containsKey(req) && !_disposed) {
@@ -264,12 +270,12 @@ final class RpcProtocol {
       case RpcMessageType.replyOkEmpty:
         _receiveReply(req, null);
       case RpcMessageType.replyOkJson:
-        _receiveReply(req, jsonDecode(r.longString()));
+        _receiveReply(req, jsonDecode(r.longString()), jsonReply: true);
       case RpcMessageType.replyOkJsonWithBuffers:
         final count = r.u32();
         final json = r.longString();
         final buffers = [for (var i = 0; i < count; i++) r.vsBuffer()];
-        _receiveReply(req, _restoreBufferRefs(json, buffers));
+        _receiveReply(req, _restoreBufferRefs(json, buffers), jsonReply: true);
       case RpcMessageType.replyOkVSBuffer:
         _receiveReply(req, RpcBuffer(r.vsBuffer()));
       case RpcMessageType.replyErrError:
@@ -323,13 +329,17 @@ final class RpcProtocol {
     );
   }
 
-  void _receiveReply(int req, Object? value) {
+  void _receiveReply(int req, Object? value, {bool jsonReply = false}) {
     logger?.call(true, req, 'receiveReply:', value);
-    _pending.remove(req)?.complete(value);
+    final preserve = _preserveJsonNull.remove(req);
+    _pending
+        .remove(req)
+        ?.complete(preserve && jsonReply && value == null ? rpcNull : value);
   }
 
   void _receiveReplyErr(int req, Object? value) {
     logger?.call(true, req, 'receiveReplyErr:', value);
+    _preserveJsonNull.remove(req);
     final completer = _pending.remove(req);
     if (completer == null) return;
     if (value is Map && value[r'$isError'] == true) {
@@ -365,6 +375,7 @@ final class RpcProtocol {
       completer.completeError(const CancellationException());
     }
     _pending.clear();
+    _preserveJsonNull.clear();
     for (final source in _cancelInvoked.values) {
       source.cancel();
     }

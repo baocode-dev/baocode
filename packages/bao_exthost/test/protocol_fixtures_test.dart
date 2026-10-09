@@ -197,6 +197,29 @@ void main() {
         rpc.dispose();
       });
 
+      if (error == null) {
+        test('${c['name']}: receive preserving JSON null', () async {
+          final wire = FakeMessagePassing();
+          final rpc = RpcProtocol(wire, actorNames: proxyIdentifierNames);
+          final reply = rpc.call(
+            c['rpcId']! as int,
+            c['method']! as String,
+            [],
+            preserveJsonNull: true,
+          );
+          for (final m in messages) {
+            wire.receive(unhex(m));
+          }
+          final value = await reply;
+          if (c['result'] == null) {
+            expect(value, same(rpcNull));
+          } else {
+            expect(_describe(value), _expected(c['result']));
+          }
+          rpc.dispose();
+        });
+      }
+
       test('${c['name']}: receive', () async {
         final wire = FakeMessagePassing();
         final rpc = RpcProtocol(wire, actorNames: proxyIdentifierNames);
