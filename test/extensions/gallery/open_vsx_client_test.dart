@@ -267,6 +267,57 @@ void main() {
       );
     });
 
+    test("this platform's package of a release found past its pages", () async {
+      // rust-analyzer: over a thousand pre-releases per platform before the
+      // releases; the universal list reaches one first.
+      final http = FixtureHttp(recorded: false)
+        ..addJson(
+          '/api/acme/tool/darwin-arm64/latest',
+          _version('2.1.0', platform: 'darwin-arm64', preRelease: true),
+        )
+        ..addJson(
+          '/api/acme/tool/universal/latest',
+          _version('2.1.0', preRelease: true),
+        )
+        ..addJson(
+          '/api/v2/-/query?extensionId=acme.tool&targetPlatform=darwin-arm64'
+          '&includeAllVersions=true&size=50&offset=0',
+          {
+            'offset': 0,
+            'totalSize': 1000,
+            'extensions': [
+              _version('2.1.0', platform: 'darwin-arm64', preRelease: true),
+            ],
+          },
+        )
+        ..addJson(
+          '/api/v2/-/query?extensionId=acme.tool&targetPlatform=universal'
+          '&includeAllVersions=true&size=50&offset=0',
+          {
+            'offset': 0,
+            'totalSize': 2,
+            'extensions': [
+              _version('2.1.0', preRelease: true),
+              _version('2.0.0'),
+            ],
+          },
+        )
+        ..addJson(
+          '/api/acme/tool/darwin-arm64/2.0.0',
+          _version('2.0.0', platform: 'darwin-arm64'),
+        );
+      final client = OpenVsxClient(
+        http: http,
+        targetPlatform: _mac,
+        versionPageSize: 50,
+        maxVersionPages: 1,
+        engineVersion: '1.135.0',
+      );
+      final resolved = await client.resolveCompatible('acme.tool');
+      expect(resolved.extension.version, '2.0.0');
+      expect(resolved.extension.targetPlatform, _mac);
+    });
+
     test('no package for this platform', () async {
       final http = FixtureHttp(recorded: false)
         ..add('/api/acme/tool/darwin-arm64/latest', const [], status: 404)

@@ -287,9 +287,12 @@ class OpenVsxClient {
     // Page through the versions for an older one.
     GalleryVersion? release;
     GalleryVersion? preRelease;
+    // The platforms whose pages ran out before anything was found.
+    final truncated = <ExtensionTargetPlatform>{};
     for (final (platform, _) in available) {
       var offset = 0;
       var found = false;
+      var complete = false;
       for (var page = 0; page < maxVersionPages && !found; page++) {
         final result = await _queryVersionPage(
           id,
@@ -315,8 +318,12 @@ class OpenVsxClient {
           break;
         }
         offset += result.versions.length;
-        if (result.versions.isEmpty || offset >= result.totalSize) break;
+        if (result.versions.isEmpty || offset >= result.totalSize) {
+          complete = true;
+          break;
+        }
       }
+      if (!found && !complete) truncated.add(platform);
     }
     final pick = release ?? (allowPreReleaseFallback ? preRelease : null);
     if (pick == null) {
@@ -327,7 +334,27 @@ class OpenVsxClient {
         '(the latest requires ${newest.engine})',
       );
     }
-    final extension = await getExtension(
+    // This platform's package of the version, when the paging stopped
+    // before reaching it (rust-analyzer lists over a thousand pre-releases
+    // per platform before its releases) and a universal one was found.
+    GalleryExtension? extension;
+    for (final platform in platforms) {
+      if (platform == pick.targetPlatform) break;
+      if (!truncated.contains(platform)) continue;
+      final own = await findExtension(
+        id,
+        version: pick.version,
+        platform: platform,
+        cancel: cancel,
+      );
+      if (own != null &&
+          own.targetPlatform == platform &&
+          compatible(own.engine)) {
+        extension = own;
+        break;
+      }
+    }
+    extension ??= await getExtension(
       id,
       version: pick.version,
       platform: pick.targetPlatform,
