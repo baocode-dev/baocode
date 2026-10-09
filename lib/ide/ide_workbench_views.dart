@@ -305,6 +305,7 @@ extension _ViewsPart on IdeWorkbenchState {
                 }
               },
               onError: _reportMessage,
+              decorations: extensions.decorations,
             ),
     );
   }

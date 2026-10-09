@@ -5,6 +5,8 @@
 
 import 'dart:async';
 
+import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+import 'package:baocode/extensions/decorations/file_decorations_service.dart';
 import 'package:baocode/extensions/gallery/open_vsx_client.dart';
 import 'package:baocode/extensions/views/tree_view.dart';
 import 'package:baocode/extensions/workbench/workspace_extensions.dart';
@@ -263,6 +265,28 @@ void main() {
     unawaited(extensions.commands.executeCommand('workbench.view.explorer'));
     await tester.pumpAndSettle();
     expect(find.text('Acme Notes'), findsOneWidget);
+    await _end(tester);
+  });
+
+  testWidgets('an extension\'s file decorations show on the explorer\'s '
+      'rows', (tester) async {
+    final extensions = _extensions();
+    final asked = <String>[];
+    extensions.decorations.register(
+      FileDecorationsProvider(
+        label: 'Acme',
+        provide: (VsUri uri) async {
+          asked.add(uri.path);
+          return uri.path.endsWith('a.txt')
+              ? const FileDecorationData(letter: 'X', tooltip: 'Acme')
+              : null;
+        },
+      ),
+    );
+    await pumpWorkbench(tester, {'a.txt': 'text'}, extensions: extensions);
+    await tester.pumpAndSettle();
+    expect(asked, contains(endsWith('a.txt')));
+    expect(find.text('X'), findsOneWidget);
     await _end(tester);
   });
 }

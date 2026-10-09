@@ -492,6 +492,15 @@ Set<String> _pathsOf(List<ComposerFile> files) => {
 /// Finder, in Explorer) paste in as copies, onto a remote project's host
 /// too. Where no workbench runs its keybindings (the chat's side panel), it
 /// runs those of its own commands itself.
+/// Decorations of the explorer's rows besides Git's (the extensions'
+/// `FileDecorationProvider`s), told of their changes.
+abstract interface class IdeExplorerDecorations implements Listenable {
+  IdeGitDecoration? decorationOf(String path, {required bool isDirectory});
+}
+
+IdeGitDecoration? _merged(IdeGitDecoration? git, IdeGitDecoration? other) =>
+    git?.merge(other) ?? other;
+
 class IdeExplorer extends StatefulWidget {
   const IdeExplorer({
     super.key,
@@ -511,9 +520,13 @@ class IdeExplorer extends StatefulWidget {
     this.repositories = const [],
     this.onAddFolder,
     this.onRemoveFolder,
+    this.decorations,
   });
 
   final IdeExplorerController controller;
+
+  /// More rows' decorations (the extensions'), after Git's.
+  final IdeExplorerDecorations? decorations;
 
   /// A multi-folder workspace's repositories, for the rows' colors and
   /// letters in place of [git]'s: each path's, that of the folder it is in.
@@ -597,6 +610,7 @@ class IdeExplorerState extends State<IdeExplorer> {
     super.initState();
     _controller.addListener(_changed);
     widget.git?.addListener(_changed);
+    widget.decorations?.addListener(_changed);
     for (final repository in widget.repositories) {
       repository.addListener(_changed);
     }
@@ -611,6 +625,10 @@ class IdeExplorerState extends State<IdeExplorer> {
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_changed);
       widget.controller.addListener(_changed);
+    }
+    if (oldWidget.decorations != widget.decorations) {
+      oldWidget.decorations?.removeListener(_changed);
+      widget.decorations?.addListener(_changed);
     }
     if (oldWidget.git != widget.git) {
       oldWidget.git?.removeListener(_changed);
@@ -630,6 +648,7 @@ class IdeExplorerState extends State<IdeExplorer> {
   void dispose() {
     _controller.removeListener(_changed);
     widget.git?.removeListener(_changed);
+    widget.decorations?.removeListener(_changed);
     for (final repository in widget.repositories) {
       repository.removeListener(_changed);
     }
@@ -1612,14 +1631,20 @@ class IdeExplorerState extends State<IdeExplorer> {
                 selected: _controller.isSelected(row.path),
                 focusedItem: row.path == _controller.selected,
                 focused: focused,
-                decoration: switch (decorationsOf(row.path)) {
-                  _ when row.message != null => null,
-                  null => null,
-                  final decorations when row.isDirectory => decorations.folder(
-                    row.path,
-                  ),
-                  final decorations => decorations.file(row.path),
-                },
+                decoration: row.message != null
+                    ? null
+                    : _merged(
+                        switch (decorationsOf(row.path)) {
+                          null => null,
+                          final decorations when row.isDirectory =>
+                            decorations.folder(row.path),
+                          final decorations => decorations.file(row.path),
+                        },
+                        widget.decorations?.decorationOf(
+                          row.path,
+                          isDirectory: row.isDirectory,
+                        ),
+                      ),
                 onTap: () {
                   _focusNode.requestFocus();
                   _click(row);

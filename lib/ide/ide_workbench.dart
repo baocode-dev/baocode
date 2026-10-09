@@ -3281,6 +3281,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                               for (final (_, git) in workspace.repositories)
                                 git,
                             ],
+                            decorations: widget.extensions?.explorerDecorations,
                             onAddFolder: workspace.isMultiRoot
                                 ? widget.onAddFolder
                                 : null,

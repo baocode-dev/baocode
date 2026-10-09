@@ -38,6 +38,7 @@ import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../commands/command_contributions.dart';
 import '../contextkey/context_key_service.dart';
+import '../decorations/file_decorations_service.dart';
 import '../menus/menu_service.dart';
 import '../menus/menu_widgets.dart';
 import 'tree_view.dart';
@@ -205,9 +206,14 @@ class ExtensionTreeViewBody extends StatefulWidget {
     this.relativePath,
     this.onFocusChange,
     this.onError,
+    this.decorations,
   });
 
   final ExtensionTreeView treeView;
+
+  /// The file decorations of items with a resource
+  /// (`explorer.decorations`).
+  final FileDecorationsService? decorations;
   final MenuService menus;
   final ContextKeyService contextKeys;
   final ExtensionViewCommandRunner executeCommand;
@@ -525,7 +531,7 @@ class _ExtensionTreeViewBodyState extends State<ExtensionTreeViewBody> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([_tree, widget.menus]),
+    listenable: Listenable.merge([_tree, widget.menus, ?widget.decorations]),
     builder: (context, _) {
       final message = _tree.message;
       final welcome = _tree.shouldShowWelcome
@@ -603,6 +609,13 @@ class _ExtensionTreeViewBodyState extends State<ExtensionTreeViewBody> {
             focused: focused,
             inlineActions: () => _inlineActions(item),
             relativePath: widget.relativePath,
+            decoration: switch (item.resourceUri) {
+              final uri? => widget.decorations?.getDecoration(
+                uri,
+                includeChildren: item.hasChildren,
+              ),
+              null => null,
+            },
             onTap: (onTwistie) => _tap(item, onTwistie: onTwistie),
             onContextMenu: (position) =>
                 unawaited(_contextMenu(item, position)),
@@ -625,9 +638,11 @@ class _TreeRow extends StatelessWidget {
     required this.onTap,
     required this.onContextMenu,
     this.relativePath,
+    this.decoration,
   });
 
   final ExtensionTreeRow row;
+  final FileDecoration? decoration;
   final ExtensionTreeView treeView;
   final bool selected;
   final bool focusedItem;
@@ -642,7 +657,7 @@ class _TreeRow extends StatelessWidget {
   String? get _tooltip => switch (row.item.tooltip) {
     final String s => s,
     {'value': final String s} => s,
-    _ => null,
+    _ => decoration?.tooltip.isEmpty ?? true ? null : decoration!.tooltip,
   };
 
   @override
@@ -662,13 +677,20 @@ class _TreeRow extends StatelessWidget {
         onTap: () => onTap(false),
         onContextMenu: onContextMenu,
         builder: (context, hovered) {
-          final foreground = selected
+          final base = selected
               ? (focused
                     ? IdeListColors.activeSelectionForeground
                     : IdeListColors.inactiveSelectionForeground)
               : hovered
               ? IdeListColors.hoverForeground
               : IdeListColors.foreground;
+          final foreground = switch (decoration?.colorId) {
+            final id? when !selected => themeColors.get(id) ?? base,
+            _ => base,
+          };
+          final letter = decoration?.bubbleOnly ?? false
+              ? '•'
+              : decoration?.letter;
           final actions = hovered || selected
               ? inlineActions()
               : const <MenuAction>[];
@@ -719,7 +741,13 @@ class _TreeRow extends StatelessWidget {
                     _label(item, foreground),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13, color: foreground),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: foreground,
+                      decoration: decoration?.strikethrough ?? false
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
                   ),
                 ),
                 if (description != null)
@@ -740,6 +768,18 @@ class _TreeRow extends StatelessWidget {
                     ),
                   ),
                 const Spacer(),
+                if (letter != null && actions.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 5, right: 12),
+                    child: Text(
+                      letter,
+                      style: TextStyle(
+                        fontSize: 13 * .9,
+                        fontWeight: FontWeight.w600,
+                        color: foreground.withValues(alpha: .75),
+                      ),
+                    ),
+                  ),
                 for (final action in actions)
                   IdeActionButton(
                     icon: ideMenuActionIcon(action),

@@ -67,6 +67,7 @@ import '../main_thread/main_thread_configuration.dart';
 import '../main_thread/main_thread_document_content_providers.dart';
 import '../main_thread/main_thread_documents.dart';
 import '../main_thread/main_thread_file_system.dart' show ExtensionActivator;
+import '../main_thread/main_thread_decorations.dart';
 import '../main_thread/main_thread_message_service.dart';
 import '../main_thread/main_thread_tree_views.dart';
 import '../main_thread/window_customers.dart';
@@ -75,6 +76,8 @@ import '../runtime/extension_runtime_service.dart';
 import '../recommendations/recommendations.dart';
 import '../search/search_service.dart';
 import '../ui/extensions_model.dart';
+import '../decorations/explorer_decorations.dart';
+import '../decorations/file_decorations_service.dart';
 import '../views/views_service.dart';
 import '../window/auth/authentication_app_services.dart';
 import '../window/auth/authentication_extensions_service.dart';
@@ -347,6 +350,13 @@ final class WorkspaceExtensions extends ChangeNotifier {
   );
   final ExtensionStatusBarService statusBar = ExtensionStatusBarService();
 
+  /// The file decorations extensions provide.
+  final FileDecorationsService decorations = FileDecorationsService();
+
+  /// Those, as the explorer's rows show them.
+  late final ExplorerFileDecorations explorerDecorations =
+      ExplorerFileDecorations(decorations);
+
   /// The extensions' view containers and views (`contributes.views`).
   late final ExtensionViewsService views = ExtensionViewsService(
     contextKeys: contextKeys,
@@ -543,6 +553,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
         MainContext.mainThreadConfiguration.nid:
             MainThreadConfiguration.customer,
         MainContext.mainThreadTreeViews.nid: MainThreadTreeViews.customer,
+        MainContext.mainThreadDecorations.nid: MainThreadDecorations.customer,
       },
       services: {
         ExtensionCommandRegistry: commands,
@@ -568,6 +579,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
         RunningExtensionsService: running,
         ExtensionStatusBarService: statusBar,
         ExtensionViewsService: views,
+        FileDecorationsService: decorations,
         ExtensionQuickInputService: quickInput,
         ExtensionProgressService: progress,
         ExtensionMessageUi: messageUi,
@@ -915,6 +927,8 @@ final class WorkspaceExtensions extends ChangeNotifier {
     languageRoot.dispose();
     menus.dispose();
     views.dispose();
+    explorerDecorations.dispose();
+    decorations.dispose();
     commands.dispose();
     contextKeys.dispose();
     statusBar.dispose();
