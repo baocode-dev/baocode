@@ -551,6 +551,11 @@ final class ExtensionOutputService extends ChangeNotifier {
     );
   }
 
+  /// A warning of the workbench's own about the extensions (a Webview or
+  /// notebook it cannot show), in the Extension Host channel.
+  void logWarning(String message) =>
+      _appendEntry(ExtHostLogLevel.warning, message);
+
   void _appendEntry(ExtHostLogLevel level, String message) {
     if (_disposed) return;
     final name = switch (level) {

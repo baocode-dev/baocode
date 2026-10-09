@@ -420,7 +420,8 @@ final class WorkspaceExtensions extends ChangeNotifier {
   final ExtensionOutputService output = ExtensionOutputService();
   final RunningExtensionsService running = RunningExtensionsService();
   final LanguageStatusService languageStatus = LanguageStatusService();
-  final ExtensionWebviewPlaceholders webviews = ExtensionWebviewPlaceholders();
+  late final ExtensionWebviewPlaceholders webviews =
+      ExtensionWebviewPlaceholders()..onLogLine = output.logWarning;
 
   /// The source controls extensions register.
   final ScmService scm = ScmService();
@@ -790,6 +791,12 @@ final class WorkspaceExtensions extends ChangeNotifier {
           placeholders: webviews,
           notifications: workspace.notifications,
           commands: WorkbenchCommandExecutor(commands),
+          opener: WorkbenchExternalOpener(
+            app.openExternal ?? (_) async => false,
+          ),
+          onOutput: () => output.showChannel(
+            ExtensionOutputService.extensionHostChannelId,
+          ),
         ),
         ExtensionAuthenticationUi: ExtensionAuthenticationUi(
           authentication: authentication,

@@ -2132,6 +2132,8 @@
   "windowWebviewPanelDetail": "扩展“{extension}”打开了“{title}”，它需要用 Webview 显示。该扩展的其他功能仍可正常使用。",
   "windowWebviewViewDetail": "扩展“{extension}”的“{title}”视图需要 Webview，BaoCode 不支持。",
   "windowWebviewCustomEditorDetail": "扩展“{extension}”的“{viewType}”编辑器需要 Webview，BaoCode 不支持。",
+  "windowNotebookDetail": "扩展“{extension}”的“{viewType}”笔记本需要笔记本编辑器，BaoCode 不支持；这类文件会作为文本打开。",
+  "windowNotebookUnsupported": "BaoCode 不支持笔记本（Notebook）：未能以笔记本打开“{name}”。",
   "windowWebviewOpenInBrowser": "在浏览器中打开",
   "windowWebviewShowOutput": "显示输出",
   "windowWebviewNoFallback": "无法在此显示该扩展的界面。它贡献的其他功能照常可用。",

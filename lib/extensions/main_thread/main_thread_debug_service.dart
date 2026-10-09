@@ -6,9 +6,9 @@
 // Ported from VS Code 08d4889f9ec4a1685d257b9b95de036c8e1ce1e5 (1.135.0):
 // src/vs/workbench/api/browser/mainThreadDebugService.ts.
 //
-// Deviations: debug visualizers remain explicitly unsupported; the debug
-// model has no visualization or visualizer-tree service. The extension
-// host owns executable, server and inline adapters alike.
+// Deviations: debug visualizers are accepted and kept, never offered (the
+// Variables view has no visualizers); the extension host owns executable,
+// server and inline adapters alike.
 
 import 'dart:async';
 
@@ -156,6 +156,27 @@ final class MainThreadDebugService extends MainThreadDebugServiceUnsupported
 
   @override
   void $sessionCached(String sessionID) => _knownSessions.add(sessionID);
+
+  /// The visualizers extensions registered (`extensionId/id`) and the
+  /// visualizer trees; the Variables view offers none of them.
+  final Set<String> visualizers = {};
+  final Set<String> visualizerTrees = {};
+
+  @override
+  void $registerDebugVisualizer(String extensionId, String id) =>
+      visualizers.add('$extensionId/$id');
+
+  @override
+  void $unregisterDebugVisualizer(String extensionId, String id) =>
+      visualizers.remove('$extensionId/$id');
+
+  @override
+  void $registerDebugVisualizerTree(String treeId, bool canEdit) =>
+      visualizerTrees.add(treeId);
+
+  @override
+  void $unregisterDebugVisualizerTree(String treeId) =>
+      visualizerTrees.remove(treeId);
 
   @override
   void $acceptDAMessage(num handle, Json message) {

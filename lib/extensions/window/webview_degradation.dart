@@ -85,6 +85,7 @@ final class ExtensionWebviewNotices {
     String message, {
     List<IdeNotificationAction> primary = const [],
     String? logLine,
+    String? reason,
   }) {
     final id = extensionKey(extensionIdOf(extension));
     if (!_noticed.add(id)) return;
@@ -94,7 +95,7 @@ final class ExtensionWebviewNotices {
     if (notifications == null) return;
     notifications.notify(
       IdeSeverity.warning,
-      '$message\n${ui.strings.windowWebviewUnsupported}',
+      '$message\n${reason ?? ui.strings.windowWebviewUnsupported}',
       source: extensionDisplayName(extension),
       primary: primary,
     );

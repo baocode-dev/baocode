@@ -107,17 +107,6 @@ final class OpenVsxWorkspace {
     final runtime = exthostRuntimeDir()!;
     final temp = await Directory.systemTemp.createTemp('exthost-openvsx');
     final root = temp.resolveSymbolicLinksSync();
-    addTearDown(() async {
-      if (Platform.environment['BAOCODE_KEEP_ACCEPTANCE'] != null) {
-        debugPrint('Kept $root');
-        return;
-      }
-      try {
-        await Directory(root).delete(recursive: true);
-      } on FileSystemException {
-        // A server still writing its logs.
-      }
-    });
     final project = p.join(root, 'proj');
     for (final MapEntry(:key, :value) in files.entries) {
       File(p.join(project, key))
@@ -138,16 +127,31 @@ final class OpenVsxWorkspace {
       ),
       gallery: OpenVsxClient(cacheDir: openVsxCacheDir()),
     );
-    addTearDown(app.dispose);
     final extensions = app.workspace(project);
     final workspace = IdeWorkspace(
       project,
       languages: extensions.languages,
       extensionLanguageId: extensions.languageIdFor,
     );
-    addTearDown(() {
+    // In order: the workspace, its last writes, the app, then the folder.
+    addTearDown(() async {
       extensions.dispose();
       workspace.dispose();
+      await extensions.debugShutdown;
+      await app.storage.flush();
+      await app.dispose();
+      // The stores' last writes (the terminal environment's is not
+      // awaited by dispose).
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (Platform.environment['BAOCODE_KEEP_ACCEPTANCE'] != null) {
+        debugPrint('Kept $root');
+        return;
+      }
+      try {
+        await Directory(root).delete(recursive: true);
+      } on FileSystemException {
+        // A server still writing its logs.
+      }
     });
     final result = OpenVsxWorkspace._(
       root,

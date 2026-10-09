@@ -7411,6 +7411,16 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String windowNotebookDetail(String extension, String viewType) {
+    return '扩展“$extension”的“$viewType”笔记本需要笔记本编辑器，BaoCode 不支持；这类文件会作为文本打开。';
+  }
+
+  @override
+  String windowNotebookUnsupported(String name) {
+    return 'BaoCode 不支持笔记本（Notebook）：未能以笔记本打开“$name”。';
+  }
+
+  @override
   String get windowWebviewOpenInBrowser => '在浏览器中打开';
 
   @override

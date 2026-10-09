@@ -12901,6 +12901,18 @@ abstract class AppLocalizations {
   /// **'The \'{extension}\' extension\'s \'{viewType}\' editor needs a Webview, which BaoCode does not support.'**
   String windowWebviewCustomEditorDetail(String extension, String viewType);
 
+  /// No description provided for @windowNotebookDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The \'{extension}\' extension\'s \'{viewType}\' notebooks need a notebook editor, which BaoCode does not support; their files open as text.'**
+  String windowNotebookDetail(String extension, String viewType);
+
+  /// No description provided for @windowNotebookUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Notebooks are not supported in BaoCode: \'{name}\' was not opened as a notebook.'**
+  String windowNotebookUnsupported(String name);
+
   /// No description provided for @windowWebviewOpenInBrowser.
   ///
   /// In en, this message translates to:

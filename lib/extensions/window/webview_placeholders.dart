@@ -1,11 +1,12 @@
 // The Webview degradation's model (the goal's 五.15): what the panel, view
-// and custom editor shapes record about the Webviews they never show, so
-// the UI can name them and say why nothing appears.
+// and custom editor shapes record about the Webviews they never show, and
+// the notebook shapes about the notebooks, so the UI can name them and say
+// why nothing appears.
 
 import 'package:flutter/foundation.dart';
 
 /// One extension's Webview that BaoCode does not show (`WebviewKind`).
-enum WebviewKind { panel, view, customEditor }
+enum WebviewKind { panel, view, customEditor, notebook }
 
 /// A Webview an extension asked for and BaoCode cannot show: kept for the
 /// placeholder the workbench shows in its place and the line the Output
@@ -43,13 +44,16 @@ final class WebviewPlaceholder {
   String get extensionName => '${extension['displayName'] ?? extensionId}';
 
   /// The line the Output panel gets: what could not be shown, and why.
-  String get description =>
-      'The $extensionName extension\'s ${switch (kind) {
-        WebviewKind.panel => 'panel',
-        WebviewKind.view => 'view',
-        WebviewKind.customEditor => 'editor',
-      }} "$title" ($viewType) needs a Webview, which BaoCode does not '
-      'support.';
+  String get description => kind == WebviewKind.notebook
+      ? 'The $extensionName extension\'s notebook type "$title" ($viewType) '
+            'needs a notebook editor, which BaoCode does not support; its '
+            'files open as text.'
+      : 'The $extensionName extension\'s ${switch (kind) {
+              WebviewKind.panel => 'panel',
+              WebviewKind.view => 'view',
+              _ => 'editor',
+            }} "$title" ($viewType) needs a Webview, which BaoCode does not '
+            'support.';
 }
 
 /// Every Webview an extension asked for in a session.
@@ -60,9 +64,14 @@ final class ExtensionWebviewPlaceholders extends ChangeNotifier {
   /// order: one per Webview an extension asked for.
   final List<String> logLines = [];
 
+  /// Where each line goes as it is added (the Output panel's "Extension
+  /// Host" channel).
+  void Function(String line)? onLogLine;
+
   /// Adds [line] for the Output panel.
   void logLine(String line) {
     logLines.add(line);
+    onLogLine?.call(line);
     notifyListeners();
   }
 
@@ -153,6 +162,24 @@ final class ExtensionWebviewPlaceholders extends ChangeNotifier {
       title: viewType,
     ),
   );
+
+  /// A notebook serializer registered (`$registerNotebookSerializer`).
+  WebviewPlaceholder showNotebook({
+    required String viewType,
+    required Map<String, Object?> extension,
+    required String title,
+  }) => _add(
+    WebviewPlaceholder(
+      handle: 'notebook:$viewType',
+      kind: WebviewKind.notebook,
+      extension: extension,
+      viewType: viewType,
+      title: title,
+    ),
+  );
+
+  /// The notebook types among them.
+  List<WebviewPlaceholder> get notebooks => _ofKind(WebviewKind.notebook);
 
   WebviewPlaceholder _add(WebviewPlaceholder placeholder) {
     _placeholders[placeholder.handle] = placeholder;

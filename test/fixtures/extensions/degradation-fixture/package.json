@@ -1,0 +1,47 @@
+{
+  "name": "degradation-fixture",
+  "displayName": "Degradation Fixture",
+  "publisher": "baocode-test",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "degradation.panel", "title": "Panel" },
+      { "command": "degradation.openNotebook", "title": "Open Notebook" },
+      { "command": "degradation.state", "title": "State" }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "degradation", "title": "Degradation", "icon": "$(beaker)" }
+      ]
+    },
+    "views": {
+      "degradation": [
+        { "id": "degradation.webviewView", "name": "Fixture Webview View", "type": "webview" }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "degradation.preview",
+        "displayName": "Fixture Preview",
+        "selector": [{ "filenamePattern": "*.fixturepreview" }]
+      }
+    ],
+    "notebooks": [
+      {
+        "type": "degradation-notebook",
+        "displayName": "Fixture Notebook",
+        "selector": [{ "filenamePattern": "*.fixturenb" }]
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "degradation_tool",
+        "displayName": "Fixture Tool",
+        "modelDescription": "A tool no chat can call."
+      }
+    ]
+  }
+}

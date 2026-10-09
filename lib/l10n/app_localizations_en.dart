@@ -7834,6 +7834,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String windowNotebookDetail(String extension, String viewType) {
+    return 'The \'$extension\' extension\'s \'$viewType\' notebooks need a notebook editor, which BaoCode does not support; their files open as text.';
+  }
+
+  @override
+  String windowNotebookUnsupported(String name) {
+    return 'Notebooks are not supported in BaoCode: \'$name\' was not opened as a notebook.';
+  }
+
+  @override
   String get windowWebviewOpenInBrowser => 'Open in Browser';
 
   @override

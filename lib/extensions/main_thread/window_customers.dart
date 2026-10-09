@@ -49,6 +49,7 @@ import 'package:bao_exthost/bao_exthost.dart';
 import 'main_thread_authentication.dart';
 import 'main_thread_clipboard.dart';
 import 'main_thread_console.dart';
+import 'main_thread_degraded.dart';
 import 'main_thread_context.dart';
 import 'main_thread_errors.dart';
 import 'main_thread_logger.dart';
@@ -61,6 +62,7 @@ import 'main_thread_label_service.dart';
 import 'main_thread_localization.dart';
 import 'main_thread_message_service.dart';
 import 'main_thread_metered_connection.dart';
+import 'main_thread_notebook.dart';
 import 'main_thread_power.dart';
 import 'main_thread_progress.dart';
 import 'main_thread_quick_open.dart';
@@ -91,8 +93,7 @@ Map<int, MainThreadCustomer> windowCustomers() => {
   MainContext.mainThreadTelemetry.nid: MainThreadTelemetry.customer,
   MainContext.mainThreadLabelService.nid: MainThreadLabelService.customer,
   MainContext.mainThreadTheming.nid: MainThreadTheming.customer,
-  MainContext.mainThreadDownloadService.nid:
-      MainThreadDownloadService.customer,
+  MainContext.mainThreadDownloadService.nid: MainThreadDownloadService.customer,
   MainContext.mainThreadExtensionService.nid:
       MainThreadExtensionService.customer,
   MainContext.mainThreadPower.nid: MainThreadPower.customer,
@@ -108,4 +109,20 @@ Map<int, MainThreadCustomer> windowCustomers() => {
   MainContext.mainThreadWebviewPanels.nid: MainThreadWebviewPanels.customer,
   MainContext.mainThreadWebviewViews.nid: MainThreadWebviewViews.customer,
   MainContext.mainThreadCustomEditors.nid: MainThreadCustomEditors.customer,
+  // The Notebook degradation (see main_thread_notebook.dart).
+  MainContext.mainThreadNotebook.nid: MainThreadNotebook.customer,
+  MainContext.mainThreadNotebookDocuments.nid:
+      MainThreadNotebookDocuments.customer,
+  MainContext.mainThreadNotebookEditors.nid: MainThreadNotebookEditors.customer,
+  MainContext.mainThreadNotebookKernels.nid: MainThreadNotebookKernels.customer,
+  MainContext.mainThreadNotebookRenderers.nid:
+      MainThreadNotebookRenderers.customer,
+  // Accepted for features BaoCode does not have (main_thread_degraded.dart).
+  MainContext.mainThreadLanguageModelTools.nid:
+      MainThreadLanguageModelTools.customer,
+  MainContext.mainThreadProfileContentHandlers.nid:
+      MainThreadProfileContentHandlers.customer,
+  MainContext.mainThreadTimeline.nid: MainThreadTimeline.customer,
+  MainContext.mainThreadDataChannels.nid: MainThreadDataChannels.customer,
+  MainContext.mainThreadTunnelService.nid: MainThreadTunnelService.customer,
 };
