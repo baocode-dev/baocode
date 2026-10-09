@@ -46,9 +46,28 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 
 ## In progress / next
 
-See the work plan below; each item notes its owner.
+Work plan (parallel; each line is one owner, paths are disjoint):
+
+| Area | Paths | State |
+| --- | --- | --- |
+| Protocol codegen, parity tool, byte fixtures | tool/generate_exthost_*.{mjs,dart}, tool/exthost_codegen/, packages/bao_exthost/lib/src/generated/ | in progress |
+| Runtime packaging, CDN manifest, downloader, CI | tool/build_exthost_runtime.dart, assets/exthost/, packages/bao_exthost/lib/src/runtime/, lib/extensions/runtime/, .github/workflows/ | in progress |
+| Editor: decoration types, injected text, inlay hints, CodeLens, ghost text | packages/bao_editor/ | in progress |
+| Language feature registry + document mirror/EOL mapping | lib/extensions/language/, lib/extensions/documents/ | in progress |
+| Open VSX, VSIX, capability scan, import, Extensions view | lib/extensions/{gallery,vsix,import,capabilities,ui,recommendations}/ | in progress |
+| Debug model/session/UI | lib/debug/ | in progress |
+| Host layer: server process, connection, init data, activation, crash restart | lib/extensions/host/ | done (unit tests) |
+| MainThread actors + workbench wiring | lib/extensions/main_thread/, lib/extensions/services/ | next, after codegen |
+| LSP removal | lib/ide/lsp/, assets/lsp/, bao_remote LSP | last |
 
 ## Decisions and deviations
+
+- `LanguageFeatures`/`lsp_protocol.dart` types are the editor UI's model and survive the LSP removal (moved out of
+  lib/ide/lsp/); the extension host feeds them.
+- Language ids come from the bundled VS Code language contributions (bao_editor's TextMate manifest) plus
+  installed extensions' `contributes.languages`; the REH ships no grammar/basics extensions.
+- Crash restarts follow `ExtensionHostCrashTracker`: automatic restart while fewer than 3 crashes in 5 minutes, then
+  the user restarts by hand.
 
 - No reconnection in PersistentProtocol: a lost local connection restarts the extension host.
 - Dart `null` ⇄ JS `undefined` in IPC; RPC replies `null` as `undefined` (`rpcNull` for a JSON null).
