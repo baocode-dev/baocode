@@ -13,6 +13,8 @@ class ClaudeStorage implements SessionCatalog {
   @override
   Future<void> delete(String id) async {}
 
+  Future<List<Map<String, Object?>>> goal(String id) async => const [];
+
   static Future<List<Map<String, Object?>>> read(SessionRecord session) async =>
       const [];
 }

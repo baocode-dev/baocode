@@ -44,6 +44,9 @@ class ClaudeStorage implements SessionCatalog {
     return all.where((p) => p.path == cwd).firstOrNull?.sessions ?? const [];
   }
 
+  /// What the session [id] kept of its goal (see [ClaudeSessions.goal]).
+  Future<List<Map<String, Object?>>> goal(String id) => _sessions.goal(id);
+
   /// The session's conversation along the branch it ended on.
   static Future<List<Map<String, Object?>>> read(SessionRecord session) {
     final path = session.path;

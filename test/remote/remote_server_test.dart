@@ -419,6 +419,24 @@ printf '%s\n' "$line"
             'timestamp': '2026-10-01T10:00:05Z',
             'message': {'role': 'assistant', 'content': 'Done'},
           }),
+          jsonEncode({
+            'type': 'attachment',
+            'uuid': 'g1',
+            'parentUuid': 'a1',
+            'attachment': {
+              'type': 'goal_status',
+              'condition': 'tests pass',
+              'met': false,
+              'sentinel': true,
+            },
+          }),
+          // Says the words, but is not a goal record.
+          jsonEncode({
+            'type': 'user',
+            'uuid': 'u2',
+            'parentUuid': 'g1',
+            'message': {'role': 'user', 'content': '"goal_status"'},
+          }),
         ].join('\n'),
       );
       expect(ClaudeEnvironment.of(), completes);
@@ -428,7 +446,13 @@ printf '%s\n' "$line"
       expect(session.id, 'abc');
       expect(session.title, 'Fix the bug');
       final history = await client().claudeHistory(session.path);
-      expect([for (final e in history) e['type']], ['user', 'assistant']);
+      expect(
+        [for (final e in history) e['type']],
+        ['user', 'assistant', 'attachment', 'user'],
+      );
+      final goal = await client().claudeGoal('abc');
+      expect([for (final e in goal) e['uuid']], ['g1']);
+      expect(await client().claudeGoal('none'), isEmpty);
       await client().claudeDelete('abc');
       expect(await client().claudeProjects(), isEmpty);
     });

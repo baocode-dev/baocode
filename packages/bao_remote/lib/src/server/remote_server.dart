@@ -328,6 +328,8 @@ class RemoteServer {
     ];
     handlers[RemoteProtocol.claudeRead] = (params, _) =>
         ClaudeSessions.read(paramsOf(params)['path'] as String);
+    handlers[RemoteProtocol.claudeGoal] = (params, _) =>
+        _sessions.goal(paramsOf(params)['id'] as String);
     handlers[RemoteProtocol.claudeDelete] = (params, _) async {
       await _sessions.delete(paramsOf(params)['id'] as String);
       return null;

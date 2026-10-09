@@ -18,6 +18,7 @@ abstract final class KernelRegistry {
       // On the project's host: this machine, or a remote one's.
       start: startClaude,
       readHistory: readClaudeHistory,
+      readGoal: readClaudeGoal,
       usageOffBy: () => claudeUsageOffByAt(context.cwd),
     ),
     catalog: const ClaudeCatalog(),

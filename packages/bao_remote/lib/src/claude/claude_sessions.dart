@@ -99,12 +99,16 @@ class ClaudeSessions {
   Future<String> _config() async =>
       configDir ?? await ClaudeEnvironment.configDir();
 
-  /// Deletes the session [id] and everything kept with it, for good.
-  Future<void> delete(String id) async {
-    // A session id names files and directories: nothing else may pass.
+  /// A session id names files and directories: nothing else may pass.
+  static void _checkId(String id) {
     if (!RegExp(r'^[0-9a-zA-Z][0-9a-zA-Z_-]*$').hasMatch(id)) {
       throw ArgumentError.value(id, 'id', 'not a session id');
     }
+  }
+
+  /// Deletes the session [id] and everything kept with it, for good.
+  Future<void> delete(String id) async {
+    _checkId(id);
     final config = await _config();
     final temp = tempDir ?? AppPaths.tempDir;
     return Isolate.run(() => _delete(id, config, temp));
@@ -120,6 +124,44 @@ class ClaudeSessions {
   /// The session's conversation along the branch it ended on.
   static Future<List<Map<String, Object?>>> read(String path) =>
       Isolate.run(() => _branch(path));
+
+  /// What the session [id] kept of its goal (`/goal`): its `goal_status`
+  /// lines, as they are, in the order written. Empty with none, or no such
+  /// session yet.
+  Future<List<Map<String, Object?>>> goal(String id) async {
+    _checkId(id);
+    final config = await _config();
+    return Isolate.run(() => _goal(id, config));
+  }
+}
+
+/// The `goal_status` lines of the session [id], wherever its project is.
+List<Map<String, Object?>> _goal(String id, String config) {
+  final projects = Directory('$config/projects');
+  if (!projects.existsSync()) return const [];
+  for (final project in projects.listSync().whereType<Directory>()) {
+    final file = File('${project.path}/$id.jsonl');
+    if (!file.existsSync()) continue;
+    return [
+      for (final line in const LineSplitter().convert(file.readAsStringSync()))
+        // Most lines are not: only these are decoded.
+        if (line.contains('"goal_status"'))
+          if (_decode(line) case final entry?
+              when entry['type'] == 'attachment' &&
+                  entry['attachment'] is Map &&
+                  (entry['attachment'] as Map)['type'] == 'goal_status')
+            entry,
+    ];
+  }
+  return const [];
+}
+
+Map<String, Object?>? _decode(String line) {
+  try {
+    return (jsonDecode(line) as Map).cast<String, Object?>();
+  } on Object {
+    return null;
+  }
 }
 
 /// Removes the session [id]: its conversation and what is kept beside it

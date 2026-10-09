@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +15,7 @@ import '../kernel_event.dart';
 import '../kernel_types.dart';
 import 'claude_code_transport.dart';
 import 'claude_code_translator.dart';
+import 'claude_goal.dart';
 import 'control_channel.dart';
 
 /// Reads a kept session: its conversation lines, oldest first, along the
@@ -70,13 +70,18 @@ class ClaudeCodeKernel
     this._context, {
     required this._start,
     ClaudeHistoryReader? readHistory,
+    this._readGoal,
     ClaudeUsageSwitch? usageOffBy,
     ModelProviders? providers,
     ProviderEnvironment? providerEnvironment,
   }) : _usageOffBy = usageOffBy ?? _usageOn,
        _providers = providers ?? ModelProviders.current,
        _providerEnvironment = providerEnvironment ?? providerLaunchEnvironment {
-    _translator = ClaudeTranslator(emit: emit, nextSeq: () => nextSeq);
+    _translator = ClaudeTranslator(
+      emit: emit,
+      nextSeq: () => nextSeq,
+      goalSaid: _syncGoal,
+    );
     _providers.addListener(_providersChanged);
     _live.add(this);
     _sessionId = _context.resume?.id;
@@ -104,6 +109,7 @@ class ClaudeCodeKernel
   final KernelDescriptor descriptor;
   final KernelContext _context;
   final ClaudeTransportFactory _start;
+  final ClaudeGoalReader? _readGoal;
   final ClaudeUsageSwitch _usageOffBy;
   late final ClaudeTranslator _translator;
 
@@ -321,6 +327,7 @@ class ClaudeCodeKernel
         await control.request('set_permission_mode', {'mode': _mode});
       }
       _setHealth(KernelHealth.ready);
+      _syncGoal();
       final window = _window;
       _change([
         // A 1M variant, if its model has one, to fill past 200K.
@@ -478,6 +485,7 @@ class ClaudeCodeKernel
   @override
   void dispose() {
     _disposed = true;
+    _goalRetry?.cancel();
     _providers.removeListener(_providersChanged);
     _live.remove(this);
     _teardown();
@@ -1146,6 +1154,8 @@ class ClaudeCodeKernel
         _translator.translate(message);
       case 'system' when message['subtype'] == 'session_state_changed':
         _cliWorking = message['state'] != 'idle';
+        // A turn's checks of the goal are all kept by now.
+        if (!_cliWorking) _syncGoal();
         if (!_cliWorking && _releaseWanted) release();
       case 'system' when message['subtype'] == 'commands_changed':
         _catalog = _catalog.copyWith(
@@ -1242,53 +1252,87 @@ class ClaudeCodeKernel
         );
       }
     }
-    final ended = _turn != null;
-    final done = message['subtype'] == 'success';
     _endTurn(
-      interrupted: !done,
+      interrupted: message['subtype'] != 'success',
       worked: switch (message['duration_ms']) {
         final num ms => Duration(milliseconds: ms.round()),
         _ => null,
       },
     );
     unawaited(_refreshContext());
-    // A goal being worked toward: met, it cleared itself without a word.
-    if (ended && done && _translator.goal?.state == GoalState.active) {
-      _askGoal();
+  }
+
+  // --- Goal ------------------------------------------------------------------------
+
+  /// A reading of the goal under way, and whether another is wanted once
+  /// it is done.
+  Future<void>? _goalReading;
+  bool _goalAgain = false;
+
+  /// The goal records there were at the first reading: a goal met or given
+  /// up on before is not shown as just met.
+  int? _goalSeen;
+
+  /// The hooks and the records disagreed at the last reading: read again a
+  /// moment later, once.
+  Timer? _goalRetry;
+  bool _goalRetried = false;
+
+  /// Has the goal as Claude Code now has it (see claude_goal.dart): one
+  /// reading at a time, the last asked for done after it.
+  void _syncGoal() {
+    if (_disposed) return;
+    if (_goalReading != null) {
+      _goalAgain = true;
+      return;
+    }
+    _goalReading = _readGoalNow().whenComplete(() {
+      _goalReading = null;
+      if (_goalAgain) {
+        _goalAgain = false;
+        _syncGoal();
+      }
+    });
+  }
+
+  Future<void> _readGoalNow() async {
+    final id = _sessionId;
+    if (id == null) return;
+    final control = _control;
+    // Asked of both at once; either may not answer (an older CLI, a host
+    // gone).
+    final (hooks, records) = await (
+      _orNull(
+        control?.request('get_hooks_listing', {}, const Duration(seconds: 10)),
+      ),
+      _orNull(_readGoal?.call(_cwd, id)),
+    ).wait;
+    if (_disposed || (hooks == null && records == null)) return;
+    if (records != null) {
+      _goalSeen ??= _context.resume == null ? 0 : records.length;
+    }
+    final kept = keptGoal(records ?? const [], seen: _goalSeen ?? 0);
+    final goal = hooks == null ? kept : goalInEffect(kept, hookedGoal(hooks));
+    _translator.reportGoal(goal);
+    // The file is written a moment after the hooks change.
+    if (hooks != null && records != null && goal != kept) {
+      if (!_goalRetried) {
+        _goalRetried = true;
+        _goalRetry?.cancel();
+        _goalRetry = Timer(const Duration(seconds: 1), _syncGoal);
+      }
+    } else {
+      _goalRetried = false;
     }
   }
 
-  /// Asks Claude Code how the goal stands, unseen: `/goal` is a local
-  /// command, answered without the model (no tokens) and without a turn
-  /// here. Its answer, "No goal set" once met, is read by the translator.
-  void _askGoal() {
-    if (_transport == null) return;
-    final id = _uuid();
-    _whenReady(
-      (transport) => transport.write({
-        'type': 'user',
-        'uuid': id,
-        'session_id': _sessionId ?? '',
-        'parent_tool_use_id': null,
-        'message': {
-          'role': 'user',
-          'content': [
-            {'type': 'text', 'text': '/goal'},
-          ],
-        },
-      }),
-    );
-  }
-
-  static final _random = math.Random.secure();
-
-  /// A random UUID (v4), for a message of this kernel's own.
-  static String _uuid() {
-    String hex(int length) =>
-        [for (var i = 0; i < length; i++) _random.nextInt(16).toRadixString(16)]
-            .join();
-    final variant = (8 + _random.nextInt(4)).toRadixString(16);
-    return '${hex(8)}-${hex(4)}-4${hex(3)}-$variant${hex(3)}-${hex(12)}';
+  /// What [future] comes to; null when it fails, or there is none.
+  static Future<T?> _orNull<T>(Future<T>? future) async {
+    try {
+      return await future;
+    } on Object {
+      return null;
+    }
   }
 
   static String _limitLabel(Object? type) => switch (type) {

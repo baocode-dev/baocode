@@ -46,6 +46,15 @@ Future<List<Map<String, Object?>>> readClaudeHistory(
   return client.claudeHistory(path);
 }
 
+/// What the session [id], run in [cwd], kept of its goal, read where it
+/// was kept (see ClaudeSessions.goal).
+Future<List<Map<String, Object?>>> readClaudeGoal(String cwd, String id) async {
+  final host = RemoteLocation.hostOf(cwd);
+  if (host == null) return const ClaudeStorage().goal(id);
+  final client = await SshHosts.instance[host].ready;
+  return client.claudeGoal(id);
+}
+
 /// The setting that keeps Claude Code from asking for the plan usage, as
 /// it runs where [cwd] is.
 Future<String?> claudeUsageOffByAt(String? cwd) async {

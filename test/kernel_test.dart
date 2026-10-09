@@ -14,6 +14,7 @@ import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
 import 'package:baocode/kernel/claude_code/claude_code_translator.dart';
 import 'package:baocode/kernel/claude_code/claude_environment.dart';
+import 'package:baocode/kernel/claude_code/claude_goal.dart';
 import 'package:baocode/kernel/claude_code/claude_storage_io.dart';
 import 'package:baocode/kernel/claude_code/cli_locator.dart';
 import 'package:baocode/kernel/claude_code/control_channel.dart';
@@ -2482,7 +2483,7 @@ void main() {
     });
 
     group('goal', () {
-      Map<String, Object?> said(String text) => {
+      Map<String, Object?> saidText(String text) => {
         'type': 'assistant',
         'uuid': 'a-${text.hashCode}',
         'timestamp': '2026-10-05T10:00:00Z',
@@ -2507,67 +2508,32 @@ void main() {
         },
       };
 
-      test('clears immediately when the CLI reports an inactive goal', () {
+      test('its answers to /goal and checks do not show, and have it '
+          'asked afresh', () {
         final transcript = Transcript();
         var seq = 0;
+        var said = 0;
         final translator = ClaudeTranslator(
           emit: transcript.apply,
           nextSeq: () => ++seq,
+          goalSaid: () => said++,
         );
-        translator.translate({
-          'type': 'active_goal',
-          'value': {
-            'condition': 'all tests pass',
-            'iterations': 2,
-            'set_at': DateTime.utc(2026, 10, 5, 10).millisecondsSinceEpoch,
-            'last_reason': '2 still fail',
-          },
-        });
-        expect(transcript.goal?.condition, 'all tests pass');
-        expect(transcript.goal?.checks, 2);
-        expect(transcript.goal?.lastReason, '2 still fail');
-        expect(transcript.goal?.setAt, DateTime(2026, 10, 5, 18));
-
-        translator.translate({'type': 'active_goal', 'value': null});
-        expect(transcript.goal, isNull);
-        expect(shown(transcript), isEmpty);
-      });
-
-      test('is read from the answers to /goal, which do not show', () {
-        final transcript = Transcript();
-        var seq = 0;
-        final translator = ClaudeTranslator(
-          emit: transcript.apply,
-          nextSeq: () => ++seq,
-        );
-        translator.translate(said('Goal set: all tests pass'));
-        expect(transcript.goal?.condition, 'all tests pass');
-        expect(transcript.goal?.state, GoalState.active);
-
-        // Checked, not met: the note to the model says why.
+        translator.translate(saidText('Goal set: all tests pass'));
         translator.translate(
           told('Stop hook feedback:\n[all tests pass]: 2 still fail'),
         );
-        expect(transcript.goal?.checks, 1);
-        expect(transcript.goal?.lastReason, '2 still fail');
-
         translator.translate(
-          said(
+          saidText(
             'Goal active: all tests pass (3 turns)\n'
             'Last check: 1 still fails',
           ),
         );
-        expect(transcript.goal?.checks, 3);
-        expect(transcript.goal?.lastReason, '1 still fails');
-
-        // Gone unasked: met.
-        translator.translate(said('No goal set. Usage: `/goal <condition>`'));
-        expect(transcript.goal?.state, GoalState.met);
-        expect(transcript.goal?.duration, Duration.zero);
-        expect(shown(transcript), isEmpty);
-
-        translator.translate(said('Goal set: ship it'));
-        translator.translate(said('Goal cleared: ship it'));
+        translator.translate(
+          saidText('No goal set. Usage: `/goal <condition>`'),
+        );
+        translator.translate(saidText('Goal cleared: ship it'));
+        expect(said, 5);
+        // Not made out from the words: the kernel reads how it stands.
         expect(transcript.goal, isNull);
         expect(shown(transcript), isEmpty);
       });
@@ -2590,53 +2556,48 @@ void main() {
       });
 
       test('a kept session has it as it stood, not once over', () {
-        final transcript = Transcript();
-        var seq = 0;
-        final translator = ClaudeTranslator(
-          emit: transcript.apply,
-          nextSeq: () => ++seq,
-        )..replaying = true;
         Map<String, Object?> status(Map<String, Object?> record) => {
           'type': 'attachment',
           'timestamp': '2026-10-05T10:00:00Z',
           'attachment': {'type': 'goal_status', ...record},
         };
-        translator.translate(
-          status({'condition': 'lint clean', 'met': false, 'sentinel': true}),
-        );
-        translator.translate(
-          status({'condition': 'lint clean', 'met': false, 'reason': '3 left'}),
-        );
-        expect(transcript.goal?.condition, 'lint clean');
-        expect(transcript.goal?.lastReason, '3 left');
-        expect(transcript.goal?.checks, 1);
+        Transcript replay(List<Map<String, Object?>> records) {
+          final transcript = Transcript();
+          var seq = 0;
+          final translator = ClaudeTranslator(
+            emit: transcript.apply,
+            nextSeq: () => ++seq,
+          )..replaying = true;
+          records.forEach(translator.translate);
+          translator.endReplay();
+          return transcript;
+        }
 
-        translator.translate(
-          status({
-            'condition': 'lint clean',
-            'met': true,
-            'reason': 'clean',
-            'iterations': 2,
-            'durationMs': 5000,
-          }),
-        );
-        expect(transcript.goal, isNull);
+        final set = status({
+          'condition': 'lint clean',
+          'met': false,
+          'sentinel': true,
+        });
+        final checked = status({
+          'condition': 'lint clean',
+          'met': false,
+          'reason': '3 left',
+        });
+        final working = replay([set, checked]).goal;
+        expect(working?.condition, 'lint clean');
+        expect(working?.state, GoalState.active);
+        expect(working?.lastReason, '3 left');
+        expect(working?.checks, 1);
+        expect(working?.setAt, DateTime.utc(2026, 10, 5, 10).toLocal());
 
-        // Live, met shows.
-        translator.replaying = false;
-        translator.translate(
-          status({'condition': 'docs built', 'met': false, 'sentinel': true}),
-        );
-        translator.translate(
-          status({
-            'condition': 'docs built',
-            'met': true,
-            'iterations': 1,
-            'durationMs': 5000,
-          }),
-        );
-        expect(transcript.goal?.state, GoalState.met);
-        expect(transcript.goal?.duration, const Duration(seconds: 5));
+        final met = status({
+          'condition': 'lint clean',
+          'met': true,
+          'reason': 'clean',
+          'iterations': 2,
+          'durationMs': 5000,
+        });
+        expect(replay([set, checked, met]).goal, isNull);
       });
 
       test(
@@ -2754,39 +2715,207 @@ void main() {
         expect(step.output, 'all tests pass\nand lint is clean');
       });
 
-      test('after a turn toward it, the kernel asks how it stands', () async {
-        final cli = FakeCli();
-        final (:kernel, :transcript, events: _) = claude(cli);
-        kernel.send(const KernelTurn(id: 'u1', text: '/goal tests pass'));
-        await pumpEventQueue();
-        cli
-          ..push(said('Goal set: tests pass'))
-          ..push({'type': 'result', 'subtype': 'success', 'is_error': false});
-        await pumpEventQueue();
-        // Set: the turn it was set in did no work toward it yet, but it is
-        // asked all the same; harmless.
-        final asked = cli.users.where(
-          (message) => ((message['message'] as Map)['content'] as List).any(
-            (block) => (block as Map)['text'] == '/goal',
-          ),
-        );
-        expect(asked, hasLength(1));
-
-        cli
-          ..push(said('No goal set. Usage: `/goal <condition>`'))
-          ..push({'type': 'result', 'subtype': 'success', 'is_error': false});
-        await pumpEventQueue();
-        expect(transcript.goal?.state, GoalState.met);
-        // Met: not asked again.
+      test('the hooks say whether one is in effect, and which', () {
         expect(
-          cli.users.where(
-            (message) => ((message['message'] as Map)['content'] as List).any(
-              (block) => (block as Map)['text'] == '/goal',
-            ),
-          ),
-          hasLength(1),
+          hookedGoal({
+            'hooks': [
+              {
+                'event': 'Stop',
+                'source': 'userSettings',
+                'type': 'command',
+                'commandText': 'say done',
+              },
+              {
+                'event': 'Stop',
+                'source': 'sessionHook',
+                'type': 'prompt',
+                'commandText': 'tests pass',
+              },
+            ],
+          }),
+          'tests pass',
         );
-        kernel.dispose();
+        expect(hookedGoal({'hooks': []}), isNull);
+
+        final kept = KernelGoal('tests pass', checks: 2);
+        expect(goalInEffect(kept, 'tests pass'), same(kept));
+        // Gone from the hooks: over, though not kept as so (yet).
+        expect(goalInEffect(kept, null), isNull);
+        // Set anew, not kept yet.
+        expect(goalInEffect(kept, 'ship it'), KernelGoal('ship it'));
+        final met = KernelGoal('tests pass', state: GoalState.met);
+        expect(goalInEffect(met, null), same(met));
+      });
+
+      group('as Claude Code has it', () {
+        Map<String, Object?> status(Map<String, Object?> record) => {
+          'type': 'attachment',
+          'timestamp': '2026-10-05T10:00:00Z',
+          'attachment': {'type': 'goal_status', ...record},
+        };
+        Map<String, Object?> set(String condition) =>
+            status({'condition': condition, 'met': false, 'sentinel': true});
+        // A goal in effect, as `get_hooks_listing` lists it.
+        Map<String, Object?> hook(String condition) => {
+          'event': 'Stop',
+          'matcher': '',
+          'source': 'sessionHook',
+          'type': 'prompt',
+          'commandText': condition,
+        };
+        const idle = {
+          'type': 'system',
+          'subtype': 'session_state_changed',
+          'state': 'idle',
+        };
+        const done = {
+          'type': 'result',
+          'subtype': 'success',
+          'is_error': false,
+        };
+
+        ({ClaudeCodeKernel kernel, Transcript transcript, FakeCli cli}) start(
+          Map<String, Object?> hooks,
+          List<Map<String, Object?>> Function() records, {
+          SessionRecord? resume,
+        }) {
+          final cli = FakeCli(answers: {'get_hooks_listing': hooks});
+          final kernel = ClaudeCodeKernel(
+            MockKernels.claudeCode,
+            KernelContext(cwd: '/p', resume: resume),
+            start: (_) async => cli,
+            readGoal: (cwd, id) async => records(),
+          );
+          addTearDown(kernel.dispose);
+          final transcript = Transcript();
+          kernel.events.listen(transcript.apply);
+          return (kernel: kernel, transcript: transcript, cli: cli);
+        }
+
+        test('set, checked and met, read afresh each time', () async {
+          final hooks = <String, Object?>{'hooks': []};
+          var records = <Map<String, Object?>>[];
+          final (:kernel, :transcript, :cli) = start(hooks, () => records);
+          kernel.send(const KernelTurn(id: 'u1', text: '/goal tests pass'));
+          await pumpEventQueue();
+          cli.push({'type': 'system', 'subtype': 'init', 'session_id': 's1'});
+
+          hooks['hooks'] = [hook('tests pass')];
+          records = [set('tests pass')];
+          cli.push(saidText('Goal set: tests pass'));
+          await pumpEventQueue();
+          expect(transcript.goal?.condition, 'tests pass');
+          expect(transcript.goal?.state, GoalState.active);
+          expect(
+            transcript.goal?.setAt,
+            DateTime.utc(2026, 10, 5, 10).toLocal(),
+          );
+
+          records = [
+            ...records,
+            status({
+              'condition': 'tests pass',
+              'met': false,
+              'reason': '2 fail',
+            }),
+          ];
+          cli.push(
+            told('Stop hook feedback:\n[tests pass]: 2 fail', meta: true),
+          );
+          await pumpEventQueue();
+          expect(transcript.goal?.checks, 1);
+          expect(transcript.goal?.lastReason, '2 fail');
+
+          // Met: Claude Code says nothing of it but in what it keeps.
+          hooks['hooks'] = [];
+          records = [
+            ...records,
+            status({
+              'condition': 'tests pass',
+              'met': true,
+              'iterations': 2,
+              'durationMs': 5000,
+            }),
+          ];
+          cli
+            ..push(done)
+            ..push(idle);
+          await pumpEventQueue();
+          expect(transcript.goal?.state, GoalState.met);
+          expect(transcript.goal?.duration, const Duration(seconds: 5));
+          // Read the same again: nothing new is reported.
+          final reported = transcript.goal;
+          cli.push(idle);
+          await pumpEventQueue();
+          expect(transcript.goal, same(reported));
+          // Nothing is asked of it in the conversation.
+          expect(
+            cli.users.where(
+              (message) => ((message['message'] as Map)['content'] as List).any(
+                (block) => (block as Map)['text'] == '/goal',
+              ),
+            ),
+            isEmpty,
+          );
+        });
+
+        test('one given up on is not met', () async {
+          final hooks = <String, Object?>{'hooks': []};
+          var records = <Map<String, Object?>>[];
+          final (:kernel, :transcript, :cli) = start(hooks, () => records);
+          kernel.send(const KernelTurn(id: 'u1', text: 'go'));
+          await pumpEventQueue();
+          cli.push({'type': 'system', 'subtype': 'init', 'session_id': 's1'});
+          records = [
+            set('ship it'),
+            status({
+              'condition': 'ship it',
+              'met': false,
+              'failed': true,
+              'reason': 'no access',
+            }),
+          ];
+          cli
+            ..push(done)
+            ..push(idle);
+          await pumpEventQueue();
+          expect(transcript.goal?.state, GoalState.failed);
+          expect(transcript.goal?.lastReason, 'no access');
+        });
+
+        test('resumed: one over before is not shown, nor one Claude Code did '
+            'not take up again', () async {
+          final hooks = <String, Object?>{'hooks': []};
+          final records = [
+            set('docs built'),
+            status({'condition': 'docs built', 'met': true, 'iterations': 1}),
+            set('lint clean'),
+          ];
+          final (:kernel, :transcript, :cli) = start(
+            hooks,
+            () => records,
+            resume: SessionRecord(
+              id: 's0',
+              title: '',
+              updatedAt: DateTime(2026),
+              cwd: '/p',
+            ),
+          );
+          kernel.send(const KernelTurn(id: 'u1', text: 'go'));
+          await pumpEventQueue();
+          expect(cli.requests('get_hooks_listing'), isNotEmpty);
+          expect(transcript.goal, isNull);
+
+          // In effect after all: as kept.
+          hooks['hooks'] = [hook('lint clean')];
+          cli.push(idle);
+          await pumpEventQueue();
+          expect(transcript.goal?.condition, 'lint clean');
+          expect(
+            transcript.goal?.setAt,
+            DateTime.utc(2026, 10, 5, 10).toLocal(),
+          );
+        });
       });
     });
 

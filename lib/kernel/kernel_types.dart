@@ -356,6 +356,28 @@ class KernelGoal {
     duration: duration ?? this.duration,
     tokens: tokens ?? this.tokens,
   );
+
+  @override
+  bool operator ==(Object other) =>
+      other is KernelGoal &&
+      other.condition == condition &&
+      other.state == state &&
+      other.checks == checks &&
+      other.lastReason == lastReason &&
+      other.setAt == setAt &&
+      other.duration == duration &&
+      other.tokens == tokens;
+
+  @override
+  int get hashCode => Object.hash(
+    condition,
+    state,
+    checks,
+    lastReason,
+    setAt,
+    duration,
+    tokens,
+  );
 }
 
 // --- Interactions -------------------------------------------------------------

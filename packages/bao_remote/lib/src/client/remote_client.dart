@@ -607,6 +607,14 @@ class RemoteClient {
       _map(entry),
   ];
 
+  /// What the session [id] kept of its goal (see [ClaudeSessions.goal]).
+  Future<List<Map<String, Object?>>> claudeGoal(String id) async => [
+    for (final entry in await _call<List>(RemoteProtocol.claudeGoal, {
+      'id': id,
+    }))
+      _map(entry),
+  ];
+
   Future<void> claudeDelete(String id) =>
       _call(RemoteProtocol.claudeDelete, {'id': id});
 

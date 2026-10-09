@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import '../../chat/chat_models.dart';
 import '../kernel_event.dart';
 import '../kernel_types.dart';
+import 'claude_goal.dart';
 
 /// Translates Claude Code's conversation messages (stream-json output, or
 /// the lines of a kept session) into [KernelEvent]s: text, thoughts, tool
@@ -14,10 +15,14 @@ import '../kernel_types.dart';
 /// and block, tool use id, message uuid), so translating a message twice,
 /// e.g. streamed and then whole, lands on the same items.
 class ClaudeTranslator {
-  ClaudeTranslator({required this.emit, required this.nextSeq});
+  ClaudeTranslator({required this.emit, required this.nextSeq, this.goalSaid});
 
   final void Function(KernelEvent event) emit;
   final int Function() nextSeq;
+
+  /// Claude Code said something of the goal, live: how it stands is to be
+  /// asked afresh (see claude_goal.dart).
+  final void Function()? goalSaid;
 
   /// What a question is answered with in full access, the user not asked:
   /// a question so answered shows as skipped.
@@ -76,8 +81,10 @@ class ClaudeTranslator {
   final Map<String, TodoEntry> _todos = {};
 
   /// The session's goal (`/goal`), as last reported.
-  KernelGoal? get goal => _goal;
   KernelGoal? _goal;
+
+  /// What a kept session being replayed kept of its goal.
+  final List<Map<String, Object?>> _goalRecords = [];
 
   /// The plan file the agent last wrote, in plan mode (see [isPlanPath]).
   String? get planPath => _planPath;
@@ -212,11 +219,11 @@ class ClaudeTranslator {
         _replayedAt(message);
       case 'system':
         _system(message);
-      case 'active_goal':
-        _activeGoal(message['value']);
       // Kept beside a session's messages: how its goal stood.
-      case 'attachment':
-        _attachment(message);
+      case 'attachment' when replaying:
+        if (_map(message['attachment'])['type'] == 'goal_status') {
+          _goalRecords.add(message);
+        }
     }
   }
 
@@ -234,8 +241,13 @@ class ClaudeTranslator {
   /// The user stopped the replayed turn: it is not timed.
   bool _replayedStopped = false;
 
-  /// The kept session is all replayed: times its last turn.
-  void endReplay() => _timeReplayed();
+  /// The kept session is all replayed: times its last turn, and has its
+  /// goal as it stood (one met or given up on, nothing to show any more).
+  void endReplay() {
+    _timeReplayed();
+    reportGoal(keptGoal(_goalRecords, seen: _goalRecords.length));
+    _goalRecords.clear();
+  }
 
   void _replayedAt(Map<String, Object?> message) {
     if (!replaying || _replayed == null) return;
@@ -437,7 +449,7 @@ class ClaudeTranslator {
         case 'text':
           final text = block['text'] as String? ?? '';
           if (synthetic) {
-            if (parent == null && _goalReply(text, message)) continue;
+            if (parent == null && _goalReply(text)) continue;
             if (text.isNotEmpty) {
               _put(id, NoticeItem(NoticeKind.command, text), parent: parent);
             }
@@ -538,8 +550,11 @@ class ClaudeTranslator {
     List<ImageAttachment> images = const [],
   }) {
     if (parent != null) return;
-    // The goal checked and not met yet (kept as a note for the model).
-    if (_goalFeedback(text)) return;
+    // The goal checked and not met yet (a note for the model).
+    if (text.startsWith(_goalFeedback)) {
+      if (!replaying) goalSaid?.call();
+      return;
+    }
     if (message['isMeta'] == true) return;
     final id = message['uuid'] as String?;
     if (id == null) return;
@@ -579,7 +594,7 @@ class ClaudeTranslator {
       return;
     }
     if (_tag(trimmed, 'local-command-stdout') case final output?) {
-      if (_goalReply(output, message)) return;
+      if (_goalReply(output)) return;
       if (output.trim().isNotEmpty) {
         _put(id, NoticeItem(NoticeKind.command, output.trim()));
       }
@@ -1205,12 +1220,6 @@ class ClaudeTranslator {
             NoticeItem(NoticeKind.info, text),
           );
         }
-      // A local command's answer, as kept: the goal's is read.
-      case 'local_command':
-        if (_tag('${message['content']}', 'local-command-stdout')
-            case final output?) {
-          _goalReply(output, message);
-        }
       case 'local_command_output':
         if (_string(message['content']) case final text? when text.isNotEmpty) {
           _put(uuid, NoticeItem(NoticeKind.command, text));
@@ -1431,166 +1440,33 @@ class ClaudeTranslator {
 
   // --- Goal ------------------------------------------------------------------------
   //
-  // Claude Code reports a goal only in words: its answers to `/goal` ("Goal
-  // set: …", "Goal active: … (2 turns)\nLast check: …", "Goal cleared: …",
-  // "No goal set"), and the note it gives the model when a check finds it
-  // not met. A met goal clears itself unseen: asked again, there is none.
-  // A kept session also has the checks themselves (see [_attachment]).
+  // Not read from what Claude Code says of it (see claude_goal.dart): the
+  // kernel asks how it stands whenever Claude Code says anything of it.
 
-  void _setGoal(KernelGoal? goal) {
-    // Met or given up on before now: nothing to show for it any more.
-    if (replaying && goal?.state != GoalState.active) goal = null;
+  /// The goal as it now stands; reported only once it is otherwise.
+  void reportGoal(KernelGoal? goal) {
+    if (goal == _goal) return;
     _goal = goal;
     emit(GoalReported(nextSeq(), goal));
   }
 
-  /// The live goal state from the CLI, before its transcript attachment.
-  void _activeGoal(Object? value) {
-    if (value == null) {
-      if (_goal != null) _setGoal(null);
-      return;
-    }
-    if (value is! Map) return;
-    final condition = _string(value['condition']);
-    if (condition == null || condition.isEmpty) return;
-    final known = _goal?.condition == condition ? _goal : null;
-    final setAt = switch (value['set_at']) {
-      final num milliseconds => DateTime.fromMillisecondsSinceEpoch(
-        milliseconds.toInt(),
-        isUtc: true,
-      ).toLocal(),
-      _ => known?.setAt,
-    };
-    _setGoal(
-      KernelGoal(
-        condition,
-        checks: (value['iterations'] as num?)?.toInt() ?? known?.checks ?? 0,
-        lastReason: _string(value['last_reason']) ?? known?.lastReason,
-        setAt: setAt,
-      ),
-    );
-  }
+  /// The note a check of the goal that finds it not met gives the model
+  /// (`Stop hook feedback:\n[condition]: why not`).
+  static const _goalFeedback = 'Stop hook feedback:\n[';
 
-  static DateTime _timeOf(Map<String, Object?> message) =>
-      DateTime.tryParse('${message['timestamp']}')?.toLocal() ?? DateTime.now();
-
-  /// Reads [text], the answer to a `/goal`, into the goal; false when it is
-  /// not one (it shows then).
-  bool _goalReply(String text, Map<String, Object?> message) {
-    final reply = text.trim();
-    if (reply.startsWith('Goal set: ')) {
-      _setGoal(
-        KernelGoal(
-          reply.substring('Goal set: '.length).trim(),
-          setAt: _timeOf(message),
-        ),
-      );
-      return true;
+  /// Whether [text] is an answer to `/goal` ("Goal set: …", "Goal active:
+  /// …", "Goal cleared: …", "No goal set"): shown in the goal's bar, not
+  /// here.
+  bool _goalReply(String text) {
+    final reply = text.trimLeft();
+    if (!(reply.startsWith('Goal set: ') ||
+        reply.startsWith('Goal active: ') ||
+        reply.startsWith('Goal cleared') ||
+        reply.startsWith('No goal set'))) {
+      return false;
     }
-    if (reply.startsWith('Goal cleared')) {
-      _setGoal(null);
-      return true;
-    }
-    if (reply.startsWith('No goal set')) {
-      // Gone without being cleared: met.
-      if (_goal case final goal? when goal.state == GoalState.active) {
-        _setGoal(
-          goal.copyWith(
-            state: GoalState.met,
-            duration: switch (goal.setAt) {
-              final at? => _timeOf(message).difference(at),
-              null => null,
-            },
-          ),
-        );
-      }
-      return true;
-    }
-    if (reply.startsWith('Goal active: ')) {
-      final at = reply.lastIndexOf('\nLast check: ');
-      final head = at < 0 ? reply : reply.substring(0, at);
-      final reason = at < 0
-          ? null
-          : reply.substring(at + '\nLast check: '.length).trim();
-      final match = RegExp(r'^Goal active: ([\s\S]*) \(([^()]*)\)$')
-          .firstMatch(head);
-      final condition = (match?[1] ?? head.substring('Goal active: '.length))
-          .trim();
-      final checks = int.tryParse(
-        RegExp(r'^\d+').stringMatch(match?[2] ?? '') ?? '',
-      );
-      final known = _goal?.condition == condition ? _goal : null;
-      _setGoal(
-        KernelGoal(
-          condition,
-          checks: checks ?? known?.checks ?? 0,
-          lastReason: reason ?? known?.lastReason,
-          setAt: known?.setAt,
-        ),
-      );
-      return true;
-    }
-    return false;
-  }
-
-  /// Reads the note a check of the goal gives the model (`Stop hook
-  /// feedback:\n[condition]: why not`); false when [text] is not one.
-  bool _goalFeedback(String text) {
-    final goal = _goal;
-    const prefix = 'Stop hook feedback:\n[';
-    if (goal == null || !text.startsWith(prefix)) return false;
-    final marker = '$prefix${goal.condition}]: ';
-    if (!text.startsWith(marker)) return false;
-    _setGoal(
-      goal.copyWith(
-        state: GoalState.active,
-        checks: goal.checks + 1,
-        lastReason: text.substring(marker.length).trim(),
-      ),
-    );
+    if (!replaying) goalSaid?.call();
     return true;
-  }
-
-  /// A kept session's record of its goal: set (a sentinel), checked, met
-  /// (with what it took) or given up on.
-  void _attachment(Map<String, Object?> message) {
-    final record = _map(message['attachment']);
-    if (record['type'] != 'goal_status') return;
-    final condition = _string(record['condition']);
-    if (condition == null) return;
-    final reason = _string(record['reason'])?.trim();
-    final met = record['met'] == true;
-    if (record['sentinel'] == true) {
-      // Set; or, met, the goal ended (cleared, or after an error).
-      if (met) {
-        if (_goal?.state == GoalState.active) _setGoal(null);
-      } else {
-        _setGoal(KernelGoal(condition, setAt: _timeOf(message)));
-      }
-      return;
-    }
-    final known = _goal?.condition == condition ? _goal : null;
-    if (met || record['failed'] == true) {
-      _setGoal(
-        KernelGoal(
-          condition,
-          state: met ? GoalState.met : GoalState.failed,
-          checks: (record['iterations'] as num?)?.toInt() ?? known?.checks ?? 0,
-          lastReason: reason ?? known?.lastReason,
-          setAt: known?.setAt,
-          duration: switch (record['durationMs']) {
-            final num ms => Duration(milliseconds: ms.round()),
-            _ => null,
-          },
-          tokens: (record['tokens'] as num?)?.toInt(),
-        ),
-      );
-      return;
-    }
-    // Checked, not met: its note to the model says the same (if kept).
-    if (known != null && reason != null && known.lastReason != reason) {
-      _setGoal(known.copyWith(checks: known.checks + 1, lastReason: reason));
-    }
   }
 
   static String? _tag(String text, String tag) {
