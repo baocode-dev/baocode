@@ -32,6 +32,7 @@ import 'keybindings/vscode_import.dart';
 import 'l10n/l10n.dart';
 import 'models/model_providers.dart';
 import 'models/model_runtime.dart';
+import 'network/network_proxy.dart';
 import 'notifications/attention_host.dart';
 import 'notifications/attention_settings.dart';
 import 'platform/app_platform.dart';
@@ -93,9 +94,6 @@ Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
   // The Windows app's own logs go beside it.
   if (errors != null) unawaited(errors.shareWithHost());
-  // Emoji as pictures: fetched into the cache the first run, in the
-  // background.
-  EmojiSheet.start(EmojiSheetStore.cache());
   // The editor's language packs are the language servers' (README.md in
   // lib/ide/lsp/packs).
   MonacoLanguageAssets.defaultPacks = () => LanguagePackRegistry.instance;
@@ -105,8 +103,14 @@ Future<void> main(List<String> arguments) async {
   final files = kIsWeb ? null : SettingsFiles.instance;
   await files?.load();
   files?.watch();
-  // Read as each agent starts.
   if (files != null) {
+    // Settings → Network: the proxy every request and Claude Code go
+    // through, the system's by default; read before the first request.
+    await startNetworkProxy(
+      files.settings,
+      (key) => files.settings[key],
+    ).timeout(const Duration(seconds: 1), onTimeout: () {});
+    // Read as each agent starts.
     CommitAttribution.current = () =>
         CommitAttribution.parse(files.settings[CommitAttribution.settingKey]);
     // Settings → Models: the upstreams, kept in settings.json.
@@ -120,6 +124,9 @@ Future<void> main(List<String> arguments) async {
     // window's text size.
     CodeFont.follow(files.settings, (key) => files.settings[key]);
   }
+  // Emoji as pictures: fetched into the cache the first run, in the
+  // background, through the proxy.
+  EmojiSheet.start(EmojiSheetStore.cache());
   await prepareClaudeOnboarding();
   final locale = AppLocale(storage: files?.argv);
   final workspace = Workspace(

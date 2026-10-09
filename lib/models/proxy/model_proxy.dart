@@ -32,7 +32,7 @@ class ModelProxy {
     required this._provider,
     required this._key,
     this._onError,
-    this._environment,
+    this._findProxy,
     @visibleForTesting String? token,
   }) : token = token ?? _newToken();
 
@@ -40,9 +40,9 @@ class ModelProxy {
   final Future<String?> Function(String id) _key;
   final void Function(String id, String? error)? _onError;
 
-  /// Where the HTTP proxy to reach the upstreams is read from (the login
-  /// shell's environment).
-  final Future<Map<String, String>> Function()? _environment;
+  /// The HTTP proxy to reach the upstreams through, a connection each
+  /// (the app's `NetworkProxy`); straight to them without one.
+  final String Function(Uri url)? _findProxy;
 
   /// What a request must carry, as a bearer token or `x-api-key`.
   final String token;
@@ -76,12 +76,10 @@ class ModelProxy {
 
   Future<HttpClient> _upstream() async {
     if (_client case final client?) return client;
-    final environment = await _environment?.call() ?? Platform.environment;
     return _client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 30)
       ..idleTimeout = const Duration(seconds: 30)
-      ..findProxy = (url) =>
-          HttpClient.findProxyFromEnvironment(url, environment: environment);
+      ..findProxy = _findProxy ?? (_) => 'DIRECT';
   }
 
   Future<void> close() async {

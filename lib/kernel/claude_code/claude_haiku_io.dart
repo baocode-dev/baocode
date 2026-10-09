@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../models/launch_environment.dart';
+import '../../network/network_proxy_io.dart';
 import 'claude_environment.dart';
 import 'claude_haiku.dart';
 import 'claude_settings_file.dart';
@@ -25,6 +26,7 @@ Future<String> askClaudeHaiku(
   final settingsFile = env == null
       ? null
       : await ClaudeSettingsFile.write({'env': env});
+  final proxy = await NetworkProxy.instance.environment();
   final Process process;
   try {
     process = await Process.start(
@@ -33,6 +35,7 @@ Future<String> askClaudeHaiku(
       workingDirectory: Directory.systemTemp.path,
       environment: {
         ...cli.environment,
+        ...proxy,
         if (env != null)
           for (final name in ClaudeModelVariables.inherited) name: '',
         ...ClaudeEnvironment.stateDirectory(cli.environment),

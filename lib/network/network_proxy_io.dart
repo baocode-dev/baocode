@@ -187,12 +187,13 @@ Future<ProxyRoute> readSystemProxy() async {
   return const ProxyRoute.direct();
 }
 
-void startNetworkProxy(
+Future<void> startNetworkProxy(
   Listenable changes,
   Object? Function(String key) setting,
 ) {
   final proxy = NetworkProxy.instance..follow(changes, setting);
   HttpOverrides.global = NetworkProxyOverrides(proxy);
+  return proxy.resolve();
 }
 
 Future<ProxyRoute> currentProxyRoute() => NetworkProxy.instance.resolve();

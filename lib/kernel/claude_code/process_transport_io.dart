@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../../models/launch_environment.dart';
+import '../../network/network_proxy_io.dart';
 import '../../platform/data_dir.dart';
 import '../../platform/child_process_registry.dart';
 import 'claude_code_transport.dart';
@@ -97,6 +98,8 @@ class ProcessTransport implements ClaudeCodeTransport {
       final path? => launch.withSettingsFile(path),
       null => launch,
     };
+    // The proxy as it is now: Clash may have been turned on since.
+    final proxy = await NetworkProxy.instance.environment();
     try {
       final process = await Process.start(
         cli.executable,
@@ -104,6 +107,7 @@ class ProcessTransport implements ClaudeCodeTransport {
         workingDirectory: launch.cwd,
         environment: {
           ...cli.environment,
+          ...proxy,
           // A provider's session: none of the user's own model setup.
           if (launch.env != null)
             for (final name in ClaudeModelVariables.inherited) name: '',

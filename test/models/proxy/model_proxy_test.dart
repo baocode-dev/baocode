@@ -116,7 +116,7 @@ void main() {
       provider: (id) => id == provider.id ? provider : null,
       key: (_) async => 'sk-upstream',
       onError: (_, error) => errors.add(error),
-      environment: () async => const {},
+      findProxy: (_) => 'DIRECT',
       token: 'tok',
     );
   });

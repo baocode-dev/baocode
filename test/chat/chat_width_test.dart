@@ -109,6 +109,22 @@ void main() {
       () => !settings.values.containsKey(ChatWidth.settingKey),
     );
     expect(settings.values.containsKey(ChatWidth.settingKey), isFalse);
+    // Dragging the thumb with the mouse picks nothing: only a click does.
+    final drag = await tester.startGesture(
+      tester.getTopLeft(slider) + const Offset(14, 10),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    for (var i = 1; i <= 8; i++) {
+      await drag.moveTo(
+        tester.getTopLeft(slider) + Offset(14 + i * 18.0, 10),
+      );
+      await tester.pump();
+      expect(ChatWidth.current.value, ChatWidth.fallback);
+    }
+    await drag.up();
+    await tester.pump();
+    expect(ChatWidth.current.value, ChatWidth.fallback);
     // Removed outside the test's fake clock, where its file IO can finish.
     await tester.runAsync(() => data.delete(recursive: true));
     // The settings page's code preview highlights on timers: leave it, and
