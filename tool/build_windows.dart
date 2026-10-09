@@ -27,6 +27,11 @@ const _installersRelative = r'build\installers';
 const _required = [
   'baocode.exe',
   'flutter_windows.dll',
+  // The VC++ runtime, carried rather than taken from System32, which may
+  // be older than the build's (see windows/CMakeLists.txt).
+  'msvcp140.dll',
+  'vcruntime140.dll',
+  'vcruntime140_1.dll',
   r'data\app.so',
   r'data\icudtl.dat',
   r'data\flutter_assets',

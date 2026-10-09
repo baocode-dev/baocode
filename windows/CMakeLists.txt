@@ -92,6 +92,18 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     COMPONENT Runtime)
 endif()
 
+# The VC++ runtime this build was linked against (msvcp140.dll,
+# vcruntime140.dll, vcruntime140_1.dll, …), beside the executable, where
+# Windows looks first: the one in System32 may be older than the build's —
+# a VC++ 2015 redistributable installed after a newer one downgrades it —
+# and the app, its plugins' DLLs and bao_onig.dll crashed starting there
+# (0xC0000005 in msvcp140.dll). The UCRT is the system's (Windows 10 on).
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP TRUE)
+include(InstallRequiredSystemLibraries)
+install(PROGRAMS ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS}
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"
