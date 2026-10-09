@@ -192,6 +192,28 @@ class IdeDocument {
   }
 }
 
+/// Why a file is saved (`SaveReason`, src/vs/workbench/common/editor.ts).
+enum IdeSaveReason {
+  explicit(1),
+  auto(2),
+  focusChange(3),
+  windowChange(4);
+
+  const IdeSaveReason(this.value);
+
+  /// Its number in the extension host protocol.
+  final int value;
+}
+
+/// Runs before the text of the file at [path] is written
+/// (`ITextFileSaveParticipant`); it may edit [model].
+typedef IdeSaveParticipant =
+    Future<void> Function(
+      String path,
+      EditorDocumentModel model,
+      IdeSaveReason reason,
+    );
+
 /// Open files belong to the IDE pane, not to any one agent conversation.
 class IdeWorkspace extends ChangeNotifier {
   IdeWorkspace(
@@ -479,10 +501,15 @@ class IdeWorkspace extends ChangeNotifier {
   }
 
   /// Writes [path]'s tab-less model to its file.
-  Future<void> saveBackground(String path) async {
+  Future<void> saveBackground(
+    String path, {
+    IdeSaveReason reason = IdeSaveReason.explicit,
+  }) async {
     path = paths.normalize(path);
     final model = _background[path];
     if (model == null) return;
+    await _participate(path, model, reason);
+    if (_disposed || !identical(_background[path], model)) return;
     final text = model.text;
     await files.write(path, text, expectedText: model.savedText);
     if (_disposed || !identical(_background[path], model)) return;
@@ -1148,8 +1175,44 @@ class IdeWorkspace extends ChangeNotifier {
     return saved;
   }
 
-  Future<void> save(IdeDocument doc) {
-    if (doc.isUntitled) return saveAs(doc);
+  /// What runs before a file's text is written, in order
+  /// (`TextFileSaveParticipant`'s participants): each may edit the model.
+  final List<IdeSaveParticipant> saveParticipants = [];
+
+  /// Told what a save participant threw (the save goes on, as upstream's
+  /// does after logging it).
+  void Function(Object error, StackTrace stack)? onSaveParticipantError;
+
+  Future<void> _participate(
+    String path,
+    EditorDocumentModel model,
+    IdeSaveReason reason,
+  ) async {
+    for (final participant in [...saveParticipants]) {
+      if (_disposed) return;
+      try {
+        await participant(path, model, reason);
+      } catch (error, stack) {
+        onSaveParticipantError?.call(error, stack);
+      }
+    }
+  }
+
+  Future<void> save(
+    IdeDocument doc, {
+    IdeSaveReason reason = IdeSaveReason.explicit,
+  }) async {
+    if (doc.isUntitled) {
+      await saveAs(doc);
+      return;
+    }
+    if (saveParticipants.isNotEmpty && doc.isFile) {
+      await _participate(doc.path, doc.model, reason);
+    }
+    return _write(doc);
+  }
+
+  Future<void> _write(IdeDocument doc) {
     final text = doc.text;
     final result = _saves.then((_) async {
       if (_disposed || !_documents.contains(doc) || !doc.isFile) {

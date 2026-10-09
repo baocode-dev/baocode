@@ -119,6 +119,7 @@ import '../workspace/workspace_context.dart';
 import '../workspace/workspace_save.dart';
 import 'editor_feature_driver.dart';
 import 'ide_documents.dart';
+import 'save_participants.dart';
 import 'ide_text_editors.dart';
 import 'jsonc_settings_file.dart';
 import 'workspace_debug_host.dart';
@@ -713,6 +714,35 @@ final class WorkspaceExtensions extends ChangeNotifier {
     }
 
     testing.addListener(testingChanged);
+    final editApplier = IdeWorkspaceEditApplier(
+      workspace: workspace,
+      state: state,
+      refactoringAutoSave: () =>
+          configuration.getValue('files.refactoring.autoSave') != false,
+    );
+    // Trimming, code actions and format on save, final newlines and the
+    // extensions' onWillSaveTextDocument, before each save.
+    final saveParticipants = ExtensionSaveParticipants(
+      configuration: configuration,
+      languages: languageRoot.language,
+      edits: editApplier,
+      executeCommand: commands.executeCommand,
+      languageIdFor: languageIdFor,
+      editorOptions: (model) {
+        final view = workspace.editorViews.active;
+        if (view == null || !identical(view.controller.document, model)) {
+          return null;
+        }
+        return (
+          tabSize: view.controller.tabSize,
+          insertSpaces: view.controller.insertSpaces,
+        );
+      },
+      log: output.logWarning,
+    );
+    final IdeSaveParticipant participate = saveParticipants.participate;
+    workspace.saveParticipants.add(participate);
+    _stops.add(() => workspace.saveParticipants.remove(participate));
     final host = _host = ExtensionHostService(
       pool: app.pool,
       workspaceTrusted: () => trust.isWorkspaceTrusted,
@@ -756,12 +786,8 @@ final class WorkspaceExtensions extends ChangeNotifier {
         DocumentsPort: port,
         TextContentProvidersPort: port,
         EditorTabsHost: editors,
-        WorkspaceEditApplier: IdeWorkspaceEditApplier(
-          workspace: workspace,
-          state: state,
-          refactoringAutoSave: () =>
-              configuration.getValue('files.refactoring.autoSave') != false,
-        ),
+        WorkspaceEditApplier: editApplier,
+        ExtensionSaveParticipants: saveParticipants,
         WorkspaceSavePort: IdeWorkspaceSave(workspace),
         LanguageRegistry: languageRegistry,
         LanguageStatusService: languageStatus,

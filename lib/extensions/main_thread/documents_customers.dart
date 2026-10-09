@@ -30,6 +30,7 @@ import 'main_thread_documents_and_editors.dart';
 import 'main_thread_editor_insets.dart';
 import 'main_thread_editor_tabs.dart';
 import 'main_thread_languages.dart';
+import '../workbench/save_participants.dart';
 
 /// Every actor of this area, by `MainContext` id. Add to the `customers` of
 /// the workbench's `ExtensionHostService`, with these services:
@@ -47,7 +48,12 @@ import 'main_thread_languages.dart';
 /// - `ExtensionHostLog` (optional): where a dropped workspace edit is
 ///   reported.
 final Map<int, MainThreadCustomer> documentsAndEditorsCustomers = {
-  MainContext.mainThreadDocuments.nid: documentsActorFor,
+  MainContext.mainThreadDocuments.nid: (context) {
+    // `SaveParticipant` (mainThreadSaveParticipant.ts): the extensions'
+    // onWillSaveTextDocument run on each save while the host does.
+    context.maybeService<ExtensionSaveParticipants>()?.connect(context);
+    return documentsActorFor(context);
+  },
   MainContext.mainThreadTextEditors.nid: textEditorsActorFor,
   MainContext.mainThreadDocumentContentProviders.nid:
       mainThreadDocumentContentProvidersActor,

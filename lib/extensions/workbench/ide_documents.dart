@@ -316,6 +316,14 @@ final class IdeWorkspaceEditApplier implements WorkspaceEditApplier {
     return true;
   }
 
+  /// Edits in [model]'s own coordinates (a save participant's), through
+  /// the editor on screen when it shows [model].
+  void applyEditorEdits(
+    String path,
+    EditorDocumentModel model,
+    List<EditorOffsetEdit> offsets,
+  ) => _applyTo(path, model, offsets, null);
+
   void _applyTo(
     String path,
     EditorDocumentModel model,

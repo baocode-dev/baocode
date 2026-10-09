@@ -87,7 +87,6 @@ class IdeEditor extends StatefulWidget {
     this.onShowReferences,
     this.onShowCommands,
     this.extensionContextMenu,
-    this.formatOnSave = false,
     this.gitBlame = true,
     this.keyResolver,
     this.onPaste,
@@ -118,10 +117,6 @@ class IdeEditor extends StatefulWidget {
   /// The extensions' `editor/context` groups, merged into the context
   /// menu's.
   final List<IdeMenuGroup> Function()? extensionContextMenu;
-
-  /// Formats the document before saving (`editor.formatOnSave`, off by
-  /// default) when a language server can.
-  final bool formatOnSave;
 
   /// Shows who last changed each line with a caret, when, and why, after
   /// its end (`git.blame.editorDecoration.enabled`), in a repository.
@@ -1941,12 +1936,8 @@ class IdeEditorState extends State<IdeEditor> {
   Future<void> save() async {
     try {
       await flush();
-      final session = _language;
-      if (widget.formatOnSave &&
-          session != null &&
-          session.supports(LanguageRequest.format)) {
-        await session.format();
-      }
+      // Format on save, code actions on save and the rest are the
+      // workspace's save participants.
       final doc = widget.workspace.active;
       if (doc != null) await widget.workspace.save(doc);
     } catch (error) {

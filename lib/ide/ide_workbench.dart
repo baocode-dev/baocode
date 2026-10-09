@@ -3730,7 +3730,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                 onShowReferences: _showReferences,
                                 onShowCommands: () => _showQuickInput('>'),
                                 extensionContextMenu: _editorExtensionMenu,
-                                formatOnSave: _formatOnSave,
                                 gitBlame: _gitBlame,
                                 keyResolver: _resolveEditorKey,
                                 onPaste: _pasteInEditor,
