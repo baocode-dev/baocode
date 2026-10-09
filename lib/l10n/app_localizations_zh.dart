@@ -6208,4 +6208,105 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdCreateWorkspace => '创建工作区...';
+
+  @override
+  String get settingsSectionNetwork => '网络';
+
+  @override
+  String get settingsNetworkKeywords => '代理 网络 proxy clash vpn 梯子';
+
+  @override
+  String get networkSettingsTitle => '网络';
+
+  @override
+  String get networkSettingsDescription => 'BaoCode 及其启动的 Claude Code 如何访问网络。';
+
+  @override
+  String get networkProxy => '代理';
+
+  @override
+  String get networkProxyDescription =>
+      'BaoCode 和 Claude Code 使用的代理（http.proxyMode）。跟随系统代理：使用系统设置里的代理，例如 Clash 开启的系统代理。更改对新会话生效，正在运行的会话需重新开始。';
+
+  @override
+  String networkProxyLabel(String name) {
+    return '代理：$name';
+  }
+
+  @override
+  String get networkProxySystem => '跟随系统代理';
+
+  @override
+  String get networkProxyManual => '手动设置';
+
+  @override
+  String get networkProxyOff => '不使用代理';
+
+  @override
+  String get networkProxyUrl => '代理地址';
+
+  @override
+  String get networkProxyUrlDescription =>
+      'HTTP 代理，例如 Clash 的端口：http://127.0.0.1:7890（http.proxy）。不支持 SOCKS。';
+
+  @override
+  String networkProxyUrlInvalid(String url) {
+    return '不是 HTTP 代理地址：$url。请填写类似 http://127.0.0.1:7890 的地址。';
+  }
+
+  @override
+  String get networkProxyStatus => '当前使用';
+
+  @override
+  String get networkProxyStatusChecking => '正在检测…';
+
+  @override
+  String networkProxyStatusSystem(String server) {
+    return '系统代理 $server';
+  }
+
+  @override
+  String networkProxyStatusEnvironment(String server) {
+    return '$server，来自环境变量（HTTPS_PROXY）：系统没有设置代理';
+  }
+
+  @override
+  String networkProxyStatusManual(String server) {
+    return '$server';
+  }
+
+  @override
+  String get networkProxyStatusManualMissing => '请填写代理地址。';
+
+  @override
+  String get networkProxyStatusNone => '直连：系统没有设置代理。';
+
+  @override
+  String get networkProxyStatusOff => '直连。';
+
+  @override
+  String get networkProxyStatusAutoConfig =>
+      '直连：系统使用自动代理配置（PAC），BaoCode 暂不支持。请在 Clash 中开启系统代理，或手动填写代理地址。';
+
+  @override
+  String get networkProxyRefresh => '重新检测';
+
+  @override
+  String get networkTest => '测试连接';
+
+  @override
+  String get networkTestDescription => '通过当前使用的代理连接 api.anthropic.com。';
+
+  @override
+  String get networkTesting => '正在连接…';
+
+  @override
+  String networkTestOk(int ms) {
+    return '连接成功，用时 $ms 毫秒。';
+  }
+
+  @override
+  String networkTestFailed(String error) {
+    return '连接失败：$error';
+  }
 }

@@ -92,8 +92,10 @@ class NetworkProxy {
       case ProxyMode.manual:
         final server = url is String ? ProxyServer.parse(url) : null;
         if (server == null) return const ProxyRoute.direct();
-        final environment = ProxyRoute.fromEnvironment(await _inherited());
-        return ProxyRoute.manual(server, bypass: environment.bypass);
+        return ProxyRoute.manual(
+          server,
+          bypass: ProxyRoute.noProxyOf(await _inherited()),
+        );
       case ProxyMode.system:
         final ProxyRoute system;
         try {
@@ -133,7 +135,10 @@ class NetworkProxy {
 
   /// Whether [url] answers through the proxy now: how long it took, or
   /// what went wrong. Any HTTP status is an answer.
-  Future<Duration> probe(Uri url, {Duration timeout = const Duration(seconds: 10)}) async {
+  Future<Duration> probe(
+    Uri url, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
     final route = await resolve();
     final client = HttpClient()
       ..connectionTimeout = timeout

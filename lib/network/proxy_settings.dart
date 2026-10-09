@@ -49,7 +49,7 @@ class ProxyServer {
   /// speaks SOCKS to a proxy (Clash's mixed port takes HTTP as well).
   static ProxyServer? parse(String text) {
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return null;
+    if (trimmed.isEmpty || trimmed.contains(RegExp(r'\s'))) return null;
     final withScheme = trimmed.contains('://') ? trimmed : 'http://$trimmed';
     final Uri uri;
     try {
@@ -152,11 +152,13 @@ class ProxyRoute {
   });
 
   /// Straight to the internet: [ProxySource.none] or [ProxySource.off].
-  const ProxyRoute.direct([this.source = ProxySource.none, this.autoConfig = false])
-    : http = null,
-      https = null,
-      bypass = const [],
-      bypassSimpleHostnames = false;
+  const ProxyRoute.direct([
+    this.source = ProxySource.none,
+    this.autoConfig = false,
+  ]) : http = null,
+       https = null,
+       bypass = const [],
+       bypassSimpleHostnames = false;
 
   final ProxySource source;
   final ProxyServer? http;
@@ -283,11 +285,7 @@ class ProxyRoute {
   /// HTTP `ALL_PROXY`; `NO_PROXY`), the lowercase first as curl reads
   /// them; direct when it names none.
   static ProxyRoute fromEnvironment(Map<String, String> environment) {
-    String? value(String name) =>
-        switch (environment[name.toLowerCase()] ?? environment[name]) {
-          final value? when value.trim().isNotEmpty => value.trim(),
-          _ => null,
-        };
+    String? value(String name) => _variable(environment, name);
     ProxyServer? server(String name) => switch (value(name)) {
       final text? => ProxyServer.parse(text),
       null => null,
@@ -300,18 +298,32 @@ class ProxyRoute {
       source: ProxySource.environment,
       http: http,
       https: https,
-      bypass: [...?value('NO_PROXY')?.split(',')],
+      bypass: noProxyOf(environment),
     );
   }
 
+  /// The hosts [environment]'s `NO_PROXY` keeps out of a proxy.
+  static List<String> noProxyOf(Map<String, String> environment) => [
+    for (final entry in (_variable(environment, 'NO_PROXY') ?? '').split(','))
+      if (entry.trim().isNotEmpty) entry.trim(),
+  ];
+
+  static String? _variable(Map<String, String> environment, String name) =>
+      switch (environment[name.toLowerCase()] ?? environment[name]) {
+        final value? when value.trim().isNotEmpty => value.trim(),
+        _ => null,
+      };
+
   /// [server] for both kinds of URL, as `http.proxy` gives it.
-  static ProxyRoute manual(ProxyServer server, {List<String> bypass = const []}) =>
-      ProxyRoute(
-        source: ProxySource.manual,
-        http: server,
-        https: server,
-        bypass: bypass,
-      );
+  static ProxyRoute manual(
+    ProxyServer server, {
+    List<String> bypass = const [],
+  }) => ProxyRoute(
+    source: ProxySource.manual,
+    http: server,
+    https: server,
+    bypass: bypass,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -368,7 +380,9 @@ ProxyRoute parseScutilProxy(String output) {
     }
     final colon = line.indexOf(' : ');
     if (colon > 0) {
-      values[line.substring(0, colon).trim()] = line.substring(colon + 3).trim();
+      values[line.substring(0, colon).trim()] = line
+          .substring(colon + 3)
+          .trim();
     }
   }
   ProxyServer? server(String kind) {
@@ -410,7 +424,8 @@ ProxyRoute parseWindowsInternetSettings(String output) {
   }
   final autoConfig = (values['AutoConfigURL'] ?? '').isNotEmpty;
   final enabled = switch (values['ProxyEnable']) {
-    final value? => (int.tryParse(value.replaceFirst('0x', ''), radix: 16) ?? 0) != 0,
+    final value? =>
+      (int.tryParse(value.replaceFirst('0x', ''), radix: 16) ?? 0) != 0,
     null => false,
   };
   final setting = values['ProxyServer'] ?? '';

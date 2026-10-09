@@ -6599,4 +6599,107 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdCreateWorkspace => 'Create Workspace...';
+
+  @override
+  String get settingsSectionNetwork => 'Network';
+
+  @override
+  String get settingsNetworkKeywords => 'proxy http https clash vpn network';
+
+  @override
+  String get networkSettingsTitle => 'Network';
+
+  @override
+  String get networkSettingsDescription =>
+      'How BaoCode and the Claude Code it starts reach the internet.';
+
+  @override
+  String get networkProxy => 'Proxy';
+
+  @override
+  String get networkProxyDescription =>
+      'The proxy for BaoCode and Claude Code (http.proxyMode). System Proxy follows the system\'s settings, such as Clash\'s system proxy. New sessions take a change; restart a running one for it.';
+
+  @override
+  String networkProxyLabel(String name) {
+    return 'Proxy: $name';
+  }
+
+  @override
+  String get networkProxySystem => 'System Proxy';
+
+  @override
+  String get networkProxyManual => 'Manual';
+
+  @override
+  String get networkProxyOff => 'No Proxy';
+
+  @override
+  String get networkProxyUrl => 'Proxy Address';
+
+  @override
+  String get networkProxyUrlDescription =>
+      'An HTTP proxy, such as Clash\'s port: http://127.0.0.1:7890 (http.proxy). SOCKS isn\'t supported.';
+
+  @override
+  String networkProxyUrlInvalid(String url) {
+    return 'Not an HTTP proxy address: $url. Enter one like http://127.0.0.1:7890.';
+  }
+
+  @override
+  String get networkProxyStatus => 'In Use';
+
+  @override
+  String get networkProxyStatusChecking => 'Detecting…';
+
+  @override
+  String networkProxyStatusSystem(String server) {
+    return 'System proxy $server';
+  }
+
+  @override
+  String networkProxyStatusEnvironment(String server) {
+    return '$server, from the environment (HTTPS_PROXY): the system has no proxy set';
+  }
+
+  @override
+  String networkProxyStatusManual(String server) {
+    return '$server';
+  }
+
+  @override
+  String get networkProxyStatusManualMissing => 'Enter the proxy\'s address.';
+
+  @override
+  String get networkProxyStatusNone => 'Direct: the system has no proxy set.';
+
+  @override
+  String get networkProxyStatusOff => 'Direct.';
+
+  @override
+  String get networkProxyStatusAutoConfig =>
+      'Direct: the system sets its proxy with an auto-config (PAC) file, which BaoCode doesn\'t follow. Turn on Clash\'s system proxy, or enter the address manually.';
+
+  @override
+  String get networkProxyRefresh => 'Detect Again';
+
+  @override
+  String get networkTest => 'Test Connection';
+
+  @override
+  String get networkTestDescription =>
+      'Connects to api.anthropic.com through the proxy in use.';
+
+  @override
+  String get networkTesting => 'Connecting…';
+
+  @override
+  String networkTestOk(int ms) {
+    return 'Connected in $ms ms.';
+  }
+
+  @override
+  String networkTestFailed(String error) {
+    return 'Couldn\'t connect: $error';
+  }
 }

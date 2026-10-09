@@ -10898,6 +10898,174 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Create Workspace...'**
   String get cmdCreateWorkspace;
+
+  /// No description provided for @settingsSectionNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Network'**
+  String get settingsSectionNetwork;
+
+  /// No description provided for @settingsNetworkKeywords.
+  ///
+  /// In en, this message translates to:
+  /// **'proxy http https clash vpn network'**
+  String get settingsNetworkKeywords;
+
+  /// No description provided for @networkSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Network'**
+  String get networkSettingsTitle;
+
+  /// No description provided for @networkSettingsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'How BaoCode and the Claude Code it starts reach the internet.'**
+  String get networkSettingsDescription;
+
+  /// No description provided for @networkProxy.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy'**
+  String get networkProxy;
+
+  /// No description provided for @networkProxyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The proxy for BaoCode and Claude Code (http.proxyMode). System Proxy follows the system\'s settings, such as Clash\'s system proxy. New sessions take a change; restart a running one for it.'**
+  String get networkProxyDescription;
+
+  /// The proxy dropdown, as read out.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy: {name}'**
+  String networkProxyLabel(String name);
+
+  /// Proxy mode: the system's proxy settings.
+  ///
+  /// In en, this message translates to:
+  /// **'System Proxy'**
+  String get networkProxySystem;
+
+  /// Proxy mode: the address entered.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual'**
+  String get networkProxyManual;
+
+  /// Proxy mode: straight to the internet.
+  ///
+  /// In en, this message translates to:
+  /// **'No Proxy'**
+  String get networkProxyOff;
+
+  /// No description provided for @networkProxyUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy Address'**
+  String get networkProxyUrl;
+
+  /// No description provided for @networkProxyUrlDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'An HTTP proxy, such as Clash\'s port: http://127.0.0.1:7890 (http.proxy). SOCKS isn\'t supported.'**
+  String get networkProxyUrlDescription;
+
+  /// No description provided for @networkProxyUrlInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Not an HTTP proxy address: {url}. Enter one like http://127.0.0.1:7890.'**
+  String networkProxyUrlInvalid(String url);
+
+  /// No description provided for @networkProxyStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'In Use'**
+  String get networkProxyStatus;
+
+  /// No description provided for @networkProxyStatusChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Detecting…'**
+  String get networkProxyStatusChecking;
+
+  /// No description provided for @networkProxyStatusSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System proxy {server}'**
+  String networkProxyStatusSystem(String server);
+
+  /// No description provided for @networkProxyStatusEnvironment.
+  ///
+  /// In en, this message translates to:
+  /// **'{server}, from the environment (HTTPS_PROXY): the system has no proxy set'**
+  String networkProxyStatusEnvironment(String server);
+
+  /// No description provided for @networkProxyStatusManual.
+  ///
+  /// In en, this message translates to:
+  /// **'{server}'**
+  String networkProxyStatusManual(String server);
+
+  /// No description provided for @networkProxyStatusManualMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the proxy\'s address.'**
+  String get networkProxyStatusManualMissing;
+
+  /// No description provided for @networkProxyStatusNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct: the system has no proxy set.'**
+  String get networkProxyStatusNone;
+
+  /// No description provided for @networkProxyStatusOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct.'**
+  String get networkProxyStatusOff;
+
+  /// No description provided for @networkProxyStatusAutoConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct: the system sets its proxy with an auto-config (PAC) file, which BaoCode doesn\'t follow. Turn on Clash\'s system proxy, or enter the address manually.'**
+  String get networkProxyStatusAutoConfig;
+
+  /// No description provided for @networkProxyRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Detect Again'**
+  String get networkProxyRefresh;
+
+  /// No description provided for @networkTest.
+  ///
+  /// In en, this message translates to:
+  /// **'Test Connection'**
+  String get networkTest;
+
+  /// No description provided for @networkTestDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Connects to api.anthropic.com through the proxy in use.'**
+  String get networkTestDescription;
+
+  /// No description provided for @networkTesting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting…'**
+  String get networkTesting;
+
+  /// No description provided for @networkTestOk.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected in {ms} ms.'**
+  String networkTestOk(int ms);
+
+  /// No description provided for @networkTestFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t connect: {error}'**
+  String networkTestFailed(String error);
 }
 
 class _AppLocalizationsDelegate

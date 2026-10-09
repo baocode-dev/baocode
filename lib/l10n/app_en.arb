@@ -4770,5 +4770,92 @@
   "@scmRepositories": {
     "description": "The heading of Source Control's list of a workspace's Git repositories."
   },
-  "cmdCreateWorkspace": "Create Workspace..."
+  "cmdCreateWorkspace": "Create Workspace...",
+  "settingsSectionNetwork": "Network",
+  "settingsNetworkKeywords": "proxy http https clash vpn network",
+  "networkSettingsTitle": "Network",
+  "networkSettingsDescription": "How BaoCode and the Claude Code it starts reach the internet.",
+  "networkProxy": "Proxy",
+  "networkProxyDescription": "The proxy for BaoCode and Claude Code (http.proxyMode). System Proxy follows the system's settings, such as Clash's system proxy. New sessions take a change; restart a running one for it.",
+  "networkProxyLabel": "Proxy: {name}",
+  "@networkProxyLabel": {
+    "description": "The proxy dropdown, as read out.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "networkProxySystem": "System Proxy",
+  "@networkProxySystem": {
+    "description": "Proxy mode: the system's proxy settings."
+  },
+  "networkProxyManual": "Manual",
+  "@networkProxyManual": {
+    "description": "Proxy mode: the address entered."
+  },
+  "networkProxyOff": "No Proxy",
+  "@networkProxyOff": {
+    "description": "Proxy mode: straight to the internet."
+  },
+  "networkProxyUrl": "Proxy Address",
+  "networkProxyUrlDescription": "An HTTP proxy, such as Clash's port: http://127.0.0.1:7890 (http.proxy). SOCKS isn't supported.",
+  "networkProxyUrlInvalid": "Not an HTTP proxy address: {url}. Enter one like http://127.0.0.1:7890.",
+  "@networkProxyUrlInvalid": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "networkProxyStatus": "In Use",
+  "networkProxyStatusChecking": "Detecting…",
+  "networkProxyStatusSystem": "System proxy {server}",
+  "@networkProxyStatusSystem": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "networkProxyStatusEnvironment": "{server}, from the environment (HTTPS_PROXY): the system has no proxy set",
+  "@networkProxyStatusEnvironment": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "networkProxyStatusManual": "{server}",
+  "@networkProxyStatusManual": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "networkProxyStatusManualMissing": "Enter the proxy's address.",
+  "networkProxyStatusNone": "Direct: the system has no proxy set.",
+  "networkProxyStatusOff": "Direct.",
+  "networkProxyStatusAutoConfig": "Direct: the system sets its proxy with an auto-config (PAC) file, which BaoCode doesn't follow. Turn on Clash's system proxy, or enter the address manually.",
+  "networkProxyRefresh": "Detect Again",
+  "networkTest": "Test Connection",
+  "networkTestDescription": "Connects to api.anthropic.com through the proxy in use.",
+  "networkTesting": "Connecting…",
+  "networkTestOk": "Connected in {ms} ms.",
+  "@networkTestOk": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "networkTestFailed": "Couldn't connect: {error}",
+  "@networkTestFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
 }
