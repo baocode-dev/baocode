@@ -106,13 +106,21 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   profile (`env.shell`), persistent environment variable collections, and shell integration (`executeCommand`,
   `read()`, exit codes, cwd, env). The workbench binds its service; headless, `ExtensionTerminals` keeps its own.
   Tests: `test/extensions/terminal/` (scripted) and `terminal_exthost_test.dart` (real REH, real zsh).
+- Tasks (lib/extensions/tasks, lib/extensions/main_thread/main_thread_task.dart,
+  lib/extensions/workbench/workspace_tasks.dart): tasks.json per folder (2.0.0 schema, OS overrides, `dependsOn` in
+  parallel/sequence, inputs), problem patterns/matchers (built-in and contributed, background begin/end), the extensions'
+  task providers and `taskDefinitions` (`onTaskType:` activation, customization by tasks.json), the terminal task system
+  (shell/process/custom execution, terminal reuse, presentation, instance policy), `fetchTasks`/`executeTask`/
+  `terminateTask` and task events for extensions, the Tasks commands and output channel, and the debugger's
+  preLaunchTask/postDebugTask runner (`debug.onTaskErrors`, remembered choices, slow-task notice). Tests:
+  `test/extensions/tasks/` (real shells, scripted RPC) and `tasks_exthost_test.dart` (real REH and fixture).
 
 ## In progress / next
 
 1. Editor-feature rendering from the registry is complete (CodeLens, inlay hints, inline completions, highlights,
    folding, links, colors).
 2. Complete real-extension debugging acceptance beyond Node launch/attach (Python, Go, Rust/C++, debugger controls,
-   breakpoint variants and preLaunchTask); connect real debug terminal/task backends. Implement SCM and testing actors.
+   breakpoint variants and preLaunchTask in a real session). Implement SCM and testing actors.
 3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
    bao_remote LSP, docs and l10n), after replacing its language capability coverage.
 4. SSH remote: REH on the remote through bao_remote port forwarding, with the extensionKind split.
@@ -138,7 +146,11 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   were absent was incorrect. Packaging needs no additional VSIX. Real launch and attach are covered by the tagged test.
 - On macOS, `Directory.systemTemp` may return `/var/folders` while Node reports `/private/var/folders`; resolve the
   temporary test workspace symlink before setting js-debug breakpoints so the DAP source paths match.
-- Debug tasks reject explicitly until the task backend is connected; no successful no-op for a requested task.
+- Tasks: folders' tasks.json only (no user or .code-workspace tasks, no 0.1.0 process engine); one-level task pick
+  without recent tasks, problem-matcher attach prompt or templates (Configure Task opens the folder's tasks.json, made
+  from the "Others" template); no reconnection to task terminals after a restart; no split terminals for
+  `presentation.group`; a rerun resolves its variables again. A terminal's initial text and exit messages are not
+  output lines for problem matchers; a process's exit is told after its output is parsed (`_flushXtermData`).
 - Extension terminals live in the panel only (no editor-area terminals or splits); terminal completion, quick fix and
   link providers are accepted without UI; contributed terminal profiles are recorded, not offered in the menu.
   Remote (SSH) terminals do not get an extension's `env` or the environment collections.

@@ -40,6 +40,7 @@ extension _ExtensionsPart on IdeWorkbenchState {
       debugHost.onOpenDebugView = () => _showView(IdeSideView.debug);
       debugHost.onOpenRepl = () => _selectPanel(IdePanelTab.debugConsole);
     }
+    extensions.tasks?.onOpenProblems = _focusProblems;
     extensions.statusBar.addListener(_extensionsUiChanged);
     extensions.output
       ..addListener(_extensionsUiChanged)
@@ -83,6 +84,7 @@ extension _ExtensionsPart on IdeWorkbenchState {
       debugHost.onOpenDebugView = null;
       debugHost.onOpenRepl = null;
     }
+    extensions.tasks?.onOpenProblems = null;
     extensions.statusBar.removeListener(_extensionsUiChanged);
     extensions.output
       ..removeListener(_extensionsUiChanged)
@@ -92,6 +94,31 @@ extension _ExtensionsPart on IdeWorkbenchState {
     ExtensionRuntimeService.instance.removeListener(_extensionsUiChanged);
     _extensionKeys?.dispose();
     _extensionKeys = null;
+  }
+
+  /// The Tasks commands, run by the workspace's task service.
+  List<IdeCommand> _taskCommands() {
+    final extensions = _workspaceExtensions;
+    if (extensions?.tasks == null) return const [];
+    IdeCommand task(String id) => _catalogCommand(
+      id,
+      () => unawaited(extensions!.commands.executeCommand(id)),
+      runWithArgs: (args) =>
+          unawaited(extensions!.commands.executeCommand(id, [args])),
+    );
+    return [
+      for (final id in const [
+        'workbench.action.tasks.runTask',
+        'workbench.action.tasks.build',
+        'workbench.action.tasks.test',
+        'workbench.action.tasks.reRunTask',
+        'workbench.action.tasks.restartTask',
+        'workbench.action.tasks.terminate',
+        'workbench.action.tasks.showLog',
+        'workbench.action.tasks.configureTaskRunner',
+      ])
+        task(id),
+    ];
   }
 
   void _extensionsUiChanged() {

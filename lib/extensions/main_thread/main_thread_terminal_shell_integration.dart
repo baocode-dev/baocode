@@ -64,14 +64,25 @@ final class MainThreadTerminalShellIntegration
   void _watch(TerminalInstance instance) {
     if (_watched.containsKey(instance)) return;
     final stops = _watched[instance] = [];
-    if (instance.shellIntegration != null) {
-      _attach(instance, stops);
-    } else {
-      final ready = instance.onShellIntegrationReady.listen(
-        (_) => _attach(instance, stops),
-      );
-      stops.add(() => unawaited(ready.cancel()));
+    // Its shell integration, and the next one when it is reused.
+    var attached = <void Function()>[];
+    void attach() {
+      for (final stop in attached) {
+        stop();
+      }
+      attached = [];
+      _attach(instance, attached);
     }
+
+    if (instance.shellIntegration != null) attach();
+    final ready = instance.onShellIntegrationReady.listen((_) => attach());
+    stops
+      ..add(() => unawaited(ready.cancel()))
+      ..add(() {
+        for (final stop in attached) {
+          stop();
+        }
+      });
   }
 
   void _unwatch(TerminalInstance instance) {

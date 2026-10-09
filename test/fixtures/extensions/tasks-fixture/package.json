@@ -1,0 +1,43 @@
+{
+  "name": "tasks-fixture",
+  "displayName": "Tasks Fixture",
+  "publisher": "baocode-test",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "tasksFixture.events", "title": "Events" },
+      { "command": "tasksFixture.fetch", "title": "Fetch" },
+      { "command": "tasksFixture.execute", "title": "Execute" },
+      { "command": "tasksFixture.executeAdhoc", "title": "Execute Ad Hoc" }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "baotask",
+        "required": ["kind"],
+        "properties": { "kind": { "type": "string" } }
+      }
+    ],
+    "problemPatterns": [
+      {
+        "name": "bao",
+        "regexp": "^(.*):(\\d+):(\\d+):\\s+(error|warning):\\s+(.*)$",
+        "file": 1,
+        "line": 2,
+        "column": 3,
+        "severity": 4,
+        "message": 5
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "bao",
+        "owner": "bao",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": "$bao"
+      }
+    ]
+  }
+}

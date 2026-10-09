@@ -3213,6 +3213,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     ..._layoutCommands(),
     ..._searchCommands(),
     ..._terminalCommands(),
+    ..._taskCommands(),
     ..._panelCommands(),
     ..._scmCommands(),
     ...?_editor?.editorCommands,

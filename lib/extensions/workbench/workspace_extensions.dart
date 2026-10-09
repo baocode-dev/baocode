@@ -73,6 +73,7 @@ import '../main_thread/main_thread_debug_service.dart';
 import '../main_thread/main_thread_file_system.dart' show ExtensionActivator;
 import '../main_thread/main_thread_decorations.dart';
 import '../main_thread/main_thread_message_service.dart';
+import '../main_thread/main_thread_task.dart';
 import '../main_thread/main_thread_terminal_service.dart';
 import '../main_thread/main_thread_terminal_shell_integration.dart';
 import '../main_thread/main_thread_tree_views.dart';
@@ -81,6 +82,7 @@ import '../main_thread/workspace_customers.dart';
 import '../runtime/extension_runtime_service.dart';
 import '../recommendations/recommendations.dart';
 import '../search/search_service.dart';
+import '../tasks/task_service.dart';
 import '../ui/extensions_model.dart';
 import '../trust/trust_ui.dart';
 import '../trust/workspace_trust.dart';
@@ -116,6 +118,7 @@ import 'ide_documents.dart';
 import 'ide_text_editors.dart';
 import 'jsonc_settings_file.dart';
 import 'workspace_debug_host.dart';
+import 'workspace_tasks.dart';
 
 /// What the whole app shares: one runtime, one VS Code server (and its
 /// extensions folder), the user's settings and the extensions' storage.
@@ -486,6 +489,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
   ExtensionEditorFeatureDriver? _editorFeatures;
   DebugService? _debug;
   WorkspaceDebugHost? _debugHost;
+  WorkspaceTasks? _tasks;
   JsonStateStore? _debugState;
   WorkspaceTrustService? _trust;
   Future<void>? _trustPrompt;
@@ -493,6 +497,9 @@ final class WorkspaceExtensions extends ChangeNotifier {
 
   DebugService? get debug => _debug;
   WorkspaceDebugHost? get debugHost => _debugHost;
+
+  /// The workspace's tasks, once [attach]ed.
+  WorkspaceTasks? get tasks => _tasks;
   WorkspaceTrustService? get trust => _trust;
 
   /// Completion of debug-session cleanup and the final state write after dispose.
@@ -652,6 +659,23 @@ final class WorkspaceExtensions extends ChangeNotifier {
     );
     await debug.configurationManager.initialize();
     if (_disposed) return;
+    final tasks = _tasks = WorkspaceTasks(
+      workspace: workspace,
+      configuration: configuration,
+      context: workspaceContext,
+      trust: trust,
+      output: output,
+      terminals: terminals,
+      markers: languageRoot.markers,
+      dialogs: dialogs,
+      debugHost: debugHost,
+      debug: debug,
+      state: debugState,
+      commands: commands.builtins,
+      activate: (event) async => _host?.activateByEvent(event),
+      extensions: () => _host?.extensions.value ?? const [],
+      progress: progress,
+    );
     final host = _host = ExtensionHostService(
       pool: app.pool,
       workspaceTrusted: () => trust.isWorkspaceTrusted,
@@ -677,9 +701,11 @@ final class WorkspaceExtensions extends ChangeNotifier {
             MainThreadTerminalService.customer,
         MainContext.mainThreadTerminalShellIntegration.nid:
             MainThreadTerminalShellIntegration.customer,
+        MainContext.mainThreadTask.nid: MainThreadTask.customer,
       },
       services: {
         DebugService: debug,
+        TaskService: tasks.service,
         ExtensionTerminals: terminals,
         WorkspaceTrustService: trust,
         ExtensionCommandRegistry: commands,
@@ -1006,6 +1032,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
       for (final extension in extensions) _idOf(extension),
     });
     _debug?.registry.setExtensions(debuggerExtensions(extensions));
+    _tasks?.extensionsChanged();
     commands.setExtensions(extensions);
     statusBar.setContributions(extensions);
     views.setExtensions(commands.extensions);
@@ -1124,6 +1151,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
         identical(workspace.extensionDocuments, _documentsAndEditors?.state)) {
       workspace.extensionDocuments = null;
     }
+    _tasks?.dispose();
     _debugHost?.dispose();
     _debugShutdown = () async {
       await _host?.context?.dispose();

@@ -191,6 +191,21 @@ final class ExtensionOutputService extends ChangeNotifier {
     return id;
   }
 
+  /// A channel of the workbench's own (as Tasks), whose content is what
+  /// is appended to it; the one there when [id] is registered already.
+  ExtensionOutputChannel registerWorkbenchChannel(String id, String label) {
+    final existing = _channels[id];
+    if (existing != null) return existing;
+    final channel = ExtensionOutputChannel.memory(
+      id: id,
+      label: label,
+      log: false,
+      maxBytes: maxChannelBytes,
+    );
+    _add(channel);
+    return channel;
+  }
+
   void _add(ExtensionOutputChannel channel) {
     final replaced = _channels[channel.id];
     _channels[channel.id] = channel;

@@ -82,6 +82,7 @@ class TerminalLaunchConfig {
     this.hideFromUser = false,
     this.isTransient = false,
     this.initialText,
+    this.initialTextNewLine = true,
     this.waitOnExit,
     this.extHostTerminalId,
     this.isFeatureTerminal = false,
@@ -90,6 +91,7 @@ class TerminalLaunchConfig {
     this.titleTemplate,
     this.type,
     this.customPty,
+    this.shellIntegrationNonce,
   });
 
   /// Its fixed name, instead of its process's.
@@ -113,8 +115,10 @@ class TerminalLaunchConfig {
   /// Not kept across restarts (`isTransient`): none are here.
   final bool isTransient;
 
-  /// Written to it before the process prints.
+  /// Written to it before the process prints, then a new line unless
+  /// [initialTextNewLine] is false (`trailingNewLine`).
   final String? initialText;
+  final bool initialTextNewLine;
 
   /// Kept after its process exits until a key is pressed, with the message
   /// this gives for the exit code (`waitOnExit`); closed at once when null.
@@ -133,6 +137,11 @@ class TerminalLaunchConfig {
   /// A Pseudoterminal: what stands for its process, given the terminal
   /// (`customPtyImplementation`); [executable] and [env] do not apply.
   final Future<Pty> Function(TerminalInstance instance)? customPty;
+
+  /// The nonce its shell integration trusts command lines with
+  /// (`shellIntegrationNonce`), when not the launch's own: a task's, whose
+  /// initial text reports the command line.
+  final String? shellIntegrationNonce;
 }
 
 /// The terminal profiles there are, [configured] (the user's
@@ -186,7 +195,7 @@ class TerminalInstance extends ChangeNotifier {
     this._rows = 24,
     this.onExit,
     this.shell,
-    this.config,
+    this._config,
     this.environmentMutator,
   }) {
     _initPlatform();
@@ -230,11 +239,105 @@ class TerminalInstance extends ChangeNotifier {
       write(latin1.encode(data));
       _onInput.add(data);
     });
-    if (config?.initialText case final text?) {
-      terminal.write('$text\r\n');
-    }
+    _writeInitialText();
+    // Lines as they end, for tasks' problem matchers.
+    terminal.onLineFeed((_) {
+      if (!_onLineData.hasListener || _ownTextPending > 0) return;
+      final buffer = terminal.buffer;
+      final index = buffer.ybase + buffer.y;
+      final newLine = buffer.lines.get(index);
+      if (newLine != null && !newLine.isWrapped) _sendLineData(index - 1);
+    });
     unawaited(_start());
   }
+
+  /// Its initial text and exit messages are no lines of output
+  /// (upstream's `LineDataEventAddon` starts once the initial text is
+  /// written, and a task stops listening when the process exits): writes
+  /// of them not yet parsed.
+  int _ownTextPending = 0;
+
+  void _writeOwnText(String text) {
+    // Counted from when what was written before it is parsed.
+    terminal
+      ..write('', () => _ownTextPending++)
+      ..write(text, () => _ownTextPending--);
+  }
+
+  void _writeInitialText() {
+    final config = _config;
+    if (config?.initialText case final text?) {
+      _writeOwnText(config!.initialTextNewLine ? '$text\r\n' : text);
+    }
+  }
+
+  /// VS Code's `LineDataEventAddon._sendLineData`: the line at [index] with
+  /// the lines it wraps from.
+  void _sendLineData(int index) {
+    final lines = terminal.buffer.lines;
+    var line = index < 0 ? null : lines.get(index);
+    if (line == null) return;
+    var data = line.translateToString(true);
+    while (index > 0 && line!.isWrapped) {
+      line = lines.get(--index);
+      if (line == null) break;
+      data = line.translateToString(false) + data;
+    }
+    _onLineData.add(data);
+  }
+
+  final _onLineData = StreamController<String>.broadcast(sync: true);
+
+  /// Each line of output once it ends, wrapped lines joined (VS Code's
+  /// `onLineData`).
+  Stream<String> get onLineData => _onLineData.stream;
+
+  final _onProcessReady = StreamController<int>.broadcast(sync: true);
+
+  /// Its process's id, once it has started (`processReady`); again when
+  /// it is [reuse]d.
+  Stream<int> get onProcessReady => _onProcessReady.stream;
+
+  final _onProcessExit = StreamController<int?>.broadcast(sync: true);
+
+  /// Its process's exit code once it exited, or null when it failed to
+  /// launch (VS Code's `onExit`), before the terminal service is told.
+  Stream<int?> get onProcessExit => _onProcessExit.stream;
+
+  /// VS Code's `reuseTerminal`: a new process in this terminal, as
+  /// [config] says, after the last one exited (a task's terminal, shared
+  /// by tasks). What it printed stays.
+  void reuse(TerminalLaunchConfig config) {
+    if (_disposed) return;
+    if (!_exited) {
+      exitReason = null;
+      _pty?.kill();
+    }
+    unawaited(_printing?.cancel());
+    _printing = null;
+    _config = config;
+    _exited = false;
+    _exitCode = null;
+    _exitMessage = null;
+    _waitingForKey = false;
+    exitReason = null;
+    _launch = null;
+    _pty = null;
+    _typedAhead.clear();
+    _shellIntegration?.dispose();
+    _shellIntegration = null;
+    _generation++;
+    _writeInitialText();
+    notifyListeners();
+    unawaited(_start());
+  }
+
+  /// Which process is the current one: a [reuse]d terminal's old process
+  /// tells nothing.
+  int _generation = 0;
+
+  /// Empties the scrollback and the screen (`clearBuffer`).
+  void clearBuffer() => terminal.clear();
 
   /// xterm.js reads the platform from the browser; here, from Flutter's.
   static void _initPlatform() {
@@ -261,7 +364,8 @@ class TerminalInstance extends ChangeNotifier {
   final String root;
 
   /// What an extension asked of it; null for the user's.
-  final TerminalLaunchConfig? config;
+  TerminalLaunchConfig? get config => _config;
+  TerminalLaunchConfig? _config;
 
   /// The extensions' environment variable collections, applied to the
   /// environment of a terminal whose [config] is not strict.
@@ -530,15 +634,18 @@ class TerminalInstance extends ChangeNotifier {
   final Future<TerminalShell?>? shell;
 
   Future<void> _start() async {
+    final generation = _generation;
+    bool stale() => _disposed || generation != _generation;
     try {
       final config = this.config;
       final Pty pty;
       if (config?.customPty case final customPty?) {
         // After whoever made it was told it exists.
         await Future<void>.value();
-        if (_disposed) return;
+        if (stale()) return;
         _shellIntegration = ShellIntegration(
           terminal,
+          nonce: config!.shellIntegrationNonce ?? '',
           decorationService: decorations,
           onDidExecuteText: _onDidExecuteText.event,
         );
@@ -551,7 +658,7 @@ class TerminalInstance extends ChangeNotifier {
             : this.shell == null
             ? null
             : await this.shell;
-        if (_disposed) return;
+        if (stale()) return;
         final mutator = environmentMutator;
         final launch = await backend.launch(
           config?.cwd ?? root,
@@ -566,11 +673,11 @@ class TerminalInstance extends ChangeNotifier {
                 )
               : null,
         );
-        if (_disposed) return;
+        if (stale()) return;
         _launch = launch;
         _shellIntegration = ShellIntegration(
           terminal,
-          nonce: shellIntegrationNonce(launch),
+          nonce: config?.shellIntegrationNonce ?? shellIntegrationNonce(launch),
           decorationService: decorations,
           onDidExecuteText: _onDidExecuteText.event,
         );
@@ -578,13 +685,26 @@ class TerminalInstance extends ChangeNotifier {
         notifyListeners();
         pty = await backend.start(launch);
       }
-      if (_disposed) {
+      if (stale()) {
         pty.kill();
         return;
       }
       _pty = pty;
       _printing = pty.output.listen(_printed);
-      unawaited(pty.exitCode.then(_processExited));
+      unawaited(
+        pty.exitCode.then((code) {
+          // VS Code's `_flushXtermData`: what it printed (all there before
+          // its exit code) is parsed before the exit is told.
+          if (generation != _generation || _disposed) return;
+          if (_unparsed == 0) {
+            _processExited(code);
+            return;
+          }
+          terminal.write('', () {
+            if (generation == _generation) _processExited(code);
+          });
+        }),
+      );
       // Resized while it started: the process is told.
       final launch = _launch;
       if (launch != null &&
@@ -596,8 +716,9 @@ class TerminalInstance extends ChangeNotifier {
       }
       _typedAhead.clear();
       notifyListeners();
+      _onProcessReady.add(pty.pid);
     } on Object catch (error) {
-      if (_disposed) return;
+      if (stale()) return;
       var reason = '$error';
       if (reason.endsWith('.')) reason = reason.substring(0, reason.length - 1);
       _end(null, 'The terminal process failed to launch: $reason.');
@@ -643,8 +764,10 @@ class TerminalInstance extends ChangeNotifier {
       _exited = true;
       _exitCode = code;
       _typedAhead.clear();
+      // Told before the messages are written: they are no task's output.
+      _onProcessExit.add(code);
       if (code > 0) {
-        terminal.write(
+        _writeOwnText(
           formatMessageForTerminal(
             _launch == null
                 ? 'The terminal process terminated with exit code: $code.'
@@ -654,7 +777,7 @@ class TerminalInstance extends ChangeNotifier {
         );
       }
       if (waitOnExit(code) case final message?) {
-        terminal.write(
+        _writeOwnText(
           formatMessageForTerminal(message, excludeLeadingNewLine: true),
         );
       }
@@ -681,7 +804,8 @@ class TerminalInstance extends ChangeNotifier {
     _exitCode = code;
     _exitMessage = message;
     _typedAhead.clear();
-    if (message != null) terminal.write(formatMessageForTerminal(message));
+    _onProcessExit.add(code);
+    if (message != null) _writeOwnText(formatMessageForTerminal(message));
     notifyListeners();
     onExit?.call(this);
   }
@@ -698,6 +822,9 @@ class TerminalInstance extends ChangeNotifier {
     unawaited(_output.close());
     unawaited(_onInput.close());
     unawaited(_onShellIntegrationReady.close());
+    unawaited(_onLineData.close());
+    unawaited(_onProcessReady.close());
+    unawaited(_onProcessExit.close());
     _onDidExecuteText.dispose();
     if (_findCreated) {
       terminalColorTheme.removeListener(_updateFindColors);

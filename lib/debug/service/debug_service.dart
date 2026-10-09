@@ -137,7 +137,10 @@ class DebugService extends ChangeNotifier {
     }
   }
 
-  /// A resolver for `${…}` in launch configurations.
+  /// tasks.json's `inputs` of a folder, for `${input:…}` in tasks.
+  List<Json>? Function(VsUri? folder)? taskInputs;
+
+  /// A resolver for `${…}` in launch configurations (and tasks).
   VariableResolver variableResolver() {
     final editor = host.activeEditor;
     final windows = host.isWindows;
@@ -167,6 +170,7 @@ class DebugService extends ChangeNotifier {
           for (final item in items) DebugPickItem(item.label, item.value, description: item.description),
         ], placeholder: placeholder),
         getInputs: (folder, section) {
+          if (section == 'tasks') return taskInputs?.call(folder);
           if (section != 'launch') return null;
           return configurationManager.getLaunch(folder)?.inputs ??
               configurationManager.getLaunches().whereType<UserLaunch>().firstOrNull?.inputs;

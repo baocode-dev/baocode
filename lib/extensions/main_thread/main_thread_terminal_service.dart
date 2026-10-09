@@ -56,6 +56,10 @@ final class ExtensionTerminals {
   TerminalService? _bound;
   TerminalService? _own;
 
+  /// Starts the extension host's Pseudoterminal for a terminal (a custom
+  /// execution task's), while the extension host is there.
+  Future<Pty> Function(TerminalInstance instance)? startExtensionPty;
+
   /// The terminals extensions see.
   TerminalService get service =>
       _bound ??
@@ -203,12 +207,19 @@ final class MainThreadTerminalService
   bool _disposed = false;
 
   static RpcActor customer(MainThreadContext context) {
+    final terminals = context.service<ExtensionTerminals>();
     final service = MainThreadTerminalService(
-      context.service<ExtensionTerminals>().service,
-      context.service<ExtensionTerminals>().environment,
+      terminals.service,
+      terminals.environment,
       context.rpc,
     );
-    context.onDispose(service.dispose);
+    terminals.startExtensionPty = service._startExtensionTerminal;
+    context.onDispose(() {
+      if (terminals.startExtensionPty == service._startExtensionTerminal) {
+        terminals.startExtensionPty = null;
+      }
+      service.dispose();
+    });
     return MainThreadTerminalServiceActor(service);
   }
 
@@ -238,11 +249,18 @@ final class MainThreadTerminalService
           ..rows = instance.rows;
         _onDimensionsChanged(instance);
       }
-      if (!watched.pidSent) _onProcessIdReady(instance);
+      _onProcessIdReady(instance);
     }
 
     instance.addListener(changed);
-    watched.stop = () => instance.removeListener(changed);
+    // A reused terminal's new process.
+    final ready = instance.onProcessReady.listen(
+      (_) => _onProcessIdReady(instance),
+    );
+    watched.stop = () {
+      instance.removeListener(changed);
+      unawaited(ready.cancel());
+    };
     watched.input = instance.onInput.listen(
       (_) => _send(_proxy.$acceptTerminalInteraction(instance.id)),
     );
@@ -273,9 +291,10 @@ final class MainThreadTerminalService
   void _onProcessIdReady(TerminalInstance instance) {
     final watched = _watched[instance];
     final pty = instance.pty;
-    if (watched == null || pty == null || watched.pidSent) return;
+    if (watched == null || pty == null) return;
+    if (identical(watched.pidSentFor, pty)) return;
     if (pty is ExtensionPty) return; // Sent by `$sendProcessReady`.
-    watched.pidSent = true;
+    watched.pidSentFor = pty;
     _send(_proxy.$acceptTerminalProcessId(instance.id, pty.pid));
   }
 
@@ -612,7 +631,8 @@ final class _Watched {
   String title;
   int columns;
   int rows;
-  bool pidSent = false;
+  /// The process whose id was sent (a reused terminal's is new).
+  Pty? pidSentFor;
   VoidCallback? stop;
   StreamSubscription<String>? input;
 }
