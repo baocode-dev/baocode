@@ -37,12 +37,18 @@ final class AcceptanceSettings extends ChangeNotifier implements SettingsFile {
   @override
   final Map<String, Object?> values;
 
+  /// `[key]` or `['[lang]', key]`, as settings.json keeps them; null
+  /// removes.
   @override
   Future<void> write(List<String> path, Object? value) async {
-    if (path.length == 1) {
-      values[path.single] = value;
+    var target = values;
+    for (final key in path.take(path.length - 1)) {
+      target = (target[key] ??= <String, Object?>{}) as Map<String, Object?>;
+    }
+    if (value == null) {
+      target.remove(path.last);
     } else {
-      values[path.join('.')] = value;
+      target[path.last] = value;
     }
     notifyListeners();
   }
@@ -100,6 +106,7 @@ final class OpenVsxWorkspace {
     Map<String, String> files = const {},
     Map<String, Object?> settings = const {},
     List<String> development = const [],
+    void Function(String project)? prepare,
   }) async {
     // The binding answers every HttpClient request with a 400: these
     // download for real.
@@ -114,6 +121,7 @@ final class OpenVsxWorkspace {
         ..writeAsStringSync(value);
     }
     Directory(project).createSync(recursive: true);
+    prepare?.call(project);
 
     final app = ExtensionsApp(
       userSettings: AcceptanceSettings({...settings}),

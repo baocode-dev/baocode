@@ -453,11 +453,12 @@ class RegistryLanguageFeatures extends ChangeNotifier
   /// Runs a command a provider attached to a result.
   final Future<void> Function(Command command)? commandExecutor;
 
-  /// The configured `editor.defaultFormatter` for a document.
-  final String? Function(LanguageFeatureDocument document)? defaultFormatterId;
+  /// The configured `editor.defaultFormatter` for a document (the
+  /// workbench sets it once it has its configuration).
+  String? Function(LanguageFeatureDocument document)? defaultFormatterId;
 
   /// Asks the user to pick a formatter; formats nothing when absent.
-  final FormatterConflictResolver? onFormatterConflict;
+  FormatterConflictResolver? onFormatterConflict;
   final List<LanguageServerStatus> Function(String path)? statusProvider;
   final void Function(Object error, StackTrace stack)? onProviderError;
 

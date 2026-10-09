@@ -21,6 +21,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
+import '../../debug/service/debug_host.dart' show DebugPickItem;
 import '../../debug/service/debug_service.dart';
 import '../../ide/ide_notifications.dart' show IdeSeverity;
 import '../../ide/ide_workspace.dart';
@@ -119,6 +120,7 @@ import '../workspace/workspace_context.dart';
 import '../workspace/workspace_save.dart';
 import 'editor_feature_driver.dart';
 import 'ide_documents.dart';
+import 'default_formatter.dart';
 import 'save_participants.dart';
 import 'ide_text_editors.dart';
 import 'jsonc_settings_file.dart';
@@ -714,6 +716,25 @@ final class WorkspaceExtensions extends ChangeNotifier {
     }
 
     testing.addListener(testingChanged);
+    // `editor.defaultFormatter`, and the pick when several formatters
+    // could format a document.
+    final defaultFormatter = DefaultFormatter(
+      configuration: configuration,
+      notifications: workspace.notifications,
+      pick: (items, placeholder) => debugHost.pick([
+        for (final (i, item) in items.indexed)
+          DebugPickItem(item.label, i, description: item.description),
+      ], placeholder: placeholder),
+      languageName: (id) => languageRegistry.languageName(id) ?? id,
+    );
+    languageRoot.language
+      ..defaultFormatterId = defaultFormatter.id
+      ..onFormatterConflict = defaultFormatter.resolve;
+    _stops.add(() {
+      languageRoot.language
+        ..defaultFormatterId = null
+        ..onFormatterConflict = null;
+    });
     final editApplier = IdeWorkspaceEditApplier(
       workspace: workspace,
       state: state,
