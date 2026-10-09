@@ -50,17 +50,57 @@ abstract final class UpstreamUrls {
 
   static final _version = RegExp(r'^v\d+[a-z0-9.]*$', caseSensitive: false);
 
-  /// Where [provider] lists its models.
-  static Uri? models(ModelProvider provider) => switch (provider.protocol) {
-    ProviderProtocol.anthropic => switch (anthropicBase(provider.baseUrl)) {
-      final base? => Uri.parse('$base/v1/models'),
-      null => null,
-    },
-    _ => switch (openaiBase(provider.baseUrl)) {
-      final base? => Uri.parse('$base/models'),
-      null => null,
-    },
-  };
+  /// Where [provider] may list its models, to be tried in order; empty
+  /// when its base URL is not an http(s) URL. An Anthropic-compatible
+  /// endpoint under a prefix of another API
+  /// (`https://api.deepseek.com/anthropic`) often lists none of its own:
+  /// the API's `/v1/models` above it follows, each prefix shorter. Those
+  /// whose list is elsewhere ([_modelLists]) are asked there first, the
+  /// rest still after: should they move it, or list at the endpoint.
+  static List<Uri> models(ModelProvider provider) =>
+      switch (provider.protocol) {
+        ProviderProtocol.anthropic => switch (anthropicBase(provider.baseUrl)) {
+          final base? => _anthropicModels(Uri.parse(base)),
+          null => const [],
+        },
+        _ => switch (openaiBase(provider.baseUrl)) {
+          final base? => [Uri.parse('$base/models')],
+          null => const [],
+        },
+      };
+
+  static List<Uri> _anthropicModels(Uri base) => {
+    for (final list in _modelLists)
+      if (list.hosts.contains(base.host) && base.path == list.endpoint)
+        base.replace(path: list.models),
+    for (final prefix in _prefixes(base)) Uri.parse('$prefix/v1/models'),
+  }.toList();
+
+  /// Where an Anthropic-compatible `endpoint`'s API lists its models,
+  /// when not at `/v1/models` above it: Zhipu's (GLM) and Alibaba's
+  /// (Bailian, Qwen), in China and abroad.
+  static const _modelLists = [
+    (
+      hosts: {'open.bigmodel.cn', 'api.z.ai'},
+      endpoint: '/api/anthropic',
+      models: '/api/paas/v4/models',
+    ),
+    (
+      hosts: {'dashscope.aliyuncs.com', 'dashscope-intl.aliyuncs.com'},
+      endpoint: '/apps/anthropic',
+      models: '/compatible-mode/v1/models',
+    ),
+  ];
+
+  /// [uri], then it with each last path segment cut off, down to its
+  /// origin; without trailing slashes.
+  static Iterable<String> _prefixes(Uri uri) sync* {
+    final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    for (var length = segments.length; length >= 0; length--) {
+      final path = segments.take(length).map(Uri.encodeComponent).join('/');
+      yield path.isEmpty ? uri.origin : '${uri.origin}/$path';
+    }
+  }
 
   /// Where [provider] takes a conversation: Chat Completions or
   /// Responses (Anthropic's is Claude Code's to call).

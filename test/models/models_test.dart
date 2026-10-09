@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
+import 'package:baocode/kernel/claude_code/claude_environment.dart';
 import 'package:baocode/models/launch_environment.dart';
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/model_providers.dart';
+import 'package:baocode/models/model_runtime.dart';
 import 'package:baocode/models/secret_store.dart';
 import 'package:baocode/models/secret_store_io.dart';
 import 'package:baocode/models/upstream.dart';
@@ -269,14 +272,47 @@ void main() {
         ),
         'https://generativelanguage.googleapis.com/v1beta/openai',
       );
+      String models(ModelProvider provider) =>
+          UpstreamUrls.models(provider).join(' ');
       expect(
-        UpstreamUrls.models(at('https://api.anthropic.com')).toString(),
+        models(at('https://api.anthropic.com')),
         'https://api.anthropic.com/v1/models',
       );
       expect(
-        UpstreamUrls.models(
-          at('https://x.example/v1', ProviderProtocol.openaiChat),
-        ).toString(),
+        models(at('https://api.anthropic.com/v1/')),
+        'https://api.anthropic.com/v1/models',
+      );
+      // Under another API's prefix: its /v1/models after.
+      expect(
+        models(at('https://api.deepseek.com/anthropic')),
+        'https://api.deepseek.com/anthropic/v1/models '
+        'https://api.deepseek.com/v1/models',
+      );
+      // Listed elsewhere: there first, then the same as any.
+      expect(
+        models(at('https://open.bigmodel.cn/api/anthropic/')),
+        'https://open.bigmodel.cn/api/paas/v4/models '
+        'https://open.bigmodel.cn/api/anthropic/v1/models '
+        'https://open.bigmodel.cn/api/v1/models '
+        'https://open.bigmodel.cn/v1/models',
+      );
+      expect(
+        models(at('https://dashscope-intl.aliyuncs.com/apps/anthropic')),
+        'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models '
+        'https://dashscope-intl.aliyuncs.com/apps/anthropic/v1/models '
+        'https://dashscope-intl.aliyuncs.com/apps/v1/models '
+        'https://dashscope-intl.aliyuncs.com/v1/models',
+      );
+      // Elsewhere only from that endpoint.
+      expect(
+        models(at('https://x.example/api/anthropic')),
+        'https://x.example/api/anthropic/v1/models '
+        'https://x.example/api/v1/models '
+        'https://x.example/v1/models',
+      );
+      expect(models(at('not a url')), '');
+      expect(
+        models(at('https://x.example/v1', ProviderProtocol.openaiChat)),
         'https://x.example/v1/models',
       );
       expect(
@@ -610,6 +646,81 @@ void main() {
         {'API_TIMEOUT_MS': '600000', 'URL': 'https://x.example/?a=b'},
       );
       expect(formatEnvironment({'A': '1', 'B': '2'}), 'A=1\nB=2');
+    });
+  });
+
+  group('listUpstreamModels', () {
+    late HttpServer server;
+    final asked = <String>[];
+    var key = 'k';
+
+    setUp(() async {
+      // Real sockets, on this machine: not the test binding's 400s.
+      HttpOverrides.global = null;
+      ClaudeEnvironment.use(const {});
+      asked.clear();
+      key = 'k';
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        asked.add(request.uri.path);
+        final response = request.response;
+        if (request.uri.path != '/v1/models') {
+          response.statusCode = 404;
+        } else if (request.headers.value('authorization') != 'Bearer $key') {
+          response.statusCode = 401;
+          response.write(
+            jsonEncode({
+              'error': {'message': 'bad key'},
+            }),
+          );
+        } else {
+          response.write(
+            jsonEncode({
+              'data': [
+                {'id': 'deepseek-chat'},
+              ],
+            }),
+          );
+        }
+        await response.close();
+      });
+    });
+
+    tearDown(() async {
+      await server.close(force: true);
+      ClaudeEnvironment.use(null);
+    });
+
+    ModelProvider at(String path) => ModelProvider(
+      id: 'p',
+      name: 'P',
+      protocol: ProviderProtocol.anthropic,
+      baseUrl: 'http://127.0.0.1:${server.port}$path',
+    );
+
+    test('an Anthropic endpoint under a prefix: the API above lists', () async {
+      final models = await listUpstreamModels(at('/anthropic'), 'k');
+      expect(models.map((model) => model.id), ['deepseek-chat']);
+      expect(asked, ['/anthropic/v1/models', '/v1/models']);
+    });
+
+    test('a wrong key shows past a missing path', () async {
+      key = 'other';
+      await expectLater(
+        listUpstreamModels(at('/anthropic'), 'k'),
+        throwsA(
+          isA<UpstreamException>().having(
+            (error) => error.message,
+            'message',
+            contains('bad key'),
+          ),
+        ),
+      );
+    });
+
+    test('a base URL that lists is asked alone', () async {
+      await listUpstreamModels(at(''), 'k');
+      expect(asked, ['/v1/models']);
     });
   });
 }
