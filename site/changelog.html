@@ -29,6 +29,28 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.0.4">
+    <h2 class="plain"><a href="#v1.0.4">1.0.4</a></h2>
+    <p>Improved</p>
+    <ul>
+    <li>Source Control and the side panel’s Changes page no longer freeze when there are huge numbers of changes (say, a home folder made a Git repository): the first 10,000 show with a notice, file changes then no longer refresh them (Refresh does), and scrolling and dragging the scrollbar stay smooth (#6)</li>
+    <li>Diffs of large files, or of files changed throughout, no longer freeze the window: the diff editor, the side panel’s diff preview and inline blame compute them in the background</li>
+    <li>SSH remote projects get the same limit, and no longer send the whole Git status back when there are many changes</li>
+    <li>Language servers’ file watching skips Git’s objects and the files of packages in node_modules, and takes many changes at once a batch at a time, without slowing the window</li>
+    </ul>
+    <p>New</p>
+    <ul>
+    <li>The side panel’s Changes page finds Git repositories in subfolders, as Source Control does, and lets you switch between them</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>An agent’s goal (/goal) was misreported: a goal given up on or ended by an error read as met, also after resuming a session; and its clock kept running when nothing worked on it</li>
+    <li>Dragging to select text in a conversation sometimes selected nothing until the app restarted</li>
+    <li>Selecting text in a conversation went wrong as a queued message was sent or the status changed</li>
+    <li>Anthropic-compatible endpoints (such as those of DeepSeek, Zhipu and Alibaba Cloud) now list their models</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.0.3">
     <h2 class="plain"><a href="#v1.0.3">1.0.3</a></h2>
     <p>1.0.2 won't open on Windows?</p>

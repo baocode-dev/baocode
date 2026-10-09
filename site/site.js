@@ -17,11 +17,11 @@ for (const button of document.querySelectorAll('[data-sound]')) {
 }
 
 // The release published on dl.baocode.dev, once its manifest loads: the
-// version, and each download's link (ending in its hash, so a release redone
-// is not served from the CDN's cache of the old one) and size. Until then,
-// and if it does not load, the page's own.
+// version, the day it was published, and each download's link (ending in its
+// hash, so a release redone is not served from the CDN's cache of the old
+// one) and size. Until then, and if it does not load, the page's own.
 (async () => {
-  if (!document.querySelector('[data-file], [data-version]')) return;
+  if (!document.querySelector('[data-file], [data-version], [data-updated]')) return;
   try {
     const ctl = new AbortController();
     setTimeout(() => ctl.abort(), 4000);
@@ -30,6 +30,14 @@ for (const button of document.querySelectorAll('[data-sound]')) {
     const v = String(m.version).split('+')[0];
     const zh = document.documentElement.lang.startsWith('zh');
     for (const el of document.querySelectorAll('[data-version]')) el.textContent = zh ? `版本 ${v}` : `Version ${v}`;
+    const published = new Date(m.pubDate);
+    if (!isNaN(published)) {
+      const [y, mo, d] = [published.getFullYear(), published.getMonth(), published.getDate()];
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      for (const el of document.querySelectorAll('[data-updated]')) {
+        el.textContent = zh ? `更新于 ${y} 年 ${mo + 1} 月 ${d} 日` : `Updated ${d} ${months[mo]} ${y}`;
+      }
+    }
     for (const [os, file] of Object.entries(m.downloads || {})) {
       for (const a of document.querySelectorAll(`[data-file="${os}"]`)) {
         a.href = file.url;
