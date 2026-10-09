@@ -75,6 +75,7 @@ import '../main_thread/main_thread_decorations.dart';
 import '../main_thread/main_thread_message_service.dart';
 import '../main_thread/main_thread_scm.dart';
 import '../main_thread/main_thread_task.dart';
+import '../main_thread/main_thread_testing.dart';
 import '../main_thread/main_thread_terminal_service.dart';
 import '../main_thread/main_thread_terminal_shell_integration.dart';
 import '../main_thread/main_thread_tree_views.dart';
@@ -84,6 +85,7 @@ import '../runtime/extension_runtime_service.dart';
 import '../recommendations/recommendations.dart';
 import '../scm/scm_service.dart';
 import '../search/search_service.dart';
+import '../testing/test_service.dart';
 import '../tasks/task_service.dart';
 import '../ui/extensions_model.dart';
 import '../trust/trust_ui.dart';
@@ -319,6 +321,9 @@ final class ExtensionsApp {
   }
 }
 
+/// The Test Results output channel's id.
+const testResultsOutputChannelId = 'testing';
+
 /// One IDE workspace's extensions: its extension host and the main-thread
 /// services the host's actors reach. Made before the workspace (it gives
 /// the workspace its [languages]), then [attach]ed to it.
@@ -495,6 +500,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
   DebugService? _debug;
   WorkspaceDebugHost? _debugHost;
   WorkspaceTasks? _tasks;
+  TestService? _testing;
   JsonStateStore? _debugState;
   WorkspaceTrustService? _trust;
   Future<void>? _trustPrompt;
@@ -505,6 +511,9 @@ final class WorkspaceExtensions extends ChangeNotifier {
 
   /// The workspace's tasks, once [attach]ed.
   WorkspaceTasks? get tasks => _tasks;
+
+  /// The extensions' tests, once [attach]ed.
+  TestService? get testing => _testing;
   WorkspaceTrustService? get trust => _trust;
 
   /// Completion of debug-session cleanup and the final state write after dispose.
@@ -681,6 +690,28 @@ final class WorkspaceExtensions extends ChangeNotifier {
       extensions: () => _host?.extensions.value ?? const [],
       progress: progress,
     );
+    final testResults = output.registerWorkbenchChannel(
+      testResultsOutputChannelId,
+      'Test Results',
+    );
+    final testing = _testing = TestService(
+      requestTrust: () async =>
+          await trust.requestWorkspaceTrust(
+            message: 'Running tests may execute code in your workspace.',
+          ) ==
+          true,
+      saveAll: () => IdeWorkspaceSave(workspace).saveAll(),
+    )..onOutput = testResults.append;
+    // The workbench shows the Testing view once a controller registers.
+    var hadControllers = false;
+    void testingChanged() {
+      final has = testing.controllers.isNotEmpty;
+      if (has == hadControllers) return;
+      hadControllers = has;
+      notifyListeners();
+    }
+
+    testing.addListener(testingChanged);
     final host = _host = ExtensionHostService(
       pool: app.pool,
       workspaceTrusted: () => trust.isWorkspaceTrusted,
@@ -708,11 +739,13 @@ final class WorkspaceExtensions extends ChangeNotifier {
             MainThreadTerminalShellIntegration.customer,
         MainContext.mainThreadTask.nid: MainThreadTask.customer,
         MainContext.mainThreadSCM.nid: MainThreadSCM.customer,
+        MainContext.mainThreadTesting.nid: MainThreadTesting.customer,
       },
       services: {
         DebugService: debug,
         TaskService: tasks.service,
         ScmService: scm,
+        TestService: testing,
         ExtensionTerminals: terminals,
         WorkspaceTrustService: trust,
         ExtensionCommandRegistry: commands,
@@ -1159,6 +1192,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
       workspace.extensionDocuments = null;
     }
     _tasks?.dispose();
+    _testing?.dispose();
     scm.dispose();
     _debugHost?.dispose();
     _debugShutdown = () async {

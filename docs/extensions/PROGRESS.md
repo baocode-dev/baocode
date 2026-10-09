@@ -122,14 +122,21 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - Language status items (lib/extensions/languages/language_status*.dart): `$setLanguageStatus` with selector
   matching and upstream's order, one status bar entry for the active document (severity icon, busy spinner, hover
   list, click menu of the items' commands). The TypeScript version item is asserted in the 九.1 acceptance test.
+- Testing API (lib/extensions/testing, lib/extensions/main_thread/main_thread_testing.dart): controllers, the test
+  collection from diffs (resolve handlers through `$expandTest`), run profiles, runs from the view (trust, save, one
+  request per controller) and runs extensions start, live results with upstream's state priorities, messages and
+  output; the Testing view (activity bar entry once a controller registers) with Run/Debug per test and for all,
+  Refresh, Cancel, the last run's summary, failures under their tests opening their locations, Go to Next Failure, and
+  the "Test Results" output channel. Tests: `test/extensions/testing/` (widget) and `testing_exthost_test.dart` (real
+  REH and fixture).
 
 ## In progress / next
 
 1. Editor-feature rendering from the registry is complete (CodeLens, inlay hints, inline completions, highlights,
    folding, links, colors).
 2. Complete real-extension debugging acceptance beyond Node launch/attach (Python, Go, Rust/C++, debugger controls,
-   breakpoint variants and preLaunchTask in a real session). Implement the testing actor and the accept-only actors
-   real extensions call (timeline, language model tools, profile content handlers).
+   breakpoint variants and preLaunchTask in a real session). Implement the accept-only actors real extensions call
+   (timeline, language model tools, profile content handlers) and the Notebook degradation.
 3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
    bao_remote LSP, docs and l10n), after replacing its language capability coverage.
 4. SSH remote: REH on the remote through bao_remote port forwarding, with the extensionKind split.
@@ -169,6 +176,9 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - SCM: no quick diff, history or artifact providers from extensions (BaoCode's gutter and graph read Git); the input
   box is a plain text field (no `vscode-sourcecontrol:` model); resources are a list (no tree mode), single selection.
   Calls to actors BaoCode does not implement at all are counted in `ExtHostParity` as `Actor.$method`.
+- Testing: no coverage view (coverage is kept per task), continuous runs, follow-ups, related code, filter box,
+  `testing/item/context` menus or gutter decorations; failures show under their tests instead of a peek view; results
+  last for the session.
 - Extension pages show over the editors (not as editor tabs): BaoCode's tabs are documents.
 - A multi-folder workspace runs one extension host on its first folder for now.
 - Keybindings: the keybinding service holds one set of extension keybindings, the visible workbench's.

@@ -9,6 +9,103 @@ part of 'ide_workbench.dart';
 extension _ExtensionsPart on IdeWorkbenchState {
   WorkspaceExtensions? get _workspaceExtensions => widget.extensions;
 
+  /// The Testing view, for the extensions' tests.
+  Widget _testingView() {
+    final testing = widget.extensions?.testing;
+    if (testing == null) return const SizedBox.shrink();
+    return TestingView(
+      key: _testingKey,
+      service: testing,
+      session: _testingSession,
+      onOpen: (uri, range) {
+        if (uri.scheme != 'file') return;
+        unawaited(
+          _open(
+            uri.fsPath(),
+            range: range == null
+                ? null
+                : LspRange(
+                    LspPosition(range.startLineNumber - 1, range.startColumn - 1),
+                    LspPosition(range.endLineNumber - 1, range.endColumn - 1),
+                  ),
+            select: true,
+            focusEditor: true,
+          ),
+        );
+      },
+      onShowOutput: () {
+        widget.extensions?.output.showChannel(testResultsOutputChannelId);
+      },
+    );
+  }
+
+  /// The Testing commands (testExplorerActions.ts) over the view's.
+  List<IdeCommand> _testingCommands() {
+    final testing = widget.extensions?.testing;
+    if (testing == null || testing.controllers.isEmpty) return const [];
+    void goToFailure() {
+      _showView(IdeSideView.testing);
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _testingKey.currentState?.goToNextFailure(),
+      );
+    }
+
+    return [
+      IdeCommand(
+        id: 'workbench.view.testing',
+        category: 'Testing',
+        label: 'Focus on Test Explorer View',
+        run: () => _showView(IdeSideView.testing),
+      ),
+      IdeCommand(
+        id: 'testing.runAll',
+        category: 'Test',
+        label: 'Run All Tests',
+        enabled: testing.hasGroup(TestRunGroup.run),
+        run: () => unawaited(
+          testing.runAll(TestRunGroup.run).catchError((Object _) => null),
+        ),
+      ),
+      IdeCommand(
+        id: 'testing.debugAll',
+        category: 'Test',
+        label: 'Debug All Tests',
+        enabled: testing.hasGroup(TestRunGroup.debug),
+        run: () => unawaited(
+          testing.runAll(TestRunGroup.debug).catchError((Object _) => null),
+        ),
+      ),
+      IdeCommand(
+        id: 'testing.refreshTests',
+        category: 'Test',
+        label: 'Refresh Tests',
+        run: () => unawaited(testing.refresh().catchError((Object _) {})),
+      ),
+      IdeCommand(
+        id: 'testing.cancelRun',
+        category: 'Test',
+        label: 'Cancel Test Run',
+        enabled: testing.isRunning,
+        run: testing.cancel,
+      ),
+      IdeCommand(
+        id: 'testing.goToNextMessage',
+        category: 'Test',
+        label: 'Go to Next Test Failure',
+        enabled: testing.failures().isNotEmpty,
+        run: goToFailure,
+      ),
+      IdeCommand(
+        id: 'testing.showMostRecentOutput',
+        category: 'Test',
+        label: 'Show Output',
+        run: () => widget.extensions?.output.showChannel(
+          testResultsOutputChannelId,
+        ),
+      ),
+    ];
+  }
+
   /// The extensions' source controls in the Source Control view.
   ExtensionScmUi? _extensionScm() => switch (widget.extensions) {
     final extensions? => ExtensionScmUi(

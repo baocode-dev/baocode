@@ -609,6 +609,7 @@ extension _WorkbenchKeys on IdeWorkbenchState {
         IdeSideView.sourceControl => 'workbench.scm',
         IdeSideView.debug => 'workbench.debug.viewlet',
         IdeSideView.extensions => 'workbench.views.extensions.installed',
+        IdeSideView.testing => 'workbench.view.testing',
         IdeSideView.container => null,
       };
     }
@@ -1330,6 +1331,7 @@ extension on IdeSideView {
     IdeSideView.sourceControl => 'workbench.view.scm',
     IdeSideView.debug => 'workbench.view.debug',
     IdeSideView.extensions => 'workbench.view.extensions',
+    IdeSideView.testing => 'workbench.view.extension.test',
     // Its container's id, which the workbench has.
     IdeSideView.container => 'workbench.view.extension',
   };

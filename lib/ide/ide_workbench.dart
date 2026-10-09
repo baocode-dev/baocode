@@ -50,6 +50,8 @@ import '../extensions/views/tree_view_widget.dart';
 import '../extensions/views/view_contributions.dart';
 import '../extensions/languages/language_status_ui.dart';
 import '../extensions/scm/scm_view.dart';
+import '../extensions/testing/test_service.dart';
+import '../extensions/testing/testing_view.dart';
 import '../extensions/workbench/workspace_extensions.dart';
 import '../keybindings/vscode_import.dart' show VsCodeInstalls;
 import '../platform/data_dir.dart';
@@ -338,6 +340,9 @@ enum IdeSideView {
   debug,
   extensions,
 
+  /// The extensions' tests (shown once a test controller registers).
+  testing,
+
   /// An extension's view container ([IdeWorkbenchState._viewContainer]).
   container,
 }
@@ -507,6 +512,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The extensions' keybindings in the keybinding service, while this
   /// workbench shows.
   ExtensionKeybindingsBridge? _extensionKeys;
+
+  /// What the Testing view keeps while another view shows.
+  final TestingViewSession _testingSession = TestingViewSession();
+  final _testingKey = GlobalKey<TestingViewState>();
 
   /// What the activity bar and the status bar show of [_git], rebuilt
   /// only when these change.
@@ -3216,6 +3225,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     ..._searchCommands(),
     ..._terminalCommands(),
     ..._taskCommands(),
+    ..._testingCommands(),
     ..._panelCommands(),
     ..._scmCommands(),
     ...?_editor?.editorCommands,
@@ -3306,6 +3316,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         Codicons.extensions,
         keys.titleWithKeybinding(l10n.extTitle, 'workbench.view.extensions'),
       ),
+      if (widget.extensions?.testing?.controllers.isNotEmpty ?? false)
+        item(
+          IdeSideView.testing,
+          Codicons.beaker,
+          keys.titleWithKeybinding('Testing', 'workbench.view.testing'),
+        ),
       ..._extensionActivityItems(joined: joined),
     ];
     return SizedBox(
@@ -3376,6 +3392,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       null => const SizedBox.shrink(),
     },
     IdeSideView.extensions => _extensionsView(),
+    IdeSideView.testing => _testingView(),
     IdeSideView.container => _extensionContainerView(),
   };
 
