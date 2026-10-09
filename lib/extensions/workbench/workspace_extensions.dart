@@ -794,6 +794,15 @@ final class WorkspaceExtensions extends ChangeNotifier {
           ),
         );
       },
+      openLink: (uri) async {
+        if (uri.scheme == 'file') {
+          await workspace.open(uri.fsPath());
+        } else if (uri.scheme == app.urls.scheme) {
+          await app.urls.open(uri);
+        } else if (uri.scheme == 'http' || uri.scheme == 'https') {
+          await app.openExternal?.call(uri.toString());
+        }
+      },
       languageIdOf: languageIdFor,
       setting: (key, languageId) =>
           configuration.getValue(key, languageId: languageId),

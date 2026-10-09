@@ -30,6 +30,7 @@ import 'package:bao_editor/monaco/flutter/editor_inline_suggest.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 
 import '../theme/workbench_theme.dart';
+import 'ide_editor_links.dart';
 import 'ide_workspace.dart';
 
 /// Where the workbench keeps [IdeEditorFeatures] for its open documents,
@@ -127,6 +128,9 @@ class IdeEditorFeatures {
   /// `registerInlineCompletionItemProvider`.
   final EditorInlineSuggestController inlineSuggest;
 
+  /// Document links under the editor's modifier-click gesture.
+  final EditorDocumentLinks links = EditorDocumentLinks();
+
   /// The colors the last [setTheme] resolved (`theme.colors`).
   EditorDecorationTheme get theme => decorations.theme;
 
@@ -135,6 +139,7 @@ class IdeEditorFeatures {
     decorations.theme = value;
     inlayHints.colors = EditorInlayHintColors.from(value.colors);
     inlineSuggest.colors = EditorGhostTextColors.from(value.colors);
+    links.setColor(value.colors('editorLink.activeForeground'));
     // CodeLens zones take their colors where they are built.
   }
 
@@ -147,6 +152,7 @@ class IdeEditorFeatures {
     inlayHints.addListener(listener);
     codeLens.addListener(listener);
     inlineSuggest.addListener(listener);
+    links.addListener(listener);
   }
 
   void removeListener(VoidCallback listener) {
@@ -154,6 +160,7 @@ class IdeEditorFeatures {
     inlayHints.removeListener(listener);
     codeLens.removeListener(listener);
     inlineSuggest.removeListener(listener);
+    links.removeListener(listener);
   }
 
   void dispose() {
@@ -161,6 +168,7 @@ class IdeEditorFeatures {
     inlayHints.dispose();
     codeLens.dispose();
     inlineSuggest.dispose();
+    links.dispose();
   }
 }
 

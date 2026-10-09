@@ -2024,7 +2024,11 @@ class IdeEditorState extends State<IdeEditor> {
           ..._blameDecorations(colors),
         ],
         decorationProviders: switch (_features.ofDocument(widget.active)) {
-          final features? => [features.decorations, features.inlayHints],
+          final features? => [
+            features.decorations,
+            features.inlayHints,
+            features.links,
+          ],
           null => const [],
         },
         inlineSuggest: _features.ofDocument(widget.active)?.inlineSuggest,
@@ -2041,13 +2045,26 @@ class IdeEditorState extends State<IdeEditor> {
         showMinimap: side == null,
         onKeyEvent: _onEditorKey,
         keyResolver: widget.keyResolver == null ? null : _resolveTextKey,
-        onHover: _language == null
-            ? null
-            : (offset, _) => _language?.onPointerHover(offset),
-        onContentPointerDown: _language?.onPointerDown,
+        onHover: (offset, _) {
+          _language?.onPointerHover(offset);
+          final links = _features.ofDocument(widget.active)?.links;
+          final previous = links?.hovered;
+          links?.hover(widget.active.model.snapshot, offset);
+          if (!identical(previous, links?.hovered)) _rebuildSoon();
+        },
+        onContentPointerDown: (offset, event) {
+          final links = _features.ofDocument(widget.active)?.links;
+          if (links?.pointerDown(widget.active.model.snapshot, offset, event) ??
+              false) {
+            return true;
+          }
+          return _language?.onPointerDown(offset, event) ?? false;
+        },
         onContextMenu: _showContextMenu,
         onViewChanged: _viewChanged,
-        contentCursor: _language?.link == null
+        contentCursor:
+            _language?.link == null &&
+                _features.ofDocument(widget.active)?.links.hovered == null
             ? null
             : SystemMouseCursors.click,
         style: _editorStyle(colors),

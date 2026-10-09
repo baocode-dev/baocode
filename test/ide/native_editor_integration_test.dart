@@ -1,4 +1,4 @@
-import 'package:flutter/gestures.dart' show PointerScrollEvent;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +6,8 @@ import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 import 'package:bao_editor/monaco/flutter/editor_view_painters.dart';
+import 'package:baocode/ide/ide_commands.dart' show ideUsesMacKeys;
+import 'package:baocode/ide/ide_editor_links.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
 import 'package:bao_editor/monaco/vs/editor/contrib/folding/browser/folding_ranges.dart'
@@ -343,6 +345,63 @@ void main() {
       expect(first.text, 'alpha!');
     },
   );
+
+  testWidgets('document link hover and modifier-click reach the surface', (
+    tester,
+  ) async {
+    final workspace = IdeWorkspace(
+      _root,
+      files: _MemoryFiles({_first: 'link target\nnext line'}),
+    );
+    addTearDown(workspace.dispose);
+    await workspace.open(_first);
+    await tester.pumpWidget(_host(workspace, GlobalKey<IdeEditorState>()));
+    final view = workspace.editorViews.active!;
+    final links = view.features.links;
+    final snapshot = view.controller.document.snapshot;
+    final opened = <EditorDocumentLink>[];
+    links
+      ..setLinks(snapshot, [const EditorDocumentLink(0, 4)])
+      ..onOpen = (link, _) => opened.add(link);
+    await tester.pump();
+
+    final gutter = _foldingGutter(tester);
+    final caret = gutter.layout.caretRect(1);
+    final point =
+        tester.getTopLeft(find.byType(EditorSurface)) +
+        Offset(gutter.geometry.contentLeft + caret.left + 2, caret.center.dy);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: point);
+    await mouse.moveTo(point);
+    await tester.pump();
+    expect(links.hovered, isNull);
+    await mouse.down(point);
+    await mouse.up();
+    await tester.pump();
+    expect(opened, isEmpty);
+
+    final modifier = ideUsesMacKeys
+        ? LogicalKeyboardKey.metaLeft
+        : LogicalKeyboardKey.controlLeft;
+    await tester.sendKeyDownEvent(modifier);
+    await mouse.moveTo(point + const Offset(1, 0));
+    await tester.pump();
+    expect(links.hovered?.start, 0);
+    expect(
+      links.decorations.items.single.underlineStyle,
+      EditorUnderlineStyle.solid,
+    );
+    expect(
+      tester.widget<EditorSurface>(find.byType(EditorSurface)).contentCursor,
+      SystemMouseCursors.click,
+    );
+    await mouse.down(point);
+    await mouse.up();
+    await tester.pump();
+    expect(opened, hasLength(1));
+    await tester.sendKeyUpEvent(modifier);
+    await mouse.removePointer();
+  });
 
   testWidgets('folding callbacks ignore old frames and document snapshots', (
     tester,

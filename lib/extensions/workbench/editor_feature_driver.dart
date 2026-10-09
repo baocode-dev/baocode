@@ -34,6 +34,7 @@ import 'package:bao_editor/monaco/vs/editor/contrib/folding/browser/folding_rang
 import 'package:bao_editor/monaco/vs/editor/contrib/snippet/browser/snippet_parser.dart';
 import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 
+import '../../ide/ide_editor_links.dart';
 import '../../ide/ide_editor_views.dart';
 import '../language/language_features_service.dart';
 import '../language/language_types.dart' as lang;
@@ -50,12 +51,14 @@ final class ExtensionEditorFeatureDriver {
     required this.service,
     required this.executeCommand,
     required this.openLocation,
+    required this.openLink,
     this.languageIdOf,
     this.setting,
     this.codeLensDelay = const Duration(milliseconds: 250),
     this.inlayHintsDelay = const Duration(milliseconds: 250),
     this.highlightDelay = const Duration(milliseconds: 250),
     this.foldingDelay = const Duration(milliseconds: 250),
+    this.linkDelay = const Duration(milliseconds: 250),
     this.inlineDelay = const Duration(milliseconds: 50),
   }) {
     views.addListener(_activeChanged);
@@ -75,6 +78,9 @@ final class ExtensionEditorFeatureDriver {
   /// Opens a location (an inlay hint part's).
   final Future<void> Function(VsUri uri, Range range) openLocation;
 
+  /// Opens a resolved document link; the workbench handles its URI scheme.
+  final Future<void> Function(VsUri uri) openLink;
+
   /// The language id of a document's path, for language-specific settings.
   final String? Function(String path)? languageIdOf;
   final EditorSettingReader? setting;
@@ -83,6 +89,7 @@ final class ExtensionEditorFeatureDriver {
   final Duration inlayHintsDelay;
   final Duration highlightDelay;
   final Duration foldingDelay;
+  final Duration linkDelay;
   final Duration inlineDelay;
 
   static const _highlightColors = {
@@ -100,11 +107,13 @@ final class ExtensionEditorFeatureDriver {
   Timer? _inlayTimer;
   Timer? _highlightTimer;
   Timer? _foldingTimer;
+  Timer? _linkTimer;
   Timer? _inlineTimer;
   int _codeLensGeneration = 0;
   int _inlayGeneration = 0;
   int _highlightGeneration = 0;
   int _foldingGeneration = 0;
+  int _linkGeneration = 0;
   int _inlineGeneration = 0;
   DocumentSnapshot? _highlightSnapshot;
   int? _highlightOffset;
@@ -136,11 +145,14 @@ final class ExtensionEditorFeatureDriver {
     features.inlineSuggest
       ..onAccepted = _inlineAccepted
       ..onDismissed = (_) => _clearInline();
+    features.links.onOpen = (link, snapshot) =>
+        unawaited(_openDocumentLink(view, snapshot, link));
     _changes = view.controller.document.changes.listen((event) {
       _scheduleCodeLens();
       _scheduleInlayHints();
       _scheduleHighlights();
       _scheduleFolding();
+      _scheduleLinks();
       if (!event.isUndoing && !event.isRedoing) _scheduleInline(event);
     });
     _watchProviders(view);
@@ -148,6 +160,7 @@ final class ExtensionEditorFeatureDriver {
     _scheduleInlayHints(immediately: true);
     _scheduleHighlights(immediately: true);
     _scheduleFolding(immediately: true);
+    _scheduleLinks(immediately: true);
   }
 
   void _registerHighlightTypes(EditorDecorationTypeRegistry types) {
@@ -181,11 +194,13 @@ final class ExtensionEditorFeatureDriver {
     _inlayTimer?.cancel();
     _highlightTimer?.cancel();
     _foldingTimer?.cancel();
+    _linkTimer?.cancel();
     _inlineTimer?.cancel();
     _codeLensGeneration++;
     _inlayGeneration++;
     _highlightGeneration++;
     _foldingGeneration++;
+    _linkGeneration++;
     _inlineGeneration++;
     _inlayLines = null;
     _highlightSnapshot = null;
@@ -195,6 +210,9 @@ final class ExtensionEditorFeatureDriver {
     if (view != null) {
       _clearHighlights(view);
       view.setFoldingRanges?.call(null);
+      view.features.links
+        ..setLinks(null, const [])
+        ..onOpen = null;
       view.features.codeLens
         ..resolve = null
         ..onCommand = null;
@@ -242,6 +260,7 @@ final class ExtensionEditorFeatureDriver {
     _highlightSnapshot = null;
     _scheduleHighlights();
     _scheduleFolding();
+    _scheduleLinks();
   }
 
   void _viewChanged(IdeEditorView view) {
@@ -498,6 +517,72 @@ final class ExtensionEditorFeatureDriver {
           type: result.range.kind?.value,
         ),
     ]);
+  }
+
+  // --- Document links ------------------------------------------------------
+
+  void _scheduleLinks({bool immediately = false}) {
+    final view = _view;
+    if (_disposed || view == null) return;
+    _linkTimer?.cancel();
+    final generation = ++_linkGeneration;
+    // Do not leave clickable ranges from an older document snapshot on screen.
+    view.features.links.setLinks(null, const []);
+    _linkTimer = Timer(
+      immediately ? Duration.zero : linkDelay,
+      () => unawaited(_updateLinks(view, generation)),
+    );
+  }
+
+  Future<void> _updateLinks(IdeEditorView view, int generation) async {
+    final snapshot = view.controller.document.snapshot;
+    final links = await languages.documentLinks(view.document.path);
+    if (_disposed ||
+        generation != _linkGeneration ||
+        !identical(view, _view) ||
+        !identical(snapshot, view.controller.document.snapshot)) {
+      return;
+    }
+    view.features.links.setLinks(snapshot, [
+      for (final link in links)
+        if (link.range case final Range range)
+          EditorDocumentLink(
+            snapshot.offsetAtPosition(range.getStartPosition()),
+            snapshot.offsetAtPosition(range.getEndPosition()),
+            tooltip: link.tooltip,
+            data: link,
+          ),
+    ]);
+  }
+
+  Future<void> _openDocumentLink(
+    IdeEditorView view,
+    DocumentSnapshot snapshot,
+    EditorDocumentLink link,
+  ) async {
+    if (_disposed ||
+        !identical(view, _view) ||
+        !identical(snapshot, view.controller.document.snapshot) ||
+        link.data is! lang.Link) {
+      return;
+    }
+    final resolved = await languages.resolveLink(link.data! as lang.Link);
+    if (_disposed ||
+        !identical(view, _view) ||
+        !identical(snapshot, view.controller.document.snapshot)) {
+      return;
+    }
+    final url = resolved.url;
+    final uri = switch (url) {
+      final VsUri uri => uri,
+      final String text => Uri.tryParse(text),
+      _ => null,
+    };
+    if (uri case final VsUri target) {
+      await openLink(target);
+    } else if (uri case final Uri target when target.hasScheme) {
+      await openLink(VsUri.parse(target.toString()));
+    }
   }
 
   // --- Inline completions --------------------------------------------------

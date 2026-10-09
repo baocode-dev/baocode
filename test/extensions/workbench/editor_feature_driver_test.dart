@@ -19,9 +19,11 @@ import 'package:baocode/extensions/language/language_types.dart';
 import 'package:baocode/extensions/language/marker_service.dart';
 import 'package:baocode/extensions/language/registry_language_features.dart';
 import 'package:baocode/extensions/workbench/editor_feature_driver.dart';
+import 'package:baocode/ide/ide_commands.dart' show ideUsesMacKeys;
 import 'package:baocode/ide/ide_editor_features.dart';
 import 'package:baocode/ide/ide_editor_views.dart';
 import 'package:baocode/ide/ide_workspace.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -147,6 +149,31 @@ class _DelayedFolds extends FoldingRangeProvider {
   }
 }
 
+class _Links extends LinkProvider {
+  int asked = 0;
+  int resolved = 0;
+  Completer<Link?>? pendingResolve;
+
+  @override
+  FutureOr<LinksList?> provideLinks(
+    LanguageFeatureDocument model,
+    CancellationToken token,
+  ) {
+    asked++;
+    return LinksList([Link(Range(1, 1, 1, 6), tooltip: 'Open count')]);
+  }
+
+  @override
+  bool get canResolveLink => true;
+
+  @override
+  FutureOr<Link?> resolveLink(Link link, CancellationToken token) {
+    resolved++;
+    return pendingResolve?.future ??
+        Link(link.range, url: VsUri.parse('https://example.org/count'));
+  }
+}
+
 class _Inline extends InlineCompletionsProvider {
   final shown = <String>[];
   int disposed = 0;
@@ -188,6 +215,7 @@ void main() {
   late IdeEditorFeatures features;
   late IdeEditorView view;
   late List<(String, List<Object?>)> commands;
+  late List<VsUri> openedLinks;
   late Map<String, Object?> settings;
   late bool focused;
   List<FoldRange>? folds;
@@ -230,6 +258,7 @@ void main() {
       setFoldingRanges: (ranges) => folds = ranges,
     );
     commands = [];
+    openedLinks = [];
     settings = {};
   });
 
@@ -253,6 +282,7 @@ void main() {
       return null;
     },
     openLocation: (_, _) async {},
+    openLink: (uri) async => openedLinks.add(uri),
     setting: (key, _) => settings[key],
   );
 
@@ -439,6 +469,76 @@ void main() {
     provider.requests.first.complete(const [FoldingRange(1, 2)]);
     await tester.pump();
     expect(folds!.single.startLineNumber, 2);
+    await stop(tester);
+  });
+
+  testWidgets('provider links resolve on modifier-click and expire on edit', (
+    tester,
+  ) async {
+    final provider = _Links();
+    service.linkProvider.register(ts, provider);
+    start();
+    views.show(view);
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(provider.asked, 1);
+    final snapshot = controller.document.snapshot;
+    final modifier = ideUsesMacKeys
+        ? LogicalKeyboardKey.metaLeft
+        : LogicalKeyboardKey.controlLeft;
+    await tester.sendKeyDownEvent(modifier);
+    features.links.hover(snapshot, 2);
+    expect(features.links.hovered?.tooltip, 'Open count');
+    expect(features.links.decorations.items.single.start, 0);
+    const event = PointerDownEvent(
+      kind: PointerDeviceKind.mouse,
+      buttons: kPrimaryMouseButton,
+    );
+    expect(features.links.pointerDown(snapshot, 2, event), isTrue);
+    await tester.pump();
+    expect(provider.resolved, 1);
+    expect(openedLinks.single.toString(), 'https://example.org/count');
+
+    controller.applyEdits([const EditorOffsetEdit(0, 0, 'x')]);
+    expect(features.links.pointerDown(snapshot, 2, event), isFalse);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(provider.asked, 2);
+    await tester.sendKeyUpEvent(modifier);
+    await stop(tester);
+  });
+
+  testWidgets('late link resolution cannot open an edited document', (
+    tester,
+  ) async {
+    final provider = _Links()..pendingResolve = Completer<Link?>();
+    service.linkProvider.register(ts, provider);
+    start();
+    views.show(view);
+    await tester.pump(const Duration(milliseconds: 10));
+    final snapshot = controller.document.snapshot;
+    final modifier = ideUsesMacKeys
+        ? LogicalKeyboardKey.metaLeft
+        : LogicalKeyboardKey.controlLeft;
+    await tester.sendKeyDownEvent(modifier);
+    expect(
+      features.links.pointerDown(
+        snapshot,
+        2,
+        const PointerDownEvent(
+          kind: PointerDeviceKind.mouse,
+          buttons: kPrimaryMouseButton,
+        ),
+      ),
+      isTrue,
+    );
+    await tester.pump();
+    expect(provider.resolved, 1);
+    controller.applyEdits([const EditorOffsetEdit(0, 0, 'x')]);
+    provider.pendingResolve!.complete(
+      Link(Range(1, 1, 1, 6), url: 'https://example.org/stale'),
+    );
+    await tester.pump();
+    expect(openedLinks, isEmpty);
+    await tester.sendKeyUpEvent(modifier);
     await stop(tester);
   });
 

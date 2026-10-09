@@ -72,6 +72,9 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   back to indentation when the provider disappears (`packages/bao_editor/test/monaco/flutter/editor_surface_view_test.dart`).
   The editor drops outdated post-frame and async provider results on document edits/switches; focused tests in
   `test/ide/native_editor_integration_test.dart` and `test/extensions/workbench/editor_feature_driver_test.dart` pass.
+- Document-link providers now render modifier-hover link decorations and open resolved links on Cmd/Ctrl-click. Results
+  expire on edits, provider changes, and tab switches; stale resolves cannot open old links. Widget pointer tests and
+  provider tests cover the editor surface; command URIs are not executed.
 - Assembly (lib/extensions/workbench): `ExtensionsApp` (one per app) and `WorkspaceExtensions` (one per local IDE
   folder) over `IdeWorkspace` (`IdeTextEditors`, `IdeDocumentsPort`, `IdeWorkspaceEditApplier`); real-runtime test
   `test/extensions/workbench/workspace_extensions_exthost_test.dart` (TS diagnostics, completion, hover).
@@ -85,8 +88,8 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 
 ## In progress / next
 
-1. Finish editor-feature rendering from the registry: document links and colors; CodeLens, inlay hints, inline
-   completions, document highlights and syntax folding now reach the editor driver.
+1. Finish editor-feature rendering from the registry: colors; CodeLens, inlay hints, inline completions,
+   document highlights, syntax folding and document links now reach the editor driver.
 2. Complete real-extension debugging acceptance beyond Node launch/attach (Python, Go, Rust/C++, debugger controls,
    breakpoint variants and preLaunchTask); connect real debug terminal/task backends. Implement SCM and testing actors.
 3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
