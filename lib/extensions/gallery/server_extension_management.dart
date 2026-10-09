@@ -13,6 +13,9 @@
 //   installs the downloaded .vsix (`install`), then its metadata is set to
 //   say where it came from (`updateMetadata`), which upstream's
 //   `installFromGallery` does in one step on the server.
+// - Dependencies and pack members come from Open VSX the same way, after
+//   the extension (upstream installs them together, the extension failing
+//   with a dependency that cannot be installed).
 // - Enablement is not the server's upstream either; BaoCode keeps it here,
 //   global and per workspace.
 
@@ -72,8 +75,26 @@ final class ServerExtensionManagement
   /// URIs its own), for `uninstall` and `updateMetadata` to send back.
   final _local = <String, Map<String, Object?>>{};
 
-  Future<IpcChannel> _channel() async =>
-      (await server()).channel('extensions');
+  Future<IpcChannel> _channel() async => (await server()).channel('extensions');
+
+  Map<String, Object?>? _profileLocation;
+
+  /// The server's default profile's `extensions.json`, as the server takes
+  /// it: `updateMetadata` and `installFromLocation` need one (the server's
+  /// `ExtensionsProfileScannerService` reads it unchecked).
+  Future<Map<String, Object?>> _defaultProfileLocation() async {
+    if (_profileLocation case final location?) return location;
+    final environment = await (await server()).environment();
+    final profiles = (environment['profiles'] as Map?)?['all'];
+    for (final profile in profiles is List ? profiles : const []) {
+      if (profile is Map && profile['isDefault'] == true) {
+        if (VsUri.tryRevive(profile['extensionsResource']) case final uri?) {
+          return _profileLocation = toServer(uri).toJson();
+        }
+      }
+    }
+    throw StateError('The server has no default profile');
+  }
 
   @override
   Future<List<InstalledExtension>> getInstalled() async {
@@ -155,10 +176,13 @@ final class ServerExtensionManagement
       {
         'installPreReleaseVersion': options.preRelease,
         'isMachineScoped': false,
-        'donotIncludePackAndDependencies': false,
+        // They come from Open VSX through BaoCode, below.
+        'donotIncludePackAndDependencies': true,
       },
     ]);
-    var local = (raw! as Map).cast<String, Object?>();
+    // Answered with the server's own URIs (upstream's channel does not
+    // transform them): as it sends them, to send back.
+    var local = (asSentByServer(raw)! as Map).cast<String, Object?>();
     if (options.fromGallery || options.preRelease) {
       // Where it came from, so updates are looked for (upstream's gallery
       // install writes this itself).
@@ -170,11 +194,12 @@ final class ServerExtensionManagement
           'preRelease': options.preRelease,
           'installedTimestamp': DateTime.now().millisecondsSinceEpoch,
         },
-        null,
+        await _defaultProfileLocation(),
       ]);
       if (updated is Map) local = updated.cast<String, Object?>();
     }
     final extension = _fromLocal(fromServer(local)! as Map<String, Object?>)!;
+    final previous = _local[extension.id.toLowerCase()];
     _local[extension.id.toLowerCase()] = local;
     _changes.add(
       ExtensionManagementEvent(
@@ -182,7 +207,58 @@ final class ServerExtensionManagement
         extension.id,
       ),
     );
+    await _installDependenciesAndPack(extension, previous, options);
     return extension;
+  }
+
+  /// Ids being installed as dependencies or pack members (a cycle stops).
+  final _installing = <String>{};
+
+  /// The pack members (and a .vsix's dependencies) that could not be
+  /// installed, by id, with why.
+  final Map<String, Object> skipped = {};
+
+  /// `AbstractExtensionManagementService.getAllDepsAndPackExtensions`:
+  /// [extension]'s `extensionDependencies` and the members of its
+  /// `extensionPack` new since [previous], from Open VSX, each with its
+  /// own. A pack member that cannot be installed is skipped; a dependency
+  /// fails a gallery install, and only warns for a .vsix.
+  Future<void> _installDependenciesAndPack(
+    InstalledExtension extension,
+    Map<String, Object?>? previous,
+    ExtensionInstallOptions options,
+  ) async {
+    final dependencies = {
+      for (final id in extension.manifest.extensionDependencies)
+        id.toLowerCase(): id,
+    };
+    final previousPack = switch (previous?['manifest']) {
+      {'extensionPack': final List<Object?> pack} => {
+        for (final id in pack) '$id'.toLowerCase(),
+      },
+      _ => const <String>{},
+    };
+    final wanted = {
+      ...dependencies,
+      for (final id in extension.manifest.extensionPack)
+        if (!previousPack.contains(id.toLowerCase())) id.toLowerCase(): id,
+    };
+    if (wanted.isEmpty) return;
+    final installed = {
+      for (final e in await getInstalled()) e.id.toLowerCase(),
+    };
+    for (final MapEntry(:key, value: id) in wanted.entries) {
+      if (installed.contains(key) || !_installing.add(key)) continue;
+      try {
+        await installFromGallery(id, preRelease: options.preRelease);
+        skipped.remove(key);
+      } on Object catch (error) {
+        if (dependencies.containsKey(key) && options.fromGallery) rethrow;
+        skipped[id] = error;
+      } finally {
+        _installing.remove(key);
+      }
+    }
   }
 
   @override
@@ -190,9 +266,9 @@ final class ServerExtensionManagement
     final channel = await _channel();
     final raw = await channel.call('installFromLocation', [
       toServer(VsUri.file(Directory(path).absolute.path)).toJson(),
-      null,
+      await _defaultProfileLocation(),
     ]);
-    final local = (raw! as Map).cast<String, Object?>();
+    final local = (asSentByServer(raw)! as Map).cast<String, Object?>();
     final extension = _fromLocal(fromServer(local)! as Map<String, Object?>)!;
     _local[extension.id.toLowerCase()] = local;
     _changes.add(

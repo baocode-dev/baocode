@@ -36,6 +36,29 @@ Object? fromServer(Object? value) {
   return value;
 }
 
+/// `file:///p` → `vscode-remote://baocode/p`, anywhere inside [value]: what
+/// a channel returns untransformed (`extensions.install` and
+/// `installFromLocation` answer with the server's own `file:` URIs) as the
+/// server takes it back.
+Object? asSentByServer(Object? value) {
+  if (value is Map) {
+    if (value[r'$mid'] == uriMarshalledId && value['scheme'] == 'file') {
+      return <String, Object?>{
+        for (final e in value.entries)
+          if (!const {'external', 'fsPath', '_sep'}.contains(e.key))
+            e.key as String: e.value,
+        'scheme': 'vscode-remote',
+        'authority': serverAuthority,
+      };
+    }
+    return <String, Object?>{
+      for (final e in value.entries) e.key as String: asSentByServer(e.value),
+    };
+  }
+  if (value is List) return [for (final e in value) asSentByServer(e)];
+  return value;
+}
+
 /// A server-side path as the server's channels take it.
 VsUri toServer(VsUri uri) => uri.scheme == 'file'
     ? uri.replace(scheme: 'vscode-remote', authority: serverAuthority)
