@@ -86,7 +86,7 @@ final class _Storage extends MainThreadStorageUnsupported {
   ) async => null;
 
   @override
-  void $setValue(bool shared, String extensionId, Map<String, Object?> value) {}
+  void $setValue(bool shared, String extensionId, Object? value) {}
 }
 
 final class _Errors extends MainThreadErrorsUnsupported {
