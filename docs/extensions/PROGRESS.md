@@ -58,16 +58,19 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   folders: none yet); IdeWorkbench shows the Extensions view, extension pages, status bar entries, quick inputs,
   OUTPUT, palette commands, keybindings, runtime download status, recommendations, .vsix/dev-folder drops
   (`test/extensions/workbench/ide_workbench_extensions_test.dart`). lib/ide/extensions (LSP catalog view) removed.
+- Workbench extension views: TreeViews in Explorer/activity-bar containers and panel containers; view/title and item
+  menus, welcome content, file decorations and panel badges. Widget evidence:
+  `test/extensions/workbench/ide_workbench_views_test.dart`.
 
 ## In progress / next
 
-1. Editor features from the registry into the active editor: CodeLens, inlay hints, inline completions, document
-   highlights, links, colors, folding (driver over `IdeEditorViews` + `RegistryLanguageFeatures`).
-2. TreeViews / view containers / file decorations / menus in the workbench.
-3. Debug wiring (MainThreadDebugService ↔ lib/debug UI), terminal/tasks/SCM/testing actors.
-4. LSP removal (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp, bao_remote LSP, docs, l10n).
-5. SSH remote: REH on the remote through bao_remote port forwarding, extensionKind split.
-6. Real-extension integration tests and screenshots, docs, parity regeneration, analyze, full test once, macOS
+1. Finish editor-feature rendering from the registry: CodeLens, inlay hints, inline completions, document highlights,
+   links, colors and folding (driver over `IdeEditorViews` + `RegistryLanguageFeatures`).
+2. Wire debugging (`MainThreadDebugService` ↔ lib/debug UI), then implement terminal, tasks, SCM and testing actors.
+3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
+   bao_remote LSP, docs and l10n), after replacing its language capability coverage.
+4. SSH remote: REH on the remote through bao_remote port forwarding, with the extensionKind split.
+5. Real-extension integration tests and screenshots, docs and generated parity; then analyze, full test once, macOS
    build, merge.
 
 ## Decisions and deviations
@@ -85,4 +88,7 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - A multi-folder workspace runs one extension host on its first folder for now.
 - Keybindings: the keybinding service holds one set of extension keybindings, the visible workbench's.
 - Toasts time out only while a workbench listens to the notifications (they are the workspace's now).
-- `test/workspace/quit_confirmation_test.dart` fails on main already (not this branch's).
+- Panel view containers render as bottom-panel tabs; auxiliary-bar containers use activity-bar entries.
+- Tree drag and drop and `TreeItemAligner` are not implemented; alt menu actions are not shown.
+- `test/chat/chat_width_test.dart` (composer grows with the setting), two chat mode-picker tests in
+  `test/chat/chat_keys_test.dart`, and `test/workspace/quit_confirmation_test.dart` fail on the merge base too.

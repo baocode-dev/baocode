@@ -585,7 +585,8 @@ extension _WorkbenchKeys on IdeWorkbenchState {
     'panelVisible' => _panel != null,
     'panelFocus' => _panelFocus.hasFocus,
     'panelMaximized' => _panel != null && _panelMaximized,
-    'activePanel' => _panel?.panelId,
+    'activePanel' =>
+      _panel == IdePanelTab.view ? _shownPanelContainer()?.id : _panel?.panelId,
     'auxiliaryBarVisible' => _chatShown,
     'auxiliaryBarFocus' => _chatFocus.hasFocus,
     'focusedView' => _focusedView ?? '',
@@ -1335,6 +1336,8 @@ extension on IdePanelTab {
     IdePanelTab.output => 'workbench.panel.output',
     IdePanelTab.references => 'workbench.panel.referenceSearch',
     IdePanelTab.terminal => 'terminal',
+    // Its container's id, which the workbench has.
+    IdePanelTab.view => 'workbench.panel.extension',
   };
 
   /// Upstream's id of its view (`focusedView`).
@@ -1343,5 +1346,7 @@ extension on IdePanelTab {
     IdePanelTab.output => 'workbench.panel.output',
     IdePanelTab.references => 'workbench.panel.referenceSearch',
     IdePanelTab.terminal => 'terminal',
+    // An extension view's, when it has the focus (see `_focusedView`).
+    IdePanelTab.view => 'workbench.panel.extension',
   };
 }

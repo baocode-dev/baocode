@@ -95,10 +95,16 @@ WorkspaceExtensions _extensions() {
           'activitybar': [
             {'id': 'deps', 'title': 'Dependencies', 'icon': r'$(package)'},
           ],
+          'panel': [
+            {'id': 'logs', 'title': 'Logs', 'icon': r'$(output)'},
+          ],
         },
         'views': {
           'deps': [
             {'id': 'acme.deps.tree', 'name': 'Packages'},
+          ],
+          'logs': [
+            {'id': 'acme.logs.tree', 'name': 'Extension Log'},
           ],
           'explorer': [
             {'id': 'acme.notes', 'name': 'Acme Notes'},
@@ -285,6 +291,45 @@ void main() {
     await tester.tap(find.text('Add Dependency'));
     await tester.pumpAndSettle();
     expect(ran, ['acme.add']);
+    await _end(tester);
+  });
+
+  testWidgets('a panel container shows its TreeView in a panel tab', (
+    tester,
+  ) async {
+    final extensions = _extensions();
+    await pumpWorkbench(tester, {'a.txt': 'text'}, extensions: extensions);
+    _workbench(tester).commandsById['workbench.action.togglePanel']!.run();
+    await tester.pumpAndSettle();
+    final tree = extensions.views.treeView('acme.logs.tree')!;
+    tree.dataProvider = _Provider({
+      '': [
+        {
+          'handle': 'log-1',
+          'label': {'label': 'Extension started'},
+          'collapsibleState': TreeItemCollapsibleState.none,
+        },
+      ],
+    });
+
+    expect(extensions.views.isVisible('acme.logs.tree'), isFalse);
+    await tester.tap(
+      find.byKey(const ValueKey('panel-workbench.view.extension.logs')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('LOGS'), findsOneWidget);
+    expect(find.text('Extension started'), findsOneWidget);
+    expect(extensions.views.isVisible('acme.logs.tree'), isTrue);
+
+    await tester.tap(find.text('PROBLEMS'));
+    await tester.pumpAndSettle();
+    expect(extensions.views.isVisible('acme.logs.tree'), isFalse);
+    await tester.tap(
+      find.byKey(const ValueKey('panel-workbench.view.extension.logs')),
+    );
+    await tester.pumpAndSettle();
+    expect(extensions.views.isVisible('acme.logs.tree'), isTrue);
     await _end(tester);
   });
 

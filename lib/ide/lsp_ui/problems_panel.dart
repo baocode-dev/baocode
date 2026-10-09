@@ -35,7 +35,24 @@ import '../lsp/lsp_protocol.dart';
 import 'diagnostics.dart';
 import 'lsp_convert.dart';
 
-enum IdePanelTab { problems, output, references, terminal }
+enum IdePanelTab {
+  problems,
+  output,
+  references,
+  terminal,
+
+  /// An extension's view container ([IdeBottomPanel.viewTabs]).
+  view,
+}
+
+/// An extension's view container in the panel: its tab and what it shows.
+typedef IdePanelViewTab = ({
+  String id,
+  String label,
+  String tooltip,
+  String? badge,
+  Widget body,
+});
 
 /// Locations Find References (or several definitions) produced.
 class IdeReferences {
@@ -197,7 +214,17 @@ class IdeBottomPanel extends StatelessWidget {
     this.terminal,
     this.terminalActions,
     this.output,
+    this.viewTabs = const [],
+    this.selectedView,
+    this.onViewTab,
   });
+
+  /// The extensions' view containers, after the panel's own tabs.
+  final List<IdePanelViewTab> viewTabs;
+
+  /// The one of [viewTabs] shown while [tab] is [IdePanelTab.view].
+  final String? selectedView;
+  final ValueChanged<String>? onViewTab;
 
   final IdePanelTab tab;
   final String root;
@@ -304,6 +331,17 @@ class IdeBottomPanel extends StatelessWidget {
                               selected: tab == IdePanelTab.terminal,
                               onTap: () => onTab(IdePanelTab.terminal),
                             ),
+                          for (final view in viewTabs)
+                            _Tab(
+                              key: ValueKey('panel-${view.id}'),
+                              label: view.label.toUpperCase(),
+                              tooltip: view.tooltip,
+                              badge: view.badge,
+                              selected:
+                                  tab == IdePanelTab.view &&
+                                  view.id == _shownView?.id,
+                              onTap: () => onViewTab?.call(view.id),
+                            ),
                         ],
                       ),
                     ),
@@ -335,6 +373,7 @@ class IdeBottomPanel extends StatelessWidget {
                 IdePanelTab.references => _references(context.l10n),
                 IdePanelTab.terminal =>
                   terminal ?? _message(context.l10n.panelTerminalUnavailable),
+                IdePanelTab.view => _shownView?.body ?? const SizedBox.shrink(),
               },
             ),
           ],
@@ -344,6 +383,14 @@ class IdeBottomPanel extends StatelessWidget {
   }
 
   static final _never = ChangeNotifier();
+
+  /// The view tab shown: [selectedView], else the first.
+  IdePanelViewTab? get _shownView {
+    for (final view in viewTabs) {
+      if (view.id == selectedView) return view;
+    }
+    return viewTabs.firstOrNull;
+  }
 
   Widget _message(String text) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
@@ -461,6 +508,7 @@ class IdeBottomPanel extends StatelessWidget {
 
 class _Tab extends StatelessWidget {
   const _Tab({
+    super.key,
     required this.label,
     required this.tooltip,
     required this.selected,

@@ -421,6 +421,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// [IdeSideView.container].
   String? _viewContainer;
 
+  /// The extension view container the panel shows when [_panel] is
+  /// [IdePanelTab.view].
+  String? _panelContainer;
+
   /// The expanded panes of extension view containers, by container.
   final Map<String, Set<String>> _containerPanes = {};
 
@@ -616,6 +620,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (kept['viewContainer'] case final String container) {
       _viewContainer = container;
     }
+    if (kept['panelContainer'] case final String container) {
+      _panelContainer = container;
+    }
     if (_view == IdeSideView.container && _viewContainer == null) {
       _view = IdeSideView.explorer;
     }
@@ -658,6 +665,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       ..._layout.toJson(),
       'view': _view.name,
       'viewContainer': ?_viewContainer,
+      'panelContainer': ?_panelContainer,
       if (_markdownSources.isNotEmpty) 'markdownSource': [..._markdownSources],
       'editors': editors,
       if (editors.contains(active)) 'active': active,
@@ -3919,6 +3927,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     output: _extensionOutput(
                       shown: shown && _panel == IdePanelTab.output,
                     ),
+                    viewTabs: _panelViewTabs(),
+                    selectedView: _panelContainer,
+                    onViewTab: (id) => setState(() {
+                      _panelContainer = id;
+                      _panel = IdePanelTab.view;
+                    }),
                     terminalActions: switch (_terminals) {
                       final terminals? => TerminalTitleActions(
                         terminals: terminals,

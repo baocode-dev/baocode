@@ -76,9 +76,15 @@ extension _ViewsPart on IdeWorkbenchState {
     final view = views?.contributions.view(viewId);
     if (!mounted || views == null || view == null) return;
     _refresh(() {
+      final container = views.contributions.container(view.containerId);
       if (view.containerId == BuiltinViewContainers.explorer) {
         _view = IdeSideView.explorer;
         _explorerPanes.add(view.id);
+      } else if (container?.location == ViewContainerLocation.panel) {
+        _panelContainer = view.containerId;
+        _panel = IdePanelTab.view;
+        _expandedContainerPanes(view.containerId).add(view.id);
+        return;
       } else {
         _view = IdeSideView.container;
         _viewContainer = view.containerId;
@@ -128,6 +134,17 @@ extension _ViewsPart on IdeWorkbenchState {
             }
           }
         default:
+      }
+    }
+    if (_panel == IdePanelTab.view && widget.visible) {
+      if (_shownPanelContainer() case final container?) {
+        final visible = views.visibleViewsIn(container.id, context);
+        final expanded = _expandedContainerPanes(container.id);
+        for (final view in visible) {
+          if (visible.length == 1 || expanded.contains(view.id)) {
+            shown.add(view.id);
+          }
+        }
       }
     }
     if (setEquals(shown, {
@@ -215,39 +232,11 @@ extension _ViewsPart on IdeWorkbenchState {
   /// The side bar showing an extension's container: its views as panes,
   /// or its one view under the container's title.
   Widget _extensionContainerView() {
-    final extensions = widget.extensions;
-    final context = _viewContext;
     final id = _viewContainer;
     final container = id == null
         ? null
-        : extensions?.views.contributions.container(id);
-    final views = container == null || context == null
-        ? const <ExtensionViewDescriptor>[]
-        : extensions!.views.visibleViewsIn(container.id, context);
-    Widget body;
-    String title = container?.title ?? '';
-    List<Widget> actions = const [];
-    if (views.length == 1) {
-      // `mergeViewWithContainerWhenSingleView`.
-      final view = views.single;
-      final pane = _extensionPane(view);
-      title = pane.title == title || pane.title.isEmpty
-          ? title
-          : '$title: ${pane.title}';
-      actions = pane.actions;
-      body = pane.body;
-    } else if (views.isEmpty) {
-      body = const SizedBox.shrink();
-    } else {
-      final expanded = _expandedContainerPanes(container!.id);
-      body = IdePaneContainer(
-        expanded: expanded,
-        onToggle: (id) => _refresh(() {
-          if (!expanded.remove(id)) expanded.add(id);
-        }),
-        panes: [for (final view in views) _extensionPane(view)],
-      );
-    }
+        : widget.extensions?.views.contributions.container(id);
+    final (:title, :actions, :body) = _containerContent(container);
     return ColoredBox(
       color: themeColors['sideBar.background'],
       child: Column(
@@ -258,6 +247,100 @@ extension _ViewsPart on IdeWorkbenchState {
         ],
       ),
     );
+  }
+
+  /// [container]'s title, actions and views: one view merged with it
+  /// (`mergeViewWithContainerWhenSingleView`), else panes.
+  ({String title, List<Widget> actions, Widget body}) _containerContent(
+    ViewContainerDescriptor? container,
+  ) {
+    final extensions = widget.extensions;
+    final context = _viewContext;
+    final views = container == null || context == null
+        ? const <ExtensionViewDescriptor>[]
+        : extensions!.views.visibleViewsIn(container.id, context);
+    var title = container?.title ?? '';
+    if (views.length == 1) {
+      final pane = _extensionPane(views.single);
+      return (
+        title: pane.title == title || pane.title.isEmpty
+            ? title
+            : '$title: ${pane.title}',
+        actions: pane.actions,
+        body: pane.body,
+      );
+    }
+    if (views.isEmpty) {
+      return (title: title, actions: const [], body: const SizedBox.shrink());
+    }
+    final expanded = _expandedContainerPanes(container!.id);
+    return (
+      title: title,
+      actions: const [],
+      body: IdePaneContainer(
+        expanded: expanded,
+        onToggle: (id) => _refresh(() {
+          if (!expanded.remove(id)) expanded.add(id);
+        }),
+        panes: [for (final view in views) _extensionPane(view)],
+      ),
+    );
+  }
+
+  /// The panel's extension container showing: the one chosen, else the
+  /// first.
+  ViewContainerDescriptor? _shownPanelContainer() {
+    final extensions = widget.extensions;
+    final context = _viewContext;
+    if (extensions == null || context == null) return null;
+    final containers = extensions.views.containersAt(
+      ViewContainerLocation.panel,
+      context,
+    );
+    for (final container in containers) {
+      if (container.id == _panelContainer) return container;
+    }
+    return containers.firstOrNull;
+  }
+
+  /// The extensions' containers in the panel, as its tabs: a single view's
+  /// actions over it, else its panes.
+  List<IdePanelViewTab> _panelViewTabs() {
+    final extensions = widget.extensions;
+    final context = _viewContext;
+    if (extensions == null || context == null) return const [];
+    final keys = KeybindingService.instance;
+    return [
+      for (final container in extensions.views.containersAt(
+        ViewContainerLocation.panel,
+        context,
+      ))
+        (
+          id: container.id,
+          label: container.title,
+          tooltip: keys.titleWithKeybinding(container.title, container.id),
+          badge: _containerBadge(container.id)?.toString(),
+          body: Builder(
+            builder: (_) {
+              final content = _containerContent(container);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (content.actions.isNotEmpty)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: content.actions,
+                      ),
+                    ),
+                  Expanded(child: content.body),
+                ],
+              );
+            },
+          ),
+        ),
+    ];
   }
 
   /// The extensions' panes in one of the workbench's containers.
