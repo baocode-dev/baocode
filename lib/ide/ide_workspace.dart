@@ -333,14 +333,12 @@ class IdeWorkspace extends ChangeNotifier {
   /// repository is left out when ones were found in it.
   List<(String root, IdeGitRepository git)> get repositories => [
     for (final folder in isMultiRoot ? _roots : [root])
-      if (isMultiRoot || (_found[folder]?.isNotEmpty ?? false)) ...[
-        if (_folderGit(folder) case final git?
-            when (_found[folder]?.isEmpty ?? true) ||
-                !git.loaded ||
-                git.isRepository)
-          (folder, git),
-        ...?_found[folder],
-      ],
+      if (isMultiRoot || (_found[folder]?.isNotEmpty ?? false))
+        ...ideFolderRepositories(
+          folder,
+          _folderGit(folder),
+          _found[folder] ?? const [],
+        ),
   ];
 
   IdeGitRepository? _activeRepository;

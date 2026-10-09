@@ -14,8 +14,8 @@
 // window's edges), with the color theme's colors of context menus
 // (platform/theme/browser/defaultStyles.ts `defaultMenuStyles`).
 //
-// Deviations: no mnemonics, and no scrolling in menus taller than the
-// window (they are clamped to it).
+// Deviations: no mnemonics; menus keep an 8px inset from the window's
+// edges and scroll when taller than the available height.
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -535,6 +535,8 @@ class _MenuHostState extends State<_MenuHost> {
 /// edges (`contextview.ts`); a submenu beside its item, its first item level
 /// with it (`menu.ts` `calculateSubmenuMenuLayout`).
 class _MenuLayout extends SingleChildLayoutDelegate {
+  static const _edgeInset = 8.0;
+
   const _MenuLayout(
     this.origin, {
     required this.submenu,
@@ -546,31 +548,38 @@ class _MenuLayout extends SingleChildLayoutDelegate {
   final bool alignRight;
 
   @override
-  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
-      BoxConstraints.loose(constraints.biggest);
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    final maxWidth = math.max(0.0, constraints.biggest.width - _edgeInset * 2);
+    final maxHeight = math.max(0.0, constraints.biggest.height - _edgeInset * 2);
+    return BoxConstraints.loose(Size(maxWidth, maxHeight));
+  }
 
   @override
   Offset getPositionForChild(Size size, Size childSize) {
+    final left = math.min(_edgeInset, size.width / 2);
+    final top = math.min(_edgeInset, size.height / 2);
+    final right = size.width - left;
+    final bottom = size.height - top;
     double x;
     double y;
     if (submenu) {
-      x = origin.right + childSize.width <= size.width
+      x = origin.right + childSize.width <= right
           ? origin.right
           : origin.left - childSize.width;
       // The panel's 1px border and 4px padding above its first item.
       y = origin.top - 5;
     } else {
       x = alignRight ? origin.right - childSize.width : origin.left;
-      if (x + childSize.width > size.width) x = origin.right - childSize.width;
+      if (x + childSize.width > right) x = origin.right - childSize.width;
       y = origin.bottom;
-      if (y + childSize.height > size.height &&
-          origin.top - childSize.height >= 0) {
+      if (y + childSize.height > bottom &&
+          origin.top - childSize.height >= top) {
         y = origin.top - childSize.height;
       }
     }
     return Offset(
-      x.clamp(0, math.max(0, size.width - childSize.width)),
-      y.clamp(0, math.max(0, size.height - childSize.height)),
+      x.clamp(left, math.max(left, right - childSize.width)),
+      y.clamp(top, math.max(top, bottom - childSize.height)),
     );
   }
 

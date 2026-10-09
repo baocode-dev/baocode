@@ -232,6 +232,7 @@ class AppearanceSettingsPage extends StatelessWidget {
                       widthShown,
                     ),
                     onChanged: (step) => _selectWidth(ChatWidth.steps[step]),
+                    tapOnly: true,
                   ),
                 ),
               ],

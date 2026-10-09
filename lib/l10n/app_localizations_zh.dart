@@ -2191,7 +2191,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get composerCommands => '命令';
 
   @override
-  String get composerConversations => '对话';
+  String get composerMentions => '文件和对话';
 
   @override
   String get composerPlaceholder => '规划、搜索、构建任何内容  ·  拖入或粘贴文件  / 命令';
@@ -2901,6 +2901,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notificationsSoundMicrowave => '微波炉“叮”';
+
+  @override
+  String get notificationsSoundManOhYeah => 'man-oh-yeah';
+
+  @override
+  String get notificationsSoundGulpGulpGulpGulp => 'Gulp Gulp Gulp Gulp';
 
   @override
   String get notificationsSoundNone => '无';
@@ -5791,7 +5797,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceSettingsChatWidth => '对话宽度';
 
   @override
-  String get appearanceSettingsChatWidthDescription => '窗口很宽时，对话和输入框最多能有多宽。';
+  String get appearanceSettingsChatWidthDescription =>
+      '窗口很宽时，对话、输入框和设置页最多能有多宽。';
 
   @override
   String get appearanceSettingsChatWidthDefault => '默认';
@@ -5826,7 +5833,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceSettingsCodeSize => '代码字号';
 
   @override
-  String get appearanceSettingsCodeSizeDescription => '编辑器、终端、对话和预览中代码的字号。';
+  String get appearanceSettingsCodeSizeDescription =>
+      'Fast IDE 编辑器及侧边栏文件、变更视图中源码的字号。终端和对话中的代码跟随界面文字大小。';
 
   @override
   String appearanceSettingsCodeSizeLabel(String size) {
@@ -5844,7 +5852,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceSettingsUiScale => '界面文字大小';
 
   @override
-  String get appearanceSettingsUiScaleDescription => '缩放窗口的文字，代码的字号不变。';
+  String get appearanceSettingsUiScaleDescription =>
+      '缩放界面文字、对话中的代码和终端文字。Fast IDE 编辑器及侧边栏文件、变更中的源码使用代码字号。';
 
   @override
   String appearanceSettingsUiScaleLabel(String percent) {
@@ -6211,6 +6220,151 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdCreateWorkspace => '创建工作区...';
+
+  @override
+  String get settingsSectionNetwork => '网络';
+
+  @override
+  String get settingsNetworkKeywords => '代理 网络 proxy clash vpn 梯子';
+
+  @override
+  String get networkSettingsTitle => '网络';
+
+  @override
+  String get networkSettingsDescription => 'BaoCode 及其启动的 Claude Code 如何访问网络。';
+
+  @override
+  String get networkProxy => '代理';
+
+  @override
+  String get networkProxyDescription =>
+      'BaoCode 和 Claude Code 使用的代理（http.proxyMode）。跟随系统代理：使用系统设置里的代理，例如 Clash 开启的系统代理。更改对新会话生效，正在运行的会话需重新开始。';
+
+  @override
+  String networkProxyLabel(String name) {
+    return '代理：$name';
+  }
+
+  @override
+  String get networkProxySystem => '跟随系统代理';
+
+  @override
+  String get networkProxyManual => '手动设置';
+
+  @override
+  String get networkProxyOff => '不使用代理';
+
+  @override
+  String get networkProxyUrl => '代理地址';
+
+  @override
+  String get networkProxyUrlDescription =>
+      'HTTP 代理，例如 Clash 的端口：http://127.0.0.1:7890（http.proxy）。不支持 SOCKS。';
+
+  @override
+  String networkProxyUrlInvalid(String url) {
+    return '不是 HTTP 代理地址：$url。请填写类似 http://127.0.0.1:7890 的地址。';
+  }
+
+  @override
+  String get networkProxyStatus => '当前使用';
+
+  @override
+  String get networkProxyStatusChecking => '正在检测…';
+
+  @override
+  String networkProxyStatusSystem(String server) {
+    return '系统代理 $server';
+  }
+
+  @override
+  String networkProxyStatusEnvironment(String server) {
+    return '$server，来自环境变量（HTTPS_PROXY）：系统没有设置代理';
+  }
+
+  @override
+  String networkProxyStatusManual(String server) {
+    return '$server';
+  }
+
+  @override
+  String get networkProxyStatusManualMissing => '请填写代理地址。';
+
+  @override
+  String get networkProxyStatusNone => '直连：系统没有设置代理。';
+
+  @override
+  String get networkProxyStatusOff => '直连。';
+
+  @override
+  String get networkProxyStatusAutoConfig =>
+      '直连：系统使用自动代理配置（PAC），BaoCode 暂不支持。请在 Clash 中开启系统代理，或手动填写代理地址。';
+
+  @override
+  String get networkProxyRefresh => '重新检测';
+
+  @override
+  String get networkTest => '连通性测试';
+
+  @override
+  String get networkTestDescription =>
+      '通过当前使用的代理访问这些网站，看能否连上、速度如何（新建连接到开始收到响应的用时）。';
+
+  @override
+  String get networkTesting => '测试中…';
+
+  @override
+  String get networkTestRun => '开始测试';
+
+  @override
+  String get networkTestRunAgain => '重新测试';
+
+  @override
+  String get networkTestIdle => '未测试';
+
+  @override
+  String networkTestMs(int ms) {
+    return '$ms ms';
+  }
+
+  @override
+  String get networkTestUnreachable => '无法访问';
+
+  @override
+  String networkTestSummary(int reached, int total) {
+    return '$total 个网站中 $reached 个可以访问。';
+  }
+
+  @override
+  String get networkFailureTimeout => '超时';
+
+  @override
+  String get networkFailureRefused => '连接被拒绝';
+
+  @override
+  String get networkFailureReset => '连接被重置';
+
+  @override
+  String get networkFailureDns => '域名解析失败';
+
+  @override
+  String get networkFailureTls => 'TLS 握手失败';
+
+  @override
+  String get networkFailureProxyAuth => '代理需要认证';
+
+  @override
+  String get networkFailureOther => '连接失败';
+
+  @override
+  String get networkTestHintRefused => '代理地址上没有程序响应：请确认 Clash（或其他代理）正在运行。';
+
+  @override
+  String get networkTestHintOffline => '所有网站都无法访问：请检查本机网络和代理。';
+
+  @override
+  String get networkTestHintBlocked =>
+      '只有百度能访问：其他网站没有经过代理。请检查上面的代理设置，或 Clash 的模式和规则。';
 
   @override
   String extRuntimeDownloading(int percent) {

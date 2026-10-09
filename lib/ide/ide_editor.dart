@@ -12,6 +12,7 @@ import '../keybindings/keybinding_service.dart';
 import '../l10n/command_titles.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
+import '../theme/code_font.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' hide ColorScheme;
 
@@ -2217,59 +2218,64 @@ class IdeEditorState extends State<IdeEditor> {
             key: _areaKey,
             children: [
               Positioned.fill(
-                child: widget.nativeEditorEnabled
-                    ? _nativeController == null
-                          ? const SizedBox.expand()
-                          : _diffOf(widget.active) == null
-                          ? _surface(colors)
-                          : _diffEditor(colors, _diffOf(widget.active)!)
-                    : TextField(
-                        controller: _controller,
-                        focusNode: _focusNode,
-                        scrollController: _scrollController,
-                        expands: true,
-                        minLines: null,
-                        maxLines: null,
-                        keyboardType: TextInputType.multiline,
-                        textInputAction: TextInputAction.newline,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        cursorColor: colors['editorCursor.foreground'],
-                        onChanged: _changed,
-                        style: AppFonts.codeStyle(13).copyWith(
-                          color: colors['editor.foreground'],
-                          height: 1.45,
-                        ),
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.fromLTRB(
-                            16,
-                            12,
-                            16,
-                            20,
+                child: CodeTextScale(
+                  child: widget.nativeEditorEnabled
+                      ? _nativeController == null
+                            ? const SizedBox.expand()
+                            : _diffOf(widget.active) == null
+                            ? _surface(colors)
+                            : _diffEditor(colors, _diffOf(widget.active)!)
+                      : TextField(
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          scrollController: _scrollController,
+                          expands: true,
+                          minLines: null,
+                          maxLines: null,
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.newline,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          cursorColor: colors['editorCursor.foreground'],
+                          onChanged: _changed,
+                          style: AppFonts.codeStyle(13).copyWith(
+                            color: colors['editor.foreground'],
+                            height: 1.45,
                           ),
-                          hintText: language.isEmpty
-                              ? context.l10n.editorStartTyping
-                              : context.l10n.editorEditLanguage(language),
-                          hintStyle: TextStyle(
-                            color: colors['editor.placeholder.foreground'],
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.fromLTRB(
+                              16,
+                              12,
+                              16,
+                              20,
+                            ),
+                            hintText: language.isEmpty
+                                ? context.l10n.editorStartTyping
+                                : context.l10n.editorEditLanguage(language),
+                            hintStyle: TextStyle(
+                              color: colors['editor.placeholder.foreground'],
+                            ),
                           ),
                         ),
-                      ),
+                ),
               ),
               if (_language case final session?)
                 Positioned.fill(
-                  child: IdeLanguageOverlay(
-                    session: session,
-                    renameHandlesKeys: widget.keyResolver == null,
-                    colorize: _colorizeCode,
-                    language:
-                        _textMateDocuments[widget.active]?.$2.languageId ??
-                        _tokenizedDocuments[widget.active]?.languageId,
-                    view: () => switch (_surfaceKey.currentState) {
-                      final EditorSurfaceView view => view,
-                      _ => null,
-                    },
+                  // Hovers and suggestions are sized with the code.
+                  child: CodeTextScale(
+                    child: IdeLanguageOverlay(
+                      session: session,
+                      renameHandlesKeys: widget.keyResolver == null,
+                      colorize: _colorizeCode,
+                      language:
+                          _textMateDocuments[widget.active]?.$2.languageId ??
+                          _tokenizedDocuments[widget.active]?.languageId,
+                      view: () => switch (_surfaceKey.currentState) {
+                        final EditorSurfaceView view => view,
+                        _ => null,
+                      },
+                    ),
                   ),
                 ),
               if (_findVisible)

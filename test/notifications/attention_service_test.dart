@@ -225,5 +225,13 @@ void main() {
     expect(AttentionSettings.encodeEvents({}), isEmpty);
     expect(NotificationSoundValue.isFile('/tmp/a.wav'), isTrue);
     expect(NotificationSoundValue.isFile('microwave'), isFalse);
+    expect(
+      NotificationSoundValue.isFile(NotificationSoundValue.manOhYeah),
+      isFalse,
+    );
+    expect(
+      NotificationSoundValue.isFile(NotificationSoundValue.gulpGulpGulpGulp),
+      isFalse,
+    );
   });
 }

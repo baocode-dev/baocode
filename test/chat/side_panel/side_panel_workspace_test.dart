@@ -2,6 +2,8 @@
 // IDE's: each folder a root of the files page, a repository of the changes
 // page's to pick from; the files the agent names found in its folders.
 
+import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:baocode/theme/code_font.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/side_panel/file_link.dart';
 import 'package:baocode/chat/side_panel/file_open.dart';
@@ -9,6 +11,7 @@ import 'package:baocode/chat/side_panel/side_panel_controller.dart';
 import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/git/git_repository.dart';
+import 'package:baocode/ide/git/repository_scan.dart';
 import 'package:baocode/ide/ide_explorer.dart';
 import 'package:baocode/ide/ide_list.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
@@ -67,8 +70,11 @@ Future<({AgentSidePanel panel, ChatSession session})> _pump(
   required SidePanelSection section,
   List<String> roots = const [_site, _api],
   List<(String, IdeGitRepository)> repositories = const [],
+  String? workspaceName = 'web',
+  IdeGitRepository? git,
   VoidCallback? onAddFolder,
   ValueChanged<String>? onRemoveFolder,
+  ValueNotifier<double>? uiScale,
 }) async {
   tester.view.physicalSize = const Size(1600, 1000);
   tester.view.devicePixelRatio = 1;
@@ -84,21 +90,41 @@ Future<({AgentSidePanel panel, ChatSession session})> _pump(
     MaterialApp(
       theme: buildAppTheme(),
       localizationsDelegates: const [FlutterQuillLocalizations.delegate],
-      home: Material(
-        child: AgentSidePanelArea(
-          panel: panel,
-          builder: (context) => AgentSidePanelView(
+      builder: uiScale == null
+          ? null
+          : (context, child) {
+              final media = MediaQuery.of(context);
+              return SystemTextScale(
+                scaler: media.textScaler,
+                child: ValueListenableBuilder<double>(
+                  valueListenable: uiScale,
+                  child: child,
+                  builder: (context, value, child) => MediaQuery(
+                    data: media.copyWith(textScaler: TextScaler.linear(value)),
+                    child: child!,
+                  ),
+                ),
+              );
+            },
+      home: ValueListenableBuilder<double>(
+        valueListenable: CodeFont.size,
+        builder: (context, _, _) => Material(
+          child: AgentSidePanelArea(
             panel: panel,
-            session: session,
-            files: _files,
-            watchDirectory: (_) => const Stream.empty(),
-            workspaceName: 'web',
-            roots: roots,
-            repositories: repositories,
-            onAddFolder: onAddFolder,
-            onRemoveFolder: onRemoveFolder,
+            builder: (context) => AgentSidePanelView(
+              panel: panel,
+              session: session,
+              files: _files,
+              watchDirectory: (_) => const Stream.empty(),
+              workspaceName: workspaceName,
+              git: git,
+              roots: roots,
+              repositories: repositories,
+              onAddFolder: onAddFolder,
+              onRemoveFolder: onRemoveFolder,
+            ),
+            child: const SizedBox.expand(),
           ),
-          child: const SizedBox.expand(),
         ),
       ),
     ),
@@ -114,6 +140,35 @@ Finder _inList(String text) =>
     find.descendant(of: _list, matching: find.text(text));
 
 void main() {
+  testWidgets('the file tree preview responds to code size, not interface '
+      'size', (tester) async {
+    final scale = ValueNotifier(1.0);
+    final originalSize = CodeFont.size.value;
+    addTearDown(scale.dispose);
+    addTearDown(() => CodeFont.size.value = originalSize);
+    await _pump(tester, section: SidePanelSection.files, uiScale: scale);
+    await tester.tap(_inList('main.go'));
+    await tester.pumpAndSettle();
+    final surface = find.byType(EditorSurface);
+    final state = tester.state(surface);
+    final view = state as EditorSurfaceView;
+    final height = view.lineHeight;
+    final width = view.caretRectAt(7)!.left - view.caretRectAt(0)!.left;
+    scale.value = 1.5;
+    await tester.pumpAndSettle();
+    expect(tester.state(surface), same(state));
+    expect(view.lineHeight, closeTo(height, 1e-9));
+    expect(
+      view.caretRectAt(7)!.left - view.caretRectAt(0)!.left,
+      closeTo(width, 1e-9),
+    );
+    CodeFont.size.value = CodeFont.defaultSize + 6;
+    await tester.pumpAndSettle();
+    expect(view.lineHeight, greaterThan(height * 1.4));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 20));
+  });
+
   testWidgets('the files page has each folder a root, under the '
       'workspace\'s name; a root is taken out from its menu', (tester) async {
     final removed = <String>[];
@@ -205,6 +260,29 @@ void main() {
     expect(panel.repositoryOf(session.root!), _api);
     expect(_inList('new.go'), findsOneWidget);
     expect(_inList('index.html'), findsNothing);
+  });
+
+  testWidgets('a folder\'s project lists the repositories found in its '
+      'subfolders, its own left out once known not to be one', (tester) async {
+    final own = FakeGit(_workspace)..isRepository = false;
+    final nested = FakeGit(_api)..status = '## dev\x00?? new.go\x00';
+    final (ownGit, nestedGit) = (own.repository(), nested.repository());
+    addTearDown(ownGit.dispose);
+    addTearDown(nestedGit.dispose);
+    await ownGit.refresh();
+    await nestedGit.refresh();
+    await _pump(
+      tester,
+      section: SidePanelSection.changes,
+      workspaceName: null,
+      roots: const [],
+      git: ownGit,
+      repositories: ideFolderRepositories(_workspace, ownGit, [
+        (_api, nestedGit),
+      ]),
+    );
+    expect(_inList('new.go'), findsOneWidget);
+    expect(find.textContaining('doesn\'t have a Git repository'), findsNothing);
   });
 
   group('the files the chat names', () {

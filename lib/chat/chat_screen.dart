@@ -551,6 +551,7 @@ class _ChatScreenState extends State<ChatScreen>
           colorizeBlock: widget.colorizeCodeBlock,
           child: ComposerVocabulary(
             commands: _commandSuggestions(),
+            suggestFiles: _session.suggestFiles,
             sessions: widget.sessions,
             child: child!,
           ),
@@ -858,9 +859,9 @@ class _TitleBarLayout extends MultiChildLayoutDelegate {
       oldDelegate.inset != inset || oldDelegate.maxWidth != maxWidth;
 }
 
-/// [child] 16 in from either side and no wider than [maxWidth], in the
-/// middle, with 12 under it, at any width. Worked out as it is laid out, so a
-/// new width only lays [child] out again.
+/// [child] across the conversation's column (see [_columnWidth]), level
+/// with the history's text, with 12 under it at any width. Worked out as it
+/// is laid out, so a new width only lays [child] out again.
 class _ConversationColumn extends SingleChildRenderObjectWidget {
   const _ConversationColumn({required this.maxWidth, required super.child});
 
@@ -890,11 +891,9 @@ class _RenderConversationColumn extends RenderShiftedBox {
     markNeedsLayout();
   }
 
-  static const _gutter = 16.0;
   static const _bottom = 12.0;
 
-  double _width(double width) =>
-      math.max(0, math.min(width - 2 * _gutter, _maxWidth));
+  double _width(double width) => _columnWidth(width, _maxWidth);
 
   BoxConstraints _childConstraints(BoxConstraints constraints) {
     return BoxConstraints.tightFor(width: _width(constraints.maxWidth))

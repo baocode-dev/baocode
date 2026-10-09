@@ -2259,7 +2259,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get composerCommands => 'Commands';
 
   @override
-  String get composerConversations => 'Conversations';
+  String get composerMentions => 'Files and conversations';
 
   @override
   String get composerPlaceholder =>
@@ -3007,6 +3007,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationsSoundMicrowave => 'Microwave Ding';
+
+  @override
+  String get notificationsSoundManOhYeah => 'man-oh-yeah';
+
+  @override
+  String get notificationsSoundGulpGulpGulpGulp => 'Gulp Gulp Gulp Gulp';
 
   @override
   String get notificationsSoundNone => 'None';
@@ -6169,7 +6175,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceSettingsChatWidthDescription =>
-      'How wide the conversation and the message box grow in a wide window.';
+      'How wide the conversation, the message box and the settings grow in a wide window.';
 
   @override
   String get appearanceSettingsChatWidthDefault => 'Default';
@@ -6205,7 +6211,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceSettingsCodeSizeDescription =>
-      'The size of code in the editor, the terminal, the chat and the previews.';
+      'The size of code in the IDE editor and the side panel\'s file and changes views. The terminal and chat follow the interface text size.';
 
   @override
   String appearanceSettingsCodeSizeLabel(String size) {
@@ -6224,7 +6230,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceSettingsUiScaleDescription =>
-      'The size of the window\'s text. Code keeps its own size.';
+      'The size of interface text, code in the chat, and terminal text. Code in the IDE editor and side panel files and changes keeps its own size.';
 
   @override
   String appearanceSettingsUiScaleLabel(String percent) {
@@ -6605,6 +6611,154 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdCreateWorkspace => 'Create Workspace...';
+
+  @override
+  String get settingsSectionNetwork => 'Network';
+
+  @override
+  String get settingsNetworkKeywords => 'proxy http https clash vpn network';
+
+  @override
+  String get networkSettingsTitle => 'Network';
+
+  @override
+  String get networkSettingsDescription =>
+      'How BaoCode and the Claude Code it starts reach the internet.';
+
+  @override
+  String get networkProxy => 'Proxy';
+
+  @override
+  String get networkProxyDescription =>
+      'The proxy for BaoCode and Claude Code (http.proxyMode). System Proxy follows the system\'s settings, such as Clash\'s system proxy. New sessions take a change; restart a running one for it.';
+
+  @override
+  String networkProxyLabel(String name) {
+    return 'Proxy: $name';
+  }
+
+  @override
+  String get networkProxySystem => 'System Proxy';
+
+  @override
+  String get networkProxyManual => 'Manual';
+
+  @override
+  String get networkProxyOff => 'No Proxy';
+
+  @override
+  String get networkProxyUrl => 'Proxy Address';
+
+  @override
+  String get networkProxyUrlDescription =>
+      'An HTTP proxy, such as Clash\'s port: http://127.0.0.1:7890 (http.proxy). SOCKS isn\'t supported.';
+
+  @override
+  String networkProxyUrlInvalid(String url) {
+    return 'Not an HTTP proxy address: $url. Enter one like http://127.0.0.1:7890.';
+  }
+
+  @override
+  String get networkProxyStatus => 'In Use';
+
+  @override
+  String get networkProxyStatusChecking => 'Detecting…';
+
+  @override
+  String networkProxyStatusSystem(String server) {
+    return 'System proxy $server';
+  }
+
+  @override
+  String networkProxyStatusEnvironment(String server) {
+    return '$server, from the environment (HTTPS_PROXY): the system has no proxy set';
+  }
+
+  @override
+  String networkProxyStatusManual(String server) {
+    return '$server';
+  }
+
+  @override
+  String get networkProxyStatusManualMissing => 'Enter the proxy\'s address.';
+
+  @override
+  String get networkProxyStatusNone => 'Direct: the system has no proxy set.';
+
+  @override
+  String get networkProxyStatusOff => 'Direct.';
+
+  @override
+  String get networkProxyStatusAutoConfig =>
+      'Direct: the system sets its proxy with an auto-config (PAC) file, which BaoCode doesn\'t follow. Turn on Clash\'s system proxy, or enter the address manually.';
+
+  @override
+  String get networkProxyRefresh => 'Detect Again';
+
+  @override
+  String get networkTest => 'Connection Test';
+
+  @override
+  String get networkTestDescription =>
+      'Reaches these sites through the proxy in use: whether each answers, and how quickly (a new connection\'s time, until the answer starts).';
+
+  @override
+  String get networkTesting => 'Testing…';
+
+  @override
+  String get networkTestRun => 'Run Test';
+
+  @override
+  String get networkTestRunAgain => 'Test Again';
+
+  @override
+  String get networkTestIdle => 'Not tested';
+
+  @override
+  String networkTestMs(int ms) {
+    return '$ms ms';
+  }
+
+  @override
+  String get networkTestUnreachable => 'Unreachable';
+
+  @override
+  String networkTestSummary(int reached, int total) {
+    return '$reached of $total sites reachable.';
+  }
+
+  @override
+  String get networkFailureTimeout => 'Timed out';
+
+  @override
+  String get networkFailureRefused => 'Connection refused';
+
+  @override
+  String get networkFailureReset => 'Connection reset';
+
+  @override
+  String get networkFailureDns => 'DNS lookup failed';
+
+  @override
+  String get networkFailureTls => 'TLS failed';
+
+  @override
+  String get networkFailureProxyAuth => 'Proxy needs sign-in';
+
+  @override
+  String get networkFailureOther => 'Couldn\'t connect';
+
+  @override
+  String get networkTestHintRefused =>
+      'Nothing answers at the proxy\'s address: check that Clash (or the proxy) is running.';
+
+  @override
+  String get networkTestHintOffline =>
+      'No site answers: check this computer\'s network connection and the proxy.';
+
+  @override
+  String get networkTestHintBlocked =>
+      'Only Baidu answers: the proxy isn\'t getting the others through. Check the proxy above, or Clash\'s mode and rules.';
 
   @override
   String extRuntimeDownloading(int percent) {

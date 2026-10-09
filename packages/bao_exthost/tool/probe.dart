@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_print
 // Manual probe: starts a reh, connects, starts an extension host with the
 // hello fixture and logs every request it makes. Not a test.
 //

@@ -830,7 +830,7 @@ class _ApprovalPreview extends StatelessWidget {
 
   final ApprovalPreview? preview;
 
-  static TextStyle get _mono => AppFonts.codeStyle(12).copyWith(height: 1.5);
+  static TextStyle get _mono => AppFonts.uiCodeStyle(12).copyWith(height: 1.5);
 
   @override
   Widget build(BuildContext context) {
@@ -953,7 +953,8 @@ class _PlanFile extends StatelessWidget {
             path.split(RegExp(r'[/\\]')).last,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppFonts.codeStyle(12).copyWith(color: AppColors.textMuted),
+            style: AppFonts.uiCodeStyle(12)
+                .copyWith(color: AppColors.textMuted),
           ),
         ),
         if (onOpen case final onOpen?) ...[

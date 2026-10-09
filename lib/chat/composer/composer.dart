@@ -41,12 +41,12 @@ import 'suggestion_menu.dart';
 import '../../ide/ide_hover.dart';
 
 /// An open query: a /command's, the slash starting the message, or a
-/// conversation's (an @ starting a word); [query] is the text between it
-/// and the caret.
+/// mention's (an @ starting a word: a file, a folder or a conversation);
+/// [query] is the text between it and the caret.
 class _Trigger {
   const _Trigger(this.kind, this.start, this.query);
 
-  /// [SuggestionKind.command] or [SuggestionKind.session].
+  /// [SuggestionKind.command], or [SuggestionKind.file] for a mention.
   final SuggestionKind kind;
 
   /// Where the slash or the @ is.
@@ -156,7 +156,8 @@ class ChatComposerState extends State<ChatComposer>
   /// The conversations the open @ offers, as they were when it was typed.
   List<Suggestion> _sessions = const [];
 
-  /// What the menu lists: kept as it closes, for it to fade out as it was.
+  /// Whether the menu lists a mention's files and conversations or the
+  /// commands: kept as it closes, for it to fade out as it was.
   SuggestionKind _menuKind = SuggestionKind.command;
   int _highlighted = 0;
   double _menuX = 0;
@@ -634,24 +635,28 @@ class ChatComposerState extends State<ChatComposer>
       _dismissedTrigger = null;
     }
     var visible = trigger != null && _dismissedTrigger == null;
-    // An @ with no other conversation to refer to stays text.
-    if (visible && trigger.kind == SuggestionKind.session) {
+    final vocabulary = ComposerVocabulary.read(context);
+    // An @ with no file to look up and no other conversation to refer to
+    // stays text.
+    if (visible && trigger.kind == SuggestionKind.file) {
       if (!trigger.sameAnchor(_trigger)) {
-        _sessions = ComposerVocabulary.read(context).sessions?.call() ?? [];
+        _sessions = vocabulary.sessions?.call() ?? [];
       }
-      visible = _sessions.isNotEmpty;
+      visible = vocabulary.suggestFiles != null || _sessions.isNotEmpty;
     }
 
     if (visible) {
       final queryChanged =
           !trigger!.sameAnchor(_trigger) || trigger.query != _trigger!.query;
       if (queryChanged) {
-        _matches = trigger.kind == SuggestionKind.session
-            ? rankGroupedSuggestions(_sessions, trigger.query)
-            : rankSuggestions(
-                ComposerVocabulary.read(context).commands,
-                trigger.query,
-              );
+        if (trigger.kind == SuggestionKind.file) {
+          _matches = rankGroupedSuggestions(_sessions, trigger.query);
+          if (vocabulary.suggestFiles case final suggest?) {
+            unawaited(_lookUpFiles(trigger, suggest));
+          }
+        } else {
+          _matches = rankSuggestions(vocabulary.commands, trigger.query);
+        }
         _highlighted = 0;
       }
       _menuKind = trigger.kind;
@@ -662,6 +667,38 @@ class ChatComposerState extends State<ChatComposer>
     _syncMenuRegistration();
     _hasContent = hasContent;
     setState(() {});
+  }
+
+  int _lookups = 0;
+
+  /// Asks the kernel for files matching [trigger], and shows them ahead of
+  /// the conversations. Answers to older queries are dropped.
+  Future<void> _lookUpFiles(
+    _Trigger trigger,
+    Future<List<FileSuggestion>> Function(String query) suggest,
+  ) async {
+    final lookup = ++_lookups;
+    final files = await suggest(trigger.query);
+    final current = _trigger;
+    if (!mounted ||
+        lookup != _lookups ||
+        current == null ||
+        !current.sameAnchor(trigger) ||
+        current.query != trigger.query) {
+      return;
+    }
+    setState(() {
+      _matches = [
+        for (final suggestion in files.map(fileSuggestion))
+          SuggestionMatch(
+            suggestion,
+            fuzzyMatch(suggestion.label, trigger.query)?.indexes ?? const [],
+          ),
+        ...rankGroupedSuggestions(_sessions, trigger.query),
+      ];
+      _highlighted = _highlighted.clamp(0, math.max(0, _matches.length - 1));
+    });
+    _syncMenuRegistration();
   }
 
   /// Flutter lays out a line whose only content is an inline widget taller
@@ -696,17 +733,17 @@ class ChatComposerState extends State<ChatComposer>
         return _Trigger(SuggestionKind.command, 0, query);
       }
     }
-    // An @ starting the word the caret ends: a conversation to refer to.
-    if (ComposerVocabulary.read(context).sessions == null) return null;
+    // An @ starting the word the caret ends: a file or a conversation to
+    // refer to.
+    final vocabulary = ComposerVocabulary.read(context);
+    if (vocabulary.sessions == null && vocabulary.suggestFiles == null) {
+      return null;
+    }
     for (var i = caret - 1; i >= 0; i--) {
       final char = plain[i];
       if (isBoundary(char)) return null;
       if (char == '@' && (i == 0 || isBoundary(plain[i - 1]))) {
-        return _Trigger(
-          SuggestionKind.session,
-          i,
-          plain.substring(i + 1, caret),
-        );
+        return _Trigger(SuggestionKind.file, i, plain.substring(i + 1, caret));
       }
     }
     return null;
@@ -768,12 +805,13 @@ class ChatComposerState extends State<ChatComposer>
       ' ',
       TextSelection.collapsed(offset: trigger.start + 1),
     );
-    _controller.replaceText(
-      trigger.start,
-      0,
-      ComposerTokenEmbed.fromSuggestion(suggestion),
-      TextSelection.collapsed(offset: trigger.start + 2),
-    );
+    _controller.replaceText(trigger.start, 0, switch (suggestion.kind) {
+      SuggestionKind.file || SuggestionKind.folder => ComposerTokenEmbed.file(
+        suggestion.value,
+        directory: suggestion.kind == SuggestionKind.folder,
+      ),
+      _ => ComposerTokenEmbed.fromSuggestion(suggestion),
+    }, TextSelection.collapsed(offset: trigger.start + 2));
     _focusNode.requestFocus();
   }
 
@@ -1253,8 +1291,8 @@ class ChatComposerState extends State<ChatComposer>
 
   Widget _buildMenu(BuildContext context) {
     return SuggestionMenu(
-      title: _menuKind == SuggestionKind.session
-          ? context.l10n.composerConversations
+      title: _menuKind == SuggestionKind.file
+          ? context.l10n.composerMentions
           : context.l10n.composerCommands,
       matches: _matches,
       highlighted: _highlighted,

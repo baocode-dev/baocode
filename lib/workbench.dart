@@ -2591,13 +2591,30 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     return SidePanelRail(
       onSelect: _showSidePanelSection,
       session: thread.session,
-      gits: multi == null
-          ? [?_sidePanelGit(thread)]
-          : [for (final (_, git) in _sidePanelRepositories(multi)) git],
+      gits: switch (multi == null
+          ? _sidePanelFolderRepositories(thread)
+          : _sidePanelRepositories(multi)) {
+        [] => [?_sidePanelGit(thread)],
+        final repositories => [for (final (_, git) in repositories) git],
+      },
     );
   }
 
   Widget _buildSidePanel(AgentThread thread) {
+    final location = thread.project.path;
+    final multi = _workspace.workspaceAt(location);
+    // Its IDE's repositories, found in the folders' subfolders as they are
+    // looked for.
+    if (_ideSpaces[multi?.path ?? location] case final space?) {
+      return ListenableBuilder(
+        listenable: space,
+        builder: (context, _) => _sidePanelView(thread),
+      );
+    }
+    return _sidePanelView(thread);
+  }
+
+  Widget _sidePanelView(AgentThread thread) {
     final (:files, :paths) = _projectFiles(thread);
     final location = thread.project.path;
     final multi = _workspace.workspaceAt(location);
@@ -2618,7 +2635,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           ideClaudeCommitMessage(prompt, cancel: cancel, location: location),
       workspaceName: multi?.name,
       roots: multi?.folders ?? const [],
-      repositories: multi == null ? const [] : _sidePanelRepositories(multi),
+      repositories: multi == null
+          ? _sidePanelFolderRepositories(thread)
+          : _sidePanelRepositories(multi),
       onAddFolder: multi == null
           ? null
           : () => unawaited(_addWorkspaceFolder(location)),
@@ -2641,6 +2660,62 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         (folder, _sidePanelGits[folder] ??= gitFor(folder)),
     ];
   }
+
+  /// The repositories of [thread]'s folder and its subfolders the side
+  /// panel lists, as Source Control does (`git.autoRepositoryDetection`):
+  /// its IDE's, once open, else the panel's own, looked for once; none
+  /// until some are found in the subfolders ([AgentSidePanelView.git] its
+  /// one).
+  List<(String, IdeGitRepository)> _sidePanelFolderRepositories(
+    AgentThread thread,
+  ) {
+    final location = thread.project.path;
+    if (_ideSpaces[location] case final space?) return space.repositories;
+    final gitFor = widget.gitFor;
+    final repositoriesIn = widget.repositoriesIn;
+    if (gitFor == null || repositoriesIn == null) return const [];
+    final found = _sidePanelFound[location];
+    if (found == null) {
+      _sidePanelFound[location] = const [];
+      final host = ProjectHost.of(location);
+      unawaited(() async {
+        final List<String> paths;
+        try {
+          paths = await repositoriesIn(
+            location,
+            IdeRepositoryScan.parse(
+              widget.settings?.files?.settings.values ?? const {},
+            ),
+          );
+        } catch (_) {
+          return;
+        }
+        if (!mounted || paths.isEmpty) return;
+        setState(() {
+          _sidePanelFound[location] = [
+            for (final path in paths)
+              (
+                path,
+                _sidePanelGits[RemoteLocation.of(host.name, path)] ??= gitFor(
+                  RemoteLocation.of(host.name, path),
+                ),
+              ),
+          ];
+        });
+      }());
+      return const [];
+    }
+    if (found.isEmpty) return const [];
+    return ideFolderRepositories(
+      ProjectHost.of(location).pathOf(location),
+      _sidePanelGit(thread),
+      found,
+    );
+  }
+
+  /// The repositories found in a project's subfolders for its side panel,
+  /// by project; empty while being looked for.
+  final Map<String, List<(String, IdeGitRepository)>> _sidePanelFound = {};
 
   /// The files of [thread]'s project, on its host, and how it spells
   /// their paths.

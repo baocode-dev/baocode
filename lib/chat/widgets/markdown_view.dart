@@ -31,7 +31,7 @@ class MarkdownView extends StatelessWidget {
 
   /// Inline code's, its background painted by [InlineCodeText].
   static TextStyle get codeStyle =>
-      AppFonts.codeStyle(12.5).copyWith(color: AppColors.inlineCode);
+      AppFonts.uiCodeStyle(12.5).copyWith(color: AppColors.inlineCode);
 
   /// The block syntaxes of its own, before GFM's: code citations and TeX.
   static const blockSyntaxes = <md.BlockSyntax>[

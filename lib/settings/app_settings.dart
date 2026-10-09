@@ -22,6 +22,7 @@ import 'pages/general_page.dart';
 import 'pages/keybindings_page.dart';
 import 'pages/models_page.dart';
 import 'pages/language_page.dart';
+import 'pages/network_page.dart';
 import 'pages/notifications_page.dart';
 import 'pages/updates_page.dart';
 import 'settings_dialog.dart';
@@ -107,6 +108,8 @@ class AppSettings {
         );
       case SettingsSection.models:
         return ModelsSettingsPage(providers: ModelProviders.current);
+      case SettingsSection.network:
+        return NetworkSettingsPage(settings: files?.settings);
       case SettingsSection.notifications:
         return NotificationsSettingsPage(settings: files?.settings);
       case SettingsSection.language:

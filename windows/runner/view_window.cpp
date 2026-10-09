@@ -117,6 +117,33 @@ void ReleaseModifiersLetGoElsewhere(HWND view) {
   }
 }
 
+// The bits of a key or character message's lparam that name the key: its
+// scancode (16-23) and whether it is an extended one (24).
+constexpr LPARAM kScancodeBits = 0x01FF0000;
+
+bool IsKeyMessage(UINT message) {
+  return message == WM_KEYDOWN || message == WM_SYSKEYDOWN ||
+         message == WM_KEYUP || message == WM_SYSKEYUP;
+}
+
+bool IsCharMessage(UINT message) {
+  return message == WM_CHAR || message == WM_SYSCHAR ||
+         message == WM_DEADCHAR || message == WM_SYSDEADCHAR;
+}
+
+// The scancode bits a keyboard would have given the key message of
+// |virtual_key|; none for a key with no scancode.
+LPARAM ScancodeBitsOf(WPARAM virtual_key) {
+  const UINT scancode =
+      ::MapVirtualKeyW(static_cast<UINT>(virtual_key), MAPVK_VK_TO_VSC_EX);
+  if ((scancode & 0xFF) == 0) {
+    return 0;
+  }
+  const bool extended = (scancode & 0xFF00) == 0xE000;
+  return static_cast<LPARAM>(((scancode & 0xFF) << 16) |
+                             (extended ? 1u << 24 : 0u));
+}
+
 // The timer that tells the window's frame once it settles (see
 // WindowObserver::WindowFrameChanged), and how long it waits.
 constexpr UINT_PTR kFrameTimer = 0x4241;
@@ -246,10 +273,35 @@ LRESULT CALLBACK ViewWindow::ViewProc(HWND hwnd, UINT const message,
     }
   }
 
+  // Keys another app sends with SendInput may come without a scancode — the
+  // Control+V the clipboard history (Win+V) pastes an entry with, those of
+  // remote desktops and of key remappers. The engine tells keys apart by
+  // their scancode, so to it Control and V were one key: V down, while
+  // Control was, read as Control let go first, and what reached Flutter was
+  // a plain V, which pasted nothing. They are given the scancode a keyboard
+  // would have, before the engine sees them; a character message, whose
+  // scancode the engine takes for the key down before it, that of the key
+  // down. VK_PACKET (text sent as such) has none, and the engine leaves it
+  // to the character it comes with.
+  LPARAM key_lparam = lparam;
+  if (that != nullptr && IsKeyMessage(message) &&
+      (lparam & kScancodeBits) == 0 && wparam != VK_PACKET) {
+    key_lparam = lparam | ScancodeBitsOf(wparam);
+  }
+  if (that != nullptr &&
+      (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)) {
+    that->key_down_scancode_bits_ = key_lparam & kScancodeBits;
+  }
+  if (that != nullptr && IsCharMessage(message) &&
+      (lparam & kScancodeBits) == 0) {
+    key_lparam = lparam | that->key_down_scancode_bits_;
+  }
+
   if (that == nullptr || that->view_proc_ == nullptr) {
     return ::DefWindowProcW(hwnd, message, wparam, lparam);
   }
-  return ::CallWindowProcW(that->view_proc_, hwnd, message, wparam, lparam);
+  return ::CallWindowProcW(that->view_proc_, hwnd, message, wparam,
+                           key_lparam);
 }
 
 LRESULT

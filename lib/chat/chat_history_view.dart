@@ -1883,18 +1883,6 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
     return result;
   }
 
-  /// Clearing a piece of text can take it off the list: a [Text] given new
-  /// text this frame (the status row's) has none until its own container
-  /// takes the new text in, so it unregisters. Each is cleared from a copy
-  /// first, so the list stays put under the clearing that follows.
-  @override
-  SelectionResult handleClearSelection(ClearSelectionEvent event) {
-    for (final selectable in selectables.toList()) {
-      dispatchSelectionEventToChild(selectable, event);
-    }
-    return super.handleClearSelection(event);
-  }
-
   // --- A drag on text that selects nothing ---------------------------------
   //
   // Seen on users' machines: in one stretch of a conversation a drag selects
@@ -1992,28 +1980,9 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
 
   @override
   void didChangeSelectables() {
-    // Items were built or released: re-select the built text from the model.
-    final start = _start;
-    final end = _end;
-    if (start != null && end != null) {
-      final startPosition = _positionOf(start);
-      final endPosition = _positionOf(end);
-      if (startPosition != null && endPosition != null) {
-        handleClearSelection(const ClearSelectionEvent());
-        handleSelectionEdgeUpdate(
-          SelectionEdgeUpdateEvent.forStart(
-            globalPosition: startPosition,
-            granularity: start.granularity,
-          ),
-        );
-        handleSelectionEdgeUpdate(
-          SelectionEdgeUpdateEvent.forEnd(
-            globalPosition: endPosition,
-            granularity: end.granularity,
-          ),
-        );
-      }
-    }
+    // The base delegate reapplies both edges to newly built items. Update its
+    // cached positions without clearing children while they are registering.
+    _refreshEdgeLocations();
     super.didChangeSelectables();
     _rememberEndText();
   }

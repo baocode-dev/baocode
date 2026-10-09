@@ -138,6 +138,94 @@ void main() {
     expect(copied, answer);
   });
 
+  testWidgets('replacing selected code keeps later conversation text '
+      'selectable', (tester) async {
+    String? copied;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map)['text'] as String;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    const code = 'final count = 42;';
+    const answer = 'The count is now available.';
+    final feed = _Feed([
+      const UserMessageItem(text: 'What is the count?'),
+      const AssistantTextItem('```dart\n$code\n```'),
+    ])..streaming = false;
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    Future<void> copy() async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pump();
+    }
+
+    Future<void> selectAndCopy(String text) async {
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.descendant(
+          of: find.byType(SuperListView),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is RichText && widget.text.toPlainText() == text,
+          ),
+        ),
+      );
+      final start = paragraph.localToGlobal(
+        Offset(1, paragraph.size.height / 2),
+      );
+      final mouse = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await mouse.moveTo(
+        paragraph.localToGlobal(
+          Offset(paragraph.size.width - 1, paragraph.size.height / 2),
+        ),
+      );
+      await tester.pump();
+      await mouse.up();
+      await tester.pump();
+      await copy();
+      expect(copied, text);
+    }
+
+    await selectAndCopy(code);
+    feed.update([
+      const UserMessageItem(text: 'What is the count?'),
+      const AssistantTextItem('```dart\n$code\n```'),
+      const LiveStatusItem('Working'),
+    ]);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    copied = null;
+    await copy();
+    expect(copied, code);
+
+    feed.update([
+      const UserMessageItem(text: 'What is the count?'),
+      const AssistantTextItem(answer),
+    ]);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await selectAndCopy(answer);
+    await selectAndCopy('What is the count?');
+  });
+
   testWidgets('a drag on text that selects nothing is done again on a '
       'clean list, and reported', (tester) async {
     String? copied;

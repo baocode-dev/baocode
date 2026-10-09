@@ -117,8 +117,9 @@ Future<ExtHostSocket> _upgrade(ExtHostSocket socket, String query) async {
         'Connection: Upgrade',
         'Upgrade: websocket',
         'Sec-WebSocket-Key: $nonce',
-      ].join('\r\n') +
-          '\r\n\r\n',
+        '',
+        '',
+      ].join('\r\n'),
     ),
   );
   final rest = StreamController<Uint8List>();

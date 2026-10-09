@@ -389,12 +389,23 @@ class WorkbenchThemeService extends ChangeNotifier
 
 /// Rebuilds everything under it when the workbench theme changes, as a
 /// theme change restyles the whole workbench upstream: widgets read colors
-/// from [WorkbenchThemeService.instance] without depending on it.
+/// from [WorkbenchThemeService.instance] without depending on it. So, too,
+/// when [restyle] notifies.
 class WorkbenchThemeScope extends StatefulWidget {
-  const WorkbenchThemeScope({super.key, this.service, required this.builder});
+  const WorkbenchThemeScope({
+    super.key,
+    this.service,
+    this.restyle,
+    required this.builder,
+  });
 
   /// [WorkbenchThemeService.instance] when null.
   final WorkbenchThemeService? service;
+
+  /// What else restyles everything (the code's font), read as widgets
+  /// build without depending on it.
+  final Listenable? restyle;
+
   final WidgetBuilder builder;
 
   @override
@@ -409,6 +420,7 @@ class _WorkbenchThemeScopeState extends State<WorkbenchThemeScope> {
   void initState() {
     super.initState();
     _service.addListener(_changed);
+    widget.restyle?.addListener(_changed);
   }
 
   @override
@@ -419,11 +431,16 @@ class _WorkbenchThemeScopeState extends State<WorkbenchThemeScope> {
       _service.removeListener(_changed);
       _service = service..addListener(_changed);
     }
+    if (!identical(widget.restyle, oldWidget.restyle)) {
+      oldWidget.restyle?.removeListener(_changed);
+      widget.restyle?.addListener(_changed);
+    }
   }
 
   @override
   void dispose() {
     _service.removeListener(_changed);
+    widget.restyle?.removeListener(_changed);
     super.dispose();
   }
 

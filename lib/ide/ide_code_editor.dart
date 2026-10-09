@@ -12,6 +12,7 @@ import 'package:bao_editor/monaco/vs/editor/common/languages/language_configurat
 import 'package:bao_editor/textmate/textmate_syntax.dart';
 
 import '../theme/app_theme.dart';
+import '../theme/code_font.dart';
 import '../theme/workbench_theme.dart' hide ColorScheme;
 
 /// The highlighting of the texts [IdeCodeEditor]s show one after another
@@ -82,6 +83,7 @@ class IdeCodeEditor extends StatefulWidget {
     this.codeLens,
     this.gutterIconBuilder,
     this.highlights,
+    this.interfaceSized = false,
   });
 
   final EditorSurfaceController controller;
@@ -115,6 +117,10 @@ class IdeCodeEditor extends StatefulWidget {
   /// Where its highlighting is kept past it; its own, gone with it, when
   /// null.
   final IdeCodeHighlights? highlights;
+
+  /// Sized as the window's text is ([AppFonts.uiCodeStyle]), not by the
+  /// code size: for a file shown beside the chat.
+  final bool interfaceSized;
 
   @override
   State<IdeCodeEditor> createState() => IdeCodeEditorState();
@@ -273,7 +279,7 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
   @override
   Widget build(BuildContext context) {
     final colors = _themes.colors;
-    return EditorSurface(
+    final surface = EditorSurface(
       key: _surfaceKey,
       controller: widget.controller,
       focusNode: widget.focusNode,
@@ -296,8 +302,12 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
       codeLensColors: EditorCodeLensColors.from(colors.get),
       gutterIconBuilder: widget.gutterIconBuilder,
       onViewChanged: _viewChanged,
-      style: AppFonts.codeStyle(13)
-          .copyWith(color: colors['editor.foreground'], height: 1.45),
+      style:
+          (widget.interfaceSized
+                  ? AppFonts.uiCodeStyle(13)
+                  : AppFonts.codeStyle(13))
+              .copyWith(color: colors['editor.foreground'], height: 1.45),
     );
+    return widget.interfaceSized ? surface : CodeTextScale(child: surface);
   }
 }

@@ -18,6 +18,7 @@ enum SettingsSection {
   general,
   appearance,
   models,
+  network,
   notifications,
   language,
   keyboard,
@@ -32,6 +33,7 @@ enum SettingsCategory {
     SettingsSection.general,
     SettingsSection.appearance,
     SettingsSection.models,
+    SettingsSection.network,
     SettingsSection.notifications,
     SettingsSection.language,
     SettingsSection.keyboard,
@@ -118,6 +120,7 @@ class SettingsDialogState extends State<SettingsDialog> {
     SettingsSection.general => Codicons.settingsGear,
     SettingsSection.appearance => Codicons.symbolColor,
     SettingsSection.models => Codicons.sparkle,
+    SettingsSection.network => Codicons.radioTower,
     SettingsSection.notifications => Codicons.bell,
     SettingsSection.language => Codicons.globe,
     SettingsSection.keyboard => Codicons.keyboard,
@@ -140,6 +143,7 @@ class SettingsDialogState extends State<SettingsDialog> {
       SettingsSection.general => l10n.settingsSectionGeneral,
       SettingsSection.appearance => l10n.settingsSectionAppearance,
       SettingsSection.models => l10n.settingsSectionModels,
+      SettingsSection.network => l10n.settingsSectionNetwork,
       SettingsSection.notifications => l10n.settingsSectionNotifications,
       SettingsSection.language => l10n.settingsSectionLanguage,
       SettingsSection.keyboard => l10n.settingsSectionKeyboard,
@@ -153,6 +157,7 @@ class SettingsDialogState extends State<SettingsDialog> {
   static String keywords(BuildContext context, SettingsSection section) =>
       switch (section) {
         SettingsSection.appearance => context.l10n.settingsAppearanceKeywords,
+        SettingsSection.network => context.l10n.settingsNetworkKeywords,
         _ => '',
       };
 

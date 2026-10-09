@@ -14,7 +14,6 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../side_panel/file_link.dart' show FileLineRange, FileLink;
 import '../side_panel/file_open.dart' show FileOpenScope;
 import 'hover_builder.dart';
-import 'wheel_latch.dart';
 
 /// Code the agent cited from a file, as it is asked to
 /// (`ClaudeLaunch.citingCode`): a block fenced as ```` ```12:15:lib/a.dart ````.
@@ -173,8 +172,8 @@ class CodeCitationScope extends InheritedWidget {
 }
 
 /// A [CodeCitation] as a card: the file's icon, name and lines, which open
-/// it there, over the code with its line numbers. Taller than
-/// [maxCodeHeight], the code scrolls; folded, only the title shows.
+/// it there, over the code with its line numbers, all of it; folded, only
+/// the title shows.
 class CodeCitationCard extends StatelessWidget {
   const CodeCitationCard({
     super.key,
@@ -185,7 +184,7 @@ class CodeCitationCard extends StatelessWidget {
   final CodeCitation citation;
   final String code;
 
-  /// About a dozen lines.
+  /// About a dozen lines: how tall a step's diff may be (not a card).
   static const maxCodeHeight = 220.0;
 
   @override
@@ -234,7 +233,6 @@ class _CodeCard extends StatefulWidget {
 }
 
 class _CodeCardState extends State<_CodeCard> {
-  final _vertical = ScrollController();
   final _horizontal = ScrollController();
   bool _expanded = true;
   bool _hovered = false;
@@ -281,7 +279,6 @@ class _CodeCardState extends State<_CodeCard> {
   @override
   void dispose() {
     _copiedTimer?.cancel();
-    _vertical.dispose();
     _horizontal.dispose();
     super.dispose();
   }
@@ -516,14 +513,13 @@ class _CodeCardState extends State<_CodeCard> {
     return IdeHover(message: citation.path, child: file);
   }
 
-  /// Line numbers from the citation's first, beside the code; both scroll
-  /// down together, the code alone sideways. A code block has none. Both
-  /// scrollbars at the edges of the card, not of the code as long as it
-  /// is.
+  /// Line numbers from the citation's first, beside the code; the code
+  /// scrolls sideways alone, its scrollbar at the card's bottom, not the
+  /// code's. A code block has no numbers.
   Widget _body() {
     final lines = widget.code.split('\n');
     final citation = widget.citation;
-    final style = AppFonts.codeStyle(12)
+    final style = AppFonts.uiCodeStyle(12)
         .copyWith(color: themeColors['editor.foreground'], height: 1.5);
     final numbers = switch (citation) {
       final citation? => SelectionContainer.disabled(
@@ -566,43 +562,29 @@ class _CodeCardState extends State<_CodeCard> {
       ),
       softWrap: false,
     );
-    return ConstrainedBox(
-      constraints: const BoxConstraints(
-        maxHeight: CodeCitationCard.maxCodeHeight,
-      ),
+    // As tall as its lines, so nothing scrolls down in it: the page does.
+    return MediaQuery(
       // The scrollbar's padding is the media's.
-      child: MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(padding: EdgeInsets.only(left: gutter)),
-        child: Scrollbar(
-          controller: _horizontal,
-          thumbVisibility: _hovered,
-          // The code's, inside the vertical one.
-          notificationPredicate: (notification) =>
-              notification.metrics.axis == Axis.horizontal,
-          child: Scrollbar(
-            controller: _vertical,
-            thumbVisibility: _hovered,
-            child: SingleChildScrollView(
-              controller: _vertical,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: WheelLatch(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    numbers,
-                    Expanded(
-                      child: SingleChildScrollView(
-                        controller: _horizontal,
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.only(right: 12),
-                        child: code,
-                      ),
-                    ),
-                  ],
+      data: MediaQuery.of(context)
+          .copyWith(padding: EdgeInsets.only(left: gutter)),
+      child: Scrollbar(
+        controller: _horizontal,
+        thumbVisibility: _hovered,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              numbers,
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _horizontal,
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.only(right: 12),
+                  child: code,
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),

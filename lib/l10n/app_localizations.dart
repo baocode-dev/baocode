@@ -4154,11 +4154,11 @@ abstract class AppLocalizations {
   /// **'Commands'**
   String get composerCommands;
 
-  /// Title of the menu @ opens in the composer: the other conversations to refer to, under their projects' folders.
+  /// Title of the menu @ opens in the composer: the project's files and folders, then the other conversations to refer to, under their projects' folders.
   ///
   /// In en, this message translates to:
-  /// **'Conversations'**
-  String get composerConversations;
+  /// **'Files and conversations'**
+  String get composerMentions;
 
   /// No description provided for @composerPlaceholder.
   ///
@@ -5359,6 +5359,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Microwave Ding'**
   String get notificationsSoundMicrowave;
+
+  /// The bundled man-oh-yeah notification sound.
+  ///
+  /// In en, this message translates to:
+  /// **'man-oh-yeah'**
+  String get notificationsSoundManOhYeah;
+
+  /// The bundled Gulp Gulp Gulp Gulp notification sound.
+  ///
+  /// In en, this message translates to:
+  /// **'Gulp Gulp Gulp Gulp'**
+  String get notificationsSoundGulpGulpGulpGulp;
 
   /// Notification sound choice: no sound.
   ///
@@ -10242,7 +10254,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsChatWidthDescription.
   ///
   /// In en, this message translates to:
-  /// **'How wide the conversation and the message box grow in a wide window.'**
+  /// **'How wide the conversation, the message box and the settings grow in a wide window.'**
   String get appearanceSettingsChatWidthDescription;
 
   /// No description provided for @appearanceSettingsChatWidthDefault.
@@ -10302,7 +10314,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsCodeSizeDescription.
   ///
   /// In en, this message translates to:
-  /// **'The size of code in the editor, the terminal, the chat and the previews.'**
+  /// **'The size of code in the IDE editor and the side panel\'s file and changes views. The terminal and chat follow the interface text size.'**
   String get appearanceSettingsCodeSizeDescription;
 
   /// No description provided for @appearanceSettingsCodeSizeLabel.
@@ -10332,7 +10344,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsUiScaleDescription.
   ///
   /// In en, this message translates to:
-  /// **'The size of the window\'s text. Code keeps its own size.'**
+  /// **'The size of interface text, code in the chat, and terminal text. Code in the IDE editor and side panel files and changes keeps its own size.'**
   String get appearanceSettingsUiScaleDescription;
 
   /// No description provided for @appearanceSettingsUiScaleLabel.
@@ -10910,6 +10922,258 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Create Workspace...'**
   String get cmdCreateWorkspace;
+
+  /// No description provided for @settingsSectionNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Network'**
+  String get settingsSectionNetwork;
+
+  /// No description provided for @settingsNetworkKeywords.
+  ///
+  /// In en, this message translates to:
+  /// **'proxy http https clash vpn network'**
+  String get settingsNetworkKeywords;
+
+  /// No description provided for @networkSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Network'**
+  String get networkSettingsTitle;
+
+  /// No description provided for @networkSettingsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'How BaoCode and the Claude Code it starts reach the internet.'**
+  String get networkSettingsDescription;
+
+  /// No description provided for @networkProxy.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy'**
+  String get networkProxy;
+
+  /// No description provided for @networkProxyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The proxy for BaoCode and Claude Code (http.proxyMode). System Proxy follows the system\'s settings, such as Clash\'s system proxy. New sessions take a change; restart a running one for it.'**
+  String get networkProxyDescription;
+
+  /// The proxy dropdown, as read out.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy: {name}'**
+  String networkProxyLabel(String name);
+
+  /// Proxy mode: the system's proxy settings.
+  ///
+  /// In en, this message translates to:
+  /// **'System Proxy'**
+  String get networkProxySystem;
+
+  /// Proxy mode: the address entered.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual'**
+  String get networkProxyManual;
+
+  /// Proxy mode: straight to the internet.
+  ///
+  /// In en, this message translates to:
+  /// **'No Proxy'**
+  String get networkProxyOff;
+
+  /// No description provided for @networkProxyUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy Address'**
+  String get networkProxyUrl;
+
+  /// No description provided for @networkProxyUrlDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'An HTTP proxy, such as Clash\'s port: http://127.0.0.1:7890 (http.proxy). SOCKS isn\'t supported.'**
+  String get networkProxyUrlDescription;
+
+  /// No description provided for @networkProxyUrlInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Not an HTTP proxy address: {url}. Enter one like http://127.0.0.1:7890.'**
+  String networkProxyUrlInvalid(String url);
+
+  /// No description provided for @networkProxyStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'In Use'**
+  String get networkProxyStatus;
+
+  /// No description provided for @networkProxyStatusChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Detecting…'**
+  String get networkProxyStatusChecking;
+
+  /// No description provided for @networkProxyStatusSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System proxy {server}'**
+  String networkProxyStatusSystem(String server);
+
+  /// No description provided for @networkProxyStatusEnvironment.
+  ///
+  /// In en, this message translates to:
+  /// **'{server}, from the environment (HTTPS_PROXY): the system has no proxy set'**
+  String networkProxyStatusEnvironment(String server);
+
+  /// No description provided for @networkProxyStatusManual.
+  ///
+  /// In en, this message translates to:
+  /// **'{server}'**
+  String networkProxyStatusManual(String server);
+
+  /// No description provided for @networkProxyStatusManualMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the proxy\'s address.'**
+  String get networkProxyStatusManualMissing;
+
+  /// No description provided for @networkProxyStatusNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct: the system has no proxy set.'**
+  String get networkProxyStatusNone;
+
+  /// No description provided for @networkProxyStatusOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct.'**
+  String get networkProxyStatusOff;
+
+  /// No description provided for @networkProxyStatusAutoConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct: the system sets its proxy with an auto-config (PAC) file, which BaoCode doesn\'t follow. Turn on Clash\'s system proxy, or enter the address manually.'**
+  String get networkProxyStatusAutoConfig;
+
+  /// No description provided for @networkProxyRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Detect Again'**
+  String get networkProxyRefresh;
+
+  /// No description provided for @networkTest.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection Test'**
+  String get networkTest;
+
+  /// No description provided for @networkTestDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Reaches these sites through the proxy in use: whether each answers, and how quickly (a new connection\'s time, until the answer starts).'**
+  String get networkTestDescription;
+
+  /// No description provided for @networkTesting.
+  ///
+  /// In en, this message translates to:
+  /// **'Testing…'**
+  String get networkTesting;
+
+  /// No description provided for @networkTestRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Run Test'**
+  String get networkTestRun;
+
+  /// No description provided for @networkTestRunAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Test Again'**
+  String get networkTestRunAgain;
+
+  /// No description provided for @networkTestIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Not tested'**
+  String get networkTestIdle;
+
+  /// A site's answer time, in milliseconds.
+  ///
+  /// In en, this message translates to:
+  /// **'{ms} ms'**
+  String networkTestMs(int ms);
+
+  /// No description provided for @networkTestUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unreachable'**
+  String get networkTestUnreachable;
+
+  /// No description provided for @networkTestSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{reached} of {total} sites reachable.'**
+  String networkTestSummary(int reached, int total);
+
+  /// No description provided for @networkFailureTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Timed out'**
+  String get networkFailureTimeout;
+
+  /// No description provided for @networkFailureRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection refused'**
+  String get networkFailureRefused;
+
+  /// No description provided for @networkFailureReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection reset'**
+  String get networkFailureReset;
+
+  /// No description provided for @networkFailureDns.
+  ///
+  /// In en, this message translates to:
+  /// **'DNS lookup failed'**
+  String get networkFailureDns;
+
+  /// No description provided for @networkFailureTls.
+  ///
+  /// In en, this message translates to:
+  /// **'TLS failed'**
+  String get networkFailureTls;
+
+  /// No description provided for @networkFailureProxyAuth.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy needs sign-in'**
+  String get networkFailureProxyAuth;
+
+  /// No description provided for @networkFailureOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t connect'**
+  String get networkFailureOther;
+
+  /// No description provided for @networkTestHintRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing answers at the proxy\'s address: check that Clash (or the proxy) is running.'**
+  String get networkTestHintRefused;
+
+  /// No description provided for @networkTestHintOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'No site answers: check this computer\'s network connection and the proxy.'**
+  String get networkTestHintOffline;
+
+  /// No description provided for @networkTestHintBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Only Baidu answers: the proxy isn\'t getting the others through. Check the proxy above, or Clash\'s mode and rules.'**
+  String get networkTestHintBlocked;
 
   /// Status bar: the extension runtime (Node.js and the VS Code extension host) is being downloaded the first time it is needed.
   ///

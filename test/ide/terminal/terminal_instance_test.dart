@@ -291,14 +291,15 @@ void main() {
     );
   });
 
-  test('the code font moves the terminal\'s family and size as it changes', () {
+  test('the terminal keeps interface size while code font changes', () {
     addTearDown(() {
       CodeFont.families.value = CodeFont.defaultFamilies;
       CodeFont.size.value = CodeFont.defaultSize;
     });
     final (:terminal, started: _, exits: _) = _start();
+    final interfaceSize = terminal.xterm.options.fontSize;
     CodeFont.size.value = 16;
-    expect(terminal.xterm.options.fontSize, 16);
+    expect(terminal.xterm.options.fontSize, interfaceSize);
     CodeFont.families.value = ['Iosevka', 'Menlo'];
     expect(terminal.xterm.options.fontFamily, startsWith('Iosevka, Menlo, '));
   });

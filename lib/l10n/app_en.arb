@@ -1356,9 +1356,9 @@
   "@composerCommands": {
     "description": "Suggestion menu title."
   },
-  "composerConversations": "Conversations",
-  "@composerConversations": {
-    "description": "Title of the menu @ opens in the composer: the other conversations to refer to, under their projects' folders."
+  "composerMentions": "Files and conversations",
+  "@composerMentions": {
+    "description": "Title of the menu @ opens in the composer: the project's files and folders, then the other conversations to refer to, under their projects' folders."
   },
   "composerPlaceholder": "Plan, search, build anything  ·  drop or paste files  / for commands",
   "composerApprovalTitle": "How should {agent} get approval?",
@@ -1962,6 +1962,14 @@
   "notificationsSoundMicrowave": "Microwave Ding",
   "@notificationsSoundMicrowave": {
     "description": "The app's own notification sound: a microwave's bell."
+  },
+  "notificationsSoundManOhYeah": "man-oh-yeah",
+  "@notificationsSoundManOhYeah": {
+    "description": "The bundled man-oh-yeah notification sound."
+  },
+  "notificationsSoundGulpGulpGulpGulp": "Gulp Gulp Gulp Gulp",
+  "@notificationsSoundGulpGulpGulpGulp": {
+    "description": "The bundled Gulp Gulp Gulp Gulp notification sound."
   },
   "notificationsSoundNone": "None",
   "@notificationsSoundNone": {
@@ -4340,7 +4348,7 @@
     }
   },
   "appearanceSettingsChatWidth": "Conversation Width",
-  "appearanceSettingsChatWidthDescription": "How wide the conversation and the message box grow in a wide window.",
+  "appearanceSettingsChatWidthDescription": "How wide the conversation, the message box and the settings grow in a wide window.",
   "appearanceSettingsChatWidthDefault": "Default",
   "appearanceSettingsChatWidthFull": "Full width",
   "appearanceSettingsChatWidthLabel": "Conversation width: {width}",
@@ -4364,7 +4372,7 @@
     }
   },
   "appearanceSettingsCodeSize": "Code Size",
-  "appearanceSettingsCodeSizeDescription": "The size of code in the editor, the terminal, the chat and the previews.",
+  "appearanceSettingsCodeSizeDescription": "The size of code in the IDE editor and the side panel's file and changes views. The terminal and chat follow the interface text size.",
   "appearanceSettingsCodeSizeLabel": "Code size: {size}",
   "@appearanceSettingsCodeSizeLabel": {
     "placeholders": {
@@ -4376,7 +4384,7 @@
   "appearanceSettingsLigatures": "Font Ligatures",
   "appearanceSettingsLigaturesDescription": "Draws sequences such as => and != as one glyph where the font has one. The terminal does not.",
   "appearanceSettingsUiScale": "Interface Text Size",
-  "appearanceSettingsUiScaleDescription": "The size of the window's text. Code keeps its own size.",
+  "appearanceSettingsUiScaleDescription": "The size of interface text, code in the chat, and terminal text. Code in the IDE editor and side panel files and changes keeps its own size.",
   "appearanceSettingsUiScaleLabel": "Interface text size: {percent}%",
   "@appearanceSettingsUiScaleLabel": {
     "placeholders": {
@@ -4773,6 +4781,111 @@
     "description": "The heading of Source Control's list of a workspace's Git repositories."
   },
   "cmdCreateWorkspace": "Create Workspace...",
+  "settingsSectionNetwork": "Network",
+  "settingsNetworkKeywords": "proxy http https clash vpn network",
+  "networkSettingsTitle": "Network",
+  "networkSettingsDescription": "How BaoCode and the Claude Code it starts reach the internet.",
+  "networkProxy": "Proxy",
+  "networkProxyDescription": "The proxy for BaoCode and Claude Code (http.proxyMode). System Proxy follows the system's settings, such as Clash's system proxy. New sessions take a change; restart a running one for it.",
+  "networkProxyLabel": "Proxy: {name}",
+  "@networkProxyLabel": {
+    "description": "The proxy dropdown, as read out.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "networkProxySystem": "System Proxy",
+  "@networkProxySystem": {
+    "description": "Proxy mode: the system's proxy settings."
+  },
+  "networkProxyManual": "Manual",
+  "@networkProxyManual": {
+    "description": "Proxy mode: the address entered."
+  },
+  "networkProxyOff": "No Proxy",
+  "@networkProxyOff": {
+    "description": "Proxy mode: straight to the internet."
+  },
+  "networkProxyUrl": "Proxy Address",
+  "networkProxyUrlDescription": "An HTTP proxy, such as Clash's port: http://127.0.0.1:7890 (http.proxy). SOCKS isn't supported.",
+  "networkProxyUrlInvalid": "Not an HTTP proxy address: {url}. Enter one like http://127.0.0.1:7890.",
+  "@networkProxyUrlInvalid": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "networkProxyStatus": "In Use",
+  "networkProxyStatusChecking": "Detecting…",
+  "networkProxyStatusSystem": "System proxy {server}",
+  "@networkProxyStatusSystem": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "networkProxyStatusEnvironment": "{server}, from the environment (HTTPS_PROXY): the system has no proxy set",
+  "@networkProxyStatusEnvironment": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "networkProxyStatusManual": "{server}",
+  "@networkProxyStatusManual": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "networkProxyStatusManualMissing": "Enter the proxy's address.",
+  "networkProxyStatusNone": "Direct: the system has no proxy set.",
+  "networkProxyStatusOff": "Direct.",
+  "networkProxyStatusAutoConfig": "Direct: the system sets its proxy with an auto-config (PAC) file, which BaoCode doesn't follow. Turn on Clash's system proxy, or enter the address manually.",
+  "networkProxyRefresh": "Detect Again",
+  "networkTest": "Connection Test",
+  "networkTestDescription": "Reaches these sites through the proxy in use: whether each answers, and how quickly (a new connection's time, until the answer starts).",
+  "networkTesting": "Testing…",
+  "networkTestRun": "Run Test",
+  "networkTestRunAgain": "Test Again",
+  "networkTestIdle": "Not tested",
+  "networkTestMs": "{ms} ms",
+  "@networkTestMs": {
+    "description": "A site's answer time, in milliseconds.",
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "networkTestUnreachable": "Unreachable",
+  "networkTestSummary": "{reached} of {total} sites reachable.",
+  "@networkTestSummary": {
+    "placeholders": {
+      "reached": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "networkFailureTimeout": "Timed out",
+  "networkFailureRefused": "Connection refused",
+  "networkFailureReset": "Connection reset",
+  "networkFailureDns": "DNS lookup failed",
+  "networkFailureTls": "TLS failed",
+  "networkFailureProxyAuth": "Proxy needs sign-in",
+  "networkFailureOther": "Couldn't connect",
+  "networkTestHintRefused": "Nothing answers at the proxy's address: check that Clash (or the proxy) is running.",
+  "networkTestHintOffline": "No site answers: check this computer's network connection and the proxy.",
+  "networkTestHintBlocked": "Only Baidu answers: the proxy isn't getting the others through. Check the proxy above, or Clash's mode and rules.",
   "extRuntimeDownloading": "Downloading extension runtime {percent}%",
   "@extRuntimeDownloading": {
     "description": "Status bar: the extension runtime (Node.js and the VS Code extension host) is being downloaded the first time it is needed.",
@@ -5963,7 +6076,16 @@
   "windowAuthNoTrustedExtensions": "No extensions have been given access to an account.",
   "windowAuthRemoveAllTrusted": "Remove All",
   "wbRecommendExtension": "The '{name}' extension is recommended for {language} files.",
-  "@wbRecommendExtension": {"placeholders": {"name": {"type": "String"}, "language": {"type": "String"}}},
+  "@wbRecommendExtension": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "language": {
+        "type": "String"
+      }
+    }
+  },
   "wbRecommendExtensionDontShow": "Don't Show Again for This Extension",
   "extsNoHost": "Extensions are not available for this folder yet.",
   "extsPageClose": "Close Extension",

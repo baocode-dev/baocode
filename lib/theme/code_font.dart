@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../platform/app_platform.dart';
 
@@ -137,6 +138,11 @@ abstract final class CodeFont {
   /// at the default it is [base] there, and one point more on Windows.
   static double sized(double base) => base + size.value - _macSize;
 
+  /// [base], a size code among the window's own text is drawn at on macOS
+  /// (the chat's code, a panel's paths), as [sized] has it at the default:
+  /// the user's code size does not move it, the window's text scale does.
+  static double uiSized(double base) => base + defaultSize - _macSize;
+
   /// The features code is drawn with: none (the font's own, ligatures on),
   /// or the two that make ligatures, `liga` and `calt`, switched off.
   static List<ui.FontFeature>? get features => ligatures.value
@@ -155,5 +161,43 @@ abstract final class CodeFont {
 
     update();
     changes.addListener(update);
+  }
+}
+
+/// The text scale the system gives the window, before [CodeFont.uiScale]
+/// moves it; what [CodeTextScale] puts back for code.
+class SystemTextScale extends InheritedWidget {
+  const SystemTextScale({
+    super.key,
+    required this.scaler,
+    required super.child,
+  });
+
+  final TextScaler scaler;
+
+  static TextScaler? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<SystemTextScale>()?.scaler;
+
+  @override
+  bool updateShouldNotify(SystemTextScale oldWidget) =>
+      oldWidget.scaler != scaler;
+}
+
+/// [child], code an editor or a file's view draws, at the system's text
+/// scale: its size is [CodeFont.size]'s alone, which [CodeFont.uiScale]
+/// does not move.
+class CodeTextScale extends StatelessWidget {
+  const CodeTextScale({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final system = SystemTextScale.maybeOf(context);
+    if (system == null) return child;
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: system),
+      child: child,
+    );
   }
 }

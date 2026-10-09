@@ -12,6 +12,7 @@
 #include <wrl/client.h>
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -86,9 +87,10 @@ class Attention {
   void SetTray(const flutter::EncodableValue* state);
   void Notify(const std::string& id, const std::wstring& title,
               const std::wstring& body);
-  void PlaySoundFile(const std::wstring& path);
-  void PlaySoundBytes(std::vector<uint8_t> bytes);
-  void StopSound();
+  void PlaySoundFile(const std::wstring& path, bool temporary = false);
+  void PlaySoundBytes(const std::vector<uint8_t>& bytes);
+  void CloseSound(UINT device);
+  void StopSounds();
   void SetBadge(int count);
   std::optional<std::string> PickSound();
 
@@ -123,9 +125,13 @@ class Attention {
   // The agent the notification shown last is about.
   std::string notified_id_;
 
-  // A WAV file's bytes being played: PlaySound reads them as it plays.
-  std::vector<uint8_t> sound_;
-  bool mci_open_ = false;
+  // Each MCI device plays independently until it notifies the window.
+  struct Sound {
+    std::wstring alias;
+    std::wstring temporary_path;
+  };
+  std::map<UINT, Sound> sounds_;
+  uint64_t next_sound_id_ = 0;
 
   // The count over the taskbar button, put back when the button is made
   // again (the window hidden and shown).

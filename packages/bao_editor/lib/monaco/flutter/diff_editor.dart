@@ -136,24 +136,67 @@ class _DiffEditorState extends State<DiffEditor> {
   }
 
   // What was computed for the last diff, snapshots and mode.
+  Object? _diffKey;
+  ({
+    List<DiffZone> originalZones,
+    List<DiffZone> modifiedZones,
+    List<EditorDecoration> originalDecorations,
+    List<EditorDecoration> modifiedDecorations,
+  })?
+  _diff;
+
+  // And the editors' sides for it, with the original's tokens: these come
+  // in as they are tokenized, and only the deleted code paints them.
   Object? _key;
   ({DiffEditorSide original, DiffEditorSide modified})? _sides;
 
   ({DiffEditorSide original, DiffEditorSide modified}) _sidesFor(
     bool sideBySide,
     double lineHeight,
+    TextScaler scaler,
   ) {
     final model = widget.model;
     final original = model.originalSnapshot;
     final modified = model.modified.snapshot;
     final mappings = model.mappings;
+    final diffKey = (mappings, original, modified, sideBySide, widget.colors);
+    if (_diff == null || diffKey != _diffKey) {
+      _diffKey = diffKey;
+      if (original != null && mappings != null) {
+        final zones = computeDiffZones(
+          computeDiffAlignments(
+            mappings,
+            original,
+            innerHunkAlignment: sideBySide,
+          ),
+          sideBySide: sideBySide,
+        );
+        final decorations = computeDiffDecorations(
+          mappings,
+          original,
+          modified,
+          widget.colors,
+        );
+        _diff = (
+          originalZones: zones.original,
+          modifiedZones: zones.modified,
+          originalDecorations: decorations.original,
+          modifiedDecorations: decorations.modified,
+        );
+      } else {
+        _diff = (
+          originalZones: const [],
+          modifiedZones: const [],
+          originalDecorations: const [],
+          modifiedDecorations: const [],
+        );
+      }
+    }
+    final diff = _diff!;
     final key = (
-      mappings,
-      original,
-      modified,
-      sideBySide,
+      diff,
       lineHeight,
-      widget.colors,
+      scaler,
       widget.originalStyledLines,
       widget.style,
     );
@@ -161,32 +204,16 @@ class _DiffEditorState extends State<DiffEditor> {
     _key = key;
     var originalZones = const <EditorViewZone>[];
     var modifiedZones = const <EditorViewZone>[];
-    var originalDecorations = const <EditorDecoration>[];
-    var modifiedDecorations = const <EditorDecoration>[];
-    if (original != null && mappings != null) {
-      final zones = computeDiffZones(
-        computeDiffAlignments(
-          mappings,
-          original,
-          innerHunkAlignment: sideBySide,
-        ),
-        sideBySide: sideBySide,
-      );
+    if (original != null) {
       originalZones = [
-        for (final zone in zones.original) _viewZone(zone, original),
+        for (final zone in diff.originalZones) _viewZone(zone, original),
       ];
       modifiedZones = [
-        for (final zone in zones.modified) _viewZone(zone, original),
+        for (final zone in diff.modifiedZones) _viewZone(zone, original),
       ];
-      final decorations = computeDiffDecorations(
-        mappings,
-        original,
-        modified,
-        widget.colors,
-      );
-      originalDecorations = decorations.original;
-      modifiedDecorations = decorations.modified;
     }
+    final originalDecorations = diff.originalDecorations;
+    final modifiedDecorations = diff.modifiedDecorations;
     return _sides = (
       original: DiffEditorSide(
         zones: originalZones,
@@ -276,7 +303,7 @@ class _DiffEditorState extends State<DiffEditor> {
         final height = constraints.maxHeight;
         final sideBySide = width > DiffEditor.inlineBreakpoint;
         final lineHeight = _lineHeight(scaler);
-        final sides = _sidesFor(sideBySide, lineHeight);
+        final sides = _sidesFor(sideBySide, lineHeight, scaler);
         final content = width - DiffEditor.overviewWidth;
         final double originalWidth;
         final double modifiedLeft;
@@ -402,8 +429,8 @@ class _DiffEditorState extends State<DiffEditor> {
     return _DiffOverview(
       scroll: _scroll,
       mappings: model.mappings ?? const [],
-      originalZones: sides.original.zones,
-      modifiedZones: sides.modified.zones,
+      originalZones: _diff!.originalZones,
+      modifiedZones: _diff!.modifiedZones,
       originalLineCount: originalLines,
       lineHeight: lineHeight,
       scrollHeight: scrollHeight,
@@ -435,8 +462,8 @@ class _DiffOverview extends StatefulWidget {
 
   final ValueNotifier<Offset> scroll;
   final List<DetailedLineRangeMapping> mappings;
-  final List<EditorViewZone> originalZones;
-  final List<EditorViewZone> modifiedZones;
+  final List<DiffZone> originalZones;
+  final List<DiffZone> modifiedZones;
   final int originalLineCount;
   final double lineHeight;
   final double scrollHeight;
@@ -511,106 +538,170 @@ class _DiffOverviewState extends State<_DiffOverview> {
       onPointerUp: _up,
       onPointerCancel: _up,
       onPointerSignal: _signal,
-      child: ValueListenableBuilder<Offset>(
-        valueListenable: widget.scroll,
-        builder: (context, scroll, _) => CustomPaint(
-          size: Size.infinite,
-          painter: _DiffOverviewPainter(
-            overview: widget,
-            slider: _slider(scroll.dy),
-            sliderColor: _dragging
-                ? widget.theme.scrollbarSliderActiveBackground
-                : _hover
-                ? widget.theme.scrollbarSliderHoverBackground
-                : widget.theme.scrollbarSliderBackground,
+      // The changes in a layer of their own: a scroll repaints the slider
+      // only.
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: CustomPaint(
+              isComplex: true,
+              painter: _DiffOverviewPainter(
+                mappings: widget.mappings,
+                originalZones: widget.originalZones,
+                modifiedZones: widget.modifiedZones,
+                lineHeight: widget.lineHeight,
+                scrollHeight: widget.scrollHeight,
+                colors: widget.colors,
+                dark: widget.dark,
+              ),
+            ),
           ),
-        ),
+          CustomPaint(
+            painter: _DiffOverviewSliderPainter(
+              scroll: widget.scroll,
+              viewportHeight: widget.viewportHeight,
+              scrollHeight: widget.scrollHeight,
+              color: _dragging
+                  ? widget.theme.scrollbarSliderActiveBackground
+                  : _hover
+                  ? widget.theme.scrollbarSliderHoverBackground
+                  : widget.theme.scrollbarSliderBackground,
+            ),
+          ),
+        ],
       ),
     ),
   );
 }
 
+/// The unscrolled tops of lines in lines, past the zones above them.
+class _ZoneTops {
+  _ZoneTops(List<DiffZone> zones) {
+    final sorted = [...zones]
+      ..sort((a, b) => a.afterLineNumber.compareTo(b.afterLineNumber));
+    _after = [for (final zone in sorted) zone.afterLineNumber];
+    _sums = List.filled(sorted.length + 1, 0.0);
+    for (var i = 0; i < sorted.length; i++) {
+      _sums[i + 1] = _sums[i] + sorted[i].heightInLines;
+    }
+  }
+
+  late final List<int> _after;
+  late final List<double> _sums;
+
+  /// [line]'s, past the zones after the lines before it.
+  double top(int line) {
+    var low = 0;
+    var high = _after.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (_after[mid] < line) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return line - 1.0 + _sums[low];
+  }
+}
+
+/// The overview's background and the changes of the two sides.
 class _DiffOverviewPainter extends CustomPainter {
   _DiffOverviewPainter({
-    required this.overview,
-    required this.slider,
-    required this.sliderColor,
+    required this.mappings,
+    required this.originalZones,
+    required this.modifiedZones,
+    required this.lineHeight,
+    required this.scrollHeight,
+    required this.colors,
+    required this.dark,
   });
 
-  final _DiffOverview overview;
-  final ScrollbarSlider slider;
-  final Color sliderColor;
+  final List<DetailedLineRangeMapping> mappings;
+  final List<DiffZone> originalZones;
+  final List<DiffZone> modifiedZones;
+  final double lineHeight;
+  final double scrollHeight;
+  final DiffEditorColors colors;
+  final bool dark;
 
   static const _lane = DiffEditor.overviewWidth / 2;
-
-  /// The unscrolled top of [line] in lines, zones included.
-  static double _top(int line, List<EditorViewZone> zones) {
-    var top = line - 1.0;
-    for (final zone in zones) {
-      if (zone.afterLineNumber < line) top += zone.heightInLines;
-    }
-    return top;
-  }
 
   @override
   void paint(Canvas canvas, Size size) {
     // `.monaco-diff-editor.vs(-dark) .diffOverview`.
     canvas.drawRect(
       Offset.zero & size,
-      Paint()
-        ..color = overview.dark
-            ? const Color(0x03ffffff)
-            : const Color(0x08000000),
+      Paint()..color = dark ? const Color(0x03ffffff) : const Color(0x08000000),
     );
-    final scale = overview.scrollHeight <= 0
-        ? 0.0
-        : size.height / overview.scrollHeight;
-    final lineHeight = overview.lineHeight;
+    final scale = scrollHeight <= 0 ? 0.0 : size.height / scrollHeight;
     final paint = Paint();
-    void zone(
-      LineRange range,
-      List<EditorViewZone> zones,
-      double left,
-      Color? color,
-    ) {
+    void zone(LineRange range, _ZoneTops tops, double left, Color? color) {
       if (range.isEmpty || color == null) return;
-      final top = _top(range.startLineNumber, zones) * lineHeight * scale;
+      final top = tops.top(range.startLineNumber) * lineHeight * scale;
       final bottom =
-          _top(range.endLineNumberExclusive, zones) * lineHeight * scale;
+          tops.top(range.endLineNumberExclusive) * lineHeight * scale;
       canvas.drawRect(
         Rect.fromLTRB(left, top, left + _lane, math.max(bottom, top + 2)),
         paint..color = color,
       );
     }
 
-    for (final mapping in overview.mappings) {
-      zone(
-        mapping.original,
-        overview.originalZones,
-        0,
-        overview.colors.overviewRemoved,
-      );
-      zone(
-        mapping.modified,
-        overview.modifiedZones,
-        _lane,
-        overview.colors.overviewInserted,
-      );
-    }
-    if (slider.needed) {
-      canvas.drawRect(
-        Rect.fromLTWH(0, slider.position, size.width, slider.size),
-        paint..color = sliderColor,
-      );
+    final originalTops = _ZoneTops(originalZones);
+    final modifiedTops = _ZoneTops(modifiedZones);
+    for (final mapping in mappings) {
+      zone(mapping.original, originalTops, 0, colors.overviewRemoved);
+      zone(mapping.modified, modifiedTops, _lane, colors.overviewInserted);
     }
   }
 
   @override
   bool shouldRepaint(covariant _DiffOverviewPainter old) =>
-      !identical(old.overview, overview) ||
-      old.slider.position != slider.position ||
-      old.slider.size != slider.size ||
-      old.sliderColor != sliderColor;
+      !identical(old.mappings, mappings) ||
+      !identical(old.originalZones, originalZones) ||
+      !identical(old.modifiedZones, modifiedZones) ||
+      old.lineHeight != lineHeight ||
+      old.scrollHeight != scrollHeight ||
+      old.colors != colors ||
+      old.dark != dark;
+}
+
+/// The overview's slider, where the editors are scrolled to.
+class _DiffOverviewSliderPainter extends CustomPainter {
+  _DiffOverviewSliderPainter({
+    required this.scroll,
+    required this.viewportHeight,
+    required this.scrollHeight,
+    required this.color,
+  }) : super(repaint: scroll);
+
+  final ValueNotifier<Offset> scroll;
+  final double viewportHeight;
+  final double scrollHeight;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final slider = ScrollbarSlider.compute(
+      trackSize: viewportHeight,
+      visibleSize: viewportHeight,
+      scrollSize: scrollHeight,
+      scrollPosition: scroll.value.dy,
+    );
+    if (!slider.needed) return;
+    canvas.drawRect(
+      Rect.fromLTWH(0, slider.position, size.width, slider.size),
+      Paint()..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DiffOverviewSliderPainter old) =>
+      !identical(old.scroll, scroll) ||
+      old.viewportHeight != viewportHeight ||
+      old.scrollHeight != scrollHeight ||
+      old.color != color;
 }
 
 /// `.diagonal-fill`: `diffEditor.diagonalFill` stripes, 8px apart.

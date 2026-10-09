@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart' hide ColorScheme;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/workbench_theme.dart';
@@ -179,6 +179,30 @@ void main() {
     seen.add(_Probe.last!);
     expect(seen.first, isNot(seen.last));
     expect(seen.last, themes.colors['editor.background']);
+  });
+
+  testWidgets('so it does as what restyles notifies: a page a navigator '
+      'keeps as well', (tester) async {
+    final font = ValueNotifier(0);
+    addTearDown(font.dispose);
+    var builds = 0;
+    await tester.pumpWidget(
+      WorkbenchThemeScope(
+        restyle: font,
+        builder: (_) => MaterialApp(
+          home: Builder(
+            builder: (_) {
+              builds++;
+              return const SizedBox();
+            },
+          ),
+        ),
+      ),
+    );
+    final before = builds;
+    font.value++;
+    await tester.pump();
+    expect(builds, greaterThan(before));
   });
 }
 

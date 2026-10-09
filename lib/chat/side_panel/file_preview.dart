@@ -17,6 +17,7 @@ import '../../ide/markdown/markdown_preview.dart';
 import '../../l10n/l10n.dart';
 import '../../platform/app_platform.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/code_font.dart';
 import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
@@ -88,9 +89,6 @@ class FilePreview extends StatefulWidget {
 
   /// At the end of its bar.
   final List<Widget> actions;
-
-  /// A line's height, as the editor's at its size.
-  static const lineHeight = 18.0;
 
   /// Past this many lines, the text is not colored.
   static const maxColoredLines = 5000;
@@ -452,24 +450,31 @@ class _FilePreviewState extends State<FilePreview> {
           text: localizedFileError(context.l10n, error),
         );
       case _Diff(:final rows):
-        return _Lines(
-          key: ValueKey(('diff', _request.path)),
-          count: rows.length,
-          reveal: widget.reveal,
-          target: _diffTarget(rows),
-          width: _width(rows.map((row) => row.text)),
-          // Lines of the file as it is now, none taken out.
-          onCopy: (first, last, text) {
-            final copied = rows.sublist(first, last + 1);
-            if (copied.any((row) => row.modified == null)) return;
-            _copied(copied.first.modified!, copied.last.modified!, text);
-          },
-          row: (context, i) => _LineRow(
-            numbers: (rows[i].original, rows[i].modified),
-            type: rows[i].type,
-            text: rows[i].text,
-            colors: _colors.elementAtOrNull(i),
-            gutter: _gutter(rows.length),
+        return CodeTextScale(
+          child: _Lines(
+            key: ValueKey(('diff', _request.path)),
+            count: rows.length,
+            lineHeight: _lineHeight(context),
+            reveal: widget.reveal,
+            target: _diffTarget(rows),
+            width:
+                _width(context, rows.map((row) => row.text)) +
+                _gutter(context, rows.length) * 2 +
+                20,
+            // Lines of the file as it is now, none taken out.
+            onCopy: (first, last, text) {
+              final copied = rows.sublist(first, last + 1);
+              if (copied.any((row) => row.modified == null)) return;
+              _copied(copied.first.modified!, copied.last.modified!, text);
+            },
+            row: (context, i, sideways) => _LineRow(
+              numbers: (rows[i].original, rows[i].modified),
+              type: rows[i].type,
+              text: rows[i].text,
+              colors: _colors.elementAtOrNull(i),
+              gutter: _gutter(context, rows.length),
+              sideways: sideways,
+            ),
           ),
         );
       case _Text(:final lines):
@@ -488,20 +493,25 @@ class _FilePreviewState extends State<FilePreview> {
         }
         if (_edit case final edit?) return _editing(edit);
         final range = _request.range;
-        return _Lines(
-          key: ValueKey(('text', _request.path)),
-          count: lines.length,
-          reveal: widget.reveal,
-          target: range == null ? null : range.start - 1,
-          width: _width(lines),
-          onCopy: (first, last, text) => _copied(first + 1, last + 1, text),
-          row: (context, i) => _LineRow(
-            numbers: (null, i + 1),
-            type: DiffLineType.context,
-            text: lines[i],
-            colors: _colors.elementAtOrNull(i),
-            gutter: _gutter(lines.length),
-            marked: range != null && i + 1 >= range.start && i + 1 <= range.end,
+        return CodeTextScale(
+          child: _Lines(
+            key: ValueKey(('text', _request.path)),
+            count: lines.length,
+            lineHeight: _lineHeight(context),
+            reveal: widget.reveal,
+            target: range == null ? null : range.start - 1,
+            width: _width(context, lines) + _gutter(context, lines.length) + 20,
+            onCopy: (first, last, text) => _copied(first + 1, last + 1, text),
+            row: (context, i, sideways) => _LineRow(
+              numbers: (null, i + 1),
+              type: DiffLineType.context,
+              text: lines[i],
+              colors: _colors.elementAtOrNull(i),
+              gutter: _gutter(context, lines.length),
+              sideways: sideways,
+              marked:
+                  range != null && i + 1 >= range.start && i + 1 <= range.end,
+            ),
           ),
         );
     }
@@ -524,6 +534,7 @@ class _FilePreviewState extends State<FilePreview> {
         controller: edit.controller,
         path: _request.path,
         highlights: widget.highlights,
+        interfaceSized: false,
         decorations: [
           if (marked)
             EditorDecoration(
@@ -569,16 +580,55 @@ class _FilePreviewState extends State<FilePreview> {
     return first < 0 ? null : first;
   }
 
-  /// The line numbers' width, for [count] lines.
-  static double _gutter(int count) => '$count'.length * 7.5 + 16;
+  static TextStyle _codeStyle(BuildContext context) =>
+      AppFonts.codeStyle(12).copyWith(height: 1.5);
 
-  /// As wide as the longest line, at about a monospaced character's width.
-  static double _width(Iterable<String> lines) {
-    var longest = 0;
+  static TextScaler _codeScaler(BuildContext context) =>
+      SystemTextScale.maybeOf(context) ?? MediaQuery.textScalerOf(context);
+
+  /// The actual height of one source line, including the configured scaler.
+  static double _lineHeight(BuildContext context) {
+    final painter = TextPainter(
+      text: TextSpan(text: 'M', style: _codeStyle(context)),
+      textDirection: TextDirection.ltr,
+      textScaler: _codeScaler(context),
+    )..layout();
+    final height = painter.height;
+    painter.dispose();
+    return height;
+  }
+
+  /// The line numbers' width, for [count] lines.
+  static double _gutter(BuildContext context, int count) {
+    final painter = TextPainter(
+      text: TextSpan(text: '$count', style: _codeStyle(context)),
+      textDirection: TextDirection.ltr,
+      textScaler: _codeScaler(context),
+    )..layout();
+    final width = painter.width + 16;
+    painter.dispose();
+    return width;
+  }
+
+  /// As wide as the widest rendered line, including wide fallback glyphs.
+  static double _width(BuildContext context, Iterable<String> lines) {
+    final style = _codeStyle(context);
+    final painter = TextPainter(
+      textDirection: TextDirection.ltr,
+      textScaler: _codeScaler(context),
+    );
+    var width = 0.0;
     for (final line in lines) {
-      longest = math.max(longest, line.replaceAll('\t', '    ').length);
+      if (line.isEmpty) continue;
+      painter.text = TextSpan(
+        text: line.replaceAll('\t', '    '),
+        style: style,
+      );
+      painter.layout();
+      width = math.max(width, painter.width);
     }
-    return longest * 7.3;
+    painter.dispose();
+    return width;
   }
 }
 
@@ -594,14 +644,21 @@ class _Lines extends StatefulWidget {
     required this.count,
     required this.row,
     required this.width,
+    required this.lineHeight,
     this.target,
     this.reveal = 0,
     this.onCopy,
   });
 
   final int count;
-  final IndexedWidgetBuilder row;
+  final Widget Function(
+    BuildContext context,
+    int index,
+    ScrollController sideways,
+  )
+  row;
   final double width;
+  final double lineHeight;
   final int? target;
   final int reveal;
   final void Function(int first, int last, String text)? onCopy;
@@ -627,7 +684,8 @@ class _LinesState extends State<_Lines> {
   void didUpdateWidget(_Lines oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.reveal != widget.reveal ||
-        oldWidget.target != widget.target) {
+        oldWidget.target != widget.target ||
+        oldWidget.lineHeight != widget.lineHeight) {
       _reveal();
     }
   }
@@ -639,7 +697,7 @@ class _LinesState extends State<_Lines> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scroll.hasClients) return;
       final position = _scroll.position;
-      final offset = (target - 3) * FilePreview.lineHeight;
+      final offset = (target - 3) * widget.lineHeight;
       _scroll.jumpTo(offset.clamp(0.0, position.maxScrollExtent));
     });
   }
@@ -656,8 +714,8 @@ class _LinesState extends State<_Lines> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Room for the line numbers and the markers besides the text.
-        final width = math.max(constraints.maxWidth, widget.width + 120);
+        // The measured width already includes gutters and change markers.
+        final width = math.max(constraints.maxWidth, widget.width + 24);
         // Both scrollbars at the edges of the view, not of the lines as
         // wide as the longest.
         return SelectionArea(
@@ -680,12 +738,12 @@ class _LinesState extends State<_Lines> {
                     child: ListView.builder(
                       controller: _scroll,
                       padding: const EdgeInsets.symmetric(vertical: 6),
-                      itemExtent: FilePreview.lineHeight,
+                      itemExtent: widget.lineHeight,
                       itemCount: widget.count,
                       itemBuilder: (context, index) => _SelectableRow(
                         index: index,
                         lines: _selection,
-                        child: widget.row(context, index),
+                        child: widget.row(context, index, _sideways),
                       ),
                     ),
                   ),
@@ -781,6 +839,7 @@ class _LineRow extends StatelessWidget {
     required this.type,
     required this.text,
     required this.gutter,
+    required this.sideways,
     this.colors,
     this.marked = false,
   });
@@ -790,13 +849,13 @@ class _LineRow extends StatelessWidget {
   final DiffLineType type;
   final String text;
   final double gutter;
+  final ScrollController sideways;
   final List<TextSpan>? colors;
   final bool marked;
 
-  static TextStyle get _style => AppFonts.codeStyle(12).copyWith(height: 1.5);
-
   @override
   Widget build(BuildContext context) {
+    final style = AppFonts.codeStyle(12).copyWith(height: 1.5);
     final (before, now) = numbers;
     final diff = before != null || type != DiffLineType.context;
     final (marker, markerColor, background) = switch (type) {
@@ -814,7 +873,7 @@ class _LineRow extends StatelessWidget {
             : Colors.transparent,
       ),
     };
-    final numberStyle = _style.copyWith(
+    final numberStyle = style.copyWith(
       color: marked
           ? themeColors['editorLineNumber.activeForeground']
           : themeColors['editorLineNumber.foreground'],
@@ -828,36 +887,64 @@ class _LineRow extends StatelessWidget {
       ),
     );
     final shown = text.replaceAll('\t', '    ');
+    final gutterWidth = gutter * (diff ? 2 : 1) + 20;
     return ColoredBox(
       color: background,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          // Line numbers and markers are not copied with the code.
-          SelectionContainer.disabled(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (diff) number(before),
-                number(now),
-                SizedBox(
-                  width: 20,
-                  child: Text(
-                    diff ? marker : '',
-                    textAlign: TextAlign.center,
-                    style: _style.copyWith(color: markerColor),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: gutterWidth),
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    children: colors,
+                    text: colors == null ? shown : null,
+                  ),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.clip,
+                  style: style.copyWith(
+                    color: themeColors['editor.foreground'],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          Expanded(
-            child: Text.rich(
-              TextSpan(children: colors, text: colors == null ? shown : null),
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.clip,
-              style: _style.copyWith(color: themeColors['editor.foreground']),
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: AnimatedBuilder(
+              animation: sideways,
+              builder: (context, child) => Transform.translate(
+                offset: Offset(sideways.hasClients ? sideways.offset : 0, 0),
+                child: child,
+              ),
+              // Keep the line numbers and change marker visible while the
+              // source scrolls underneath them.
+              child: ColoredBox(
+                color: Color.alphaBlend(background, AppColors.code),
+                child: SelectionContainer.disabled(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (diff) number(before),
+                      number(now),
+                      SizedBox(
+                        width: 20,
+                        child: Text(
+                          diff ? marker : '',
+                          textAlign: TextAlign.center,
+                          style: style.copyWith(color: markerColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ],

@@ -197,11 +197,23 @@ abstract final class AppFonts {
   /// A style for code drawn at [size], as the code's size is moved (see
   /// [CodeFont.sized]), in [mono] with [monoFallbacks], and with ligatures
   /// as [CodeFont.features] says. The caller adds the color and the height.
+  /// For an editor or a file's view, under a [CodeTextScale]; code among
+  /// the window's own text takes [uiCodeStyle].
   static TextStyle codeStyle(double size) => TextStyle(
     fontFamily: mono,
     fontFamilyFallback: monoFallbacks,
     fontFeatures: CodeFont.features,
     fontSize: CodeFont.sized(size),
+  );
+
+  /// [codeStyle] for code among the window's own text (the chat's code
+  /// blocks, commands and diffs, a panel's paths): sized as the window's
+  /// text is ([CodeFont.uiSized]), not by the code's size.
+  static TextStyle uiCodeStyle(double size) => TextStyle(
+    fontFamily: mono,
+    fontFamilyFallback: monoFallbacks,
+    fontFeatures: CodeFont.features,
+    fontSize: CodeFont.uiSized(size),
   );
 
   /// What Windows falls back on. Set once, for all text, by the theme there

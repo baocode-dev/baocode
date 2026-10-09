@@ -1150,7 +1150,7 @@ class _ReferenceRowState extends State<_ReferenceRow> {
     return _Entry(
       leading: const SizedBox(width: 0),
       selected: widget.selected,
-      text: TextSpan(children: spans, style: AppFonts.codeStyle(12)),
+      text: TextSpan(children: spans, style: AppFonts.uiCodeStyle(12)),
     );
   }
 }

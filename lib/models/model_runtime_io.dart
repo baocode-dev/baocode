@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import '../kernel/claude_code/claude_environment.dart';
+import '../network/network_proxy_io.dart';
 import 'launch_environment.dart';
 import 'model_provider.dart';
 import 'model_providers.dart';
@@ -15,7 +15,7 @@ final ModelProxy _proxy = ModelProxy(
   provider: (id) => ModelProviders.current.provider(id),
   key: (id) => ModelProviders.current.key(id),
   onError: (id, error) => ModelProviders.current.reportError(id, error),
-  environment: ClaudeEnvironment.of,
+  findProxy: (url) => NetworkProxy.instance.findProxy(url),
 );
 
 Future<List<RemoteModel>> listUpstreamModels(
@@ -26,11 +26,12 @@ Future<List<RemoteModel>> listUpstreamModels(
   if (urls.isEmpty) {
     throw const UpstreamException('The base URL is not an http(s) URL.');
   }
-  final environment = await ClaudeEnvironment.of();
+  // The proxy as it is now: the settings page's test of a key may follow
+  // turning Clash on.
+  final route = await NetworkProxy.instance.resolve();
   final client = HttpClient()
     ..connectionTimeout = const Duration(seconds: 15)
-    ..findProxy = (url) =>
-        HttpClient.findProxyFromEnvironment(url, environment: environment);
+    ..findProxy = route.findProxy;
   try {
     // The first that lists any; else the first error that is not a
     // missing path (a wrong key shows past it), or the first.
@@ -118,13 +119,15 @@ Future<Map<String, String>> providerLaunchEnvironment(
   final proxy = provider.protocol.proxied
       ? await _proxy.endpoint(provider.id)
       : null;
-  final environment = await ClaudeEnvironment.of();
+  // What the session's own NO_PROXY keeps out of the user's proxy, beside
+  // this machine.
+  final route = await NetworkProxy.instance.resolve();
   return launchEnvironment(
     provider: provider,
     model: model,
     key: key,
     proxy: proxy,
-    noProxy: environment['NO_PROXY'] ?? environment['no_proxy'],
+    noProxy: route.direct ? null : route.noProxy,
   );
 }
 

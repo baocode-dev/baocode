@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_quill/quill_delta.dart';
 
+import '../../kernel/kernel_types.dart' show FileSuggestion;
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
@@ -190,18 +191,22 @@ class ComposerImages extends InheritedWidget {
       !identical(images, oldWidget.images);
 }
 
-/// What can become a token besides files: the kernel's `/commands`, and the
-/// other conversations to refer to, for the composer and the sent messages
-/// under it.
+/// What can become a token besides dropped files: the kernel's `/commands`,
+/// the project's files `@` looks up, and the other conversations to refer
+/// to, for the composer and the sent messages under it.
 class ComposerVocabulary extends InheritedWidget {
   const ComposerVocabulary({
     super.key,
     required this.commands,
+    this.suggestFiles,
     this.sessions,
     required super.child,
   });
 
   final List<Suggestion> commands;
+
+  /// Files matching what follows an `@`; null when there is no looking.
+  final Future<List<FileSuggestion>> Function(String query)? suggestFiles;
 
   /// The conversations `@` offers ([Suggestion.session]s), as they are when
   /// it is typed; none without it.
@@ -224,7 +229,8 @@ class ComposerVocabulary extends InheritedWidget {
   @override
   bool updateShouldNotify(ComposerVocabulary oldWidget) =>
       !identical(commands, oldWidget.commands) ||
-      (sessions == null) != (oldWidget.sessions == null);
+      (sessions == null) != (oldWidget.sessions == null) ||
+      (suggestFiles == null) != (oldWidget.suggestFiles == null);
 }
 
 /// A composer document for sent [text], the inverse of
@@ -1238,4 +1244,18 @@ class _RenderCenteredOnText extends RenderProxyBox {
     BoxConstraints constraints,
     TextBaseline baseline,
   ) => getDryLayout(constraints).height / 2 + _centerAboveBaseline;
+}
+
+/// A file the kernel found, as a mention suggestion.
+Suggestion fileSuggestion(FileSuggestion file) {
+  final directory = file.isDirectory;
+  final path = directory
+      ? file.path.substring(0, file.path.length - 1)
+      : file.path;
+  final slash = path.lastIndexOf('/');
+  return Suggestion(
+    kind: directory ? SuggestionKind.folder : SuggestionKind.file,
+    label: path.substring(slash + 1),
+    detail: slash < 0 ? '' : path.substring(0, slash),
+  );
 }

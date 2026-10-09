@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.3+4
+version: 1.0.5+6
 
 environment:
   sdk: ^3.13.4
@@ -97,13 +97,14 @@ flutter:
     # Built-in keymaps: VS Code keymap extensions' keybindings (lib/keybindings/keymap.dart).
     - assets/keymaps/
     - assets/keymaps/LICENSES/
-    # The notifications' "ding" (see lib/notifications/notification_sound.dart).
+    # Bundled notification sounds (see lib/notifications/notification_sound.dart).
     - assets/sounds/
     # Emojibase's emoji, for project icons (tool/generate_emoji.mjs).
     - assets/emoji/
     # Where the extension runtime is downloaded from, per platform
     # (tool/build_exthost_runtime.dart; lib/extensions/runtime/).
     - assets/exthost/
+    - assets/network/
     # VS Code TextMate grammars and color themes (tool/generate_textmate_assets.mjs).
 
   # VS Code's icon font (tool/generate_codicons.mjs; lib/theme/codicons.dart).

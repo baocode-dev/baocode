@@ -16,6 +16,7 @@ import 'package:baocode/ide/terminal/links/terminal_links.dart';
 import 'package:baocode/ide/terminal/terminal_instance.dart';
 import 'package:baocode/ide/terminal/terminal_view.dart';
 import 'package:baocode/ide/terminal/terminal_widget.dart';
+import 'package:baocode/theme/code_font.dart';
 import 'package:baocode/theme/codicons.dart';
 
 import 'fake_pty.dart';
@@ -649,6 +650,45 @@ void main() {
     expect(controller.linkUnderline, isNull);
     await hover(0, 3);
     expect(controller.linkUnderline, isNull);
+  });
+
+  testWidgets('terminal text follows interface scaling and keeps command marks '
+      'aligned', (tester) async {
+    final started = <FakePty>[];
+    final terminal = TerminalInstance(
+      id: 1,
+      root: '/project',
+      backend: fakeTerminalBackend(started),
+    );
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox());
+      terminal.dispose();
+    });
+
+    Widget view(TextScaler scaler) => MediaQuery(
+      data: MediaQueryData(textScaler: scaler),
+      child: TerminalView(terminal),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: view(const TextScaler.linear(1))),
+    );
+    await tester.pump();
+    final initialSize = terminal.xterm.options.fontSize;
+
+    await tester.pumpWidget(
+      MaterialApp(home: view(const TextScaler.linear(1.5))),
+    );
+    await tester.pump();
+    expect(terminal.xterm.options.fontSize, initialSize * 1.5);
+
+    CodeFont.size.value = 20;
+    addTearDown(() => CodeFont.size.value = CodeFont.defaultSize);
+    expect(terminal.xterm.options.fontSize, initialSize * 1.5);
+
+    // The same TerminalView path is used by the IDE and agent sidebars; the
+    // existing command-mark test below covers decoration rendering on it.
+    expect(find.byType(TerminalWidget), findsOneWidget);
   });
 
   testWidgets('the shell integration marks each command in the gutter, '

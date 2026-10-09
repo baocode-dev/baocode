@@ -123,7 +123,6 @@ class TerminalInstance extends ChangeNotifier {
     );
     terminalColorTheme.addListener(_updateTheme);
     CodeFont.families.addListener(_updateFont);
-    CodeFont.size.addListener(_updateFont);
     source = TerminalCoreSource(terminal, decorationService: decorations);
     clipboard = TerminalClipboard(
       selection: selection,
@@ -233,11 +232,12 @@ class TerminalInstance extends ChangeNotifier {
     xterm.options.theme = vscodeTerminalTheme(terminalColorTheme.value);
   }
 
-  /// The code font's family and size (Settings → Appearance) as the
-  /// terminal's options: xterm.js remeasures its cells and the PTY follows.
+  /// The code font's family (Settings -> Appearance) as the terminal's
+  /// option. The interface text scale is applied by [TerminalView], where the
+  /// terminal has a widget context; changing the editor code size must not
+  /// remeasure terminal cells.
   void _updateFont() {
     xterm.options.fontFamily = vscodeTerminalFontFamily();
-    xterm.options.fontSize = CodeFont.sized(13);
   }
 
   /// The find widget's theme listener, with `_updateFindColors`' new colors.
@@ -467,7 +467,6 @@ class TerminalInstance extends ChangeNotifier {
     _disposed = true;
     terminalColorTheme.removeListener(_updateTheme);
     CodeFont.families.removeListener(_updateFont);
-    CodeFont.size.removeListener(_updateFont);
     if (!_exited) _pty?.kill();
     unawaited(_printing?.cancel());
     unawaited(_output.close());

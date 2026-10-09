@@ -34,6 +34,7 @@ import 'keybindings/vscode_import.dart';
 import 'l10n/l10n.dart';
 import 'models/model_providers.dart';
 import 'models/model_runtime.dart';
+import 'network/network_proxy.dart';
 import 'notifications/attention_host.dart';
 import 'notifications/attention_settings.dart';
 import 'platform/app_platform.dart';
@@ -96,9 +97,6 @@ Future<void> main(List<String> arguments) async {
   WidgetsFlutterBinding.ensureInitialized();
   // The Windows app's own logs go beside it.
   if (errors != null) unawaited(errors.shareWithHost());
-  // Emoji as pictures: fetched into the cache the first run, in the
-  // background.
-  EmojiSheet.start(EmojiSheetStore.cache());
   // The editor's language packs are the language servers' (README.md in
   // lib/ide/lsp/packs).
   MonacoLanguageAssets.defaultPacks = () => LanguagePackRegistry.instance;
@@ -108,8 +106,14 @@ Future<void> main(List<String> arguments) async {
   final files = kIsWeb ? null : SettingsFiles.instance;
   await files?.load();
   files?.watch();
-  // Read as each agent starts.
   if (files != null) {
+    // Settings → Network: the proxy every request and Claude Code go
+    // through, the system's by default; read before the first request.
+    await startNetworkProxy(
+      files.settings,
+      (key) => files.settings[key],
+    ).timeout(const Duration(seconds: 1), onTimeout: () {});
+    // Read as each agent starts.
     CommitAttribution.current = () =>
         CommitAttribution.parse(files.settings[CommitAttribution.settingKey]);
     // Settings → Models: the upstreams, kept in settings.json.
@@ -123,6 +127,9 @@ Future<void> main(List<String> arguments) async {
     // window's text size.
     CodeFont.follow(files.settings, (key) => files.settings[key]);
   }
+  // Emoji as pictures: fetched into the cache the first run, in the
+  // background, through the proxy.
+  EmojiSheet.start(EmojiSheetStore.cache());
   await prepareClaudeOnboarding();
   final locale = AppLocale(storage: files?.argv);
   final workspace = Workspace(
@@ -406,6 +413,13 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
 
   late final AppLocale _locale = widget.appLocale ?? AppLocale();
 
+  /// The code's font, size and ligatures: what restyles all code.
+  static final Listenable _codeFont = Listenable.merge([
+    CodeFont.families,
+    CodeFont.size,
+    CodeFont.ligatures,
+  ]);
+
   late final AppSettings _settings =
       widget.settings ?? AppSettings(locale: _locale);
 
@@ -498,18 +512,15 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
     // A theme change restyles everything, as the workbench's does; so does
     // a language change, at once: in all windows.
     return WorkbenchThemeScope(
+      // The code's font, size and ligatures are read as widgets build, so a
+      // change rebuilds everything, as a theme change does: what a window's
+      // navigator keeps (its page) would not be by rebuilding the app
+      // alone. The text scale is a MediaQuery instead (see _app's builder).
+      restyle: _codeFont,
       builder: (context) => AppLocaleScope(
         notifier: _locale,
         child: ListenableBuilder(
-          // The code's font, size and ligatures are read as the app is
-          // built, so a change rebuilds it; the text scale is a MediaQuery
-          // instead (see the builder in _app).
-          listenable: Listenable.merge([
-            _locale,
-            CodeFont.families,
-            CodeFont.size,
-            CodeFont.ligatures,
-          ]),
+          listenable: _locale,
           builder: (context, _) => _windows.started
               ? ListenableBuilder(
                   listenable: _windows,
@@ -546,13 +557,16 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
       valueListenable: CodeFont.uiScale,
       builder: (context, percent, scaled) {
         final media = MediaQuery.of(context);
-        return MediaQuery(
-          data: media.copyWith(
-            textScaler: TextScaler.linear(
-              media.textScaler.scale(1) * percent / 100,
+        return SystemTextScale(
+          scaler: media.textScaler,
+          child: MediaQuery(
+            data: media.copyWith(
+              textScaler: TextScaler.linear(
+                media.textScaler.scale(1) * percent / 100,
+              ),
             ),
+            child: scaled!,
           ),
-          child: scaled!,
         );
       },
       child: child,

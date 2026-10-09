@@ -316,8 +316,10 @@ class AgentSidePanelView extends StatelessWidget {
   /// the IDE's explorer.
   final List<String> roots;
 
-  /// The repositories of the workspace's folders, by folder: the changes
-  /// page lists them to pick from, [git] then ignored.
+  /// The repositories of the workspace's folders, by folder, or of a
+  /// folder's project when some were found in its subfolders (as Source
+  /// Control lists them): the changes page lists them to pick from, [git]
+  /// then ignored.
   final List<(String root, IdeGitRepository git)> repositories;
 
   /// Add Folder to Workspace..., and Remove Folder from Workspace, as the
@@ -327,10 +329,10 @@ class AgentSidePanelView extends StatelessWidget {
 
   bool get _isWorkspace => workspaceName != null;
 
-  /// The repository whose changes show: the one picked of a workspace's
-  /// (its first until one is), else [git].
+  /// The repository whose changes show: the one picked of [repositories]
+  /// (their first until one is), else [git].
   IdeGitRepository? get _git {
-    if (!_isWorkspace) return git;
+    if (!_isWorkspace && repositories.isEmpty) return git;
     final picked = switch (session.root) {
       final root? => panel.repositoryOf(root),
       null => null,
@@ -340,8 +342,9 @@ class AgentSidePanelView extends StatelessWidget {
   }
 
   /// Every repository the changes page counts.
-  List<IdeGitRepository> get _gits =>
-      _isWorkspace ? [for (final (_, git) in repositories) git] : [?git];
+  List<IdeGitRepository> get _gits => _isWorkspace || repositories.isNotEmpty
+      ? [for (final (_, git) in repositories) git]
+      : [?git];
 
   /// The workspace folder [path] is in, else the project's folder.
   String? _rootOf(String path) {
