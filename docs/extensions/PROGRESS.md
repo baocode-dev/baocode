@@ -129,14 +129,31 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   Refresh, Cancel, the last run's summary, failures under their tests opening their locations, Go to Next Failure, and
   the "Test Results" output channel. Tests: `test/extensions/testing/` (widget) and `testing_exthost_test.dart` (real
   REH and fixture).
+- Open VSX acceptance harness (test/extensions/acceptance/open_vsx_workspace.dart): a fresh data folder, real
+  extensions installed through the workspace's management (dependencies and pack members from Open VSX too), the
+  host started, unsupported calls and extension errors recorded. 九.2 language extensions pass with the machine's
+  toolchains: Python + basedpyright, rust-analyzer, Go (gopls), clangd (`language_extensions_exthost_test.dart`);
+  ESLint (project eslint, fix on save) and Prettier (default formatter, format on save)
+  (`eslint_prettier_exthost_test.dart`).
+- Management fixes found by it: `updateMetadata`/`installFromLocation` get the server's default profile location,
+  the server's untransformed `install` answers are sent back as it takes them, dependencies and packs install, and
+  a platform package is preferred when the version pages run out (rust-analyzer).
+- Webview and Notebook degradation (九.5, `webview_degradation_exthost_test.dart`): notebook serializers, kernels and
+  renderers are recorded with an Extension Host channel line; opening a notebook fails with a notice. Accept-only
+  actors for absent features: language model tools (`$getTools` → none), profile content handlers, timeline, link
+  presentation, ports attributes, debug visualizers. The placeholders' lines reach the Output panel.
+- Save participants (lib/extensions/workbench/save_participants.dart): trim trailing whitespace, code actions on
+  save, format on save, insert final newline, trim final newlines, then `onWillSaveTextDocument` (1750 ms), in
+  upstream's order, for every save (`IdeWorkspace.saveParticipants`); `editor.defaultFormatter` and the formatter
+  pick (lib/extensions/workbench/default_formatter.dart). Test: `save_participants_exthost_test.dart`.
 
 ## In progress / next
 
 1. Editor-feature rendering from the registry is complete (CodeLens, inlay hints, inline completions, highlights,
    folding, links, colors).
-2. Complete real-extension debugging acceptance beyond Node launch/attach (Python, Go, Rust/C++, debugger controls,
-   breakpoint variants and preLaunchTask in a real session). Implement the accept-only actors real extensions call
-   (timeline, language model tools, profile content handlers) and the Notebook degradation.
+2. 九.2 remaining: GitLens, Error Lens, Todo Tree, Code Spell Checker, VSCodeVim, Docker, a theme and an icon
+   theme. Then debugging acceptance beyond Node (Python, Go, Rust/C++ via CodeLLDB, controls, breakpoint variants,
+   preLaunchTask in a real session).
 3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
    bao_remote LSP, docs and l10n), after replacing its language capability coverage.
 4. SSH remote: REH on the remote through bao_remote port forwarding, with the extensionKind split.
@@ -156,7 +173,7 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - Dart `null` ⇄ JS `undefined` in IPC; RPC replies `null` as `undefined` (`rpcNull` for a JSON null).
   `RpcProtocol.call(preserveJsonNull: true)` preserves JSON-null replies as `rpcNull` for debug configuration resolvers:
   JSON null opens launch.json; undefined cancels silently. Existing generated nullable proxies keep their prior behavior.
-- Debug visualizers/visualizer trees remain explicitly unsupported (no model/UI service). No fake registration.
+- Debug visualizers/visualizer trees are accepted and kept, never offered (no visualizer UI in the Variables view).
 - The pinned VSCodium REH already bundles `ms-vscode.js-debug` 1.117.0 (MIT) and `ms-vscode.js-debug-companion` 1.1.3.
   The js-debug version and official VSIX SHA-256 match upstream 1.135.0's `product.json`; a prior assumption that they
   were absent was incorrect. Packaging needs no additional VSIX. Real launch and attach are covered by the tagged test.
@@ -191,3 +208,8 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - Tree drag and drop and `TreeItemAligner` are not implemented; alt menu actions are not shown.
 - `test/chat/chat_width_test.dart` (composer grows with the setting), two chat mode-picker tests in
   `test/chat/chat_keys_test.dart`, and `test/workspace/quit_confirmation_test.dart` fail on the merge base too.
+- Save participants: `editor.formatOnSaveMode` `modifications` formats the whole file (no line diff of a file);
+  `files.trimTrailingWhitespaceInRegexAndStrings: false` trims anyway (no tokens); no progress/Skip notification.
+  Format Document with several formatters and no default picks without the confirmation dialog first.
+- Dependencies and pack members are installed by BaoCode from Open VSX after the extension (`donotIncludePackAndDependencies`
+  on the server's install), not with it; a dependency that cannot be installed fails a gallery install afterwards.
