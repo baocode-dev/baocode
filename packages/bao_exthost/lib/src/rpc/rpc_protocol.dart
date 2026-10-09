@@ -82,7 +82,12 @@ final class RpcObjectWithBuffers {
 /// An error the other side replied with (`$isError` objects), or another
 /// value it rejected with.
 final class RpcRemoteError implements Exception {
-  RpcRemoteError({required this.name, required this.message, this.stack, this.value});
+  RpcRemoteError({
+    required this.name,
+    required this.message,
+    this.stack,
+    this.value,
+  });
 
   final String name;
   final String message;
@@ -114,8 +119,12 @@ abstract interface class RpcActor {
 }
 
 /// Logs traffic (`IRPCProtocolLogger`).
-typedef RpcLogger =
-    void Function(bool incoming, int req, String what, Object? data);
+typedef RpcLogger = void Function(
+  bool incoming,
+  int req,
+  String what,
+  Object? data,
+);
 
 enum ResponsiveState { responsive, unresponsive }
 
@@ -277,7 +286,12 @@ final class RpcProtocol {
     List<Object?> args,
     bool usesCancellation,
   ) {
-    logger?.call(true, req, 'receiveRequest ${actorNames[rpcId]}.$method', args);
+    logger?.call(
+      true,
+      req,
+      'receiveRequest ${actorNames[rpcId]}.$method',
+      args,
+    );
     if (usesCancellation) {
       final source = CancellationTokenSource();
       _cancelInvoked[req] = source;
@@ -388,7 +402,8 @@ Object? _encodable(Object? value) {
 }
 
 /// `JSON.stringify` of a value with no buffers.
-String rpcStringify(Object? value) => jsonEncode(value, toEncodable: _encodable);
+String rpcStringify(Object? value) =>
+    jsonEncode(value, toEncodable: _encodable);
 
 /// `stringifyJsonWithBufferRefs`.
 (String, List<Uint8List>) _stringifyWithBufferRefs(Object? value) {
@@ -415,7 +430,9 @@ Object? _restoreBufferRefs(String json, List<Uint8List> buffers) {
     if (v is Map) {
       final ref = v[_refSymbol];
       if (ref is int && v.length == 1) {
-        return ref >= 0 && ref < buffers.length ? RpcBuffer(buffers[ref]) : null;
+        return ref >= 0 && ref < buffers.length
+            ? RpcBuffer(buffers[ref])
+            : null;
       }
       return v.map((k, e) => MapEntry(k as String, walk(e)));
     }
@@ -516,17 +533,31 @@ Uint8List _serializeReplyOk(int req, Object? value) {
 
 /// `serializeReplyErr` with `transformErrorForSerialization`'s shape.
 Uint8List _serializeReplyErr(int req, Object error, StackTrace stack) {
+  // Upstream's keys, in its order (`cause` and `code` are never set here).
   final Map<String, Object?> err;
   if (error is CancellationException) {
-    err = {r'$isError': true, 'name': 'Canceled', 'message': 'Canceled', 'stack': null};
+    err = {
+      r'$isError': true,
+      'name': 'Canceled',
+      'message': 'Canceled',
+      'stack': '$stack',
+      'noTelemetry': false,
+    };
   } else if (error is RpcRemoteError) {
-    err = {r'$isError': true, 'name': error.name, 'message': error.message, 'stack': error.stack};
+    err = {
+      r'$isError': true,
+      'name': error.name,
+      'message': error.message,
+      'stack': error.stack,
+      'noTelemetry': false,
+    };
   } else {
     err = {
       r'$isError': true,
       'name': error is RpcUnsupported ? 'Unsupported' : 'Error',
       'message': '$error',
       'stack': '$stack',
+      'noTelemetry': false,
     };
   }
   final b = _header(RpcMessageType.replyErrError, req, 0);

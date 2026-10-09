@@ -156,11 +156,14 @@ void main() {
   test('server URIs become file URIs of the same path', () {
     final remote = toServer(VsUri.file('/a/b c')).toJson();
     expect(remote['scheme'], 'vscode-remote');
-    expect(fromServer({
-      'list': [remote],
-    }), {
-      'list': [VsUri.file('/a/b c').toJson()],
-    });
+    expect(
+      fromServer({
+        'list': [remote],
+      }),
+      {
+        'list': [VsUri.file('/a/b c').toJson()],
+      },
+    );
   });
 
   test('init data lists every scanned extension as this host\'s', () {

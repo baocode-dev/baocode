@@ -1,0 +1,10 @@
+{
+  "name": "baocode-exthost-codegen",
+  "private": true,
+  "description": "Dependencies of tool/generate_exthost_protocol.mjs and tool/generate_exthost_fixtures.mjs.",
+  "type": "module",
+  "dependencies": {
+    "esbuild": "0.27.2",
+    "typescript": "6.0.3"
+  }
+}
