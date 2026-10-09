@@ -1,4 +1,4 @@
-// The bottom panel: Problems, References and the terminal's tab.
+// The bottom panel: Problems, Output, References and the terminal's tab.
 //
 // The lists' keyboard adapted from VS Code
 // 6a598d4a13031703d483d103c1d934a36ad27971:
@@ -35,7 +35,7 @@ import '../lsp/lsp_protocol.dart';
 import 'diagnostics.dart';
 import 'lsp_convert.dart';
 
-enum IdePanelTab { problems, references, terminal }
+enum IdePanelTab { problems, output, references, terminal }
 
 /// Locations Find References (or several definitions) produced.
 class IdeReferences {
@@ -196,6 +196,7 @@ class IdeBottomPanel extends StatelessWidget {
     this.referencesList,
     this.terminal,
     this.terminalActions,
+    this.output,
   });
 
   final IdePanelTab tab;
@@ -226,6 +227,9 @@ class IdeBottomPanel extends StatelessWidget {
 
   /// The terminal's title actions, before Close Panel while TERMINAL shows.
   final Widget? terminalActions;
+
+  /// The extensions' output channels; no OUTPUT tab without them.
+  final Widget? output;
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +275,16 @@ class IdeBottomPanel extends StatelessWidget {
                             selected: tab == IdePanelTab.problems,
                             onTap: () => onTab(IdePanelTab.problems),
                           ),
+                          if (output != null)
+                            _Tab(
+                              label: context.l10n.panelOutput,
+                              tooltip: keys.titleWithKeybinding(
+                                context.l10n.idePanelOutput,
+                                'workbench.action.output.toggleOutput',
+                              ),
+                              selected: tab == IdePanelTab.output,
+                              onTap: () => onTab(IdePanelTab.output),
+                            ),
                           _Tab(
                             label: context.l10n.panelReferences,
                             tooltip: context.l10n.idePanelReferences,
@@ -317,6 +331,7 @@ class IdeBottomPanel extends StatelessWidget {
             Expanded(
               child: switch (tab) {
                 IdePanelTab.problems => _problems(all, context.l10n),
+                IdePanelTab.output => output ?? const SizedBox.shrink(),
                 IdePanelTab.references => _references(context.l10n),
                 IdePanelTab.terminal =>
                   terminal ?? _message(context.l10n.panelTerminalUnavailable),

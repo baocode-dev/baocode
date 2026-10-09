@@ -1323,6 +1323,7 @@ extension on IdePanelTab {
   /// Upstream's id of the panel (`activePanel`).
   String get panelId => switch (this) {
     IdePanelTab.problems => 'workbench.panel.markers',
+    IdePanelTab.output => 'workbench.panel.output',
     IdePanelTab.references => 'workbench.panel.referenceSearch',
     IdePanelTab.terminal => 'terminal',
   };
@@ -1330,6 +1331,7 @@ extension on IdePanelTab {
   /// Upstream's id of its view (`focusedView`).
   String get viewId => switch (this) {
     IdePanelTab.problems => 'workbench.panel.markers.view',
+    IdePanelTab.output => 'workbench.panel.output',
     IdePanelTab.references => 'workbench.panel.referenceSearch',
     IdePanelTab.terminal => 'terminal',
   };

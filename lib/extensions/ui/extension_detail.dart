@@ -122,13 +122,18 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
   void _load() {
     final installed = _installed;
     final gallery = _fetchGallery();
-    _readme = gallery.then((extension) async {
+    // Not on Open VSX, or offline: an installed extension's own files.
+    final listed = gallery.then<GalleryExtension?>(
+      (extension) => extension,
+      onError: (Object _) => null,
+    );
+    _readme = listed.then((extension) async {
       if (extension?.files.readme case final url?) {
         return _client.fetchText(url);
       }
       return _readInstalled(installed, const ['README.md', 'readme.md']);
     });
-    _changelog = gallery.then((extension) async {
+    _changelog = listed.then((extension) async {
       if (extension?.files.changelog case final url?) {
         return _client.fetchText(url);
       }

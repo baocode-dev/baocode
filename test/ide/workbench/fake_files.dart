@@ -1,7 +1,7 @@
+import 'package:baocode/extensions/workbench/workspace_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/extensions/ide_extensions.dart';
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/git/commit_message.dart';
 import 'package:baocode/ide/git/git_repository.dart';
@@ -174,7 +174,6 @@ Future<IdeWorkspace> pumpWorkbench(
   ValueChanged<String>? onIgnoreRecommendation,
   IdeGitRepository? git,
   IdeTextSearch? textSearch,
-  IdeExtensions? extensions,
   IdeCommitMessageModel? commitMessage,
   ValueChanged<bool>? onPinnedChanged,
   PtyStarter? startPty,
@@ -191,6 +190,7 @@ Future<IdeWorkspace> pumpWorkbench(
   VoidCallback? onAddFolder,
   ValueChanged<String>? onRemoveFolder,
   Project? project,
+  WorkspaceExtensions? extensions,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;

@@ -12,9 +12,11 @@ import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
 import 'chat/chat_width.dart';
 import 'customize/customization_store.dart';
+import 'extensions/workbench/jsonc_settings_file.dart';
+import 'extensions/workbench/window_file_pickers.dart';
+import 'extensions/workbench/workspace_extensions.dart';
 import 'ide/git/git_repository.dart';
 import 'ide/git/repository_scan.dart';
-import 'ide/lsp/language_features.dart';
 import 'ide/lsp/lsp_process.dart';
 import 'ide/lsp/packs/language_packs.dart';
 import 'ide/terminal/pty.dart';
@@ -214,16 +216,35 @@ Future<void> main(List<String> arguments) async {
     );
     _startTelemetry(files);
   }
+  // VS Code's extensions (lib/extensions/): one runtime and server for
+  // the app, a host per IDE workspace.
+  final extensions = files == null
+      ? null
+      : ExtensionsApp(
+          userSettings: JsoncSettingsFile(files.settings),
+          openExternal: openExternal,
+          filePickers: const WindowFilePickers(),
+          language: () =>
+              locale.setting ??
+              switch (WidgetsBinding.instance.platformDispatcher.locale) {
+                Locale(languageCode: 'zh') => AppLocale.simplifiedChinese,
+                _ => AppLocale.english,
+              },
+        );
   final app = BaoCodeApp(
     windows: windows,
     workspace: workspace,
     appLocale: locale,
     settings: settings,
-    // On the folder's host: this machine, or a remote one's.
-    languagesFor: (folder) {
-      final host = ProjectHost.of(folder);
-      return host.languages(host.pathOf(folder));
-    },
+    extensions: extensions,
+    // The extension host of a folder on this machine.
+    extensionsFor: extensions == null
+        ? null
+        : (folder) {
+            final host = ProjectHost.of(folder);
+            if (host.name != null) return null;
+            return extensions.workspace(host.pathOf(folder));
+          },
     gitFor: (folder) {
       final host = ProjectHost.of(folder);
       return host.git(host.pathOf(folder));
@@ -307,7 +328,8 @@ class BaoCodeApp extends StatefulWidget {
   const BaoCodeApp({
     super.key,
     this.workspace,
-    this.languagesFor,
+    this.extensions,
+    this.extensionsFor,
     this.gitFor,
     this.repositoriesIn,
     this.terminalBackend,
@@ -337,8 +359,12 @@ class BaoCodeApp extends StatefulWidget {
   /// [appLocale] and the app's keybindings.
   final AppSettings? settings;
 
-  /// The language servers for a project the IDE opens; none when null.
-  final LanguageFeatures Function(String root)? languagesFor;
+  /// The app's extensions, whose server stops as the app quits.
+  final ExtensionsApp? extensions;
+
+  /// The extensions of a project the IDE opens (its language features
+  /// among them); none when null, or when it gives null.
+  final WorkspaceExtensions? Function(String folder)? extensionsFor;
 
   /// The Git repository of a project the IDE opens; none when null.
   final IdeGitRepository Function(String root)? gitFor;
@@ -397,6 +423,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
         RemoteClaudeTransport.stopAll(),
         stopModelProxy(),
         stopLspProcesses(),
+        ?widget.extensions?.dispose(),
         stopPtyProcesses(),
       ]);
       // The remote hosts' servers end, and all they run with them.
@@ -526,7 +553,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
       workspace: _workspace,
       windows: _windows,
       window: window,
-      languagesFor: widget.languagesFor,
+      extensionsFor: widget.extensionsFor,
       gitFor: widget.gitFor,
       repositoriesIn: widget.repositoriesIn,
       terminalBackend: widget.terminalBackend,

@@ -76,6 +76,7 @@
   "idePanelProblems": "问题",
   "idePanelReferences": "引用",
   "idePanelTerminal": "终端",
+  "idePanelOutput": "输出",
   "cmdScmFocus": "聚焦到“更改”视图",
   "cmdScmAcceptInput": "接受输入",
   "cmdScmClearValidation": "清除验证",
@@ -1164,6 +1165,7 @@
   "panelProblems": "问题",
   "panelReferences": "引用",
   "panelTerminal": "终端",
+  "panelOutput": "输出",
   "panelClose": "关闭面板",
   "panelTerminalUnavailable": "终端不可用。",
   "problemsNone": "未在工作区检测到问题。",
@@ -2111,5 +2113,9 @@
   "windowAuthSignOutConfirm": "退出 {provider} 的 {account} 账户？",
   "windowAuthManageTrusted": "管理受信任的扩展...",
   "windowAuthNoTrustedExtensions": "没有扩展被授予账户访问权限。",
-  "windowAuthRemoveAllTrusted": "全部移除"
+  "windowAuthRemoveAllTrusted": "全部移除",
+  "wbRecommendExtension": "建议为 {language} 文件安装“{name}”扩展。",
+  "wbRecommendExtensionDontShow": "不再为此扩展显示",
+  "extsNoHost": "此文件夹暂不支持扩展。",
+  "extsPageClose": "关闭扩展"
 }

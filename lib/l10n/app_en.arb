@@ -180,6 +180,7 @@
   "idePanelProblems": "Problems",
   "idePanelReferences": "References",
   "idePanelTerminal": "Terminal",
+  "idePanelOutput": "Output",
   "cmdScmFocus": "Focus on Changes View",
   "cmdScmAcceptInput": "Accept Input",
   "cmdScmClearValidation": "Clear Validation",
@@ -2952,6 +2953,7 @@
   "panelProblems": "PROBLEMS",
   "panelReferences": "REFERENCES",
   "panelTerminal": "TERMINAL",
+  "panelOutput": "OUTPUT",
   "panelClose": "Close Panel",
   "panelTerminalUnavailable": "The terminal is not available.",
   "problemsNone": "No problems have been detected in the workspace.",
@@ -5959,5 +5961,10 @@
   },
   "windowAuthManageTrusted": "Manage Trusted Extensions...",
   "windowAuthNoTrustedExtensions": "No extensions have been given access to an account.",
-  "windowAuthRemoveAllTrusted": "Remove All"
+  "windowAuthRemoveAllTrusted": "Remove All",
+  "wbRecommendExtension": "The '{name}' extension is recommended for {language} files.",
+  "@wbRecommendExtension": {"placeholders": {"name": {"type": "String"}, "language": {"type": "String"}}},
+  "wbRecommendExtensionDontShow": "Don't Show Again for This Extension",
+  "extsNoHost": "Extensions are not available for this folder yet.",
+  "extsPageClose": "Close Extension"
 }

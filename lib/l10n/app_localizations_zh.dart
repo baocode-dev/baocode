@@ -254,6 +254,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get idePanelTerminal => '终端';
 
   @override
+  String get idePanelOutput => '输出';
+
+  @override
   String get cmdScmFocus => '聚焦到“更改”视图';
 
   @override
@@ -3965,6 +3968,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get panelTerminal => '终端';
 
   @override
+  String get panelOutput => '输出';
+
+  @override
   String get panelClose => '关闭面板';
 
   @override
@@ -7345,4 +7351,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get windowAuthRemoveAllTrusted => '全部移除';
+
+  @override
+  String wbRecommendExtension(String name, String language) {
+    return '建议为 $language 文件安装“$name”扩展。';
+  }
+
+  @override
+  String get wbRecommendExtensionDontShow => '不再为此扩展显示';
+
+  @override
+  String get extsNoHost => '此文件夹暂不支持扩展。';
+
+  @override
+  String get extsPageClose => '关闭扩展';
 }

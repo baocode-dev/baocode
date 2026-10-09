@@ -59,8 +59,9 @@ final class ExtensionHostService extends ChangeNotifier {
   final String language;
   final bool trusted;
 
-  /// Folders loaded as extensions under development.
-  final List<VsUri> developmentLocations;
+  /// Folders loaded as extensions under development; a change applies as
+  /// the host starts again.
+  List<VsUri> developmentLocations;
   final RpcLogger? logger;
 
   /// Whether a scanned extension runs here (enabled, in this workspace);

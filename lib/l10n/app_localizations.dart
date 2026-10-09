@@ -554,6 +554,12 @@ abstract class AppLocalizations {
   /// **'Terminal'**
   String get idePanelTerminal;
 
+  /// No description provided for @idePanelOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Output'**
+  String get idePanelOutput;
+
   /// No description provided for @cmdScmFocus.
   ///
   /// In en, this message translates to:
@@ -7089,6 +7095,12 @@ abstract class AppLocalizations {
   /// **'TERMINAL'**
   String get panelTerminal;
 
+  /// No description provided for @panelOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'OUTPUT'**
+  String get panelOutput;
+
   /// No description provided for @panelClose.
   ///
   /// In en, this message translates to:
@@ -12780,6 +12792,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remove All'**
   String get windowAuthRemoveAllTrusted;
+
+  /// No description provided for @wbRecommendExtension.
+  ///
+  /// In en, this message translates to:
+  /// **'The \'{name}\' extension is recommended for {language} files.'**
+  String wbRecommendExtension(String name, String language);
+
+  /// No description provided for @wbRecommendExtensionDontShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t Show Again for This Extension'**
+  String get wbRecommendExtensionDontShow;
+
+  /// No description provided for @extsNoHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Extensions are not available for this folder yet.'**
+  String get extsNoHost;
+
+  /// No description provided for @extsPageClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close Extension'**
+  String get extsPageClose;
 }
 
 class _AppLocalizationsDelegate

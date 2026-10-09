@@ -27,6 +27,7 @@ import '../../platform/data_dir.dart';
 import '../../settings/jsonc.dart';
 import '../../settings/jsonc_file.dart';
 import '../commands/builtin_commands.dart';
+import '../commands/extension_command_palette.dart';
 import '../commands/extension_command_registry.dart'
     show CommandActivation, ExtensionCommandRegistry;
 import '../commands/host_command_activation_io.dart';
@@ -42,6 +43,9 @@ import '../files/disk_file_system_provider_io.dart';
 import '../files/file_service.dart';
 import '../files/workspace_file_watcher.dart';
 import '../gallery/extension_enablement.dart';
+import '../gallery/extension_management_backend.dart';
+import '../gallery/open_vsx_client.dart';
+import '../gallery/server_extension_management.dart';
 import '../host/extension_host_manager.dart' show ExtensionHostState;
 import '../host/extension_server_io.dart';
 import '../host/extension_server_pool_io.dart';
@@ -51,6 +55,7 @@ import '../language/language_selector.dart';
 import '../languages/language_registry.dart';
 import '../languages/language_status.dart';
 import '../main_thread/commands_customers.dart';
+import '../menus/menu_service.dart';
 import '../main_thread/documents_customers.dart';
 import '../main_thread/main_thread_authentication.dart';
 import '../main_thread/main_thread_bulk_edits.dart';
@@ -62,7 +67,9 @@ import '../main_thread/main_thread_message_service.dart';
 import '../main_thread/window_customers.dart';
 import '../main_thread/workspace_customers.dart';
 import '../runtime/extension_runtime_service.dart';
+import '../recommendations/recommendations.dart';
 import '../search/search_service.dart';
+import '../ui/extensions_model.dart';
 import '../window/auth/authentication_app_services.dart';
 import '../window/auth/authentication_extensions_service.dart';
 import '../window/auth/authentication_ports.dart';
@@ -100,6 +107,8 @@ final class ExtensionsApp {
     this.filePickers,
     this.loadRuntime,
     Future<CoreConfiguration> Function()? coreConfiguration,
+    this._language,
+    this._gallery,
   }) : runtime = runtime ?? ExtensionRuntimeService.instance,
        dataDirectory = dataDirectory ?? DataDirectory.current.path,
        _loadCore = coreConfiguration ?? CoreConfiguration.load;
@@ -125,6 +134,19 @@ final class ExtensionsApp {
 
   final Future<CoreConfiguration> Function() _loadCore;
 
+  final String Function()? _language;
+
+  /// The display language, as VS Code names it (`en`, `zh-cn`): the
+  /// extensions' localized manifests and `vscode.env.language`.
+  String get language => _language?.call() ?? 'en';
+
+  final OpenVsxClient? _gallery;
+
+  /// Open VSX.
+  late final OpenVsxClient gallery =
+      _gallery ??
+      OpenVsxClient(cacheDir: p.join(dataDirectory, 'cache', 'open-vsx'));
+
   /// `<data>/extensions/`: the user's extensions, VS Code's layout.
   String get extensionsDirectory => p.join(dataDirectory, 'extensions');
 
@@ -135,6 +157,12 @@ final class ExtensionsApp {
 
   /// The one VS Code server, started on the runtime once it is there.
   late final ExtensionServerPool pool = ExtensionServerPool(_launch);
+
+  final _changes = StreamController<ExtensionManagementEvent>.broadcast();
+
+  /// Extensions installed, uninstalled, enabled or disabled, from any
+  /// workspace.
+  Stream<ExtensionManagementEvent> get changes => _changes.stream;
 
   Future<ExtensionServerLaunch> _launch() async {
     final installed = await _runtime();
@@ -188,6 +216,7 @@ final class ExtensionsApp {
       WorkspaceExtensions(app: this, root: root);
 
   Future<void> dispose() async {
+    await _changes.close();
     await pool.dispose();
   }
 }
@@ -196,7 +225,13 @@ final class ExtensionsApp {
 /// services the host's actors reach. Made before the workspace (it gives
 /// the workspace its [languages]), then [attach]ed to it.
 final class WorkspaceExtensions extends ChangeNotifier {
-  WorkspaceExtensions({required this.app, required this.root});
+  WorkspaceExtensions({
+    required this.app,
+    required this.root,
+    this._management,
+  });
+
+  final ExtensionManagementBackend? _management;
 
   final ExtensionsApp app;
 
@@ -228,6 +263,16 @@ final class WorkspaceExtensions extends ChangeNotifier {
     builtins: BuiltinCommands(),
   );
   final ContextKeyService contextKeys = ContextKeyService();
+
+  /// The extensions' menu items (`contributes.menus`).
+  late final MenuService menus = MenuService(commands);
+
+  /// The extensions' commands in the Command Palette.
+  late final ExtensionCommandPalette palette = ExtensionCommandPalette(
+    registry: commands,
+    contextKeys: contextKeys,
+    menuService: menus,
+  );
   final ExtensionStatusBarService statusBar = ExtensionStatusBarService();
   final ExtensionQuickInputService quickInput = ExtensionQuickInputService();
   final ExtensionOutputService output = ExtensionOutputService();
@@ -249,6 +294,53 @@ final class WorkspaceExtensions extends ChangeNotifier {
 
   /// The workbench's dialog context, set while its IDE is built.
   BuildContext? Function()? dialogContext;
+
+  /// The user's extensions as this workspace manages them: installed by
+  /// the server, enabled or disabled here or everywhere.
+  late final ExtensionManagementBackend management =
+      _management ??
+      _AppManagement(
+        ServerExtensionManagement(
+          server: () => app.pool.server,
+          gallery: app.gallery,
+          enablement: app.enablement,
+          workspaceId: extHostWorkspace.id,
+          language: app.language,
+        ),
+        app,
+      );
+
+  ExtensionsModel? _extensionsModel;
+
+  /// The Extensions view's state, kept while other views show.
+  ExtensionsModel get extensionsModel => _extensionsModel ??= ExtensionsModel(
+    backend: management,
+    gallery: app.gallery,
+    locale: app.language,
+  );
+
+  /// The Open VSX extensions to recommend for [documents] (the open
+  /// files): those of their languages no installed extension provides
+  /// (recommendations.dart), best first.
+  List<String> recommendations(Iterable<IdeDocument> documents) {
+    final installed = {
+      for (final extension
+          in _extensionsModel?.installed ?? const <InstalledExtension>[])
+        extension.key,
+    };
+    final ids = <String>{};
+    for (final doc in documents) {
+      if (!doc.isFile) continue;
+      ids.addAll(
+        recommendationsFor(
+          doc.path,
+          installed: installed,
+          providesLanguage: languageRegistry.installed.containsKey,
+        ),
+      );
+    }
+    return ids.toList();
+  }
 
   IdeWorkspace? _workspace;
   IdeTextEditors? _editors;
@@ -350,6 +442,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
     final host = _host = ExtensionHostService(
       pool: app.pool,
       loadProduct: app.product,
+      language: app.language,
       workspace: extHostWorkspace,
       configuration: configuration,
       customers: {
@@ -449,6 +542,10 @@ final class WorkspaceExtensions extends ChangeNotifier {
     };
     host.extensions.addListener(_extensionsChanged);
     host.addListener(notifyListeners);
+    // Installed, uninstalled, enabled or disabled anywhere: the running
+    // host is told (restarted when it must drop an extension it runs).
+    final changes = app.changes.listen((_) => unawaited(_refreshExtensions()));
+    _stops.add(() => unawaited(changes.cancel()));
     _watcher = WorkspaceFileWatcher(
       files: files,
       workspace: workspaceContext,
@@ -462,6 +559,30 @@ final class WorkspaceExtensions extends ChangeNotifier {
     documents.addListener(_documentsChanged);
     notifyListeners();
     if (start) unawaited(startHost());
+  }
+
+  /// Runs the extension in [folder] as one under development
+  /// (`--extensionDevelopmentPath`): the host starts again with it.
+  Future<void> loadDevelopmentExtension(String folder) async {
+    final host = _host;
+    if (host == null) return;
+    final location = VsUri.file(folder);
+    if (!host.developmentLocations.contains(location)) {
+      host.developmentLocations = [...host.developmentLocations, location];
+    }
+    await host.manager.restart();
+  }
+
+  Future<void> _refreshExtensions() async {
+    try {
+      await _host?.refreshExtensions();
+    } on Object catch (error) {
+      output.logExtensionHostMessage({
+        'type': r'__$console',
+        'severity': 'error',
+        'arguments': jsonEncode(['Could not update the extensions: $error']),
+      });
+    }
   }
 
   /// The language ids [selector] names (`*` and filters without one
@@ -629,7 +750,10 @@ final class WorkspaceExtensions extends ChangeNotifier {
     _folderSettings
       ?..file.dispose()
       ..dispose();
+    _extensionsModel?.dispose();
+    if (management case final _AppManagement management) management.dispose();
     languageRoot.dispose();
+    menus.dispose();
     commands.dispose();
     contextKeys.dispose();
     statusBar.dispose();
@@ -645,6 +769,60 @@ final class WorkspaceExtensions extends ChangeNotifier {
 }
 
 /// No open or save panel (a headless app): every pick is cancelled.
+/// A workspace's [ServerExtensionManagement], told of the changes any
+/// workspace makes ([ExtensionsApp.changes]).
+final class _AppManagement implements ExtensionManagementBackend {
+  _AppManagement(this._inner, this._app) {
+    _inner.onDidChange.listen((event) {
+      if (!_app._changes.isClosed) _app._changes.add(event);
+    });
+  }
+
+  final ServerExtensionManagement _inner;
+  final ExtensionsApp _app;
+
+  @override
+  Stream<ExtensionManagementEvent> get onDidChange => _app.changes;
+
+  @override
+  Future<List<InstalledExtension>> getInstalled() => _inner.getInstalled();
+
+  @override
+  Future<InstalledExtension> install(
+    String vsixPath, {
+    ExtensionInstallOptions options = const ExtensionInstallOptions(),
+  }) => _inner.install(vsixPath, options: options);
+
+  @override
+  Future<InstalledExtension> installFromGallery(
+    String id, {
+    String? version,
+    bool preRelease = false,
+    CancellationToken cancel = CancellationToken.none,
+  }) => _inner.installFromGallery(
+    id,
+    version: version,
+    preRelease: preRelease,
+    cancel: cancel,
+  );
+
+  @override
+  Future<InstalledExtension> installFromFolder(String path) =>
+      _inner.installFromFolder(path);
+
+  @override
+  Future<void> uninstall(String id) => _inner.uninstall(id);
+
+  @override
+  Future<void> setEnabled(
+    String id,
+    bool enabled, {
+    EnablementScope scope = EnablementScope.global,
+  }) => _inner.setEnabled(id, enabled, scope: scope);
+
+  void dispose() => _inner.dispose();
+}
+
 final class _NoFilePickers implements ExtensionFilePickers {
   const _NoFilePickers();
 

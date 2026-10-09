@@ -255,6 +255,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get idePanelTerminal => 'Terminal';
 
   @override
+  String get idePanelOutput => 'Output';
+
+  @override
   String get cmdScmFocus => 'Focus on Changes View';
 
   @override
@@ -4242,6 +4245,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get panelTerminal => 'TERMINAL';
 
   @override
+  String get panelOutput => 'OUTPUT';
+
+  @override
   String get panelClose => 'Close Panel';
 
   @override
@@ -7770,4 +7776,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get windowAuthRemoveAllTrusted => 'Remove All';
+
+  @override
+  String wbRecommendExtension(String name, String language) {
+    return 'The \'$name\' extension is recommended for $language files.';
+  }
+
+  @override
+  String get wbRecommendExtensionDontShow =>
+      'Don\'t Show Again for This Extension';
+
+  @override
+  String get extsNoHost => 'Extensions are not available for this folder yet.';
+
+  @override
+  String get extsPageClose => 'Close Extension';
 }
