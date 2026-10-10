@@ -196,6 +196,7 @@
   - 引擎（`text_search_io.dart`）在后台 isolate 中运行：仓库内用 `git ls-files --cached --others --exclude-standard` 获取文件列表，因此遵循 `.gitignore`；仓库外遍历目录，并应用默认排除项。跳过二进制文件；最多返回 20000 个结果。
   - 旧的 `ide_tools_panel.dart` 已删除。
 - **扩展**：`../../lib/ide/extensions/`，把语言服务器套进 VS Code 的扩展视图。
+  > 2026-10 已移除：扩展视图改为真正的 VS Code 插件（Open VSX，见 `../../docs/extensions.md`），下文的语言服务器列表和 mason 安装已随 LSP 一起删除，仅作历史记录。
   - 顶部是搜索框 "Search Extensions in Marketplace"，下面是 Installed 和 Recommended 两个 pane，带计数徽标。
   - 搜索时合并成一个列表，标题为 "Extensions: Marketplace"；支持 `@installed` 和 `@recommended` 过滤。
   - 每行 72px：图标、名称、描述、发布者，以及 Install 按钮或 Manage 齿轮菜单（Uninstall、Copy、Copy Extension ID）。

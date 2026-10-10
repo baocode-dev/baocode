@@ -117,3 +117,80 @@ class ResolvedLanguageConfiguration {
     );
   }
 }
+
+/// The language configurations the app and its extensions registered, by
+/// language id.
+///
+/// VS Code's `LanguageConfigurationRegistry` keeps one configuration per
+/// language (the built-in one, then extension contributions merged in as
+/// they load); the editor reads it when it creates or changes a document's
+/// language. BaoCode resolves one configuration per document instead, so
+/// this holds the extension-contributed ones (`contributes.languages`'
+/// `configuration`) for the caller to pick.
+///
+/// Ported from VS Code 1.135.0 (08d4889f9ec4a1685d257b9b95de036c8e1ce1e5):
+/// src/vs/editor/common/languages/languageConfigurationRegistry.ts
+/// (`LanguageConfigurationRegistry.register`, `getLanguageConfiguration`).
+///
+/// Deviations: nothing is merged with a built-in default here (the caller
+/// merges a contribution over the bundled configuration); a re-registration
+/// under the same language and source replaces it.
+class LanguageConfigurationRegistry {
+  final Map<String, Map<String, _RegisteredLanguageConfiguration>> _byLanguage =
+      {};
+
+  int _version = 0;
+
+  /// Bumps on every registration, so callers can tell when to resolve
+  /// their documents' configurations again.
+  int get version => _version;
+
+  /// Languages with at least one registered configuration.
+  Iterable<String> get languageIds => _byLanguage.keys;
+
+  /// `register(languageId, configuration, source)`. [source] names what
+  /// registered it (an extension id, or `''` for the app); a second
+  /// registration under the same pair replaces the first.
+  void register(
+    String languageId,
+    LanguageConfiguration configuration, {
+    String source = '',
+  }) {
+    (_byLanguage[languageId] ??= {})[source] = _RegisteredLanguageConfiguration(
+      configuration,
+      source,
+    );
+    _version++;
+  }
+
+  /// Forgets what [source] registered for [languageId].
+  void unregister(String languageId, {String source = ''}) {
+    final sources = _byLanguage[languageId];
+    if (sources == null || sources.remove(source) == null) return;
+    if (sources.isEmpty) _byLanguage.remove(languageId);
+    _version++;
+  }
+
+  /// The configuration [source] registered for [languageId], if any.
+  LanguageConfiguration? get(String languageId, {String source = ''}) =>
+      _byLanguage[languageId]?[source]?.configuration;
+
+  /// The configuration for [languageId], an extension's winning over the
+  /// app's (the most recently registered source).
+  LanguageConfiguration? forLanguage(String languageId) {
+    final sources = _byLanguage[languageId];
+    if (sources == null || sources.isEmpty) return null;
+    return sources.values.last.configuration;
+  }
+
+  /// Which source [forLanguage] would take its configuration from.
+  String? sourceFor(String languageId) =>
+      _byLanguage[languageId]?.values.last.source;
+}
+
+class _RegisteredLanguageConfiguration {
+  const _RegisteredLanguageConfiguration(this.configuration, this.source);
+
+  final LanguageConfiguration configuration;
+  final String source;
+}

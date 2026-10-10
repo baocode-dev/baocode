@@ -43,6 +43,8 @@ class KeybindingItem {
     required KeybindingPlatform platform,
     this.index,
     this.keymapName,
+    this.extensionId,
+    this.whenEvaluator,
   }) : keys = switch (entry.keyFor(platform)) {
          final String key => KeySequence.parse(key),
          null => null,
@@ -60,6 +62,15 @@ class KeybindingItem {
 
   /// The keymap it comes from, for [KeybindingSource.keymap].
   final String? keymapName;
+
+  /// The extension that contributes it (`contributes.keybindings`); its
+  /// source is [KeybindingSource.defaults], as upstream's are defaults.
+  final String? extensionId;
+
+  /// Evaluates its `when` clause instead of [when]: an extension's, in VS
+  /// Code's full grammar (regular expressions, `in`, comparisons) and over
+  /// any context key, extensions' own included.
+  final bool Function(ContextLookup context)? whenEvaluator;
 
   /// Null when the entry has no key for this platform, or one that does
   /// not parse (see [keyError]).
@@ -79,8 +90,9 @@ class KeybindingItem {
   }
 
   /// The keys of its `when` clause not in [known].
-  Set<String> unknownContextKeys(Set<String> known) =>
-      when?.keys.difference(known) ?? const {};
+  Set<String> unknownContextKeys(Set<String> known) => whenEvaluator != null
+      ? const {}
+      : when?.keys.difference(known) ?? const {};
 
   @override
   String toString() => 'KeybindingItem($source ${entry.toJson()})';
@@ -227,6 +239,7 @@ class KeybindingResolver {
   /// Whether [item]'s `when` holds in [context]: never for a clause that
   /// does not parse or reads a key not in [knownContextKeys].
   bool appliesIn(KeybindingItem item, ContextLookup context) {
+    if (item.whenEvaluator case final evaluate?) return evaluate(context);
     final when = item.when;
     if (when == null) return true;
     if (when.error != null) return false;

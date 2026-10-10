@@ -116,6 +116,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdCategoryChat => '聊天';
 
   @override
+  String get cmdCategoryTasks => '任务';
+
+  @override
   String get cmdChatNewAgent => '新对话';
 
   @override
@@ -1043,6 +1046,30 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdFocusTerminal => '聚焦到终端';
+
+  @override
+  String get cmdRunTask => '运行任务';
+
+  @override
+  String get cmdRunBuildTask => '运行生成任务';
+
+  @override
+  String get cmdRunTestTask => '运行测试任务';
+
+  @override
+  String get cmdRerunTask => '重新运行上一个任务';
+
+  @override
+  String get cmdRestartTask => '重启正在运行的任务';
+
+  @override
+  String get cmdTerminateTask => '终止任务';
+
+  @override
+  String get cmdShowTaskLog => '显示任务日志';
+
+  @override
+  String get cmdConfigureTask => '配置任务';
 
   @override
   String get cmdShowExplorer => '显示资源管理器';
@@ -6681,4 +6708,246 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get networkTestHintBlocked =>
       '只有百度能访问：其他网站没有经过代理。请检查上面的代理设置，或 Clash 的模式和规则。';
+
+  @override
+  String get extsCapabilityFull => '完全支持';
+
+  @override
+  String get extsCapabilityFullDetail => '它的颜色主题或文件图标主题都能使用。';
+
+  @override
+  String get extsCapabilityPartial => '部分支持';
+
+  @override
+  String get extsCapabilityPartialDetail => '主题可以使用；其余部分在 BaoCode 中不起作用。';
+
+  @override
+  String extsEngineIncompatible(String current, String requested) {
+    return '需要 VS Code $requested，当前为 $current。';
+  }
+
+  @override
+  String get extsEngineMissing => '它没有说明需要哪个版本的 VS Code。';
+
+  @override
+  String extsEngineInvalid(String requested) {
+    return '无效的引擎“$requested”。';
+  }
+
+  @override
+  String extsEngineCompatible(String engine) {
+    return '需要 VS Code $engine。';
+  }
+
+  @override
+  String get extsTitleUpdates => '更新';
+
+  @override
+  String get extsTitleOpenVsx => 'Open VSX';
+
+  @override
+  String get extsUpdates => '更新';
+
+  @override
+  String get extsCheckForUpdates => '检查更新';
+
+  @override
+  String get extsMoreActions => '更多操作...';
+
+  @override
+  String get extsInstallFromVsix => '从 VSIX 安装...';
+
+  @override
+  String get extsSearchPlaceholder => '搜索 Open VSX 扩展';
+
+  @override
+  String extsSearchFailed(String error) {
+    return '无法搜索 Open VSX：$error';
+  }
+
+  @override
+  String get extsLoadMore => '加载更多';
+
+  @override
+  String extsUpdateTo(String version) {
+    return '更新到 $version';
+  }
+
+  @override
+  String get extsUpdating => '正在更新...';
+
+  @override
+  String get extsEnable => '启用';
+
+  @override
+  String get extsDisable => '禁用';
+
+  @override
+  String get extsDisabled => '已禁用';
+
+  @override
+  String get extsSwitchToPreRelease => '切换到预发布版本';
+
+  @override
+  String get extsSwitchToRelease => '切换到正式版本';
+
+  @override
+  String get extsInstallPreRelease => '安装预发布版本';
+
+  @override
+  String extsInstallVersion(String version) {
+    return '安装 $version';
+  }
+
+  @override
+  String get extsPreRelease => '预发布';
+
+  @override
+  String get extsVerifiedPublisher => '已验证的发布者';
+
+  @override
+  String extsDownloads(String count) {
+    return '$count 次下载';
+  }
+
+  @override
+  String extsLoadFailed(String error) {
+    return '无法加载：$error';
+  }
+
+  @override
+  String get extsVersion => '版本';
+
+  @override
+  String get extsPreReleaseToggle => '预发布';
+
+  @override
+  String get extsLatestVersion => '最新';
+
+  @override
+  String get extsTabDetails => '详情';
+
+  @override
+  String get extsTabFeatures => '功能';
+
+  @override
+  String get extsTabChangelog => '更新日志';
+
+  @override
+  String get extsNoReadme => '此扩展没有 README。';
+
+  @override
+  String get extsNoChangelog => '此扩展没有更新日志。';
+
+  @override
+  String get extsContributions => '贡献点';
+
+  @override
+  String get extsNoContributions => '此扩展没有任何贡献点。';
+
+  @override
+  String get extsActivationEvents => '激活事件';
+
+  @override
+  String get extsApiProposals => 'API 提案';
+
+  @override
+  String get extsCompatibility => '兼容性';
+
+  @override
+  String get extsInformation => '信息';
+
+  @override
+  String get extsInfoIdentifier => '标识符';
+
+  @override
+  String get extsInfoVersion => '版本';
+
+  @override
+  String get extsInfoLatest => '最新';
+
+  @override
+  String get extsInfoLastUpdated => '最后更新';
+
+  @override
+  String get extsInfoEngine => 'VS Code';
+
+  @override
+  String get extsInfoPlatform => '平台';
+
+  @override
+  String get extsInfoLicense => '许可证';
+
+  @override
+  String get extsInfoRepository => '仓库';
+
+  @override
+  String get extsInfoCategories => '分类';
+
+  @override
+  String get extsInfoLocation => '位置';
+
+  @override
+  String get extsVsixTitle => '安装扩展 VSIX';
+
+  @override
+  String extsVsixInvalid(String name, String error) {
+    return '$name 不是有效的 VSIX：$error';
+  }
+
+  @override
+  String extsVsixPlatformMismatch(String platform, String current) {
+    return '它是为 $platform 构建的，不适用于 $current。';
+  }
+
+  @override
+  String extsVsixReplaces(String version) {
+    return '它将替换版本 $version。';
+  }
+
+  @override
+  String extsPlatformCompatible(String platform) {
+    return '平台：$platform';
+  }
+
+  @override
+  String get extsPlatformUniversal => '通用';
+
+  @override
+  String get extsPageClose => '关闭扩展';
+
+  @override
+  String extsPageTitle(String name) {
+    return '扩展: $name';
+  }
+
+  @override
+  String get themeSelectIconThemePlaceholder => '选择文件图标主题（按上下箭头键预览）';
+
+  @override
+  String get themeIconThemeBuiltIn => '内置';
+
+  @override
+  String get extsCapabilityUnsupported => '不支持';
+
+  @override
+  String get extsCapabilityUnsupportedDetail =>
+      '它没有颜色主题或文件图标主题：BaoCode 只使用扩展中的主题。';
+
+  @override
+  String get extsFindingCode => '它的代码不会运行。';
+
+  @override
+  String extsFindingContribution(String name) {
+    return '未使用：$name';
+  }
+
+  @override
+  String get extsPopularThemes => '热门主题';
+
+  @override
+  String get extsTabThemes => '主题';
+
+  @override
+  String get extsTabLanguageServers => '语言服务器';
 }

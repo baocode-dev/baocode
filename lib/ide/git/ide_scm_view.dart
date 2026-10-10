@@ -433,12 +433,12 @@ class IdeScmViewState extends State<IdeScmView>
           if (widget.workspace.repositories.length > 1)
             _Repositories(workspace: widget.workspace),
           Expanded(
-            child: git == null
-                ? _Welcome([context.l10n.scmNoProviders])
-                : ListenableBuilder(
-                    listenable: git,
-                    builder: (context, _) => _body(git),
-                  ),
+            child: ListenableBuilder(
+              listenable: Listenable.merge([?git]),
+              builder: (context, _) => git == null
+                  ? _Welcome([context.l10n.scmNoProviders])
+                  : _body(git),
+            ),
           ),
         ],
       ),
@@ -453,13 +453,13 @@ class IdeScmViewState extends State<IdeScmView>
       content = const SizedBox.shrink();
     } else if (state == null) {
       final error = git.error;
-      content = error is IdeGitException && error.message.startsWith('Git is')
+      content = (error is IdeGitException && error.message.startsWith('Git is')
           ? _Welcome([l10n.scmInstallGit, error.message])
           : _Welcome(
               [l10n.scmNoRepository],
               button: l10n.scmInitializeRepository,
               onPressed: () => unawaited(_run(git.initialize)),
-            );
+            ));
     } else {
       content = IdePaneContainer(
         expanded: _session.expandedPanes,

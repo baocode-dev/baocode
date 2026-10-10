@@ -60,3 +60,6 @@ app.*.map.json
 
 # MSVC object files (scratch builds of the Windows runner)
 *.obj
+
+# npm dependencies of the extension host code generators.
+tool/exthost_codegen/node_modules/

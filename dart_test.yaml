@@ -7,3 +7,8 @@ tags:
   # with `flutter test --run-skipped -t lsp-smoke`.
   lsp-smoke:
     skip: "Runs a real language server"
+  # Runs a real VS Code server and extension host (needs the runtime under
+  # BAOCODE_EXTHOST_DIR or downloaded): opt in with
+  # `flutter test --run-skipped -t exthost`.
+  exthost:
+    skip: "Runs a real VS Code extension host"

@@ -9,6 +9,7 @@ import 'file_service.dart';
 import 'git/git_repository.dart';
 import 'git/repository_scan.dart';
 import 'ide_layout.dart';
+import 'ide_notifications.dart';
 import 'lsp/language_features.dart';
 import 'lsp/lsp_protocol.dart';
 
@@ -421,6 +422,9 @@ class IdeWorkspace extends ChangeNotifier {
   /// as well (see [IdeLayout]).
   final IdeLayout layout = IdeLayout();
 
+  /// The workbench's notifications.
+  final IdeNotifications notifications = IdeNotifications();
+
   /// Language server sync, by file model (a file's tabs share one).
   final Map<EditorDocumentModel, StreamSubscription<EditorContentChangeEvent>>
   _syncing = {};
@@ -449,6 +453,10 @@ class IdeWorkspace extends ChangeNotifier {
   /// The open model of [path]'s file, which its tabs share.
   EditorDocumentModel? _fileModel(String path) =>
       _documents.where((d) => d.path == path && d.isFile).firstOrNull?.model;
+
+  /// The open model of [path]: its tab's.
+  EditorDocumentModel? modelOf(String path) =>
+      _fileModel(paths.normalize(path));
 
   /// The document [edit], [applyEdits], [undo] and [redo] change: [path]'s
   /// file's.
@@ -527,6 +535,8 @@ class IdeWorkspace extends ChangeNotifier {
       final IdeDocument doc;
       if (ideIsImagePath(normal)) {
         doc = IdeDocument.media(normal);
+      } else if (_fileModel(normal) case final model?) {
+        doc = IdeDocument._shared(normal, model);
       } else {
         try {
           doc = IdeDocument(normal, await files.read(normal));
@@ -897,6 +907,10 @@ class IdeWorkspace extends ChangeNotifier {
   /// cancelled. Without it, a new file cannot be saved.
   Future<String?> Function(IdeDocument doc)? askSavePath;
 
+  /// Told the path of each file saved (the debugger's breakpoints verify
+  /// again).
+  void Function(String path)? onSaved;
+
   /// Opens a new file, not saved anywhere yet (`Untitled-1`), and selects
   /// it.
   IdeDocument newUntitled() {
@@ -952,6 +966,7 @@ class IdeWorkspace extends ChangeNotifier {
     if (_syncing.containsKey(saved.model)) _sync?.saveDocument(path, text);
     gitAt(path)?.scheduleRefresh();
     notifyListeners();
+    onSaved?.call(path);
     return saved;
   }
 
@@ -980,6 +995,7 @@ class IdeWorkspace extends ChangeNotifier {
       if (_syncing.containsKey(doc.model)) _sync?.saveDocument(doc.path, text);
       gitAt(doc.path)?.scheduleRefresh();
       notifyListeners();
+      onSaved?.call(doc.path);
     });
     _saves = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
     return result;
@@ -1028,6 +1044,7 @@ class IdeWorkspace extends ChangeNotifier {
       }
     }
     layout.dispose();
+    notifications.dispose();
     super.dispose();
   }
 }

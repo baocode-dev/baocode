@@ -120,9 +120,9 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
     await tester.pumpAndSettle();
-    // ⇧⌘P: everything, as ⌘P.
+    // ⇧⌘P: everything, as ⌘P (the first actions).
     expect(_inPalette(find.text('Recent Agents')), findsOneWidget);
-    expect(_rich('Toggle Primary Side Bar'), findsOneWidget);
+    expect(_rich('New Chat'), findsOneWidget);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.bracketLeft);
@@ -130,7 +130,7 @@ void main() {
     await tester.pump();
     // Round to the last: Settings, its pages.
     expect(_rich('Keyboard Shortcuts'), findsOneWidget);
-    expect(_rich('Toggle Primary Side Bar'), findsNothing);
+    expect(_rich('New Chat'), findsNothing);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.bracketRight);
@@ -139,7 +139,7 @@ void main() {
     await tester.pump();
     // Agents: the recent ones, all of them.
     expect(_inPalette(find.text('Recent Agents')), findsOneWidget);
-    expect(_rich('Toggle Primary Side Bar'), findsNothing);
+    expect(_rich('New Chat'), findsNothing);
 
     await tester.tap(_inPalette(find.text('Actions')).first);
     await tester.pump();

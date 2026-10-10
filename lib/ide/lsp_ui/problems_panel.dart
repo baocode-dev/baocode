@@ -1,4 +1,5 @@
-// The bottom panel: Problems, References and the terminal's tab.
+// The bottom panel: Problems, References, Debug Console and the terminal's
+// tab.
 //
 // The lists' keyboard adapted from VS Code
 // 6a598d4a13031703d483d103c1d934a36ad27971:
@@ -19,6 +20,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
+import '../../debug/ui/debug_strings.dart';
 import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
@@ -35,7 +37,7 @@ import '../lsp/lsp_protocol.dart';
 import 'diagnostics.dart';
 import 'lsp_convert.dart';
 
-enum IdePanelTab { problems, references, terminal }
+enum IdePanelTab { problems, references, debugConsole, terminal }
 
 /// Locations Find References (or several definitions) produced.
 class IdeReferences {
@@ -196,6 +198,7 @@ class IdeBottomPanel extends StatelessWidget {
     this.referencesList,
     this.terminal,
     this.terminalActions,
+    this.debugConsole,
   });
 
   final IdePanelTab tab;
@@ -226,6 +229,9 @@ class IdeBottomPanel extends StatelessWidget {
 
   /// The terminal's title actions, before Close Panel while TERMINAL shows.
   final Widget? terminalActions;
+
+  /// Debug Console; no tab when debugging is unavailable.
+  final Widget? debugConsole;
 
   @override
   Widget build(BuildContext context) {
@@ -280,6 +286,14 @@ class IdeBottomPanel extends StatelessWidget {
                             selected: tab == IdePanelTab.references,
                             onTap: () => onTab(IdePanelTab.references),
                           ),
+                          if (debugConsole != null)
+                            _Tab(
+                              label: DebugStrings.of(context).debugConsole
+                                  .toUpperCase(),
+                              tooltip: DebugStrings.of(context).debugConsole,
+                              selected: tab == IdePanelTab.debugConsole,
+                              onTap: () => onTab(IdePanelTab.debugConsole),
+                            ),
                           if (terminal != null)
                             _Tab(
                               label: context.l10n.panelTerminal,
@@ -318,6 +332,8 @@ class IdeBottomPanel extends StatelessWidget {
               child: switch (tab) {
                 IdePanelTab.problems => _problems(all, context.l10n),
                 IdePanelTab.references => _references(context.l10n),
+                IdePanelTab.debugConsole =>
+                  debugConsole ?? const SizedBox.shrink(),
                 IdePanelTab.terminal =>
                   terminal ?? _message(context.l10n.panelTerminalUnavailable),
               },

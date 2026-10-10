@@ -16,7 +16,11 @@
 // contrib/modernUI/browser/media/notificationsDialogs.css, and the color
 // theme's `notification*` colors (common/theme.ts).
 //
-// Deviations: no progress, no Do Not Disturb, no positions but the bottom
+// Progress (`INotificationProgress`: infinite, or worked of a total) is
+// drawn as notificationsViewer.ts draws it: a 2px bar along the bottom of
+// the notification.
+//
+// Deviations: no Do Not Disturb, no positions but the bottom
 // right, and toasts are not limited to 3 per 800 ms (only to 3 shown).
 
 import 'dart:async';
@@ -77,6 +81,19 @@ class IdeNotificationAction {
   final List<IdeNotificationAction>? menu;
 }
 
+/// A notification's progress (`INotificationProgressProperties`): infinite,
+/// or [worked] of [total].
+class IdeNotificationProgress {
+  const IdeNotificationProgress.infinite() : total = null, worked = 0;
+  const IdeNotificationProgress(this.worked, {this.total = 100});
+
+  /// Null for an infinite one.
+  final double? total;
+  final double worked;
+
+  bool get infinite => total == null;
+}
+
 /// One notification, shown as a toast and kept in the center until closed.
 class IdeNotification {
   IdeNotification._(
@@ -87,15 +104,22 @@ class IdeNotification {
     this.secondary = const [],
     this.onClose,
     this.stayOpen = false,
-  }) : message = message.length > _maxMessageLength
-           ? '${message.substring(0, _maxMessageLength)}...'
-           : message,
+    this.progress,
+  }) : _message = _limit(message),
        expanded = primary.isNotEmpty;
 
   static const _maxMessageLength = 1000;
 
+  static String _limit(String message) => message.length > _maxMessageLength
+      ? '${message.substring(0, _maxMessageLength)}...'
+      : message;
+
   final IdeSeverity severity;
-  final String message;
+  String _message;
+  String get message => _message;
+
+  /// Its progress bar; null for none ([IdeNotifications.update] sets it).
+  IdeNotificationProgress? progress;
 
   /// Who sent it (`Source: …`).
   final String? source;
@@ -177,6 +201,7 @@ class IdeNotifications extends ChangeNotifier {
     bool sticky = false,
     bool silent = false,
     VoidCallback? onClose,
+    IdeNotificationProgress? progress,
   }) {
     final notification = IdeNotification._(
       severity,
@@ -186,6 +211,7 @@ class IdeNotifications extends ChangeNotifier {
       secondary: secondary,
       stayOpen: sticky,
       onClose: onClose,
+      progress: progress,
     );
     if (_disposed) return notification;
     for (final same in _all.where(notification._sameAs).toList()) {
@@ -196,7 +222,7 @@ class IdeNotifications extends ChangeNotifier {
       _unread++;
       if (!silent) {
         _toasts.add(notification);
-        _schedulePurge(notification);
+        if (hasListeners) _schedulePurge(notification);
       }
     }
     notifyListeners();
@@ -217,6 +243,29 @@ class IdeNotifications extends ChangeNotifier {
     });
   }
 
+  // Toasts only time out while a workbench shows them: the notifications
+  // outlive the workbench (they are the workspace's), and a toast nobody
+  // saw should still be there when one shows it again.
+  @override
+  void addListener(VoidCallback listener) {
+    final shown = hasListeners;
+    super.addListener(listener);
+    if (shown || _disposed) return;
+    for (final toast in _toasts) {
+      _schedulePurge(toast);
+    }
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+    if (hasListeners) return;
+    for (final timer in _timers.values) {
+      timer.cancel();
+    }
+    _timers.clear();
+  }
+
   /// The pointer is over [notification]'s toast.
   void hover(IdeNotification notification, bool hovered) {
     if (hovered) {
@@ -224,6 +273,27 @@ class IdeNotifications extends ChangeNotifier {
     } else {
       _hovered.remove(notification);
     }
+  }
+
+  /// Whether [notification] is still shown (as a toast or in the center).
+  bool isOpen(IdeNotification notification) => _all.contains(notification);
+
+  /// Whether [notification] shows as a toast now.
+  bool isToast(IdeNotification notification) => toasts.contains(notification);
+
+  /// Changes [notification]'s message (`updateMessage`) or progress
+  /// (`progress.total/worked/infinite`); [clearProgress] removes its bar.
+  void update(
+    IdeNotification notification, {
+    String? message,
+    IdeNotificationProgress? progress,
+    bool clearProgress = false,
+  }) {
+    if (!_all.contains(notification)) return;
+    if (message != null)
+      notification._message = IdeNotification._limit(message);
+    if (progress != null || clearProgress) notification.progress = progress;
+    if (!_disposed) notifyListeners();
   }
 
   /// Hides [notification]'s toast; it stays in the center.
@@ -664,6 +734,11 @@ class _NotificationItemState extends State<_NotificationItem> {
                     ),
                   ],
                 ),
+                if (notification.progress case final progress?)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: _ProgressBar(progress),
+                  ),
                 if (expanded &&
                     (notification.source != null ||
                         notification.primary.isNotEmpty))
@@ -819,4 +894,29 @@ class _SplitButton extends StatelessWidget {
           child: child,
         ),
       );
+}
+
+/// `.monaco-progress-container`: 2px in `progressBar.background`, a moving
+/// bit for an infinite progress.
+class _ProgressBar extends StatelessWidget {
+  const _ProgressBar(this.progress);
+
+  final IdeNotificationProgress progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = themeColors['progressBar.background'];
+    final total = progress.total;
+    return SizedBox(
+      height: 2,
+      child: LinearProgressIndicator(
+        value: total == null || total <= 0
+            ? null
+            : (progress.worked / total).clamp(0.0, 1.0),
+        minHeight: 2,
+        color: color,
+        backgroundColor: Colors.transparent,
+      ),
+    );
+  }
 }

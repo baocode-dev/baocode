@@ -1,0 +1,10 @@
+{
+  "name": "lang", "publisher": "fixture", "version": "1.0.0",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./out/extension",
+  "contributes": {
+    "languages": [{ "id": "lang", "extensions": [".lang"] }],
+    "grammars": [{ "language": "lang", "scopeName": "source.lang", "path": "./syntaxes/lang.json" }],
+    "walkthroughs": [{ "id": "start", "title": "Get started", "steps": [] }]
+  }
+}

@@ -146,7 +146,9 @@ class GitReviewStore implements ReviewStore {
 
   /// `<name>-<FNV-1a of the path>`: readable, and one per path.
   static String _folderName(String root) {
-    var hash = 0xcbf29ce484222325;
+    // The offset basis in halves: one 64-bit literal is not a JS number, and
+    // the web build must compile.
+    var hash = 0xcbf29ce4 << 32 | 0x84222325;
     for (final byte in utf8.encode(root)) {
       hash ^= byte;
       hash *= 0x100000001b3;

@@ -117,6 +117,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdCategoryChat => 'Chat';
 
   @override
+  String get cmdCategoryTasks => 'Tasks';
+
+  @override
   String get cmdChatNewAgent => 'New Chat';
 
   @override
@@ -1074,6 +1077,30 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdFocusTerminal => 'Focus Terminal';
+
+  @override
+  String get cmdRunTask => 'Run Task';
+
+  @override
+  String get cmdRunBuildTask => 'Run Build Task';
+
+  @override
+  String get cmdRunTestTask => 'Run Test Task';
+
+  @override
+  String get cmdRerunTask => 'Rerun Last Task';
+
+  @override
+  String get cmdRestartTask => 'Restart Running Task';
+
+  @override
+  String get cmdTerminateTask => 'Terminate Task';
+
+  @override
+  String get cmdShowTaskLog => 'Show Task Log';
+
+  @override
+  String get cmdConfigureTask => 'Configure Task';
 
   @override
   String get cmdShowExplorer => 'Show Explorer';
@@ -7093,4 +7120,249 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get networkTestHintBlocked =>
       'Only Baidu answers: the proxy isn\'t getting the others through. Check the proxy above, or Clash\'s mode and rules.';
+
+  @override
+  String get extsCapabilityFull => 'Fully supported';
+
+  @override
+  String get extsCapabilityFullDetail =>
+      'Its color or file icon themes all apply.';
+
+  @override
+  String get extsCapabilityPartial => 'Partly supported';
+
+  @override
+  String get extsCapabilityPartialDetail =>
+      'Its themes apply; the rest of it does nothing in BaoCode.';
+
+  @override
+  String extsEngineIncompatible(String current, String requested) {
+    return 'Needs VS Code $requested; this is $current.';
+  }
+
+  @override
+  String get extsEngineMissing => 'It does not say which VS Code it needs.';
+
+  @override
+  String extsEngineInvalid(String requested) {
+    return 'Invalid engine \'$requested\'.';
+  }
+
+  @override
+  String extsEngineCompatible(String engine) {
+    return 'Requires VS Code $engine.';
+  }
+
+  @override
+  String get extsTitleUpdates => 'Updates';
+
+  @override
+  String get extsTitleOpenVsx => 'Open VSX';
+
+  @override
+  String get extsUpdates => 'Updates';
+
+  @override
+  String get extsCheckForUpdates => 'Check for Updates';
+
+  @override
+  String get extsMoreActions => 'More Actions...';
+
+  @override
+  String get extsInstallFromVsix => 'Install from VSIX...';
+
+  @override
+  String get extsSearchPlaceholder => 'Search Open VSX Extensions';
+
+  @override
+  String extsSearchFailed(String error) {
+    return 'Could not search Open VSX: $error';
+  }
+
+  @override
+  String get extsLoadMore => 'Load More';
+
+  @override
+  String extsUpdateTo(String version) {
+    return 'Update to $version';
+  }
+
+  @override
+  String get extsUpdating => 'Updating...';
+
+  @override
+  String get extsEnable => 'Enable';
+
+  @override
+  String get extsDisable => 'Disable';
+
+  @override
+  String get extsDisabled => 'Disabled';
+
+  @override
+  String get extsSwitchToPreRelease => 'Switch to Pre-Release Version';
+
+  @override
+  String get extsSwitchToRelease => 'Switch to Release Version';
+
+  @override
+  String get extsInstallPreRelease => 'Install Pre-Release Version';
+
+  @override
+  String extsInstallVersion(String version) {
+    return 'Install $version';
+  }
+
+  @override
+  String get extsPreRelease => 'Pre-Release';
+
+  @override
+  String get extsVerifiedPublisher => 'Verified publisher';
+
+  @override
+  String extsDownloads(String count) {
+    return '$count downloads';
+  }
+
+  @override
+  String extsLoadFailed(String error) {
+    return 'Could not load it: $error';
+  }
+
+  @override
+  String get extsVersion => 'Version';
+
+  @override
+  String get extsPreReleaseToggle => 'Pre-Release';
+
+  @override
+  String get extsLatestVersion => 'Latest';
+
+  @override
+  String get extsTabDetails => 'Details';
+
+  @override
+  String get extsTabFeatures => 'Features';
+
+  @override
+  String get extsTabChangelog => 'Changelog';
+
+  @override
+  String get extsNoReadme => 'This extension has no README.';
+
+  @override
+  String get extsNoChangelog => 'This extension has no changelog.';
+
+  @override
+  String get extsContributions => 'Contributions';
+
+  @override
+  String get extsNoContributions => 'This extension contributes nothing.';
+
+  @override
+  String get extsActivationEvents => 'Activation Events';
+
+  @override
+  String get extsApiProposals => 'API Proposals';
+
+  @override
+  String get extsCompatibility => 'Compatibility';
+
+  @override
+  String get extsInformation => 'Information';
+
+  @override
+  String get extsInfoIdentifier => 'Identifier';
+
+  @override
+  String get extsInfoVersion => 'Version';
+
+  @override
+  String get extsInfoLatest => 'Latest';
+
+  @override
+  String get extsInfoLastUpdated => 'Last Updated';
+
+  @override
+  String get extsInfoEngine => 'VS Code';
+
+  @override
+  String get extsInfoPlatform => 'Platform';
+
+  @override
+  String get extsInfoLicense => 'License';
+
+  @override
+  String get extsInfoRepository => 'Repository';
+
+  @override
+  String get extsInfoCategories => 'Categories';
+
+  @override
+  String get extsInfoLocation => 'Location';
+
+  @override
+  String get extsVsixTitle => 'Install Extension VSIX';
+
+  @override
+  String extsVsixInvalid(String name, String error) {
+    return '$name is not a valid VSIX: $error';
+  }
+
+  @override
+  String extsVsixPlatformMismatch(String platform, String current) {
+    return 'It is built for $platform, not for $current.';
+  }
+
+  @override
+  String extsVsixReplaces(String version) {
+    return 'It replaces version $version.';
+  }
+
+  @override
+  String extsPlatformCompatible(String platform) {
+    return 'Platform: $platform';
+  }
+
+  @override
+  String get extsPlatformUniversal => 'universal';
+
+  @override
+  String get extsPageClose => 'Close Extension';
+
+  @override
+  String extsPageTitle(String name) {
+    return 'Extension: $name';
+  }
+
+  @override
+  String get themeSelectIconThemePlaceholder =>
+      'Select File Icon Theme (Up/Down Keys to Preview)';
+
+  @override
+  String get themeIconThemeBuiltIn => 'Built-in';
+
+  @override
+  String get extsCapabilityUnsupported => 'Not supported';
+
+  @override
+  String get extsCapabilityUnsupportedDetail =>
+      'It has no color or file icon theme: BaoCode only uses themes from extensions.';
+
+  @override
+  String get extsFindingCode => 'Its code does not run.';
+
+  @override
+  String extsFindingContribution(String name) {
+    return 'Not used: $name';
+  }
+
+  @override
+  String get extsPopularThemes => 'Popular Themes';
+
+  @override
+  String get extsTabThemes => 'Themes';
+
+  @override
+  String get extsTabLanguageServers => 'Language Servers';
 }

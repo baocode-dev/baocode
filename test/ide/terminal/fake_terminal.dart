@@ -12,13 +12,19 @@ Future<PtyLaunch> fakeTerminalLaunch(
   int columns = 80,
   int rows = 24,
   TerminalShell? shell,
+  TerminalEnvironmentRequest? environment,
 }) async => PtyLaunch(
   executable: shell?.executable ?? '/bin/zsh',
   arguments: shell?.arguments ?? const ['-l'],
   workingDirectory: root,
+  // [fakeTerminalEnvironment] as asked; none unless asked.
+  environment: environment?.finish(environment.merge(fakeTerminalEnvironment)),
   columns: columns,
   rows: rows,
 );
+
+/// The environment [fakeTerminalLaunch] changes as asked.
+const fakeTerminalEnvironment = {'HOME': '/home/test', 'PATH': '/usr/bin'};
 
 /// A test system's profiles: zsh (the user's shell), bash and fish, and sh
 /// from /etc/shells; never the disk's.

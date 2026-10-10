@@ -288,7 +288,7 @@ class EditorMinimapPainter extends CustomPainter {
   final EditorViewTheme theme;
   final int tabSize;
   final List<TextSelection> selections;
-  final SortedDecorations decorations;
+  final EditorDecorationSet decorations;
   final bool showSlider;
   final bool sliderActive;
 

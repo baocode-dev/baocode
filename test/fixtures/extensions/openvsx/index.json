@@ -1,0 +1,130 @@
+{
+ "_comment": "Responses recorded from https://open-vsx.org on 2026-10-09 (curl -L); url is the request path and query as the client sends it.",
+ "responses": [
+  {
+   "url": "/api/-/search?query=python&size=5&offset=0&sortBy=relevance&sortOrder=desc",
+   "status": 200,
+   "file": "search_python.json"
+  },
+  {
+   "url": "/api/-/search?query=yaml&category=Programming%20Languages&size=3&offset=0&sortBy=downloadCount&sortOrder=desc",
+   "status": 200,
+   "file": "search_yaml_downloads.json"
+  },
+  {
+   "url": "/api/esbenp/prettier-vscode",
+   "status": 200,
+   "file": "esbenp.prettier-vscode.json"
+  },
+  {
+   "url": "/api/esbenp/prettier-vscode/universal/latest",
+   "status": 200,
+   "file": "esbenp.prettier-vscode@universal_latest.json"
+  },
+  {
+   "url": "/api/esbenp/prettier-vscode/darwin-arm64/latest",
+   "status": 404,
+   "file": "esbenp.prettier-vscode@darwin-arm64_latest.json"
+  },
+  {
+   "url": "/api/esbenp/prettier-vscode/12.4.0/file/esbenp.prettier-vscode-12.4.0.sha256",
+   "status": 200,
+   "file": "esbenp.prettier-vscode-12.4.0.sha256"
+  },
+  {
+   "url": "/api/esbenp/prettier-vscode/12.4.0/file/readme.md",
+   "status": 200,
+   "file": "esbenp.prettier-vscode-12.4.0_readme.md"
+  },
+  {
+   "url": "/api/esbenp/prettier-vscode/12.4.0/file/changelog.md",
+   "status": 200,
+   "file": "esbenp.prettier-vscode-12.4.0_changelog.md"
+  },
+  {
+   "url": "/api/rust-lang/rust-analyzer",
+   "status": 200,
+   "file": "rust-lang.rust-analyzer.json"
+  },
+  {
+   "url": "/api/rust-lang/rust-analyzer/darwin-arm64/latest",
+   "status": 200,
+   "file": "rust-lang.rust-analyzer@darwin-arm64_latest.json"
+  },
+  {
+   "url": "/api/rust-lang/rust-analyzer/linux-x64/latest",
+   "status": 200,
+   "file": "rust-lang.rust-analyzer@linux-x64_latest.json"
+  },
+  {
+   "url": "/api/ms-python/python",
+   "status": 200,
+   "file": "ms-python.python.json"
+  },
+  {
+   "url": "/api/ms-python/python/darwin-arm64/latest",
+   "status": 404,
+   "file": "ms-python.python@darwin-arm64_latest.json"
+  },
+  {
+   "url": "/api/ms-python/python/universal/latest",
+   "status": 200,
+   "file": "ms-python.python@universal_latest.json"
+  },
+  {
+   "url": "/api/redhat/vscode-yaml",
+   "status": 200,
+   "file": "redhat.vscode-yaml.json"
+  },
+  {
+   "url": "/api/redhat/vscode-yaml/darwin-arm64/latest",
+   "status": 404,
+   "file": "redhat.vscode-yaml@darwin-arm64_latest.json"
+  },
+  {
+   "url": "/api/redhat/vscode-yaml/universal/latest",
+   "status": 200,
+   "file": "redhat.vscode-yaml@universal_latest.json"
+  },
+  {
+   "url": "/api/v2/-/query?extensionId=redhat.vscode-yaml&targetPlatform=darwin-arm64&includeAllVersions=true&size=50&offset=0",
+   "status": 200,
+   "file": "redhat.vscode-yaml@darwin-arm64_query.json"
+  },
+  {
+   "url": "/api/v2/-/query?extensionId=redhat.vscode-yaml&targetPlatform=universal&includeAllVersions=true&size=50&offset=0",
+   "status": 200,
+   "file": "redhat.vscode-yaml@universal_query.json"
+  },
+  {
+   "url": "/api/ms-python/vscode-pylance",
+   "status": 404,
+   "file": "ms-python.vscode-pylance.json"
+  },
+  {
+   "url": "/api/github/copilot",
+   "status": 404,
+   "file": "github.copilot.json"
+  },
+  {
+   "url": "/api/rust-lang/rust-analyzer/universal/latest",
+   "status": 200,
+   "file": "rust-lang.rust-analyzer@universal_latest.json"
+  },
+  {
+   "url": "/api/redhat/vscode-yaml/universal/1.24.0",
+   "status": 200,
+   "file": "redhat.vscode-yaml@universal_1.24.0.json"
+  },
+  {
+   "url": "/api/esbenp/prettier-vscode/12.4.0/file/icon.png",
+   "status": 200,
+   "file": "esbenp.prettier-vscode-12.4.0_icon.png"
+  },
+  {
+   "url": "/api/ms-python/python/2026.4.0/file/icon.png",
+   "status": 200,
+   "file": "ms-python.python-2026.4.0_icon.png"
+  }
+ ]
+}

@@ -507,7 +507,10 @@ class _MenuLayout extends SingleChildLayoutDelegate {
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
     final maxWidth = math.max(0.0, constraints.biggest.width - _edgeInset * 2);
-    final maxHeight = math.max(0.0, constraints.biggest.height - _edgeInset * 2);
+    final maxHeight = math.max(
+      0.0,
+      constraints.biggest.height - _edgeInset * 2,
+    );
     return BoxConstraints.loose(Size(maxWidth, maxHeight));
   }
 

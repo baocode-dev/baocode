@@ -383,9 +383,13 @@ class IdeActionButton extends StatefulWidget {
     this.hoverPosition = IdeHoverPosition.below,
     this.label,
     this.tooltipContent,
+    this.iconWidget,
   });
 
   final IconData icon;
+
+  /// Drawn instead of [icon] (an extension's image).
+  final Widget? iconWidget;
   final String tooltip;
 
   /// Optional compact text beside the icon, sharing its hit target and hover.
@@ -470,11 +474,12 @@ class _IdeActionButtonState extends State<IdeActionButton> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      widget.icon,
-                      size: widget.iconSize,
-                      color: widget.color ?? IdeActionButton.foreground,
-                    ),
+                    widget.iconWidget ??
+                        Icon(
+                          widget.icon,
+                          size: widget.iconSize,
+                          color: widget.color ?? IdeActionButton.foreground,
+                        ),
                     if (widget.label case final label?) ...[
                       const SizedBox(width: 4),
                       Text(

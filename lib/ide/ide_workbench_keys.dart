@@ -584,7 +584,11 @@ extension _WorkbenchKeys on IdeWorkbenchState {
     'auxiliaryBarVisible' => _chatShown,
     'auxiliaryBarFocus' => _chatFocus.hasFocus,
     'focusedView' => _focusedView ?? '',
-    'inDebugMode' || 'inDebugRepl' => false,
+    'inDebugMode' =>
+      (_debug?.state ?? DebugState.inactive) != DebugState.inactive,
+    'inDebugRepl' =>
+      _panelFocus.hasFocus &&
+          (_panel ?? _lastPanel) == IdePanelTab.debugConsole,
     _ => null,
   };
 
@@ -596,6 +600,7 @@ extension _WorkbenchKeys on IdeWorkbenchState {
         IdeSideView.explorer => 'outline',
         IdeSideView.search => 'workbench.view.search',
         IdeSideView.sourceControl => 'workbench.scm',
+        IdeSideView.debug => 'workbench.debug.viewlet',
         IdeSideView.extensions => 'workbench.views.extensions.installed',
       };
     }
@@ -1315,6 +1320,7 @@ extension on IdeSideView {
     IdeSideView.explorer => 'workbench.view.explorer',
     IdeSideView.search => 'workbench.view.search',
     IdeSideView.sourceControl => 'workbench.view.scm',
+    IdeSideView.debug => 'workbench.view.debug',
     IdeSideView.extensions => 'workbench.view.extensions',
   };
 }
@@ -1324,6 +1330,7 @@ extension on IdePanelTab {
   String get panelId => switch (this) {
     IdePanelTab.problems => 'workbench.panel.markers',
     IdePanelTab.references => 'workbench.panel.referenceSearch',
+    IdePanelTab.debugConsole => 'workbench.panel.repl',
     IdePanelTab.terminal => 'terminal',
   };
 
@@ -1331,6 +1338,7 @@ extension on IdePanelTab {
   String get viewId => switch (this) {
     IdePanelTab.problems => 'workbench.panel.markers.view',
     IdePanelTab.references => 'workbench.panel.referenceSearch',
+    IdePanelTab.debugConsole => 'workbench.panel.repl',
     IdePanelTab.terminal => 'terminal',
   };
 }

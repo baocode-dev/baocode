@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 
-import '../theme/codicons.dart';
+import '../theme/icon_registry.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
@@ -15,6 +15,7 @@ import 'package:bao_editor/textmate/textmate_manifest.dart';
 
 import 'ide_editor.dart';
 import 'ide_hover.dart';
+import 'ide_spinning.dart';
 
 /// The remote host the workbench's project is on, as the status bar shows
 /// it first (VS Code's remote indicator): its state as [item], which
@@ -24,21 +25,45 @@ abstract interface class IdeRemoteIndicator implements Listenable {
 }
 
 /// One status bar entry; [onTap] makes it a button with a hover highlight.
-/// Its [text] may name icons as VS Code's labels do: `$(error) 2`.
+/// Its [text] may name icons as VS Code's labels do: `$(error) 2`, and a
+/// `~spin` modifier turns one: `$(sync~spin)`.
 class IdeStatusBarItem {
   const IdeStatusBarItem(
     this.text, {
     this.icon,
     this.tooltip,
+    this.tooltipContent,
     this.onTap,
+    this.onContextMenu,
     this.color,
+    this.background,
+    this.hoverBackground,
+    this.semanticsLabel,
+    this.key,
   });
 
   final String text;
   final IconData? icon;
   final String? tooltip;
+
+  /// Shown on hover instead of [tooltip] (e.g. a Markdown tooltip).
+  final Widget? tooltipContent;
   final VoidCallback? onTap;
+
+  /// A secondary click at a global position (e.g. the menu that hides it).
+  final void Function(Offset position)? onContextMenu;
   final Color? color;
+
+  /// Behind it (`statusBarItem.errorBackground`…); [hoverBackground] on
+  /// hover, else the usual hover color.
+  final Color? background;
+  final Color? hoverBackground;
+
+  /// What screen readers say (upstream `ariaLabel`).
+  final String? semanticsLabel;
+
+  /// Keeps its state (its hover) where items come and go.
+  final Key? key;
 }
 
 /// The workbench's bottom bar: [left] items after the window edge, [right]
@@ -65,7 +90,8 @@ class IdeStatusBar extends StatelessWidget {
             Expanded(
               child: Row(
                 children: [
-                  for (final item in left) Flexible(child: _StatusItem(item)),
+                  for (final item in left)
+                    Flexible(child: _StatusItem(item, key: item.key)),
                 ],
               ),
             ),
@@ -79,7 +105,9 @@ class IdeStatusBar extends StatelessWidget {
                 reverse: true,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: [for (final item in right) _StatusItem(item)],
+                  children: [
+                    for (final item in right) _StatusItem(item, key: item.key),
+                  ],
                 ),
               ),
             ),
@@ -91,7 +119,7 @@ class IdeStatusBar extends StatelessWidget {
 }
 
 class _StatusItem extends StatefulWidget {
-  const _StatusItem(this.item);
+  const _StatusItem(this.item, {super.key});
 
   final IdeStatusBarItem item;
 
@@ -127,8 +155,8 @@ class _StatusItemState extends State<_StatusItem> {
       height: IdeStatusBar.height - 1,
       padding: const EdgeInsets.symmetric(horizontal: 6),
       color: hovered
-          ? colors['statusBarItem.hoverBackground']
-          : Colors.transparent,
+          ? item.hoverBackground ?? colors['statusBarItem.hoverBackground']
+          : item.background ?? Colors.transparent,
       foregroundDecoration: outline == null
           ? null
           : BoxDecoration(border: Border.all(color: outline)),
@@ -151,53 +179,56 @@ class _StatusItemState extends State<_StatusItem> {
         ],
       ),
     );
-    if (item.onTap != null) {
+    if (item.onTap != null || item.onContextMenu != null) {
       child = MouseRegion(
-        cursor: SystemMouseCursors.click,
+        cursor: item.onTap != null
+            ? SystemMouseCursors.click
+            : MouseCursor.defer,
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: item.onTap,
+          onSecondaryTapUp: item.onContextMenu == null
+              ? null
+              : (details) => item.onContextMenu!(details.globalPosition),
           child: child,
         ),
       );
     }
-    if (item.tooltip case final tooltip?) {
+    if (item.tooltipContent != null || item.tooltip != null) {
       child = IdeHover(
-        message: tooltip,
+        message: item.tooltip,
+        content: item.tooltipContent,
         position: IdeHoverPosition.above,
         pointer: true,
         child: child,
       );
     }
+    if (item.semanticsLabel case final label?) {
+      child = Semantics(label: label, button: item.onTap != null, child: child);
+    }
     return child;
   }
 }
 
-/// The icons a label can name (`$(name)`).
-const _labelIcons = {
-  'error': Codicons.error,
-  'warning': Codicons.warning,
-  'info': Codicons.info,
-};
+final _labelIcon = RegExp(r'\$\(([a-z0-9-]+)(~[a-z]+)?\)');
 
-final _labelIcon = RegExp(r'\$\(([a-z-]+)\)');
-
-/// [text] with its `$(name)` icons as codicons (`renderLabelWithIcons`).
+/// [text] with its `$(name)` icons as codicons (`renderLabelWithIcons`),
+/// those with `~spin` turning.
 TextSpan _label(String text, Color color) {
   final spans = <InlineSpan>[];
   var start = 0;
   for (final match in _labelIcon.allMatches(text)) {
-    final icon = _labelIcons[match[1]];
-    if (icon == null) continue;
+    if (!IconRegistry.instance.contains(match[1]!)) continue;
     if (match.start > start) {
       spans.add(TextSpan(text: text.substring(start, match.start)));
     }
+    final glyph = ThemeIcon(match[1]!, size: 14, color: color);
     spans.add(
       WidgetSpan(
         alignment: PlaceholderAlignment.middle,
-        child: Icon(icon, size: 14, color: color),
+        child: match[2] == '~spin' ? IdeSpinning(glyph) : glyph,
       ),
     );
     start = match.end;

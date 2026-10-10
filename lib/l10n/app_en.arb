@@ -111,6 +111,7 @@
     }
   },
   "cmdCategoryChat": "Chat",
+  "cmdCategoryTasks": "Tasks",
   "@cmdCategoryChat": {
     "description": "Command category: the chat window's commands."
   },
@@ -456,6 +457,14 @@
   "cmdFocusNextTerminal": "Focus Next Terminal Group",
   "cmdFocusPreviousTerminal": "Focus Previous Terminal Group",
   "cmdFocusTerminal": "Focus Terminal",
+  "cmdRunTask": "Run Task",
+  "cmdRunBuildTask": "Run Build Task",
+  "cmdRunTestTask": "Run Test Task",
+  "cmdRerunTask": "Rerun Last Task",
+  "cmdRestartTask": "Restart Running Task",
+  "cmdTerminateTask": "Terminate Task",
+  "cmdShowTaskLog": "Show Task Log",
+  "cmdConfigureTask": "Configure Task",
   "cmdShowExplorer": "Show Explorer",
   "cmdShowSearch": "Show Search",
   "cmdShowSourceControl": "Show Source Control",
@@ -5070,5 +5079,183 @@
   "networkFailureOther": "Couldn't connect",
   "networkTestHintRefused": "Nothing answers at the proxy's address: check that Clash (or the proxy) is running.",
   "networkTestHintOffline": "No site answers: check this computer's network connection and the proxy.",
-  "networkTestHintBlocked": "Only Baidu answers: the proxy isn't getting the others through. Check the proxy above, or Clash's mode and rules."
+  "networkTestHintBlocked": "Only Baidu answers: the proxy isn't getting the others through. Check the proxy above, or Clash's mode and rules.",
+  "extsCapabilityFull": "Fully supported",
+  "extsCapabilityFullDetail": "Its color or file icon themes all apply.",
+  "extsCapabilityPartial": "Partly supported",
+  "extsCapabilityPartialDetail": "Its themes apply; the rest of it does nothing in BaoCode.",
+  "extsEngineIncompatible": "Needs VS Code {requested}; this is {current}.",
+  "@extsEngineIncompatible": {
+    "placeholders": {
+      "current": {
+        "type": "String"
+      },
+      "requested": {
+        "type": "String"
+      }
+    }
+  },
+  "extsEngineMissing": "It does not say which VS Code it needs.",
+  "extsEngineInvalid": "Invalid engine '{requested}'.",
+  "@extsEngineInvalid": {
+    "placeholders": {
+      "requested": {
+        "type": "String"
+      }
+    }
+  },
+  "extsEngineCompatible": "Requires VS Code {engine}.",
+  "@extsEngineCompatible": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "extsTitleUpdates": "Updates",
+  "extsTitleOpenVsx": "Open VSX",
+  "extsUpdates": "Updates",
+  "extsCheckForUpdates": "Check for Updates",
+  "extsMoreActions": "More Actions...",
+  "extsInstallFromVsix": "Install from VSIX...",
+  "extsSearchPlaceholder": "Search Open VSX Extensions",
+  "extsSearchFailed": "Could not search Open VSX: {error}",
+  "@extsSearchFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "extsLoadMore": "Load More",
+  "extsUpdateTo": "Update to {version}",
+  "@extsUpdateTo": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "extsUpdating": "Updating...",
+  "extsEnable": "Enable",
+  "extsDisable": "Disable",
+  "extsDisabled": "Disabled",
+  "extsSwitchToPreRelease": "Switch to Pre-Release Version",
+  "extsSwitchToRelease": "Switch to Release Version",
+  "extsInstallPreRelease": "Install Pre-Release Version",
+  "extsInstallVersion": "Install {version}",
+  "@extsInstallVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "extsPreRelease": "Pre-Release",
+  "extsVerifiedPublisher": "Verified publisher",
+  "extsDownloads": "{count} downloads",
+  "@extsDownloads": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "extsLoadFailed": "Could not load it: {error}",
+  "@extsLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "extsVersion": "Version",
+  "extsPreReleaseToggle": "Pre-Release",
+  "extsLatestVersion": "Latest",
+  "extsTabDetails": "Details",
+  "extsTabFeatures": "Features",
+  "extsTabChangelog": "Changelog",
+  "extsNoReadme": "This extension has no README.",
+  "extsNoChangelog": "This extension has no changelog.",
+  "extsContributions": "Contributions",
+  "extsNoContributions": "This extension contributes nothing.",
+  "extsActivationEvents": "Activation Events",
+  "extsApiProposals": "API Proposals",
+  "extsCompatibility": "Compatibility",
+  "extsInformation": "Information",
+  "extsInfoIdentifier": "Identifier",
+  "extsInfoVersion": "Version",
+  "extsInfoLatest": "Latest",
+  "extsInfoLastUpdated": "Last Updated",
+  "extsInfoEngine": "VS Code",
+  "extsInfoPlatform": "Platform",
+  "extsInfoLicense": "License",
+  "extsInfoRepository": "Repository",
+  "extsInfoCategories": "Categories",
+  "extsInfoLocation": "Location",
+  "extsVsixTitle": "Install Extension VSIX",
+  "extsVsixInvalid": "{name} is not a valid VSIX: {error}",
+  "@extsVsixInvalid": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "extsVsixPlatformMismatch": "It is built for {platform}, not for {current}.",
+  "@extsVsixPlatformMismatch": {
+    "placeholders": {
+      "platform": {
+        "type": "String"
+      },
+      "current": {
+        "type": "String"
+      }
+    }
+  },
+  "extsVsixReplaces": "It replaces version {version}.",
+  "@extsVsixReplaces": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "extsPlatformCompatible": "Platform: {platform}",
+  "@extsPlatformCompatible": {
+    "placeholders": {
+      "platform": {
+        "type": "String"
+      }
+    }
+  },
+  "extsPlatformUniversal": "universal",
+  "extsPageClose": "Close Extension",
+  "extsPageTitle": "Extension: {name}",
+  "@extsPageTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "themeSelectIconThemePlaceholder": "Select File Icon Theme (Up/Down Keys to Preview)",
+  "themeIconThemeBuiltIn": "Built-in",
+  "extsCapabilityUnsupported": "Not supported",
+  "extsCapabilityUnsupportedDetail": "It has no color or file icon theme: BaoCode only uses themes from extensions.",
+  "extsFindingCode": "Its code does not run.",
+  "extsFindingContribution": "Not used: {name}",
+  "@extsFindingContribution": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "extsPopularThemes": "Popular Themes",
+  "extsTabThemes": "Themes",
+  "extsTabLanguageServers": "Language Servers"
 }

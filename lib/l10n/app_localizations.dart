@@ -290,6 +290,12 @@ abstract class AppLocalizations {
   /// **'Chat'**
   String get cmdCategoryChat;
 
+  /// No description provided for @cmdCategoryTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Tasks'**
+  String get cmdCategoryTasks;
+
   /// No description provided for @cmdChatNewAgent.
   ///
   /// In en, this message translates to:
@@ -2125,6 +2131,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Focus Terminal'**
   String get cmdFocusTerminal;
+
+  /// No description provided for @cmdRunTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Run Task'**
+  String get cmdRunTask;
+
+  /// No description provided for @cmdRunBuildTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Run Build Task'**
+  String get cmdRunBuildTask;
+
+  /// No description provided for @cmdRunTestTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Run Test Task'**
+  String get cmdRunTestTask;
+
+  /// No description provided for @cmdRerunTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Rerun Last Task'**
+  String get cmdRerunTask;
+
+  /// No description provided for @cmdRestartTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart Running Task'**
+  String get cmdRestartTask;
+
+  /// No description provided for @cmdTerminateTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminate Task'**
+  String get cmdTerminateTask;
+
+  /// No description provided for @cmdShowTaskLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Task Log'**
+  String get cmdShowTaskLog;
+
+  /// No description provided for @cmdConfigureTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure Task'**
+  String get cmdConfigureTask;
 
   /// No description provided for @cmdShowExplorer.
   ///
@@ -11744,6 +11798,432 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Only Baidu answers: the proxy isn\'t getting the others through. Check the proxy above, or Clash\'s mode and rules.'**
   String get networkTestHintBlocked;
+
+  /// No description provided for @extsCapabilityFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Fully supported'**
+  String get extsCapabilityFull;
+
+  /// No description provided for @extsCapabilityFullDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Its color or file icon themes all apply.'**
+  String get extsCapabilityFullDetail;
+
+  /// No description provided for @extsCapabilityPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Partly supported'**
+  String get extsCapabilityPartial;
+
+  /// No description provided for @extsCapabilityPartialDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Its themes apply; the rest of it does nothing in BaoCode.'**
+  String get extsCapabilityPartialDetail;
+
+  /// No description provided for @extsEngineIncompatible.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs VS Code {requested}; this is {current}.'**
+  String extsEngineIncompatible(String current, String requested);
+
+  /// No description provided for @extsEngineMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'It does not say which VS Code it needs.'**
+  String get extsEngineMissing;
+
+  /// No description provided for @extsEngineInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid engine \'{requested}\'.'**
+  String extsEngineInvalid(String requested);
+
+  /// No description provided for @extsEngineCompatible.
+  ///
+  /// In en, this message translates to:
+  /// **'Requires VS Code {engine}.'**
+  String extsEngineCompatible(String engine);
+
+  /// No description provided for @extsTitleUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get extsTitleUpdates;
+
+  /// No description provided for @extsTitleOpenVsx.
+  ///
+  /// In en, this message translates to:
+  /// **'Open VSX'**
+  String get extsTitleOpenVsx;
+
+  /// No description provided for @extsUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get extsUpdates;
+
+  /// No description provided for @extsCheckForUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for Updates'**
+  String get extsCheckForUpdates;
+
+  /// No description provided for @extsMoreActions.
+  ///
+  /// In en, this message translates to:
+  /// **'More Actions...'**
+  String get extsMoreActions;
+
+  /// No description provided for @extsInstallFromVsix.
+  ///
+  /// In en, this message translates to:
+  /// **'Install from VSIX...'**
+  String get extsInstallFromVsix;
+
+  /// No description provided for @extsSearchPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Open VSX Extensions'**
+  String get extsSearchPlaceholder;
+
+  /// No description provided for @extsSearchFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not search Open VSX: {error}'**
+  String extsSearchFailed(String error);
+
+  /// No description provided for @extsLoadMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Load More'**
+  String get extsLoadMore;
+
+  /// No description provided for @extsUpdateTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Update to {version}'**
+  String extsUpdateTo(String version);
+
+  /// No description provided for @extsUpdating.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating...'**
+  String get extsUpdating;
+
+  /// No description provided for @extsEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable'**
+  String get extsEnable;
+
+  /// No description provided for @extsDisable.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable'**
+  String get extsDisable;
+
+  /// No description provided for @extsDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get extsDisabled;
+
+  /// No description provided for @extsSwitchToPreRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to Pre-Release Version'**
+  String get extsSwitchToPreRelease;
+
+  /// No description provided for @extsSwitchToRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to Release Version'**
+  String get extsSwitchToRelease;
+
+  /// No description provided for @extsInstallPreRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'Install Pre-Release Version'**
+  String get extsInstallPreRelease;
+
+  /// No description provided for @extsInstallVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Install {version}'**
+  String extsInstallVersion(String version);
+
+  /// No description provided for @extsPreRelease.
+  ///
+  /// In en, this message translates to:
+  /// **'Pre-Release'**
+  String get extsPreRelease;
+
+  /// No description provided for @extsVerifiedPublisher.
+  ///
+  /// In en, this message translates to:
+  /// **'Verified publisher'**
+  String get extsVerifiedPublisher;
+
+  /// No description provided for @extsDownloads.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} downloads'**
+  String extsDownloads(String count);
+
+  /// No description provided for @extsLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load it: {error}'**
+  String extsLoadFailed(String error);
+
+  /// No description provided for @extsVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get extsVersion;
+
+  /// No description provided for @extsPreReleaseToggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pre-Release'**
+  String get extsPreReleaseToggle;
+
+  /// No description provided for @extsLatestVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Latest'**
+  String get extsLatestVersion;
+
+  /// No description provided for @extsTabDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Details'**
+  String get extsTabDetails;
+
+  /// No description provided for @extsTabFeatures.
+  ///
+  /// In en, this message translates to:
+  /// **'Features'**
+  String get extsTabFeatures;
+
+  /// No description provided for @extsTabChangelog.
+  ///
+  /// In en, this message translates to:
+  /// **'Changelog'**
+  String get extsTabChangelog;
+
+  /// No description provided for @extsNoReadme.
+  ///
+  /// In en, this message translates to:
+  /// **'This extension has no README.'**
+  String get extsNoReadme;
+
+  /// No description provided for @extsNoChangelog.
+  ///
+  /// In en, this message translates to:
+  /// **'This extension has no changelog.'**
+  String get extsNoChangelog;
+
+  /// No description provided for @extsContributions.
+  ///
+  /// In en, this message translates to:
+  /// **'Contributions'**
+  String get extsContributions;
+
+  /// No description provided for @extsNoContributions.
+  ///
+  /// In en, this message translates to:
+  /// **'This extension contributes nothing.'**
+  String get extsNoContributions;
+
+  /// No description provided for @extsActivationEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Activation Events'**
+  String get extsActivationEvents;
+
+  /// No description provided for @extsApiProposals.
+  ///
+  /// In en, this message translates to:
+  /// **'API Proposals'**
+  String get extsApiProposals;
+
+  /// No description provided for @extsCompatibility.
+  ///
+  /// In en, this message translates to:
+  /// **'Compatibility'**
+  String get extsCompatibility;
+
+  /// No description provided for @extsInformation.
+  ///
+  /// In en, this message translates to:
+  /// **'Information'**
+  String get extsInformation;
+
+  /// No description provided for @extsInfoIdentifier.
+  ///
+  /// In en, this message translates to:
+  /// **'Identifier'**
+  String get extsInfoIdentifier;
+
+  /// No description provided for @extsInfoVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get extsInfoVersion;
+
+  /// No description provided for @extsInfoLatest.
+  ///
+  /// In en, this message translates to:
+  /// **'Latest'**
+  String get extsInfoLatest;
+
+  /// No description provided for @extsInfoLastUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Last Updated'**
+  String get extsInfoLastUpdated;
+
+  /// No description provided for @extsInfoEngine.
+  ///
+  /// In en, this message translates to:
+  /// **'VS Code'**
+  String get extsInfoEngine;
+
+  /// No description provided for @extsInfoPlatform.
+  ///
+  /// In en, this message translates to:
+  /// **'Platform'**
+  String get extsInfoPlatform;
+
+  /// No description provided for @extsInfoLicense.
+  ///
+  /// In en, this message translates to:
+  /// **'License'**
+  String get extsInfoLicense;
+
+  /// No description provided for @extsInfoRepository.
+  ///
+  /// In en, this message translates to:
+  /// **'Repository'**
+  String get extsInfoRepository;
+
+  /// No description provided for @extsInfoCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'Categories'**
+  String get extsInfoCategories;
+
+  /// No description provided for @extsInfoLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get extsInfoLocation;
+
+  /// No description provided for @extsVsixTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Install Extension VSIX'**
+  String get extsVsixTitle;
+
+  /// No description provided for @extsVsixInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} is not a valid VSIX: {error}'**
+  String extsVsixInvalid(String name, String error);
+
+  /// No description provided for @extsVsixPlatformMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'It is built for {platform}, not for {current}.'**
+  String extsVsixPlatformMismatch(String platform, String current);
+
+  /// No description provided for @extsVsixReplaces.
+  ///
+  /// In en, this message translates to:
+  /// **'It replaces version {version}.'**
+  String extsVsixReplaces(String version);
+
+  /// No description provided for @extsPlatformCompatible.
+  ///
+  /// In en, this message translates to:
+  /// **'Platform: {platform}'**
+  String extsPlatformCompatible(String platform);
+
+  /// No description provided for @extsPlatformUniversal.
+  ///
+  /// In en, this message translates to:
+  /// **'universal'**
+  String get extsPlatformUniversal;
+
+  /// No description provided for @extsPageClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close Extension'**
+  String get extsPageClose;
+
+  /// No description provided for @extsPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension: {name}'**
+  String extsPageTitle(String name);
+
+  /// No description provided for @themeSelectIconThemePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Select File Icon Theme (Up/Down Keys to Preview)'**
+  String get themeSelectIconThemePlaceholder;
+
+  /// No description provided for @themeIconThemeBuiltIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in'**
+  String get themeIconThemeBuiltIn;
+
+  /// No description provided for @extsCapabilityUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Not supported'**
+  String get extsCapabilityUnsupported;
+
+  /// No description provided for @extsCapabilityUnsupportedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'It has no color or file icon theme: BaoCode only uses themes from extensions.'**
+  String get extsCapabilityUnsupportedDetail;
+
+  /// No description provided for @extsFindingCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Its code does not run.'**
+  String get extsFindingCode;
+
+  /// No description provided for @extsFindingContribution.
+  ///
+  /// In en, this message translates to:
+  /// **'Not used: {name}'**
+  String extsFindingContribution(String name);
+
+  /// No description provided for @extsPopularThemes.
+  ///
+  /// In en, this message translates to:
+  /// **'Popular Themes'**
+  String get extsPopularThemes;
+
+  /// No description provided for @extsTabThemes.
+  ///
+  /// In en, this message translates to:
+  /// **'Themes'**
+  String get extsTabThemes;
+
+  /// No description provided for @extsTabLanguageServers.
+  ///
+  /// In en, this message translates to:
+  /// **'Language Servers'**
+  String get extsTabLanguageServers;
 }
 
 class _AppLocalizationsDelegate

@@ -61,7 +61,7 @@ class _TerminalPreviewState extends State<TerminalPreview> {
     id: 0,
     root: widget.root,
     backend: TerminalBackend(
-      launch: (root, {columns = 80, rows = 24, shell}) async =>
+      launch: (root, {columns = 80, rows = 24, shell, environment}) async =>
           PtyLaunch(executable: '', workingDirectory: root),
       start: (_) async => _pty,
       linkStat: widget.linkStat,

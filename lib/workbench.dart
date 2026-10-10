@@ -24,6 +24,7 @@ import 'chat/side_panel/side_panel_view.dart';
 import 'customize/customization_store.dart';
 import 'customize/customizations.dart';
 import 'customize/customize_view.dart';
+import 'extensions/theme_extensions.dart';
 import 'ide/git/git_repository.dart';
 import 'ide/git/repository_scan.dart';
 import 'ide/file_service.dart' show IdeFileService, IdeHostFiles, readFileBytes;
@@ -115,6 +116,7 @@ class Workbench extends StatefulWidget {
     required this.workspace,
     this.ideEditorBuilder,
     this.languagesFor,
+    this.themeExtensions,
     this.gitFor,
     this.repositoriesIn,
     this.terminalBackend,
@@ -147,6 +149,10 @@ class Workbench extends StatefulWidget {
   /// The language servers for the project at a root, when the IDE opens it;
   /// none when null.
   final LanguageFeatures Function(String root)? languagesFor;
+
+  /// The installed theme extensions, which the IDE's Extensions view lists
+  /// and installs; no Extensions view when null.
+  final ThemeExtensions? themeExtensions;
 
   /// The Git repository of the project at a root, when the IDE opens it;
   /// none when null.
@@ -544,6 +550,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// Files dropped on the window where nothing in it takes them: opened
   /// as the `code` command opens them.
   bool _dropped(List<ComposerFile> files) {
+    // Theme extensions (.vsix) dropped on the IDE install there.
+    if (_showsIde &&
+        (_ide?.dropExtensions([for (final file in files) file.path]) ??
+            false)) {
+      return true;
+    }
     final opened = _windows?.dropped(_viewId, files) ?? false;
     // Opened as a project in the IDE: no agent's answer to wait for.
     if (opened && files.any((file) => file.directory)) {
@@ -2026,6 +2038,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           child: IdeWorkbench(
             key: _ideKeys.putIfAbsent(path, GlobalKey.new),
             workspace: space,
+            themeExtensions: widget.themeExtensions,
             project: path == _noFolder
                 ? Project.at(space.root)
                 : _workspace.projectAt(path),

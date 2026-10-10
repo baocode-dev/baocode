@@ -35,7 +35,7 @@ import 'package:flutter/services.dart';
 
 import '../keybindings/key_chord.dart';
 import '../l10n/l10n.dart';
-import '../theme/codicons.dart';
+import '../theme/icon_registry.dart';
 import '../theme/workbench_theme.dart'
     show ThemeTypeSelector, getThemeTypeSelector, themeColors;
 import 'ide_fuzzy.dart';
@@ -1066,13 +1066,12 @@ List<InlineSpan> _withIcons(
   }
 
   for (final match in _labelIcon.allMatches(text)) {
-    final icon = Codicons.byName[match[1]];
-    if (icon == null) continue;
+    if (!IconRegistry.instance.contains(match[1]!)) continue;
     addText(match.start);
     spans.add(
       WidgetSpan(
         alignment: PlaceholderAlignment.middle,
-        child: Icon(icon, size: 14, color: style.color),
+        child: ThemeIcon(match[1]!, size: 14, color: style.color),
       ),
     );
     start = match.end;

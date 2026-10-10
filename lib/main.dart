@@ -12,6 +12,7 @@ import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
 import 'chat/chat_width.dart';
 import 'customize/customization_store.dart';
+import 'extensions/theme_extensions.dart';
 import 'ide/git/git_repository.dart';
 import 'ide/git/repository_scan.dart';
 import 'ide/lsp/language_features.dart';
@@ -197,7 +198,9 @@ Future<void> main(List<String> arguments) async {
       setting: colorTheme.colorThemeSetting,
       data: colorTheme.colorThemeData,
     )
-    ..storage = colorTheme;
+    ..storage = colorTheme
+    // A theme of an extension applies once they are read.
+    ..waitsForExtensionThemes = files != null;
   if (colorTheme is ColorThemeSettings) colorTheme.follow(themes);
   unawaited(themes.initialize());
   // The keybindings: keybindings.json and the selected keymap, in effect
@@ -221,11 +224,30 @@ Future<void> main(List<String> arguments) async {
     );
     _startTelemetry(files);
   }
+  // The theme extensions (lib/extensions/): color and file icon themes
+  // from Open VSX or a .vsix, `workbench.iconTheme` followed as
+  // settings.json changes.
+  final themeExtensions = files == null
+      ? null
+      : ThemeExtensions.inDataDirectory(
+          DataDirectory.current.path,
+          locale:
+              locale.setting ??
+              switch (WidgetsBinding.instance.platformDispatcher.locale) {
+                Locale(languageCode: 'zh') => AppLocale.simplifiedChinese,
+                _ => AppLocale.english,
+              },
+        );
+  if (themeExtensions != null) {
+    unawaited(themeExtensions.apply());
+    themeExtensions.followIconThemeSetting(files!.settings);
+  }
   final app = BaoCodeApp(
     windows: windows,
     workspace: workspace,
     appLocale: locale,
     settings: settings,
+    themeExtensions: themeExtensions,
     // On the folder's host: this machine, or a remote one's.
     languagesFor: (folder) {
       final host = ProjectHost.of(folder);
@@ -314,6 +336,7 @@ class BaoCodeApp extends StatefulWidget {
   const BaoCodeApp({
     super.key,
     this.workspace,
+    this.themeExtensions,
     this.languagesFor,
     this.gitFor,
     this.repositoriesIn,
@@ -343,6 +366,9 @@ class BaoCodeApp extends StatefulWidget {
   /// What the settings dialog shows; by default, the pages over
   /// [appLocale] and the app's keybindings.
   final AppSettings? settings;
+
+  /// The installed theme extensions (the Extensions view's).
+  final ThemeExtensions? themeExtensions;
 
   /// The language servers for a project the IDE opens; none when null.
   final LanguageFeatures Function(String root)? languagesFor;
@@ -411,6 +437,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
         RemoteClaudeTransport.stopAll(),
         stopModelProxy(),
         stopLspProcesses(),
+        ?widget.themeExtensions?.dispose(),
         stopPtyProcesses(),
       ]);
       // The remote hosts' servers end, and all they run with them.
@@ -541,6 +568,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
       windows: _windows,
       window: window,
       languagesFor: widget.languagesFor,
+      themeExtensions: widget.themeExtensions,
       gitFor: widget.gitFor,
       repositoriesIn: widget.repositoriesIn,
       terminalBackend: widget.terminalBackend,

@@ -1,0 +1,29 @@
+{
+  "name": "window-fixture",
+  "displayName": "Window Fixture",
+  "publisher": "baocode-test",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "window.say", "title": "Say" },
+      { "command": "window.ask", "title": "Ask" },
+      { "command": "window.askModal", "title": "Ask Modal" },
+      { "command": "window.pick", "title": "Pick" },
+      { "command": "window.pickMany", "title": "Pick Many" },
+      { "command": "window.input", "title": "Input" },
+      { "command": "window.quickPickObject", "title": "Quick Pick Object" },
+      { "command": "window.statusItem", "title": "Status Item" },
+      { "command": "window.output", "title": "Output" },
+      { "command": "window.log", "title": "Log" },
+      { "command": "window.state", "title": "State" },
+      { "command": "window.secret", "title": "Secret" },
+      { "command": "window.progress", "title": "Progress" },
+      { "command": "window.webview", "title": "Webview" },
+      { "command": "window.clipboard", "title": "Clipboard" },
+      { "command": "window.uri", "title": "Uri" }
+    ]
+  }
+}
